@@ -92,6 +92,49 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
         receipt
     }
 
+    /// Run latest work only when `owner` resolves to one current, eligible
+    /// keyed-node or overlay owner in the accepted surface, and return a
+    /// UI-local receipt for host admission.
+    ///
+    /// The latest replacement is rolled back when owner or host admission
+    /// fails. Accepted work retains the latest ticket and is fenced by both
+    /// that ticket and the resolved declarative owner generation.
+    pub fn run_for_owner_with_receipt<Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        let ticket = self.ticket;
+        let transaction = self.transaction;
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction_and_receipt_for_owner(
+                crate::runtime::EffectId(self.effect_id),
+                self.request.name,
+                self.request.priority,
+                None,
+                ticket.id(),
+                Some(transaction),
+                Some(guard),
+                Some(owner),
+                move |cancellation_probe| TaskCompletion {
+                    ticket,
+                    output: work(BusinessWorkContext::new_with_probe(
+                        None,
+                        cancellation_probe,
+                    )),
+                },
+                map,
+            ),
+        );
+        receipt
+    }
+
     /// Run latest worker-only work and map its output on the UI runtime.
     pub fn run_on_ui<Output>(
         self,
@@ -473,5 +516,39 @@ mod tests {
         assert_ne!(request.ticket(), predecessor);
         drop(request);
         assert_eq!(latest.active(), Some(predecessor));
+    }
+
+    #[test]
+    fn owner_latest_worker_form_publishes_owner_transaction_and_receipt() {
+        let owner = crate::application::DeclarativeEffectOwner::new();
+        let mut latest = crate::application::LatestTask::new();
+        let predecessor = latest.begin();
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("owner-latest")
+            .latest(&mut latest);
+        let ticket = request.ticket();
+        let receipt = request.run_for_owner_with_receipt(owner, |_| 1_u8, |_| ());
+
+        let Command::PerformWorker(effect) = context.into_command() else {
+            panic!("owner latest request should queue a worker effect");
+        };
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Pending
+        );
+        assert_eq!(effect.owner, Some(owner));
+        assert_eq!(effect.generation.0, ticket.id());
+        assert_eq!(
+            effect
+                .transaction
+                .as_ref()
+                .expect("owner latest effect should carry its transaction")
+                .replacement(),
+            ticket
+        );
+        assert_eq!(latest.active(), Some(ticket));
+        assert_ne!(ticket, predecessor);
     }
 }

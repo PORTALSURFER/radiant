@@ -339,7 +339,9 @@ impl<Message> Command<Message> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn perform_worker_effect_with_identity_and_transaction_and_receipt_for_owner<Output>(
+    pub(crate) fn perform_worker_effect_with_identity_and_transaction_and_receipt_for_owner<
+        Output,
+    >(
         id: super::EffectId,
         name: &'static str,
         priority: TaskPriority,

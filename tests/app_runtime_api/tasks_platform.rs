@@ -87,6 +87,37 @@ fn latest_admission_receipt_preserves_ticket_ordering() {
 }
 
 #[test]
+fn owner_latest_business_worker_api_preserves_ticket_and_pending_receipt() {
+    let owner = radiant::application::DeclarativeEffectOwner::new();
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("owner-latest-receipt")
+        .latest(&mut latest);
+    let ticket = request.ticket();
+    let receipt = request.run_for_owner_with_receipt(
+        owner,
+        |_| 9_u32,
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            DemoMessage::Increment
+        },
+    );
+
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_eq!(latest.active(), Some(ticket));
+    assert_worker_command(
+        &context.into_command(),
+        "owner-latest-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+}
+
+#[test]
 fn one_shot_business_families_accept_ui_local_mappers() {
     let mut ordinary = radiant::prelude::UiUpdateContext::default();
     let ordinary_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));

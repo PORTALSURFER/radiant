@@ -921,7 +921,7 @@ mod tests {
         RuntimeQueueHost, RuntimeTaskHost, RuntimeTimerWake, SurfaceNode, UiSurface,
     };
     use crate::{
-        application::{IntoView, column, text},
+        application::{DeclarativeEffectOwner, IntoView, LatestTask, TaskCompletion, column, text},
         gui::types::{Point, Vector2},
         runtime::SurfaceRuntime,
     };
@@ -1086,6 +1086,81 @@ mod tests {
             EffectOrigin::Declarative(sibling),
             EffectOrigin::Declarative(new),
         )
+    }
+
+    fn owner_surface(owner: DeclarativeEffectOwner) -> UiSurface<usize> {
+        column([text::<usize>("owned").key("owned").effect_owner(owner)]).into_surface()
+    }
+
+    struct OwnerWorkerBridge {
+        owner: DeclarativeEffectOwner,
+        show_owner: bool,
+        accept_worker: bool,
+        spawned: Arc<AtomicUsize>,
+    }
+
+    impl OwnerWorkerBridge {
+        fn new(owner: DeclarativeEffectOwner, accept_worker: bool) -> Self {
+            Self {
+                owner,
+                show_owner: true,
+                accept_worker,
+                spawned: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+    }
+
+    impl crate::runtime::RuntimeBridge<usize> for OwnerWorkerBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            if self.show_owner {
+                crate::runtime::test_arc_surface(owner_surface(self.owner))
+            } else {
+                crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                    1,
+                    ContainerPolicy::default(),
+                    Vec::new(),
+                )))
+            }
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<usize> for OwnerWorkerBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: crate::runtime::TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            if !self.accept_worker {
+                return false;
+            }
+            self.spawned.fetch_add(1, Ordering::AcqRel);
+            work();
+            true
+        }
+    }
+
+    fn owner_latest_command(
+        latest: &mut LatestTask,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        map: impl FnOnce(TaskCompletion<usize>) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        crate::application::TaskTicket,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context.business().background(name).latest(latest);
+        let ticket = request.ticket();
+        let receipt = request.run_for_owner_with_receipt(owner, |_| 7_usize, map);
+        (context.into_command(), receipt, ticket)
     }
 
     #[test]
@@ -1452,6 +1527,225 @@ mod tests {
             EffectResult::Completed(Box::new(3_usize)),
         ));
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn owner_latest_admission_accepts_and_maps_once() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut latest = LatestTask::new();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, ticket) = owner_latest_command(
+            &mut latest,
+            owner,
+            "owner-latest-valid",
+            move |completion| {
+                mapped_state.borrow_mut().push(completion.ticket.id());
+                completion.output
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 1);
+        assert!(mapped.borrow().is_empty());
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![ticket.id()]);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*mapped.borrow(), vec![ticket.id()]);
+    }
+
+    #[test]
+    fn owner_latest_invalid_owner_rolls_back_without_spawn_or_mapping() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut latest = LatestTask::new();
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, replacement) = owner_latest_command(
+            &mut latest,
+            DeclarativeEffectOwner::new(),
+            "owner-latest-invalid",
+            move |_| {
+                mapped_state.borrow_mut().push(1);
+                1
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(latest.active(), Some(predecessor));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 0);
+        assert!(mapped.borrow().is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn owner_latest_host_rejection_rolls_back_without_retry_or_mapping() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, false),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut latest = LatestTask::new();
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, replacement) = owner_latest_command(
+            &mut latest,
+            owner,
+            "owner-latest-host-rejected",
+            move |_| {
+                mapped_state.borrow_mut().push(1);
+                1
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(latest.active(), Some(predecessor));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_latest_supersession_maps_only_the_current_ticket() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut latest = LatestTask::new();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let first_state = Rc::clone(&mapped);
+        let (first_command, first_receipt, first_ticket) = owner_latest_command(
+            &mut latest,
+            owner,
+            "owner-latest-first",
+            move |completion| {
+                first_state.borrow_mut().push(completion.ticket.id());
+                completion.output
+            },
+        );
+        let _ = runtime.execute_command(first_command);
+
+        let second_state = Rc::clone(&mapped);
+        let (second_command, second_receipt, second_ticket) = owner_latest_command(
+            &mut latest,
+            owner,
+            "owner-latest-second",
+            move |completion| {
+                second_state.borrow_mut().push(completion.ticket.id());
+                completion.output
+            },
+        );
+        let _ = runtime.execute_command(second_command);
+
+        assert_eq!(
+            first_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(
+            second_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 2);
+        assert_ne!(first_ticket, second_ticket);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![second_ticket.id()]);
+    }
+
+    #[test]
+    fn owner_latest_retirement_suppresses_queued_completion_and_mapper() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut latest = LatestTask::new();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, ticket) = owner_latest_command(
+            &mut latest,
+            owner,
+            "owner-latest-retired",
+            move |completion| {
+                mapped_state.borrow_mut().push(completion.ticket.id());
+                completion.output
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+        assert_eq!(latest.active(), Some(ticket));
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn latest_and_owner_cancellation_probes_are_or_composed_for_work_context() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let token = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("owner token")
+            .token
+            .clone();
+        let origin = EffectOrigin::Declarative(token.clone());
+
+        let mut latest = LatestTask::new();
+        let transaction = latest.begin_replacement();
+        let probe = combine_cancellation_probes(
+            Some(transaction.cancellation_probe()),
+            origin.cancellation_probe(),
+        )
+        .expect("composed owner/latest probe");
+        assert!(!probe());
+        let _superseding = latest.begin_replacement();
+        assert!(probe(), "latest supersession must cancel work");
+
+        let mut owner_latest = LatestTask::new();
+        let owner_transaction = owner_latest.begin_replacement();
+        let owner_probe = combine_cancellation_probes(
+            Some(owner_transaction.cancellation_probe()),
+            origin.cancellation_probe(),
+        )
+        .expect("composed owner/latest probe");
+        assert!(!owner_probe());
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+        assert!(owner_probe(), "owner retirement must cancel work");
     }
 
     #[test]

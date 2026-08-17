@@ -203,13 +203,19 @@ mod tests {
     }
 
     #[test]
-    fn owner_worker_commands_require_fresh_surface_before_dispatch() {
+    fn owner_latest_worker_commands_require_fresh_surface_before_dispatch() {
         let owner = crate::application::DeclarativeEffectOwner::new();
-        let command = Command::<()>::perform_worker_effect_with_priority_and_receipt_for_owner(
-            owner,
+        let mut latest = crate::application::LatestTask::new();
+        let transaction = latest.begin_replacement();
+        let command = Command::<()>::perform_worker_effect_with_identity_and_transaction_and_receipt_for_owner(
+            crate::runtime::command::EffectId(1),
             "owner-worker",
             TaskPriority::Interactive,
             None,
+            transaction.generation(),
+            Some(transaction),
+            None,
+            Some(owner),
             |_| (),
             |_| (),
         );

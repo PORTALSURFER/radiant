@@ -219,6 +219,49 @@ where
         self.runtime.refresh_with_scope(scope);
     }
 
+    /// Try the private prepared refresh transaction at the native deferred
+    /// refresh boundary. The caller supplies the native fence callback, which
+    /// is evaluated after candidate preparation and immediately before the
+    /// runtime begins replacement callbacks.
+    pub(super) fn try_prepared_surface_refresh<F>(
+        &mut self,
+        scope: crate::runtime::RepaintScope,
+        plan: &mut crate::runtime::SurfacePaintPlan,
+        before_publication: F,
+    ) -> bool
+    where
+        F: FnOnce() -> bool,
+    {
+        let environment = self.runtime.context().resolved_environment();
+        let appearance = self.appearance_policy.resolve(environment);
+        let Some(candidate) = self
+            .runtime
+            .prepare_fresh_surface_refresh(scope, appearance)
+        else {
+            return false;
+        };
+        if !before_publication() {
+            return false;
+        }
+        let Some(publication) = self.runtime.publish_prepared_surface_refresh(candidate) else {
+            return false;
+        };
+        let (prepared_plan, appearance, terminal_messages) = publication.into_parts();
+        *plan = prepared_plan;
+        self.resolved_appearance = appearance;
+        self.base_paint_plan_context = Some((self.runtime.base_paint_plan_context(), appearance));
+        self.runtime.record_base_paint_plan_rebuild();
+        let observation = self.paint_segment_observer.observe(
+            plan,
+            &self.runtime.view_delta_diagnostics(),
+            false,
+        );
+        self.runtime.record_paint_segment_observation(observation);
+        self.runtime
+            .finish_prepared_surface_refresh(terminal_messages);
+        true
+    }
+
     pub(super) fn animation_activity(&mut self) -> RuntimeAnimationActivity {
         self.runtime.host_animation_activity()
     }

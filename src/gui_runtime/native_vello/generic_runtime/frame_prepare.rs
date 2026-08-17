@@ -1,6 +1,10 @@
 //! Per-frame model refresh and transient overlay preparation.
 
-use super::{FrameWork, FrameWorkReason, GenericNativeVelloRunner, RenderFrameProfile};
+use super::{
+    FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    NativeLifecycle, NativeRunnerTimingState, NativeRunnerWindowState,
+    PreparedSurfaceRefreshNativeEvidence, RenderFrameProfile,
+};
 use crate::runtime::RuntimeBridge;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -15,12 +19,40 @@ where
         let scope = self
             .take_deferred_surface_refresh_scope()
             .unwrap_or(crate::runtime::RepaintScope::Surface);
-        let (_, elapsed) = profile.measure(|| self.core.refresh_surface_with_scope(scope));
+        let native_evidence = self.prepared_surface_refresh_native_evidence();
+        let mut used_prepared_refresh = false;
+        let (_, elapsed) = profile.measure(|| {
+            if let Some(ticket) = self.prepared_surface_refresh_owner.begin(native_evidence) {
+                let adapter = self.adapter.as_ref();
+                let window = &self.window;
+                let timing = &self.timing;
+                let lifecycle = self.native_lifecycle_snapshot();
+                let owner = &mut self.prepared_surface_refresh_owner;
+                let core = &mut self.core;
+                let plan = &mut self.frame.last_paint_plan;
+                used_prepared_refresh = core.try_prepared_surface_refresh(scope, plan, || {
+                    let current_native_evidence =
+                        Self::prepared_surface_refresh_native_evidence_from_parts(
+                            adapter, window, timing, lifecycle,
+                        );
+                    owner.is_current(&ticket, current_native_evidence)
+                });
+                owner.complete(ticket);
+            }
+            if !used_prepared_refresh {
+                self.core.refresh_surface_with_scope(scope);
+            }
+        });
         profile.refresh_surface = elapsed;
 
-        let (paint_plan_decision, elapsed) =
-            profile.measure(|| self.core.paint_plan_into(&mut self.frame.last_paint_plan));
-        profile.paint_plan = elapsed;
+        let paint_plan_decision = if used_prepared_refresh {
+            super::PaintPlanCacheDecision::Rebuilt
+        } else {
+            let (decision, elapsed) =
+                profile.measure(|| self.core.paint_plan_into(&mut self.frame.last_paint_plan));
+            profile.paint_plan = elapsed;
+            decision
+        };
         self.publish_native_ime_cursor_area();
 
         self.frame.mark_scene_texture_dirty();
@@ -35,6 +67,35 @@ where
         self.timing
             .startup_timing
             .mark_deferred_model_refresh_done();
+    }
+
+    fn prepared_surface_refresh_native_evidence(&self) -> PreparedSurfaceRefreshNativeEvidence {
+        Self::prepared_surface_refresh_native_evidence_from_parts(
+            self.adapter.as_ref(),
+            &self.window,
+            &self.timing,
+            self.native_lifecycle_snapshot(),
+        )
+    }
+
+    fn prepared_surface_refresh_native_evidence_from_parts(
+        adapter: Option<&GenericNativeAdapterOwner>,
+        window: &NativeRunnerWindowState,
+        timing: &NativeRunnerTimingState,
+        lifecycle: NativeLifecycle,
+    ) -> PreparedSurfaceRefreshNativeEvidence {
+        PreparedSurfaceRefreshNativeEvidence {
+            window_id: window.id,
+            adapter_generation: adapter.and_then(|adapter| adapter.capture_generation()),
+            target_generation: window.target_generation,
+            environment: window.environment,
+            native_resources_present: window.native_resources.is_some(),
+            target_fenced: window.native_surface_target_fenced,
+            pending_viewport_resize: timing.pending_viewport_resize.is_some(),
+            pending_surface_resize: timing.pending_surface_resize.is_some(),
+            lifecycle,
+            newer_visual_request: timing.deferred_scene_rebuild,
+        }
     }
 
     pub(super) fn rebuild_deferred_scene_if_needed(

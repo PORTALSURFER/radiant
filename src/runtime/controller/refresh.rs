@@ -3789,7 +3789,7 @@ where
         self.last_refresh_diagnostics
     }
 
-    fn record_refresh_diagnostics(
+    pub(super) fn record_refresh_diagnostics(
         &mut self,
         diagnostics: SurfaceRefreshDiagnostics,
         total: Duration,
@@ -3852,7 +3852,7 @@ where
             .saturating_add(1);
     }
 
-    fn enforce_identity_audit(&self, identity: SurfaceIdentityDiagnostics) {
+    pub(super) fn enforce_identity_audit(&self, identity: SurfaceIdentityDiagnostics) {
         if !self.identity_audit.is_strict() || identity.replacement_count == 0 {
             return;
         }
@@ -3883,7 +3883,7 @@ where
         std::panic::panic_any(message);
     }
 
-    fn discard_incompatible_widget_ownership(
+    pub(super) fn discard_incompatible_widget_ownership(
         &mut self,
         next_surface: &crate::runtime::UiSurface<Message>,
         widget_paint_order: &[WidgetId],
@@ -3936,7 +3936,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn reconcile_focused_key_capture_after_refresh(
+    pub(super) fn reconcile_focused_key_capture_after_refresh(
         &mut self,
         next_surface: &crate::runtime::UiSurface<Message>,
         previous_widget_order: &[WidgetId],
@@ -4008,7 +4008,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn reconcile_managed_wheel_sequence_after_refresh(
+    pub(super) fn reconcile_managed_wheel_sequence_after_refresh(
         &mut self,
         next_surface: &crate::runtime::UiSurface<Message>,
         previous_widget_order: &[WidgetId],
@@ -4124,7 +4124,10 @@ where
             && widget.retains_managed_wheel_sequence()
     }
 
-    fn discard_widget_ownership(&mut self, widget_id: WidgetId) -> SurfaceIdentityOwnership {
+    pub(super) fn discard_widget_ownership(
+        &mut self,
+        widget_id: WidgetId,
+    ) -> SurfaceIdentityOwnership {
         self.mark_focused_key_capture_stale(widget_id);
         self.clear_managed_composition_for_widget(widget_id);
         let focus = self.interaction.focus.focused_widget == Some(widget_id);

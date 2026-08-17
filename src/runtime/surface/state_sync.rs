@@ -48,6 +48,15 @@ pub(in crate::runtime) struct WidgetReplacementPlan {
     entries: Vec<WidgetReplacementPlanEntry>,
 }
 
+/// A replacement plan whose complete read-only evidence has been validated.
+///
+/// This token intentionally does not implement `Clone`.  Its only consumer is
+/// the callback commit method, so a caller cannot validate once and then reuse
+/// the same replacement evidence for a second callback batch.
+pub(in crate::runtime) struct ValidatedWidgetReplacementPlan {
+    entries: Vec<WidgetReplacementPlanEntry>,
+}
+
 /// Reason a complete replacement plan was vetoed before its first callback.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::runtime) enum WidgetReplacementPlanVeto {
@@ -61,6 +70,13 @@ pub(in crate::runtime) struct WidgetReplacementCommitResult<Message> {
     pub(in crate::runtime) terminal_messages: Vec<Message>,
     pub(in crate::runtime) retired_widget_ids: Vec<WidgetId>,
     pub(in crate::runtime) veto: Option<WidgetReplacementPlanVeto>,
+}
+
+/// Results produced after a validated replacement plan has entered its
+/// irreversible callback sequence.
+pub(in crate::runtime) struct ValidatedWidgetReplacementCommitResult<Message> {
+    pub(in crate::runtime) terminal_messages: Vec<Message>,
+    pub(in crate::runtime) retired_widget_ids: Vec<WidgetId>,
 }
 
 pub(in crate::runtime) struct WidgetStateSyncEvidence<'a> {
@@ -221,6 +237,43 @@ impl<Message> UiSurface<Message> {
         previous_paths: &HashMap<WidgetId, WidgetPath>,
         current_paths: &HashMap<WidgetId, WidgetPath>,
     ) -> WidgetReplacementCommitResult<Message> {
+        let validated_plan = match self.validate_widget_replacement_plan(
+            successor,
+            plan,
+            previous_widget_order,
+            current_widget_order,
+            previous_paths,
+            current_paths,
+        ) {
+            Ok(plan) => plan,
+            Err(veto) => {
+                return WidgetReplacementCommitResult {
+                    terminal_messages: Vec::new(),
+                    retired_widget_ids: Vec::new(),
+                    veto: Some(veto),
+                };
+            }
+        };
+
+        let committed = self.commit_validated_widget_replacements(successor, validated_plan);
+        WidgetReplacementCommitResult {
+            terminal_messages: committed.terminal_messages,
+            retired_widget_ids: committed.retired_widget_ids,
+            veto: None,
+        }
+    }
+
+    /// Validate one complete replacement plan without invoking any widget or
+    /// mapper callback.
+    pub(in crate::runtime) fn validate_widget_replacement_plan(
+        &self,
+        successor: &Self,
+        plan: WidgetReplacementPlan,
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> Result<ValidatedWidgetReplacementPlan, WidgetReplacementPlanVeto> {
         if !self.replacement_plan_is_current(
             successor,
             &plan,
@@ -229,13 +282,23 @@ impl<Message> UiSurface<Message> {
             previous_paths,
             current_paths,
         ) {
-            return WidgetReplacementCommitResult {
-                terminal_messages: Vec::new(),
-                retired_widget_ids: Vec::new(),
-                veto: Some(WidgetReplacementPlanVeto::StaleEvidence),
-            };
+            return Err(WidgetReplacementPlanVeto::StaleEvidence);
         }
 
+        Ok(ValidatedWidgetReplacementPlan {
+            entries: plan.entries,
+        })
+    }
+
+    /// Consume a validated plan and enter its callback-only commit sequence.
+    ///
+    /// The validated token proves that no replacement-plan veto remains.  This
+    /// method therefore performs no evidence checks and cannot return a veto.
+    pub(in crate::runtime) fn commit_validated_widget_replacements(
+        &mut self,
+        successor: &Self,
+        plan: ValidatedWidgetReplacementPlan,
+    ) -> ValidatedWidgetReplacementCommitResult<Message> {
         self.commit_widget_replacement_entries(successor, plan.entries)
     }
 
@@ -260,14 +323,19 @@ impl<Message> UiSurface<Message> {
             current_paths,
             previous_paths,
         );
-        self.commit_widget_replacement_entries(successor, plan.entries)
+        let committed = self.commit_widget_replacement_entries(successor, plan.entries);
+        WidgetReplacementCommitResult {
+            terminal_messages: committed.terminal_messages,
+            retired_widget_ids: committed.retired_widget_ids,
+            veto: None,
+        }
     }
 
     fn commit_widget_replacement_entries(
         &mut self,
         successor: &Self,
         entries: Vec<WidgetReplacementPlanEntry>,
-    ) -> WidgetReplacementCommitResult<Message> {
+    ) -> ValidatedWidgetReplacementCommitResult<Message> {
         let mut terminal_messages = Vec::with_capacity(entries.len());
         let mut retired_widget_ids = Vec::with_capacity(entries.len());
         for entry in entries {
@@ -304,10 +372,9 @@ impl<Message> UiSurface<Message> {
             }
         }
 
-        WidgetReplacementCommitResult {
+        ValidatedWidgetReplacementCommitResult {
             terminal_messages,
             retired_widget_ids,
-            veto: None,
         }
     }
 

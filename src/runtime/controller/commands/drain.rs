@@ -72,7 +72,11 @@ where
         let worker_work_remaining = platform_work_remaining || deferred;
         let worker_later_turn = later_turn;
         for mapped in worker_messages {
-            self.dispatch_message_inner_with_origin(mapped.message, &mut outcome, mapped.origin);
+            let allow_deferred =
+                self.lifecycle_accepts_work() && self.effect_origin_is_active(mapped.origin());
+            if let Some((message, origin)) = mapped.resolve(allow_deferred) {
+                self.dispatch_message_inner_with_origin(message, &mut outcome, origin);
+            }
         }
 
         // Preserve the precedence fence: bridge commands/items are admitted

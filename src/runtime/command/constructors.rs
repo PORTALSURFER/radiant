@@ -443,6 +443,40 @@ impl<Message> Command<Message> {
         )
     }
 
+    pub(crate) fn perform_worker_stream_latest_with_priority_and_receipt_for_owner<Event, Output>(
+        owner: crate::application::DeclarativeEffectOwner,
+        name: &'static str,
+        priority: TaskPriority,
+        admission_receipt: Option<
+            crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard,
+        >,
+        work: impl FnOnce(WorkerEffectSink, Option<WorkerCancellationProbe>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+    {
+        let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
+        Self::perform_worker_stream_with_identity_and_transaction_and_receipt_for_owner(
+            super::EffectId(id),
+            name,
+            priority,
+            WorkerStreamOptions {
+                is_cancelled: None,
+                generation: 0,
+                latest: true,
+            },
+            None,
+            admission_receipt,
+            Some(owner),
+            work,
+            map_event,
+            map_final,
+        )
+    }
+
     pub(crate) fn perform_worker_stream_with_identity<Event, Output>(
         id: super::EffectId,
         name: &'static str,

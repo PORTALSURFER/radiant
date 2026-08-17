@@ -20,17 +20,20 @@
 | Examples, documentation, and CI guardrails | 76% |
 
 2026-08-17 exact canonical-main cycle: this cycle starts at canonical main
-`ac8ddf27` after PR #1743. Only ordinary owner-scoped ordered streaming is newly
-shipped: `BusinessRequest::stream_for_owner_with_receipt(owner, work,
-map_event, map_final)` resolves one current eligible keyed-node or overlay
-owner after fresh-surface reconciliation, fails closed without fallback, fences
-worker/mapper/reducer work by the existing owner generation, and preserves
-bounded FIFO intermediate events followed by one uncoalesced final. The
-previously shipped owner one-shot routes and all application-owned stream
-families remain unchanged. Latest/coalesced streaming, keyed/resource
-ownership, platform, renderer, scheduler, native, and product remain deferred.
-Estimates remain generic about 97% and broad `903 / 11 = 82.09%`; this cycle
-receives no estimate credit and no design-only credit.
+`44a17218` after PR #1744. Only owner-scoped coalesced ordinary streaming is
+newly shipped: `BusinessRequest::stream_latest_for_owner_with_receipt(owner,
+work, map_event, map_final)` resolves one current eligible keyed-node or
+overlay owner after fresh-surface reconciliation, fails closed without
+fallback, fences worker/mapper/reducer work by the existing owner generation,
+keeps at most one pending intermediate payload and one queued latest marker
+before UI drain, replaces a newer pending event while recording the existing
+coalescing diagnostic, and maps one uncoalesced final after the last accepted
+intermediate event. The previously shipped owner one-shot and ordinary ordered
+routes plus all application-owned stream families remain unchanged. Latest-task
+owner streams, keyed-resource, platform, renderer, scheduler, native, and
+product remain deferred. Estimates remain generic about 97% and broad
+`903 / 11 = 82.09%`; this cycle receives no estimate credit and no design-only
+credit.
 
 The fresh re-audit leaves these dependency boundaries explicit: first-class
 virtual collection/materialization and its public consumer; renderer resource

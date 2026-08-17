@@ -48,11 +48,7 @@ where
         profile.refresh_surface = elapsed;
 
         if let Some(terminal_messages) = prepared_terminal_messages {
-            // Keep terminal callbacks behind the detached scene admission
-            // boundary. The runtime successor and exact prepared plan are
-            // already published at this point.
-            self.admit_prepared_scene_refresh();
-            self.core.finish_prepared_surface_refresh(terminal_messages);
+            self.complete_prepared_surface_refresh(terminal_messages);
         }
 
         let paint_plan_decision = if used_prepared_refresh {

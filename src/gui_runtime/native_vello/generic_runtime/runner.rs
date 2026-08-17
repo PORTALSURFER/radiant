@@ -1489,6 +1489,13 @@ where
         self.admit_scene_from_current_plan(PaintPlanCacheDecision::Rebuilt, true);
     }
 
+    pub(super) fn complete_prepared_surface_refresh(&mut self, terminal_messages: Vec<Message>) {
+        // Keep the detached scene admission boundary ahead of terminal
+        // dispatch for every prepared refresh consumer.
+        self.admit_prepared_scene_refresh();
+        self.core.finish_prepared_surface_refresh(terminal_messages);
+    }
+
     fn admit_scene_from_current_plan(
         &mut self,
         paint_plan_decision: PaintPlanCacheDecision,

@@ -45,6 +45,8 @@ use vello::kurbo::Affine;
 use super::scene::NativePaintSegmentAssemblyResult;
 #[cfg(test)]
 use super::scene::PaintSegmentEncoding;
+#[cfg(test)]
+use std::rc::Rc;
 
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,6 +96,10 @@ pub(super) struct NativeVelloFrameState {
     last_native_paint_segment_render_selection: NativePaintSegmentRenderSelection,
     #[cfg(test)]
     test_phase_trace: NativeVelloTestPhaseTrace,
+    #[cfg(test)]
+    test_scene_encode_observer: Option<Rc<dyn Fn()>>,
+    #[cfg(test)]
+    test_scene_admission_observer: Option<Rc<dyn Fn()>>,
     pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     pub(super) surface_occlusion_plan: SurfaceOcclusionPlan,
@@ -212,6 +218,10 @@ impl NativeVelloFrameState {
             ),
             #[cfg(test)]
             test_phase_trace: NativeVelloTestPhaseTrace::default(),
+            #[cfg(test)]
+            test_scene_encode_observer: None,
+            #[cfg(test)]
+            test_scene_admission_observer: None,
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),
             surface_occlusion_plan: SurfaceOcclusionPlan::default(),
@@ -263,6 +273,10 @@ impl NativeVelloFrameState {
         self.native_scene_invalidated = false;
         self.last_scene_validity = Some(fingerprint);
         self.scene_build_outcome = NativeSceneBuildOutcome::FullEncode;
+        #[cfg(test)]
+        if let Some(observer) = self.test_scene_admission_observer.as_ref() {
+            observer();
+        }
     }
 
     pub(super) fn record_scene_encode_after_assembly_veto(
@@ -566,6 +580,19 @@ impl NativeVelloFrameState {
     pub(super) fn record_scene_encode_boundary(&mut self) {
         self.test_phase_trace
             .record(NativeVelloTestPhase::SceneEncode);
+        if let Some(observer) = self.test_scene_encode_observer.as_ref() {
+            observer();
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_test_scene_encode_observer(&mut self, observer: Rc<dyn Fn()>) {
+        self.test_scene_encode_observer = Some(observer);
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_test_scene_admission_observer(&mut self, observer: Rc<dyn Fn()>) {
+        self.test_scene_admission_observer = Some(observer);
     }
 
     #[cfg(test)]

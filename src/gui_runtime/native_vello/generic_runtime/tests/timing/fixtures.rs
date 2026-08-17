@@ -5,7 +5,10 @@ use crate::runtime::{
     RuntimeTransientOverlayHost, TransientOverlayContext,
 };
 use crate::widgets::TextWidget;
-use std::cell::Cell;
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 #[derive(Default)]
 pub(super) struct CountingProjectBridge {
@@ -118,6 +121,152 @@ impl RuntimeTransientOverlayHost for ExactTransientOverlayBridge {
     ) {
         self.paint_calls += 1;
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PreparedRefreshTerminalMessage;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PreparedRefreshEvent {
+    SceneEncode,
+    SceneAdmitted,
+    TerminalUpdate(PreparedRefreshTerminalMessage),
+}
+
+pub(super) type PreparedRefreshRecorder = Rc<RefCell<Vec<PreparedRefreshEvent>>>;
+
+#[derive(Clone, Copy)]
+struct PreparedRefreshTerminalOutput;
+
+#[derive(Clone)]
+struct PreparedRefreshReplacementWidget {
+    common: crate::widgets::WidgetCommon,
+    paint_revision: u64,
+}
+
+impl PreparedRefreshReplacementWidget {
+    fn new(paint_revision: u64) -> Self {
+        Self {
+            common: crate::widgets::WidgetCommon::fixed(101, 120.0, 28.0),
+            paint_revision,
+        }
+    }
+}
+
+impl crate::widgets::Widget for PreparedRefreshReplacementWidget {
+    fn revision(&self) -> crate::widgets::WidgetRevision {
+        crate::widgets::WidgetRevision::exact((), (), self.paint_revision, ())
+    }
+
+    fn supports_prepared_state_synchronization(&self) -> bool {
+        true
+    }
+
+    fn common(&self) -> &crate::widgets::WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(
+        &mut self,
+        _bounds: crate::gui::types::Rect,
+        _input: crate::widgets::WidgetInput,
+    ) -> Option<crate::widgets::WidgetOutput> {
+        None
+    }
+
+    fn prepare_replacement(
+        &mut self,
+        successor: Option<&dyn crate::widgets::Widget>,
+    ) -> Option<crate::widgets::WidgetOutput> {
+        let successor = successor?.as_any().downcast_ref::<Self>()?;
+        (successor.paint_revision != self.paint_revision)
+            .then(|| crate::widgets::WidgetOutput::typed(PreparedRefreshTerminalOutput))
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+        bounds: crate::gui::types::Rect,
+        _layout: &crate::layout::LayoutOutput,
+        theme: &crate::theme::ThemeTokens,
+    ) {
+        primitives.push(crate::runtime::PaintPrimitive::FillRect(
+            crate::runtime::PaintFillRect {
+                widget_id: self.common.id,
+                rect: bounds,
+                color: theme.accent_mint,
+            },
+        ));
+    }
+}
+
+fn prepared_refresh_message_mapper() -> WidgetMessageMapper<PreparedRefreshTerminalMessage> {
+    WidgetMessageMapper::dynamic_mapped(
+        crate::runtime::EventMapper::with_revision((), |_output: PreparedRefreshTerminalOutput| {
+            PreparedRefreshTerminalMessage
+        })
+        .typed_mapped(),
+    )
+}
+
+pub(super) struct PreparedRefreshReplacementBridge {
+    pub(super) replace: bool,
+    recorder: PreparedRefreshRecorder,
+}
+
+impl PreparedRefreshReplacementBridge {
+    pub(super) fn new(recorder: PreparedRefreshRecorder) -> Self {
+        Self {
+            replace: false,
+            recorder,
+        }
+    }
+}
+
+impl RuntimeBridge<PreparedRefreshTerminalMessage> for PreparedRefreshReplacementBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<PreparedRefreshTerminalMessage>> {
+        let paint_revision = if self.replace { 2 } else { 1 };
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            PreparedRefreshReplacementWidget::new(paint_revision),
+            prepared_refresh_message_mapper(),
+        )))
+    }
+
+    fn update(
+        &mut self,
+        message: PreparedRefreshTerminalMessage,
+    ) -> Command<PreparedRefreshTerminalMessage> {
+        self.recorder
+            .borrow_mut()
+            .push(PreparedRefreshEvent::TerminalUpdate(message));
+        Command::none()
+    }
+}
+
+pub(super) fn prepared_refresh_scene_admission_recorder() -> PreparedRefreshRecorder {
+    Rc::new(RefCell::new(Vec::new()))
+}
+
+pub(super) fn record_prepared_refresh_scene_encode(recorder: &PreparedRefreshRecorder) {
+    recorder
+        .borrow_mut()
+        .push(PreparedRefreshEvent::SceneEncode);
+}
+
+pub(super) fn record_prepared_refresh_scene_admission(recorder: &PreparedRefreshRecorder) {
+    recorder
+        .borrow_mut()
+        .push(PreparedRefreshEvent::SceneAdmitted);
+}
+
+pub(super) fn prepared_refresh_events(
+    recorder: &PreparedRefreshRecorder,
+) -> Vec<PreparedRefreshEvent> {
+    recorder.borrow().clone()
 }
 
 impl RuntimeBridge<DemoMessage> for NoTransientOverlayBridge {

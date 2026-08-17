@@ -1096,10 +1096,20 @@ mod tests {
         column([text::<usize>("owned").key("owned").effect_owner(owner)]).into_surface()
     }
 
+    #[derive(Clone, Copy)]
+    enum OwnerSurfaceMode {
+        Single,
+        Reordered,
+        Ambiguous,
+        Unkeyed,
+        Incompatible,
+    }
+
     struct OwnerWorkerBridge {
         owner: DeclarativeEffectOwner,
         show_owner: bool,
         accept_worker: bool,
+        surface_mode: OwnerSurfaceMode,
         spawned: Arc<AtomicUsize>,
     }
 
@@ -1109,6 +1119,7 @@ mod tests {
                 owner,
                 show_owner: true,
                 accept_worker,
+                surface_mode: OwnerSurfaceMode::Single,
                 spawned: Arc::new(AtomicUsize::new(0)),
             }
         }
@@ -1117,7 +1128,29 @@ mod tests {
     impl crate::runtime::RuntimeBridge<usize> for OwnerWorkerBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
             if self.show_owner {
-                crate::runtime::test_arc_surface(owner_surface(self.owner))
+                let surface = match self.surface_mode {
+                    OwnerSurfaceMode::Single => owner_surface(self.owner),
+                    OwnerSurfaceMode::Reordered => column([
+                        text::<usize>("sibling").key("sibling"),
+                        text::<usize>("owned").key("owned").effect_owner(self.owner),
+                    ])
+                    .into_surface(),
+                    OwnerSurfaceMode::Ambiguous => column([
+                        text::<usize>("first").key("first").effect_owner(self.owner),
+                        text::<usize>("second")
+                            .key("second")
+                            .effect_owner(self.owner),
+                    ])
+                    .into_surface(),
+                    OwnerSurfaceMode::Unkeyed => text::<usize>("unkeyed")
+                        .effect_owner(self.owner)
+                        .into_surface(),
+                    OwnerSurfaceMode::Incompatible => column([text::<usize>("replacement")])
+                        .key("owned")
+                        .effect_owner(DeclarativeEffectOwner::new())
+                        .into_surface(),
+                };
+                crate::runtime::test_arc_surface(surface)
             } else {
                 crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
                     1,
@@ -1191,6 +1224,66 @@ mod tests {
         }
     }
 
+    struct SameUpdateRemovedOwnerBridge {
+        owner: DeclarativeEffectOwner,
+        removed: bool,
+        receipt: Option<crate::application::runtime::BusinessTaskAdmissionReceipt>,
+        spawned: Arc<AtomicUsize>,
+    }
+
+    impl crate::runtime::RuntimeBridge<usize> for SameUpdateRemovedOwnerBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            if self.removed {
+                crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                    1,
+                    ContainerPolicy::default(),
+                    Vec::new(),
+                )))
+            } else {
+                crate::runtime::test_arc_surface(owner_surface(self.owner))
+            }
+        }
+
+        fn update(&mut self, _message: usize) -> crate::runtime::Command<usize> {
+            self.removed = true;
+            let mut context =
+                crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+            self.receipt = Some(
+                context
+                    .business()
+                    .background("owner-stream-latest-same-update-removed")
+                    .stream_latest_for_owner_with_receipt(
+                        self.owner,
+                        |_, events| {
+                            assert!(events.emit(1_u8));
+                            2_u8
+                        },
+                        |event: u8| event as usize,
+                        |output: u8| output as usize,
+                    ),
+            );
+            context.into_command()
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<usize> for SameUpdateRemovedOwnerBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: crate::runtime::TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            self.spawned.fetch_add(1, Ordering::AcqRel);
+            work();
+            true
+        }
+    }
+
     fn owner_latest_command(
         latest: &mut LatestTask,
         owner: DeclarativeEffectOwner,
@@ -1230,6 +1323,30 @@ mod tests {
             .business()
             .background(name)
             .stream_for_owner_with_receipt(owner, work, map_event, map_final);
+        (context.into_command(), receipt)
+    }
+
+    fn owner_coalesced_stream_command(
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        work: impl FnOnce(
+            crate::application::runtime::BusinessWorkContext,
+            crate::application::runtime::BusinessEventSink<u8>,
+        ) -> u8
+        + Send
+        + 'static,
+        map_event: impl Fn(u8) -> usize + 'static,
+        map_final: impl FnOnce(u8) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let receipt = context
+            .business()
+            .background(name)
+            .stream_latest_for_owner_with_receipt(owner, work, map_event, map_final);
         (context.into_command(), receipt)
     }
 
@@ -2076,6 +2193,538 @@ mod tests {
         wake.notify_one();
         worker_thread.join().expect("deferred worker completes");
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn owner_coalesced_stream_keeps_newest_pending_event_and_final_once() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-valid",
+            |worker_context, events| {
+                assert!(!worker_context.is_cancelled());
+                for event in 1..=4 {
+                    assert!(events.emit(event));
+                }
+                5
+            },
+            move |event| {
+                event_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.worker_effects.pending, 1);
+        assert!(mapped.borrow().is_empty());
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+        assert_eq!(*mapped.borrow(), vec![4, 5]);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(runtime.worker_effects.retained_completion_count(), 0);
+        assert_eq!(
+            runtime.diagnostics.snapshot().queue.stream_events_coalesced,
+            3
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*mapped.borrow(), vec![4, 5]);
+    }
+
+    #[test]
+    fn owner_coalesced_stream_maps_separate_events_when_ui_drains_between_emissions() {
+        let owner = DeclarativeEffectOwner::new();
+        let pending_work = Arc::new(Mutex::new(None));
+        let mut runtime = SurfaceRuntime::new(
+            DeferredOwnerBridge {
+                owner,
+                show_owner: true,
+                pending_work: Arc::clone(&pending_work),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let released = Arc::new((Mutex::new(false), Condvar::new()));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let work_ready = Arc::clone(&ready);
+        let work_released = Arc::clone(&released);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-drain-between",
+            move |_, events| {
+                assert!(events.emit(1));
+                let (lock, wake) = &*work_ready;
+                *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+                wake.notify_one();
+
+                let (lock, wake) = &*work_released;
+                let mut released = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                while !*released {
+                    released = wake
+                        .wait(released)
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                }
+                assert!(events.emit(2));
+                3
+            },
+            move |event| {
+                event_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        let worker = pending_work
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+            .expect("deferred worker host captured the task");
+        let worker_thread = std::thread::spawn(worker);
+
+        let (lock, wake) = &*ready;
+        let mut is_ready = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        while !*is_ready {
+            is_ready = wake
+                .wait(is_ready)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+        drop(is_ready);
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![1]);
+
+        let (lock, wake) = &*released;
+        *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+        wake.notify_one();
+        worker_thread.join().expect("deferred worker completes");
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+        assert_eq!(*mapped.borrow(), vec![1, 2, 3]);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(
+            runtime.diagnostics.snapshot().queue.stream_events_coalesced,
+            0
+        );
+    }
+
+    #[test]
+    fn owner_coalesced_stream_retirement_after_delivered_event_suppresses_later_event_and_final() {
+        let owner = DeclarativeEffectOwner::new();
+        let pending_work = Arc::new(Mutex::new(None));
+        let mut runtime = SurfaceRuntime::new(
+            DeferredOwnerBridge {
+                owner,
+                show_owner: true,
+                pending_work: Arc::clone(&pending_work),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let released = Arc::new((Mutex::new(false), Condvar::new()));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let work_ready = Arc::clone(&ready);
+        let work_released = Arc::clone(&released);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-retire-after-delivery",
+            move |worker_context, events| {
+                assert!(!worker_context.is_cancelled());
+                assert!(events.emit(1));
+                let (lock, wake) = &*work_ready;
+                *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+                wake.notify_one();
+
+                let (lock, wake) = &*work_released;
+                let mut released = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                while !*released {
+                    released = wake
+                        .wait(released)
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                }
+                assert!(!events.emit(2));
+                3
+            },
+            move |event| {
+                event_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        let worker = pending_work
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+            .expect("deferred worker host captured the task");
+        let worker_thread = std::thread::spawn(worker);
+
+        let (lock, wake) = &*ready;
+        let mut is_ready = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        while !*is_ready {
+            is_ready = wake
+                .wait(is_ready)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+        drop(is_ready);
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![1]);
+
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+        assert_eq!(runtime.worker_effects.pending, 0);
+
+        let (lock, wake) = &*released;
+        *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+        wake.notify_one();
+        worker_thread.join().expect("deferred worker completes");
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*mapped.borrow(), vec![1]);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(runtime.worker_effects.retained_completion_count(), 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert!(runtime.worker_effects.pending_registrations.is_empty());
+        assert_eq!(Rc::strong_count(&mapped), 1);
+    }
+
+    #[test]
+    fn owner_coalesced_stream_retains_queued_messages_across_compatible_reorder() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-compatible-reorder",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |event| {
+                event_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(mapped.borrow().is_empty());
+        let initial_owner = match &runtime
+            .worker_effects
+            .registry
+            .values()
+            .next()
+            .expect("registered owner stream")
+            .origin
+        {
+            EffectOrigin::Declarative(token) => token.clone(),
+            _ => panic!("owner stream must be declarative-owned"),
+        };
+
+        runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Reordered;
+        runtime.refresh();
+
+        let current_owner = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .iter()
+            .find(|record| record.token.identity() == initial_owner.identity())
+            .expect("compatible reordered owner remains live")
+            .token
+            .clone();
+        assert_eq!(current_owner, initial_owner);
+        assert_eq!(current_owner.generation(), initial_owner.generation());
+        assert!(runtime.declarative_owner_ledger().is_live(&initial_owner));
+        assert_eq!(runtime.worker_effects.pending, 1);
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+        assert_eq!(*mapped.borrow(), vec![1, 2]);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*mapped.borrow(), vec![1, 2]);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(runtime.worker_effects.retained_completion_count(), 0);
+        assert_eq!(Rc::strong_count(&mapped), 1);
+    }
+
+    #[test]
+    fn owner_coalesced_stream_retirement_suppresses_queued_event_and_final() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-retired",
+            |_, events| {
+                assert!(events.emit(1));
+                assert!(events.emit(2));
+                3
+            },
+            move |event| {
+                event_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    fn assert_owner_coalesced_stream_rejected(
+        runtime: &mut SurfaceRuntime<OwnerWorkerBridge, usize>,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+    ) {
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            name,
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |event| {
+                mapped_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let outcome = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_coalesced_stream_rejects_invalid_surface_owner_variants() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut invalid_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        assert_owner_coalesced_stream_rejected(
+            &mut invalid_runtime,
+            DeclarativeEffectOwner::new(),
+            "owner-stream-latest-invalid",
+        );
+
+        let mut removed_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        removed_runtime.bridge_mut().show_owner = false;
+        assert_owner_coalesced_stream_rejected(
+            &mut removed_runtime,
+            owner,
+            "owner-stream-latest-removed",
+        );
+
+        let mut ambiguous_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        ambiguous_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Ambiguous;
+        assert_owner_coalesced_stream_rejected(
+            &mut ambiguous_runtime,
+            owner,
+            "owner-stream-latest-ambiguous",
+        );
+
+        let mut unkeyed_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        unkeyed_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Unkeyed;
+        assert_owner_coalesced_stream_rejected(
+            &mut unkeyed_runtime,
+            owner,
+            "owner-stream-latest-unkeyed",
+        );
+
+        let mut incompatible_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        incompatible_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Incompatible;
+        assert_owner_coalesced_stream_rejected(
+            &mut incompatible_runtime,
+            owner,
+            "owner-stream-latest-incompatible",
+        );
+
+        let mut host_rejected_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, false),
+            Vector2::new(80.0, 40.0),
+        );
+        assert_owner_coalesced_stream_rejected(
+            &mut host_rejected_runtime,
+            owner,
+            "owner-stream-latest-host-rejected",
+        );
+    }
+
+    #[test]
+    fn owner_coalesced_stream_rejects_same_update_removal_before_registration() {
+        let owner = DeclarativeEffectOwner::new();
+        let spawned = Arc::new(AtomicUsize::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            SameUpdateRemovedOwnerBridge {
+                owner,
+                removed: false,
+                receipt: None,
+                spawned: Arc::clone(&spawned),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+
+        let outcome = runtime.dispatch_message(0);
+        assert_eq!(outcome.messages_dispatched, 1);
+        assert_eq!(spawned.load(Ordering::Acquire), 0);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(
+            runtime
+                .bridge()
+                .receipt
+                .as_ref()
+                .expect("same-update owner receipt")
+                .poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn owner_coalesced_stream_rejects_when_worker_capacity_is_saturated() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        for id in 0..EFFECT_INGRESS_CAPACITY {
+            let command = crate::runtime::Command::perform_worker_effect_with_priority(
+                "owner-stream-latest-capacity-fill",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || id,
+                |output| output,
+            );
+            let _ = runtime.execute_command(command);
+        }
+
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-capacity-overflow",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |event| {
+                mapped_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+        let outcome = runtime.execute_command(command);
+
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(spawned_before, EFFECT_INGRESS_CAPACITY);
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(runtime.worker_effects.pending, EFFECT_INGRESS_CAPACITY);
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
     }
 
     #[test]

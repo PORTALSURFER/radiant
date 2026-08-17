@@ -603,24 +603,26 @@ worker, timer, and platform-completion registries in
 `src/runtime/controller/effects.rs`, `timers.rs`, `platform.rs`, and `host.rs`,
 including chained commands. Retirement fences only the matching generation;
 it does not transfer ownership to the declarative tree or split the shared
-ingress. The declarative timer, one-shot worker, and ordinary ordered
-owner-scoped stream consumers reuse this same registry/lifecycle seam; broader
+ingress. The declarative timer, one-shot worker, and ordinary ordered and
+coalesced owner-scoped stream consumers reuse this same registry/lifecycle seam;
+broader
 platform and shared-resource ownership remain deferred.
 
 The private declarative seam has five dependency-ordered stages. Generic
 matching registry retirement is now shipped at the accepted projection
 boundary; the bounded explicit timer, one-shot owner-worker, owner-scoped latest
-one-shot worker, and ordinary ordered owner-scoped stream consumers are shipped;
-latest/coalesced owner streams, keyed-latest/resource ownership, platform
-ownership, and broader product-facing demand/refresh/provider ownership remain
-deferred:
+one-shot worker, and ordinary ordered and coalesced owner-scoped stream
+consumers are shipped; latest-task owner streams, keyed-latest/resource
+ownership, platform ownership, and broader product-facing
+demand/refresh/provider ownership remain deferred:
 
 1. Declarative lowering and traversal preserve crate-private source metadata
    alongside stable identity. The metadata may record independent eligible
    overlay and keyed-node candidates and compatibility context. The bounded
    public `DeclarativeEffectOwner` marker, `UiUpdateContext` owner-timer
-   methods, and qualified one-shot/ordinary ordered owner-worker methods are now
-   exposed, while runtime origin and effect payloads remain private. A dynamic
+   methods, and qualified one-shot/ordinary ordered/coalesced owner-worker
+   methods are now exposed, while runtime origin and effect payloads remain
+   private. A dynamic
    unkeyed node cannot supply durable owner identity and therefore cannot be an
    implicit cancellation target.
 2. The accepted declarative projection projects those candidates to the
@@ -644,9 +646,10 @@ restores its eligible predecessor ticket on any failed owner or host admission.
 
 4. The existing timer and worker registries carry the explicitly selected owner
    origin for the bounded owner-timer, one-shot owner-worker, owner-scoped
-   latest one-shot worker, and ordinary ordered stream consumers. Latest/coalesced
-   owner streams, keyed-latest/resource ownership, platform ownership, and
-   product wiring remain deferred. The existing registries remain the admission
+   latest one-shot worker, and ordinary ordered/coalesced stream consumers.
+   Latest-task owner streams, keyed-latest/resource ownership, platform
+   ownership, and product wiring remain deferred. The existing registries
+   remain the admission
    and mapping points; they do not acquire separate per-owner queues or a second
    lifecycle authority. Recovery and cached hiding preserve a retained live
    generation unless an explicit close/removal or incompatible replacement

@@ -220,8 +220,15 @@ accepted keyed-node or overlay owner after fresh-surface reconciliation. Absent,
 ambiguous, unkeyed, stale, retired, or incompatible handles are rejected without
 spawning or mapping. Accepted work is fenced to the current private owner
 generation, and `BusinessWorkContext` cancellation checks plus late UI
-mapper/reducer fencing apply. This API is one-shot only; latest, stream, resource,
-timer, virtual, and materialization policies remain separate and deferred.
+mapper/reducer fencing apply. The matching
+`BusinessLatestRequest::run_for_owner_with_receipt(owner, work, map)` reuses the
+existing latest transaction, effect identity/generation, receipt, and owner
+ledger. Failed owner or host admission rejects without retry or fallback and
+restores the eligible predecessor ticket; accepted completion maps once only
+while the latest ticket and owner generation remain current. These are the
+shipped one-shot owner-worker routes. Streams, keyed-latest/resource ownership,
+and platform ownership remain separate and deferred; owner timers remain a
+separate shipped consumer.
 
 Radiant runs interactive, background, blocking-IO, and idle business work on separate
 runtime-owned lanes so user-visible interactive work is not queued behind
@@ -4591,20 +4598,22 @@ the work and resulting domain messages.
 
 ### Declarative effect-owner boundary
 
-One bounded timer consumer is now public. It exposes a qualified opaque
+Bounded timer and one-shot business-worker consumers are now public. They expose a qualified opaque
 `DeclarativeEffectOwner`, explicit `ViewNode::effect_owner` and
 `Layer::effect_owner` markers, and
 `UiUpdateContext::after_for_owner(...)` /
-`UiUpdateContext::after_latest_for_owner(...)`. Markers are eligible only for
-durable keyed nodes or overlays; ownership is never inferred from traversal or
-visibility. Ordinary `UiUpdateContext::after(...)` and
-`UiUpdateContext::after_latest(...)` remain application-owned. Owner admission
-refreshes the accepted surface and rejects absent, ambiguous, ineligible,
-stale, or retired handles with no fallback. Late owner wakes are fenced before
-mapping. No general effect ownership, semantic demand/refresh/provider budget,
-scheduler, custom-coordinate, platform, or product wiring API is promised.
+`UiUpdateContext::after_latest_for_owner(...)`, plus
+`BusinessRequest::run_for_owner_with_receipt(...)` and
+`BusinessLatestRequest::run_for_owner_with_receipt(...)`. Markers are eligible
+only for durable keyed nodes or overlays; ownership is never inferred from
+traversal or visibility. Ordinary timers and business requests remain
+application-owned. Owner admission refreshes the accepted surface and rejects
+absent, ambiguous, ineligible, stale, retired, or incompatible handles with no
+fallback. Late owner wakes and worker completions are fenced before mapping.
+No general effect ownership, semantic demand/refresh/provider budget, scheduler,
+custom-coordinate, platform, or product wiring API is promised.
 
-The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). This shipped consumer selects only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers remain application-owned, and an invalid selection is rejected without fallback. The complete target still covers broader effects, application-outlive policy, worker/platform/chained ownership, and shared-resource semantics that are not exposed here.
+The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers and business work remain application-owned, and an invalid selection is rejected without fallback. The complete target still covers streaming workers, keyed-latest/resource ownership, platform ownership, and shared-resource semantics that are not exposed here.
 
 That target contract also requires stable owner identity and exact generations
 across reprojection and keyed reorder, retirement on removal or incompatible
@@ -4619,7 +4628,7 @@ Dynamic unkeyed nodes cannot provide the durable identity required for
 owner-scoped cancellation, so they remain on the application-owned path unless
 a later contract supplies an explicit stable identity.
 
-This is a bounded public timer consumer, not the complete target effect model. The public surface is limited to DeclarativeEffectOwner, explicit ViewNode/Layer markers, and the two UiUpdateContext owner-timer methods; Command internals, EffectOrigin, the ledger, and timer registration remain crate-private. It makes no claim about demand/refresh/provider budgets, scheduler budgets/fairness/queue capacity/wake ordering, custom-coordinate transforms, platform, renderer, or product wiring.
+This is a bounded public timer and one-shot business-worker consumer, not the complete target effect model. The public surface is limited to DeclarativeEffectOwner, explicit ViewNode/Layer markers, the two UiUpdateContext owner-timer methods, and the two UiUpdateContext business-builder owner-worker methods; Command internals, EffectOrigin, the ledger, and effect registration remain crate-private. It makes no claim about demand/refresh/provider budgets, scheduler budgets/fairness/queue capacity/wake ordering, streaming or keyed-latest/resource ownership, platform ownership, custom-coordinate transforms, renderer, or product wiring.
 Owner identity, admission, and retirement defer queue capacity, budgets, fairness,
 priority, wake ordering, and stage ordering to the separately normative [`Next
 scheduler policy contract`](DESIGN_DIRECTION.md#next-scheduler-policy-contract);

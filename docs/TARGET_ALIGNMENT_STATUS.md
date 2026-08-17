@@ -19,13 +19,18 @@
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
-2026-08-17 fresh canonical-main cycle: `origin/main` is `a9679376`
-(`Preserve in-place retained scene rebuilds`, PR #1741), and PR #1741 is
-merged. The current cycle is the bounded owner-scoped one-shot business worker
-slice. The accepted estimates above remain unchanged: generic architecture
-remains ~97% (92–99%, medium confidence), broad end-to-end coverage remains
-`903 / 11` (~82.09%), and this current slice has no estimate credit until it is
-accepted/merged.
+2026-08-17 exact canonical-main cycle: `origin/main` is `8f54df9f`
+(`Add owner-scoped business worker admission`, PR #1742), and PR #1742 is
+merged. The shipped owner-worker boundary now includes ordinary one-shot
+`BusinessRequest` admission and owner-scoped latest one-shot
+`BusinessLatestRequest` admission. Both resolve only one current eligible
+keyed-node or overlay owner after fresh-surface reconciliation, fail closed
+without fallback, and fence worker, mapper, and reducer work by the existing
+owner and latest generations. Streams, keyed-latest/resource ownership, and
+platform ownership remain deferred. The accepted estimates above remain
+unchanged: generic architecture remains ~97% (92–99%, medium confidence), broad
+end-to-end coverage remains `903 / 11` (~82.09%), and this slice receives no
+estimate credit.
 
 The fresh re-audit leaves these dependency boundaries explicit: first-class
 virtual collection/materialization and its public consumer; renderer resource

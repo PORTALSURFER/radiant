@@ -590,12 +590,11 @@ behavior remain excluded.
 
 The current effect-ownership seam is intentionally narrower than the target
 model. Declarative lowering and traversal under `src/application` construct
-`ViewNode`/`SurfaceNode` projections and route application messages, but they do
-not preserve overlay or keyed-node source provenance into command dispatch.
-`src/runtime/controller/commands/dispatch.rs` therefore enters ordinary work
-with the private `Application` origin unless an existing auxiliary path or the
-new private explicit declarative owner-request consumer supplies a live
-declarative origin. The private `EffectOrigin` model in
+`ViewNode`/`SurfaceNode` projections, preserve eligible overlay and keyed-node
+source provenance, and route application messages. `src/runtime/controller/commands/dispatch.rs`
+therefore enters ordinary work with the private `Application` origin unless an
+existing auxiliary path or an explicit declarative owner consumer supplies a
+live declarative origin. The private `EffectOrigin` model in
 `src/runtime/controller/owner.rs` now distinguishes `Application`, `Auxiliary`
 generations, and live declarative tokens.
 
@@ -604,20 +603,25 @@ worker, timer, and platform-completion registries in
 `src/runtime/controller/effects.rs`, `timers.rs`, `platform.rs`, and `host.rs`,
 including chained commands. Retirement fences only the matching generation;
 it does not transfer ownership to the declarative tree or split the shared
-ingress. These shipped bridges are evidence for the seam, not evidence that
-overlay/keyed-node cancellation exists.
+ingress. The declarative timer and one-shot worker consumers reuse this same
+registry/lifecycle seam; broader platform and shared-resource ownership remain
+deferred.
 
 The private declarative seam has five dependency-ordered stages. Generic
 matching registry retirement is now shipped at the accepted projection
-boundary; the bounded explicit timer consumer is shipped; broader product-facing demand/refresh/provider ownership and cancellation remain deferred:
+boundary; the bounded explicit timer, one-shot owner-worker, and owner-scoped
+latest one-shot worker consumers are shipped; streams, keyed-latest/resource
+ownership, platform ownership, and broader product-facing demand/refresh/provider
+ownership remain deferred:
 
 1. Declarative lowering and traversal preserve crate-private source metadata
    alongside stable identity. The metadata may record independent eligible
    overlay and keyed-node candidates and compatibility context. The bounded
-   public `DeclarativeEffectOwner` marker and `UiUpdateContext` owner-timer
-   methods are now exposed, while runtime origin and effect payloads remain
-   private. A dynamic unkeyed node cannot supply durable owner identity and
-   therefore cannot be an implicit cancellation target.
+   public `DeclarativeEffectOwner` marker, `UiUpdateContext` owner-timer
+   methods, and qualified one-shot owner-worker methods are now exposed, while
+   runtime origin and effect payloads remain private. A dynamic unkeyed node
+   cannot supply durable owner identity and therefore cannot be an implicit
+   cancellation target.
 2. The accepted declarative projection projects those candidates to the
    controller. A source location remains only an eligible context; explicit
    owner selection is required. Overlay and keyed-node candidates have no
@@ -632,16 +636,19 @@ boundary; the bounded explicit timer consumer is shipped; broader product-facing
    owner-scoped work is rejected before registration, while explicitly
    application-owned/outlive work may continue.
 
-Owner-scoped timer admission refreshes the accepted surface before registration
-and rejects absent, ambiguous, ineligible, stale, or retired handles without
-fallback.
+Owner-scoped timer and one-shot worker admission refresh the accepted surface
+before registration and reject absent, ambiguous, ineligible, stale, retired,
+or incompatible handles without fallback. Latest worker admission additionally
+restores its eligible predecessor ticket on any failed owner or host admission.
 
-4. The existing timer registry carries the explicitly selected owner origin for
-   the bounded owner-timer consumer; worker/platform/chained/product wiring
-   remains deferred. The existing registries remain the admission and mapping
-   points; they do not acquire separate per-owner queues or a second lifecycle
-   authority. Recovery and cached hiding preserve a retained live generation
-   unless an explicit close/removal or incompatible replacement retires it.
+4. The existing timer and worker registries carry the explicitly selected owner
+   origin for the bounded owner-timer, one-shot owner-worker, and owner-scoped
+   latest one-shot worker consumers. Streaming workers, keyed-latest/resource
+   ownership, platform ownership, and product wiring remain deferred. The
+   existing registries remain the admission and mapping points; they do not
+   acquire separate per-owner queues or a second lifecycle authority. Recovery
+   and cached hiding preserve a retained live generation unless an explicit
+   close/removal or incompatible replacement retires it.
 5. Matching registrations are retired at their owning registry, and every late
    completion, wake, result, or chained command is rejected before its mapper
    runs and before message reduction. Exact retirement must not cancel sibling,

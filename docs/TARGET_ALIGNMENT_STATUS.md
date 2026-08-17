@@ -19,24 +19,13 @@
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
-2026-08-17 fresh canonical-main cycle: `origin/main` is `7d13199f`
-(`Admit prepared refresh scenes before terminal dispatch`, PR #1740), and the
-open-PR audit was empty. The required correction cycle preserves the accepted
-estimates above: generic architecture remains ~97% (92–99%, medium
-confidence), broad end-to-end coverage remains `903 / 11` (~82.09%), and no
-estimate credit is awarded for a performance-preserving correction. Exact-head
-Terra review of the pre-merge implementation found that detached scene
-admission cloned the populated retained-surface cache on ordinary/direct full
-rebuilds, outside the prepared-refresh intent. The follow-up branch
-`codex/prepared-scene-cache-path` restores the original in-place scene/cache
-path for ordinary rebuilds and keeps detached cache staging only for prepared
-Vello-only admission. Focused evidence on the exact follow-up head includes
-the no-clone regression, the prepared terminal-order regression, all 74 native
-timing tests, 10 retained-cache tests, rustfmt, `git diff --check`, and the
-reported warning-denied Clippy pass. The previous complete scene, native and
-runtime fences, GPU/custom direct fallback, and exactly-once terminal ordering
-remain unchanged. This correction is not accepted estimate credit until its
-own PR receives exact-head Terra approval and green required checks.
+2026-08-17 fresh canonical-main cycle: `origin/main` is `a9679376`
+(`Preserve in-place retained scene rebuilds`, PR #1741), and PR #1741 is
+merged. The current cycle is the bounded owner-scoped one-shot business worker
+slice. The accepted estimates above remain unchanged: generic architecture
+remains ~97% (92–99%, medium confidence), broad end-to-end coverage remains
+`903 / 11` (~82.09%), and this current slice has no estimate credit until it is
+accepted/merged.
 
 The fresh re-audit leaves these dependency boundaries explicit: first-class
 virtual collection/materialization and its public consumer; renderer resource

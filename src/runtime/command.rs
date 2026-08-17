@@ -173,6 +173,7 @@ pub struct WorkerEffect<Message> {
     pub(crate) name: &'static str,
     pub(crate) priority: TaskPriority,
     pub(crate) is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+    pub(crate) owner: Option<DeclarativeEffectOwner>,
     pub(crate) id: EffectId,
     pub(crate) generation: EffectGeneration,
     pub(crate) transaction: Option<LatestTaskTransaction>,
@@ -183,8 +184,10 @@ pub struct WorkerEffect<Message> {
     pub(crate) mapper: WorkerEffectMapper<Message>,
 }
 
+pub(crate) type WorkerCancellationProbe = Arc<dyn Fn() -> bool + Send + Sync + 'static>;
+
 pub(crate) enum WorkerEffectWork {
-    Once(Box<dyn FnOnce() -> Box<dyn Any + Send> + Send + 'static>),
+    Once(Box<dyn FnOnce(Option<WorkerCancellationProbe>) -> Box<dyn Any + Send> + Send + 'static>),
     Stream(Box<dyn FnOnce(WorkerEffectSink) -> Box<dyn Any + Send> + Send + 'static>),
 }
 

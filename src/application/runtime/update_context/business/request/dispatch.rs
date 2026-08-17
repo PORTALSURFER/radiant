@@ -47,6 +47,42 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         receipt
     }
 
+    /// Run one business worker only when `owner` resolves to one current,
+    /// eligible keyed-node or overlay owner in the accepted surface.
+    ///
+    /// This is intentionally a qualified owner-scoped API. The controller
+    /// resolves the public handle after refreshing the accepted surface and
+    /// fences the worker, mapper, and any chained command to that owner
+    /// generation.
+    pub fn run_for_owner_with_receipt<Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        self.context.queue_command(
+            Command::perform_worker_effect_with_priority_and_receipt_for_owner(
+                owner,
+                self.name,
+                self.priority,
+                Some(guard),
+                move |cancellation_probe| {
+                    work(BusinessWorkContext::new_with_probe(
+                        None,
+                        cancellation_probe,
+                    ))
+                },
+                map,
+            ),
+        );
+        receipt
+    }
+
     /// Run worker-only work and map its owned output on the UI runtime.
     ///
     /// The existing [`Self::run`] spelling remains the compatibility path;

@@ -14,14 +14,23 @@ use crate::{
 #[derive(Clone)]
 pub struct BusinessWorkContext {
     cancellation: Option<CancellationToken>,
+    cancellation_probe: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
     last_checkpoint: Arc<Mutex<Instant>>,
 }
 
 impl BusinessWorkContext {
     pub(super) fn new(cancellation: Option<CancellationToken>) -> Self {
+        Self::new_with_probe(cancellation, None)
+    }
+
+    pub(super) fn new_with_probe(
+        cancellation: Option<CancellationToken>,
+        cancellation_probe: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
+    ) -> Self {
         let now = Instant::now();
         Self {
             cancellation,
+            cancellation_probe,
             last_checkpoint: Arc::new(Mutex::new(now)),
         }
     }
@@ -31,6 +40,10 @@ impl BusinessWorkContext {
         self.cancellation
             .as_ref()
             .is_some_and(CancellationToken::is_cancelled)
+            || self
+                .cancellation_probe
+                .as_ref()
+                .is_some_and(|probe| probe())
     }
 
     /// Return an error when cooperative cancellation has been requested.
@@ -101,6 +114,7 @@ fn lock_instant(instant: &Mutex<Instant>) -> std::sync::MutexGuard<'_, Instant> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
     fn checkpoint_records_current_business_task_diagnostics() {
@@ -152,6 +166,24 @@ mod tests {
 
         assert!(result.is_err());
         assert!(current_business_task().is_none());
+    }
+
+    #[test]
+    fn new_with_probe_wires_cancellation_checks() {
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let probe_state = Arc::clone(&cancelled);
+        let probe: Arc<dyn Fn() -> bool + Send + Sync> =
+            Arc::new(move || probe_state.load(Ordering::Acquire));
+        let context = BusinessWorkContext::new_with_probe(None, Some(probe));
+
+        assert!(!context.is_cancelled());
+        assert!(context.check_cancelled().is_ok());
+
+        cancelled.store(true, Ordering::Release);
+
+        assert!(context.is_cancelled());
+        assert!(context.check_cancelled().is_err());
+        assert!(context.checkpoint().is_err());
     }
 }
 

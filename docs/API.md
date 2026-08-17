@@ -213,6 +213,16 @@ priority-to-lane match in app code.
 Worker closures receive `radiant::runtime::BusinessWorkContext` as an explicit
 runtime capability so helper signatures can inspect cooperative cancellation
 without importing it from the normal app prelude or constructing it in UI code.
+
+The qualified one-shot `BusinessRequest::run_for_owner_with_receipt(owner, work, map)`
+resolves the explicit `DeclarativeEffectOwner` only against one current
+accepted keyed-node or overlay owner after fresh-surface reconciliation. Absent,
+ambiguous, unkeyed, stale, retired, or incompatible handles are rejected without
+spawning or mapping. Accepted work is fenced to the current private owner
+generation, and `BusinessWorkContext` cancellation checks plus late UI
+mapper/reducer fencing apply. This API is one-shot only; latest, stream, resource,
+timer, virtual, and materialization policies remain separate and deferred.
+
 Radiant runs interactive, background, blocking-IO, and idle business work on separate
 runtime-owned lanes so user-visible interactive work is not queued behind
 background, blocking-IO, or idle jobs that are already running. Use

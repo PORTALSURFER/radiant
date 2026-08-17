@@ -80,6 +80,7 @@ impl<Message> Command<Message> {
     pub(in crate::runtime) fn requires_fresh_surface_before_dispatch(&self) -> bool {
         match self {
             Self::Timer(effect) if effect.owner.is_some() => true,
+            Self::PerformWorker(effect) if effect.owner.is_some() => true,
             Self::Focus(_)
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }
@@ -199,5 +200,20 @@ mod tests {
         );
         assert!(!Command::<()>::request_repaint().requires_fresh_surface_before_dispatch());
         assert!(!Command::<()>::clear_focus().requires_fresh_surface_before_dispatch());
+    }
+
+    #[test]
+    fn owner_worker_commands_require_fresh_surface_before_dispatch() {
+        let owner = crate::application::DeclarativeEffectOwner::new();
+        let command = Command::<()>::perform_worker_effect_with_priority_and_receipt_for_owner(
+            owner,
+            "owner-worker",
+            TaskPriority::Interactive,
+            None,
+            |_| (),
+            |_| (),
+        );
+
+        assert!(command.requires_fresh_surface_before_dispatch());
     }
 }

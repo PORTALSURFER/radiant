@@ -188,7 +188,13 @@ pub(crate) type WorkerCancellationProbe = Arc<dyn Fn() -> bool + Send + Sync + '
 
 pub(crate) enum WorkerEffectWork {
     Once(Box<dyn FnOnce(Option<WorkerCancellationProbe>) -> Box<dyn Any + Send> + Send + 'static>),
-    Stream(Box<dyn FnOnce(WorkerEffectSink) -> Box<dyn Any + Send> + Send + 'static>),
+    Stream(
+        Box<
+            dyn FnOnce(WorkerEffectSink, Option<WorkerCancellationProbe>) -> Box<dyn Any + Send>
+                + Send
+                + 'static,
+        >,
+    ),
 }
 
 pub(crate) enum WorkerEffectMapper<Message> {

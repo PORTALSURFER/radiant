@@ -19,18 +19,18 @@
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
-2026-08-17 exact canonical-main cycle: `origin/main` is `8f54df9f`
-(`Add owner-scoped business worker admission`, PR #1742), and PR #1742 is
-merged. The shipped owner-worker boundary now includes ordinary one-shot
-`BusinessRequest` admission and owner-scoped latest one-shot
-`BusinessLatestRequest` admission. Both resolve only one current eligible
-keyed-node or overlay owner after fresh-surface reconciliation, fail closed
-without fallback, and fence worker, mapper, and reducer work by the existing
-owner and latest generations. Streams, keyed-latest/resource ownership, and
-platform ownership remain deferred. The accepted estimates above remain
-unchanged: generic architecture remains ~97% (92–99%, medium confidence), broad
-end-to-end coverage remains `903 / 11` (~82.09%), and this slice receives no
-estimate credit.
+2026-08-17 exact canonical-main cycle: this cycle starts at canonical main
+`ac8ddf27` after PR #1743. Only ordinary owner-scoped ordered streaming is newly
+shipped: `BusinessRequest::stream_for_owner_with_receipt(owner, work,
+map_event, map_final)` resolves one current eligible keyed-node or overlay
+owner after fresh-surface reconciliation, fails closed without fallback, fences
+worker/mapper/reducer work by the existing owner generation, and preserves
+bounded FIFO intermediate events followed by one uncoalesced final. The
+previously shipped owner one-shot routes and all application-owned stream
+families remain unchanged. Latest/coalesced streaming, keyed/resource
+ownership, platform, renderer, scheduler, native, and product remain deferred.
+Estimates remain generic about 97% and broad `903 / 11 = 82.09%`; this cycle
+receives no estimate credit and no design-only credit.
 
 The fresh re-audit leaves these dependency boundaries explicit: first-class
 virtual collection/materialization and its public consumer; renderer resource

@@ -14,10 +14,10 @@ use crate::gui::layout_core::{
     MountedLayoutSourceAuthorityOwner, PreparedLayoutPass, RootLayoutAuthorityOwner,
 };
 use crate::gui::types::Rect;
-use crate::layout::{LayoutDebugOptions, LayoutNode};
+use crate::layout::{LayoutDebugOptions, LayoutNode, NodeId};
 use crate::runtime::{
-    RepaintScope, RuntimeBridge, RuntimeLifecyclePhase, SurfaceRuntimeProjection, UiSurface,
-    WindowEnvironment,
+    RepaintScope, ResolvedEnvironment, RuntimeBridge, RuntimeLifecyclePhase, SurfacePaintPlan,
+    SurfaceRuntimeProjection, UiSurface, WindowEnvironment, empty_paint_plan_for_layout,
     surface::{
         DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, PreparedWidgetStateSyncEvidence,
         PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceMetadata, SourceTopology,
@@ -25,6 +25,7 @@ use crate::runtime::{
         ViewDelta, ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
     },
 };
+use crate::theme::{ResolvedAppearance, ThemeTokens};
 
 /// Exact runtime authority issued for one non-paint fresh-surface request.
 ///
@@ -79,6 +80,67 @@ struct FreshSurfaceLayoutAuthority {
     candidate_mounted_source_present: bool,
 }
 
+/// Immutable base-paint inputs captured for one candidate-only traversal.
+///
+/// The runtime-local fields are retained as evidence even though admission
+/// requires them to be neutral.  The candidate therefore owns the exact
+/// context supplied to the detached surface instead of rereading active state
+/// during or after widget callbacks.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FreshSurfacePaintProjectionContext {
+    theme: ThemeTokens,
+    environment: ResolvedEnvironment,
+    appearance: ResolvedAppearance,
+    hovered_container: Option<NodeId>,
+    active_scroll_affordance: Option<NodeId>,
+}
+
+impl FreshSurfacePaintProjectionContext {
+    fn capture<Bridge, Message>(
+        runtime: &SurfaceRuntime<Bridge, Message>,
+        candidate: &FreshSurfaceLayoutCandidate<Message>,
+        appearance: ResolvedAppearance,
+    ) -> Self
+    where
+        Bridge: RuntimeBridge<Message>,
+    {
+        let environment = candidate.surface.window_environment().resolved();
+        Self {
+            theme: appearance.tokens(),
+            environment,
+            appearance,
+            hovered_container: runtime.interaction.hover.container,
+            active_scroll_affordance: runtime.interaction.hover.scroll_affordance,
+        }
+    }
+
+    fn is_neutral(self) -> bool {
+        self.hovered_container.is_none() && self.active_scroll_affordance.is_none()
+    }
+
+    fn is_current<Bridge, Message>(
+        self,
+        runtime: &SurfaceRuntime<Bridge, Message>,
+        candidate: &FreshSurfaceLayoutCandidate<Message>,
+        appearance: ResolvedAppearance,
+    ) -> bool
+    where
+        Bridge: RuntimeBridge<Message>,
+    {
+        self.environment == candidate.surface.window_environment().resolved()
+            && self.environment == runtime.window_environment.resolved()
+            && self.appearance == appearance
+            && self.hovered_container == runtime.interaction.hover.container
+            && self.active_scroll_affordance == runtime.interaction.hover.scroll_affordance
+    }
+}
+
+/// Typed inert veto for the candidate-only paint callback boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::runtime::controller) enum FreshSurfacePaintVeto {
+    Panicked,
+}
+
 /// Candidate-owned, single-use-by-convention fresh surface preparation.
 ///
 /// This type intentionally does not implement `Clone`.  It owns the fresh
@@ -115,6 +177,18 @@ pub(in crate::runtime::controller) struct FreshSurfaceLayoutCandidate<Message> {
     prepared_layout: PreparedLayoutPass,
     damage: SurfaceDamage,
     authority: FreshSurfaceLayoutAuthority,
+}
+
+/// Candidate-owned base-paint projection for one consumed fresh layout.
+///
+/// This type intentionally does not implement `Clone`.  Consuming the layout
+/// candidate keeps its prepared workspace, synchronized successor surface,
+/// inherited damage, and paint plan under one drop boundary until a later
+/// private consumer exists.
+pub(in crate::runtime::controller) struct FreshSurfacePaintCandidate<Message> {
+    layout_candidate: FreshSurfaceLayoutCandidate<Message>,
+    paint_plan: SurfacePaintPlan,
+    projection_context: FreshSurfacePaintProjectionContext,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -434,6 +508,94 @@ where
         }))
     }
 
+    /// Consume one current fresh layout candidate into an inert base-paint
+    /// projection candidate.
+    ///
+    /// This helper is deliberately not called by production refresh, frame,
+    /// native, or overlay paths. It only owns candidate storage: all runtime
+    /// interaction and overlay context must be neutral before the first paint
+    /// callback, and the layout candidate is revalidated again afterward.
+    pub(in crate::runtime::controller) fn prepare_fresh_surface_paint(
+        &self,
+        candidate: FreshSurfaceLayoutCandidate<Message>,
+        appearance: ResolvedAppearance,
+    ) -> Result<Option<FreshSurfacePaintCandidate<Message>>, FreshSurfacePaintVeto> {
+        if !candidate.is_current(self)
+            || !candidate.prepared_layout.is_usable()
+            || candidate.layout_output().is_none()
+        {
+            return Ok(None);
+        }
+
+        let projection_context =
+            FreshSurfacePaintProjectionContext::capture(self, &candidate, appearance);
+        if !projection_context.is_neutral() || !self.fresh_surface_paint_context_is_neutral() {
+            return Ok(None);
+        }
+
+        if !candidate.is_current(self)
+            || !candidate.prepared_layout.is_usable()
+            || candidate.layout_output().is_none()
+        {
+            return Ok(None);
+        }
+        let Some(layout) = candidate.layout_output() else {
+            return Ok(None);
+        };
+        let mut paint_plan = empty_paint_plan_for_layout(layout, &projection_context.theme);
+        let traversal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            candidate
+                .surface
+                .paint_plan_with_hover_and_environment_and_appearance_into(
+                    layout,
+                    &projection_context.theme,
+                    projection_context.environment,
+                    projection_context.appearance,
+                    projection_context.hovered_container,
+                    projection_context.active_scroll_affordance,
+                    &mut paint_plan,
+                );
+        }));
+        if traversal.is_err() {
+            drop(paint_plan);
+            return Err(FreshSurfacePaintVeto::Panicked);
+        }
+
+        if !candidate.is_current(self)
+            || !candidate.prepared_layout.is_usable()
+            || candidate.layout_output().is_none()
+            || !self.fresh_surface_paint_context_is_neutral()
+            || !projection_context.is_current(self, &candidate, appearance)
+        {
+            return Ok(None);
+        }
+
+        Ok(Some(FreshSurfacePaintCandidate {
+            layout_candidate: candidate,
+            paint_plan,
+            projection_context,
+        }))
+    }
+
+    fn fresh_surface_paint_context_is_neutral(&self) -> bool {
+        self.interaction.hover.widget.is_none()
+            && self.interaction.pointer.capture.is_none()
+            && self.interaction.pointer.capture_state.is_none()
+            && self.interaction.pointer.managed_capture.is_none()
+            && self.interaction.pointer.scroll_drag_capture.is_none()
+            && self.interaction.layout_capture.is_none()
+            && self
+                .interaction
+                .drag
+                .session
+                .as_ref()
+                .is_none_or(|session| !session.visible)
+            && self.interaction.tooltip.target.is_none()
+            && self.interaction.tooltip.deadline.is_none()
+            && !self.interaction.tooltip.revealed
+            && !self.devtools_overlay.enabled
+    }
+
     /// Test-only stale-generation fixture.
     ///
     /// The checked fail-closed behavior remains so preparation tests can model
@@ -544,6 +706,36 @@ impl<Message> FreshSurfaceLayoutCandidate<Message> {
 
     /// Explicitly abandon this candidate. Dropping it releases the prepared
     /// workspace, mounted candidate values, surface, and cleanup storage once.
+    pub(in crate::runtime::controller) fn discard(self) {}
+}
+
+impl<Message> FreshSurfacePaintCandidate<Message> {
+    /// Borrow the one candidate-owned backend-neutral base-paint plan.
+    pub(in crate::runtime::controller) fn paint_plan(&self) -> &SurfacePaintPlan {
+        &self.paint_plan
+    }
+
+    /// Borrow the consumed layout candidate, including its inherited damage.
+    pub(in crate::runtime::controller) fn layout_candidate(
+        &self,
+    ) -> &FreshSurfaceLayoutCandidate<Message> {
+        &self.layout_candidate
+    }
+
+    /// Return whether the consumed layout candidate remains current for a
+    /// later private consumer.
+    pub(in crate::runtime::controller) fn is_current<Bridge>(
+        &self,
+        runtime: &SurfaceRuntime<Bridge, Message>,
+    ) -> bool
+    where
+        Bridge: RuntimeBridge<Message>,
+    {
+        self.layout_candidate.is_current(runtime)
+    }
+
+    /// Explicitly abandon this candidate and all candidate-owned paint/layout
+    /// state without touching the active runtime.
     pub(in crate::runtime::controller) fn discard(self) {}
 }
 
@@ -1040,11 +1232,22 @@ mod tests {
 
         fn append_paint(
             &self,
-            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
-            _bounds: crate::gui::types::Rect,
+            primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            bounds: crate::gui::types::Rect,
             _layout: &LayoutOutput,
-            _theme: &crate::theme::ThemeTokens,
+            theme: &crate::theme::ThemeTokens,
         ) {
+            primitives.push(crate::runtime::PaintPrimitive::FillRect(
+                crate::runtime::PaintFillRect {
+                    widget_id: self.common.id,
+                    rect: bounds,
+                    color: if self.local_state == 41 {
+                        theme.accent_mint
+                    } else {
+                        theme.accent_copper
+                    },
+                },
+            ));
         }
     }
 
@@ -1055,6 +1258,115 @@ mod tests {
             widgets
                 .into_iter()
                 .map(|widget| SurfaceChild::fill(SurfaceNode::static_widget(widget)))
+                .collect(),
+        ))
+    }
+
+    #[derive(Clone, Copy)]
+    enum PaintProbeBehavior {
+        Emit,
+        Panic,
+    }
+
+    #[derive(Clone)]
+    struct PaintProbeWidget {
+        common: WidgetCommon,
+        behavior: PaintProbeBehavior,
+        paint_calls: Rc<Cell<usize>>,
+        drop_calls: Rc<Cell<usize>>,
+    }
+
+    impl PaintProbeWidget {
+        fn new(
+            id: u64,
+            behavior: PaintProbeBehavior,
+            paint_calls: Rc<Cell<usize>>,
+            drop_calls: Rc<Cell<usize>>,
+        ) -> Self {
+            Self {
+                common: WidgetCommon::fixed(id, 24.0, 16.0).without_default_chrome(),
+                behavior,
+                paint_calls,
+                drop_calls,
+            }
+        }
+    }
+
+    impl Drop for PaintProbeWidget {
+        fn drop(&mut self) {
+            self.drop_calls.set(self.drop_calls.get().saturating_add(1));
+        }
+    }
+
+    impl Widget for PaintProbeWidget {
+        fn revision(&self) -> crate::widgets::WidgetRevision {
+            crate::widgets::WidgetRevision::exact((), (), (), ())
+        }
+
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            _input: WidgetInput,
+        ) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn supports_prepared_state_synchronization(&self) -> bool {
+            true
+        }
+
+        fn synchronize_from_previous(&mut self, _previous: &dyn Widget) {}
+
+        fn append_paint(
+            &self,
+            primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            bounds: crate::gui::types::Rect,
+            _layout: &LayoutOutput,
+            theme: &crate::theme::ThemeTokens,
+        ) {
+            self.paint_calls
+                .set(self.paint_calls.get().saturating_add(1));
+            primitives.push(crate::runtime::PaintPrimitive::FillRect(
+                crate::runtime::PaintFillRect {
+                    widget_id: self.common.id,
+                    rect: bounds,
+                    color: theme.accent_mint,
+                },
+            ));
+            if matches!(self.behavior, PaintProbeBehavior::Panic) {
+                panic!("fresh surface paint fixture panic");
+            }
+        }
+    }
+
+    fn paint_probe_surface(
+        behaviors: &[PaintProbeBehavior],
+        paint_calls: Rc<Cell<usize>>,
+        drop_calls: Rc<Cell<usize>>,
+    ) -> UiSurface<()> {
+        UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            behaviors
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(index, behavior)| {
+                    SurfaceChild::fill(SurfaceNode::static_widget(PaintProbeWidget::new(
+                        index as u64 + 2,
+                        behavior,
+                        Rc::clone(&paint_calls),
+                        Rc::clone(&drop_calls),
+                    )))
+                })
                 .collect(),
         ))
     }
@@ -1213,6 +1525,22 @@ mod tests {
         assert_active_snapshot_unchanged(&before, &after);
     }
 
+    fn prepare_layout_candidate(
+        runtime: &mut SurfaceRuntime<SpyBridge, ()>,
+        candidate_surface: UiSurface<()>,
+    ) -> FreshSurfaceLayoutCandidate<()> {
+        let request = runtime
+            .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+            .expect("ordinary candidate request");
+        let preparation = runtime
+            .prepare_fresh_surface(candidate_surface, request)
+            .expect("ordinary candidate admission");
+        runtime
+            .prepare_fresh_surface_layout(preparation)
+            .expect("candidate layout preparation should not veto")
+            .expect("candidate layout should be present")
+    }
+
     #[test]
     fn positive_ordinary_preparation_is_candidate_owned_and_bridge_free() {
         let (mut runtime, pull_calls, project_calls) = runtime_fixture();
@@ -1294,6 +1622,251 @@ mod tests {
         candidate.discard();
         assert_eq!(candidate_calls.get(), 1);
         assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+    }
+
+    #[test]
+    fn synchronized_successor_state_changes_candidate_paint_and_preserves_damage() {
+        let active = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(24.0, 16.0),
+            41,
+            PreparedSyncBehavior::Qualified,
+            Rc::new(Cell::new(0)),
+        )]);
+        let candidate_surface = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(64.0, 28.0),
+            0,
+            PreparedSyncBehavior::Qualified,
+            Rc::new(Cell::new(0)),
+        )]);
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        let candidate = prepare_layout_candidate(&mut runtime, candidate_surface);
+        let appearance = ResolvedAppearance::fixed(ThemeTokens::default());
+        let context = FreshSurfacePaintProjectionContext::capture(&runtime, &candidate, appearance);
+        let layout = candidate
+            .layout_output()
+            .expect("candidate layout should be available");
+        let mut direct = empty_paint_plan_for_layout(layout, &context.theme);
+        candidate
+            .surface
+            .paint_plan_with_hover_and_environment_and_appearance_into(
+                layout,
+                &context.theme,
+                context.environment,
+                context.appearance,
+                context.hovered_container,
+                context.active_scroll_affordance,
+                &mut direct,
+            );
+        let damage = candidate.damage;
+        let before = active_snapshot(&runtime);
+
+        let candidate = runtime
+            .prepare_fresh_surface_paint(candidate, appearance)
+            .expect("candidate paint should not veto")
+            .expect("candidate paint should be present");
+
+        assert!(candidate.is_current(&runtime));
+        assert_eq!(candidate.paint_plan(), &direct);
+        assert_eq!(candidate.projection_context, context);
+        assert_eq!(candidate.layout_candidate().damage, damage);
+        assert_eq!(
+            candidate.layout_candidate().view_delta.effect,
+            ViewDeltaEffect::Unchanged
+        );
+        assert!(candidate.paint_plan().primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                crate::runtime::PaintPrimitive::FillRect(fill)
+                    if fill.widget_id == 2 && fill.color == ThemeTokens::default().accent_mint
+            )
+        }));
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+        candidate.discard();
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+    }
+
+    #[test]
+    fn post_projection_context_revalidation_rejects_changed_inputs() {
+        let active = paint_probe_surface(
+            &[PaintProbeBehavior::Emit],
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(0)),
+        );
+        let candidate_surface = paint_probe_surface(
+            &[PaintProbeBehavior::Emit],
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(0)),
+        );
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        let mut candidate = prepare_layout_candidate(&mut runtime, candidate_surface);
+        let appearance = ResolvedAppearance::fixed(ThemeTokens::default());
+        let context = FreshSurfacePaintProjectionContext::capture(&runtime, &candidate, appearance);
+
+        assert!(context.is_current(&runtime, &candidate, appearance));
+        assert!(!context.is_current(
+            &runtime,
+            &candidate,
+            ResolvedAppearance::fixed(ThemeTokens::light())
+        ));
+
+        candidate
+            .surface
+            .set_window_environment(crate::runtime::WindowEnvironment::new(
+                crate::theme::DpiScale::new(2.0),
+                None,
+                false,
+                false,
+            ));
+        assert!(!context.is_current(&runtime, &candidate, appearance));
+        candidate.discard();
+    }
+
+    #[test]
+    fn unsupported_runtime_paint_context_vetoes_before_any_candidate_callback() {
+        #[derive(Clone, Copy)]
+        enum ContextCase {
+            Hover,
+            Capture,
+            ScrollAffordance,
+            DragPreview,
+            Tooltip,
+            Devtools,
+        }
+
+        for case in [
+            ContextCase::Hover,
+            ContextCase::Capture,
+            ContextCase::ScrollAffordance,
+            ContextCase::DragPreview,
+            ContextCase::Tooltip,
+            ContextCase::Devtools,
+        ] {
+            let active = paint_probe_surface(
+                &[PaintProbeBehavior::Emit],
+                Rc::new(Cell::new(0)),
+                Rc::new(Cell::new(0)),
+            );
+            let candidate_calls = Rc::new(Cell::new(0));
+            let candidate_drops = Rc::new(Cell::new(0));
+            let candidate_surface = paint_probe_surface(
+                &[PaintProbeBehavior::Emit],
+                Rc::clone(&candidate_calls),
+                Rc::clone(&candidate_drops),
+            );
+            let (mut runtime, _, _) = runtime_for_surface(active);
+            match case {
+                ContextCase::Hover => {
+                    runtime.interaction.hover.widget = Some(2);
+                    runtime.interaction.hover.container = Some(1);
+                }
+                ContextCase::Capture => runtime.interaction.pointer.capture = Some(2),
+                ContextCase::ScrollAffordance => {
+                    runtime.interaction.hover.scroll_affordance = Some(1)
+                }
+                ContextCase::DragPreview => {
+                    runtime.interaction.drag.session = Some(crate::runtime::DragSession::new(
+                        crate::runtime::DragRequest::new(
+                            crate::runtime::DragPreview::sized("preview", Vector2::new(24.0, 16.0)),
+                            crate::gui::types::Point::new(1.0, 1.0),
+                        ),
+                    ));
+                }
+                ContextCase::Tooltip => runtime.interaction.tooltip.target = Some(2),
+                ContextCase::Devtools => {
+                    runtime.devtools_overlay = crate::runtime::DevtoolsOverlayOptions::enabled()
+                }
+            }
+            let candidate = prepare_layout_candidate(&mut runtime, candidate_surface);
+            let before = active_snapshot(&runtime);
+            assert!(
+                runtime
+                    .prepare_fresh_surface_paint(
+                        candidate,
+                        ResolvedAppearance::fixed(ThemeTokens::default()),
+                    )
+                    .expect("unsupported context should be an inert veto")
+                    .is_none()
+            );
+            assert_eq!(candidate_calls.get(), 0);
+            assert_eq!(candidate_drops.get(), 1);
+            assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+        }
+    }
+
+    #[test]
+    fn stale_candidate_paint_is_inert_without_callbacks_or_active_mutation() {
+        let active = paint_probe_surface(
+            &[PaintProbeBehavior::Emit],
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(0)),
+        );
+        let candidate_calls = Rc::new(Cell::new(0));
+        let candidate_drops = Rc::new(Cell::new(0));
+        let candidate_surface = paint_probe_surface(
+            &[PaintProbeBehavior::Emit],
+            Rc::clone(&candidate_calls),
+            Rc::clone(&candidate_drops),
+        );
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        let candidate = prepare_layout_candidate(&mut runtime, candidate_surface);
+        let before = active_snapshot(&runtime);
+        runtime.advance_fresh_surface_active_generation();
+        assert!(
+            runtime
+                .prepare_fresh_surface_paint(
+                    candidate,
+                    ResolvedAppearance::fixed(ThemeTokens::default()),
+                )
+                .expect("stale candidate should be an inert veto")
+                .is_none()
+        );
+        assert_eq!(candidate_calls.get(), 0);
+        assert_eq!(candidate_drops.get(), 1);
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+    }
+
+    #[test]
+    fn candidate_paint_panics_stop_later_callbacks_and_drop_partial_state_once() {
+        let cases = [
+            vec![PaintProbeBehavior::Panic, PaintProbeBehavior::Emit],
+            vec![
+                PaintProbeBehavior::Emit,
+                PaintProbeBehavior::Panic,
+                PaintProbeBehavior::Emit,
+            ],
+        ];
+
+        for behaviors in cases {
+            let active = paint_probe_surface(
+                &vec![PaintProbeBehavior::Emit; behaviors.len()],
+                Rc::new(Cell::new(0)),
+                Rc::new(Cell::new(0)),
+            );
+            let candidate_calls = Rc::new(Cell::new(0));
+            let candidate_drops = Rc::new(Cell::new(0));
+            let candidate_surface = paint_probe_surface(
+                &behaviors,
+                Rc::clone(&candidate_calls),
+                Rc::clone(&candidate_drops),
+            );
+            let (mut runtime, _, _) = runtime_for_surface(active);
+            let candidate = prepare_layout_candidate(&mut runtime, candidate_surface);
+            let before = active_snapshot(&runtime);
+            let result = runtime.prepare_fresh_surface_paint(
+                candidate,
+                ResolvedAppearance::fixed(ThemeTokens::default()),
+            );
+            assert!(matches!(result, Err(FreshSurfacePaintVeto::Panicked)));
+            let panic_index = behaviors
+                .iter()
+                .position(|behavior| matches!(behavior, PaintProbeBehavior::Panic))
+                .expect("panic fixture");
+            assert_eq!(candidate_calls.get(), panic_index + 1);
+            assert_eq!(candidate_drops.get(), behaviors.len());
+            assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+        }
     }
 
     #[test]

@@ -432,17 +432,21 @@ map_final)` for ordinary ordered streams and
 `BusinessRequest::stream_latest_for_owner_with_receipt(owner, work, map_event,
 map_final)` for ordinary coalesced streams, and
 `BusinessLatestRequest::stream_for_owner_with_receipt(owner, work, map_event,
-map_final)` for ordered latest-task streams. All three routes reuse the
+map_final)` for ordered latest-task streams, plus
+`BusinessLatestRequest::stream_latest_for_owner_with_receipt(owner, work,
+map_event, map_final)` for coalesced latest-task streams. All four routes reuse the
 accepted-surface owner projection and generation ledger, the worker registry,
 the existing bounded ingress, the admission receipt, and the
 controller-composed cancellation probe. Ordinary and latest-task ordered
-events remain FIFO; coalesced ordinary streams keep at most one pending
+events remain FIFO; coalesced ordinary and latest-task streams keep at most one pending
 intermediate payload and one queued latest marker before UI drain, replacing a
 newer pending event and recording the existing coalescing diagnostic. In every
 case the final is delivered once after the last accepted intermediate event,
 and event/final mappers remain UI-local. The ordered latest-task route also
 retains the exact latest ticket and rolls back its predecessor on invalid owner
-or host admission. Coalesced latest-task owner streams, keyed-latest/resource
+or host admission; the coalesced latest-task route retains that same ticket and
+fences by latest supersession and owner generation. Cancellable owner-stream
+variants, keyed-latest/resource
 ownership, platform ownership, renderer, scheduler, native, and product wiring
 remain deferred.
 

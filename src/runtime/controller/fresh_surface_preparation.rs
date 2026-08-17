@@ -21,8 +21,8 @@ use crate::runtime::{
     surface::{
         DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, PreparedWidgetStateSyncEvidence,
         PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceMetadata, SourceTopology,
-        SourceTraversalIndex, SurfaceTraversalIndex as ProjectedTraversalIndex, ViewDelta,
-        ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
+        SourceTraversalIndex, SurfaceDamage, SurfaceTraversalIndex as ProjectedTraversalIndex,
+        ViewDelta, ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
     },
 };
 
@@ -113,6 +113,7 @@ pub(in crate::runtime::controller) struct FreshSurfaceLayoutCandidate<Message> {
     view_delta_scratch: ViewDeltaScratch,
     mounted_state: RuntimeLayoutContainerStateCandidate,
     prepared_layout: PreparedLayoutPass,
+    damage: SurfaceDamage,
     authority: FreshSurfaceLayoutAuthority,
 }
 
@@ -385,6 +386,18 @@ where
             prepared_layout.discard();
             return Ok(None);
         }
+        let Some(candidate_layout_output) = prepared_layout.output() else {
+            prepared_layout.discard();
+            return Ok(None);
+        };
+        let damage = SurfaceDamage::from_view_delta(
+            &candidate.view_delta,
+            &candidate.view_delta.reconciliation_plan(),
+            &self.surface,
+            &self.layout,
+            self.viewport,
+        )
+        .finish(&candidate.surface, candidate_layout_output);
 
         let authority = FreshSurfaceLayoutAuthority {
             preparation: candidate.authority,
@@ -416,6 +429,7 @@ where
             view_delta_scratch,
             mounted_state,
             prepared_layout,
+            damage,
             authority,
         }))
     }
@@ -1251,6 +1265,9 @@ mod tests {
 
         assert!(candidate.is_current(&runtime));
         assert!(candidate.layout_output().is_some());
+        assert_eq!(candidate.view_delta.effect, ViewDeltaEffect::Unchanged);
+        assert_eq!(candidate.damage.candidate_count, 0);
+        assert!(!candidate.damage.full_viewport);
         assert_ne!(candidate.layout_root, runtime.layout_root);
         assert_ne!(
             candidate.authority.candidate_root_authority,
@@ -1504,11 +1521,27 @@ mod tests {
             .issue_fresh_surface_refresh_request(RepaintScope::Projection)
             .expect("request");
         let before = active_snapshot(&runtime);
-        let candidate = runtime
+        let preparation = runtime
             .prepare_fresh_surface(ordinary_surface(Vector2::new(32.0, 16.0)), request)
             .expect("exact geometry evidence should prepare");
+        let candidate = runtime
+            .prepare_fresh_surface_layout(preparation)
+            .expect("geometry preparation should not veto")
+            .expect("geometry candidate should be prepared");
         assert_eq!(candidate.view_delta.effect, ViewDeltaEffect::Geometry);
         assert!(candidate.is_current(&runtime));
+        assert!(!candidate.damage.full_viewport);
+        assert_eq!(candidate.damage.candidate_count, 1);
+        let damage = candidate.damage.candidates[0].expect("geometry damage candidate");
+        assert_eq!(damage.node_id, 2);
+        assert_eq!(damage.effect, ViewDeltaEffect::Geometry);
+        assert_eq!(damage.old_bounds, runtime.layout.rects.get(&2).copied());
+        assert_eq!(
+            damage.new_bounds,
+            candidate
+                .layout_output()
+                .and_then(|layout| layout.rects.get(&2).copied())
+        );
         assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
         candidate.discard();
         assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
@@ -1539,6 +1572,56 @@ mod tests {
         );
         assert_eq!(pull_calls.get(), pull_before);
         assert_eq!(project_calls.get(), project_before);
+    }
+
+    #[test]
+    fn stale_or_vetoed_preparation_exposes_no_damage_candidate() {
+        let (mut runtime, _, _) = runtime_fixture();
+        let stale_request = runtime
+            .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+            .expect("stale request");
+        let current_request = runtime
+            .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+            .expect("current request");
+        assert!(
+            runtime
+                .prepare_fresh_surface(ordinary_surface(Vector2::new(32.0, 16.0)), stale_request)
+                .is_none()
+        );
+        runtime.advance_fresh_surface_active_generation();
+        assert!(
+            runtime
+                .prepare_fresh_surface(ordinary_surface(Vector2::new(32.0, 16.0)), current_request)
+                .is_none()
+        );
+
+        let active = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(24.0, 16.0),
+            41,
+            PreparedSyncBehavior::Qualified,
+            Rc::new(Cell::new(0)),
+        )]);
+        let candidate_surface = prepared_sync_surface(vec![PreparedSyncWidget::new(
+            2,
+            Vector2::new(32.0, 16.0),
+            0,
+            PreparedSyncBehavior::Unsupported,
+            Rc::new(Cell::new(0)),
+        )]);
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        let request = runtime
+            .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+            .expect("veto request");
+        let before = active_snapshot(&runtime);
+        let preparation = runtime
+            .prepare_fresh_surface(candidate_surface, request)
+            .expect("candidate admission should precede the state-sync veto");
+        assert!(matches!(
+            runtime.prepare_fresh_surface_layout(preparation),
+            Err(PreparedWidgetStateSyncVeto::Unsupported)
+        ));
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
     }
 
     #[test]

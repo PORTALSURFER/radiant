@@ -1036,7 +1036,10 @@ mod tests {
         RuntimeQueueHost, RuntimeTaskHost, RuntimeTimerWake, SurfaceNode, UiSurface,
     };
     use crate::{
-        application::{DeclarativeEffectOwner, IntoView, LatestTask, TaskCompletion, column, text},
+        application::{
+            DeclarativeEffectOwner, IntoView, KeyedLatestTasks, KeyedTaskCompletion, LatestTask,
+            TaskCompletion, column, text,
+        },
         gui::types::{Point, Vector2},
         runtime::SurfaceRuntime,
     };
@@ -1375,6 +1378,7 @@ mod tests {
         receipt: Option<crate::application::runtime::BusinessTaskAdmissionReceipt>,
         spawned: Arc<AtomicUsize>,
         latest: Option<LatestTask>,
+        keyed: Option<KeyedLatestTasks<u8>>,
     }
 
     impl crate::runtime::RuntimeBridge<usize> for SameUpdateRemovedOwnerBridge {
@@ -1394,7 +1398,17 @@ mod tests {
             self.removed = true;
             let mut context =
                 crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
-            let receipt = if let Some(latest) = self.latest.as_mut() {
+            let receipt = if let Some(keyed) = self.keyed.as_mut() {
+                context
+                    .business()
+                    .background("owner-keyed-latest-same-update-removed")
+                    .latest_for(keyed, 7_u8)
+                    .run_for_owner_with_receipt(
+                        self.owner,
+                        |_| 2_u8,
+                        |completion: KeyedTaskCompletion<u8, u8>| completion.output as usize,
+                    )
+            } else if let Some(latest) = self.latest.as_mut() {
                 context
                     .business()
                     .background("owner-latest-coalesced-stream-same-update-removed")
@@ -1461,6 +1475,43 @@ mod tests {
         let ticket = request.ticket();
         let receipt = request.run_for_owner_with_receipt(owner, |_| 7_usize, map);
         (context.into_command(), receipt, ticket)
+    }
+
+    fn owner_keyed_latest_command(
+        latest: &mut KeyedLatestTasks<u8>,
+        key: u8,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        map: impl FnOnce(KeyedTaskCompletion<u8, usize>) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        crate::application::TaskTicket,
+        u8,
+    ) {
+        owner_keyed_latest_command_with_work(latest, key, owner, name, |_| 7_usize, map)
+    }
+
+    fn owner_keyed_latest_command_with_work(
+        latest: &mut KeyedLatestTasks<u8>,
+        key: u8,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        work: impl FnOnce(crate::application::runtime::BusinessWorkContext) -> usize + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<u8, usize>) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        crate::application::TaskTicket,
+        u8,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context.business().background(name).latest_for(latest, key);
+        let ticket = request.ticket();
+        let request_key = *request.key();
+        let receipt = request.run_for_owner_with_receipt(owner, work, map);
+        (context.into_command(), receipt, ticket, request_key)
     }
 
     fn owner_latest_ordered_stream_command(
@@ -1996,6 +2047,278 @@ mod tests {
     }
 
     #[test]
+    fn owner_keyed_latest_admission_accepts_and_maps_one_exact_completion() {
+        let owner = DeclarativeEffectOwner::new();
+        let bridge = OwnerWorkerBridge::new(owner, true);
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut keyed = KeyedLatestTasks::new();
+        let mapped = Rc::new(RefCell::new(Vec::<(u8, u64, usize)>::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, ticket, key) = owner_keyed_latest_command(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-valid",
+            move |completion| {
+                mapped_state.borrow_mut().push((
+                    completion.key,
+                    completion.ticket.id(),
+                    completion.output,
+                ));
+                completion.output
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(keyed.active(&key), Some(ticket));
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 1);
+        assert!(mapped.borrow().is_empty());
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![(key, ticket.id(), 7)]);
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![7]
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    fn assert_owner_keyed_latest_rejected(
+        runtime: &mut SurfaceRuntime<OwnerWorkerBridge, usize>,
+        keyed: &mut KeyedLatestTasks<u8>,
+        key: u8,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+    ) {
+        let predecessor = keyed.begin(key);
+        let sibling_key = key.wrapping_add(1);
+        let sibling = keyed.begin(sibling_key);
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+        let (command, receipt, replacement, request_key) =
+            owner_keyed_latest_command(keyed, key, owner, name, move |_| {
+                mapped_state.borrow_mut().push(1);
+                1
+            });
+
+        let outcome = runtime.execute_command(command);
+        assert_eq!(request_key, key);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(keyed.active(&key), Some(predecessor));
+        assert_eq!(keyed.active(&sibling_key), Some(sibling));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_keyed_latest_rejects_invalid_removed_ambiguous_unkeyed_and_incompatible_handles() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut invalid_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut invalid_keyed = KeyedLatestTasks::new();
+        assert_owner_keyed_latest_rejected(
+            &mut invalid_runtime,
+            &mut invalid_keyed,
+            7,
+            DeclarativeEffectOwner::new(),
+            "owner-keyed-latest-invalid",
+        );
+
+        let mut removed_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        removed_runtime.bridge_mut().show_owner = false;
+        let mut removed_keyed = KeyedLatestTasks::new();
+        assert_owner_keyed_latest_rejected(
+            &mut removed_runtime,
+            &mut removed_keyed,
+            7,
+            owner,
+            "owner-keyed-latest-removed",
+        );
+
+        let mut ambiguous_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        ambiguous_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Ambiguous;
+        let mut ambiguous_keyed = KeyedLatestTasks::new();
+        assert_owner_keyed_latest_rejected(
+            &mut ambiguous_runtime,
+            &mut ambiguous_keyed,
+            7,
+            owner,
+            "owner-keyed-latest-ambiguous",
+        );
+
+        let mut unkeyed_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        unkeyed_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Unkeyed;
+        let mut unkeyed_keyed = KeyedLatestTasks::new();
+        assert_owner_keyed_latest_rejected(
+            &mut unkeyed_runtime,
+            &mut unkeyed_keyed,
+            7,
+            owner,
+            "owner-keyed-latest-unkeyed",
+        );
+
+        let mut incompatible_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        incompatible_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Incompatible;
+        let mut incompatible_keyed = KeyedLatestTasks::new();
+        assert_owner_keyed_latest_rejected(
+            &mut incompatible_runtime,
+            &mut incompatible_keyed,
+            7,
+            owner,
+            "owner-keyed-latest-incompatible",
+        );
+    }
+
+    #[test]
+    fn owner_keyed_latest_rejects_stale_owner_generation_without_fallback() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut keyed = KeyedLatestTasks::new();
+        let predecessor = keyed.begin(7);
+        let sibling = keyed.begin(8);
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, replacement, key) = owner_keyed_latest_command(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-stale",
+            move |_| {
+                mapped_state.borrow_mut().push(1);
+                1
+            },
+        );
+
+        runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Incompatible;
+        runtime.refresh();
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+        let outcome = runtime.execute_command(command);
+
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(key, 7);
+        assert_eq!(keyed.active(&key), Some(predecessor));
+        assert_eq!(keyed.active(&8), Some(sibling));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_keyed_latest_host_rejection_restores_only_the_affected_predecessor() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, false),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut keyed = KeyedLatestTasks::new();
+        assert_owner_keyed_latest_rejected(
+            &mut runtime,
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-host-rejected",
+        );
+    }
+
+    #[test]
+    fn owner_keyed_latest_capacity_rejection_restores_predecessor_without_fallback() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        for id in 0..EFFECT_INGRESS_CAPACITY {
+            let command = crate::runtime::Command::perform_worker_effect_with_priority(
+                "owner-keyed-latest-capacity-fill",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || id,
+                |output| output,
+            );
+            let _ = runtime.execute_command(command);
+        }
+
+        let mut keyed = KeyedLatestTasks::new();
+        let predecessor = keyed.begin(7);
+        let sibling = keyed.begin(8);
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, replacement, key) = owner_keyed_latest_command(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-capacity-overflow",
+            move |_| {
+                mapped_state.borrow_mut().push(1);
+                1
+            },
+        );
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+
+        let outcome = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(key, 7);
+        assert_eq!(keyed.active(&7), Some(predecessor));
+        assert_eq!(keyed.active(&8), Some(sibling));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(runtime.worker_effects.pending, EFFECT_INGRESS_CAPACITY);
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
     fn owner_latest_public_execute_refreshes_before_removed_owner_resolution() {
         let owner = DeclarativeEffectOwner::new();
         let mut runtime = SurfaceRuntime::new(
@@ -2111,6 +2434,72 @@ mod tests {
     }
 
     #[test]
+    fn owner_keyed_latest_supersession_fences_the_previous_keyed_ticket() {
+        let owner = DeclarativeEffectOwner::new();
+        let bridge = OwnerWorkerBridge::new(owner, true);
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut keyed = KeyedLatestTasks::new();
+        let mapped = Rc::new(RefCell::new(Vec::<(u8, u64, usize)>::new()));
+
+        let first_state = Rc::clone(&mapped);
+        let (first_command, first_receipt, first_ticket, key) = owner_keyed_latest_command(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-first",
+            move |completion| {
+                first_state.borrow_mut().push((
+                    completion.key,
+                    completion.ticket.id(),
+                    completion.output,
+                ));
+                completion.output
+            },
+        );
+        let _ = runtime.execute_command(first_command);
+
+        let second_state = Rc::clone(&mapped);
+        let (second_command, second_receipt, second_ticket, second_key) =
+            owner_keyed_latest_command(
+                &mut keyed,
+                key,
+                owner,
+                "owner-keyed-latest-second",
+                move |completion| {
+                    second_state.borrow_mut().push((
+                        completion.key,
+                        completion.ticket.id(),
+                        completion.output,
+                    ));
+                    completion.output
+                },
+            );
+        let _ = runtime.execute_command(second_command);
+
+        assert_eq!(
+            first_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(
+            second_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(second_key, key);
+        assert_ne!(first_ticket, second_ticket);
+        assert_eq!(keyed.active(&key), Some(second_ticket));
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 2);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![(key, second_ticket.id(), 7)]);
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![7]
+        );
+    }
+
+    #[test]
     fn owner_latest_retirement_suppresses_queued_completion_and_mapper() {
         let owner = DeclarativeEffectOwner::new();
         let mut runtime = SurfaceRuntime::new(
@@ -2141,6 +2530,216 @@ mod tests {
         assert_eq!(runtime.worker_effects.pending, 0);
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
         assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_keyed_latest_retirement_suppresses_queued_completion_and_mapper() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut keyed = KeyedLatestTasks::new();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, ticket, key) = owner_keyed_latest_command(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-retired",
+            move |completion| {
+                mapped_state.borrow_mut().push(completion.ticket.id());
+                completion.output
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+        assert_eq!(keyed.active(&key), Some(ticket));
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_keyed_latest_retirement_cancels_worker_and_fences_late_publication() {
+        let owner = DeclarativeEffectOwner::new();
+        let pending_work = Arc::new(Mutex::new(None));
+        let mut runtime = SurfaceRuntime::new(
+            DeferredOwnerBridge {
+                owner,
+                show_owner: true,
+                pending_work: Arc::clone(&pending_work),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let released = Arc::new((Mutex::new(false), Condvar::new()));
+        let cancellation_seen = Arc::new(AtomicBool::new(false));
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let work_ready = Arc::clone(&ready);
+        let work_released = Arc::clone(&released);
+        let cancellation_seen_in_work = Arc::clone(&cancellation_seen);
+        let mut keyed = KeyedLatestTasks::new();
+        let (command, receipt, ticket, key) = owner_keyed_latest_command_with_work(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-retired-worker",
+            move |worker_context| {
+                let (lock, wake) = &*work_ready;
+                *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+                wake.notify_one();
+
+                let (lock, wake) = &*work_released;
+                let mut is_released = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                while !*is_released {
+                    is_released = wake
+                        .wait(is_released)
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                }
+                cancellation_seen_in_work.store(worker_context.is_cancelled(), Ordering::Release);
+                7
+            },
+            move |completion| {
+                mapped_state.borrow_mut().push(completion.output);
+                completion.output
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        let worker = pending_work
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take()
+            .expect("deferred host captured keyed owner work");
+        let worker_thread = std::thread::spawn(worker);
+
+        let (lock, wake) = &*ready;
+        let mut is_ready = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        while !*is_ready {
+            is_ready = wake
+                .wait(is_ready)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+        drop(is_ready);
+
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+        assert_eq!(keyed.active(&key), Some(ticket));
+        assert_eq!(runtime.worker_effects.pending, 0);
+
+        let (lock, wake) = &*released;
+        *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+        wake.notify_one();
+        worker_thread.join().expect("keyed owner worker completes");
+
+        assert!(cancellation_seen.load(Ordering::Acquire));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn owner_keyed_latest_preserves_owner_generation_across_compatible_reorder() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let before = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .first()
+            .expect("initial keyed owner")
+            .token
+            .clone();
+        runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Reordered;
+        runtime.refresh();
+        let after = runtime
+            .declarative_owner_ledger()
+            .live_records()
+            .iter()
+            .find(|record| record.token.identity() == before.identity())
+            .expect("reordered keyed owner")
+            .token
+            .clone();
+        assert_eq!(after, before);
+        assert_eq!(after.generation(), before.generation());
+        assert!(runtime.declarative_owner_ledger().is_live(&after));
+
+        let mut keyed = KeyedLatestTasks::new();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, ticket, key) = owner_keyed_latest_command(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-reordered",
+            move |completion| {
+                mapped_state
+                    .borrow_mut()
+                    .push((completion.key, completion.ticket.id()));
+                completion.output
+            },
+        );
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(keyed.active(&key), Some(ticket));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![(key, ticket.id())]);
+    }
+
+    #[test]
+    fn owner_keyed_latest_closing_veto_closes_receipt_and_rolls_back() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut keyed = KeyedLatestTasks::new();
+        let predecessor = keyed.begin(7);
+        let sibling = keyed.begin(8);
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, replacement, key) = owner_keyed_latest_command(
+            &mut keyed,
+            7,
+            owner,
+            "owner-keyed-latest-closing",
+            move |_| {
+                mapped_state.borrow_mut().push(1);
+                1
+            },
+        );
+
+        let outcome = runtime.execute_command(crate::runtime::Command::batch(vec![
+            crate::runtime::Command::exit(),
+            command,
+        ]));
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Closed
+        );
+        assert_eq!(keyed.active(&key), Some(predecessor));
+        assert_eq!(keyed.active(&8), Some(sibling));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 0);
+        assert!(mapped.borrow().is_empty());
+        assert!(outcome.exit_requested);
     }
 
     #[test]
@@ -3887,6 +4486,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                keyed: None,
             },
             Vector2::new(80.0, 40.0),
         );
@@ -3920,6 +4520,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: Some(latest),
+                keyed: None,
             },
             Vector2::new(80.0, 40.0),
         );
@@ -3946,6 +4547,48 @@ mod tests {
                 .active(),
             Some(predecessor)
         );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn owner_keyed_latest_rejects_same_update_removal_and_rolls_back() {
+        let owner = DeclarativeEffectOwner::new();
+        let spawned = Arc::new(AtomicUsize::new(0));
+        let mut keyed = KeyedLatestTasks::new();
+        let predecessor = keyed.begin(7);
+        let sibling = keyed.begin(8);
+        let mut runtime = SurfaceRuntime::new(
+            SameUpdateRemovedOwnerBridge {
+                owner,
+                removed: false,
+                receipt: None,
+                spawned: Arc::clone(&spawned),
+                latest: None,
+                keyed: Some(keyed),
+            },
+            Vector2::new(80.0, 40.0),
+        );
+
+        let outcome = runtime.dispatch_message(0);
+        assert_eq!(outcome.messages_dispatched, 1);
+        assert_eq!(spawned.load(Ordering::Acquire), 0);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(
+            runtime
+                .bridge()
+                .receipt
+                .as_ref()
+                .expect("same-update keyed owner receipt")
+                .poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        let keyed = runtime
+            .bridge()
+            .keyed
+            .as_ref()
+            .expect("same-update keyed tracker");
+        assert_eq!(keyed.active(&7), Some(predecessor));
+        assert_eq!(keyed.active(&8), Some(sibling));
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
     }
 

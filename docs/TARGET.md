@@ -446,9 +446,22 @@ and event/final mappers remain UI-local. The ordered latest-task route also
 retains the exact latest ticket and rolls back its predecessor on invalid owner
 or host admission; the coalesced latest-task route retains that same ticket and
 fences by latest supersession and owner generation. Cancellable owner-stream
-variants, keyed-latest/resource
-ownership, platform ownership, renderer, scheduler, native, and product wiring
-remain deferred.
+variants, keyed-latest resource ownership, `ResourceTasks` ownership, platform
+ownership, renderer, scheduler,
+native, and product wiring remain deferred.
+
+The same qualified owner boundary now includes the application-owned keyed
+latest one-shot route
+`BusinessRequest::latest_for(&mut keyed_tasks, key).run_for_owner_with_receipt(owner, work, map)`.
+It retains the exact host key, keyed ticket and replacement transaction,
+declarative owner generation, and admission receipt; its mapper receives one
+`KeyedTaskCompletion<Key, Output>` only while both keyed-latest and owner
+generation fences remain current. Owner retirement and keyed supersession are
+OR-composed cancellation and late-publication fences. Invalid owner, lifecycle,
+host, or capacity admission rejects without spawn, mapping, reduction, retry,
+or fallback to `Application`, and restores only the affected key's eligible
+predecessor. `ResourceTasks` remains application-owned and has no owner-scoped
+route.
 
 ## Declarative GUI Model
 

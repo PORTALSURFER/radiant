@@ -1,8 +1,13 @@
 use crate::application::{
-    CancellationToken, KeyedTaskCompletion, LatestTaskTransaction, TaskTicket,
+    CancellationToken, DeclarativeEffectOwner, KeyedTaskCompletion, LatestTaskTransaction,
+    TaskTicket,
 };
 
-use super::{BusinessEventSink, BusinessWorkContext, request::BusinessRequest};
+use super::{
+    BusinessEventSink, BusinessWorkContext,
+    admission::{AdmissionReceiptGuard, BusinessTaskAdmissionReceipt},
+    request::BusinessRequest,
+};
 
 pub(super) enum KeyedLatestAdmission {
     Transaction {
@@ -175,6 +180,139 @@ where
             final_map,
             true,
         );
+    }
+}
+
+/// Capability-qualified builder for one keyed-latest business request.
+///
+/// `BusinessRequest::latest_for` returns this wrapper so an explicit owner
+/// route is available for application-owned keyed task registries. Resource
+/// routes retain [`BusinessKeyedLatestRequest`] and therefore cannot select a
+/// declarative owner or transfer ownership from `ResourceTasks`.
+pub struct BusinessKeyedLatestOwnerRequest<'context, Message, Key> {
+    pub(super) request: BusinessKeyedLatestRequest<'context, Message, Key>,
+}
+
+impl<Message, Key> BusinessKeyedLatestOwnerRequest<'_, Message, Key> {
+    /// Return the task ticket assigned to this request.
+    pub fn ticket(&self) -> TaskTicket {
+        self.request.ticket()
+    }
+
+    /// Return the host-owned key for this request.
+    pub fn key(&self) -> &Key {
+        self.request.key()
+    }
+}
+
+impl<'context, Message, Key> BusinessKeyedLatestOwnerRequest<'context, Message, Key>
+where
+    Key: Clone + Send + Sync + 'static,
+{
+    /// Make this keyed latest request cooperatively cancellable.
+    pub fn cancellable(self) -> CancellableBusinessKeyedLatestRequest<'context, Message, Key> {
+        self.request.cancellable()
+    }
+
+    /// Run keyed latest work and tag the output with its key and task ticket.
+    pub fn run<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.request.run(work, map);
+    }
+
+    /// Run keyed latest worker-only work and map its output on the UI runtime.
+    pub fn run_on_ui<Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.request.run_on_ui(work, map);
+    }
+
+    /// Run keyed latest work only while `owner` resolves to one current,
+    /// eligible keyed-node or overlay owner, and return its admission receipt.
+    ///
+    /// The exact keyed task ticket and replacement transaction are retained.
+    /// The worker and UI completion are fenced by both keyed supersession and
+    /// the resolved declarative owner generation.
+    pub fn run_for_owner_with_receipt<Output>(
+        self,
+        owner: DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
+        let BusinessKeyedLatestRequest {
+            request,
+            ticket,
+            key,
+            admission,
+        } = self.request;
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission;
+        request.context.queue_command(
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction_and_receipt_for_owner(
+                crate::runtime::EffectId(effect_id),
+                request.name,
+                request.priority,
+                None,
+                ticket.id(),
+                Some(transaction),
+                Some(guard),
+                Some(owner),
+                move |cancellation_probe| KeyedTaskCompletion {
+                    key,
+                    ticket,
+                    output: work(BusinessWorkContext::new_with_probe(
+                        None,
+                        cancellation_probe,
+                    )),
+                },
+                map,
+            ),
+        );
+        receipt
+    }
+
+    /// Run keyed latest work that may emit intermediate events tagged with its key and task ticket.
+    pub fn stream<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        self.request.stream(work, map_event, map_final);
+    }
+
+    /// Run keyed latest work with coalesced intermediate events tagged with its key and task ticket.
+    pub fn stream_latest<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        self.request.stream_latest(work, map_event, map_final);
     }
 }
 

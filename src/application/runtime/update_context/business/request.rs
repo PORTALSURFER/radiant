@@ -15,7 +15,9 @@ use crate::{
 };
 
 use super::{
-    keyed_latest::{BusinessKeyedLatestRequest, KeyedLatestAdmission},
+    keyed_latest::{
+        BusinessKeyedLatestOwnerRequest, BusinessKeyedLatestRequest, KeyedLatestAdmission,
+    },
     latest::BusinessLatestRequest,
     resource::BusinessResourceRequest,
 };
@@ -54,18 +56,20 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         self,
         latest: &mut KeyedLatestTasks<Key>,
         key: Key,
-    ) -> BusinessKeyedLatestRequest<'context, Message, Key>
+    ) -> BusinessKeyedLatestOwnerRequest<'context, Message, Key>
     where
         Key: Clone + Eq + Hash,
     {
         let (ticket, transaction, effect_id) = latest.begin_replacement(key.clone());
-        BusinessKeyedLatestRequest {
-            request: self,
-            ticket,
-            key,
-            admission: KeyedLatestAdmission::Transaction {
-                effect_id,
-                transaction,
+        BusinessKeyedLatestOwnerRequest {
+            request: BusinessKeyedLatestRequest {
+                request: self,
+                ticket,
+                key,
+                admission: KeyedLatestAdmission::Transaction {
+                    effect_id,
+                    transaction,
+                },
             },
         }
     }

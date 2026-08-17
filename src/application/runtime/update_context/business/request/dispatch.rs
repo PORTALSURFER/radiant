@@ -112,6 +112,48 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         self.stream_with_optional_cancellation(None, work, map_event, map_final);
     }
 
+    /// Run one ordinary ordered business stream only while `owner` resolves to
+    /// one current eligible keyed-node or overlay owner.
+    ///
+    /// Intermediate events keep the existing bounded FIFO ingress and the
+    /// final output remains an uncoalesced terminal delivery. The controller
+    /// resolves and fences the owner generation before worker admission;
+    /// invalid owner selections reject the receipt without fallback.
+    pub fn stream_for_owner_with_receipt<Event, Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        self.context.queue_command(
+            Command::perform_worker_stream_with_priority_and_receipt_for_owner(
+                owner,
+                self.name,
+                self.priority,
+                Some(guard),
+                move |sink, cancellation_probe| {
+                    let event_sink =
+                        BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
+                    work(
+                        BusinessWorkContext::new_with_probe(None, cancellation_probe),
+                        event_sink,
+                    )
+                },
+                map_event,
+                map_final,
+            ),
+        );
+        receipt
+    }
+
     /// Run this business request with coalesced intermediate events.
     ///
     /// Intermediate events are delivered through a per-task latest-message slot:

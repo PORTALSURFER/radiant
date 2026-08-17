@@ -222,4 +222,20 @@ mod tests {
 
         assert!(command.requires_fresh_surface_before_dispatch());
     }
+
+    #[test]
+    fn owner_ordered_stream_commands_require_fresh_surface_before_dispatch() {
+        let owner = crate::application::DeclarativeEffectOwner::new();
+        let command = Command::<()>::perform_worker_stream_with_priority_and_receipt_for_owner(
+            owner,
+            "owner-stream",
+            TaskPriority::Background,
+            None,
+            |_, _| 1_u8,
+            |_: u8| (),
+            |_: u8| (),
+        );
+
+        assert!(command.requires_fresh_surface_before_dispatch());
+    }
 }

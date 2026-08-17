@@ -426,6 +426,16 @@ update requests keep lane/resource selection, command dispatch, cooperative
 cancellation, and latest-stream closure separate while preserving one stable
 `UiUpdateContext::business()` API.
 
+The qualified public owner boundary includes
+`BusinessRequest::stream_for_owner_with_receipt(owner, work, map_event,
+map_final)` for ordinary ordered streams. It reuses the accepted-surface owner
+projection and generation ledger, the worker registry, the bounded FIFO stream
+ingress, the admission receipt, and the controller-composed cancellation probe;
+intermediate events remain FIFO, the final is delivered once after them, and
+event/final mappers remain UI-local. Latest/coalesced owner streams,
+keyed-latest/resource ownership, platform ownership, renderer, scheduler,
+native, and product wiring remain deferred.
+
 ## Declarative GUI Model
 
 Radiant should move toward a clean declarative GUI model.

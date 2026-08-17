@@ -8,10 +8,31 @@ use crate::{
 };
 use std::collections::VecDeque;
 
-#[derive(Clone, Debug)]
+#[cfg(test)]
+use std::cell::Cell;
+
+#[derive(Debug)]
 pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceFrameCache {
     entries: VecDeque<RetainedSurfaceFrameCacheEntry>,
     policy: RetainedSurfaceCachePolicy,
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_RETAINED_SURFACE_CACHE_CLONES: Cell<usize> = const { Cell::new(0) };
+}
+
+impl Clone for RetainedSurfaceFrameCache {
+    fn clone(&self) -> Self {
+        #[cfg(test)]
+        TEST_RETAINED_SURFACE_CACHE_CLONES.with(|clones| {
+            clones.set(clones.get().saturating_add(1));
+        });
+        Self {
+            entries: self.entries.clone(),
+            policy: self.policy,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -92,6 +113,16 @@ impl RetainedSurfaceFrameCache {
 
     pub(in crate::gui_runtime::native_vello) fn entry_count(&self) -> usize {
         self.entries.len()
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn reset_test_clone_count() {
+        TEST_RETAINED_SURFACE_CACHE_CLONES.with(|clones| clones.set(0));
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn test_clone_count() -> usize {
+        TEST_RETAINED_SURFACE_CACHE_CLONES.with(Cell::get)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn cached_frame(

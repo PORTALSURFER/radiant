@@ -2,7 +2,7 @@ use super::shared::*;
 use crate::runtime::{
     NativeFrameDiagnostics, PaintPrimitive, RuntimeAnimationActivity, RuntimeAnimationHost,
     RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeQueueHost,
-    RuntimeTransientOverlayHost, TransientOverlayContext,
+    RuntimeRetainedSurfaceHost, RuntimeTransientOverlayHost, TransientOverlayContext,
 };
 use crate::widgets::TextWidget;
 use std::{
@@ -120,6 +120,57 @@ impl RuntimeTransientOverlayHost for ExactTransientOverlayBridge {
         _primitives: &mut Vec<PaintPrimitive>,
     ) {
         self.paint_calls += 1;
+    }
+}
+
+#[derive(Default)]
+pub(super) struct RetainedSurfaceBridge {
+    pub(super) render_count: usize,
+}
+
+impl RuntimeBridge<DemoMessage> for RetainedSurfaceBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::retained_canvas_mapped(
+            31,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            crate::widgets::RetainedSurfaceDescriptor {
+                key: 7,
+                revision: 1,
+                dirty_mask: 0,
+                volatile: false,
+            },
+            |_| DemoMessage::Increment,
+        )))
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_retained_surfaces()
+    }
+}
+
+impl RuntimeRetainedSurfaceHost for RetainedSurfaceBridge {
+    fn render_retained_surface(
+        &mut self,
+        _descriptor: crate::widgets::RetainedSurfaceDescriptor,
+        rect: crate::gui::types::Rect,
+        _viewport: Vector2,
+    ) -> Option<crate::gui::paint::PaintFrame> {
+        self.render_count += 1;
+        Some(crate::gui::paint::PaintFrame {
+            clear_color: crate::gui::types::Rgba8::default(),
+            primitives: vec![crate::gui::paint::Primitive::Rect(
+                crate::gui::paint::FillRect {
+                    rect,
+                    color: crate::gui::types::Rgba8 {
+                        r: 1,
+                        g: 2,
+                        b: 3,
+                        a: 255,
+                    },
+                },
+            )],
+            text_runs: Vec::new(),
+        })
     }
 }
 

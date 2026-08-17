@@ -35,3 +35,24 @@ fn direct_runtime_refresh_and_relayout_do_not_publish_prepared_candidates() {
         "relayout_with_traversal must remain the direct fallback path"
     );
 }
+
+#[test]
+fn direct_paint_frame_and_native_paths_do_not_consume_fresh_paint_candidates() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let paths = [
+        "src/runtime/controller/context/frame/projection.rs",
+        "src/gui_runtime/native_vello/generic_runtime/core.rs",
+        "src/gui_runtime/native_vello/generic_runtime/frame_prepare.rs",
+        "src/gui_runtime/native_vello/generic_runtime/runner.rs",
+    ];
+
+    for relative_path in paths {
+        let source = fs::read_to_string(manifest_dir.join(relative_path))
+            .expect("direct paint/frame/native source should be readable");
+        assert!(
+            !source.contains("prepare_fresh_surface_paint")
+                && !source.contains("FreshSurfacePaintCandidate"),
+            "{relative_path} must keep fresh paint candidate consumption out of direct paths"
+        );
+    }
+}

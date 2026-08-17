@@ -1475,7 +1475,7 @@ where
         let _ = self.apply_pending_viewport_resize_if_needed();
         let paint_plan_decision = self.core.paint_plan_into(&mut self.frame.last_paint_plan);
         self.publish_native_ime_cursor_area();
-        self.admit_scene_from_current_plan(paint_plan_decision, freshly_refreshed);
+        self.admit_scene_from_current_plan(paint_plan_decision, freshly_refreshed, false);
     }
 
     /// Admit the exact plan installed by a successful prepared refresh. This
@@ -1486,7 +1486,7 @@ where
         self.timing.deferred_scene_rebuild = false;
         self.timing.deferred_scene_rebuild_requires_encode = false;
         self.frame.reset_scene_build_outcome();
-        self.admit_scene_from_current_plan(PaintPlanCacheDecision::Rebuilt, true);
+        self.admit_scene_from_current_plan(PaintPlanCacheDecision::Rebuilt, true, true);
     }
 
     pub(super) fn complete_prepared_surface_refresh(&mut self, terminal_messages: Vec<Message>) {
@@ -1500,6 +1500,7 @@ where
         &mut self,
         paint_plan_decision: PaintPlanCacheDecision,
         freshly_refreshed: bool,
+        prepared_refresh_admission: bool,
     ) {
         let viewport = self.core.runtime.viewport();
         let scene_validity = self.frame.native_scene_validity_fingerprint(
@@ -1567,66 +1568,124 @@ where
             }
         }
         // Any attempted assembly that did not return above falls through to
-        // the authoritative encoder for conservative repair. The encoder
-        // always receives detached CPU-side scene state; the frame assignment
-        // and all admission observations happen together below.
+        // the authoritative encoder for conservative repair. Prepared
+        // refreshes use detached CPU-side state so the candidate can be
+        // published atomically; ordinary rebuilds retain the original
+        // in-place scene/cache path.
         #[cfg(test)]
         self.frame.record_scene_encode_boundary();
-        let mut scene = Scene::new();
-        let mut retained_surface_cache = self.frame.retained_surface_cache.clone();
-        let mut scene_text_runs = SceneTextRunBuffer::new();
-        let stats = encode_surface_paint_plan_to_scene(
-            &self.frame.last_paint_plan,
-            SurfaceSceneEncodeContext {
-                scene: &mut scene,
-                text_renderer: &mut self.frame.text_renderer,
-                bridge: self.core.runtime.bridge_mut(),
-                retained_surface,
+        if prepared_refresh_admission {
+            let mut scene = Scene::new();
+            let mut retained_surface_cache = self.frame.retained_surface_cache.clone();
+            let mut scene_text_runs = SceneTextRunBuffer::new();
+            let stats = encode_surface_paint_plan_to_scene(
+                &self.frame.last_paint_plan,
+                SurfaceSceneEncodeContext {
+                    scene: &mut scene,
+                    text_renderer: &mut self.frame.text_renderer,
+                    bridge: self.core.runtime.bridge_mut(),
+                    retained_surface,
+                    viewport,
+                    retained_cache: &mut retained_surface_cache,
+                    text_runs: &mut scene_text_runs,
+                    animation_time: self.timing.animation_origin.elapsed(),
+                },
+            );
+            let eligibility = render_selection.full_encode_plan();
+            let payloads = encode_native_paint_segment_payloads(
+                &self.frame.last_paint_plan.primitives,
                 viewport,
-                retained_cache: &mut retained_surface_cache,
-                text_runs: &mut scene_text_runs,
-                animation_time: self.timing.animation_origin.elapsed(),
-            },
-        );
-        let eligibility = render_selection.full_encode_plan();
-        let payloads = encode_native_paint_segment_payloads(
-            &self.frame.last_paint_plan.primitives,
-            viewport,
-            paint,
-            eligibility,
-            scene_validity,
-            self.window.target_generation,
-            &self.frame.native_paint_segment_artifact_store,
-        )
-        .into_parts()
-        .0;
-        let materialization =
-            materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
-                scene: &scene,
-                feasibility: stats.artifact_feasibility,
-                plan: eligibility,
-                payloads,
+                paint,
+                eligibility,
+                scene_validity,
+                self.window.target_generation,
+                &self.frame.native_paint_segment_artifact_store,
+            )
+            .into_parts()
+            .0;
+            let materialization =
+                materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
+                    scene: &scene,
+                    feasibility: stats.artifact_feasibility,
+                    plan: eligibility,
+                    payloads,
+                    scene_validity,
+                    target_generation: self.window.target_generation,
+                });
+            let witness = NativeSceneAdmissionWitness {
                 scene_validity,
                 target_generation: self.window.target_generation,
-            });
-        let witness = NativeSceneAdmissionWitness {
-            scene_validity,
-            target_generation: self.window.target_generation,
-            paint,
-            eligibility: self.frame.last_native_paint_segment_eligibility,
-            artifact_residency: render_selection.selected_artifact_residency(),
-            render_selection,
-        };
-        self.frame
-            .commit_native_scene_admission(NativeSceneAdmissionCandidate {
-                scene,
-                stats,
-                text_runs: Some(scene_text_runs),
-                retained_surface_cache: Some(retained_surface_cache),
-                materialization,
-                witness,
-                kind: NativeSceneAdmissionKind::FullEncode { assembly_vetoed },
-            });
+                paint,
+                eligibility: self.frame.last_native_paint_segment_eligibility,
+                artifact_residency: render_selection.selected_artifact_residency(),
+                render_selection,
+            };
+            self.frame
+                .commit_native_scene_admission(NativeSceneAdmissionCandidate {
+                    scene,
+                    stats,
+                    text_runs: Some(scene_text_runs),
+                    retained_surface_cache: Some(retained_surface_cache),
+                    materialization,
+                    witness,
+                    kind: NativeSceneAdmissionKind::FullEncode { assembly_vetoed },
+                });
+        } else {
+            self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
+                &self.frame.last_paint_plan,
+                SurfaceSceneEncodeContext {
+                    scene: &mut self.frame.scene,
+                    text_renderer: &mut self.frame.text_renderer,
+                    bridge: self.core.runtime.bridge_mut(),
+                    retained_surface,
+                    viewport,
+                    retained_cache: &mut self.frame.retained_surface_cache,
+                    text_runs: &mut self.frame.scene_text_runs,
+                    animation_time: self.timing.animation_origin.elapsed(),
+                },
+            );
+            let eligibility = render_selection.full_encode_plan();
+            let payloads = encode_native_paint_segment_payloads(
+                &self.frame.last_paint_plan.primitives,
+                viewport,
+                paint,
+                eligibility,
+                scene_validity,
+                self.window.target_generation,
+                &self.frame.native_paint_segment_artifact_store,
+            )
+            .into_parts()
+            .0;
+            let materialization =
+                materialize_native_paint_segment_artifacts(NativePaintSegmentArtifactAdmission {
+                    scene: &self.frame.scene,
+                    feasibility: self.frame.last_scene_stats.artifact_feasibility,
+                    plan: eligibility,
+                    payloads,
+                    scene_validity,
+                    target_generation: self.window.target_generation,
+                });
+            self.frame
+                .reconcile_native_paint_segment_artifacts(materialization);
+            self.frame.reconcile_native_paint_segments(
+                paint,
+                self.frame.last_scene_stats.segment_encoding,
+                self.window.target_generation,
+            );
+            if assembly_vetoed {
+                self.frame
+                    .record_scene_encode_after_assembly_veto(scene_validity);
+            } else {
+                self.frame.record_scene_encode(scene_validity);
+            }
+            self.frame.record_native_paint_segment_full_encode(
+                paint,
+                self.frame.last_scene_stats.segment_encoding,
+                self.frame.last_scene_stats.artifact_feasibility,
+                self.window.target_generation,
+                assembly_vetoed,
+            );
+        }
         self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
         self.restore_native_hover_cursor_overlay();

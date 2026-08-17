@@ -19,6 +19,36 @@
 | Diagnostics, profiling, and performance validation | 66% |
 | Examples, documentation, and CI guardrails | 76% |
 
+2026-08-17 fresh canonical-main cycle: `origin/main` is `7d13199f`
+(`Admit prepared refresh scenes before terminal dispatch`, PR #1740), and the
+open-PR audit was empty. The required correction cycle preserves the accepted
+estimates above: generic architecture remains ~97% (92–99%, medium
+confidence), broad end-to-end coverage remains `903 / 11` (~82.09%), and no
+estimate credit is awarded for a performance-preserving correction. Exact-head
+Terra review of the pre-merge implementation found that detached scene
+admission cloned the populated retained-surface cache on ordinary/direct full
+rebuilds, outside the prepared-refresh intent. The follow-up branch
+`codex/prepared-scene-cache-path` restores the original in-place scene/cache
+path for ordinary rebuilds and keeps detached cache staging only for prepared
+Vello-only admission. Focused evidence on the exact follow-up head includes
+the no-clone regression, the prepared terminal-order regression, all 74 native
+timing tests, 10 retained-cache tests, rustfmt, `git diff --check`, and the
+reported warning-denied Clippy pass. The previous complete scene, native and
+runtime fences, GPU/custom direct fallback, and exactly-once terminal ordering
+remain unchanged. This correction is not accepted estimate credit until its
+own PR receives exact-head Terra approval and green required checks.
+
+The fresh re-audit leaves these dependency boundaries explicit: first-class
+virtual collection/materialization and its public consumer; renderer resource
+ownership, GPU-work admission/budgets/eviction and GPU timing; matching-key
+IME suppression and broader text shaping/native IME acceptance; split-pane
+focus/keyboard/action semantics; Wayland and Windows native consumers;
+semantic multi-consumer arbitration; detailed profiling/resource accounting;
+and the four documented product/stack decisions (text shaping stack,
+plugin-host adapter design, release-gate workloads, and any future Vello
+replacement or supplement). None authorizes a metadata-only or policy-free
+follow-up slice.
+
 2026-08-14 implementation cycle: the bounded private primary Deadline frame-stage owner now consumes the selected `FrameScheduleDemand` payload exactly once at its scheduled `due_at`, with known adapter/target, owner-generation, and monotonic-revision fences; pending/in-flight work is bounded, readiness is payload-free, and route-time merge remains outside owner admission. Focused coverage records monotonic completion timing with private `NotBudgeted` status, exact payload propagation, vetoes, generation invalidation, and no post-begin fallback drain. Full validation remains with the root workflow; no semantic demand/refresh or custom-coordinate work was added. Estimates remain unchanged at generic ~97%, broad 903/11 (~82.09%), and the existing category rows; no design-only credit.
 
 2026-08-14 implementation cycle: The approved private macOS/AppKit focus slice

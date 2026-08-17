@@ -71,6 +71,27 @@ fn exact_scene_refresh_reuses_encoded_scene_and_preserves_derived_state() {
 }
 
 #[test]
+fn ordinary_retained_surface_rebuild_does_not_clone_populated_cache() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        RetainedSurfaceBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+
+    runner.rebuild_scene();
+    assert_eq!(runner.core.runtime.bridge().render_count, 1);
+    assert_eq!(runner.frame.retained_surface_cache.entry_count(), 1);
+    assert_eq!(runner.frame.last_scene_stats.cache_hits, 0);
+
+    RetainedSurfaceFrameCache::reset_test_clone_count();
+    runner.rebuild_scene();
+
+    assert_eq!(runner.core.runtime.bridge().render_count, 1);
+    assert_eq!(runner.frame.last_scene_stats.cache_hits, 1);
+    assert_eq!(RetainedSurfaceFrameCache::test_clone_count(), 0);
+}
+
+#[test]
 fn prepared_plan_admission_encodes_once_without_a_second_plan_build() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

@@ -16,7 +16,10 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    fn effect_origin_is_active(&self, origin: &EffectOrigin) -> bool {
+    pub(in crate::runtime::controller) fn effect_origin_is_active(
+        &self,
+        origin: &EffectOrigin,
+    ) -> bool {
         if !origin.is_live() {
             return false;
         }

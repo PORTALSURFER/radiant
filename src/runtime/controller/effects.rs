@@ -561,7 +561,7 @@ impl<Message> WorkerEffects<Message> {
     pub(super) fn drain(&mut self) -> Vec<Message> {
         self.drain_at_high_water(self.ingress.high_water())
             .into_iter()
-            .map(|mapped| mapped.message)
+            .filter_map(|mapped| mapped.resolve(true).map(|(message, _origin)| message))
             .collect()
     }
 
@@ -749,10 +749,7 @@ impl<Message> WorkerEffects<Message> {
                 if let RegisteredMapper::Stream { map_event, .. } = &entry.mapper
                     && let Some(message) = map_event(output)
                 {
-                    messages.push(MappedEffectMessage {
-                        message,
-                        origin: entry.origin.clone(),
-                    });
+                    messages.push(MappedEffectMessage::ready(message, entry.origin.clone()));
                 }
             }
             EffectResult::LatestEvent => {
@@ -770,10 +767,7 @@ impl<Message> WorkerEffects<Message> {
                     && let Some(output) = state.take_latest()
                     && let Some(message) = map_event(output)
                 {
-                    messages.push(MappedEffectMessage {
-                        message,
-                        origin: entry.origin.clone(),
-                    });
+                    messages.push(MappedEffectMessage::ready(message, entry.origin.clone()));
                 }
             }
             EffectResult::Completed(output) => {
@@ -789,13 +783,14 @@ impl<Message> WorkerEffects<Message> {
                 match entry.mapper {
                     RegisteredMapper::Once(map) => {
                         if let Some(message) = map(output) {
-                            messages.push(MappedEffectMessage { message, origin });
+                            messages.push(MappedEffectMessage::ready(message, origin));
                         }
                     }
                     RegisteredMapper::Stream { map_final, .. } => {
-                        if let Some(message) = map_final(output) {
-                            messages.push(MappedEffectMessage { message, origin });
-                        }
+                        // The preceding stream event may retire this origin
+                        // when its message is reduced, so invoke the final
+                        // mapper only at the ordered dispatch boundary.
+                        messages.push(MappedEffectMessage::deferred(map_final, output, origin));
                     }
                 }
             }
@@ -841,8 +836,53 @@ impl<Message> WorkerEffects<Message> {
 }
 
 pub(super) struct MappedEffectMessage<Message> {
-    pub(super) message: Message,
-    pub(super) origin: EffectOrigin,
+    mapping: MappedEffect<Message>,
+    origin: EffectOrigin,
+}
+
+enum MappedEffect<Message> {
+    Ready(Message),
+    Deferred {
+        output: Box<dyn Any + Send>,
+        mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+    },
+}
+
+impl<Message> MappedEffectMessage<Message> {
+    fn ready(message: Message, origin: EffectOrigin) -> Self {
+        Self {
+            mapping: MappedEffect::Ready(message),
+            origin,
+        }
+    }
+
+    fn deferred(
+        mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        output: Box<dyn Any + Send>,
+        origin: EffectOrigin,
+    ) -> Self {
+        Self {
+            mapping: MappedEffect::Deferred { output, mapper },
+            origin,
+        }
+    }
+
+    pub(in crate::runtime::controller) fn origin(&self) -> &EffectOrigin {
+        &self.origin
+    }
+
+    pub(in crate::runtime::controller) fn resolve(
+        self,
+        allow_deferred: bool,
+    ) -> Option<(Message, EffectOrigin)> {
+        let Self { mapping, origin } = self;
+        let message = match mapping {
+            MappedEffect::Ready(message) => Some(message),
+            MappedEffect::Deferred { output, mapper } if allow_deferred => mapper(output),
+            MappedEffect::Deferred { .. } => None,
+        }?;
+        Some((message, origin))
+    }
 }
 
 fn close_registered_mapper<Message>(mapper: RegisteredMapper<Message>) {
@@ -1111,6 +1151,8 @@ mod tests {
         accept_worker: bool,
         surface_mode: OwnerSurfaceMode,
         spawned: Arc<AtomicUsize>,
+        retire_on_event: bool,
+        final_reducer_hits: Arc<AtomicUsize>,
     }
 
     impl OwnerWorkerBridge {
@@ -1121,6 +1163,8 @@ mod tests {
                 accept_worker,
                 surface_mode: OwnerSurfaceMode::Single,
                 spawned: Arc::new(AtomicUsize::new(0)),
+                retire_on_event: false,
+                final_reducer_hits: Arc::new(AtomicUsize::new(0)),
             }
         }
     }
@@ -1162,6 +1206,16 @@ mod tests {
 
         fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
             RuntimeHostCapabilities::new().with_tasks()
+        }
+
+        fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+            if self.retire_on_event && message == 1 {
+                self.show_owner = false;
+            }
+            if message == 2 {
+                self.final_reducer_hits.fetch_add(1, Ordering::AcqRel);
+            }
+            crate::runtime::Command::none()
         }
     }
 
@@ -2531,6 +2585,42 @@ mod tests {
         assert_eq!(runtime.worker_effects.pending, 0);
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
         assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_coalesced_stream_event_retirement_fences_queued_final_mapper_and_reducer() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.retire_on_event = true;
+        let final_reducer_hits = Arc::clone(&bridge.final_reducer_hits);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let final_mapper_hits = Arc::new(AtomicUsize::new(0));
+        let final_mapper_hits_for_mapper = Arc::clone(&final_mapper_hits);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-event-retires-owner",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            usize::from,
+            move |output| {
+                final_mapper_hits_for_mapper.fetch_add(1, Ordering::AcqRel);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(final_mapper_hits.load(Ordering::Acquire), 0);
+        assert_eq!(final_reducer_hits.load(Ordering::Acquire), 0);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
     }
 
     fn assert_owner_coalesced_stream_rejected(

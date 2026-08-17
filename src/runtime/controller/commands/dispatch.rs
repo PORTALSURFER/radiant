@@ -1,4 +1,4 @@
-use super::super::owner::EffectOrigin;
+use super::super::{effects::WorkerEffectMappingMode, owner::EffectOrigin};
 use super::{CommandOutcome, SurfaceRuntime};
 use crate::application::runtime::update_context::business::admission::{
     BusinessTaskAdmission, resolve as resolve_admission,
@@ -6,6 +6,7 @@ use crate::application::runtime::update_context::business::admission::{
 use crate::runtime::RepaintScope;
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
+use crate::runtime::command::WorkerEffectMapper;
 use crate::{
     gui::types::Vector2,
     runtime::{Command, DragSession, RuntimeBridge},
@@ -67,6 +68,15 @@ where
         mut effect: crate::runtime::command::WorkerEffect<Message>,
         origin: EffectOrigin,
     ) -> bool {
+        let mapping_mode = if effect.owner.is_some()
+            && matches!(
+                &effect.mapper,
+                WorkerEffectMapper::Stream { latest: true, .. }
+            ) {
+            WorkerEffectMappingMode::DeferredOwnerLatestStream
+        } else {
+            WorkerEffectMappingMode::Eager
+        };
         let origin = match effect.owner.take() {
             Some(handle) => {
                 let Some(origin) = self.declarative_owner_origin_for_handle(handle) else {
@@ -82,7 +92,7 @@ where
             }
             None => origin,
         };
-        self.submit_worker_effect_with_origin(effect, origin)
+        self.submit_worker_effect_with_origin(effect, origin, mapping_mode)
     }
 
     pub(in crate::runtime::controller) fn dispatch_message_inner(

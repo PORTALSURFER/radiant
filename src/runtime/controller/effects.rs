@@ -15,6 +15,7 @@ use std::{
     any::Any,
     collections::{HashMap, VecDeque},
     panic::{self, AssertUnwindSafe},
+    rc::Rc,
     sync::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
@@ -195,12 +196,19 @@ struct Registered<Message> {
     origin: EffectOrigin,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum WorkerEffectMappingMode {
+    Eager,
+    DeferredOwnerLatestStream,
+}
+
 enum RegisteredMapper<Message> {
     Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>),
     Stream {
+        mapping_mode: WorkerEffectMappingMode,
         latest: bool,
         latest_state: Option<Arc<LatestStreamState>>,
-        map_event: Box<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        map_event: Rc<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
         map_final: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
     },
 }
@@ -311,6 +319,7 @@ impl<Message> WorkerEffects<Message> {
         runtime: &mut SurfaceRuntime<Bridge, Message>,
         effect: crate::runtime::command::WorkerEffect<Message>,
         origin: EffectOrigin,
+        mapping_mode: WorkerEffectMappingMode,
     ) -> bool
     where
         Bridge: RuntimeBridge<Message>,
@@ -355,9 +364,10 @@ impl<Message> WorkerEffects<Message> {
                 map_final,
             } => (
                 RegisteredMapper::Stream {
+                    mapping_mode,
                     latest,
                     latest_state: None,
-                    map_event,
+                    map_event: Rc::from(map_event),
                     map_final,
                 },
                 Some(latest),
@@ -381,11 +391,13 @@ impl<Message> WorkerEffects<Message> {
         let mapper = match mapper {
             RegisteredMapper::Once(map) => RegisteredMapper::Once(map),
             RegisteredMapper::Stream {
+                mapping_mode,
                 latest,
                 latest_state: _,
                 map_event,
                 map_final,
             } => RegisteredMapper::Stream {
+                mapping_mode,
                 latest,
                 latest_state: latest_state.clone(),
                 map_event,
@@ -746,10 +758,27 @@ impl<Message> WorkerEffects<Message> {
                 if entry.is_cancelled.as_ref().is_some_and(|probe| probe()) {
                     return;
                 }
-                if let RegisteredMapper::Stream { map_event, .. } = &entry.mapper
-                    && let Some(message) = map_event(output)
+                if let RegisteredMapper::Stream {
+                    mapping_mode,
+                    map_event,
+                    ..
+                } = &entry.mapper
                 {
-                    messages.push(MappedEffectMessage::ready(message, entry.origin.clone()));
+                    let origin = entry.origin.clone();
+                    match mapping_mode {
+                        WorkerEffectMappingMode::Eager => {
+                            if let Some(message) = map_event(output) {
+                                messages.push(MappedEffectMessage::ready(message, origin));
+                            }
+                        }
+                        WorkerEffectMappingMode::DeferredOwnerLatestStream => {
+                            messages.push(MappedEffectMessage::deferred_event(
+                                map_event.clone(),
+                                output,
+                                origin,
+                            ));
+                        }
+                    }
                 }
             }
             EffectResult::LatestEvent => {
@@ -760,14 +789,30 @@ impl<Message> WorkerEffects<Message> {
                     return;
                 }
                 if let RegisteredMapper::Stream {
+                    mapping_mode,
                     latest_state: Some(state),
                     map_event,
                     ..
                 } = &entry.mapper
-                    && let Some(output) = state.take_latest()
-                    && let Some(message) = map_event(output)
                 {
-                    messages.push(MappedEffectMessage::ready(message, entry.origin.clone()));
+                    let Some(output) = state.take_latest() else {
+                        return;
+                    };
+                    let origin = entry.origin.clone();
+                    match mapping_mode {
+                        WorkerEffectMappingMode::Eager => {
+                            if let Some(message) = map_event(output) {
+                                messages.push(MappedEffectMessage::ready(message, origin));
+                            }
+                        }
+                        WorkerEffectMappingMode::DeferredOwnerLatestStream => {
+                            messages.push(MappedEffectMessage::deferred_event(
+                                map_event.clone(),
+                                output,
+                                origin,
+                            ));
+                        }
+                    }
                 }
             }
             EffectResult::Completed(output) => {
@@ -786,12 +831,20 @@ impl<Message> WorkerEffects<Message> {
                             messages.push(MappedEffectMessage::ready(message, origin));
                         }
                     }
-                    RegisteredMapper::Stream { map_final, .. } => {
-                        // The preceding stream event may retire this origin
-                        // when its message is reduced, so invoke the final
-                        // mapper only at the ordered dispatch boundary.
-                        messages.push(MappedEffectMessage::deferred(map_final, output, origin));
-                    }
+                    RegisteredMapper::Stream {
+                        mapping_mode,
+                        map_final,
+                        ..
+                    } => match mapping_mode {
+                        WorkerEffectMappingMode::Eager => {
+                            if let Some(message) = map_final(output) {
+                                messages.push(MappedEffectMessage::ready(message, origin));
+                            }
+                        }
+                        WorkerEffectMappingMode::DeferredOwnerLatestStream => {
+                            messages.push(MappedEffectMessage::deferred(map_final, output, origin));
+                        }
+                    },
                 }
             }
             EffectResult::Panicked(message) => {
@@ -846,6 +899,10 @@ enum MappedEffect<Message> {
         output: Box<dyn Any + Send>,
         mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
     },
+    DeferredEvent {
+        output: Box<dyn Any + Send>,
+        mapper: Rc<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+    },
 }
 
 impl<Message> MappedEffectMessage<Message> {
@@ -867,6 +924,17 @@ impl<Message> MappedEffectMessage<Message> {
         }
     }
 
+    fn deferred_event(
+        mapper: Rc<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        output: Box<dyn Any + Send>,
+        origin: EffectOrigin,
+    ) -> Self {
+        Self {
+            mapping: MappedEffect::DeferredEvent { output, mapper },
+            origin,
+        }
+    }
+
     pub(in crate::runtime::controller) fn origin(&self) -> &EffectOrigin {
         &self.origin
     }
@@ -879,7 +947,9 @@ impl<Message> MappedEffectMessage<Message> {
         let message = match mapping {
             MappedEffect::Ready(message) => Some(message),
             MappedEffect::Deferred { output, mapper } if allow_deferred => mapper(output),
+            MappedEffect::DeferredEvent { output, mapper } if allow_deferred => mapper(output),
             MappedEffect::Deferred { .. } => None,
+            MappedEffect::DeferredEvent { .. } => None,
         }?;
         Some((message, origin))
     }
@@ -946,9 +1016,10 @@ where
         &mut self,
         effect: crate::runtime::command::WorkerEffect<Message>,
         origin: EffectOrigin,
+        mapping_mode: WorkerEffectMappingMode,
     ) -> bool {
         let mut effects = std::mem::take(&mut self.worker_effects);
-        let accepted = effects.submit(self, effect, origin);
+        let accepted = effects.submit(self, effect, origin, mapping_mode);
         self.worker_effects = effects;
         accepted
     }
@@ -1062,9 +1133,10 @@ mod tests {
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(effect.owner.clone(), id, None, 1, None),
                 mapper: RegisteredMapper::Stream {
+                    mapping_mode: WorkerEffectMappingMode::Eager,
                     latest: true,
                     latest_state: Some(Arc::clone(&state)),
-                    map_event: Box::new(|output| {
+                    map_event: Rc::new(|output| {
                         Some(*output.downcast::<usize>().expect("usize output"))
                     }),
                     map_final: Box::new(|output| {
@@ -1153,6 +1225,9 @@ mod tests {
         spawned: Arc<AtomicUsize>,
         retire_on_event: bool,
         final_reducer_hits: Arc<AtomicUsize>,
+        reduced_messages: Arc<Mutex<Vec<usize>>>,
+        close_on_event: bool,
+        trace: Option<Arc<Mutex<Vec<&'static str>>>>,
     }
 
     impl OwnerWorkerBridge {
@@ -1165,6 +1240,9 @@ mod tests {
                 spawned: Arc::new(AtomicUsize::new(0)),
                 retire_on_event: false,
                 final_reducer_hits: Arc::new(AtomicUsize::new(0)),
+                reduced_messages: Arc::new(Mutex::new(Vec::new())),
+                close_on_event: false,
+                trace: None,
             }
         }
     }
@@ -1209,8 +1287,21 @@ mod tests {
         }
 
         fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+            self.reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(message);
+            if let Some(trace) = self.trace.as_ref() {
+                trace
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push("reduce");
+            }
             if self.retire_on_event && message == 1 {
                 self.show_owner = false;
+            }
+            if self.close_on_event && message == 1 {
+                return crate::runtime::Command::exit();
             }
             if message == 2 {
                 self.final_reducer_hits.fetch_add(1, Ordering::AcqRel);
@@ -2623,6 +2714,133 @@ mod tests {
         assert!(runtime.worker_effects.registry.is_empty());
     }
 
+    #[test]
+    fn owner_coalesced_stream_same_owner_queued_before_drain_fences_later_mappers_and_reducers() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.retire_on_event = true;
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+
+        let first_event_hits = Arc::new(AtomicUsize::new(0));
+        let first_event_hits_for_mapper = Arc::clone(&first_event_hits);
+        let first_final_hits = Arc::new(AtomicUsize::new(0));
+        let first_final_hits_for_mapper = Arc::clone(&first_final_hits);
+        let (first_command, first_receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-same-owner-first",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |event| {
+                first_event_hits_for_mapper.fetch_add(1, Ordering::AcqRel);
+                usize::from(event)
+            },
+            move |output| {
+                first_final_hits_for_mapper.fetch_add(1, Ordering::AcqRel);
+                usize::from(output)
+            },
+        );
+
+        let second_event_hits = Arc::new(AtomicUsize::new(0));
+        let second_event_hits_for_mapper = Arc::clone(&second_event_hits);
+        let second_final_hits = Arc::new(AtomicUsize::new(0));
+        let second_final_hits_for_mapper = Arc::clone(&second_final_hits);
+        let (second_command, second_receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-same-owner-second",
+            |_, events| {
+                assert!(events.emit(3));
+                4
+            },
+            move |event| {
+                second_event_hits_for_mapper.fetch_add(1, Ordering::AcqRel);
+                usize::from(event)
+            },
+            move |output| {
+                second_final_hits_for_mapper.fetch_add(1, Ordering::AcqRel);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(first_command);
+        let _ = runtime.execute_command(second_command);
+        assert_eq!(
+            first_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(
+            second_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(first_event_hits.load(Ordering::Acquire), 1);
+        assert_eq!(second_event_hits.load(Ordering::Acquire), 0);
+        assert_eq!(first_final_hits.load(Ordering::Acquire), 0);
+        assert_eq!(second_final_hits.load(Ordering::Acquire), 0);
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1]
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn owner_coalesced_stream_event_closing_fences_later_same_drain_mapper() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.close_on_event = true;
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let event_hits = Arc::new(AtomicUsize::new(0));
+        let event_hits_for_mapper = Arc::clone(&event_hits);
+        let final_hits = Arc::new(AtomicUsize::new(0));
+        let final_hits_for_mapper = Arc::clone(&final_hits);
+        let (command, receipt) = owner_coalesced_stream_command(
+            owner,
+            "owner-stream-latest-closing",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |event| {
+                event_hits_for_mapper.fetch_add(1, Ordering::AcqRel);
+                usize::from(event)
+            },
+            move |output| {
+                final_hits_for_mapper.fetch_add(1, Ordering::AcqRel);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(
+            runtime.lifecycle_phase(),
+            crate::runtime::RuntimeLifecyclePhase::Closing
+        );
+        assert_eq!(event_hits.load(Ordering::Acquire), 1);
+        assert_eq!(final_hits.load(Ordering::Acquire), 0);
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1]
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
     fn assert_owner_coalesced_stream_rejected(
         runtime: &mut SurfaceRuntime<OwnerWorkerBridge, usize>,
         owner: DeclarativeEffectOwner,
@@ -3095,6 +3313,176 @@ mod tests {
         assert_eq!(effects.drain(), vec![8]);
         assert_eq!(*mapped.borrow(), vec![7]);
         assert_eq!(Rc::strong_count(&marker), 1);
+    }
+
+    #[test]
+    fn application_ordered_and_latest_stream_mappers_are_eager_before_reducers() {
+        for latest in [false, true] {
+            let trace = Arc::new(Mutex::new(Vec::new()));
+            let mut runtime = SurfaceRuntime::new(
+                TraceBridge {
+                    trace: Arc::clone(&trace),
+                    close_on_event: false,
+                },
+                Vector2::new(80.0, 40.0),
+            );
+            let event_trace = Arc::clone(&trace);
+            let final_trace = Arc::clone(&trace);
+            runtime.execute_command(
+                crate::runtime::Command::perform_worker_stream_with_priority(
+                    "legacy-stream-eager",
+                    crate::runtime::TaskPriority::Background,
+                    crate::runtime::WorkerStreamOptions {
+                        is_cancelled: None,
+                        generation: 0,
+                        latest,
+                    },
+                    move |sink| {
+                        if latest {
+                            assert!(sink.emit_latest(Box::new(1_u8)));
+                        } else {
+                            assert!(sink.emit(Box::new(1_u8)));
+                        }
+                        2_u8
+                    },
+                    move |event: u8| {
+                        event_trace
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .push("event");
+                        usize::from(event)
+                    },
+                    move |output: u8| {
+                        final_trace
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .push("final");
+                        usize::from(output)
+                    },
+                ),
+            );
+
+            assert!(
+                trace
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .is_empty()
+            );
+            assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+            assert_eq!(
+                *trace
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()),
+                vec!["event", "final", "reduce", "reduce"]
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_stream_final_mapper_is_eager_before_shutdown_reducer() {
+        let trace = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            TraceBridge {
+                trace: Arc::clone(&trace),
+                close_on_event: true,
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let event_trace = Arc::clone(&trace);
+        let final_trace = Arc::clone(&trace);
+        runtime.execute_command(
+            crate::runtime::Command::perform_worker_stream_with_priority(
+                "legacy-stream-eager-shutdown",
+                crate::runtime::TaskPriority::Background,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: 0,
+                    latest: false,
+                },
+                |sink| {
+                    assert!(sink.emit(Box::new(1_u8)));
+                    2_u8
+                },
+                move |event: u8| {
+                    event_trace
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .push("event");
+                    usize::from(event)
+                },
+                move |output: u8| {
+                    final_trace
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .push("final");
+                    usize::from(output)
+                },
+            ),
+        );
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(
+            runtime.lifecycle_phase(),
+            crate::runtime::RuntimeLifecyclePhase::Closing
+        );
+        assert_eq!(
+            *trace
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec!["event", "final", "reduce"]
+        );
+    }
+
+    #[test]
+    fn owner_ordered_stream_mappers_remain_eager_before_reducers() {
+        let owner = DeclarativeEffectOwner::new();
+        let trace = Arc::new(Mutex::new(Vec::new()));
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.trace = Some(Arc::clone(&trace));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let event_trace = Arc::clone(&trace);
+        let final_trace = Arc::clone(&trace);
+        let (command, receipt) = owner_ordered_stream_command(
+            owner,
+            "owner-stream-eager",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |event| {
+                event_trace
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push("event");
+                usize::from(event)
+            },
+            move |output| {
+                final_trace
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .push("final");
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(
+            trace
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty()
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+        assert_eq!(
+            *trace
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec!["event", "final", "reduce", "reduce"]
+        );
     }
 
     #[test]
@@ -4219,6 +4607,49 @@ mod tests {
 
     struct ToggleBridge {
         accepted: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    struct TraceBridge {
+        trace: Arc<Mutex<Vec<&'static str>>>,
+        close_on_event: bool,
+    }
+
+    impl crate::runtime::RuntimeBridge<usize> for TraceBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn update(&mut self, message: usize) -> crate::runtime::Command<usize> {
+            self.trace
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push("reduce");
+            if self.close_on_event && message == 1 {
+                return crate::runtime::Command::exit();
+            }
+            crate::runtime::Command::none()
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+            RuntimeHostCapabilities::new().with_tasks()
+        }
+    }
+
+    impl RuntimeTaskHost<usize> for TraceBridge {
+        fn spawn_worker_task(
+            &mut self,
+            _name: &'static str,
+            _priority: crate::runtime::TaskPriority,
+            _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+            work: Box<dyn FnOnce() + Send + 'static>,
+        ) -> bool {
+            work();
+            true
+        }
     }
 
     #[derive(Default)]

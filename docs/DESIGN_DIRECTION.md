@@ -341,18 +341,21 @@ through that node. The conceptual owner kinds are:
 | Overlay | A stable overlay identity within its owning window and compatible overlay kind. The overlay is only an eligible source candidate until ownership is explicitly selected. |
 | Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
 
-This is a bounded public timer, one-shot business-worker, and ordinary ordered
-and coalesced owner-scoped stream-consumer slice, not the complete target effect
-model. It adds the qualified DeclarativeEffectOwner handle, explicit
-ViewNode/Layer markers, UiUpdateContext owner-timer methods, the owner-scoped
-one-shot BusinessRequest and BusinessLatestRequest methods, and the ordinary
-owner-stream methods `BusinessRequest::stream_for_owner_with_receipt` and
-`BusinessRequest::stream_latest_for_owner_with_receipt`; runtime EffectOrigin,
+This is a bounded public timer, one-shot business-worker, ordinary ordered and
+coalesced owner-scoped stream-consumer, and ordered latest-task owner-stream
+slice, not the complete target effect model. It adds the qualified
+DeclarativeEffectOwner handle, explicit ViewNode/Layer markers, UiUpdateContext
+owner-timer methods, the owner-scoped one-shot BusinessRequest and
+BusinessLatestRequest methods, the ordinary owner-stream methods
+`BusinessRequest::stream_for_owner_with_receipt` and
+`BusinessRequest::stream_latest_for_owner_with_receipt`, and the ordered
+latest-task owner-stream method
+`BusinessLatestRequest::stream_for_owner_with_receipt`; runtime EffectOrigin,
 ledger, and effect registration remain crate-private. It does not define
 general effect ownership, demand/refresh/provider budgets, scheduler
-budgets/fairness/queue capacity/wake ordering, latest-task owner streams,
-keyed-latest/resource ownership, platform/renderer/product wiring, or other
-effect payload compatibility.
+budgets/fairness/queue capacity/wake ordering, coalesced latest-task owner
+streams, keyed-latest/resource ownership, platform/renderer/product wiring, or
+other effect payload compatibility.
 
 Ownership is selected explicitly. The current/default rule keeps ordinary
 primary-surface work application-owned. An overlay or keyed node may provide a

@@ -1447,6 +1447,31 @@ mod tests {
         (context.into_command(), receipt, ticket)
     }
 
+    fn owner_latest_ordered_stream_command(
+        latest: &mut LatestTask,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        work: impl FnOnce(
+            crate::application::runtime::BusinessWorkContext,
+            crate::application::runtime::BusinessEventSink<u8>,
+        ) -> u8
+        + Send
+        + 'static,
+        map_event: impl Fn(TaskCompletion<u8>) -> usize + 'static,
+        map_final: impl FnOnce(TaskCompletion<u8>) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        crate::application::TaskTicket,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context.business().background(name).latest(latest);
+        let ticket = request.ticket();
+        let receipt = request.stream_for_owner_with_receipt(owner, work, map_event, map_final);
+        (context.into_command(), receipt, ticket)
+    }
+
     fn owner_ordered_stream_command(
         owner: DeclarativeEffectOwner,
         name: &'static str,
@@ -2074,6 +2099,348 @@ mod tests {
         assert_eq!(runtime.worker_effects.pending, 0);
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
         assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_latest_ordered_stream_admission_preserves_fifo_and_exact_ticket() {
+        let owner = DeclarativeEffectOwner::new();
+        let bridge = OwnerWorkerBridge::new(owner, true);
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut latest = LatestTask::new();
+        let mapped = Rc::new(RefCell::new(Vec::<(u64, u8)>::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt, ticket) = owner_latest_ordered_stream_command(
+            &mut latest,
+            owner,
+            "owner-latest-stream-valid",
+            |worker_context, events| {
+                assert!(!worker_context.is_cancelled());
+                assert!(events.emit(1));
+                assert!(events.emit(2));
+                3
+            },
+            move |completion| {
+                event_state
+                    .borrow_mut()
+                    .push((completion.ticket.id(), completion.output));
+                usize::from(completion.output)
+            },
+            move |completion| {
+                final_state
+                    .borrow_mut()
+                    .push((completion.ticket.id(), completion.output));
+                usize::from(completion.output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(latest.active(), Some(ticket));
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 1);
+        assert!(mapped.borrow().is_empty());
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 3);
+        assert_eq!(
+            *mapped.borrow(),
+            vec![(ticket.id(), 1), (ticket.id(), 2), (ticket.id(), 3)]
+        );
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1, 2, 3]
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(
+            *mapped.borrow(),
+            vec![(ticket.id(), 1), (ticket.id(), 2), (ticket.id(), 3)]
+        );
+    }
+
+    fn assert_owner_latest_ordered_stream_rejected(
+        runtime: &mut SurfaceRuntime<OwnerWorkerBridge, usize>,
+        latest: &mut LatestTask,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+    ) {
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+        let (command, receipt, replacement) = owner_latest_ordered_stream_command(
+            latest,
+            owner,
+            name,
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |completion| {
+                event_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+            move |completion| {
+                final_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+        );
+
+        let outcome = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(latest.active(), Some(predecessor));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_latest_ordered_stream_rejections_restore_predecessor_without_spawn_or_mapping() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut invalid_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut invalid_latest = LatestTask::new();
+        assert_owner_latest_ordered_stream_rejected(
+            &mut invalid_runtime,
+            &mut invalid_latest,
+            DeclarativeEffectOwner::new(),
+            "owner-latest-stream-invalid",
+        );
+
+        let mut removed_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        removed_runtime.bridge_mut().show_owner = false;
+        let mut removed_latest = LatestTask::new();
+        assert_owner_latest_ordered_stream_rejected(
+            &mut removed_runtime,
+            &mut removed_latest,
+            owner,
+            "owner-latest-stream-removed",
+        );
+
+        let mut host_rejected_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, false),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut host_rejected_latest = LatestTask::new();
+        assert_owner_latest_ordered_stream_rejected(
+            &mut host_rejected_runtime,
+            &mut host_rejected_latest,
+            owner,
+            "owner-latest-stream-host-rejected",
+        );
+    }
+
+    #[test]
+    fn owner_latest_ordered_stream_capacity_rejection_restores_predecessor() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        for id in 0..EFFECT_INGRESS_CAPACITY {
+            let command = crate::runtime::Command::perform_worker_effect_with_priority(
+                "owner-latest-stream-capacity-fill",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || id,
+                |output| output,
+            );
+            let _ = runtime.execute_command(command);
+        }
+
+        let mut latest = LatestTask::new();
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt, replacement) = owner_latest_ordered_stream_command(
+            &mut latest,
+            owner,
+            "owner-latest-stream-capacity-overflow",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |completion| {
+                event_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+            move |completion| {
+                final_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+        );
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+
+        let outcome = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(latest.active(), Some(predecessor));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(runtime.worker_effects.pending, EFFECT_INGRESS_CAPACITY);
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn owner_latest_ordered_stream_supersession_fences_late_events_and_final() {
+        let owner = DeclarativeEffectOwner::new();
+        let bridge = OwnerWorkerBridge::new(owner, true);
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mut latest = LatestTask::new();
+        let mapped = Rc::new(RefCell::new(Vec::<(u64, u8)>::new()));
+
+        let first_state = Rc::clone(&mapped);
+        let (first_command, first_receipt, first_ticket) = owner_latest_ordered_stream_command(
+            &mut latest,
+            owner,
+            "owner-latest-stream-first",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |completion| {
+                first_state
+                    .borrow_mut()
+                    .push((completion.ticket.id(), completion.output));
+                usize::from(completion.output)
+            },
+            move |completion| usize::from(completion.output),
+        );
+        let _ = runtime.execute_command(first_command);
+
+        let second_state = Rc::clone(&mapped);
+        let (second_command, second_receipt, second_ticket) = owner_latest_ordered_stream_command(
+            &mut latest,
+            owner,
+            "owner-latest-stream-second",
+            |_, events| {
+                assert!(events.emit(3));
+                4
+            },
+            move |completion| {
+                second_state
+                    .borrow_mut()
+                    .push((completion.ticket.id(), completion.output));
+                usize::from(completion.output)
+            },
+            {
+                let mapped = Rc::clone(&mapped);
+                move |completion| {
+                    mapped
+                        .borrow_mut()
+                        .push((completion.ticket.id(), completion.output));
+                    usize::from(completion.output)
+                }
+            },
+        );
+        let _ = runtime.execute_command(second_command);
+
+        assert_eq!(
+            first_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(
+            second_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_ne!(first_ticket, second_ticket);
+        assert_eq!(latest.active(), Some(second_ticket));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+        assert_eq!(
+            *mapped.borrow(),
+            vec![(second_ticket.id(), 3), (second_ticket.id(), 4)]
+        );
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![3, 4]
+        );
+    }
+
+    #[test]
+    fn owner_latest_ordered_stream_retirement_fences_late_events_and_final() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut latest = LatestTask::new();
+        let mapped = Rc::new(RefCell::new(Vec::<(u64, u8)>::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt, ticket) = owner_latest_ordered_stream_command(
+            &mut latest,
+            owner,
+            "owner-latest-stream-retired",
+            |_, events| {
+                assert!(events.emit(1));
+                2
+            },
+            move |completion| {
+                event_state
+                    .borrow_mut()
+                    .push((completion.ticket.id(), completion.output));
+                usize::from(completion.output)
+            },
+            move |completion| {
+                final_state
+                    .borrow_mut()
+                    .push((completion.ticket.id(), completion.output));
+                usize::from(completion.output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(latest.active(), Some(ticket));
+
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+        assert!(
+            runtime
+                .bridge()
+                .reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty()
+        );
     }
 
     #[test]

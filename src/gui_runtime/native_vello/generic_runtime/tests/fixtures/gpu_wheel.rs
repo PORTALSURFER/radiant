@@ -2,7 +2,7 @@ use super::super::*;
 use crate::gui::input::{InputSequenceRange, InputTimestamp};
 use crate::gui::types::Point;
 use crate::runtime::{
-    NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
+    NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, ScrollUpdate,
 };
 use crate::widgets::PointerModifiers;
 use std::rc::Rc;
@@ -31,6 +31,7 @@ pub(in super::super) struct GpuWheelBridge {
 pub(in super::super) struct GpuWheelScrollBridge {
     pub(in super::super) scroll_count: usize,
     pub(in super::super) project_count: usize,
+    pub(in super::super) scroll_updates: Vec<ScrollUpdate>,
 }
 
 impl Default for GpuWheelBridge {
@@ -221,8 +222,8 @@ impl RuntimeFrameDiagnosticsHost for GpuWheelBridge {
     fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }
 
-impl RuntimeBridge<String> for GpuWheelScrollBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<String>> {
+impl RuntimeBridge<ScrollUpdate> for GpuWheelScrollBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<ScrollUpdate>> {
         self.project_count += 1;
         crate::runtime::test_arc_surface(UiSurface::new(
             SurfaceNode::scroll_area(
@@ -232,17 +233,16 @@ impl RuntimeBridge<String> for GpuWheelScrollBridge {
                     WidgetMessageMapper::none(),
                 ),
             )
-            .with_scroll_message_local(Rc::new(|_| Some(String::from("scroll")))),
+            .with_scroll_message_local(Rc::new(Some)),
         ))
     }
 
-    fn reduce_message(&mut self, message: String) {
-        if message == "scroll" {
-            self.scroll_count += 1;
-        }
+    fn reduce_message(&mut self, message: ScrollUpdate) {
+        self.scroll_count += 1;
+        self.scroll_updates.push(message);
     }
 
-    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, String> {
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ScrollUpdate> {
         RuntimeHostCapabilities::new().with_frame_diagnostics()
     }
 }

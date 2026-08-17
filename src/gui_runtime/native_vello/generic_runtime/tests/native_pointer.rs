@@ -480,6 +480,109 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
 }
 
 #[test]
+fn native_phaseful_scroll_container_flushes_before_switching_axis() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelScrollBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+    runner.input.last_cursor = Some(point);
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+
+    let vertical = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -1.0),
+        TouchPhase::Moved,
+    );
+    assert_eq!(
+        vertical.diagnostic.result,
+        NativePointerRouteResult::Coalesced
+    );
+    let first_pending = runner
+        .input
+        .pending_scroll_container_wheel
+        .expect("vertical phaseful scroll should be pending");
+    let first_timestamp = first_pending
+        .timestamp
+        .expect("vertical phaseful scroll should carry timestamp metadata");
+    let first_sequence = first_pending
+        .sequence_range
+        .expect("vertical phaseful scroll should carry sequence metadata");
+
+    runner.input.modifiers = ModifiersState::SHIFT;
+    let horizontal = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(-1.0, 0.0),
+        TouchPhase::Moved,
+    );
+    assert_eq!(
+        horizontal.diagnostic.result,
+        NativePointerRouteResult::Coalesced
+    );
+
+    let bridge = runner.core.runtime.bridge();
+    assert_eq!(bridge.scroll_updates.len(), 1);
+    assert_eq!(bridge.scroll_updates[0].delta, Vector2::new(0.0, 40.0));
+    assert_eq!(
+        bridge.scroll_updates[0].metadata.modifiers,
+        PointerModifiers::default()
+    );
+    assert_eq!(
+        bridge.scroll_updates[0].metadata.timestamp,
+        Some(first_timestamp)
+    );
+    assert_eq!(
+        bridge.scroll_updates[0].metadata.sequence_range,
+        Some(first_sequence)
+    );
+
+    let pending = runner
+        .input
+        .pending_scroll_container_wheel
+        .expect("horizontal phaseful scroll should become the sole pending item");
+    assert_eq!(pending.delta, Vector2::new(40.0, 0.0));
+    assert_eq!(
+        pending.modifiers,
+        PointerModifiers {
+            shift: true,
+            ..Default::default()
+        }
+    );
+    let second_timestamp = pending
+        .timestamp
+        .expect("horizontal phaseful scroll should carry timestamp metadata");
+    assert!(second_timestamp >= first_timestamp);
+    let second_sequence = pending
+        .sequence_range
+        .expect("horizontal phaseful scroll should carry sequence metadata");
+    assert_ne!(second_sequence.start(), first_sequence.start());
+    assert_ne!(second_sequence.end(), first_sequence.end());
+
+    runner.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+
+    let bridge = runner.core.runtime.bridge();
+    assert_eq!(bridge.scroll_updates.len(), 2);
+    assert_eq!(bridge.scroll_updates[1].delta, Vector2::new(40.0, 0.0));
+    assert_eq!(
+        bridge.scroll_updates[1].metadata.modifiers,
+        PointerModifiers {
+            shift: true,
+            ..Default::default()
+        }
+    );
+    assert_eq!(
+        bridge.scroll_updates[1].metadata.timestamp,
+        Some(second_timestamp)
+    );
+    assert_eq!(
+        bridge.scroll_updates[1].metadata.sequence_range,
+        Some(second_sequence)
+    );
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+}
+
+#[test]
 fn native_phaseful_scroll_boundaries_flush_pending_movement_before_exact_route() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

@@ -118,6 +118,50 @@ fn owner_latest_business_worker_api_preserves_ticket_and_pending_receipt() {
 }
 
 #[test]
+fn owner_keyed_latest_business_api_preserves_key_ticket_receipt_and_ui_mapper() {
+    let owner = radiant::application::DeclarativeEffectOwner::new();
+    let mut keyed = radiant::prelude::KeyedLatestTasks::new();
+    let key = String::from("row-1");
+    let expected_key = key.clone();
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let mapped_state = std::rc::Rc::clone(&mapped);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("owner-keyed-latest-receipt")
+        .latest_for(&mut keyed, key.clone());
+    let ticket = request.ticket();
+    let receipt: radiant::prelude::BusinessTaskAdmissionReceipt = request
+        .run_for_owner_with_receipt(
+            owner,
+            |_| 42_u8,
+            move |completion| {
+                assert_eq!(completion.key, expected_key);
+                assert_eq!(completion.ticket, ticket);
+                assert_eq!(completion.output, 42);
+                mapped_state.borrow_mut().push((
+                    completion.key.clone(),
+                    completion.ticket,
+                    completion.output,
+                ));
+                DemoMessage::Increment
+            },
+        );
+
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_eq!(keyed.active(&key), Some(ticket));
+    assert_worker_command(
+        &context.into_command(),
+        "owner-keyed-latest-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert!(mapped.borrow().is_empty());
+}
+
+#[test]
 fn owner_latest_business_stream_api_preserves_ticket_and_pending_receipt() {
     let owner = radiant::application::DeclarativeEffectOwner::new();
     let mut latest = radiant::prelude::LatestTask::new();

@@ -352,12 +352,15 @@ BusinessLatestRequest methods, the ordinary owner-stream methods
 latest-task owner-stream method
 `BusinessLatestRequest::stream_for_owner_with_receipt` plus the coalesced
 latest-task owner-stream method
-`BusinessLatestRequest::stream_latest_for_owner_with_receipt`; runtime
+`BusinessLatestRequest::stream_latest_for_owner_with_receipt`, plus the
+capability-qualified `KeyedLatestTasks` one-shot route
+`BusinessRequest::latest_for(&mut keyed_tasks, key).run_for_owner_with_receipt(owner, work, map)`;
+runtime
 EffectOrigin, ledger, and effect registration remain crate-private. It does not define
 general effect ownership, demand/refresh/provider budgets, scheduler
 budgets/fairness/queue capacity/wake ordering, cancellable owner-stream variants,
-keyed-latest/resource ownership, platform/renderer/product wiring, or other
-effect payload compatibility.
+`ResourceTasks` ownership, platform/renderer/product wiring, or other effect
+payload compatibility.
 
 Ownership is selected explicitly. The current/default rule keeps ordinary
 primary-surface work application-owned. An overlay or keyed node may provide a
@@ -387,6 +390,17 @@ application-owned/outlive may still be admitted because it does not depend on
 the removed owner. A worker completion, timer wake, platform result, or
 chained command whose owner generation is retired or mismatched is rejected
 before its mapper runs and before any message is reduced.
+
+The shipped keyed-latest owner one-shot retains the exact host key, existing
+keyed latest-task ticket and replacement transaction, declarative owner
+generation, and admission receipt. Its mapper receives exactly one
+`KeyedTaskCompletion<Key, Output>` and runs only while both the keyed ticket
+and owner generation remain current. Owner retirement and keyed supersession
+are separate OR-composed cancellation and late-publication fences. Invalid
+owner, lifecycle, host, or capacity admission rejects without spawning,
+mapping, reducing, retrying, or assigning application ownership; a failed
+admission restores the eligible predecessor ticket for only the affected key.
+`ResourceTasks` remains application-owned and has no owner-scoped route.
 
 Recovery, temporary native reconstruction, and cached hiding do not by
 themselves retire a live owner generation or cancel its registrations. An

@@ -158,6 +158,48 @@ fn arrangement_shell_hover_uses_paint_only_runtime_overlay() {
 }
 
 #[test]
+fn arrangement_overview_prepared_sync_is_state_only_and_callback_inert() {
+    let state = ArrangementShellState::default();
+    let mut previous = ArrangementOverviewWidget::new(
+        state.clips.clone(),
+        state.selected_clip,
+        state.playhead_beat,
+    );
+    previous.common.state = WidgetState {
+        hovered: true,
+        pressed: true,
+        focused: true,
+        selected: true,
+        active: true,
+        disabled: false,
+        read_only: true,
+        automation_active: true,
+    };
+    previous.hover_clip = Some(2);
+    previous.hover_position = Some(Point::new(180.0, 96.0));
+
+    let mut successor = ArrangementOverviewWidget::new(state.clips.clone(), Some(1), 12.5);
+    successor.common.tooltip = Some(String::from("successor-owned tooltip"));
+    successor.common.state.hovered = false;
+    let common_before = successor.common.clone();
+    let clips_before = successor.clips.clone();
+    let selected_clip_before = successor.selected_clip;
+    let playhead_before = successor.playhead_beat;
+
+    assert!(successor.supports_prepared_state_synchronization());
+    successor.synchronize_from_previous(&previous);
+
+    let mut expected_common = common_before;
+    expected_common.state = previous.common.state;
+    assert_eq!(successor.common, expected_common);
+    assert_eq!(successor.hover_clip, previous.hover_clip);
+    assert_eq!(successor.hover_position, previous.hover_position);
+    assert_eq!(successor.clips, clips_before);
+    assert_eq!(successor.selected_clip, selected_clip_before);
+    assert_eq!(successor.playhead_beat, playhead_before);
+}
+
+#[test]
 fn arrangement_shell_runtime_hover_does_not_refresh_surface() {
     let bridge = arrangement_shell_test_bridge(ArrangementShellState::default());
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(1180.0, 700.0));

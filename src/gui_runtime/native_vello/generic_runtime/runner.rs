@@ -22,8 +22,8 @@ use super::{
     NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
     NativeLifecycle, NativeRenderDeviceErrorKind, NativeResourceMaintenanceTurn,
     NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
-    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    NativeVelloFrameState, PaintPlanCacheDecision, PreparedSurfaceRefreshOwner, RuntimeWakeup,
+    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
     encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
@@ -78,6 +78,7 @@ where
     pub(super) native_window_diagnostic_identity_allocator: NativeWindowDiagnosticIdentityAllocator,
     pub(super) frame_scheduler: NativeFrameScheduler,
     pub(super) frame_stage_owner: WindowStageOwner,
+    pub(super) prepared_surface_refresh_owner: PreparedSurfaceRefreshOwner,
     pub(super) cpu_frame_fairness: Option<CpuFrameFairnessLedger>,
     pub(super) cpu_frame_observation: Option<CpuFrameObservationLedger>,
     pub(super) cpu_frame_observation_capture: CpuFrameObservationCapture,
@@ -283,7 +284,8 @@ where
             timing: NativeRunnerTimingState::new(native_window_diagnostic_identity),
             native_window_diagnostic_identity_allocator,
             frame_scheduler: NativeFrameScheduler::default(),
-            frame_stage_owner: WindowStageOwner::new(frame_schedule_key),
+            frame_stage_owner: WindowStageOwner::new(frame_schedule_key.clone()),
+            prepared_surface_refresh_owner: PreparedSurfaceRefreshOwner::new(frame_schedule_key),
             cpu_frame_fairness: (!auxiliary_owner).then(CpuFrameFairnessLedger::default),
             cpu_frame_observation: frame_diagnostics_enabled
                 .then(CpuFrameObservationLedger::default)
@@ -506,6 +508,10 @@ where
 
     pub(super) const fn is_recovering(&self) -> bool {
         self.native_lifecycle.is_recovering()
+    }
+
+    pub(super) const fn native_lifecycle_snapshot(&self) -> NativeLifecycle {
+        self.native_lifecycle
     }
 
     #[cfg(target_os = "macos")]

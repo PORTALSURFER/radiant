@@ -46,6 +46,10 @@ impl Widget for ArrangementOverviewWidget {
         true
     }
 
+    fn supports_prepared_state_synchronization(&self) -> bool {
+        true
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.common.state = previous.common.state;

@@ -58,6 +58,7 @@ mod native_semantic_accessibility;
 mod pointer_click;
 mod popup_drag;
 mod post_gpu_overlay;
+mod prepared_surface_refresh;
 mod present;
 mod recovery;
 mod render_profile;
@@ -125,6 +126,7 @@ use native_pointer::{
 use pointer_click::{is_double_click, pointer_press_event};
 use popup_drag::{should_start_native_window_drag, should_toggle_native_window_maximized};
 use post_gpu_overlay::PostGpuOverlayRenderer;
+use prepared_surface_refresh::{PreparedSurfaceRefreshNativeEvidence, PreparedSurfaceRefreshOwner};
 pub(in crate::gui_runtime::native_vello) use recovery::NativeRecoveryEpisodeToken;
 use render_profile::{
     RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile,

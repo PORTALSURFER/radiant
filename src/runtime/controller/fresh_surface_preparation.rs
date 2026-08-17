@@ -8,6 +8,7 @@
 #![allow(dead_code)]
 
 use super::SurfaceRuntime;
+use super::interaction_state::RuntimeManagedPointerCaptureState;
 use super::layout_state::RuntimeLayoutContainerStateCandidate;
 use crate::gui::layout_core::{
     LayoutAuthorityEvidence, LayoutInputEvidence, LayoutOutput, LayoutStateAuthorityOwner,
@@ -17,7 +18,8 @@ use crate::gui::types::Rect;
 use crate::layout::{LayoutDebugOptions, LayoutNode, NodeId};
 use crate::runtime::{
     RepaintScope, ResolvedEnvironment, RuntimeBridge, RuntimeLifecyclePhase, SurfacePaintPlan,
-    SurfaceRuntimeProjection, UiSurface, WindowEnvironment, empty_paint_plan_for_layout,
+    SurfaceRefreshTimings, SurfaceRuntimeProjection, UiSurface, WindowEnvironment,
+    empty_paint_plan_for_layout,
     surface::{
         DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, PreparedWidgetStateSyncEvidence,
         PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceMetadata, SourceTopology,
@@ -26,6 +28,7 @@ use crate::runtime::{
     },
 };
 use crate::theme::{ResolvedAppearance, ThemeTokens};
+use std::time::{Duration, Instant};
 
 /// Exact runtime authority issued for one non-paint fresh-surface request.
 ///
@@ -55,6 +58,23 @@ impl FreshSurfaceRefreshRequest {
             && same_rect_bits(self.viewport, other.viewport)
             && self.window_environment == other.window_environment
     }
+}
+
+/// Pure publication-authority evidence for one exact stored request.
+///
+/// The next active generation is computed before any authority mutation so a
+/// failed preflight leaves the stored request and generation untouched.
+struct FreshSurfaceRefreshAuthorityPreflight {
+    request: FreshSurfaceRefreshRequest,
+    next_active_surface_generation: u64,
+}
+
+/// Non-Clone marker installed after the exact request is consumed and the next
+/// active generation is published.  The marker exists only during the
+/// irreversible callback/publication sequence.
+struct FreshSurfaceRefreshAuthorityCommit {
+    request_revision: u64,
+    active_surface_generation: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -176,6 +196,7 @@ pub(in crate::runtime::controller) struct FreshSurfaceLayoutCandidate<Message> {
     mounted_state: RuntimeLayoutContainerStateCandidate,
     prepared_layout: PreparedLayoutPass,
     damage: SurfaceDamage,
+    widget_state_sync: Duration,
     authority: FreshSurfaceLayoutAuthority,
 }
 
@@ -191,10 +212,332 @@ pub(in crate::runtime::controller) struct FreshSurfacePaintCandidate<Message> {
     projection_context: FreshSurfacePaintProjectionContext,
 }
 
+/// One complete, single-consumption prepared surface refresh transaction.
+///
+/// This is the private hand-off between the controller's candidate chain and
+/// the native refresh consumer. It owns every value derived from the same
+/// surface projection, including the inert replacement plan, candidate-local
+/// state synchronization, mounted state, prepared layout, complete damage, and
+/// the context-fenced backend-neutral paint plan.
+pub(crate) struct PreparedSurfaceRefresh<Message> {
+    paint_candidate: FreshSurfacePaintCandidate<Message>,
+    appearance: ResolvedAppearance,
+    timings: SurfaceRefreshTimings,
+    requested_scope: RepaintScope,
+}
+
+/// The only result that crosses the private runtime publication boundary.
+///
+/// Terminal messages stay owned by the refresh transaction until the
+/// successor has been published and the candidate paint plan has been
+/// installed by the native caller.
+pub(crate) struct PreparedSurfaceRefreshPublication<Message> {
+    paint_plan: SurfacePaintPlan,
+    appearance: ResolvedAppearance,
+    terminal_messages: Vec<Message>,
+}
+
+impl<Message> PreparedSurfaceRefreshPublication<Message> {
+    pub(crate) fn into_parts(self) -> (SurfacePaintPlan, ResolvedAppearance, Vec<Message>) {
+        (self.paint_plan, self.appearance, self.terminal_messages)
+    }
+}
+
+impl<Message> PreparedSurfaceRefresh<Message> {
+    fn is_current<Bridge>(&self, runtime: &SurfaceRuntime<Bridge, Message>) -> bool
+    where
+        Bridge: RuntimeBridge<Message>,
+    {
+        self.paint_candidate.is_current(runtime, self.appearance)
+    }
+
+    fn discard(self) {}
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Prepare the complete private transaction consumed by the native refresh
+    /// path. All callbacks and layout work remain candidate-local until the
+    /// transaction is later consumed by the controller publication method.
+    pub(crate) fn prepare_fresh_surface_refresh(
+        &mut self,
+        scope: RepaintScope,
+        appearance: ResolvedAppearance,
+    ) -> Option<PreparedSurfaceRefresh<Message>> {
+        let request = self.issue_fresh_surface_refresh_request(scope)?;
+        let application_started = Instant::now();
+        let mut surface = self.bridge.pull_surface();
+        surface.set_window_environment(self.window_environment);
+        let application_projection = application_started.elapsed();
+
+        let projection_started = Instant::now();
+        let candidate = self.prepare_fresh_surface(surface, request)?;
+        let runtime_projection = projection_started.elapsed();
+
+        let layout_started = Instant::now();
+        let layout_candidate = match self.prepare_fresh_surface_layout(candidate) {
+            Ok(Some(candidate)) => candidate,
+            Ok(None) | Err(_) => return None,
+        };
+        let layout = layout_started
+            .elapsed()
+            .saturating_sub(layout_candidate.widget_state_sync);
+
+        let paint_candidate = match self.prepare_fresh_surface_paint(layout_candidate, appearance) {
+            Ok(Some(candidate)) => candidate,
+            Ok(None) | Err(_) => return None,
+        };
+
+        Some(PreparedSurfaceRefresh {
+            requested_scope: request.scope,
+            appearance,
+            timings: SurfaceRefreshTimings {
+                application_projection,
+                runtime_projection,
+                widget_state_sync: paint_candidate.layout_candidate.widget_state_sync,
+                layout,
+            },
+            paint_candidate,
+        })
+    }
+
+    /// Consume one fully prepared transaction at the only irreversible runtime
+    /// boundary. Every currentness and replacement-plan check occurs before
+    /// the first retiring-widget callback. Once callbacks begin, failures are
+    /// terminal rather than recoverable, preserving the direct refresh order.
+    pub(crate) fn publish_prepared_surface_refresh(
+        &mut self,
+        prepared: PreparedSurfaceRefresh<Message>,
+    ) -> Option<PreparedSurfaceRefreshPublication<Message>> {
+        if !prepared.is_current(self) {
+            prepared.discard();
+            return None;
+        }
+
+        let PreparedSurfaceRefresh {
+            paint_candidate,
+            appearance,
+            timings,
+            requested_scope,
+        } = prepared;
+        let FreshSurfacePaintCandidate {
+            layout_candidate,
+            paint_plan,
+            projection_context: _,
+        } = paint_candidate;
+        let FreshSurfaceLayoutCandidate {
+            surface,
+            layout_root,
+            traversal,
+            source,
+            view_delta,
+            execution,
+            replacement_plan,
+            view_delta_scratch,
+            mounted_state,
+            prepared_layout,
+            damage,
+            widget_state_sync: _,
+            authority,
+        } = layout_candidate;
+
+        let previous_widget_order = self.traversal.widgets.hit_order.clone();
+        let previous_stateful_widget_order = self.traversal.widgets.stateful_order.clone();
+        let previous_paths = self.traversal.widgets.paths.current.clone();
+        let validated_replacement_plan = self
+            .surface
+            .validate_widget_replacement_plan(
+                &surface,
+                replacement_plan,
+                &previous_widget_order,
+                &traversal.widget_paint_order,
+                &previous_paths,
+                &traversal.widget_paths,
+            )
+            .ok()?;
+        let authority_preflight =
+            self.preflight_fresh_surface_refresh_authority(authority.preparation.request)?;
+        let _authority_commit = self.commit_fresh_surface_refresh_authority(authority_preflight)?;
+
+        // The authority marker and validated plan establish the irreversible
+        // boundary. The remaining replacement sequence has no recoverable
+        // veto and preserves the established direct publication order.
+        let replacement_commit = self
+            .surface
+            .commit_validated_widget_replacements(&surface, validated_replacement_plan);
+        let terminal_messages = replacement_commit.terminal_messages;
+        let retired_widget_ids = replacement_commit.retired_widget_ids;
+        let wheel_focus_before_refresh = self.interaction.focus.focused_widget;
+        let composition_focus_before_refresh = self.interaction.focus.focused_widget;
+        let identity = self.discard_incompatible_widget_ownership(
+            &surface,
+            &traversal.widget_paint_order,
+            &traversal.widget_paths,
+            &previous_paths,
+        );
+        for widget_id in &retired_widget_ids {
+            self.discard_widget_ownership(*widget_id);
+        }
+
+        self.reconcile_focused_key_capture_after_refresh(
+            &surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            &previous_stateful_widget_order,
+            &traversal.stateful_widget_order,
+            &previous_paths,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+        );
+        self.reconcile_managed_wheel_sequence_after_refresh(
+            &surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            &previous_paths,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+            wheel_focus_before_refresh,
+        );
+        self.reconcile_managed_composition_after_refresh(
+            &surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            &previous_paths,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+            composition_focus_before_refresh,
+        );
+        self.reconcile_managed_pointer_capture_after_refresh(
+            &surface,
+            &previous_widget_order,
+            &traversal.widget_paint_order,
+            &previous_paths,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+        );
+
+        self.surface = surface;
+        if prepared_layout
+            .commit(&mut self.layout_engine, &mut self.layout, authority.input)
+            .is_err()
+        {
+            std::process::abort();
+        }
+        self.replace_layout_root(layout_root);
+        self.install_traversal_with_candidate(traversal, mounted_state);
+        self.traversal.widgets.paths.previous = previous_paths;
+        self.scratch.projection_source = source;
+        self.scratch.view_delta = view_delta_scratch;
+        self.sync_scroll_offsets();
+        self.record_completed_layout();
+
+        if self.interaction.pointer.managed_capture.is_some() {
+            self.interaction.pointer.capture_state = None;
+        }
+        self.restore_pointer_capture_state();
+        self.validate_managed_pointer_capture_authority();
+        self.validate_managed_wheel_sequence_authority();
+        self.validate_managed_composition_authority();
+        if let Some(capture) = self.interaction.pointer.managed_capture
+            && capture.state == RuntimeManagedPointerCaptureState::Active
+        {
+            self.capture_pointer_capture_state(capture.widget_id);
+        }
+        self.clear_stale_interaction_state();
+        if let Some(widget_id) = self.interaction.focus.focused_widget {
+            self.restore_focused_widget_state(widget_id);
+        }
+        self.validate_focused_key_capture_authority();
+        self.install_declarative_owner_projection();
+
+        self.refresh_counters.application_projection = self
+            .refresh_counters
+            .application_projection
+            .saturating_add(1);
+        self.refresh_counters.runtime_projection =
+            self.refresh_counters.runtime_projection.saturating_add(1);
+        self.refresh_counters.widget_state_sync =
+            self.refresh_counters.widget_state_sync.saturating_add(1);
+        self.refresh_counters.layout = self.refresh_counters.layout.saturating_add(1);
+        self.base_paint_plan_reuse_eligible = false;
+
+        let mut view_delta_diagnostics = view_delta.diagnostics(timings.total());
+        view_delta_diagnostics.damage = damage;
+        self.record_refresh_diagnostics(
+            crate::runtime::SurfaceRefreshDiagnostics {
+                invalidation: crate::runtime::SurfaceInvalidation::from_repaint_scope(Some(
+                    requested_scope,
+                )),
+                timings,
+                identity,
+                layout_state: self.last_layout_state_diagnostics,
+            },
+            timings.total(),
+            view_delta_diagnostics,
+            execution.effective_scope(),
+        );
+        self.enforce_identity_audit(identity);
+
+        Some(PreparedSurfaceRefreshPublication {
+            paint_plan,
+            appearance,
+            terminal_messages,
+        })
+    }
+
+    pub(crate) fn finish_prepared_surface_refresh(&mut self, terminal_messages: Vec<Message>) {
+        self.dispatch_deferred_surface_messages(terminal_messages);
+        self.service_pending_current_surface_relayout();
+    }
+
+    fn preflight_fresh_surface_refresh_authority(
+        &self,
+        request: FreshSurfaceRefreshRequest,
+    ) -> Option<FreshSurfaceRefreshAuthorityPreflight> {
+        if self.fresh_surface_authority_exhausted {
+            return None;
+        }
+        let stored_request = self.fresh_surface_request?;
+        if !stored_request.exactly_matches(request)
+            || !self.fresh_surface_request_is_current(request)
+        {
+            return None;
+        }
+        let next_active_surface_generation =
+            next_checked_generation(self.fresh_surface_active_generation)?;
+        Some(FreshSurfaceRefreshAuthorityPreflight {
+            request,
+            next_active_surface_generation,
+        })
+    }
+
+    fn commit_fresh_surface_refresh_authority(
+        &mut self,
+        preflight: FreshSurfaceRefreshAuthorityPreflight,
+    ) -> Option<FreshSurfaceRefreshAuthorityCommit> {
+        if self.fresh_surface_authority_exhausted
+            || self.fresh_surface_active_generation != preflight.request.active_surface_generation
+            || next_checked_generation(self.fresh_surface_active_generation)
+                != Some(preflight.next_active_surface_generation)
+        {
+            return None;
+        }
+
+        let stored_request = self.fresh_surface_request.take()?;
+        if !stored_request.exactly_matches(preflight.request) {
+            self.fresh_surface_request = Some(stored_request);
+            return None;
+        }
+
+        self.fresh_surface_active_generation = preflight.next_active_surface_generation;
+        Some(FreshSurfaceRefreshAuthorityCommit {
+            request_revision: stored_request.request_revision,
+            active_surface_generation: self.fresh_surface_active_generation,
+        })
+    }
+
     /// Issue an exact private witness for a fresh-surface request.
     ///
     /// Paint-only work never creates this authority.  Checked generations are
@@ -208,6 +551,11 @@ where
             || self.lifecycle_phase() != RuntimeLifecyclePhase::Running
             || self.fresh_surface_authority_exhausted
         {
+            return None;
+        }
+
+        if next_checked_generation(self.fresh_surface_active_generation).is_none() {
+            self.fresh_surface_authority_exhausted = true;
             return None;
         }
 
@@ -400,12 +748,14 @@ where
             current_widget_order: &candidate.traversal.widget_paint_order,
             policy: self.widget_state_sync_policy(),
         };
+        let widget_state_sync_started = Instant::now();
         candidate
             .surface
             .prepare_and_synchronize_widget_state(&self.surface, sync_evidence)?;
         candidate
             .surface
             .prepared_widget_state_sync_is_current(&self.surface, sync_evidence)?;
+        let widget_state_sync = widget_state_sync_started.elapsed();
 
         let SurfaceRuntimeProjection {
             layout_root,
@@ -504,6 +854,7 @@ where
             mounted_state,
             prepared_layout,
             damage,
+            widget_state_sync,
             authority,
         }))
     }
@@ -788,6 +1139,12 @@ where
 
 fn valid_checked_generation(value: u64) -> bool {
     value != 0 && value != u64::MAX
+}
+
+fn next_checked_generation(value: u64) -> Option<u64> {
+    value
+        .checked_add(1)
+        .filter(|next_generation| valid_checked_generation(*next_generation))
 }
 
 fn same_rect_bits(first: Rect, second: Rect) -> bool {
@@ -1113,6 +1470,10 @@ mod tests {
     impl Widget for RetiringWidget {
         fn revision(&self) -> crate::widgets::WidgetRevision {
             crate::widgets::WidgetRevision::exact((), (), self.marker, ())
+        }
+
+        fn supports_prepared_state_synchronization(&self) -> bool {
+            true
         }
 
         fn common(&self) -> &WidgetCommon {
@@ -2159,6 +2520,117 @@ mod tests {
     }
 
     #[test]
+    fn prepared_refresh_publishes_one_owned_plan_and_runtime_transaction() {
+        let (mut runtime, pull_calls, _) = runtime_fixture();
+        let before = runtime.refresh_counters();
+        let pull_before = pull_calls.get();
+        let appearance = ResolvedAppearance::fixed(ThemeTokens::dark());
+        let active_generation_before = runtime.fresh_surface_active_generation;
+        let request_revision_before = runtime.fresh_surface_request_revision;
+        let prepared = runtime
+            .prepare_fresh_surface_refresh(RepaintScope::Surface, appearance)
+            .expect("ordinary neutral refresh should prepare");
+        let old_request = runtime
+            .fresh_surface_request
+            .expect("prepared refresh should retain its request");
+        let old_candidate = runtime
+            .prepare_fresh_surface(ordinary_surface(Vector2::new(24.0, 16.0)), old_request)
+            .expect("old request should admit a candidate before publication");
+        assert!(old_candidate.is_current(&runtime));
+        assert_eq!(
+            old_request.active_surface_generation,
+            active_generation_before
+        );
+        assert_eq!(old_request.request_revision, request_revision_before + 1);
+        let publication = runtime
+            .publish_prepared_surface_refresh(prepared)
+            .expect("prepared refresh should remain current through publication");
+        let (paint_plan, published_appearance, terminal_messages) = publication.into_parts();
+
+        assert_eq!(published_appearance, appearance);
+        assert!(terminal_messages.is_empty());
+        assert!(!paint_plan.primitives.is_empty());
+        assert_eq!(pull_calls.get(), pull_before + 1);
+        assert_eq!(runtime.fresh_surface_request, None);
+        assert_eq!(
+            runtime.fresh_surface_active_generation,
+            active_generation_before + 1
+        );
+        assert_eq!(
+            runtime.fresh_surface_request_revision,
+            old_request.request_revision
+        );
+        assert!(!runtime.fresh_surface_request_is_current(old_request));
+        assert!(!old_candidate.is_current(&runtime));
+        assert!(
+            runtime
+                .prepare_fresh_surface(ordinary_surface(Vector2::new(24.0, 16.0)), old_request)
+                .is_none()
+        );
+        old_candidate.discard();
+
+        let next_request = runtime
+            .issue_fresh_surface_refresh_request(RepaintScope::Surface)
+            .expect("next request should remain admissible");
+        assert_eq!(
+            next_request.request_revision,
+            old_request.request_revision + 1
+        );
+        assert_eq!(
+            next_request.active_surface_generation,
+            active_generation_before + 1
+        );
+        assert_eq!(
+            runtime.fresh_surface_active_generation,
+            active_generation_before + 1
+        );
+        let after = runtime.refresh_counters();
+        assert_eq!(
+            after.application_projection,
+            before.application_projection + 1
+        );
+        assert_eq!(after.runtime_projection, before.runtime_projection + 1);
+        assert_eq!(after.widget_state_sync, before.widget_state_sync + 1);
+        assert_eq!(after.layout, before.layout + 1);
+        assert_eq!(runtime.layout_root, runtime.surface.layout_node());
+    }
+
+    #[test]
+    fn replacement_plan_veto_preserves_authority_before_callbacks() {
+        let prepare_calls = Rc::new(Cell::new(0));
+        let (mut runtime, _, _) =
+            runtime_for_surface(retiring_surface(1, Rc::clone(&prepare_calls)));
+        runtime.bridge.surface = retiring_surface(2, Rc::clone(&prepare_calls));
+        let mut prepared = runtime
+            .prepare_fresh_surface_refresh(
+                RepaintScope::Projection,
+                ResolvedAppearance::fixed(ThemeTokens::dark()),
+            )
+            .expect("retiring successor should prepare");
+        let request = runtime
+            .fresh_surface_request
+            .expect("prepared refresh should retain its request");
+        let active_generation = runtime.fresh_surface_active_generation;
+        let request_revision = runtime.fresh_surface_request_revision;
+        assert!(prepared.is_current(&runtime));
+
+        prepared
+            .paint_candidate
+            .layout_candidate
+            .surface
+            .find_widget_mut(2)
+            .expect("candidate retiring widget")
+            .widget_mut();
+        assert!(prepared.is_current(&runtime));
+
+        assert!(runtime.publish_prepared_surface_refresh(prepared).is_none());
+        assert_eq!(runtime.fresh_surface_request, Some(request));
+        assert_eq!(runtime.fresh_surface_active_generation, active_generation);
+        assert_eq!(runtime.fresh_surface_request_revision, request_revision);
+        assert_eq!(prepare_calls.get(), 0);
+    }
+
+    #[test]
     fn stale_request_and_active_generation_are_vetoed_without_bridge_calls() {
         let (mut runtime, pull_calls, project_calls) = runtime_fixture();
         let request = runtime
@@ -2482,8 +2954,38 @@ mod tests {
 
     #[test]
     fn production_refresh_and_direct_relayout_remain_separate_from_preparation() {
+        let (mut exhausted_runtime, exhausted_pull_calls, exhausted_project_calls) =
+            runtime_fixture();
+        exhausted_runtime.fresh_surface_active_generation = u64::MAX - 1;
+        let pull_before = exhausted_pull_calls.get();
+        let project_before = exhausted_project_calls.get();
+        let request_revision_before = exhausted_runtime.fresh_surface_request_revision;
+        assert!(
+            exhausted_runtime
+                .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+                .is_none()
+        );
+        assert_eq!(exhausted_pull_calls.get(), pull_before);
+        assert_eq!(exhausted_project_calls.get(), project_before);
+        assert_eq!(
+            exhausted_runtime.fresh_surface_request_revision,
+            request_revision_before
+        );
+        assert_eq!(exhausted_runtime.fresh_surface_request, None);
+        assert!(exhausted_runtime.fresh_surface_authority_exhausted);
+        assert!(
+            exhausted_runtime
+                .prepare_fresh_surface_refresh(
+                    RepaintScope::Projection,
+                    ResolvedAppearance::fixed(ThemeTokens::dark()),
+                )
+                .is_none()
+        );
+        assert_eq!(exhausted_pull_calls.get(), pull_before);
+        assert_eq!(exhausted_project_calls.get(), project_before);
+
         let (mut runtime, pull_calls, project_calls) = runtime_fixture();
-        runtime.fresh_surface_active_generation = u64::MAX - 1;
+        runtime.fresh_surface_active_generation = u64::MAX - 2;
         let request = runtime
             .issue_fresh_surface_refresh_request(RepaintScope::Projection)
             .expect("request");
@@ -2524,7 +3026,7 @@ mod tests {
             ),
             fresh_surface_state_before
         );
-        assert_eq!(runtime.fresh_surface_active_generation, u64::MAX - 1);
+        assert_eq!(runtime.fresh_surface_active_generation, u64::MAX - 2);
         assert!(!runtime.fresh_surface_authority_exhausted);
         assert_ne!(runtime.layout_root_authority, layout_root_authority_before);
         assert_eq!(

@@ -240,6 +240,55 @@ fn owner_coalesced_stream_business_api_accepts_ui_local_mappers() {
 }
 
 #[test]
+fn owner_latest_coalesced_business_stream_api() {
+    let owner = radiant::application::DeclarativeEffectOwner::new();
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let event_state = std::rc::Rc::clone(&mapped);
+    let final_state = std::rc::Rc::clone(&mapped);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("owner-latest-coalesced-stream-receipt")
+        .latest(&mut latest);
+    let ticket = request.ticket();
+    let receipt = request.stream_latest_for_owner_with_receipt(
+        owner,
+        |worker_context, events| {
+            assert!(!worker_context.is_cancelled());
+            assert!(events.emit(1_u8));
+            2_u8
+        },
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            event_state
+                .borrow_mut()
+                .push((completion.ticket, completion.output));
+            DemoMessage::Increment
+        },
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            final_state
+                .borrow_mut()
+                .push((completion.ticket, completion.output));
+            DemoMessage::Increment
+        },
+    );
+
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_eq!(latest.active(), Some(ticket));
+    assert_worker_command(
+        &context.into_command(),
+        "owner-latest-coalesced-stream-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert!(mapped.borrow().is_empty());
+}
+
+#[test]
 fn one_shot_business_families_accept_ui_local_mappers() {
     let mut ordinary = radiant::prelude::UiUpdateContext::default();
     let ordinary_state = std::rc::Rc::new(std::cell::RefCell::new(0_u8));

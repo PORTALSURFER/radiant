@@ -237,7 +237,13 @@ the existing coalescing diagnostic. Separately accepted events may map when the
 UI drains between emissions. Both routes map the final exactly once after the
 last accepted intermediate event and pass the controller-composed owner
 cancellation probe into `BusinessWorkContext`; event and final mappers remain
-UI-local and may capture `Rc`/`RefCell`. Latest-task owner streams,
+UI-local and may capture `Rc`/`RefCell`. The shipped
+`BusinessLatestRequest::stream_for_owner_with_receipt(owner, work, map_event,
+map_final)` route adds the same ordered event/final behavior to one latest-task
+ticket: both mappers receive the exact `TaskCompletion` ticket, and owner
+retirement or latest supersession fences late mapping and reduction. Invalid
+owner or host admission rolls back the predecessor latest ticket without
+spawning or mapping. Coalesced latest-task owner streams,
 keyed-latest/resource ownership, and platform ownership remain separate and
 deferred; owner timers remain a separate shipped consumer.
 
@@ -4609,7 +4615,7 @@ the work and resulting domain messages.
 
 ### Declarative effect-owner boundary
 
-Bounded timer, one-shot business-worker, and ordinary ordered and coalesced owner-scoped stream consumers are now public. They expose a qualified opaque
+Bounded timer, one-shot business-worker, ordinary ordered and coalesced owner-scoped stream consumers, and ordered latest-task owner streams are now public. They expose a qualified opaque
 `DeclarativeEffectOwner`, explicit `ViewNode::effect_owner` and
 `Layer::effect_owner` markers, and
 `UiUpdateContext::after_for_owner(...)` /
@@ -4617,7 +4623,8 @@ Bounded timer, one-shot business-worker, and ordinary ordered and coalesced owne
 `BusinessRequest::run_for_owner_with_receipt(...)` and
 `BusinessLatestRequest::run_for_owner_with_receipt(...)` /
 `BusinessRequest::stream_for_owner_with_receipt(...)` /
-`BusinessRequest::stream_latest_for_owner_with_receipt(...)`. Markers are eligible
+`BusinessRequest::stream_latest_for_owner_with_receipt(...)` /
+`BusinessLatestRequest::stream_for_owner_with_receipt(...)`. Markers are eligible
 only for durable keyed nodes or overlays; ownership is never inferred from
 traversal or visibility. Ordinary timers and business requests remain
 application-owned. Owner admission refreshes the accepted surface and rejects
@@ -4626,7 +4633,7 @@ fallback. Late owner wakes and worker completions are fenced before mapping.
 No general effect ownership, semantic demand/refresh/provider budget, scheduler,
 custom-coordinate, platform, or product wiring API is promised.
 
-The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers and business work remain application-owned, and an invalid selection is rejected without fallback. Ordinary ordered and coalesced owner-scoped streaming are shipped; the complete target still covers latest-task owner streams, keyed-latest/resource ownership, platform ownership, and shared-resource semantics that are not exposed here.
+The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers and business work remain application-owned, and an invalid selection is rejected without fallback. Ordinary ordered and coalesced owner-scoped streaming plus ordered latest-task owner streaming are shipped; coalesced latest-task owner streaming, keyed-latest/resource ownership, platform ownership, and shared-resource semantics remain outside this public slice.
 
 That target contract also requires stable owner identity and exact generations
 across reprojection and keyed reorder, retirement on removal or incompatible
@@ -4641,7 +4648,7 @@ Dynamic unkeyed nodes cannot provide the durable identity required for
 owner-scoped cancellation, so they remain on the application-owned path unless
 a later contract supplies an explicit stable identity.
 
-This is a bounded public timer, one-shot business-worker, and ordinary ordered and coalesced owner-scoped stream-consumer slice, not the complete target effect model. The public surface is limited to DeclarativeEffectOwner, explicit ViewNode/Layer markers, the two UiUpdateContext owner-timer methods, and the four UiUpdateContext business-builder owner-worker methods; Command internals, EffectOrigin, the ledger, and effect registration remain crate-private. It makes no claim about demand/refresh/provider budgets, scheduler budgets/fairness/queue capacity/wake ordering, latest-task owner streams, keyed-latest/resource ownership, platform ownership, custom-coordinate transforms, renderer, or product wiring.
+This is a bounded public timer, one-shot business-worker, ordinary ordered and coalesced owner-scoped stream-consumer, and ordered latest-task owner-stream slice, not the complete target effect model. The public surface is limited to DeclarativeEffectOwner, explicit ViewNode/Layer markers, the two UiUpdateContext owner-timer methods, and the business-builder owner-worker methods; Command internals, EffectOrigin, the ledger, and effect registration remain crate-private. It makes no claim about demand/refresh/provider budgets, scheduler budgets/fairness/queue capacity/wake ordering, coalesced latest-task owner streams, keyed-latest/resource ownership, platform ownership, custom-coordinate transforms, renderer, or product wiring.
 Owner identity, admission, and retirement defer queue capacity, budgets, fairness,
 priority, wake ordering, and stage ordering to the separately normative [`Next
 scheduler policy contract`](DESIGN_DIRECTION.md#next-scheduler-policy-contract);

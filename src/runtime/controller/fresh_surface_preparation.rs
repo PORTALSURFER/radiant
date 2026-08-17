@@ -727,11 +727,16 @@ impl<Message> FreshSurfacePaintCandidate<Message> {
     pub(in crate::runtime::controller) fn is_current<Bridge>(
         &self,
         runtime: &SurfaceRuntime<Bridge, Message>,
+        appearance: ResolvedAppearance,
     ) -> bool
     where
         Bridge: RuntimeBridge<Message>,
     {
         self.layout_candidate.is_current(runtime)
+            && runtime.fresh_surface_paint_context_is_neutral()
+            && self
+                .projection_context
+                .is_current(runtime, &self.layout_candidate, appearance)
     }
 
     /// Explicitly abandon this candidate and all candidate-owned paint/layout
@@ -1667,7 +1672,7 @@ mod tests {
             .expect("candidate paint should not veto")
             .expect("candidate paint should be present");
 
-        assert!(candidate.is_current(&runtime));
+        assert!(candidate.is_current(&runtime, appearance));
         assert_eq!(candidate.paint_plan(), &direct);
         assert_eq!(candidate.projection_context, context);
         assert_eq!(candidate.layout_candidate().damage, damage);
@@ -1684,6 +1689,39 @@ mod tests {
         }));
         assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
         candidate.discard();
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+    }
+
+    #[test]
+    fn paint_candidate_currentness_rejects_runtime_context_change_without_active_mutation() {
+        let active = paint_probe_surface(
+            &[PaintProbeBehavior::Emit],
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(0)),
+        );
+        let candidate_calls = Rc::new(Cell::new(0));
+        let candidate_drops = Rc::new(Cell::new(0));
+        let candidate_surface = paint_probe_surface(
+            &[PaintProbeBehavior::Emit],
+            Rc::clone(&candidate_calls),
+            Rc::clone(&candidate_drops),
+        );
+        let (mut runtime, _, _) = runtime_for_surface(active);
+        let candidate = prepare_layout_candidate(&mut runtime, candidate_surface);
+        let appearance = ResolvedAppearance::fixed(ThemeTokens::default());
+        let candidate = runtime
+            .prepare_fresh_surface_paint(candidate, appearance)
+            .expect("candidate paint should not veto")
+            .expect("candidate paint should be present");
+
+        assert!(candidate.is_current(&runtime, appearance));
+        let before = active_snapshot(&runtime);
+        runtime.interaction.hover.widget = Some(2);
+        assert!(!candidate.is_current(&runtime, appearance));
+
+        candidate.discard();
+        assert_eq!(candidate_calls.get(), 1);
+        assert_eq!(candidate_drops.get(), 1);
         assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
     }
 

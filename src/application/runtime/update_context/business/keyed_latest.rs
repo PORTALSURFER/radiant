@@ -287,6 +287,81 @@ where
         receipt
     }
 
+    /// Run ordered keyed latest work only while `owner` resolves to one
+    /// current, eligible keyed-node or overlay owner, and return its admission
+    /// receipt.
+    ///
+    /// Intermediate events retain FIFO delivery and both event and final
+    /// outputs carry this request's exact host key and keyed-latest ticket.
+    /// Admission and mapping are fenced by both keyed supersession and the
+    /// resolved declarative owner generation.
+    pub fn stream_for_owner_with_receipt<Event, Output>(
+        self,
+        owner: DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let BusinessKeyedLatestRequest {
+            request,
+            ticket,
+            key,
+            admission,
+        } = self.request;
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        let event_key = key.clone();
+        let event_map = move |event| {
+            map_event(KeyedTaskCompletion {
+                key: event_key.clone(),
+                ticket,
+                output: event,
+            })
+        };
+        let final_map = move |output| {
+            map_final(KeyedTaskCompletion {
+                key,
+                ticket,
+                output,
+            })
+        };
+        let KeyedLatestAdmission::Transaction {
+            effect_id,
+            transaction,
+        } = admission;
+        request.context.queue_command(
+            crate::runtime::Command::perform_worker_stream_with_identity_and_transaction_and_receipt_for_owner(
+                crate::runtime::EffectId(effect_id),
+                request.name,
+                request.priority,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled: None,
+                    generation: ticket.id(),
+                    latest: false,
+                },
+                Some(transaction),
+                Some(guard),
+                Some(owner),
+                move |sink, cancellation_probe| {
+                    let event_sink =
+                        BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
+                    work(
+                        BusinessWorkContext::new_with_probe(None, cancellation_probe),
+                        event_sink,
+                    )
+                },
+                event_map,
+                final_map,
+            ),
+        );
+        receipt
+    }
+
     /// Run keyed latest work that may emit intermediate events tagged with its key and task ticket.
     pub fn stream<Event, Output>(
         self,
@@ -545,6 +620,49 @@ mod tests {
             command.business_task_priority("keyed-latest-stream-test"),
             Some(TaskPriority::Interactive)
         );
+    }
+
+    #[test]
+    fn owner_keyed_latest_ordered_stream_publishes_owner_receipt_generation_and_transaction() {
+        let owner = crate::application::DeclarativeEffectOwner::new();
+        let key = ResourceKey::scoped("sample", "C:/kick.wav");
+        let mut latest = KeyedLatestTasks::new();
+        let predecessor = latest.begin(key.clone());
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("owner-keyed-stream")
+            .latest_for(&mut latest, key.clone());
+        let ticket = request.ticket();
+        let receipt = request.stream_for_owner_with_receipt(
+            owner,
+            |_, events| {
+                assert!(events.emit(1_u8));
+                2_u8
+            },
+            |_| (),
+            |_| (),
+        );
+
+        let Command::PerformWorker(effect) = context.into_command() else {
+            panic!("owner keyed latest stream should queue a worker effect");
+        };
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Pending
+        );
+        assert_eq!(effect.owner, Some(owner));
+        assert_eq!(effect.generation.0, ticket.id());
+        assert_eq!(
+            effect
+                .transaction
+                .as_ref()
+                .expect("owner keyed stream should carry its transaction")
+                .replacement(),
+            ticket
+        );
+        assert_eq!(latest.active(&key), Some(ticket));
+        assert_ne!(ticket, predecessor);
     }
 
     #[test]

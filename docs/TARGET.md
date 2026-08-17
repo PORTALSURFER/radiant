@@ -434,7 +434,9 @@ map_final)` for ordinary coalesced streams, and
 `BusinessLatestRequest::stream_for_owner_with_receipt(owner, work, map_event,
 map_final)` for ordered latest-task streams, plus
 `BusinessLatestRequest::stream_latest_for_owner_with_receipt(owner, work,
-map_event, map_final)` for coalesced latest-task streams. All four routes reuse the
+map_event, map_final)` for coalesced latest-task streams, and
+`BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`
+for ordered application-owned keyed-latest streams. All five routes reuse the
 accepted-surface owner projection and generation ledger, the worker registry,
 the existing bounded ingress, the admission receipt, and the
 controller-composed cancellation probe. Ordinary and latest-task ordered
@@ -446,7 +448,7 @@ and event/final mappers remain UI-local. The ordered latest-task route also
 retains the exact latest ticket and rolls back its predecessor on invalid owner
 or host admission; the coalesced latest-task route retains that same ticket and
 fences by latest supersession and owner generation. Cancellable owner-stream
-variants, keyed-latest resource ownership, `ResourceTasks` ownership, platform
+variants, coalesced keyed-latest owner streaming, keyed-latest resource ownership, `ResourceTasks` ownership, platform
 ownership, renderer, scheduler,
 native, and product wiring remain deferred.
 
@@ -462,6 +464,14 @@ host, or capacity admission rejects without spawn, mapping, reduction, retry,
 or fallback to `Application`, and restores only the affected key's eligible
 predecessor. `ResourceTasks` remains application-owned and has no owner-scoped
 route.
+
+The ordered keyed-latest stream retains the exact host key, keyed ticket, and
+replacement transaction for every accepted FIFO intermediate event and the
+single final output through `KeyedTaskCompletion<Key, Event>` and
+`KeyedTaskCompletion<Key, Output>`. Keyed supersession and owner retirement
+independently cancel and fence stale worker, mapping, and reduction work.
+Invalid owner, lifecycle, host, or capacity admission fails closed without
+fallback and restores only the affected key's eligible predecessor.
 
 ## Declarative GUI Model
 

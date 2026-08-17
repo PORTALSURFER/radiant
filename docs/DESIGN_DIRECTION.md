@@ -342,8 +342,9 @@ through that node. The conceptual owner kinds are:
 | Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
 
 This is a bounded public timer, one-shot business-worker, ordinary ordered and
-coalesced owner-scoped stream-consumer, and ordered/coalesced latest-task
-owner-stream slice, not the complete target effect model. It adds the qualified
+coalesced owner-scoped stream-consumer, ordered/coalesced latest-task owner
+stream, and ordered application-owned `KeyedLatestTasks` owner-stream slice,
+not the complete target effect model. It adds the qualified
 DeclarativeEffectOwner handle, explicit ViewNode/Layer markers, UiUpdateContext
 owner-timer methods, the owner-scoped one-shot BusinessRequest and
 BusinessLatestRequest methods, the ordinary owner-stream methods
@@ -354,13 +355,15 @@ latest-task owner-stream method
 latest-task owner-stream method
 `BusinessLatestRequest::stream_latest_for_owner_with_receipt`, plus the
 capability-qualified `KeyedLatestTasks` one-shot route
-`BusinessRequest::latest_for(&mut keyed_tasks, key).run_for_owner_with_receipt(owner, work, map)`;
+`BusinessRequest::latest_for(&mut keyed_tasks, key).run_for_owner_with_receipt(owner, work, map)`
+and its ordered stream route
+`BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`;
 runtime
 EffectOrigin, ledger, and effect registration remain crate-private. It does not define
 general effect ownership, demand/refresh/provider budgets, scheduler
-budgets/fairness/queue capacity/wake ordering, cancellable owner-stream variants,
-`ResourceTasks` ownership, platform/renderer/product wiring, or other effect
-payload compatibility.
+budgets/fairness/queue capacity/wake ordering, coalesced keyed owner-stream or
+cancellable owner-stream variants, `ResourceTasks` ownership,
+platform/renderer/product wiring, or other effect payload compatibility.
 
 Ownership is selected explicitly. The current/default rule keeps ordinary
 primary-surface work application-owned. An overlay or keyed node may provide a
@@ -400,7 +403,15 @@ are separate OR-composed cancellation and late-publication fences. Invalid
 owner, lifecycle, host, or capacity admission rejects without spawning,
 mapping, reducing, retrying, or assigning application ownership; a failed
 admission restores the eligible predecessor ticket for only the affected key.
-`ResourceTasks` remains application-owned and has no owner-scoped route.
+`ResourceTasks` remains application-owned and has no owner-scoped route. The
+shipped ordered keyed-latest owner stream retains the exact host key, keyed
+ticket, and replacement transaction for every FIFO intermediate event and the
+single final output through `KeyedTaskCompletion<Key, Event>` and
+`KeyedTaskCompletion<Key, Output>`. Keyed supersession and owner retirement
+independently fence worker, mapping, and reduction; invalid owner, lifecycle,
+host, or capacity admission rolls back only the affected key without fallback.
+Coalesced keyed owner streaming and cancellable owner-stream variants remain
+deferred.
 
 Recovery, temporary native reconstruction, and cached hiding do not by
 themselves retire a live owner generation or cancel its registrations. An

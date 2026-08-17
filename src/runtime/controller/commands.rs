@@ -71,7 +71,12 @@ where
     /// widget dispatch.
     pub fn execute_command(&mut self, command: Command<Message>) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
-        self.execute_command_inner(command, &mut outcome);
+        if command.requires_fresh_surface_before_dispatch() && self.lifecycle_accepts_work() {
+            outcome.surface_refresh_requested = true;
+            self.execute_command_inner_deferred_refresh(command, &mut outcome);
+        } else {
+            self.execute_command_inner(command, &mut outcome);
+        }
         self.finish_command_outcome(outcome)
     }
 }

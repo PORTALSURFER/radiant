@@ -1597,6 +1597,42 @@ mod tests {
     }
 
     #[test]
+    fn owner_latest_public_execute_refreshes_before_removed_owner_resolution() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mut latest = LatestTask::new();
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapped_state = Rc::clone(&mapped);
+        let (command, receipt, replacement) = owner_latest_command(
+            &mut latest,
+            owner,
+            "owner-latest-removed-before-public-execute",
+            move |_| {
+                mapped_state.borrow_mut().push(1);
+                1
+            },
+        );
+
+        runtime.bridge_mut().show_owner = false;
+        let outcome = runtime.execute_command(command);
+
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(latest.active(), Some(predecessor));
+        assert_ne!(replacement, predecessor);
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 0);
+        assert!(mapped.borrow().is_empty());
+        assert!(outcome.surface_refresh_requested);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
     fn owner_latest_host_rejection_rolls_back_without_retry_or_mapping() {
         let owner = DeclarativeEffectOwner::new();
         let mut runtime = SurfaceRuntime::new(

@@ -21,6 +21,7 @@ where
             .unwrap_or(crate::runtime::RepaintScope::Surface);
         let native_evidence = self.prepared_surface_refresh_native_evidence();
         let mut used_prepared_refresh = false;
+        let mut prepared_terminal_messages = None;
         let (_, elapsed) = profile.measure(|| {
             if let Some(ticket) = self.prepared_surface_refresh_owner.begin(native_evidence) {
                 let adapter = self.adapter.as_ref();
@@ -30,13 +31,14 @@ where
                 let owner = &mut self.prepared_surface_refresh_owner;
                 let core = &mut self.core;
                 let plan = &mut self.frame.last_paint_plan;
-                used_prepared_refresh = core.try_prepared_surface_refresh(scope, plan, || {
+                prepared_terminal_messages = core.try_prepared_surface_refresh(scope, plan, || {
                     let current_native_evidence =
                         Self::prepared_surface_refresh_native_evidence_from_parts(
                             adapter, window, timing, lifecycle,
                         );
                     owner.is_current(&ticket, current_native_evidence)
                 });
+                used_prepared_refresh = prepared_terminal_messages.is_some();
                 owner.complete(ticket);
             }
             if !used_prepared_refresh {
@@ -44,6 +46,14 @@ where
             }
         });
         profile.refresh_surface = elapsed;
+
+        if let Some(terminal_messages) = prepared_terminal_messages {
+            // Keep terminal callbacks behind the detached scene admission
+            // boundary. The runtime successor and exact prepared plan are
+            // already published at this point.
+            self.admit_prepared_scene_refresh();
+            self.core.finish_prepared_surface_refresh(terminal_messages);
+        }
 
         let paint_plan_decision = if used_prepared_refresh {
             super::PaintPlanCacheDecision::Rebuilt
@@ -55,12 +65,14 @@ where
         };
         self.publish_native_ime_cursor_area();
 
-        self.frame.mark_scene_texture_dirty();
-        if matches!(paint_plan_decision, super::PaintPlanCacheDecision::Rebuilt) {
-            self.frame.refresh_gpu_surface_interaction_regions();
-            self.frame.refresh_post_gpu_overlay_cache();
+        if !used_prepared_refresh {
+            self.frame.mark_scene_texture_dirty();
+            if matches!(paint_plan_decision, super::PaintPlanCacheDecision::Rebuilt) {
+                self.frame.refresh_gpu_surface_interaction_regions();
+                self.frame.refresh_post_gpu_overlay_cache();
+            }
+            self.export_automation_targets();
         }
-        self.export_automation_targets();
         self.record_frame_work(FrameWork::RefreshSurface {
             reason: FrameWorkReason::DeferredSurfaceRefresh,
         });

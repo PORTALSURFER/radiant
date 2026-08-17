@@ -135,6 +135,14 @@ where
     ) {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
+        if self
+            .input
+            .pending_scroll_container_wheel
+            .as_ref()
+            .is_some_and(|pending| pending.axis != axis)
+        {
+            self.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+        }
         match &mut self.input.pending_scroll_container_wheel {
             Some(pending) => {
                 pending.position = position;

@@ -578,6 +578,34 @@ where
         self.wheel_widget_at(point, delta, modifiers).is_some()
     }
 
+    pub(crate) fn can_coalesce_scroll_container_wheel_with_sample(
+        &self,
+        point: Point,
+        sample: WheelSample,
+    ) -> bool {
+        if sample.phase() != Some(WheelPhase::Changed) || !sample.is_valid() {
+            return false;
+        }
+
+        // An explicit continuation must remain ordered through the controller
+        // while any managed owner or orphan boundary is live. The native
+        // adapter cannot resolve that authority from a hit test alone.
+        if !matches!(
+            self.interaction.wheel.managed_sequence,
+            RuntimeManagedWheelSequenceState::Idle
+        ) {
+            return false;
+        }
+
+        let Some(input) = self.wheel_input_for_hit_test(point, sample, true) else {
+            return false;
+        };
+        matches!(
+            self.wheel_target_at(point, &input),
+            Some(WheelHitTarget::ScrollContainer(_))
+        )
+    }
+
     fn wheel_widget_at(
         &self,
         point: Point,

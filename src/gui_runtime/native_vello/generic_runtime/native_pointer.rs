@@ -300,11 +300,16 @@ where
             self.maybe_log_native_pointer_diagnostic(diagnostic);
             return NativeWheelRoute::new(outcome, diagnostic);
         }
-        let can_queue_scroll_container_wheel = phase.is_none()
-            && self.can_coalesce_scroll_container_wheel_with_timestamp(
+        let can_queue_scroll_container_wheel = match exact_sample.as_ref() {
+            Some(Ok(sample)) => self
+                .core
+                .runtime
+                .can_coalesce_scroll_container_wheel_with_sample(position, *sample),
+            Some(Err(_)) => false,
+            None => self.can_coalesce_scroll_container_wheel_with_timestamp(
                 position, delta, modifiers, timestamp,
-            )
-            && self.timing.redraw_requested
+            ),
+        } && self.timing.redraw_requested
             && !self.pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
             self.queue_scroll_container_wheel_with_metadata(

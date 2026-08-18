@@ -281,7 +281,7 @@ fn active_virtual_layout_vetoes_prepared_admission_and_materializes_combined_ref
         before_refresh.application_projection + 1,
     );
     assert!(
-        after_refresh.runtime_projection >= before_refresh.runtime_projection + 1,
+        after_refresh.runtime_projection > before_refresh.runtime_projection,
         "combined virtual refresh must perform the runtime projection"
     );
     assert!(!runner.frame_stage_owner.has_in_flight());

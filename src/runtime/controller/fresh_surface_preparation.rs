@@ -586,6 +586,18 @@ where
         Some(request)
     }
 
+    /// Return whether the active runtime state is supported by prepared
+    /// refresh. Virtualized content requires the combined refresh path to
+    /// perform its materialization pass before any prepared admission.
+    pub(crate) fn prepared_surface_refresh_is_eligible(&self) -> bool {
+        self.virtual_layout.is_empty()
+            && self
+                .traversal
+                .containers
+                .virtual_layout_registrations
+                .is_empty()
+    }
+
     /// Admit one already-owned fresh surface without consulting the bridge.
     ///
     /// Every fallible check happens before the candidate is returned.  No

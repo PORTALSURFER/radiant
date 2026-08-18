@@ -1,5 +1,90 @@
 use super::{fixtures::*, shared::*};
-use std::rc::Rc;
+use crate::application::IntoView;
+use std::{cell::Cell, rc::Rc};
+
+struct ReadyVirtualLayoutPolicy {
+    query_count: Rc<Cell<usize>>,
+}
+
+impl crate::layout::VirtualLayoutPolicy for ReadyVirtualLayoutPolicy {
+    fn query(
+        &self,
+        _input: &crate::layout::VirtualLayoutQueryInput,
+        sink: &mut crate::layout::VirtualLayoutQuerySink,
+    ) -> crate::layout::VirtualLayoutPolicyDecision {
+        self.query_count
+            .set(self.query_count.get().saturating_add(1));
+        sink.visit(crate::layout::VirtualLayoutItemCandidate::new(
+            crate::layout::VirtualLayoutItemKey::new(1),
+            0,
+            crate::gui::types::Rect::from_xy_size(0.0, 0.0, 100.0, 20.0),
+            crate::layout::VirtualLayoutVisibility::Visible,
+            crate::layout::VirtualLayoutBoundsConfidence::Exact,
+        ))
+        .expect("the test virtual-layout budget admits one item");
+        sink.set_extent(crate::layout::VirtualLayoutExtentCandidate::exact(
+            Vector2::new(100.0, 20.0),
+        ))
+        .expect("the test virtual-layout policy supplies one extent");
+        crate::layout::VirtualLayoutPolicyDecision::Ready
+    }
+}
+
+struct ReadyVirtualLayoutBridge {
+    policy_queries: Rc<Cell<usize>>,
+    project_count: usize,
+}
+
+impl ReadyVirtualLayoutBridge {
+    fn new(policy_queries: Rc<Cell<usize>>) -> Self {
+        Self {
+            policy_queries,
+            project_count: 0,
+        }
+    }
+}
+
+impl crate::runtime::RuntimeBridge<()> for ReadyVirtualLayoutBridge {
+    fn project_surface(&mut self) -> std::sync::Arc<crate::runtime::UiSurface<()>> {
+        self.project_count += 1;
+        let view = crate::application::virtual_layout::virtual_layout_from_parts(
+            crate::application::virtual_layout::VirtualLayoutParts::new(
+                Rc::new(ReadyVirtualLayoutPolicy {
+                    query_count: Rc::clone(&self.policy_queries),
+                }),
+                crate::layout::VirtualLayoutPolicyIdentity::new("timing-test"),
+                crate::layout::VirtualLayoutOverscan::new(0.0, 0.0)
+                    .expect("valid test virtual-layout overscan"),
+                crate::layout::VirtualLayoutBudget::new(1),
+                crate::runtime::VirtualLayoutRevisions::default(),
+                Rc::new(|| crate::application::column(std::iter::empty())),
+                Rc::new(|_| crate::application::text::<()>("item")),
+                Rc::new(|_| crate::layout::VirtualLayoutPolicyIdentity::new("item")),
+            ),
+        );
+        crate::runtime::test_arc_surface(view.into_surface())
+    }
+
+    fn update(&mut self, _message: ()) -> crate::runtime::Command<()> {
+        crate::runtime::Command::none()
+    }
+}
+
+fn valid_prepared_surface_refresh_native_evidence() -> PreparedSurfaceRefreshNativeEvidence {
+    PreparedSurfaceRefreshNativeEvidence {
+        window_id: Some(winit::window::WindowId::dummy()),
+        adapter_generation: Some(NativeAdapterGeneration::from_test_serial(1)),
+        target_generation:
+            super::super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        environment: crate::runtime::WindowEnvironment::default(),
+        native_resources_present: true,
+        target_fenced: false,
+        pending_viewport_resize: false,
+        pending_surface_resize: false,
+        lifecycle: NativeLifecycle::default(),
+        newer_visual_request: false,
+    }
+}
 
 #[test]
 fn transient_overlay_hint_skips_empty_app_overlay_callback() {
@@ -164,6 +249,45 @@ fn prepared_refresh_veto_keeps_the_combined_refresh_fallback() {
 }
 
 #[test]
+fn active_virtual_layout_vetoes_prepared_admission_and_materializes_combined_refresh() {
+    let policy_queries = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ReadyVirtualLayoutBridge::new(Rc::clone(&policy_queries)),
+        Vector2::new(240.0, 80.0),
+    );
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    runner.rebuild_scene();
+    let before_project_count = runner.core.runtime.bridge().project_count;
+    let before_refresh = runner.core.runtime.refresh_counters();
+    assert!(!runner.core.runtime.prepared_surface_refresh_is_eligible());
+    runner.timing.deferred_surface_refresh = true;
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    let after_refresh = runner.core.runtime.refresh_counters();
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        before_project_count + 1,
+        "active virtual content must use the combined projection refresh"
+    );
+    assert_eq!(
+        after_refresh.application_projection,
+        before_refresh.application_projection + 1,
+    );
+    assert!(
+        after_refresh.runtime_projection >= before_refresh.runtime_projection + 1,
+        "combined virtual refresh must perform the runtime projection"
+    );
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
 fn admitted_gpu_candidate_does_not_replay_combined_projection() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
@@ -178,23 +302,9 @@ fn admitted_gpu_candidate_does_not_replay_combined_projection() {
     let before_refresh = runner.core.runtime.refresh_counters();
     runner.timing.deferred_surface_refresh = true;
 
-    let native_evidence = PreparedSurfaceRefreshNativeEvidence {
-        window_id: Some(winit::window::WindowId::dummy()),
-        adapter_generation: Some(NativeAdapterGeneration::from_test_serial(1)),
-        target_generation:
-            super::super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
-        environment: crate::runtime::WindowEnvironment::default(),
-        native_resources_present: true,
-        target_fenced: false,
-        pending_viewport_resize: false,
-        pending_surface_resize: false,
-        lifecycle: NativeLifecycle::default(),
-        newer_visual_request: false,
-    };
-
     runner.refresh_deferred_surface_if_needed_for_test(
         &mut RenderFrameProfile::default(),
-        native_evidence,
+        valid_prepared_surface_refresh_native_evidence(),
     );
 
     // Candidate preparation pulls once. A post-admission fallback would pull

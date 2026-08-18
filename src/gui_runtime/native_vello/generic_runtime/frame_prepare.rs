@@ -34,8 +34,9 @@ where
         let mut prepared_terminal_messages = None;
         let mut projection_completion_mismatch = false;
         let (_, elapsed) = profile.measure(|| {
-            if let Some(ticket) =
-                admit_prepared_surface_refresh(&mut self.frame_stage_owner, native_evidence)
+            if self.prepared_surface_refresh_is_eligible()
+                && let Some(ticket) =
+                    admit_prepared_surface_refresh(&mut self.frame_stage_owner, native_evidence)
             {
                 projection_admitted = true;
                 let adapter = self.adapter.as_ref();
@@ -95,6 +96,13 @@ where
         self.timing
             .startup_timing
             .mark_deferred_model_refresh_done();
+    }
+
+    /// Keep unsupported virtualized runtime state on the combined refresh path.
+    /// This read must happen before Projection admission because admission is
+    /// the no-replay boundary for a prepared candidate.
+    fn prepared_surface_refresh_is_eligible(&self) -> bool {
+        self.core.runtime.prepared_surface_refresh_is_eligible()
     }
 
     #[cfg(test)]

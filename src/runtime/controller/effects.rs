@@ -199,7 +199,7 @@ struct Registered<Message> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum WorkerEffectMappingMode {
     Eager,
-    DeferredOwnerLatestStream,
+    DeferredOwnerStream,
 }
 
 enum RegisteredMapper<Message> {
@@ -771,7 +771,7 @@ impl<Message> WorkerEffects<Message> {
                                 messages.push(MappedEffectMessage::ready(message, origin));
                             }
                         }
-                        WorkerEffectMappingMode::DeferredOwnerLatestStream => {
+                        WorkerEffectMappingMode::DeferredOwnerStream => {
                             messages.push(MappedEffectMessage::deferred_event(
                                 map_event.clone(),
                                 output,
@@ -806,7 +806,7 @@ impl<Message> WorkerEffects<Message> {
                                 messages.push(MappedEffectMessage::ready(message, origin));
                             }
                         }
-                        WorkerEffectMappingMode::DeferredOwnerLatestStream => {
+                        WorkerEffectMappingMode::DeferredOwnerStream => {
                             messages.push(MappedEffectMessage::deferred_event(
                                 map_event.clone(),
                                 output,
@@ -844,7 +844,7 @@ impl<Message> WorkerEffects<Message> {
                                 messages.push(MappedEffectMessage::ready(message, origin));
                             }
                         }
-                        WorkerEffectMappingMode::DeferredOwnerLatestStream => {
+                        WorkerEffectMappingMode::DeferredOwnerStream => {
                             messages.push(MappedEffectMessage::deferred(
                                 map_final,
                                 output,
@@ -1267,6 +1267,7 @@ mod tests {
         surface_mode: OwnerSurfaceMode,
         spawned: Arc<AtomicUsize>,
         retire_on_event: bool,
+        cancel_token_on_event: Option<CancellationToken>,
         final_reducer_hits: Arc<AtomicUsize>,
         reduced_messages: Arc<Mutex<Vec<usize>>>,
         close_on_event: bool,
@@ -1285,6 +1286,7 @@ mod tests {
                 surface_mode: OwnerSurfaceMode::Single,
                 spawned: Arc::new(AtomicUsize::new(0)),
                 retire_on_event: false,
+                cancel_token_on_event: None,
                 final_reducer_hits: Arc::new(AtomicUsize::new(0)),
                 reduced_messages: Arc::new(Mutex::new(Vec::new())),
                 close_on_event: false,
@@ -1351,6 +1353,11 @@ mod tests {
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                     .push("reduce");
+            }
+            if message == 1
+                && let Some(token) = self.cancel_token_on_event.as_ref()
+            {
+                token.cancel();
             }
             if message == 1
                 && let Some(keyed) = self.keyed_supersession.as_mut()
@@ -5611,6 +5618,100 @@ mod tests {
     }
 
     #[test]
+    fn cancellable_owner_ordered_stream_reducer_token_cancellation_fences_later_same_drain() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let reduced_messages = Arc::clone(&runtime.bridge().reduced_messages);
+        let (command, receipt, token) = cancellable_owner_ordered_stream_command(
+            owner,
+            "cancellable-owner-stream-reducer-token-cancel",
+            |_, events| {
+                assert!(events.emit(1));
+                assert!(events.emit(2));
+                3
+            },
+            move |event| {
+                event_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+        runtime.bridge_mut().cancel_token_on_event = Some(token.clone());
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![1]);
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1]
+        );
+        assert!(token.is_cancelled());
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_ordered_stream_reducer_owner_retirement_fences_later_same_drain() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.retire_on_event = true;
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let (command, receipt, token) = cancellable_owner_ordered_stream_command(
+            owner,
+            "cancellable-owner-stream-reducer-owner-retire",
+            |_, events| {
+                assert!(events.emit(1));
+                assert!(events.emit(2));
+                3
+            },
+            move |event| {
+                event_state.borrow_mut().push(event);
+                usize::from(event)
+            },
+            move |output| {
+                final_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![1]);
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1]
+        );
+        assert!(!token.is_cancelled());
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
     fn cancellable_owner_ordered_stream_owner_retirement_fences_later_work_and_mapping() {
         let owner = DeclarativeEffectOwner::new();
         let mut runtime = SurfaceRuntime::new(
@@ -7143,7 +7244,7 @@ mod tests {
             crate::application::runtime::BusinessTaskAdmission::Accepted
         );
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
-        assert_eq!(*owner_mapped.borrow(), vec![1, 2, 3]);
+        assert_eq!(*owner_mapped.borrow(), vec![1]);
         assert_eq!(*application_mapped.borrow(), vec![9]);
         assert_eq!(
             *reduced_messages
@@ -7589,6 +7690,57 @@ mod tests {
             receipt.poll(),
             crate::application::runtime::BusinessTaskAdmission::Accepted
         );
+        assert!(
+            trace
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty()
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+        assert_eq!(
+            *trace
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec!["event", "final", "reduce", "reduce"]
+        );
+    }
+
+    #[test]
+    fn owner_stream_compatibility_constructor_remains_eager_before_reducers() {
+        let owner = DeclarativeEffectOwner::new();
+        let trace = Arc::new(Mutex::new(Vec::new()));
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.trace = Some(Arc::clone(&trace));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let event_trace = Arc::clone(&trace);
+        let final_trace = Arc::clone(&trace);
+        let command =
+            crate::runtime::Command::perform_worker_stream_with_priority_and_receipt_for_owner(
+                owner,
+                "owner-stream-compatibility-eager",
+                crate::runtime::TaskPriority::Background,
+                None,
+                |sink, _| {
+                    assert!(sink.emit(Box::new(1_u8)));
+                    2_u8
+                },
+                move |event: u8| {
+                    event_trace
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .push("event");
+                    usize::from(event)
+                },
+                move |output: u8| {
+                    final_trace
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .push("final");
+                    usize::from(output)
+                },
+            );
+
+        let _ = runtime.execute_command(command);
         assert!(
             trace
                 .lock()

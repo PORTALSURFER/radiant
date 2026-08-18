@@ -68,14 +68,12 @@ where
         mut effect: crate::runtime::command::WorkerEffect<Message>,
         origin: EffectOrigin,
     ) -> bool {
-        let mapping_mode = if effect.owner.is_some()
-            && matches!(
-                &effect.mapper,
-                WorkerEffectMapper::Stream { latest: true, .. }
-            ) {
-            WorkerEffectMappingMode::DeferredOwnerLatestStream
-        } else {
-            WorkerEffectMappingMode::Eager
+        let mapping_mode = match (&effect.owner, &effect.mapper, effect.is_cancelled.is_some()) {
+            (Some(_), WorkerEffectMapper::Stream { latest: true, .. }, _)
+            | (Some(_), WorkerEffectMapper::Stream { latest: false, .. }, true) => {
+                WorkerEffectMappingMode::DeferredOwnerStream
+            }
+            _ => WorkerEffectMappingMode::Eager,
         };
         let origin = match effect.owner.take() {
             Some(handle) => {

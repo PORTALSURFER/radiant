@@ -351,6 +351,48 @@ fn owner_ordered_stream_business_api_accepts_ui_local_mappers() {
 }
 
 #[test]
+fn cancellable_owner_ordered_stream_api_accepts_ui_local_mappers_and_token_clone() {
+    let owner = radiant::application::DeclarativeEffectOwner::new();
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let event_state = std::rc::Rc::clone(&mapped);
+    let final_state = std::rc::Rc::clone(&mapped);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("cancellable-owner-stream-receipt")
+        .cancellable();
+    let token = request.token();
+    let receipt = request.stream_for_owner_with_receipt(
+        owner,
+        |worker_context, events| {
+            assert!(!worker_context.is_cancelled());
+            assert!(events.emit(1_u8));
+            2_u8
+        },
+        move |event| {
+            event_state.borrow_mut().push(event);
+            DemoMessage::Increment
+        },
+        move |output| {
+            final_state.borrow_mut().push(output);
+            DemoMessage::Increment
+        },
+    );
+
+    assert!(!token.is_cancelled());
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_worker_command(
+        &context.into_command(),
+        "cancellable-owner-stream-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert!(mapped.borrow().is_empty());
+}
+
+#[test]
 fn owner_coalesced_stream_business_api_accepts_ui_local_mappers() {
     let owner = radiant::application::DeclarativeEffectOwner::new();
     let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));

@@ -435,10 +435,12 @@ map_final)` for ordinary coalesced streams, and
 map_final)` for ordered latest-task streams, plus
 `BusinessLatestRequest::stream_latest_for_owner_with_receipt(owner, work,
 map_event, map_final)` for coalesced latest-task streams, and
+`CancellableBusinessRequest::stream_for_owner_with_receipt(owner, work,
+map_event, map_final)` for cancellation-aware ordinary ordered streams, and
 `BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`
 for ordered application-owned keyed-latest streams, plus
 `BusinessRequest::latest_for(&mut keyed_tasks, key).stream_latest_for_owner_with_receipt(owner, work, map_event, map_final)`
-for coalesced application-owned keyed-latest streams. All six routes reuse the
+for coalesced application-owned keyed-latest streams. All seven routes reuse the
 accepted-surface owner projection and generation ledger, the worker registry,
 the existing bounded ingress, the admission receipt, and the
 controller-composed cancellation probe. Ordinary and latest-task ordered
@@ -459,7 +461,13 @@ independently fence worker, mapping, and reduction. Invalid, removed,
 ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
 same-update admissions fail closed without `Application` fallback and restore
 only the affected key's predecessor; sibling keys remain unchanged. Cancellable
-owner-stream variants, keyed-latest resource ownership, `ResourceTasks` ownership, platform ownership, renderer, scheduler,
+owner-stream cancellation composes the explicit token and declarative owner
+probes with OR semantics; token cancellation and owner retirement independently
+fence cooperative work, FIFO events, final delivery, mapping, and reduction.
+Its receipt remains admission-only and its mappers remain UI-local/non-`Send`.
+Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host,
+capacity, and closing admissions reject atomically without spawn, mapping, retry,
+or `Application` fallback. Keyed-latest resource ownership, `ResourceTasks`, platform ownership, renderer, scheduler,
 native, and product wiring remain deferred.
 
 The same qualified owner boundary now includes the application-owned keyed

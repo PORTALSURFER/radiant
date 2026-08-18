@@ -63,10 +63,45 @@ impl<'context, Message> BusinessRequest<'context, Message> {
     where
         Output: Send + 'static,
     {
+        self.run_for_owner_with_optional_cancellation(owner, None, work, map)
+    }
+
+    pub(in crate::application::runtime::update_context::business) fn run_for_owner_with_optional_cancellation<
+        Output,
+    >(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        token: Option<CancellationToken>,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
         let receipt = BusinessTaskAdmissionReceipt::new();
         let guard = AdmissionReceiptGuard(receipt.weak());
-        self.context.queue_command(
-            Command::perform_worker_effect_with_priority_and_receipt_for_owner(
+        let worker_token = token.clone();
+        let is_cancelled = token.clone().map(|token| {
+            Box::new(move || token.is_cancelled()) as Box<dyn Fn() -> bool + Send + Sync + 'static>
+        });
+        let command = match token {
+            Some(_) => {
+                Command::perform_worker_effect_with_priority_and_receipt_for_owner_with_options(
+                    owner,
+                    self.name,
+                    self.priority,
+                    is_cancelled,
+                    Some(guard),
+                    move |cancellation_probe| {
+                        work(BusinessWorkContext::new_with_probe(
+                            worker_token,
+                            cancellation_probe,
+                        ))
+                    },
+                    map,
+                )
+            }
+            None => Command::perform_worker_effect_with_priority_and_receipt_for_owner(
                 owner,
                 self.name,
                 self.priority,
@@ -79,7 +114,8 @@ impl<'context, Message> BusinessRequest<'context, Message> {
                 },
                 map,
             ),
-        );
+        };
+        self.context.queue_command(command);
         receipt
     }
 

@@ -241,12 +241,38 @@ impl<Message> Command<Message> {
     where
         Output: Send + 'static,
     {
+        Self::perform_worker_effect_with_priority_and_receipt_for_owner_with_options(
+            owner,
+            name,
+            priority,
+            None,
+            admission_receipt,
+            work,
+            map,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_effect_with_priority_and_receipt_for_owner_with_options<Output>(
+        owner: crate::application::DeclarativeEffectOwner,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        admission_receipt: Option<
+            crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard,
+        >,
+        work: impl FnOnce(Option<WorkerCancellationProbe>) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
         let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
         Self::perform_worker_effect_with_identity_and_transaction_and_receipt_for_owner(
             super::EffectId(id),
             name,
             priority,
-            None,
+            is_cancelled,
             0,
             None,
             admission_receipt,

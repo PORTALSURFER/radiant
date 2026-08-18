@@ -73,6 +73,9 @@ where
             | (Some(_), WorkerEffectMapper::Stream { latest: false, .. }, true) => {
                 WorkerEffectMappingMode::DeferredOwnerStream
             }
+            (Some(_), WorkerEffectMapper::Once(_), true) => {
+                WorkerEffectMappingMode::DeferredOwnerOneShot
+            }
             _ => WorkerEffectMappingMode::Eager,
         };
         let origin = match effect.owner.take() {

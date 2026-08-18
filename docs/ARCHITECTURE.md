@@ -603,7 +603,8 @@ worker, timer, and platform-completion registries in
 `src/runtime/controller/effects.rs`, `timers.rs`, `platform.rs`, and `host.rs`,
 including chained commands. Retirement fences only the matching generation;
 it does not transfer ownership to the declarative tree or split the shared
-ingress. The declarative timer, one-shot worker, application-owned
+ingress. The declarative timer, one-shot worker, cancellable ordinary owner
+one-shot, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, ordinary ordered and
 coalesced owner-scoped stream consumers, the cancellable ordinary ordered
 owner stream, ordered/coalesced latest-task owner streams, and coalesced
@@ -613,7 +614,8 @@ deferred.
 
 The private declarative seam has five dependency-ordered stages. Generic
 matching registry retirement is now shipped at the accepted projection
-boundary; the bounded explicit timer, one-shot owner-worker, application-owned
+boundary; the bounded explicit timer, one-shot owner-worker, cancellable ordinary
+owner one-shot, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
 one-shot worker, ordinary ordered and coalesced owner-scoped stream consumers,
 the cancellable ordinary ordered owner stream, ordered/coalesced latest-task
@@ -626,7 +628,7 @@ demand/refresh/provider ownership remain deferred:
    overlay and keyed-node candidates and compatibility context. The bounded
    public `DeclarativeEffectOwner` marker, `UiUpdateContext` owner-timer
    methods, and qualified one-shot/`KeyedLatestTasks`/ordinary
-   ordered/coalesced/cancellable-ordered/ordered-latest/coalesced-latest/keyed-ordered/keyed-coalesced owner-worker
+   ordered/coalesced/cancellable-owner-one-shot/cancellable-ordered/ordered-latest/coalesced-latest/keyed-ordered/keyed-coalesced owner-worker
    methods are now
    exposed, while runtime origin and effect
    payloads remain private. A dynamic
@@ -665,8 +667,20 @@ ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
 same-update admissions fail closed without `Application` fallback and restore
 only the affected key's eligible predecessor; sibling keys remain unchanged.
 
+The shipped cancellable ordinary owner one-shot uses the same accepted-surface
+owner generation, worker registry, and admission receipt as the ordinary
+one-shot. Its explicit token and declarative owner probes are OR-composed fences
+for cooperative work, deferred mapping, and reduction. Only the
+token-cancellable owner one-shot defers mapping until UI drain; application-owned
+and non-cancellable owner one-shots remain eager. The receipt is admission-only,
+and its UI-local mapper need not be `Send` or `Sync`. Invalid, removed,
+ambiguous, unkeyed, incompatible, stale, same-update, host, capacity, and
+closing admissions fail closed without spawn, mapping, retry, or `Application`
+fallback.
+
 4. The existing timer and worker registries carry the explicitly selected owner
-   origin for the bounded owner-timer, one-shot owner-worker, application-owned
+   origin for the bounded owner-timer, one-shot owner-worker, cancellable
+   ordinary owner one-shot, application-owned
    `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
    one-shot worker, ordinary ordered/coalesced stream consumers,
    ordered/coalesced latest-task owner streams, coalesced keyed-latest owner

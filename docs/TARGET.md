@@ -427,6 +427,8 @@ cancellation, and latest-stream closure separate while preserving one stable
 `UiUpdateContext::business()` API.
 
 The qualified public owner boundary includes
+`CancellableBusinessRequest::run_for_owner_with_receipt(owner, work, map)` for
+token-cancellable ordinary owner one-shots, and
 `BusinessRequest::stream_for_owner_with_receipt(owner, work, map_event,
 map_final)` for ordinary ordered streams and
 `BusinessRequest::stream_latest_for_owner_with_receipt(owner, work, map_event,
@@ -440,7 +442,7 @@ map_event, map_final)` for cancellation-aware ordinary ordered streams, and
 `BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`
 for ordered application-owned keyed-latest streams, plus
 `BusinessRequest::latest_for(&mut keyed_tasks, key).stream_latest_for_owner_with_receipt(owner, work, map_event, map_final)`
-for coalesced application-owned keyed-latest streams. All seven routes reuse the
+for coalesced application-owned keyed-latest streams. All eight routes reuse the
 accepted-surface owner projection and generation ledger, the worker registry,
 the existing bounded ingress, the admission receipt, and the
 controller-composed cancellation probe. Ordinary and latest-task ordered
@@ -467,7 +469,14 @@ fence cooperative work, FIFO events, final delivery, mapping, and reduction.
 Its receipt remains admission-only and its mappers remain UI-local/non-`Send`.
 Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host,
 capacity, and closing admissions reject atomically without spawn, mapping, retry,
-or `Application` fallback. Keyed-latest resource ownership, `ResourceTasks`, platform ownership, renderer, scheduler,
+or `Application` fallback. The cancellable ordinary owner one-shot composes the
+explicit token and declarative owner probes with OR semantics for cooperative
+work, deferred mapping, and reduction; only that token-cancellable owner
+one-shot defers mapping, while application-owned and non-cancellable owner
+one-shots remain eager. Its receipt is admission-only and its UI-local mapper
+need not be `Send` or `Sync`. Invalid, removed, ambiguous, unkeyed,
+incompatible, stale, same-update, host, capacity, and closing admissions reject
+without spawn, mapping, retry, or `Application` fallback. Keyed-latest resource ownership, `ResourceTasks`, platform ownership, renderer, scheduler,
 native, and product wiring remain deferred.
 
 The same qualified owner boundary now includes the application-owned keyed

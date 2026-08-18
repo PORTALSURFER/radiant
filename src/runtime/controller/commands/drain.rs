@@ -74,7 +74,13 @@ where
         for mapped in worker_messages {
             let allow_deferred =
                 self.lifecycle_accepts_work() && self.effect_origin_is_active(mapped.origin());
-            if let Some((message, origin)) = mapped.resolve(allow_deferred) {
+            if let Some((message, origin, cancellation_probe)) = mapped.resolve(allow_deferred) {
+                // A cancellable owner one-shot may cancel its own cloned token
+                // while mapping. Recheck the combined token/owner fence at the
+                // reduction boundary before dispatching the mapped message.
+                if cancellation_probe.as_ref().is_some_and(|probe| probe()) {
+                    continue;
+                }
                 self.dispatch_message_inner_with_origin(message, &mut outcome, origin);
             }
         }

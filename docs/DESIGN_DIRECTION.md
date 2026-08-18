@@ -341,7 +341,8 @@ through that node. The conceptual owner kinds are:
 | Overlay | A stable overlay identity within its owning window and compatible overlay kind. The overlay is only an eligible source candidate until ownership is explicitly selected. |
 | Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
 
-This is a bounded public timer, one-shot business-worker, ordinary ordered and
+This is a bounded public timer, one-shot business-worker, cancellable ordinary
+owner one-shot, ordinary ordered and
 coalesced owner-scoped stream-consumer, cancellable ordinary ordered owner-scoped
 stream, ordered/coalesced latest-task owner stream, and ordered application-owned
 `KeyedLatestTasks` owner-stream slice,
@@ -351,6 +352,7 @@ owner-timer methods, the owner-scoped one-shot BusinessRequest and
 BusinessLatestRequest methods, the ordinary owner-stream methods
 `BusinessRequest::stream_for_owner_with_receipt` and
 `BusinessRequest::stream_latest_for_owner_with_receipt`, and the ordered
+`CancellableBusinessRequest::run_for_owner_with_receipt` route, plus the
 `CancellableBusinessRequest::stream_for_owner_with_receipt` route, plus the
 latest-task owner-stream method
 `BusinessLatestRequest::stream_for_owner_with_receipt` plus the coalesced
@@ -424,7 +426,17 @@ fence worker execution, event/final mapping, and reduction. Invalid, removed,
 ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
 same-update admissions fail closed without `Application` fallback and restore
 only the affected key's eligible predecessor; sibling keys remain unchanged.
-The cancellable ordinary ordered owner stream is the cancellation-aware form of
+The cancellable ordinary owner one-shot
+`CancellableBusinessRequest::run_for_owner_with_receipt(owner, work, map)` is the
+token-cancellable form of the ordinary owner one-shot. Its explicit token and
+declarative owner probes are OR-composed fences for cooperative work, deferred
+mapping, and reduction. Only this token-cancellable owner one-shot defers mapping
+until UI drain; application-owned and non-cancellable owner one-shots remain
+eager. Its admission receipt is admission-only and its mapper remains UI-local
+and need not be `Send` or `Sync`. Invalid, removed, ambiguous, unkeyed,
+incompatible, stale, same-update, host, capacity, and closing admissions reject
+atomically without spawn, mapping, retry, or `Application` fallback. The
+cancellable ordinary ordered owner stream is the cancellation-aware form of
 the same bounded FIFO route. Callers clone `request.token()` before consuming a
 `CancellableBusinessRequest`; the returned `BusinessTaskAdmissionReceipt` remains
 admission-only. The existing worker registry composes the explicit token probe

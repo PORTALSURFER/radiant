@@ -153,6 +153,25 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         self.run(work, map)
     }
 
+    /// Run this cancellable request only while `owner` resolves to one current,
+    /// eligible keyed-node or overlay owner, and return an admission receipt.
+    ///
+    /// Call [`Self::token`] before consuming the request when the caller needs
+    /// to cancel the admitted work later. The receipt reports admission only;
+    /// cancelling the token does not change an already resolved receipt.
+    pub fn run_for_owner_with_receipt<Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + 'static,
+    ) -> crate::application::runtime::BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
+        self.request
+            .run_for_owner_with_optional_cancellation(owner, Some(self.token), work, map)
+    }
+
     /// Run this cancellable request as an ordered owner-scoped stream.
     ///
     /// Call [`Self::token`] before consuming the request when the caller needs

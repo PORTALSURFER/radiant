@@ -200,10 +200,12 @@ struct Registered<Message> {
 pub(super) enum WorkerEffectMappingMode {
     Eager,
     DeferredOwnerStream,
+    DeferredOwnerOneShot,
 }
 
 enum RegisteredMapper<Message> {
     Once(Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>),
+    DeferredOnce(Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>),
     Stream {
         mapping_mode: WorkerEffectMappingMode,
         latest: bool,
@@ -357,7 +359,16 @@ impl<Message> WorkerEffects<Message> {
             is_cancelled.clone().map(|probe| probe as CancellationProbe),
         );
         let (mapper, stream_latest) = match effect.mapper {
-            WorkerEffectMapper::Once(map) => (RegisteredMapper::Once(map), None),
+            WorkerEffectMapper::Once(map) => (
+                match mapping_mode {
+                    WorkerEffectMappingMode::DeferredOwnerOneShot => {
+                        RegisteredMapper::DeferredOnce(map)
+                    }
+                    WorkerEffectMappingMode::Eager
+                    | WorkerEffectMappingMode::DeferredOwnerStream => RegisteredMapper::Once(map),
+                },
+                None,
+            ),
             WorkerEffectMapper::Stream {
                 latest,
                 map_event,
@@ -390,6 +401,7 @@ impl<Message> WorkerEffects<Message> {
         });
         let mapper = match mapper {
             RegisteredMapper::Once(map) => RegisteredMapper::Once(map),
+            RegisteredMapper::DeferredOnce(map) => RegisteredMapper::DeferredOnce(map),
             RegisteredMapper::Stream {
                 mapping_mode,
                 latest,
@@ -573,7 +585,11 @@ impl<Message> WorkerEffects<Message> {
     pub(super) fn drain(&mut self) -> Vec<Message> {
         self.drain_at_high_water(self.ingress.high_water())
             .into_iter()
-            .filter_map(|mapped| mapped.resolve(true).map(|(message, _origin)| message))
+            .filter_map(|mapped| {
+                mapped
+                    .resolve(true)
+                    .map(|(message, _origin, _cancellation_probe)| message)
+            })
             .collect()
     }
 
@@ -743,7 +759,13 @@ impl<Message> WorkerEffects<Message> {
         });
         if !current {
             if matches!(
-                terminal.result,
+                &terminal.result,
+                EffectResult::Completed(_) | EffectResult::Cancelled | EffectResult::Panicked(_)
+            ) {
+                self.remove_terminal_registration(&terminal);
+            }
+            if matches!(
+                &terminal.result,
                 EffectResult::Event(_) | EffectResult::LatestEvent
             ) {
                 self.stream_events_stale += 1;
@@ -766,7 +788,8 @@ impl<Message> WorkerEffects<Message> {
                 {
                     let origin = entry.origin.clone();
                     match mapping_mode {
-                        WorkerEffectMappingMode::Eager => {
+                        WorkerEffectMappingMode::Eager
+                        | WorkerEffectMappingMode::DeferredOwnerOneShot => {
                             if let Some(message) = map_event(output) {
                                 messages.push(MappedEffectMessage::ready(message, origin));
                             }
@@ -801,7 +824,8 @@ impl<Message> WorkerEffects<Message> {
                     };
                     let origin = entry.origin.clone();
                     match mapping_mode {
-                        WorkerEffectMappingMode::Eager => {
+                        WorkerEffectMappingMode::Eager
+                        | WorkerEffectMappingMode::DeferredOwnerOneShot => {
                             if let Some(message) = map_event(output) {
                                 messages.push(MappedEffectMessage::ready(message, origin));
                             }
@@ -834,12 +858,21 @@ impl<Message> WorkerEffects<Message> {
                             messages.push(MappedEffectMessage::ready(message, origin));
                         }
                     }
+                    RegisteredMapper::DeferredOnce(map) => {
+                        messages.push(MappedEffectMessage::deferred_one_shot(
+                            map,
+                            output,
+                            origin,
+                            cancellation_probe,
+                        ));
+                    }
                     RegisteredMapper::Stream {
                         mapping_mode,
                         map_final,
                         ..
                     } => match mapping_mode {
-                        WorkerEffectMappingMode::Eager => {
+                        WorkerEffectMappingMode::Eager
+                        | WorkerEffectMappingMode::DeferredOwnerOneShot => {
                             if let Some(message) = map_final(output) {
                                 messages.push(MappedEffectMessage::ready(message, origin));
                             }
@@ -883,6 +916,19 @@ impl<Message> WorkerEffects<Message> {
         }
     }
 
+    fn remove_terminal_registration(&mut self, terminal: &EffectTerminal) {
+        let matches_terminal = self.registry.get(&terminal.id).is_some_and(|entry| {
+            entry.generation == terminal.generation
+                && (entry.registration_id == terminal.registration_id
+                    || terminal.registration_id == 0)
+                && entry.epoch == terminal.epoch
+                && entry.origin == terminal.origin
+        });
+        if matches_terminal && let Some(entry) = self.registry.remove(&terminal.id) {
+            close_registered_mapper(entry.mapper);
+        }
+    }
+
     pub(super) fn shutdown(&mut self) {
         self.epoch = self.epoch.saturating_add(1);
         self.registry.clear();
@@ -904,6 +950,11 @@ pub(super) struct MappedEffectMessage<Message> {
 enum MappedEffect<Message> {
     Ready(Message),
     Deferred {
+        output: Box<dyn Any + Send>,
+        mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        cancellation_probe: Option<CancellationProbe>,
+    },
+    DeferredOneShot {
         output: Box<dyn Any + Send>,
         mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
         cancellation_probe: Option<CancellationProbe>,
@@ -939,6 +990,22 @@ impl<Message> MappedEffectMessage<Message> {
         }
     }
 
+    fn deferred_one_shot(
+        mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        output: Box<dyn Any + Send>,
+        origin: EffectOrigin,
+        cancellation_probe: Option<CancellationProbe>,
+    ) -> Self {
+        Self {
+            mapping: MappedEffect::DeferredOneShot {
+                output,
+                mapper,
+                cancellation_probe,
+            },
+            origin,
+        }
+    }
+
     fn deferred_event(
         mapper: Rc<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
         output: Box<dyn Any + Send>,
@@ -962,10 +1029,10 @@ impl<Message> MappedEffectMessage<Message> {
     pub(in crate::runtime::controller) fn resolve(
         self,
         allow_deferred: bool,
-    ) -> Option<(Message, EffectOrigin)> {
+    ) -> Option<(Message, EffectOrigin, Option<CancellationProbe>)> {
         let Self { mapping, origin } = self;
-        let message = match mapping {
-            MappedEffect::Ready(message) => Some(message),
+        let (message, cancellation_probe) = match mapping {
+            MappedEffect::Ready(message) => Some((message, None)),
             MappedEffect::Deferred {
                 output,
                 mapper,
@@ -974,7 +1041,18 @@ impl<Message> MappedEffectMessage<Message> {
                 if cancellation_probe.as_ref().is_some_and(|probe| probe()) {
                     None
                 } else {
-                    mapper(output)
+                    mapper(output).map(|message| (message, None))
+                }
+            }
+            MappedEffect::DeferredOneShot {
+                output,
+                mapper,
+                cancellation_probe,
+            } if allow_deferred => {
+                if cancellation_probe.as_ref().is_some_and(|probe| probe()) {
+                    None
+                } else {
+                    mapper(output).map(|message| (message, cancellation_probe))
                 }
             }
             MappedEffect::DeferredEvent {
@@ -985,13 +1063,14 @@ impl<Message> MappedEffectMessage<Message> {
                 if cancellation_probe.as_ref().is_some_and(|probe| probe()) {
                     None
                 } else {
-                    mapper(output)
+                    mapper(output).map(|message| (message, None))
                 }
             }
             MappedEffect::Deferred { .. } => None,
+            MappedEffect::DeferredOneShot { .. } => None,
             MappedEffect::DeferredEvent { .. } => None,
         }?;
-        Some((message, origin))
+        Some((message, origin, cancellation_probe))
     }
 }
 
@@ -1461,6 +1540,7 @@ mod tests {
     struct SameUpdateRemovedOwnerBridge {
         owner: DeclarativeEffectOwner,
         removed: bool,
+        cancellable_one_shot: bool,
         cancellable_stream: bool,
         receipt: Option<crate::application::runtime::BusinessTaskAdmissionReceipt>,
         spawned: Arc<AtomicUsize>,
@@ -1487,7 +1567,21 @@ mod tests {
             self.removed = true;
             let mut context =
                 crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
-            let receipt = if self.cancellable_stream {
+            let receipt = if self.cancellable_one_shot {
+                let request = context
+                    .business()
+                    .background("cancellable-owner-one-shot-same-update-removed")
+                    .cancellable();
+                let _token = request.token();
+                request.run_for_owner_with_receipt(
+                    self.owner,
+                    |worker_context| {
+                        assert!(!worker_context.is_cancelled());
+                        2_u8
+                    },
+                    |output: u8| output as usize,
+                )
+            } else if self.cancellable_stream {
                 let request = context
                     .business()
                     .background("cancellable-owner-stream-same-update-removed")
@@ -1776,6 +1870,24 @@ mod tests {
             .background(name)
             .stream_for_owner_with_receipt(owner, work, map_event, map_final);
         (context.into_command(), receipt)
+    }
+
+    fn cancellable_owner_one_shot_command(
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        work: impl FnOnce(crate::application::runtime::BusinessWorkContext) -> u8 + Send + 'static,
+        map: impl FnOnce(u8) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        CancellationToken,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context.business().background(name).cancellable();
+        let token = request.token();
+        let receipt = request.run_for_owner_with_receipt(owner, work, map);
+        (context.into_command(), receipt, token)
     }
 
     fn cancellable_owner_ordered_stream_command(
@@ -5454,6 +5566,364 @@ mod tests {
     }
 
     #[test]
+    fn cancellable_owner_one_shot_maps_reduces_once_and_cleans_up() {
+        let owner = DeclarativeEffectOwner::new();
+        let work_calls = Arc::new(AtomicUsize::new(0));
+        let work_calls_for_work = Arc::clone(&work_calls);
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let (command, receipt, token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-success",
+            move |worker_context| {
+                assert!(!worker_context.is_cancelled());
+                work_calls_for_work.fetch_add(1, Ordering::AcqRel);
+                7_u8
+            },
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(!token.is_cancelled());
+        assert_eq!(work_calls.load(Ordering::Acquire), 1);
+        assert!(mapped.borrow().is_empty());
+        assert_eq!(runtime.worker_effects.pending, 1);
+        assert_eq!(runtime.worker_effects.registry.len(), 1);
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![7]);
+        assert_eq!(
+            *runtime
+                .bridge()
+                .reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![7]
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*mapped.borrow(), vec![7]);
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_token_before_work_fences_work_and_mapping() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.defer_next_worker = true;
+        let work_calls = Arc::new(AtomicUsize::new(0));
+        let work_calls_for_work = Arc::clone(&work_calls);
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let (command, receipt, token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-token-before-work",
+            move |_| {
+                work_calls_for_work.fetch_add(1, Ordering::AcqRel);
+                7_u8
+            },
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        token.cancel();
+        runtime.bridge_mut().run_deferred_worker();
+
+        assert_eq!(work_calls.load(Ordering::Acquire), 0);
+        assert!(mapped.borrow().is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_token_after_enqueue_before_drain_skips_mapper() {
+        let owner = DeclarativeEffectOwner::new();
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let (command, receipt, token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-token-before-drain",
+            |_| 7_u8,
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(mapped.borrow().is_empty());
+        token.cancel();
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_mapper_token_cancellation_fences_reduction_and_cleans_up() {
+        let owner = DeclarativeEffectOwner::new();
+        let bridge = OwnerWorkerBridge::new(owner, true);
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context
+            .business()
+            .background("cancellable-owner-one-shot-mapper-cancel")
+            .cancellable();
+        let token = request.token();
+        let mapper_token = token.clone();
+        let receipt = request.run_for_owner_with_receipt(
+            owner,
+            |_| 7_u8,
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                mapper_token.cancel();
+                usize::from(output)
+            },
+        );
+        let command = context.into_command();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*mapped.borrow(), vec![7]);
+        assert!(token.is_cancelled());
+        assert!(
+            reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty()
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert!(runtime.worker_effects.pending_registrations.is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_reducer_token_cancellation_fences_later_same_drain() {
+        let owner = DeclarativeEffectOwner::new();
+        let bridge = OwnerWorkerBridge::new(owner, true);
+        let first_mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let second_mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let first_mapper_state = Rc::clone(&first_mapped);
+        let second_mapper_state = Rc::clone(&second_mapped);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let (first_command, first_receipt, first_token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-reducer-token-first",
+            |_| 1_u8,
+            move |output| {
+                first_mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+        let (second_command, second_receipt, second_token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-reducer-token-second",
+            |_| 2_u8,
+            move |output| {
+                second_mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+        runtime.bridge_mut().cancel_token_on_event = Some(second_token.clone());
+
+        let _ = runtime.execute_command(crate::runtime::Command::batch([
+            first_command,
+            second_command,
+        ]));
+        assert_eq!(
+            first_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(
+            second_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(!first_token.is_cancelled());
+        assert!(second_mapped.borrow().is_empty());
+
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*first_mapped.borrow(), vec![1]);
+        assert!(second_mapped.borrow().is_empty());
+        assert!(second_token.is_cancelled());
+        assert_eq!(
+            *runtime
+                .bridge()
+                .reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1]
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_reducer_owner_retirement_fences_later_same_drain() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.retire_on_event = true;
+        let first_mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let second_mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let first_mapper_state = Rc::clone(&first_mapped);
+        let second_mapper_state = Rc::clone(&second_mapped);
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let (first_command, first_receipt, _first_token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-reducer-owner-first",
+            |_| 1_u8,
+            move |output| {
+                first_mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+        let (second_command, second_receipt, _second_token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-reducer-owner-second",
+            |_| 2_u8,
+            move |output| {
+                second_mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(crate::runtime::Command::batch([
+            first_command,
+            second_command,
+        ]));
+        assert_eq!(
+            first_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(
+            second_receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*first_mapped.borrow(), vec![1]);
+        assert!(second_mapped.borrow().is_empty());
+        assert_eq!(
+            *reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            vec![1]
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_owner_retirement_before_start_fences_work_and_mapping() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut bridge = OwnerWorkerBridge::new(owner, true);
+        bridge.defer_next_worker = true;
+        let work_calls = Arc::new(AtomicUsize::new(0));
+        let work_calls_for_work = Arc::clone(&work_calls);
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+        let (command, receipt, token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-owner-before-start",
+            move |_| {
+                work_calls_for_work.fetch_add(1, Ordering::AcqRel);
+                7_u8
+            },
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+        runtime.bridge_mut().run_deferred_worker();
+
+        assert!(!token.is_cancelled());
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(work_calls.load(Ordering::Acquire), 0);
+        assert!(mapped.borrow().is_empty());
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_owner_retirement_before_drain_skips_mapper_and_cleans_up() {
+        let owner = DeclarativeEffectOwner::new();
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let (command, receipt, _token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-owner-before-drain",
+            |_| 7_u8,
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        runtime.bridge_mut().show_owner = false;
+        runtime.refresh();
+
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(mapped.borrow().is_empty());
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
     fn cancellable_owner_ordered_stream_admission_preserves_fifo_and_final_once() {
         let owner = DeclarativeEffectOwner::new();
         let mut runtime = SurfaceRuntime::new(
@@ -5964,6 +6434,127 @@ mod tests {
         assert_eq!(outcome.messages_dispatched, 0);
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
         assert!(mapped.borrow().is_empty());
+    }
+
+    fn assert_cancellable_owner_one_shot_rejected(
+        runtime: &mut SurfaceRuntime<OwnerWorkerBridge, usize>,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+    ) {
+        let work_calls = Arc::new(AtomicUsize::new(0));
+        let work_calls_for_work = Arc::clone(&work_calls);
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+        let (command, receipt, token) = cancellable_owner_one_shot_command(
+            owner,
+            name,
+            move |_| {
+                work_calls_for_work.fetch_add(1, Ordering::AcqRel);
+                7_u8
+            },
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let outcome = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(work_calls.load(Ordering::Acquire), 0);
+        assert!(!token.is_cancelled());
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_rejects_invalid_owner_variants_without_fallback() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut invalid_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        assert_cancellable_owner_one_shot_rejected(
+            &mut invalid_runtime,
+            DeclarativeEffectOwner::new(),
+            "cancellable-owner-one-shot-invalid",
+        );
+
+        let mut removed_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        removed_runtime.bridge_mut().show_owner = false;
+        assert_cancellable_owner_one_shot_rejected(
+            &mut removed_runtime,
+            owner,
+            "cancellable-owner-one-shot-removed",
+        );
+
+        let mut ambiguous_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        ambiguous_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Ambiguous;
+        assert_cancellable_owner_one_shot_rejected(
+            &mut ambiguous_runtime,
+            owner,
+            "cancellable-owner-one-shot-ambiguous",
+        );
+
+        let mut unkeyed_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        unkeyed_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Unkeyed;
+        assert_cancellable_owner_one_shot_rejected(
+            &mut unkeyed_runtime,
+            owner,
+            "cancellable-owner-one-shot-unkeyed",
+        );
+
+        let mut incompatible_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        incompatible_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Incompatible;
+        assert_cancellable_owner_one_shot_rejected(
+            &mut incompatible_runtime,
+            owner,
+            "cancellable-owner-one-shot-incompatible",
+        );
+
+        let mut stale_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        stale_runtime.bridge_mut().surface_mode = OwnerSurfaceMode::Incompatible;
+        stale_runtime.refresh();
+        assert_cancellable_owner_one_shot_rejected(
+            &mut stale_runtime,
+            owner,
+            "cancellable-owner-one-shot-stale",
+        );
+
+        let mut host_rejected_runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, false),
+            Vector2::new(80.0, 40.0),
+        );
+        assert_cancellable_owner_one_shot_rejected(
+            &mut host_rejected_runtime,
+            owner,
+            "cancellable-owner-one-shot-host-rejected",
+        );
     }
 
     #[test]
@@ -6796,6 +7387,7 @@ mod tests {
             SameUpdateRemovedOwnerBridge {
                 owner,
                 removed: false,
+                cancellable_one_shot: false,
                 cancellable_stream: false,
                 receipt: None,
                 spawned: Arc::clone(&spawned),
@@ -6833,6 +7425,7 @@ mod tests {
             SameUpdateRemovedOwnerBridge {
                 owner,
                 removed: false,
+                cancellable_one_shot: false,
                 cancellable_stream: false,
                 receipt: None,
                 spawned: Arc::clone(&spawned),
@@ -6880,6 +7473,7 @@ mod tests {
             SameUpdateRemovedOwnerBridge {
                 owner,
                 removed: false,
+                cancellable_one_shot: false,
                 cancellable_stream: false,
                 receipt: None,
                 spawned: Arc::clone(&spawned),
@@ -6925,6 +7519,7 @@ mod tests {
             SameUpdateRemovedOwnerBridge {
                 owner,
                 removed: false,
+                cancellable_one_shot: false,
                 cancellable_stream: false,
                 receipt: None,
                 spawned: Arc::clone(&spawned),
@@ -6970,6 +7565,7 @@ mod tests {
             SameUpdateRemovedOwnerBridge {
                 owner,
                 removed: false,
+                cancellable_one_shot: false,
                 cancellable_stream: false,
                 receipt: None,
                 spawned: Arc::clone(&spawned),
@@ -7012,6 +7608,7 @@ mod tests {
             SameUpdateRemovedOwnerBridge {
                 owner,
                 removed: false,
+                cancellable_one_shot: false,
                 cancellable_stream: true,
                 receipt: None,
                 spawned: Arc::clone(&spawned),
@@ -7037,6 +7634,132 @@ mod tests {
             crate::application::runtime::BusinessTaskAdmission::Rejected
         );
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_rejects_same_update_removal() {
+        let owner = DeclarativeEffectOwner::new();
+        let spawned = Arc::new(AtomicUsize::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            SameUpdateRemovedOwnerBridge {
+                owner,
+                removed: false,
+                cancellable_one_shot: true,
+                cancellable_stream: false,
+                receipt: None,
+                spawned: Arc::clone(&spawned),
+                latest: None,
+                keyed_coalesced_stream: None,
+                keyed_stream: None,
+                keyed: None,
+            },
+            Vector2::new(80.0, 40.0),
+        );
+
+        let outcome = runtime.dispatch_message(0);
+        assert_eq!(outcome.messages_dispatched, 1);
+        assert_eq!(spawned.load(Ordering::Acquire), 0);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert_eq!(
+            runtime
+                .bridge()
+                .receipt
+                .as_ref()
+                .expect("same-update cancellable owner one-shot receipt")
+                .poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_rejects_when_worker_capacity_is_saturated() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        for id in 0..EFFECT_INGRESS_CAPACITY {
+            let command = crate::runtime::Command::perform_worker_effect_with_priority(
+                "cancellable-owner-one-shot-capacity-fill",
+                crate::runtime::TaskPriority::Background,
+                None,
+                0,
+                move || id,
+                |output| output,
+            );
+            let _ = runtime.execute_command(command);
+        }
+
+        let work_calls = Arc::new(AtomicUsize::new(0));
+        let work_calls_for_work = Arc::clone(&work_calls);
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let (command, receipt, token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-capacity-overflow",
+            move |_| {
+                work_calls_for_work.fetch_add(1, Ordering::AcqRel);
+                7_u8
+            },
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+        let spawned_before = runtime.bridge().spawned.load(Ordering::Acquire);
+        let outcome = runtime.execute_command(command);
+
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Rejected
+        );
+        assert!(!token.is_cancelled());
+        assert_eq!(work_calls.load(Ordering::Acquire), 0);
+        assert_eq!(
+            runtime.bridge().spawned.load(Ordering::Acquire),
+            spawned_before
+        );
+        assert_eq!(runtime.worker_effects.pending, EFFECT_INGRESS_CAPACITY);
+        assert_eq!(
+            runtime.worker_effects.registry.len(),
+            EFFECT_INGRESS_CAPACITY
+        );
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert!(mapped.borrow().is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_closing_rejects_without_spawn_or_mapping() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let (command, receipt, token) = cancellable_owner_one_shot_command(
+            owner,
+            "cancellable-owner-one-shot-closing",
+            |_| 7_u8,
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                usize::from(output)
+            },
+        );
+
+        let outcome = runtime.execute_command(crate::runtime::Command::batch(vec![
+            crate::runtime::Command::exit(),
+            command,
+        ]));
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Closed
+        );
+        assert!(!token.is_cancelled());
+        assert_eq!(runtime.bridge().spawned.load(Ordering::Acquire), 0);
+        assert!(mapped.borrow().is_empty());
+        assert!(outcome.exit_requested);
     }
 
     #[test]

@@ -1293,6 +1293,159 @@ fn business_runtime_can_submit_cancellable_latest_work() {
 }
 
 #[test]
+fn cancellable_owner_latest_one_shot_api_accepts_ui_local_mapper_and_token_clone() {
+    let owner = radiant::application::DeclarativeEffectOwner::new();
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let mapped_state = std::rc::Rc::clone(&mapped);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("cancellable-owner-latest-receipt")
+        .cancellable()
+        .latest(&mut latest);
+    let token = request.token();
+    let token_clone = token.clone();
+    let ticket = request.ticket();
+    let receipt = request.run_for_owner_with_receipt(
+        owner,
+        |worker_context| {
+            assert!(!worker_context.is_cancelled());
+            7_u8
+        },
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            mapped_state.borrow_mut().push(completion.output);
+            DemoMessage::Increment
+        },
+    );
+
+    assert!(!token.is_cancelled());
+    assert!(!token_clone.is_cancelled());
+    assert_eq!(latest.active(), Some(ticket));
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_worker_command(
+        &context.into_command(),
+        "cancellable-owner-latest-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert!(mapped.borrow().is_empty());
+
+    token_clone.cancel();
+    assert!(token.is_cancelled());
+}
+
+#[test]
+fn cancellable_owner_latest_ordered_stream_api_accepts_ui_local_mappers_and_token_clone() {
+    let owner = radiant::application::DeclarativeEffectOwner::new();
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let event_state = std::rc::Rc::clone(&mapped);
+    let final_state = std::rc::Rc::clone(&mapped);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("cancellable-owner-latest-stream-receipt")
+        .cancellable()
+        .latest(&mut latest);
+    let token = request.token();
+    let token_clone = token.clone();
+    let ticket = request.ticket();
+    let receipt = request.stream_for_owner_with_receipt(
+        owner,
+        |worker_context, events| {
+            assert!(!worker_context.is_cancelled());
+            assert!(events.emit(1_u8));
+            2_u8
+        },
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            event_state.borrow_mut().push(completion.output);
+            DemoMessage::Increment
+        },
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            final_state.borrow_mut().push(completion.output);
+            DemoMessage::Increment
+        },
+    );
+
+    assert!(!token.is_cancelled());
+    assert!(!token_clone.is_cancelled());
+    assert_eq!(latest.active(), Some(ticket));
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_worker_command(
+        &context.into_command(),
+        "cancellable-owner-latest-stream-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert!(mapped.borrow().is_empty());
+
+    token_clone.cancel();
+    assert!(token.is_cancelled());
+}
+
+#[test]
+fn cancellable_owner_latest_coalesced_stream_api_accepts_ui_local_mappers_and_token_clone() {
+    let owner = radiant::application::DeclarativeEffectOwner::new();
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let event_state = std::rc::Rc::clone(&mapped);
+    let final_state = std::rc::Rc::clone(&mapped);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    let request = context
+        .business()
+        .background("cancellable-owner-latest-coalesced-stream-receipt")
+        .cancellable()
+        .latest(&mut latest);
+    let token = request.token();
+    let token_clone = token.clone();
+    let ticket = request.ticket();
+    let receipt = request.stream_latest_for_owner_with_receipt(
+        owner,
+        |worker_context, events| {
+            assert!(!worker_context.is_cancelled());
+            assert!(events.emit(1_u8));
+            assert!(events.emit(2_u8));
+            3_u8
+        },
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            event_state.borrow_mut().push(completion.output);
+            DemoMessage::Increment
+        },
+        move |completion| {
+            assert_eq!(completion.ticket, ticket);
+            final_state.borrow_mut().push(completion.output);
+            DemoMessage::Increment
+        },
+    );
+
+    assert!(!token.is_cancelled());
+    assert!(!token_clone.is_cancelled());
+    assert_eq!(latest.active(), Some(ticket));
+    assert_eq!(
+        receipt.poll(),
+        radiant::prelude::BusinessTaskAdmission::Pending
+    );
+    assert_worker_command(
+        &context.into_command(),
+        "cancellable-owner-latest-coalesced-stream-receipt",
+        radiant::prelude::TaskPriority::Background,
+    );
+    assert!(mapped.borrow().is_empty());
+
+    token_clone.cancel();
+    assert!(token.is_cancelled());
+}
+
+#[test]
 fn ui_update_context_accepts_task_priority_hints() {
     let mut context = radiant::prelude::UiUpdateContext::default();
     context

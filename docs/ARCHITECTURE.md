@@ -607,7 +607,9 @@ ingress. The declarative timer, one-shot worker, cancellable ordinary owner
 one-shot, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, ordinary ordered and
 coalesced owner-scoped stream consumers, the cancellable ordinary ordered and
-coalesced owner streams, ordered/coalesced latest-task owner streams, and coalesced
+coalesced owner streams, the cancellable latest-task one-shot and
+ordered/coalesced owner streams, ordered/coalesced latest-task owner streams,
+and coalesced
 keyed-latest owner streams reuse this same
 registry/lifecycle seam; broader platform and shared-resource ownership remain
 deferred.
@@ -618,7 +620,8 @@ boundary; the bounded explicit timer, one-shot owner-worker, cancellable ordinar
 owner one-shot, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
 one-shot worker, ordinary ordered and coalesced owner-scoped stream consumers,
-the cancellable ordinary ordered and coalesced owner streams,
+the cancellable ordinary ordered and coalesced owner streams, the cancellable
+latest-task one-shot and ordered/coalesced owner streams,
 ordered/coalesced latest-task owner streams, and coalesced keyed-latest owner
 streams are shipped; `ResourceTasks` ownership,
 platform ownership, and broader product-facing
@@ -692,12 +695,24 @@ ambiguous, unkeyed, incompatible, stale, same-update, host, capacity, and
 closing admissions fail closed without spawn, mapping, retry, or `Application`
 fallback.
 
+The cancellable latest-task owner routes reuse the existing latest ticket and
+replacement transaction and compose the explicit token with the declarative
+owner-generation fence for cooperative work, delivery, mapping, and reduction.
+The one-shot maps one completion; the ordered stream preserves FIFO events and
+final delivery; the coalesced stream keeps only the newest pending intermediate
+event before UI drain and delivers the final uncoalesced. Each receipt is
+admission-only and the UI-local mappers remain non-`Send` where permitted.
+Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host,
+capacity, and closing admissions fail closed without spawn, mapping, retry, or
+`Application` fallback; failed latest admission restores the predecessor ticket.
+
 4. The existing timer and worker registries carry the explicitly selected owner
    origin for the bounded owner-timer, one-shot owner-worker, cancellable
    ordinary owner one-shot, application-owned
    `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
    one-shot worker, ordinary ordered/coalesced stream consumers,
    ordered/coalesced latest-task owner streams, coalesced keyed-latest owner
+   streams, the cancellable latest-task one-shot and ordered/coalesced owner
    streams, and the cancellable ordinary ordered and coalesced owner streams. Its explicit token
    probe is OR-composed with transaction and declarative-owner probes; token
    cancellation and owner retirement independently fence cooperative work and

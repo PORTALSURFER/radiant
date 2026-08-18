@@ -412,6 +412,55 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
         token
     }
 
+    /// Run cancellable latest work only while `owner` resolves to one current,
+    /// eligible keyed-node or overlay owner, and return a UI-local admission
+    /// receipt.
+    ///
+    /// Call [`Self::token`] before consuming the request when the caller needs
+    /// to cancel the admitted work later. The receipt reports admission only;
+    /// cancelling the token does not change an already resolved receipt. The
+    /// latest ticket and owner generation fence work, mapping, and reduction.
+    pub fn run_for_owner_with_receipt<Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext) -> Output + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Output: Send + 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        let worker_token = self.token.clone();
+        let is_cancelled = Some(Box::new({
+            let token = self.token.clone();
+            move || token.is_cancelled()
+        }) as Box<dyn Fn() -> bool + Send + Sync + 'static>);
+        let ticket = self.ticket;
+        let transaction = self.transaction;
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_effect_with_identity_and_transaction_and_receipt_for_owner(
+                crate::runtime::EffectId(self.effect_id),
+                self.request.name,
+                self.request.priority,
+                is_cancelled,
+                ticket.id(),
+                Some(transaction),
+                Some(guard),
+                Some(owner),
+                move |cancellation_probe| TaskCompletion {
+                    ticket,
+                    output: work(BusinessWorkContext::new_with_probe(
+                        Some(worker_token),
+                        cancellation_probe,
+                    )),
+                },
+                map,
+            ),
+        );
+        receipt
+    }
+
     /// Run cancellable latest worker-only work and map its output on the UI runtime.
     pub fn run_on_ui<Output>(
         self,
@@ -473,6 +522,72 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
         token
     }
 
+    /// Run cancellable ordered latest work only while `owner` resolves to one
+    /// current, eligible keyed-node or overlay owner, and return an admission
+    /// receipt.
+    ///
+    /// Call [`Self::token`] before consuming the request when the caller needs
+    /// to cancel the admitted work later. Intermediate events retain FIFO
+    /// delivery and both event and final mapping are fenced by the explicit
+    /// token, latest ticket, and owner generation.
+    pub fn stream_for_owner_with_receipt<Event, Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        let worker_token = self.token.clone();
+        let is_cancelled = Some(Box::new({
+            let token = self.token.clone();
+            move || token.is_cancelled()
+        }) as Box<dyn Fn() -> bool + Send + Sync + 'static>);
+        let effect_id = crate::runtime::EffectId(self.effect_id);
+        let ticket = self.ticket;
+        let transaction = self.transaction;
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_stream_with_identity_and_transaction_and_receipt_for_owner(
+                effect_id,
+                self.request.name,
+                self.request.priority,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled,
+                    generation: ticket.id(),
+                    latest: false,
+                },
+                Some(transaction),
+                Some(guard),
+                Some(owner),
+                move |sink, cancellation_probe| {
+                    let event_sink =
+                        BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
+                    work(
+                        BusinessWorkContext::new_with_probe(
+                            Some(worker_token),
+                            cancellation_probe,
+                        ),
+                        event_sink,
+                    )
+                },
+                move |event| {
+                    map_event(TaskCompletion {
+                        ticket,
+                        output: event,
+                    })
+                },
+                move |output| map_final(TaskCompletion { ticket, output }),
+            ),
+        );
+        receipt
+    }
+
     /// Run cancellable latest work with coalesced intermediate events and return its cancellation token.
     pub fn stream_latest<Event, Output>(
         self,
@@ -525,6 +640,78 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
             ),
         );
         token
+    }
+
+    /// Run cancellable coalesced latest work only while `owner` resolves to
+    /// one current, eligible keyed-node or overlay owner, and return an
+    /// admission receipt.
+    ///
+    /// Call [`Self::token`] before consuming the request when the caller needs
+    /// to cancel the admitted work later. Intermediate events use the existing
+    /// latest-wins slot while the UI is behind; the final remains an
+    /// uncoalesced terminal delivery. Both mappings are fenced by the explicit
+    /// token, latest ticket, and owner generation.
+    pub fn stream_latest_for_owner_with_receipt<Event, Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let receipt = BusinessTaskAdmissionReceipt::new();
+        let guard = AdmissionReceiptGuard(receipt.weak());
+        let worker_token = self.token.clone();
+        let is_cancelled = Some(Box::new({
+            let token = self.token.clone();
+            move || token.is_cancelled()
+        }) as Box<dyn Fn() -> bool + Send + Sync + 'static>);
+        let effect_id = crate::runtime::EffectId(self.effect_id);
+        let ticket = self.ticket;
+        let transaction = self.transaction;
+        self.request.context.queue_command(
+            crate::runtime::Command::perform_worker_stream_with_identity_and_transaction_and_receipt_for_owner(
+                effect_id,
+                self.request.name,
+                self.request.priority,
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled,
+                    generation: ticket.id(),
+                    latest: true,
+                },
+                Some(transaction),
+                Some(guard),
+                Some(owner),
+                move |sink, cancellation_probe| {
+                    let event_sink = BusinessEventSink::new({
+                        let sink = sink.clone();
+                        move |event| sink.emit_latest(Box::new(event))
+                    });
+                    let close_guard = LatestStreamCloseGuard::new(sink.clone());
+                    let output = work(
+                        BusinessWorkContext::new_with_probe(
+                            Some(worker_token),
+                            cancellation_probe,
+                        ),
+                        event_sink,
+                    );
+                    close_guard.close();
+                    output
+                },
+                move |event| {
+                    map_event(TaskCompletion {
+                        ticket,
+                        output: event,
+                    })
+                },
+                move |output| map_final(TaskCompletion { ticket, output }),
+            ),
+        );
+        receipt
     }
 }
 
@@ -755,6 +942,135 @@ mod tests {
                 .replacement(),
             ticket
         );
+        assert_eq!(latest.active(), Some(ticket));
+        assert_ne!(ticket, predecessor);
+    }
+
+    #[test]
+    fn cancellable_owner_latest_forms_publish_token_transaction_generation_and_mode() {
+        let owner = crate::application::DeclarativeEffectOwner::new();
+
+        let mut latest = crate::application::LatestTask::new();
+        let predecessor = latest.begin();
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("cancellable-owner-latest")
+            .cancellable()
+            .latest(&mut latest);
+        let token = request.token();
+        let ticket = request.ticket();
+        let receipt = request.run_for_owner_with_receipt(owner, |_| 1_u8, |_| ());
+        let Command::PerformWorker(effect) = context.into_command() else {
+            panic!("cancellable owner latest request should queue a worker effect");
+        };
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Pending
+        );
+        assert_eq!(effect.owner, Some(owner));
+        assert_eq!(effect.generation.0, ticket.id());
+        assert_eq!(
+            effect
+                .transaction
+                .as_ref()
+                .expect("cancellable owner latest effect should carry its transaction")
+                .replacement(),
+            ticket
+        );
+        assert!(!effect.is_cancelled.as_ref().expect(
+            "cancellable owner latest effect should carry its token probe"
+        )());
+        token.cancel();
+        assert!(effect.is_cancelled.as_ref().expect(
+            "cancellable owner latest effect should retain its token probe"
+        )());
+        assert_eq!(latest.active(), Some(ticket));
+        assert_ne!(ticket, predecessor);
+
+        let mut latest = crate::application::LatestTask::new();
+        let predecessor = latest.begin();
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("cancellable-owner-latest-stream")
+            .cancellable()
+            .latest(&mut latest);
+        let token = request.token();
+        let ticket = request.ticket();
+        let receipt = request.stream_for_owner_with_receipt(
+            owner,
+            |_, _: BusinessEventSink<u8>| 1_u8,
+            |_: TaskCompletion<u8>| (),
+            |_: TaskCompletion<u8>| (),
+        );
+        let Command::PerformWorker(effect) = context.into_command() else {
+            panic!("cancellable owner ordered latest stream should queue a worker effect");
+        };
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Pending
+        );
+        assert_eq!(effect.owner, Some(owner));
+        assert_eq!(effect.generation.0, ticket.id());
+        assert_eq!(
+            effect
+                .transaction
+                .as_ref()
+                .expect("cancellable owner ordered latest stream should carry its transaction")
+                .replacement(),
+            ticket
+        );
+        assert!(!effect.is_cancelled.as_ref().expect(
+            "cancellable owner ordered latest stream should carry its token probe"
+        )());
+        token.cancel();
+        assert!(effect.is_cancelled.as_ref().expect(
+            "cancellable owner ordered latest stream should retain its token probe"
+        )());
+        assert_eq!(latest.active(), Some(ticket));
+        assert_ne!(ticket, predecessor);
+
+        let mut latest = crate::application::LatestTask::new();
+        let predecessor = latest.begin();
+        let mut context = UiUpdateContext::<()>::default();
+        let request = context
+            .business()
+            .background("cancellable-owner-latest-coalesced-stream")
+            .cancellable()
+            .latest(&mut latest);
+        let token = request.token();
+        let ticket = request.ticket();
+        let receipt = request.stream_latest_for_owner_with_receipt(
+            owner,
+            |_, _: BusinessEventSink<u8>| 1_u8,
+            |_: TaskCompletion<u8>| (),
+            |_: TaskCompletion<u8>| (),
+        );
+        let Command::PerformWorker(effect) = context.into_command() else {
+            panic!("cancellable owner coalesced latest stream should queue a worker effect");
+        };
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Pending
+        );
+        assert_eq!(effect.owner, Some(owner));
+        assert_eq!(effect.generation.0, ticket.id());
+        assert_eq!(
+            effect
+                .transaction
+                .as_ref()
+                .expect("cancellable owner coalesced latest stream should carry its transaction")
+                .replacement(),
+            ticket
+        );
+        assert!(!effect.is_cancelled.as_ref().expect(
+            "cancellable owner coalesced latest stream should carry its token probe"
+        )());
+        token.cancel();
+        assert!(effect.is_cancelled.as_ref().expect(
+            "cancellable owner coalesced latest stream should retain its token probe"
+        )());
         assert_eq!(latest.active(), Some(ticket));
         assert_ne!(ticket, predecessor);
     }

@@ -337,31 +337,48 @@ fn native_wheel_over_virtual_list_coalesces_until_redraw() {
     );
     runner.rebuild_scene();
     runner.input.last_cursor = Some(Point::new(20.0, 20.0));
-    let project_count = runner.core.runtime.bridge().project_count;
+    let baseline_project_count = runner.core.runtime.bridge().project_count;
+    assert!(
+        !runner.timing.redraw_requested,
+        "first post-frame wheel sample should start without a pending redraw"
+    );
+    assert!(
+        runner.timing.redraw_requested_at.is_none(),
+        "first post-frame wheel sample should have no redraw timestamp"
+    );
 
     let first =
         runner.route_native_mouse_wheel(winit::event::MouseScrollDelta::LineDelta(0.0, -24.0));
-    runner.timing.redraw_requested = true;
-    runner.timing.redraw_requested_at = Some(Instant::now());
     let second =
         runner.route_native_mouse_wheel(winit::event::MouseScrollDelta::LineDelta(0.0, -24.0));
 
-    assert_eq!(first.diagnostic.result, NativePointerRouteResult::Routed);
+    assert_eq!(first.diagnostic.result, NativePointerRouteResult::Coalesced);
     assert_eq!(
         second.diagnostic.result,
         NativePointerRouteResult::Coalesced
     );
-    assert_eq!(
-        runner.core.runtime.bridge().scroll_count,
-        1,
-        "first native wheel input should refresh immediately before follow-up events coalesce"
+    assert!(
+        runner.input.pending_scroll_container_wheel.is_some(),
+        "native scroll-container wheel input should remain pending until the frame flush"
     );
-    assert!(runner.core.runtime.bridge().project_count > project_count);
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 0);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        baseline_project_count
+    );
 
     runner.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
 
-    assert!(runner.core.runtime.bridge().scroll_count >= 1);
-    assert!(runner.core.runtime.bridge().project_count > project_count);
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert_eq!(
+        runner.core.runtime.bridge().scroll_count,
+        1,
+        "coalesced wheel samples should apply one accumulated scroll update"
+    );
+    assert!(
+        runner.core.runtime.bridge().project_count > baseline_project_count,
+        "flushing the coalesced wheel should retain the interactive projection refresh"
+    );
     assert!(
         runner.timing.pending_frame_work.needs_scene_rebuild(),
         "coalesced scroll-container wheel diagnostics should include frame work discovered while flushing input"

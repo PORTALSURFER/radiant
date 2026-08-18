@@ -416,8 +416,9 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
     let first_position = Point::new(40.0, 20.0);
     let newest_position = Point::new(80.0, 24.0);
     runner.input.last_cursor = Some(first_position);
-    runner.timing.redraw_requested = true;
-    runner.timing.redraw_requested_at = Some(Instant::now());
+    runner.timing.redraw_requested = false;
+    runner.timing.redraw_requested_at = None;
+    assert!(!runner.timing.redraw_requested);
 
     let first = runner.route_native_mouse_wheel_with_phase(
         MouseScrollDelta::LineDelta(0.0, -1.0),
@@ -428,12 +429,16 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
         .input
         .pending_scroll_container_wheel
         .expect("phaseful ordinary scroll should be pending");
+    assert_eq!(first_pending.position, first_position);
+    assert_eq!(first_pending.delta, Vector2::new(0.0, 40.0));
+    assert_eq!(first_pending.modifiers, PointerModifiers::default());
     let first_sequence = first_pending
         .sequence_range
         .expect("first phaseful sample should carry sequence metadata");
     let first_timestamp = first_pending
         .timestamp
         .expect("first phaseful sample should carry timestamp metadata");
+    assert!(runner.core.runtime.bridge().scroll_updates.is_empty());
 
     runner.input.last_cursor = Some(newest_position);
     runner.input.modifiers = ModifiersState::SHIFT;
@@ -445,6 +450,7 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
         second.diagnostic.result,
         NativePointerRouteResult::Coalesced
     );
+    assert!(runner.core.runtime.bridge().scroll_updates.is_empty());
 
     let pending = runner
         .input
@@ -477,6 +483,12 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
 
     assert!(runner.input.pending_scroll_container_wheel.is_none());
     assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+    let update = runner.core.runtime.bridge().scroll_updates[0];
+    assert_eq!(update.position, newest_position);
+    assert_eq!(update.delta, Vector2::new(0.0, 50.0));
+    assert_eq!(update.metadata.modifiers, pending.modifiers);
+    assert_eq!(update.metadata.timestamp, Some(newest_timestamp));
+    assert_eq!(update.metadata.sequence_range, Some(pending_sequence));
 }
 
 #[test]
@@ -1426,13 +1438,20 @@ fn native_pointer_harness_refreshes_scroll_area_wheel_surface_interactively() {
 
     let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -2.0));
 
-    assert!(route.outcome.routed);
-    assert!(!route.outcome.is_deferred_surface_refresh());
-    assert!(route.outcome.is_interactive_surface_refresh());
-    assert!(route.outcome.is_interactive_scene_rebuild());
-    assert!(route.outcome.needs_scene_rebuild());
+    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Coalesced);
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_some()
+    );
+    assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 0);
+    harness
+        .runner
+        .flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+
     assert_eq!(route.diagnostic.kind, NativePointerEventKind::MouseWheel);
-    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Routed);
     assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 1);
     assert_eq!(
         harness.runner.core.runtime.bridge().project_count,

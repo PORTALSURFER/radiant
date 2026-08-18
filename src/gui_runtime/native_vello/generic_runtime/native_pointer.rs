@@ -309,8 +309,8 @@ where
             None => self.can_coalesce_scroll_container_wheel_with_timestamp(
                 position, delta, modifiers, timestamp,
             ),
-        } && self.timing.redraw_requested
-            && !self.pending_interactive_scroll_flush_is_due(now);
+        } && !self
+            .pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
             self.queue_scroll_container_wheel_with_metadata(
                 position,

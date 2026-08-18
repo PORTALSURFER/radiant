@@ -4,7 +4,7 @@ use crate::runtime::{
     RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeQueueHost,
     RuntimeRetainedSurfaceHost, RuntimeTransientOverlayHost, TransientOverlayContext,
 };
-use crate::widgets::TextWidget;
+use crate::widgets::{TextWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -32,6 +32,89 @@ impl RuntimeBridge<DemoMessage> for CountingProjectBridge {
 
 impl RuntimeFrameDiagnosticsHost for CountingProjectBridge {
     fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
+}
+
+#[derive(Default)]
+pub(super) struct UnsupportedPreparedRefreshBridge {
+    pub(super) project_count: usize,
+}
+
+#[derive(Clone)]
+struct UnsupportedPreparedRefreshWidget {
+    common: WidgetCommon,
+}
+
+impl UnsupportedPreparedRefreshWidget {
+    fn new() -> Self {
+        Self {
+            common: WidgetCommon::fixed(101, 120.0, 28.0),
+        }
+    }
+}
+
+impl Widget for UnsupportedPreparedRefreshWidget {
+    fn revision(&self) -> crate::widgets::WidgetRevision {
+        crate::widgets::WidgetRevision::exact((), (), (), ())
+    }
+
+    fn supports_prepared_state_synchronization(&self) -> bool {
+        true
+    }
+
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(
+        &mut self,
+        _bounds: crate::gui::types::Rect,
+        _input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: crate::gui::types::Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::GpuSurface(
+            crate::runtime::PaintGpuSurface {
+                widget_id: self.common.id,
+                key: 1,
+                revision: 1,
+                rect: bounds,
+                content: crate::runtime::GpuSurfaceContent::RgbaAtlas {
+                    source_rect: crate::gui::types::Rect::from_xy_size(0.0, 0.0, 1.0, 1.0),
+                    atlas: Arc::new(
+                        crate::gui::types::ImageRgba::new(1, 1, vec![255; 4])
+                            .expect("valid test image"),
+                    ),
+                },
+                capabilities: crate::runtime::GpuSurfaceCapabilities::default(),
+                overlays: Vec::new(),
+            },
+        ));
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for UnsupportedPreparedRefreshBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        self.project_count += 1;
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::static_widget(
+            UnsupportedPreparedRefreshWidget::new(),
+        )))
+    }
+
+    fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
+        Command::none()
+    }
 }
 
 #[derive(Default)]

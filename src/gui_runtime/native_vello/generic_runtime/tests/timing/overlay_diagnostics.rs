@@ -164,6 +164,65 @@ fn prepared_refresh_veto_keeps_the_combined_refresh_fallback() {
 }
 
 #[test]
+fn admitted_gpu_candidate_does_not_replay_combined_projection() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        UnsupportedPreparedRefreshBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    let project_count = runner.core.runtime.bridge().project_count;
+    let before_refresh = runner.core.runtime.refresh_counters();
+    runner.timing.deferred_surface_refresh = true;
+
+    let native_evidence = PreparedSurfaceRefreshNativeEvidence {
+        window_id: Some(winit::window::WindowId::dummy()),
+        adapter_generation: Some(NativeAdapterGeneration::from_test_serial(1)),
+        target_generation:
+            super::super::super::runner_state::NativeTargetGeneration::from_test_serial(1),
+        environment: crate::runtime::WindowEnvironment::default(),
+        native_resources_present: true,
+        target_fenced: false,
+        pending_viewport_resize: false,
+        pending_surface_resize: false,
+        lifecycle: NativeLifecycle::default(),
+        newer_visual_request: false,
+    };
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        native_evidence,
+    );
+
+    // Candidate preparation pulls once. A post-admission fallback would pull
+    // and project a second time through the combined refresh path.
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count + 1
+    );
+    assert_eq!(
+        runner
+            .core
+            .runtime
+            .refresh_counters()
+            .application_projection,
+        before_refresh.application_projection + 1
+    );
+    assert!(
+        runner
+            .frame
+            .last_paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
+    );
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
 fn prepared_refresh_dispatches_replacement_terminal_after_scene_admission() {
     let recorder = prepared_refresh_scene_admission_recorder();
     let mut runner = GenericNativeVelloRunner::new(

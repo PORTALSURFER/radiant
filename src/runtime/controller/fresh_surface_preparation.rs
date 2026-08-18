@@ -244,23 +244,6 @@ impl<Message> PreparedSurfaceRefreshPublication<Message> {
 }
 
 impl<Message> PreparedSurfaceRefresh<Message> {
-    /// The native staged consumer is limited to the ordinary Vello scene
-    /// contract. Custom and GPU primitives retain their direct path because
-    /// their admission may call back into host-owned resources.
-    pub(crate) fn supports_native_scene_admission(&self) -> bool {
-        self.paint_candidate
-            .paint_plan
-            .primitives
-            .iter()
-            .all(|primitive| {
-                !matches!(
-                    primitive,
-                    crate::runtime::PaintPrimitive::GpuSurface(_)
-                        | crate::runtime::PaintPrimitive::CustomSurface(_)
-                )
-            })
-    }
-
     fn is_current<Bridge>(&self, runtime: &SurfaceRuntime<Bridge, Message>) -> bool
     where
         Bridge: RuntimeBridge<Message>,

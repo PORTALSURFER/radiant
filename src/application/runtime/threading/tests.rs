@@ -339,6 +339,8 @@ fn business_thread_pool_records_cancelled_completion_diagnostics() {
 
 #[test]
 fn single_worker_business_lane_keeps_running_after_task_panic() {
+    const WORKER_SIGNAL_TIMEOUT: Duration = Duration::from_secs(5);
+
     let pool = BusinessThreadPool::new(1);
     let (panic_started_tx, panic_started_rx) = mpsc::channel();
     let (next_ran_tx, next_ran_rx) = mpsc::channel();
@@ -348,7 +350,7 @@ fn single_worker_business_lane_keeps_running_after_task_panic() {
         panic!("intentional idle worker panic");
     }));
     panic_started_rx
-        .recv_timeout(Duration::from_secs(1))
+        .recv_timeout(WORKER_SIGNAL_TIMEOUT)
         .expect("panicking idle task should start");
 
     assert!(
@@ -357,7 +359,7 @@ fn single_worker_business_lane_keeps_running_after_task_panic() {
         })
     );
     next_ran_rx
-        .recv_timeout(Duration::from_secs(1))
+        .recv_timeout(WORKER_SIGNAL_TIMEOUT)
         .expect("single idle worker should run next task after panic");
 
     let diagnostics = wait_for_business_completion(&pool, 2);

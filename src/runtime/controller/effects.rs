@@ -1339,6 +1339,13 @@ mod tests {
         Incompatible,
     }
 
+    #[derive(Clone, Copy)]
+    enum CancellableLatestMode {
+        OneShot,
+        OrderedStream,
+        CoalescedStream,
+    }
+
     struct OwnerWorkerBridge {
         owner: DeclarativeEffectOwner,
         show_owner: bool,
@@ -1546,6 +1553,7 @@ mod tests {
         receipt: Option<crate::application::runtime::BusinessTaskAdmissionReceipt>,
         spawned: Arc<AtomicUsize>,
         latest: Option<LatestTask>,
+        cancellable_latest: Option<(LatestTask, CancellableLatestMode)>,
         keyed_coalesced_stream: Option<KeyedLatestTasks<u8>>,
         keyed_stream: Option<KeyedLatestTasks<u8>>,
         keyed: Option<KeyedLatestTasks<u8>>,
@@ -1613,6 +1621,41 @@ mod tests {
                     |event: u8| event as usize,
                     |output: u8| output as usize,
                 )
+            } else if let Some((latest, mode)) = self.cancellable_latest.as_mut() {
+                let request = context
+                    .business()
+                    .background("cancellable-owner-latest-same-update-removed")
+                    .cancellable()
+                    .latest(latest);
+                let _token = request.token();
+                match *mode {
+                    CancellableLatestMode::OneShot => request.run_for_owner_with_receipt(
+                        self.owner,
+                        |_| 2_u8,
+                        |completion: crate::application::TaskCompletion<u8>| {
+                            completion.output as usize
+                        },
+                    ),
+                    CancellableLatestMode::OrderedStream => request.stream_for_owner_with_receipt(
+                        self.owner,
+                        |_, events| {
+                            assert!(events.emit(1_u8));
+                            2_u8
+                        },
+                        |event: crate::application::TaskCompletion<u8>| event.output as usize,
+                        |output: crate::application::TaskCompletion<u8>| output.output as usize,
+                    ),
+                    CancellableLatestMode::CoalescedStream => request
+                        .stream_latest_for_owner_with_receipt(
+                            self.owner,
+                            |_, events| {
+                                assert!(events.emit(1_u8));
+                                2_u8
+                            },
+                            |event: crate::application::TaskCompletion<u8>| event.output as usize,
+                            |output: crate::application::TaskCompletion<u8>| output.output as usize,
+                        ),
+                }
             } else if let Some(keyed_coalesced_stream) = self.keyed_coalesced_stream.as_mut() {
                 context
                     .business()
@@ -1863,6 +1906,94 @@ mod tests {
         let receipt =
             request.stream_latest_for_owner_with_receipt(owner, work, map_event, map_final);
         (context.into_command(), receipt, ticket)
+    }
+
+    fn cancellable_owner_latest_command(
+        latest: &mut LatestTask,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        work: impl FnOnce(crate::application::runtime::BusinessWorkContext) -> u8 + Send + 'static,
+        map: impl FnOnce(crate::application::TaskCompletion<u8>) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        crate::application::CancellationToken,
+        crate::application::TaskTicket,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context
+            .business()
+            .background(name)
+            .cancellable()
+            .latest(latest);
+        let token = request.token();
+        let ticket = request.ticket();
+        let receipt = request.run_for_owner_with_receipt(owner, work, map);
+        (context.into_command(), receipt, token, ticket)
+    }
+
+    fn cancellable_owner_latest_ordered_stream_command(
+        latest: &mut LatestTask,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        work: impl FnOnce(
+            crate::application::runtime::BusinessWorkContext,
+            crate::application::runtime::BusinessEventSink<u8>,
+        ) -> u8
+        + Send
+        + 'static,
+        map_event: impl Fn(crate::application::TaskCompletion<u8>) -> usize + 'static,
+        map_final: impl FnOnce(crate::application::TaskCompletion<u8>) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        crate::application::CancellationToken,
+        crate::application::TaskTicket,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context
+            .business()
+            .background(name)
+            .cancellable()
+            .latest(latest);
+        let token = request.token();
+        let ticket = request.ticket();
+        let receipt = request.stream_for_owner_with_receipt(owner, work, map_event, map_final);
+        (context.into_command(), receipt, token, ticket)
+    }
+
+    fn cancellable_owner_latest_coalesced_stream_command(
+        latest: &mut LatestTask,
+        owner: DeclarativeEffectOwner,
+        name: &'static str,
+        work: impl FnOnce(
+            crate::application::runtime::BusinessWorkContext,
+            crate::application::runtime::BusinessEventSink<u8>,
+        ) -> u8
+        + Send
+        + 'static,
+        map_event: impl Fn(crate::application::TaskCompletion<u8>) -> usize + 'static,
+        map_final: impl FnOnce(crate::application::TaskCompletion<u8>) -> usize + 'static,
+    ) -> (
+        crate::runtime::Command<usize>,
+        crate::application::runtime::BusinessTaskAdmissionReceipt,
+        crate::application::CancellationToken,
+        crate::application::TaskTicket,
+    ) {
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context
+            .business()
+            .background(name)
+            .cancellable()
+            .latest(latest);
+        let token = request.token();
+        let ticket = request.ticket();
+        let receipt =
+            request.stream_latest_for_owner_with_receipt(owner, work, map_event, map_final);
+        (context.into_command(), receipt, token, ticket)
     }
 
     fn owner_ordered_stream_command(
@@ -6402,6 +6533,137 @@ mod tests {
     }
 
     #[test]
+    fn cancellable_owner_latest_one_shot_preserves_ticket_and_token_fence() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut latest = LatestTask::new();
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let (command, receipt, token, ticket) = cancellable_owner_latest_command(
+            &mut latest,
+            owner,
+            "cancellable-owner-latest-valid",
+            |worker_context| {
+                assert!(!worker_context.is_cancelled());
+                7_u8
+            },
+            move |completion| {
+                mapper_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(!token.is_cancelled());
+        assert_eq!(latest.active(), Some(ticket));
+        assert_ne!(ticket, predecessor);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+        assert_eq!(*mapped.borrow(), vec![7]);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_latest_ordered_stream_preserves_fifo_and_final_once() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut latest = LatestTask::new();
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let (command, receipt, token, ticket) = cancellable_owner_latest_ordered_stream_command(
+            &mut latest,
+            owner,
+            "cancellable-owner-latest-stream-valid",
+            |worker_context, events| {
+                assert!(!worker_context.is_cancelled());
+                assert!(events.emit(1_u8));
+                assert!(events.emit(2_u8));
+                3_u8
+            },
+            move |completion| {
+                event_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+            move |completion| {
+                final_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(!token.is_cancelled());
+        assert_eq!(latest.active(), Some(ticket));
+        assert_ne!(ticket, predecessor);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 3);
+        assert_eq!(*mapped.borrow(), vec![1, 2, 3]);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_latest_coalesced_stream_keeps_newest_event_and_final_once() {
+        let owner = DeclarativeEffectOwner::new();
+        let mut latest = LatestTask::new();
+        let predecessor = latest.begin();
+        let mapped = Rc::new(RefCell::new(Vec::new()));
+        let event_state = Rc::clone(&mapped);
+        let final_state = Rc::clone(&mapped);
+        let mut runtime = SurfaceRuntime::new(
+            OwnerWorkerBridge::new(owner, true),
+            Vector2::new(80.0, 40.0),
+        );
+        let (command, receipt, token, ticket) = cancellable_owner_latest_coalesced_stream_command(
+            &mut latest,
+            owner,
+            "cancellable-owner-latest-coalesced-stream-valid",
+            |worker_context, events| {
+                assert!(!worker_context.is_cancelled());
+                assert!(events.emit(1_u8));
+                assert!(events.emit(2_u8));
+                3_u8
+            },
+            move |completion| {
+                event_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+            move |completion| {
+                final_state.borrow_mut().push(completion.output);
+                usize::from(completion.output)
+            },
+        );
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert!(!token.is_cancelled());
+        assert_eq!(latest.active(), Some(ticket));
+        assert_ne!(ticket, predecessor);
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 2);
+        assert_eq!(*mapped.borrow(), vec![2, 3]);
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
     fn cancellable_owner_coalesced_stream_maps_separate_events_when_ui_drains_between_emissions() {
         let owner = DeclarativeEffectOwner::new();
         let pending_work = Arc::new(Mutex::new(None));
@@ -7967,6 +8229,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                cancellable_latest: None,
                 keyed_coalesced_stream: None,
                 keyed_stream: None,
                 keyed: None,
@@ -8006,6 +8269,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: Some(latest),
+                cancellable_latest: None,
                 keyed_coalesced_stream: None,
                 keyed_stream: None,
                 keyed: None,
@@ -8055,6 +8319,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                cancellable_latest: None,
                 keyed_coalesced_stream: None,
                 keyed_stream: None,
                 keyed: Some(keyed),
@@ -8102,6 +8367,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                cancellable_latest: None,
                 keyed_coalesced_stream: None,
                 keyed_stream: Some(keyed),
                 keyed: None,
@@ -8149,6 +8415,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                cancellable_latest: None,
                 keyed_coalesced_stream: Some(keyed),
                 keyed_stream: None,
                 keyed: None,
@@ -8193,6 +8460,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                cancellable_latest: None,
                 keyed_coalesced_stream: None,
                 keyed_stream: None,
                 keyed: None,
@@ -8230,6 +8498,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                cancellable_latest: None,
                 keyed_coalesced_stream: None,
                 keyed_stream: None,
                 keyed: None,
@@ -8267,6 +8536,7 @@ mod tests {
                 receipt: None,
                 spawned: Arc::clone(&spawned),
                 latest: None,
+                cancellable_latest: None,
                 keyed_coalesced_stream: None,
                 keyed_stream: None,
                 keyed: None,
@@ -8288,6 +8558,62 @@ mod tests {
             crate::application::runtime::BusinessTaskAdmission::Rejected
         );
         assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
+    #[test]
+    fn cancellable_owner_latest_rejects_same_update_removal_and_rolls_back() {
+        for mode in [
+            CancellableLatestMode::OneShot,
+            CancellableLatestMode::OrderedStream,
+            CancellableLatestMode::CoalescedStream,
+        ] {
+            let owner = DeclarativeEffectOwner::new();
+            let spawned = Arc::new(AtomicUsize::new(0));
+            let mut latest = LatestTask::new();
+            let predecessor = latest.begin();
+            let mut runtime = SurfaceRuntime::new(
+                SameUpdateRemovedOwnerBridge {
+                    owner,
+                    removed: false,
+                    cancellable_one_shot: false,
+                    cancellable_stream: false,
+                    cancellable_coalesced_stream: false,
+                    receipt: None,
+                    spawned: Arc::clone(&spawned),
+                    latest: None,
+                    cancellable_latest: Some((latest, mode)),
+                    keyed_coalesced_stream: None,
+                    keyed_stream: None,
+                    keyed: None,
+                },
+                Vector2::new(80.0, 40.0),
+            );
+
+            let outcome = runtime.dispatch_message(0);
+            assert_eq!(outcome.messages_dispatched, 1);
+            assert_eq!(spawned.load(Ordering::Acquire), 0);
+            assert_eq!(runtime.worker_effects.pending, 0);
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .receipt
+                    .as_ref()
+                    .expect("same-update cancellable latest owner receipt")
+                    .poll(),
+                crate::application::runtime::BusinessTaskAdmission::Rejected
+            );
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .cancellable_latest
+                    .as_ref()
+                    .expect("same-update cancellable latest tracker")
+                    .0
+                    .active(),
+                Some(predecessor)
+            );
+            assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        }
     }
 
     #[test]

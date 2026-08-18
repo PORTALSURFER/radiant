@@ -444,7 +444,7 @@ map_event, map_final)` for cancellation-aware ordinary coalesced streams, and
 `BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`
 for ordered application-owned keyed-latest streams, plus
 `BusinessRequest::latest_for(&mut keyed_tasks, key).stream_latest_for_owner_with_receipt(owner, work, map_event, map_final)`
-for coalesced application-owned keyed-latest streams. All nine routes reuse the
+for coalesced application-owned keyed-latest streams. All twelve routes reuse the
 accepted-surface owner projection and generation ledger, the worker registry,
 the existing bounded ingress, the admission receipt, and the
 controller-composed cancellation probe. Ordinary and latest-task ordered
@@ -483,6 +483,22 @@ need not be `Send` or `Sync`. Invalid, removed, ambiguous, unkeyed,
 incompatible, stale, same-update, host, capacity, and closing admissions reject
 without spawn, mapping, retry, or `Application` fallback. Keyed-latest resource ownership, `ResourceTasks`, platform ownership, renderer, scheduler,
 native, and product wiring remain deferred.
+
+The cancellable latest-task owner routes are
+`CancellableBusinessLatestRequest::run_for_owner_with_receipt(owner, work, map)`,
+`CancellableBusinessLatestRequest::stream_for_owner_with_receipt(owner, work,
+map_event, map_final)`, and
+`CancellableBusinessLatestRequest::stream_latest_for_owner_with_receipt(owner,
+work, map_event, map_final)`. They reuse the existing latest ticket and
+replacement transaction and compose the explicit token with the declarative
+owner-generation fence for cooperative work, delivery, mapping, and reduction.
+The one-shot maps one completion; the ordered stream preserves FIFO events and
+final delivery; the coalesced stream keeps only the newest pending intermediate
+event before UI drain and delivers the final uncoalesced. Each receipt is
+admission-only and the UI-local mappers remain non-`Send` where permitted.
+Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host,
+capacity, and closing admissions fail closed without spawn, mapping, retry, or
+`Application` fallback; failed latest admission restores the predecessor ticket.
 
 The same qualified owner boundary now includes the application-owned keyed
 latest one-shot route

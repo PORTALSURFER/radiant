@@ -359,6 +359,10 @@ latest-task owner-stream method
 `BusinessLatestRequest::stream_for_owner_with_receipt` plus the coalesced
 latest-task owner-stream method
 `BusinessLatestRequest::stream_latest_for_owner_with_receipt`, plus the
+`CancellableBusinessLatestRequest::run_for_owner_with_receipt` one-shot,
+ordered `CancellableBusinessLatestRequest::stream_for_owner_with_receipt`,
+and coalesced `CancellableBusinessLatestRequest::stream_latest_for_owner_with_receipt`,
+plus the
 capability-qualified `KeyedLatestTasks` one-shot route
 `BusinessRequest::latest_for(&mut keyed_tasks, key).run_for_owner_with_receipt(owner, work, map)`
 and its ordered stream route
@@ -455,6 +459,18 @@ and owner fences apply to work, events, final delivery, mapping, and reduction.
 Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host,
 capacity, and closing admissions reject atomically without spawning, mapping,
 retry, or `Application` fallback.
+
+The cancellable latest-task owner routes reuse the existing latest ticket and
+replacement transaction and add the explicit cancellation token to the
+declarative owner-generation fence. `run_for_owner_with_receipt` maps one
+completion; `stream_for_owner_with_receipt` preserves FIFO intermediate events
+and final delivery; and `stream_latest_for_owner_with_receipt` retains only
+the newest pending intermediate event before UI drain while delivering the
+final uncoalesced. Each returns an admission-only receipt, and its UI-local
+mappers remain non-`Send` where the API permits. Invalid, removed, ambiguous,
+unkeyed, incompatible, stale, same-update, host, capacity, and closing
+admissions fail closed without spawn, mapping, retry, or `Application`
+fallback; failed latest admission restores the eligible predecessor ticket.
 
 Recovery, temporary native reconstruction, and cached hiding do not by
 themselves retire a live owner generation or cancel its registrations. An

@@ -3,7 +3,7 @@
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     NativeLifecycle, NativeRunnerTimingState, NativeRunnerWindowState,
-    PreparedSurfaceRefreshNativeEvidence, RenderFrameProfile,
+    PreparedSurfaceRefreshNativeEvidence, RenderFrameProfile, admit_prepared_surface_refresh,
 };
 use crate::runtime::RuntimeBridge;
 
@@ -22,13 +22,16 @@ where
         let native_evidence = self.prepared_surface_refresh_native_evidence();
         let mut used_prepared_refresh = false;
         let mut prepared_terminal_messages = None;
+        let mut projection_completion_mismatch = false;
         let (_, elapsed) = profile.measure(|| {
-            if let Some(ticket) = self.prepared_surface_refresh_owner.begin(native_evidence) {
+            if let Some(ticket) =
+                admit_prepared_surface_refresh(&mut self.frame_stage_owner, native_evidence)
+            {
                 let adapter = self.adapter.as_ref();
                 let window = &self.window;
                 let timing = &self.timing;
                 let lifecycle = self.native_lifecycle_snapshot();
-                let owner = &mut self.prepared_surface_refresh_owner;
+                let owner = &self.frame_stage_owner;
                 let core = &mut self.core;
                 let plan = &mut self.frame.last_paint_plan;
                 prepared_terminal_messages = core.try_prepared_surface_refresh(scope, plan, || {
@@ -36,12 +39,14 @@ where
                         Self::prepared_surface_refresh_native_evidence_from_parts(
                             adapter, window, timing, lifecycle,
                         );
-                    owner.is_current(&ticket, current_native_evidence)
+                    ticket.is_current(owner, current_native_evidence)
                 });
                 used_prepared_refresh = prepared_terminal_messages.is_some();
-                owner.complete(ticket);
+                projection_completion_mismatch = !self
+                    .frame_stage_owner
+                    .complete_projection(ticket.into_stage_ticket());
             }
-            if !used_prepared_refresh {
+            if !used_prepared_refresh && !projection_completion_mismatch {
                 self.core.refresh_surface_with_scope(scope);
             }
         });

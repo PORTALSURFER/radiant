@@ -141,6 +141,29 @@ fn prepared_plan_admission_encodes_once_without_a_second_plan_build() {
 }
 
 #[test]
+fn prepared_refresh_veto_keeps_the_combined_refresh_fallback() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        CountingProjectBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let project_count = runner.core.runtime.bridge().project_count;
+    runner.timing.deferred_surface_refresh = true;
+
+    // Startup has no native adapter/window/resource evidence, so Projection
+    // admission must veto before the prepared transaction and use the
+    // existing combined refresh path.
+    runner.refresh_deferred_surface_if_needed(&mut RenderFrameProfile::default());
+
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count + 1
+    );
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
 fn prepared_refresh_dispatches_replacement_terminal_after_scene_admission() {
     let recorder = prepared_refresh_scene_admission_recorder();
     let mut runner = GenericNativeVelloRunner::new(

@@ -1,4 +1,4 @@
-//! Exact, bounded admission for one window's deadline-stage frame work.
+//! Exact, bounded admission for one window's safe-boundary frame work.
 //!
 //! The owner keeps the payload behind an exact identity fence.  Readiness is
 //! deliberately payload-free: callers must present the same identity again to
@@ -250,6 +250,27 @@ struct InFlightTimedFrame {
     phase: InFlightTimedFramePhase,
 }
 
+/// A non-`Clone` witness for one admitted Projection-stage attempt.
+///
+/// Projection work is synchronous and therefore has no pending queue. The
+/// owner retains only this exact identity until the caller completes the
+/// attempt.
+pub(super) struct ProjectionStageTicket {
+    identity: FrameStageIdentity,
+}
+
+impl ProjectionStageTicket {
+    #[cfg(test)]
+    pub(super) fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+}
+
+#[derive(Debug)]
+struct InFlightProjection {
+    identity: FrameStageIdentity,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -263,7 +284,7 @@ struct FrameStageCompletionEvidence {
     budget_status: FrameStageBudgetStatus,
 }
 
-/// One window's bounded deadline-stage owner.
+/// One window's bounded safe-boundary stage owner.
 ///
 /// At most one frame can be in flight and at most one newer frame can remain
 /// pending.  Every transition is fenced by the exact key, native generations,
@@ -278,7 +299,9 @@ pub(super) struct WindowStageOwner {
     fence: Option<FrameStageFence>,
     pending: Option<PendingTimedFrame>,
     in_flight: Option<InFlightTimedFrame>,
+    projection_in_flight: Option<InFlightProjection>,
     last_completion: Option<FrameStageCompletionEvidence>,
+    last_projection_completion: Option<FrameStageIdentity>,
 }
 
 impl WindowStageOwner {
@@ -292,7 +315,9 @@ impl WindowStageOwner {
             fence: None,
             pending: None,
             in_flight: None,
+            projection_in_flight: None,
             last_completion: None,
+            last_projection_completion: None,
         }
     }
 
@@ -310,7 +335,7 @@ impl WindowStageOwner {
     }
 
     pub(super) const fn has_in_flight(&self) -> bool {
-        self.in_flight.is_some()
+        self.in_flight.is_some() || self.projection_in_flight.is_some()
     }
 
     pub(super) fn next_revision(&mut self) -> Option<u64> {
@@ -328,8 +353,9 @@ impl WindowStageOwner {
     /// Prepare the exact native fence used by the next identity.
     ///
     /// A changed native generation retires pending work before the new fence is
-    /// installed, but an in-flight frame keeps the current fence intact. Unknown
-    /// generations and non-deadline stages cannot become owner state.
+    /// installed, but an in-flight stage keeps the current fence intact. Unknown
+    /// generations and stages without a concrete owner consumer cannot become
+    /// owner state.
     pub(super) fn prepare_fence(
         &mut self,
         adapter_generation: NativeAdapterGeneration,
@@ -339,7 +365,7 @@ impl WindowStageOwner {
         if self.generation_exhausted
             || !adapter_generation.is_known()
             || !target_generation.is_known()
-            || stage != SchedulerStage::Deadline
+            || !stage_can_be_admitted(stage)
         {
             return false;
         }
@@ -350,8 +376,17 @@ impl WindowStageOwner {
         };
         if self.fence != Some(fence) {
             if self.has_deferred_timed_frame() {
-                self.invalidate();
-            } else if self.in_flight.is_some() {
+                if stage == SchedulerStage::Deadline {
+                    self.invalidate();
+                } else {
+                    return false;
+                }
+            } else if self.in_flight.is_some() || self.projection_in_flight.is_some() {
+                return false;
+            }
+            if stage == SchedulerStage::Projection && self.pending.is_some() {
+                // Do not discard a selected Deadline payload merely because a
+                // later redraw reaches the synchronous Projection boundary.
                 return false;
             }
             if self.fence.is_some() {
@@ -365,13 +400,71 @@ impl WindowStageOwner {
         true
     }
 
+    /// Admit one synchronous Projection-stage attempt under this window's
+    /// existing owner. There is no second event loop or pending per-owner
+    /// queue: the returned ticket is the one exact in-flight operation.
+    pub(super) fn admit_projection(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> Option<ProjectionStageTicket> {
+        if self.pending.is_some()
+            || self.in_flight.is_some()
+            || self.projection_in_flight.is_some()
+            || !self.prepare_fence(
+                adapter_generation,
+                target_generation,
+                SchedulerStage::Projection,
+            )
+        {
+            return None;
+        }
+        let revision = self.next_revision()?;
+        let identity = FrameStageIdentity::new(
+            self.key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Projection,
+            self.owner_generation,
+            revision,
+        );
+        if self.stale(&identity) {
+            return None;
+        }
+        self.projection_in_flight = Some(InFlightProjection {
+            identity: identity.clone(),
+        });
+        Some(ProjectionStageTicket { identity })
+    }
+
+    pub(super) fn projection_ticket_is_current(&self, ticket: &ProjectionStageTicket) -> bool {
+        self.projection_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| in_flight.identity == ticket.identity)
+    }
+
+    /// Complete only the exact Projection-stage attempt that was admitted.
+    /// A mismatch leaves the begun attempt in flight so callers cannot replay
+    /// it through the conservative fallback.
+    pub(super) fn complete_projection(&mut self, ticket: ProjectionStageTicket) -> bool {
+        let Some(in_flight) = self.projection_in_flight.as_ref() else {
+            return false;
+        };
+        if in_flight.identity != ticket.identity {
+            return false;
+        }
+        self.projection_in_flight = None;
+        self.last_projection_completion = Some(ticket.identity);
+        true
+    }
+
     /// Queue one exact frame, coalescing only compatible work.
     ///
     /// A duplicate revision updates its payload while retaining the earliest
     /// due time.  A newer revision replaces an older pending revision, also
     /// retaining the earliest due time.  In-flight work is never replaced.
     pub(super) fn queue(&mut self, identity: FrameStageIdentity, frame: TimedFrame) -> bool {
-        if !self.accepts_identity(&identity) {
+        if !self.accepts_deadline_identity(&identity) {
             return false;
         }
         if self.fence.is_none() {
@@ -431,7 +524,7 @@ impl WindowStageOwner {
         identity: &FrameStageIdentity,
         now: Instant,
     ) -> Option<TimedFrame> {
-        if self.in_flight.is_some() || !self.accepts_identity(identity) {
+        if self.in_flight.is_some() || !self.accepts_deadline_identity(identity) {
             return None;
         }
         let pending = self.pending.as_ref()?;
@@ -568,6 +661,21 @@ impl WindowStageOwner {
         }) {
             return true;
         }
+        if self.projection_in_flight.as_ref().is_some_and(|in_flight| {
+            in_flight.identity.same_fence(identity)
+                && identity.revision < in_flight.identity.revision
+        }) {
+            return true;
+        }
+        if self
+            .last_projection_completion
+            .as_ref()
+            .is_some_and(|completion| {
+                completion.same_fence(identity) && identity.revision <= completion.revision
+            })
+        {
+            return true;
+        }
         self.pending.as_ref().is_some_and(|pending| {
             pending.identity.same_fence(identity) && identity.revision < pending.identity.revision
         })
@@ -578,13 +686,17 @@ impl WindowStageOwner {
         if self.fence.is_none()
             && self.pending.is_none()
             && self.in_flight.is_none()
+            && self.projection_in_flight.is_none()
             && self.last_completion.is_none()
+            && self.last_projection_completion.is_none()
         {
             return;
         }
         self.pending = None;
         self.in_flight = None;
+        self.projection_in_flight = None;
         self.last_completion = None;
+        self.last_projection_completion = None;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -604,12 +716,20 @@ impl WindowStageOwner {
         identity.key == self.key
             && identity.adapter_generation.is_known()
             && identity.target_generation.is_known()
-            && identity.stage == SchedulerStage::Deadline
+            && stage_can_be_admitted(identity.stage)
             && identity.owner_generation == self.owner_generation
             && !self.generation_exhausted
             && !self.revision_exhausted
             && self.fence.is_none_or(|fence| fence == identity.fence())
     }
+
+    fn accepts_deadline_identity(&self, identity: &FrameStageIdentity) -> bool {
+        self.accepts_identity(identity) && identity.stage == SchedulerStage::Deadline
+    }
+}
+
+const fn stage_can_be_admitted(stage: SchedulerStage) -> bool {
+    matches!(stage, SchedulerStage::Deadline | SchedulerStage::Projection)
 }
 
 #[cfg(test)]
@@ -1241,7 +1361,7 @@ mod tests {
     }
 
     #[test]
-    fn all_scheduler_stage_variants_are_explicit_and_only_deadline_is_admitted() {
+    fn all_scheduler_stage_variants_are_explicit_and_deadline_and_projection_are_admitted() {
         for stage in SchedulerStage::ORDER {
             assert!(stage.is_non_preemptive());
         }
@@ -1259,10 +1379,40 @@ mod tests {
         for stage in SchedulerStage::ORDER {
             assert_eq!(
                 owner.prepare_fence(adapter(1), target(1), stage),
-                stage == SchedulerStage::Deadline
+                matches!(stage, SchedulerStage::Deadline | SchedulerStage::Projection)
             );
         }
         assert_eq!(NextReadyStage::default(), NextReadyStage::None);
         assert_eq!(NextReadyStage::Deadline, NextReadyStage::Deadline);
+    }
+
+    #[test]
+    fn projection_completion_mismatch_cannot_replay_or_fallback() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let adapter_generation = adapter(1);
+        let target_generation = target(1);
+        let ticket = owner
+            .admit_projection(adapter_generation, target_generation)
+            .expect("projection ticket");
+        let wrong_ticket = ProjectionStageTicket {
+            identity: FrameStageIdentity::new(
+                FrameScheduleKey::Primary,
+                adapter_generation,
+                target_generation,
+                SchedulerStage::Projection,
+                ticket.identity.owner_generation,
+                ticket.identity.revision + 1,
+            ),
+        };
+
+        assert!(!owner.complete_projection(wrong_ticket));
+        assert!(owner.projection_ticket_is_current(&ticket));
+        assert!(
+            owner
+                .admit_projection(adapter_generation, target_generation)
+                .is_none()
+        );
+        assert!(owner.complete_projection(ticket));
+        assert!(!owner.has_in_flight());
     }
 }

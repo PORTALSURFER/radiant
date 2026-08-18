@@ -6959,7 +6959,7 @@ The lifecycle is:
 5. The host reducer mutates host state and may request repaint.
 6. Radiant refreshes the surface and rebuilds only the necessary runtime data.
 
-### Prepared surface refresh evidence (private, non-executing consumer contract)
+### Prepared surface refresh evidence (private production Projection consumer)
 
 There is exactly one externally visible complete
 `CommittedFrameState`/last-complete frame. A staged consumer may prepare an
@@ -6983,10 +6983,11 @@ validation, perform irreversible replacement cleanup once, atomically publish
 complete candidate state, then dispatch terminal messages. No scheduler yield
 follows cleanup start; a panic then is terminal recovery/shutdown, not rollback.
 
-This is a reversible prerequisite/evidence contract only. It does not claim
-production Projection, Reconciliation, Layout, or Paint is independently
-scheduled; the existing combined path remains authoritative for virtual
-materialization and unsupported paths. The parent event loop remains the sole
-cross-window authority, `WindowStageOwner` remains a private Deadline owner,
-and diagnostics/timing are observational and cannot authorize execution, cache,
-admission, or commit. No public API is introduced by this contract.
+The prepared refresh path is the first private production Projection-stage
+consumer of the safe-boundary owner. It does not claim that Reconciliation,
+Layout, or Paint is independently scheduled; the existing combined path remains
+authoritative for virtual materialization and unsupported paths. The parent
+event loop remains the sole cross-window authority, and `WindowStageOwner`
+admits the existing private Deadline work plus this one synchronous Projection
+ticket. Diagnostics/timing are observational and cannot authorize execution,
+cache, admission, or commit. No public API is introduced by this contract.

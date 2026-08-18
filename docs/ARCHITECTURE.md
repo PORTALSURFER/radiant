@@ -883,13 +883,14 @@ complete candidate state is atomically published, and terminal messages are
 dispatched only afterward. No scheduler yield occurs after cleanup begins. A
 panic after that point is terminal recovery/shutdown, not rollback.
 
-Preparation is a reversible prerequisite/evidence contract, not a claim that
-production Projection/Reconciliation/Layout/Paint is independently scheduled.
-The existing combined path remains authoritative for virtual materialization
-and unsupported paths. The parent event loop is the sole cross-window
-authority; `WindowStageOwner` is a private Deadline owner; diagnostics and
-timing are observational and cannot authorize execution, cache, admission, or
-commit.
+The prepared refresh path is the first private production Projection-stage
+consumer of the safe-boundary owner. Preparation remains a reversible
+prerequisite/evidence contract; Reconciliation/Layout/Paint are not
+independently scheduled. The existing combined path remains authoritative for
+virtual materialization and unsupported paths. The parent event loop is the sole
+cross-window authority; `WindowStageOwner` admits the existing private Deadline
+work and this one synchronous Projection ticket. Diagnostics and timing are
+observational and cannot authorize execution, cache, admission, or commit.
 
 ## Text Boundary
 

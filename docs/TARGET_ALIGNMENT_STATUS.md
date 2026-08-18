@@ -3,17 +3,17 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~97% |
-| Broad end-to-end target coverage | ~75.82% |
+| Broad end-to-end target coverage | ~76.00% |
 
 | Category | Estimate |
 | --- | ---: |
-| Public API and module boundaries | 87% |
+| Public API and module boundaries | 88% |
 | Declarative model, identity, reconciliation | 78% |
 | Input, provenance, and edit lifecycle | 90% |
 | Layout, composition, virtualization | 70% |
 | Text, focus, and selection | 60% |
 | Numeric controls | 90% |
-| Runtime, effects, and scheduling | 87% |
+| Runtime, effects, and scheduling | 88% |
 | Rendering, invalidation, retained GPU surfaces | 70% |
 | Platform, windowing, and host boundaries | 59% |
 | Diagnostics, profiling, and performance validation | 64% |

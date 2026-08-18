@@ -606,16 +606,17 @@ it does not transfer ownership to the declarative tree or split the shared
 ingress. The declarative timer, one-shot worker, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, ordinary ordered and
 coalesced owner-scoped stream consumers, and ordered/coalesced latest-task
-owner streams reuse this same registry/lifecycle seam; coalesced keyed owner
-streaming, broader platform, and shared-resource ownership remain deferred.
+owner streams, and coalesced keyed-latest owner streams reuse this same
+registry/lifecycle seam; broader platform and shared-resource ownership remain
+deferred.
 
 The private declarative seam has five dependency-ordered stages. Generic
 matching registry retirement is now shipped at the accepted projection
 boundary; the bounded explicit timer, one-shot owner-worker, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
 one-shot worker, ordinary ordered and coalesced owner-scoped stream consumers,
-and ordered/coalesced latest-task owner streams are shipped; coalesced keyed
-owner streaming, cancellable owner-stream variants, `ResourceTasks` ownership,
+ordered/coalesced latest-task owner streams, and coalesced keyed-latest owner
+streams are shipped; cancellable owner-stream variants, `ResourceTasks` ownership,
 platform ownership, and broader product-facing
 demand/refresh/provider ownership remain deferred:
 
@@ -624,7 +625,7 @@ demand/refresh/provider ownership remain deferred:
    overlay and keyed-node candidates and compatibility context. The bounded
    public `DeclarativeEffectOwner` marker, `UiUpdateContext` owner-timer
    methods, and qualified one-shot/`KeyedLatestTasks`/ordinary
-   ordered/coalesced/ordered-latest/coalesced-latest/keyed-ordered owner-worker
+   ordered/coalesced/ordered-latest/coalesced-latest/keyed-ordered/keyed-coalesced owner-worker
    methods are now
    exposed, while runtime origin and effect
    payloads remain private. A dynamic
@@ -651,12 +652,24 @@ the application-owned `KeyedLatestTasks` owner route, additionally restores its
 eligible predecessor ticket on any failed owner or host admission; keyed rollback
 is isolated to the affected key.
 
+The shipped coalesced keyed-latest owner stream retains the exact host key,
+keyed ticket and replacement transaction, declarative owner generation, and
+admission receipt. Its bounded ingress retains only the newest pending
+intermediate payload before UI drain; the final remains uncoalesced and maps
+exactly once after that retained event. Event and final mappers receive exact
+`KeyedTaskCompletion<Key, Event>` or `KeyedTaskCompletion<Key, Output>` values
+and remain UI-local/non-`Send`. Keyed supersession and owner retirement
+independently fence worker execution, mapping, and reduction. Invalid, removed,
+ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
+same-update admissions fail closed without `Application` fallback and restore
+only the affected key's eligible predecessor; sibling keys remain unchanged.
+
 4. The existing timer and worker registries carry the explicitly selected owner
    origin for the bounded owner-timer, one-shot owner-worker, application-owned
    `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
-   one-shot worker, ordinary ordered/coalesced stream consumers, and
-   ordered/coalesced latest-task owner streams. Coalesced keyed owner streaming,
-   cancellable owner-stream variants, `ResourceTasks` ownership, platform
+   one-shot worker, ordinary ordered/coalesced stream consumers,
+   ordered/coalesced latest-task owner streams, and coalesced keyed-latest owner
+   streams. Cancellable owner-stream variants, `ResourceTasks` ownership, platform
    ownership, and product wiring remain deferred. The existing registries
    remain the admission
    and mapping points; they do not acquire separate per-owner queues or a second

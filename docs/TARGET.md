@@ -436,7 +436,9 @@ map_final)` for ordered latest-task streams, plus
 `BusinessLatestRequest::stream_latest_for_owner_with_receipt(owner, work,
 map_event, map_final)` for coalesced latest-task streams, and
 `BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`
-for ordered application-owned keyed-latest streams. All five routes reuse the
+for ordered application-owned keyed-latest streams, plus
+`BusinessRequest::latest_for(&mut keyed_tasks, key).stream_latest_for_owner_with_receipt(owner, work, map_event, map_final)`
+for coalesced application-owned keyed-latest streams. All six routes reuse the
 accepted-surface owner projection and generation ledger, the worker registry,
 the existing bounded ingress, the admission receipt, and the
 controller-composed cancellation probe. Ordinary and latest-task ordered
@@ -447,9 +449,17 @@ case the final is delivered once after the last accepted intermediate event,
 and event/final mappers remain UI-local. The ordered latest-task route also
 retains the exact latest ticket and rolls back its predecessor on invalid owner
 or host admission; the coalesced latest-task route retains that same ticket and
-fences by latest supersession and owner generation. Cancellable owner-stream
-variants, coalesced keyed-latest owner streaming, keyed-latest resource ownership, `ResourceTasks` ownership, platform
-ownership, renderer, scheduler,
+fences by latest supersession and owner generation. The coalesced keyed-latest
+owner route retains the exact host key, keyed ticket, replacement transaction,
+owner generation, and receipt; it keeps only the newest pending intermediate
+payload before UI drain, delivers the uncoalesced final exactly once after the
+retained event, and passes exact `KeyedTaskCompletion<Key, _>` values to
+UI-local/non-`Send` mappers. Keyed supersession and owner retirement
+independently fence worker, mapping, and reduction. Invalid, removed,
+ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
+same-update admissions fail closed without `Application` fallback and restore
+only the affected key's predecessor; sibling keys remain unchanged. Cancellable
+owner-stream variants, keyed-latest resource ownership, `ResourceTasks` ownership, platform ownership, renderer, scheduler,
 native, and product wiring remain deferred.
 
 The same qualified owner boundary now includes the application-owned keyed

@@ -357,12 +357,14 @@ latest-task owner-stream method
 capability-qualified `KeyedLatestTasks` one-shot route
 `BusinessRequest::latest_for(&mut keyed_tasks, key).run_for_owner_with_receipt(owner, work, map)`
 and its ordered stream route
-`BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`;
+`BusinessRequest::latest_for(&mut keyed_tasks, key).stream_for_owner_with_receipt(owner, work, map_event, map_final)`
+and its coalesced stream route
+`BusinessRequest::latest_for(&mut keyed_tasks, key).stream_latest_for_owner_with_receipt(owner, work, map_event, map_final)`;
 runtime
 EffectOrigin, ledger, and effect registration remain crate-private. It does not define
 general effect ownership, demand/refresh/provider budgets, scheduler
-budgets/fairness/queue capacity/wake ordering, coalesced keyed owner-stream or
-cancellable owner-stream variants, `ResourceTasks` ownership,
+budgets/fairness/queue capacity/wake ordering, cancellable owner-stream variants,
+`ResourceTasks` ownership,
 platform/renderer/product wiring, or other effect payload compatibility.
 
 Ownership is selected explicitly. The current/default rule keeps ordinary
@@ -410,8 +412,18 @@ single final output through `KeyedTaskCompletion<Key, Event>` and
 `KeyedTaskCompletion<Key, Output>`. Keyed supersession and owner retirement
 independently fence worker, mapping, and reduction; invalid owner, lifecycle,
 host, or capacity admission rolls back only the affected key without fallback.
-Coalesced keyed owner streaming and cancellable owner-stream variants remain
-deferred.
+The shipped coalesced keyed-latest owner stream retains the exact host key,
+keyed ticket and replacement transaction, declarative owner generation, and
+admission receipt. It keeps only the newest pending intermediate payload before
+UI drain; the final is uncoalesced and maps exactly once after that retained
+event. Event and final mappers receive the exact
+`KeyedTaskCompletion<Key, Event>` or `KeyedTaskCompletion<Key, Output>` and
+remain UI-local/non-`Send`. Keyed supersession and owner retirement independently
+fence worker execution, event/final mapping, and reduction. Invalid, removed,
+ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
+same-update admissions fail closed without `Application` fallback and restore
+only the affected key's eligible predecessor; sibling keys remain unchanged.
+Cancellable owner-stream variants remain deferred.
 
 Recovery, temporary native reconstruction, and cached hiding do not by
 themselves retire a live owner generation or cancel its registrations. An

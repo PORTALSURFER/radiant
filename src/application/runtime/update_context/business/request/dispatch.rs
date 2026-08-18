@@ -131,19 +131,47 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         Output: Send + 'static,
         Message: 'static,
     {
+        self.stream_for_owner_with_optional_cancellation(owner, None, work, map_event, map_final)
+    }
+
+    pub(in crate::application::runtime::update_context::business) fn stream_for_owner_with_optional_cancellation<
+        Event,
+        Output,
+    >(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        token: Option<CancellationToken>,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
         let receipt = BusinessTaskAdmissionReceipt::new();
         let guard = AdmissionReceiptGuard(receipt.weak());
+        let worker_token = token.clone();
+        let is_cancelled = token.map(|token| {
+            Box::new(move || token.is_cancelled()) as Box<dyn Fn() -> bool + Send + Sync + 'static>
+        });
         self.context.queue_command(
-            Command::perform_worker_stream_with_priority_and_receipt_for_owner(
+            Command::perform_worker_stream_with_priority_and_receipt_for_owner_with_options(
                 owner,
                 self.name,
                 self.priority,
                 Some(guard),
+                crate::runtime::WorkerStreamOptions {
+                    is_cancelled,
+                    generation: 0,
+                    latest: false,
+                },
                 move |sink, cancellation_probe| {
                     let event_sink =
                         BusinessEventSink::new(move |event| sink.emit(Box::new(event)));
                     work(
-                        BusinessWorkContext::new_with_probe(None, cancellation_probe),
+                        BusinessWorkContext::new_with_probe(worker_token, cancellation_probe),
                         event_sink,
                     )
                 },

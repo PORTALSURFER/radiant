@@ -342,14 +342,16 @@ through that node. The conceptual owner kinds are:
 | Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
 
 This is a bounded public timer, one-shot business-worker, ordinary ordered and
-coalesced owner-scoped stream-consumer, ordered/coalesced latest-task owner
-stream, and ordered application-owned `KeyedLatestTasks` owner-stream slice,
+coalesced owner-scoped stream-consumer, cancellable ordinary ordered owner-scoped
+stream, ordered/coalesced latest-task owner stream, and ordered application-owned
+`KeyedLatestTasks` owner-stream slice,
 not the complete target effect model. It adds the qualified
 DeclarativeEffectOwner handle, explicit ViewNode/Layer markers, UiUpdateContext
 owner-timer methods, the owner-scoped one-shot BusinessRequest and
 BusinessLatestRequest methods, the ordinary owner-stream methods
 `BusinessRequest::stream_for_owner_with_receipt` and
 `BusinessRequest::stream_latest_for_owner_with_receipt`, and the ordered
+`CancellableBusinessRequest::stream_for_owner_with_receipt` route, plus the
 latest-task owner-stream method
 `BusinessLatestRequest::stream_for_owner_with_receipt` plus the coalesced
 latest-task owner-stream method
@@ -363,8 +365,7 @@ and its coalesced stream route
 runtime
 EffectOrigin, ledger, and effect registration remain crate-private. It does not define
 general effect ownership, demand/refresh/provider budgets, scheduler
-budgets/fairness/queue capacity/wake ordering, cancellable owner-stream variants,
-`ResourceTasks` ownership,
+budgets/fairness/queue capacity/wake ordering, `ResourceTasks` ownership,
 platform/renderer/product wiring, or other effect payload compatibility.
 
 Ownership is selected explicitly. The current/default rule keeps ordinary
@@ -423,7 +424,17 @@ fence worker execution, event/final mapping, and reduction. Invalid, removed,
 ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
 same-update admissions fail closed without `Application` fallback and restore
 only the affected key's eligible predecessor; sibling keys remain unchanged.
-Cancellable owner-stream variants remain deferred.
+The cancellable ordinary ordered owner stream is the cancellation-aware form of
+the same bounded FIFO route. Callers clone `request.token()` before consuming a
+`CancellableBusinessRequest`; the returned `BusinessTaskAdmissionReceipt` remains
+admission-only. The existing worker registry composes the explicit token probe
+with the declarative owner probe using OR semantics, while generation `0` and
+`latest: false` preserve the ordinary ordered stream contract. Token cancellation
+and owner retirement independently fence cooperative work, queued events, final
+delivery, mapping, and reduction, including later work in the same UI drain.
+Event and final mappers remain UI-local/non-`Send`. Invalid, removed, ambiguous,
+unkeyed, incompatible, stale, same-update, host, capacity, and closing admissions
+reject atomically without spawning, mapping, retry, or `Application` fallback.
 
 Recovery, temporary native reconstruction, and cached hiding do not by
 themselves retire a live owner generation or cancel its registrations. An

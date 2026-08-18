@@ -409,6 +409,8 @@ impl<Message> Command<Message> {
         )
     }
 
+    /// Compatibility constructor for existing internal owner-stream callers.
+    #[allow(dead_code)]
     pub(crate) fn perform_worker_stream_with_priority_and_receipt_for_owner<Event, Output>(
         owner: crate::application::DeclarativeEffectOwner,
         name: &'static str,
@@ -424,16 +426,48 @@ impl<Message> Command<Message> {
         Event: Send + 'static,
         Output: Send + 'static,
     {
-        let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
-        Self::perform_worker_stream_with_identity_and_transaction_and_receipt_for_owner(
-            super::EffectId(id),
+        Self::perform_worker_stream_with_priority_and_receipt_for_owner_with_options(
+            owner,
             name,
             priority,
+            admission_receipt,
             WorkerStreamOptions {
                 is_cancelled: None,
                 generation: 0,
                 latest: false,
             },
+            work,
+            map_event,
+            map_final,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_stream_with_priority_and_receipt_for_owner_with_options<
+        Event,
+        Output,
+    >(
+        owner: crate::application::DeclarativeEffectOwner,
+        name: &'static str,
+        priority: TaskPriority,
+        admission_receipt: Option<
+            crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard,
+        >,
+        options: WorkerStreamOptions,
+        work: impl FnOnce(WorkerEffectSink, Option<WorkerCancellationProbe>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
+    ) -> Self
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+    {
+        let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
+        Self::perform_worker_stream_with_identity_and_transaction_and_receipt_for_owner(
+            super::EffectId(id),
+            name,
+            priority,
+            options,
             None,
             admission_receipt,
             Some(owner),

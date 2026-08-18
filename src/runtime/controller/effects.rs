@@ -585,7 +585,11 @@ impl<Message> WorkerEffects<Message> {
     pub(super) fn drain(&mut self) -> Vec<Message> {
         self.drain_at_high_water(self.ingress.high_water())
             .into_iter()
-            .filter_map(|mapped| mapped.resolve(true).map(|(message, _origin)| message))
+            .filter_map(|mapped| {
+                mapped
+                    .resolve(true)
+                    .map(|(message, _origin, _cancellation_probe)| message)
+            })
             .collect()
     }
 
@@ -855,7 +859,7 @@ impl<Message> WorkerEffects<Message> {
                         }
                     }
                     RegisteredMapper::DeferredOnce(map) => {
-                        messages.push(MappedEffectMessage::deferred(
+                        messages.push(MappedEffectMessage::deferred_one_shot(
                             map,
                             output,
                             origin,
@@ -950,6 +954,11 @@ enum MappedEffect<Message> {
         mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
         cancellation_probe: Option<CancellationProbe>,
     },
+    DeferredOneShot {
+        output: Box<dyn Any + Send>,
+        mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        cancellation_probe: Option<CancellationProbe>,
+    },
     DeferredEvent {
         output: Box<dyn Any + Send>,
         mapper: Rc<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
@@ -981,6 +990,22 @@ impl<Message> MappedEffectMessage<Message> {
         }
     }
 
+    fn deferred_one_shot(
+        mapper: Box<dyn FnOnce(Box<dyn Any + Send>) -> Option<Message> + 'static>,
+        output: Box<dyn Any + Send>,
+        origin: EffectOrigin,
+        cancellation_probe: Option<CancellationProbe>,
+    ) -> Self {
+        Self {
+            mapping: MappedEffect::DeferredOneShot {
+                output,
+                mapper,
+                cancellation_probe,
+            },
+            origin,
+        }
+    }
+
     fn deferred_event(
         mapper: Rc<dyn Fn(Box<dyn Any + Send>) -> Option<Message> + 'static>,
         output: Box<dyn Any + Send>,
@@ -1004,10 +1029,10 @@ impl<Message> MappedEffectMessage<Message> {
     pub(in crate::runtime::controller) fn resolve(
         self,
         allow_deferred: bool,
-    ) -> Option<(Message, EffectOrigin)> {
+    ) -> Option<(Message, EffectOrigin, Option<CancellationProbe>)> {
         let Self { mapping, origin } = self;
-        let message = match mapping {
-            MappedEffect::Ready(message) => Some(message),
+        let (message, cancellation_probe) = match mapping {
+            MappedEffect::Ready(message) => Some((message, None)),
             MappedEffect::Deferred {
                 output,
                 mapper,
@@ -1016,7 +1041,18 @@ impl<Message> MappedEffectMessage<Message> {
                 if cancellation_probe.as_ref().is_some_and(|probe| probe()) {
                     None
                 } else {
-                    mapper(output)
+                    mapper(output).map(|message| (message, None))
+                }
+            }
+            MappedEffect::DeferredOneShot {
+                output,
+                mapper,
+                cancellation_probe,
+            } if allow_deferred => {
+                if cancellation_probe.as_ref().is_some_and(|probe| probe()) {
+                    None
+                } else {
+                    mapper(output).map(|message| (message, cancellation_probe))
                 }
             }
             MappedEffect::DeferredEvent {
@@ -1027,13 +1063,14 @@ impl<Message> MappedEffectMessage<Message> {
                 if cancellation_probe.as_ref().is_some_and(|probe| probe()) {
                     None
                 } else {
-                    mapper(output)
+                    mapper(output).map(|message| (message, None))
                 }
             }
             MappedEffect::Deferred { .. } => None,
+            MappedEffect::DeferredOneShot { .. } => None,
             MappedEffect::DeferredEvent { .. } => None,
         }?;
-        Some((message, origin))
+        Some((message, origin, cancellation_probe))
     }
 }
 
@@ -5649,6 +5686,53 @@ mod tests {
         assert!(mapped.borrow().is_empty());
         assert_eq!(runtime.worker_effects.pending, 0);
         assert!(runtime.worker_effects.registry.is_empty());
+    }
+
+    #[test]
+    fn cancellable_owner_one_shot_mapper_token_cancellation_fences_reduction_and_cleans_up() {
+        let owner = DeclarativeEffectOwner::new();
+        let bridge = OwnerWorkerBridge::new(owner, true);
+        let reduced_messages = Arc::clone(&bridge.reduced_messages);
+        let mapped = Rc::new(RefCell::new(Vec::<u8>::new()));
+        let mapper_state = Rc::clone(&mapped);
+        let mut context =
+            crate::application::runtime::update_context::UiUpdateContext::<usize>::default();
+        let request = context
+            .business()
+            .background("cancellable-owner-one-shot-mapper-cancel")
+            .cancellable();
+        let token = request.token();
+        let mapper_token = token.clone();
+        let receipt = request.run_for_owner_with_receipt(
+            owner,
+            |_| 7_u8,
+            move |output| {
+                mapper_state.borrow_mut().push(output);
+                mapper_token.cancel();
+                usize::from(output)
+            },
+        );
+        let command = context.into_command();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+
+        let _ = runtime.execute_command(command);
+        assert_eq!(
+            receipt.poll(),
+            crate::application::runtime::BusinessTaskAdmission::Accepted
+        );
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+        assert_eq!(*mapped.borrow(), vec![7]);
+        assert!(token.is_cancelled());
+        assert!(
+            reduced_messages
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty()
+        );
+        assert_eq!(runtime.worker_effects.pending, 0);
+        assert!(runtime.worker_effects.registry.is_empty());
+        assert!(runtime.worker_effects.pending_registrations.is_empty());
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
     }
 
     #[test]

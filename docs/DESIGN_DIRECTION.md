@@ -342,9 +342,9 @@ through that node. The conceptual owner kinds are:
 | Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
 
 This is a bounded public timer, one-shot business-worker, cancellable ordinary
-owner one-shot, ordinary ordered and
-coalesced owner-scoped stream-consumer, cancellable ordinary ordered owner-scoped
-stream, ordered/coalesced latest-task owner stream, and ordered application-owned
+owner one-shot, ordinary ordered and coalesced owner-scoped stream-consumer,
+cancellable ordinary ordered and coalesced owner-scoped streams,
+ordered/coalesced latest-task owner stream, and ordered application-owned
 `KeyedLatestTasks` owner-stream slice,
 not the complete target effect model. It adds the qualified
 DeclarativeEffectOwner handle, explicit ViewNode/Layer markers, UiUpdateContext
@@ -353,7 +353,8 @@ BusinessLatestRequest methods, the ordinary owner-stream methods
 `BusinessRequest::stream_for_owner_with_receipt` and
 `BusinessRequest::stream_latest_for_owner_with_receipt`, and the ordered
 `CancellableBusinessRequest::run_for_owner_with_receipt` route, plus the
-`CancellableBusinessRequest::stream_for_owner_with_receipt` route, plus the
+`CancellableBusinessRequest::stream_for_owner_with_receipt` and
+`CancellableBusinessRequest::stream_latest_for_owner_with_receipt` routes, plus the
 latest-task owner-stream method
 `BusinessLatestRequest::stream_for_owner_with_receipt` plus the coalesced
 latest-task owner-stream method
@@ -444,9 +445,16 @@ with the declarative owner probe using OR semantics, while generation `0` and
 `latest: false` preserve the ordinary ordered stream contract. Token cancellation
 and owner retirement independently fence cooperative work, queued events, final
 delivery, mapping, and reduction, including later work in the same UI drain.
-Event and final mappers remain UI-local/non-`Send`. Invalid, removed, ambiguous,
-unkeyed, incompatible, stale, same-update, host, capacity, and closing admissions
-reject atomically without spawning, mapping, retry, or `Application` fallback.
+Event and final mappers remain UI-local/non-`Send`. The cancellable ordinary
+coalesced owner stream uses generation `0` and `latest: true` with the existing
+latest-wins ingress: before UI drain it retains one pending intermediate payload
+and one queued marker, replaces older pending events, records the existing
+coalescing diagnostic, and delivers the uncoalesced final exactly once after the
+retained event. Events separated by a UI drain map separately. The same token
+and owner fences apply to work, events, final delivery, mapping, and reduction.
+Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host,
+capacity, and closing admissions reject atomically without spawning, mapping,
+retry, or `Application` fallback.
 
 Recovery, temporary native reconstruction, and cached hiding do not by
 themselves retire a live owner generation or cancel its registrations. An

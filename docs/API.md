@@ -296,7 +296,14 @@ consuming the request, and the admission-only receipt retains the ordinary FIFO
 event/final contract. The explicit token and declarative owner probe are
 OR-composed, so token cancellation and owner retirement independently fence
 cooperative work, later events, final mapping, and reduction, including later
-entries queued for one UI drain. Invalid, removed, ambiguous, unkeyed,
+entries queued for one UI drain. The
+`CancellableBusinessRequest::stream_latest_for_owner_with_receipt(owner, work,
+map_event, map_final)` route uses the same owner generation and cancellation
+fences with the existing bounded latest-wins ingress: before UI drain it keeps
+one pending intermediate payload and one queued marker, replaces older pending
+events, records the existing coalescing diagnostic, and maps the uncoalesced
+final exactly once after the retained event. Events separated by a UI drain map
+separately. Invalid, removed, ambiguous, unkeyed,
 incompatible, stale, same-update, host, capacity, and closing admissions reject
 atomically without spawning, mapping, retry, or `Application` fallback; event and
 final mappers remain UI-local/non-`Send`.
@@ -4679,7 +4686,7 @@ the work and resulting domain messages.
 
 ### Declarative effect-owner boundary
 
-Bounded timer, one-shot business-worker, ordinary ordered and coalesced owner-scoped stream consumers, ordered/coalesced latest-task owner streams, and the capability-qualified application-owned `KeyedLatestTasks` one-shot, ordered-stream, and coalesced-stream routes are now public. They expose a qualified opaque
+Bounded timer, one-shot business-worker, ordinary ordered and coalesced owner-scoped stream consumers, cancellable ordinary ordered and coalesced owner-scoped stream consumers, ordered/coalesced latest-task owner streams, and the capability-qualified application-owned `KeyedLatestTasks` one-shot, ordered-stream, and coalesced-stream routes are now public. They expose a qualified opaque
 `DeclarativeEffectOwner`, explicit `ViewNode::effect_owner` and
 `Layer::effect_owner` markers, and
 `UiUpdateContext::after_for_owner(...)` /
@@ -4690,6 +4697,7 @@ Bounded timer, one-shot business-worker, ordinary ordered and coalesced owner-sc
 `BusinessRequest::stream_for_owner_with_receipt(...)` /
 `BusinessRequest::stream_latest_for_owner_with_receipt(...)` /
 `CancellableBusinessRequest::stream_for_owner_with_receipt(...)` /
+`CancellableBusinessRequest::stream_latest_for_owner_with_receipt(...)` /
 `BusinessLatestRequest::stream_for_owner_with_receipt(...)` /
 `BusinessLatestRequest::stream_latest_for_owner_with_receipt(...)` /
 `BusinessRequest::latest_for(...).run_for_owner_with_receipt(...)` /
@@ -4704,6 +4712,16 @@ No general effect ownership, semantic demand/refresh/provider budget, scheduler,
 custom-coordinate, platform, or product wiring API is promised.
 
 The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers and business work remain application-owned, and an invalid selection is rejected without fallback. Ordinary ordered and coalesced owner-scoped streaming, the cancellable ordinary ordered owner stream, ordered and coalesced latest-task owner streaming, and the application-owned `KeyedLatestTasks` one-shot, ordered-stream, and coalesced-stream routes are shipped. The coalesced keyed-latest route retains the exact host key, keyed ticket, replacement transaction, owner generation, and receipt; keeps only the newest pending intermediate payload before UI drain; delivers the uncoalesced final exactly once after the retained event; and passes exact `KeyedTaskCompletion<Key, _>` values to UI-local/non-`Send` mappers. Keyed supersession and owner retirement independently fence worker, mapping, and reduction. Invalid, removed, ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and same-update admissions fail closed without `Application` fallback and restore only the affected key's predecessor; sibling keys remain unchanged. The cancellable ordinary ordered owner-stream route reuses the same accepted surface, owner-generation ledger, worker registry, bounded FIFO ingress, and controller-composed cancellation probe. Callers clone `request.token()` before consuming the request. Token cancellation and declarative owner retirement are independent OR-composed fences for cooperative work, events, final delivery, mapping, and reduction, including later entries already queued for one UI drain; the admission receipt does not change after it resolves. Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host, capacity, and closing admissions reject atomically without spawn, mapping, retry, or `Application` fallback, and event/final mappers stay UI-local/non-`Send`. `ResourceTasks` ownership, platform ownership, and shared-resource semantics remain outside this public slice.
+
+The cancellable ordinary coalesced owner-stream route uses the same accepted
+surface, owner-generation ledger, worker registry, bounded latest-wins ingress,
+and controller-composed cancellation probe as the ordered route. It retains one
+newest pending intermediate payload and one queued marker before UI drain,
+records the existing coalescing diagnostic when a pending event is replaced,
+and delivers the uncoalesced final exactly once after the retained event.
+Events separated by a UI drain map separately; token cancellation and owner
+retirement fence queued event/final mapping and reduction, and the
+admission-only receipt remains unchanged after acceptance.
 
 The cancellable ordinary owner one-shot reuses the accepted surface,
 owner-generation ledger, worker registry, and admission receipt. Its explicit

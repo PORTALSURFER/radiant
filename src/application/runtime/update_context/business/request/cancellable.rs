@@ -198,6 +198,33 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         )
     }
 
+    /// Run this cancellable request as a coalesced owner-scoped stream.
+    ///
+    /// Call [`Self::token`] before consuming the request when the caller needs
+    /// to cancel the admitted work later. The receipt reports admission only;
+    /// cancelling the token does not change an already resolved receipt.
+    pub fn stream_latest_for_owner_with_receipt<Event, Output>(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
+    ) -> crate::application::runtime::BusinessTaskAdmissionReceipt
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        self.request
+            .stream_latest_for_owner_with_optional_cancellation(
+                owner,
+                Some(self.token),
+                work,
+                map_event,
+                map_final,
+            )
+    }
+
     /// Run this cancellable request as a stream and return its cancellation token.
     pub fn stream<Event, Output>(
         self,

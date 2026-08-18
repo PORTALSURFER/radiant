@@ -606,8 +606,8 @@ it does not transfer ownership to the declarative tree or split the shared
 ingress. The declarative timer, one-shot worker, cancellable ordinary owner
 one-shot, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, ordinary ordered and
-coalesced owner-scoped stream consumers, the cancellable ordinary ordered
-owner stream, ordered/coalesced latest-task owner streams, and coalesced
+coalesced owner-scoped stream consumers, the cancellable ordinary ordered and
+coalesced owner streams, ordered/coalesced latest-task owner streams, and coalesced
 keyed-latest owner streams reuse this same
 registry/lifecycle seam; broader platform and shared-resource ownership remain
 deferred.
@@ -618,8 +618,9 @@ boundary; the bounded explicit timer, one-shot owner-worker, cancellable ordinar
 owner one-shot, application-owned
 `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
 one-shot worker, ordinary ordered and coalesced owner-scoped stream consumers,
-the cancellable ordinary ordered owner stream, ordered/coalesced latest-task
-owner streams, and coalesced keyed-latest owner streams are shipped; `ResourceTasks` ownership,
+the cancellable ordinary ordered and coalesced owner streams,
+ordered/coalesced latest-task owner streams, and coalesced keyed-latest owner
+streams are shipped; `ResourceTasks` ownership,
 platform ownership, and broader product-facing
 demand/refresh/provider ownership remain deferred:
 
@@ -628,7 +629,7 @@ demand/refresh/provider ownership remain deferred:
    overlay and keyed-node candidates and compatibility context. The bounded
    public `DeclarativeEffectOwner` marker, `UiUpdateContext` owner-timer
    methods, and qualified one-shot/`KeyedLatestTasks`/ordinary
-   ordered/coalesced/cancellable-owner-one-shot/cancellable-ordered/ordered-latest/coalesced-latest/keyed-ordered/keyed-coalesced owner-worker
+   ordered/coalesced/cancellable-owner-one-shot/cancellable-ordered/cancellable-coalesced/ordered-latest/coalesced-latest/keyed-ordered/keyed-coalesced owner-worker
    methods are now
    exposed, while runtime origin and effect
    payloads remain private. A dynamic
@@ -667,6 +668,19 @@ ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and
 same-update admissions fail closed without `Application` fallback and restore
 only the affected key's eligible predecessor; sibling keys remain unchanged.
 
+The shipped cancellable ordinary ordered and coalesced owner streams use the same
+accepted-surface owner generation, worker registry, and admission receipt as the
+ordinary stream routes. The coalesced route retains one pending intermediate
+payload and one queued marker before UI drain, replaces older pending events,
+records the existing coalescing diagnostic, and delivers the uncoalesced final
+exactly once after the retained event; events separated by a UI drain map
+separately. The explicit token and declarative owner probes are OR-composed
+fences for cooperative work, event/final delivery, mapping, and reduction, and
+the admission receipt remains admission-only. Event and final mappers remain
+UI-local/non-`Send`. Invalid, removed, ambiguous, unkeyed, incompatible, stale,
+same-update, host, capacity, and closing admissions fail closed without spawn,
+mapping, retry, or `Application` fallback.
+
 The shipped cancellable ordinary owner one-shot uses the same accepted-surface
 owner generation, worker registry, and admission receipt as the ordinary
 one-shot. Its explicit token and declarative owner probes are OR-composed fences
@@ -684,7 +698,7 @@ fallback.
    `KeyedLatestTasks` owner one-shot and ordered stream, owner-scoped latest
    one-shot worker, ordinary ordered/coalesced stream consumers,
    ordered/coalesced latest-task owner streams, coalesced keyed-latest owner
-   streams, and the cancellable ordinary ordered owner stream. Its explicit token
+   streams, and the cancellable ordinary ordered and coalesced owner streams. Its explicit token
    probe is OR-composed with transaction and declarative-owner probes; token
    cancellation and owner retirement independently fence cooperative work and
    queued delivery. `ResourceTasks` ownership, platform

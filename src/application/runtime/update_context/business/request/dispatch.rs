@@ -238,31 +238,73 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         Output: Send + 'static,
         Message: 'static,
     {
+        self.stream_latest_for_owner_with_optional_cancellation(
+            owner, None, work, map_event, map_final,
+        )
+    }
+
+    pub(in crate::application::runtime::update_context::business) fn stream_latest_for_owner_with_optional_cancellation<
+        Event,
+        Output,
+    >(
+        self,
+        owner: crate::application::DeclarativeEffectOwner,
+        token: Option<CancellationToken>,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + 'static,
+        map_final: impl FnOnce(Output) -> Message + 'static,
+    ) -> BusinessTaskAdmissionReceipt
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
         let receipt = BusinessTaskAdmissionReceipt::new();
         let guard = AdmissionReceiptGuard(receipt.weak());
-        self.context.queue_command(
-            Command::perform_worker_stream_latest_with_priority_and_receipt_for_owner(
+        let worker_token = token.clone();
+        let worker = move |sink: crate::runtime::WorkerEffectSink, cancellation_probe| {
+            let event_sink = BusinessEventSink::new({
+                let sink = sink.clone();
+                move |event| sink.emit_latest(Box::new(event))
+            });
+            let close_guard = LatestStreamCloseGuard::new(sink.clone());
+            let output = work(
+                BusinessWorkContext::new_with_probe(worker_token, cancellation_probe),
+                event_sink,
+            );
+            close_guard.close();
+            output
+        };
+        let command = match token {
+            Some(token) => {
+                let is_cancelled = Some(Box::new(move || token.is_cancelled())
+                    as Box<dyn Fn() -> bool + Send + Sync + 'static>);
+                Command::perform_worker_stream_with_priority_and_receipt_for_owner_with_options(
+                    owner,
+                    self.name,
+                    self.priority,
+                    Some(guard),
+                    crate::runtime::WorkerStreamOptions {
+                        is_cancelled,
+                        generation: 0,
+                        latest: true,
+                    },
+                    worker,
+                    map_event,
+                    map_final,
+                )
+            }
+            None => Command::perform_worker_stream_latest_with_priority_and_receipt_for_owner(
                 owner,
                 self.name,
                 self.priority,
                 Some(guard),
-                move |sink, cancellation_probe| {
-                    let event_sink = BusinessEventSink::new({
-                        let sink = sink.clone();
-                        move |event| sink.emit_latest(Box::new(event))
-                    });
-                    let close_guard = LatestStreamCloseGuard::new(sink.clone());
-                    let output = work(
-                        BusinessWorkContext::new_with_probe(None, cancellation_probe),
-                        event_sink,
-                    );
-                    close_guard.close();
-                    output
-                },
+                worker,
                 map_event,
                 map_final,
             ),
-        );
+        };
+        self.context.queue_command(command);
         receipt
     }
 

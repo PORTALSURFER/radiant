@@ -463,7 +463,10 @@ fn prepared_refresh_orders_projection_candidate_layout_publication_scene_and_ter
                     "candidate-held" => PreparedRefreshEvent::CandidateHeld,
                     "projection-complete" => PreparedRefreshEvent::ProjectionCompleted,
                     "layout-admitted" => PreparedRefreshEvent::LayoutAdmitted,
+                    "layout-complete" => PreparedRefreshEvent::LayoutCompleted,
+                    "paint-plan-admitted" => PreparedRefreshEvent::PaintPlanAdmitted,
                     "published" => PreparedRefreshEvent::Published,
+                    "paint-plan-complete" => PreparedRefreshEvent::PaintPlanCompleted,
                     _ => panic!("unexpected prepared refresh phase: {phase}"),
                 };
                 recorder.borrow_mut().push(event);
@@ -492,7 +495,10 @@ fn prepared_refresh_orders_projection_candidate_layout_publication_scene_and_ter
             PreparedRefreshEvent::CandidateHeld,
             PreparedRefreshEvent::ProjectionCompleted,
             PreparedRefreshEvent::LayoutAdmitted,
+            PreparedRefreshEvent::LayoutCompleted,
+            PreparedRefreshEvent::PaintPlanAdmitted,
             PreparedRefreshEvent::Published,
+            PreparedRefreshEvent::PaintPlanCompleted,
             PreparedRefreshEvent::SceneEncode,
             PreparedRefreshEvent::SceneAdmitted,
             PreparedRefreshEvent::TerminalUpdate(PreparedRefreshTerminalMessage),

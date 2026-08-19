@@ -291,6 +291,27 @@ struct InFlightLayout {
     identity: FrameStageIdentity,
 }
 
+/// A non-`Clone` witness for one admitted PaintPlan-stage attempt.
+///
+/// Paint-plan work is synchronous and therefore has no pending queue. The
+/// owner retains only this exact identity until the caller completes the
+/// attempt.
+pub(super) struct PaintPlanStageTicket {
+    identity: FrameStageIdentity,
+}
+
+impl PaintPlanStageTicket {
+    #[cfg(test)]
+    pub(super) fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+}
+
+#[derive(Debug)]
+struct InFlightPaintPlan {
+    identity: FrameStageIdentity,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -321,9 +342,11 @@ pub(super) struct WindowStageOwner {
     in_flight: Option<InFlightTimedFrame>,
     projection_in_flight: Option<InFlightProjection>,
     layout_in_flight: Option<InFlightLayout>,
+    paint_plan_in_flight: Option<InFlightPaintPlan>,
     last_completion: Option<FrameStageCompletionEvidence>,
     last_projection_completion: Option<FrameStageIdentity>,
     last_layout_completion: Option<FrameStageIdentity>,
+    last_paint_plan_completion: Option<FrameStageIdentity>,
 }
 
 impl WindowStageOwner {
@@ -339,9 +362,11 @@ impl WindowStageOwner {
             in_flight: None,
             projection_in_flight: None,
             layout_in_flight: None,
+            paint_plan_in_flight: None,
             last_completion: None,
             last_projection_completion: None,
             last_layout_completion: None,
+            last_paint_plan_completion: None,
         }
     }
 
@@ -362,6 +387,7 @@ impl WindowStageOwner {
         self.in_flight.is_some()
             || self.projection_in_flight.is_some()
             || self.layout_in_flight.is_some()
+            || self.paint_plan_in_flight.is_some()
     }
 
     pub(super) fn next_revision(&mut self) -> Option<u64> {
@@ -410,6 +436,7 @@ impl WindowStageOwner {
             } else if self.in_flight.is_some()
                 || self.projection_in_flight.is_some()
                 || self.layout_in_flight.is_some()
+                || self.paint_plan_in_flight.is_some()
             {
                 return false;
             }
@@ -543,6 +570,66 @@ impl WindowStageOwner {
         }
         self.layout_in_flight = None;
         self.last_layout_completion = Some(ticket.identity);
+        true
+    }
+
+    /// Admit one synchronous PaintPlan-stage attempt under this window's
+    /// existing owner. There is no second event loop or pending per-owner
+    /// queue: the returned ticket is the one exact in-flight operation.
+    pub(super) fn admit_paint_plan(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> Option<PaintPlanStageTicket> {
+        if self.pending.is_some()
+            || self.in_flight.is_some()
+            || self.projection_in_flight.is_some()
+            || self.layout_in_flight.is_some()
+            || self.paint_plan_in_flight.is_some()
+            || !self.prepare_fence(
+                adapter_generation,
+                target_generation,
+                SchedulerStage::PaintPlan,
+            )
+        {
+            return None;
+        }
+        let revision = self.next_revision()?;
+        let identity = FrameStageIdentity::new(
+            self.key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::PaintPlan,
+            self.owner_generation,
+            revision,
+        );
+        if self.stale(&identity) {
+            return None;
+        }
+        self.paint_plan_in_flight = Some(InFlightPaintPlan {
+            identity: identity.clone(),
+        });
+        Some(PaintPlanStageTicket { identity })
+    }
+
+    pub(super) fn paint_plan_ticket_is_current(&self, ticket: &PaintPlanStageTicket) -> bool {
+        self.paint_plan_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| in_flight.identity == ticket.identity)
+    }
+
+    /// Complete only the exact PaintPlan-stage attempt that was admitted.
+    /// A mismatch leaves the begun attempt in flight so callers cannot replay
+    /// it through the conservative fallback.
+    pub(super) fn complete_paint_plan(&mut self, ticket: PaintPlanStageTicket) -> bool {
+        let Some(in_flight) = self.paint_plan_in_flight.as_ref() else {
+            return false;
+        };
+        if in_flight.identity != ticket.identity {
+            return false;
+        }
+        self.paint_plan_in_flight = None;
+        self.last_paint_plan_completion = Some(ticket.identity);
         true
     }
 
@@ -761,6 +848,12 @@ impl WindowStageOwner {
         }) {
             return true;
         }
+        if self.paint_plan_in_flight.as_ref().is_some_and(|in_flight| {
+            in_flight.identity.same_fence(identity)
+                && identity.revision < in_flight.identity.revision
+        }) {
+            return true;
+        }
         if self
             .last_projection_completion
             .as_ref()
@@ -772,6 +865,15 @@ impl WindowStageOwner {
         }
         if self
             .last_layout_completion
+            .as_ref()
+            .is_some_and(|completion| {
+                completion.same_fence(identity) && identity.revision <= completion.revision
+            })
+        {
+            return true;
+        }
+        if self
+            .last_paint_plan_completion
             .as_ref()
             .is_some_and(|completion| {
                 completion.same_fence(identity) && identity.revision <= completion.revision
@@ -791,9 +893,11 @@ impl WindowStageOwner {
             && self.in_flight.is_none()
             && self.projection_in_flight.is_none()
             && self.layout_in_flight.is_none()
+            && self.paint_plan_in_flight.is_none()
             && self.last_completion.is_none()
             && self.last_projection_completion.is_none()
             && self.last_layout_completion.is_none()
+            && self.last_paint_plan_completion.is_none()
         {
             return;
         }
@@ -801,9 +905,11 @@ impl WindowStageOwner {
         self.in_flight = None;
         self.projection_in_flight = None;
         self.layout_in_flight = None;
+        self.paint_plan_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
+        self.last_paint_plan_completion = None;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -838,7 +944,10 @@ impl WindowStageOwner {
 const fn stage_can_be_admitted(stage: SchedulerStage) -> bool {
     matches!(
         stage,
-        SchedulerStage::Deadline | SchedulerStage::Projection | SchedulerStage::Layout
+        SchedulerStage::Deadline
+            | SchedulerStage::Projection
+            | SchedulerStage::Layout
+            | SchedulerStage::PaintPlan
     )
 }
 
@@ -1471,7 +1580,8 @@ mod tests {
     }
 
     #[test]
-    fn all_scheduler_stage_variants_are_explicit_and_deadline_projection_and_layout_are_admitted() {
+    fn all_scheduler_stage_variants_are_explicit_and_deadline_projection_layout_and_paint_plan_are_admitted()
+     {
         for stage in SchedulerStage::ORDER {
             assert!(stage.is_non_preemptive());
         }
@@ -1491,7 +1601,10 @@ mod tests {
                 owner.prepare_fence(adapter(1), target(1), stage),
                 matches!(
                     stage,
-                    SchedulerStage::Deadline | SchedulerStage::Projection | SchedulerStage::Layout
+                    SchedulerStage::Deadline
+                        | SchedulerStage::Projection
+                        | SchedulerStage::Layout
+                        | SchedulerStage::PaintPlan
                 )
             );
         }
@@ -1633,5 +1746,122 @@ mod tests {
             .expect("next layout ticket");
         assert_eq!(next.identity().revision(), exact.revision() + 1);
         assert!(owner.complete_layout(next));
+    }
+
+    #[test]
+    fn paint_plan_admission_allows_known_generations_after_layout_completion() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let projection = owner
+            .admit_projection(adapter(1), target(1))
+            .expect("projection ticket");
+        assert!(owner.complete_projection(projection));
+        let layout = owner
+            .admit_layout(adapter(1), target(1))
+            .expect("layout ticket");
+        assert!(owner.complete_layout(layout));
+
+        let paint_plan = owner
+            .admit_paint_plan(adapter(1), target(1))
+            .expect("paint-plan ticket");
+        assert_eq!(paint_plan.identity().key(), &FrameScheduleKey::Primary);
+        assert_eq!(paint_plan.identity().adapter_generation(), adapter(1));
+        assert_eq!(paint_plan.identity().target_generation(), target(1));
+        assert_eq!(paint_plan.identity().stage(), SchedulerStage::PaintPlan);
+        assert_eq!(paint_plan.identity().revision(), 3);
+        assert!(owner.paint_plan_ticket_is_current(&paint_plan));
+        assert!(owner.complete_paint_plan(paint_plan));
+        assert!(!owner.has_in_flight());
+    }
+
+    #[test]
+    fn paint_plan_admission_rejects_unknown_generations_and_pending_work() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(
+            owner
+                .admit_paint_plan(NativeAdapterGeneration::unknown(), target(1))
+                .is_none()
+        );
+        assert!(
+            owner
+                .admit_paint_plan(adapter(1), NativeTargetGeneration::unknown())
+                .is_none()
+        );
+
+        let now = Instant::now();
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("revision");
+        let pending = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        assert!(owner.queue(pending, frame(now, false)));
+        assert!(owner.admit_paint_plan(adapter(1), target(1)).is_none());
+        assert_eq!(owner.next_ready_stage(now), NextReadyStage::Deadline);
+    }
+
+    #[test]
+    fn paint_plan_completion_mismatch_leaves_the_exact_ticket_in_flight() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let projection = owner
+            .admit_projection(adapter(1), target(1))
+            .expect("projection ticket");
+        assert!(owner.complete_projection(projection));
+        let layout = owner
+            .admit_layout(adapter(1), target(1))
+            .expect("layout ticket");
+        assert!(owner.complete_layout(layout));
+        let paint_plan = owner
+            .admit_paint_plan(adapter(1), target(1))
+            .expect("paint-plan ticket");
+        let wrong = PaintPlanStageTicket {
+            identity: FrameStageIdentity::new(
+                FrameScheduleKey::Primary,
+                adapter(1),
+                target(1),
+                SchedulerStage::PaintPlan,
+                paint_plan.identity().owner_generation(),
+                paint_plan.identity().revision() + 1,
+            ),
+        };
+
+        assert!(!owner.complete_paint_plan(wrong));
+        assert!(owner.paint_plan_ticket_is_current(&paint_plan));
+        assert!(owner.has_in_flight());
+        assert!(owner.admit_paint_plan(adapter(1), target(1)).is_none());
+        assert!(owner.complete_paint_plan(paint_plan));
+        assert!(!owner.has_in_flight());
+    }
+
+    #[test]
+    fn paint_plan_completion_marks_older_revision_stale_and_invalidate_clears_it() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let projection = owner
+            .admit_projection(adapter(1), target(1))
+            .expect("projection ticket");
+        assert!(owner.complete_projection(projection));
+        let layout = owner
+            .admit_layout(adapter(1), target(1))
+            .expect("layout ticket");
+        assert!(owner.complete_layout(layout));
+        let paint_plan = owner
+            .admit_paint_plan(adapter(1), target(1))
+            .expect("paint-plan ticket");
+        let exact = paint_plan.identity().clone();
+        assert!(owner.complete_paint_plan(paint_plan));
+        assert!(owner.stale(&exact));
+
+        owner.invalidate();
+        assert!(!owner.has_in_flight());
+        assert!(owner.stale(&exact));
+
+        let next = owner
+            .admit_paint_plan(adapter(1), target(1))
+            .expect("next paint-plan ticket");
+        assert_eq!(next.identity().revision(), exact.revision() + 1);
+        assert!(owner.complete_paint_plan(next));
     }
 }

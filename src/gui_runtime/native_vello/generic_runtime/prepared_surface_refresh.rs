@@ -1,10 +1,12 @@
 //! Synchronous native evidence for the private prepared surface refresh.
 //!
 //! The safe-boundary owner lives in [`WindowStageOwner`]. This module keeps the
-//! prepared-refresh-specific native evidence and binds it to exact Projection
-//! and Layout tickets returned by that owner.
+//! prepared-refresh-specific native evidence and binds it to exact Projection,
+//! Layout, and PaintPlan tickets returned by that owner.
 
-use super::frame_stage_admission::{LayoutStageTicket, ProjectionStageTicket, WindowStageOwner};
+use super::frame_stage_admission::{
+    LayoutStageTicket, PaintPlanStageTicket, ProjectionStageTicket, WindowStageOwner,
+};
 use super::runner_state::NativeTargetGeneration;
 use super::{NativeAdapterGeneration, NativeLifecycle};
 use crate::runtime::WindowEnvironment;
@@ -104,6 +106,39 @@ impl PreparedSurfaceRefreshLayoutTicket {
     }
 }
 
+/// A non-`Clone` witness for one synchronous prepared-refresh PaintPlan
+/// attempt.
+pub(super) struct PreparedSurfaceRefreshPaintPlanTicket {
+    stage_ticket: PaintPlanStageTicket,
+    evidence: PreparedSurfaceRefreshNativeEvidence,
+}
+
+impl PreparedSurfaceRefreshPaintPlanTicket {
+    fn new(
+        stage_ticket: PaintPlanStageTicket,
+        evidence: PreparedSurfaceRefreshNativeEvidence,
+    ) -> Self {
+        Self {
+            stage_ticket,
+            evidence,
+        }
+    }
+
+    pub(super) fn is_current(
+        &self,
+        owner: &WindowStageOwner,
+        evidence: PreparedSurfaceRefreshNativeEvidence,
+    ) -> bool {
+        owner.paint_plan_ticket_is_current(&self.stage_ticket)
+            && evidence.is_admissible()
+            && self.evidence == evidence
+    }
+
+    pub(super) fn into_stage_ticket(self) -> PaintPlanStageTicket {
+        self.stage_ticket
+    }
+}
+
 /// Admit one prepared refresh only when all native evidence is currently
 /// usable and the shared window owner can issue an exact Projection ticket.
 pub(super) fn admit_prepared_surface_refresh(
@@ -130,6 +165,24 @@ pub(super) fn admit_prepared_surface_refresh_layout(
     let adapter_generation = evidence.adapter_generation?;
     let stage_ticket = owner.admit_layout(adapter_generation, evidence.target_generation)?;
     Some(PreparedSurfaceRefreshLayoutTicket::new(
+        stage_ticket,
+        evidence,
+    ))
+}
+
+/// Admit the prepared-refresh PaintPlan stage only when the same native
+/// evidence remains usable and the shared window owner can issue an exact
+/// PaintPlan ticket.
+pub(super) fn admit_prepared_surface_refresh_paint_plan(
+    owner: &mut WindowStageOwner,
+    evidence: PreparedSurfaceRefreshNativeEvidence,
+) -> Option<PreparedSurfaceRefreshPaintPlanTicket> {
+    if !evidence.is_admissible() {
+        return None;
+    }
+    let adapter_generation = evidence.adapter_generation?;
+    let stage_ticket = owner.admit_paint_plan(adapter_generation, evidence.target_generation)?;
+    Some(PreparedSurfaceRefreshPaintPlanTicket::new(
         stage_ticket,
         evidence,
     ))
@@ -430,5 +483,62 @@ mod tests {
             WindowEnvironment::new(crate::theme::DpiScale::new(2.0), None, false, false);
         assert!(!layout.is_current(&owner, changed));
         assert!(owner.complete_layout(layout.into_stage_ticket()));
+    }
+
+    #[test]
+    fn paint_plan_wrapper_requires_layout_completion_and_exact_native_evidence() {
+        let mut owner =
+            WindowStageOwner::new(super::super::frame_scheduler::FrameScheduleKey::Primary);
+        let evidence = evidence();
+        let projection = admit_prepared_surface_refresh(&mut owner, evidence).expect("projection");
+        assert!(owner.complete_projection(projection.into_stage_ticket()));
+        let layout = admit_prepared_surface_refresh_layout(&mut owner, evidence).expect("layout");
+        assert!(admit_prepared_surface_refresh_paint_plan(&mut owner, evidence).is_none());
+        assert!(owner.complete_layout(layout.into_stage_ticket()));
+
+        let paint_plan =
+            admit_prepared_surface_refresh_paint_plan(&mut owner, evidence).expect("paint plan");
+        assert!(paint_plan.is_current(&owner, evidence));
+        assert_eq!(
+            paint_plan.stage_ticket.identity().stage(),
+            super::super::frame_scheduler_policy::SchedulerStage::PaintPlan
+        );
+        assert_eq!(paint_plan.stage_ticket.identity().revision(), 3);
+
+        let mut changed = evidence;
+        changed.environment =
+            WindowEnvironment::new(crate::theme::DpiScale::new(2.0), None, false, false);
+        assert!(!paint_plan.is_current(&owner, changed));
+        assert!(owner.complete_paint_plan(paint_plan.into_stage_ticket()));
+        assert!(!owner.has_in_flight());
+    }
+
+    #[test]
+    fn paint_plan_wrapper_vetoes_unknown_or_stale_native_evidence() {
+        let base = evidence();
+        let mut unknown_adapter = base;
+        unknown_adapter.adapter_generation = Some(NativeAdapterGeneration::unknown());
+        assert!(
+            admit_prepared_surface_refresh_paint_plan(
+                &mut WindowStageOwner::new(
+                    super::super::frame_scheduler::FrameScheduleKey::Primary
+                ),
+                unknown_adapter,
+            )
+            .is_none()
+        );
+
+        let mut owner =
+            WindowStageOwner::new(super::super::frame_scheduler::FrameScheduleKey::Primary);
+        let projection = admit_prepared_surface_refresh(&mut owner, base).expect("projection");
+        assert!(owner.complete_projection(projection.into_stage_ticket()));
+        let layout = admit_prepared_surface_refresh_layout(&mut owner, base).expect("layout");
+        assert!(owner.complete_layout(layout.into_stage_ticket()));
+        let paint_plan =
+            admit_prepared_surface_refresh_paint_plan(&mut owner, base).expect("paint plan");
+        let mut changed = base;
+        changed.target_fenced = true;
+        assert!(!paint_plan.is_current(&owner, changed));
+        assert!(owner.complete_paint_plan(paint_plan.into_stage_ticket()));
     }
 }

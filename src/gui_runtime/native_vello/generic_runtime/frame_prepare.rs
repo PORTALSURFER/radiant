@@ -3,7 +3,7 @@
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     NativeLifecycle, NativeRunnerTimingState, NativeRunnerWindowState,
-    PreparedSurfaceRefreshNativeEvidence, RenderFrameProfile,
+    PreparedSurfaceRefreshNativeEvidence, RenderFrameProfile, admit_prepared_surface_refresh,
 };
 use crate::runtime::RuntimeBridge;
 
@@ -12,6 +12,16 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn refresh_deferred_surface_if_needed(&mut self, profile: &mut RenderFrameProfile) {
+        let native_evidence = self.prepared_surface_refresh_native_evidence();
+        self.refresh_deferred_surface_if_needed_with_evidence(profile, native_evidence, None);
+    }
+
+    fn refresh_deferred_surface_if_needed_with_evidence(
+        &mut self,
+        profile: &mut RenderFrameProfile,
+        native_evidence: PreparedSurfaceRefreshNativeEvidence,
+        current_native_evidence: Option<PreparedSurfaceRefreshNativeEvidence>,
+    ) {
         if !self.timing.deferred_surface_refresh || self.timing.deferred_scene_rebuild {
             return;
         }
@@ -19,29 +29,40 @@ where
         let scope = self
             .take_deferred_surface_refresh_scope()
             .unwrap_or(crate::runtime::RepaintScope::Surface);
-        let native_evidence = self.prepared_surface_refresh_native_evidence();
         let mut used_prepared_refresh = false;
+        let mut projection_admitted = false;
         let mut prepared_terminal_messages = None;
+        let mut projection_completion_mismatch = false;
         let (_, elapsed) = profile.measure(|| {
-            if let Some(ticket) = self.prepared_surface_refresh_owner.begin(native_evidence) {
+            if self.prepared_surface_refresh_is_eligible()
+                && let Some(ticket) =
+                    admit_prepared_surface_refresh(&mut self.frame_stage_owner, native_evidence)
+            {
+                projection_admitted = true;
                 let adapter = self.adapter.as_ref();
                 let window = &self.window;
                 let timing = &self.timing;
                 let lifecycle = self.native_lifecycle_snapshot();
-                let owner = &mut self.prepared_surface_refresh_owner;
+                let owner = &self.frame_stage_owner;
                 let core = &mut self.core;
                 let plan = &mut self.frame.last_paint_plan;
                 prepared_terminal_messages = core.try_prepared_surface_refresh(scope, plan, || {
-                    let current_native_evidence =
+                    let current_native_evidence = current_native_evidence.unwrap_or_else(|| {
                         Self::prepared_surface_refresh_native_evidence_from_parts(
                             adapter, window, timing, lifecycle,
-                        );
-                    owner.is_current(&ticket, current_native_evidence)
+                        )
+                    });
+                    ticket.is_current(owner, current_native_evidence)
                 });
                 used_prepared_refresh = prepared_terminal_messages.is_some();
-                owner.complete(ticket);
+                projection_completion_mismatch = !self
+                    .frame_stage_owner
+                    .complete_projection(ticket.into_stage_ticket());
             }
-            if !used_prepared_refresh {
+            // Projection admission is the no-replay boundary. A prepared
+            // candidate can veto before publication, but a None result after
+            // admission must not re-enter the combined bridge/projection path.
+            if !projection_admitted && !projection_completion_mismatch {
                 self.core.refresh_surface_with_scope(scope);
             }
         });
@@ -75,6 +96,26 @@ where
         self.timing
             .startup_timing
             .mark_deferred_model_refresh_done();
+    }
+
+    /// Keep unsupported virtualized runtime state on the combined refresh path.
+    /// This read must happen before Projection admission because admission is
+    /// the no-replay boundary for a prepared candidate.
+    fn prepared_surface_refresh_is_eligible(&self) -> bool {
+        self.core.runtime.prepared_surface_refresh_is_eligible()
+    }
+
+    #[cfg(test)]
+    pub(super) fn refresh_deferred_surface_if_needed_for_test(
+        &mut self,
+        profile: &mut RenderFrameProfile,
+        native_evidence: PreparedSurfaceRefreshNativeEvidence,
+    ) {
+        self.refresh_deferred_surface_if_needed_with_evidence(
+            profile,
+            native_evidence,
+            Some(native_evidence),
+        );
     }
 
     fn prepared_surface_refresh_native_evidence(&self) -> PreparedSurfaceRefreshNativeEvidence {

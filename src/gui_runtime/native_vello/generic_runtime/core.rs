@@ -219,10 +219,11 @@ where
         self.runtime.refresh_with_scope(scope);
     }
 
-    /// Try the private prepared refresh transaction at the native deferred
-    /// refresh boundary. The caller supplies the native fence callback, which
-    /// is evaluated after candidate preparation and immediately before the
-    /// runtime begins replacement callbacks.
+    /// Try one candidate-local refresh after Projection admission.
+    ///
+    /// `None` is a prepublication veto. Once the caller has admitted the
+    /// Projection ticket, it must complete that ticket and must not re-enter
+    /// the combined refresh path for this result.
     pub(super) fn try_prepared_surface_refresh<F>(
         &mut self,
         scope: crate::runtime::RepaintScope,
@@ -237,9 +238,6 @@ where
         let candidate = self
             .runtime
             .prepare_fresh_surface_refresh(scope, appearance)?;
-        if !candidate.supports_native_scene_admission() {
-            return None;
-        }
         if !before_publication() {
             return None;
         }

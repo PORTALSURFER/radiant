@@ -244,23 +244,6 @@ impl<Message> PreparedSurfaceRefreshPublication<Message> {
 }
 
 impl<Message> PreparedSurfaceRefresh<Message> {
-    /// The native staged consumer is limited to the ordinary Vello scene
-    /// contract. Custom and GPU primitives retain their direct path because
-    /// their admission may call back into host-owned resources.
-    pub(crate) fn supports_native_scene_admission(&self) -> bool {
-        self.paint_candidate
-            .paint_plan
-            .primitives
-            .iter()
-            .all(|primitive| {
-                !matches!(
-                    primitive,
-                    crate::runtime::PaintPrimitive::GpuSurface(_)
-                        | crate::runtime::PaintPrimitive::CustomSurface(_)
-                )
-            })
-    }
-
     fn is_current<Bridge>(&self, runtime: &SurfaceRuntime<Bridge, Message>) -> bool
     where
         Bridge: RuntimeBridge<Message>,
@@ -601,6 +584,18 @@ where
         self.fresh_surface_request_revision = request_revision;
         self.fresh_surface_request = Some(request);
         Some(request)
+    }
+
+    /// Return whether the active runtime state is supported by prepared
+    /// refresh. Virtualized content requires the combined refresh path to
+    /// perform its materialization pass before any prepared admission.
+    pub(crate) fn prepared_surface_refresh_is_eligible(&self) -> bool {
+        self.virtual_layout.is_empty()
+            && self
+                .traversal
+                .containers
+                .virtual_layout_registrations
+                .is_empty()
     }
 
     /// Admit one already-owned fresh surface without consulting the bridge.

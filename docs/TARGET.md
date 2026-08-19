@@ -689,13 +689,14 @@ complete candidate state, then dispatch terminal messages. No scheduler yield
 is permitted after cleanup begins; a panic then is terminal recovery/shutdown,
 not rollback.
 
-This is a reversible prerequisite/evidence contract, not a claim that
-production Projection/Reconciliation/Layout/Paint is independently scheduled.
-The existing combined path remains authoritative for virtual materialization
-and unsupported paths. The parent event loop is the sole cross-window
-authority, `WindowStageOwner` is a private Deadline owner, and diagnostics or
-timing remain observational: they cannot authorize execution, cache, admission,
-or commit.
+The prepared refresh path is the first private production Projection-stage
+consumer of the safe-boundary owner. This is not a claim that
+Reconciliation/Layout/Paint is independently scheduled. The existing combined
+path remains authoritative for virtual materialization and unsupported paths.
+The parent event loop is the sole cross-window authority; `WindowStageOwner`
+admits the existing private Deadline work and this one synchronous Projection
+ticket. Diagnostics and timing remain observational: they cannot authorize
+execution, cache, admission, or commit.
 
 ## Modern CPU/GPU Architecture
 

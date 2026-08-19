@@ -5043,13 +5043,14 @@ After validation, irreversible replacement cleanup completes exactly once, the
 complete candidate state is atomically published, and only then are terminal
 messages dispatched. There is no scheduler yield after irreversible cleanup
 begins. A panic after that point is terminal recovery/shutdown, not rollback.
-This candidate preparation is a reversible prerequisite/evidence contract; it
-does not claim that production Projection, Reconciliation, Layout, or Paint is
-independently scheduled. The existing combined path remains authoritative for
-virtual materialization and unsupported paths. The parent event loop remains
-the sole cross-window authority; `WindowStageOwner` remains a private Deadline
-owner; diagnostics and timing are observational and cannot authorize
-execution, cache, admission, or commit.
+The prepared refresh path is the first private production Projection-stage
+consumer of the safe-boundary owner. It does not claim that Reconciliation,
+Layout, or Paint is independently scheduled. The existing combined path remains
+authoritative for virtual materialization and unsupported paths. The parent
+event loop remains the sole cross-window authority; `WindowStageOwner` admits
+the existing private Deadline work and this one synchronous Projection ticket;
+diagnostics and timing are observational and cannot authorize execution, cache,
+admission, or commit.
 
 ## Invalidation
 

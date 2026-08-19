@@ -1,12 +1,10 @@
 //! Synchronous native evidence for the private prepared surface refresh.
 //!
-//! This owner is deliberately separate from [`WindowStageOwner`]. It does not
-//! admit scheduler work, queue a projection, or own a worker. It only fences
-//! one synchronous refresh attempt against the native identities that can make
-//! a prepared runtime publication stale.
+//! The safe-boundary owner lives in [`WindowStageOwner`]. This module keeps the
+//! prepared-refresh-specific native evidence and binds it to the one exact
+//! Projection ticket returned by that owner.
 
-use super::frame_scheduler::FrameScheduleKey;
-use super::frame_scheduler_policy::SchedulerStage;
+use super::frame_stage_admission::{ProjectionStageTicket, WindowStageOwner};
 use super::runner_state::NativeTargetGeneration;
 use super::{NativeAdapterGeneration, NativeLifecycle};
 use crate::runtime::WindowEnvironment;
@@ -42,85 +40,50 @@ impl PreparedSurfaceRefreshNativeEvidence {
     }
 }
 
-const PREPARED_SURFACE_REFRESH_STAGE: SchedulerStage = SchedulerStage::Projection;
-
 /// A non-`Clone` witness for one synchronous native publication attempt.
 pub(super) struct PreparedSurfaceRefreshTicket {
-    frame_schedule_key: FrameScheduleKey,
+    stage_ticket: ProjectionStageTicket,
     evidence: PreparedSurfaceRefreshNativeEvidence,
-    stage: SchedulerStage,
-    owner_generation: u64,
-    attempt_revision: u64,
 }
 
-/// One-at-a-time owner for synchronous prepared refresh tickets.
-pub(super) struct PreparedSurfaceRefreshOwner {
-    frame_schedule_key: FrameScheduleKey,
-    owner_generation: u64,
-    next_attempt_revision: Option<u64>,
-    in_flight_attempt_revision: Option<u64>,
-}
-
-impl PreparedSurfaceRefreshOwner {
-    pub(super) fn new(frame_schedule_key: FrameScheduleKey) -> Self {
-        Self {
-            frame_schedule_key,
-            owner_generation: 1,
-            next_attempt_revision: Some(1),
-            in_flight_attempt_revision: None,
-        }
-    }
-
-    pub(super) fn begin(
-        &mut self,
+impl PreparedSurfaceRefreshTicket {
+    fn new(
+        stage_ticket: ProjectionStageTicket,
         evidence: PreparedSurfaceRefreshNativeEvidence,
-    ) -> Option<PreparedSurfaceRefreshTicket> {
-        if self.in_flight_attempt_revision.is_some() || !evidence.is_admissible() {
-            return None;
-        }
-        let attempt_revision = self.next_attempt_revision?;
-        if attempt_revision == 0 || attempt_revision == u64::MAX {
-            self.next_attempt_revision = None;
-            return None;
-        }
-        let next_revision = attempt_revision.checked_add(1);
-        self.next_attempt_revision = next_revision.filter(|revision| *revision != u64::MAX);
-        if evidence.window_id.is_none() || evidence.adapter_generation.is_none() {
-            return None;
-        }
-        self.in_flight_attempt_revision = Some(attempt_revision);
-        Some(PreparedSurfaceRefreshTicket {
-            frame_schedule_key: self.frame_schedule_key.clone(),
+    ) -> Self {
+        Self {
+            stage_ticket,
             evidence,
-            stage: PREPARED_SURFACE_REFRESH_STAGE,
-            owner_generation: self.owner_generation,
-            attempt_revision,
-        })
+        }
     }
 
     pub(super) fn is_current(
         &self,
-        ticket: &PreparedSurfaceRefreshTicket,
+        owner: &WindowStageOwner,
         evidence: PreparedSurfaceRefreshNativeEvidence,
     ) -> bool {
-        self.in_flight_attempt_revision == Some(ticket.attempt_revision)
+        owner.projection_ticket_is_current(&self.stage_ticket)
             && evidence.is_admissible()
-            && ticket.evidence == evidence
-            && ticket.stage == PREPARED_SURFACE_REFRESH_STAGE
-            && ticket.owner_generation == self.owner_generation
-            && ticket.frame_schedule_key == self.frame_schedule_key
+            && self.evidence == evidence
     }
 
-    pub(super) fn complete(&mut self, ticket: PreparedSurfaceRefreshTicket) -> bool {
-        let exact = self.in_flight_attempt_revision == Some(ticket.attempt_revision)
-            && ticket.owner_generation == self.owner_generation
-            && ticket.frame_schedule_key == self.frame_schedule_key
-            && ticket.stage == PREPARED_SURFACE_REFRESH_STAGE;
-        if exact {
-            self.in_flight_attempt_revision = None;
-        }
-        exact
+    pub(super) fn into_stage_ticket(self) -> ProjectionStageTicket {
+        self.stage_ticket
     }
+}
+
+/// Admit one prepared refresh only when all native evidence is currently
+/// usable and the shared window owner can issue an exact Projection ticket.
+pub(super) fn admit_prepared_surface_refresh(
+    owner: &mut WindowStageOwner,
+    evidence: PreparedSurfaceRefreshNativeEvidence,
+) -> Option<PreparedSurfaceRefreshTicket> {
+    if !evidence.is_admissible() {
+        return None;
+    }
+    let adapter_generation = evidence.adapter_generation?;
+    let stage_ticket = owner.admit_projection(adapter_generation, evidence.target_generation)?;
+    Some(PreparedSurfaceRefreshTicket::new(stage_ticket, evidence))
 }
 
 #[cfg(test)]
@@ -145,19 +108,102 @@ mod tests {
 
     #[test]
     fn owner_allows_one_exact_projection_ticket_and_rejects_overlap() {
-        let mut owner = PreparedSurfaceRefreshOwner::new(FrameScheduleKey::Primary);
+        let mut owner =
+            WindowStageOwner::new(super::super::frame_scheduler::FrameScheduleKey::Primary);
         let evidence = evidence();
-        let ticket = owner.begin(evidence).expect("ticket");
-        assert_eq!(ticket.evidence, evidence);
-        assert_eq!(ticket.stage, PREPARED_SURFACE_REFRESH_STAGE);
-        assert_eq!(ticket.owner_generation, 1);
-        assert_eq!(ticket.attempt_revision, 1);
-        assert!(owner.begin(evidence).is_none());
-        assert!(owner.is_current(&ticket, evidence));
-        assert!(owner.complete(ticket));
-        let next_ticket = owner.begin(evidence).expect("single-consumption release");
-        assert_eq!(next_ticket.attempt_revision, 2);
-        assert!(owner.complete(next_ticket));
+        let ticket = admit_prepared_surface_refresh(&mut owner, evidence).expect("ticket");
+        assert!(ticket.is_current(&owner, evidence));
+        let identity = ticket.stage_ticket.identity();
+        assert_eq!(
+            identity.key(),
+            &super::super::frame_scheduler::FrameScheduleKey::Primary
+        );
+        assert_eq!(
+            identity.stage(),
+            super::super::frame_scheduler_policy::SchedulerStage::Projection
+        );
+        assert_eq!(identity.owner_generation(), 1);
+        assert_eq!(identity.revision(), 1);
+        assert!(admit_prepared_surface_refresh(&mut owner, evidence).is_none());
+        assert!(owner.complete_projection(ticket.into_stage_ticket()));
+        assert!(!owner.has_in_flight());
+
+        let next_ticket =
+            admit_prepared_surface_refresh(&mut owner, evidence).expect("next ticket");
+        assert_eq!(next_ticket.stage_ticket.identity().revision(), 2);
+        assert!(owner.complete_projection(next_ticket.into_stage_ticket()));
+    }
+
+    #[test]
+    fn unknown_generation_or_lifecycle_evidence_vetoes_admission() {
+        let base = evidence();
+
+        let mut unknown_adapter = base;
+        unknown_adapter.adapter_generation = Some(NativeAdapterGeneration::unknown());
+        assert!(
+            admit_prepared_surface_refresh(
+                &mut WindowStageOwner::new(
+                    super::super::frame_scheduler::FrameScheduleKey::Primary
+                ),
+                unknown_adapter,
+            )
+            .is_none()
+        );
+
+        let mut unknown_target = base;
+        unknown_target.target_generation = NativeTargetGeneration::default();
+        assert!(
+            admit_prepared_surface_refresh(
+                &mut WindowStageOwner::new(
+                    super::super::frame_scheduler::FrameScheduleKey::Primary
+                ),
+                unknown_target,
+            )
+            .is_none()
+        );
+
+        let mut recovering = NativeLifecycle::default();
+        assert!(recovering.admit_recovery());
+        let mut changed = base;
+        changed.lifecycle = recovering;
+        assert!(
+            admit_prepared_surface_refresh(
+                &mut WindowStageOwner::new(
+                    super::super::frame_scheduler::FrameScheduleKey::Primary
+                ),
+                changed,
+            )
+            .is_none()
+        );
+
+        let mut closing = NativeLifecycle::default();
+        assert!(closing.admit_closing(std::time::Instant::now()));
+        let mut changed = base;
+        changed.lifecycle = closing;
+        assert!(
+            admit_prepared_surface_refresh(
+                &mut WindowStageOwner::new(
+                    super::super::frame_scheduler::FrameScheduleKey::Primary
+                ),
+                changed,
+            )
+            .is_none()
+        );
+
+        let mut stopped = NativeLifecycle::default();
+        assert!(stopped.admit_closing(std::time::Instant::now()));
+        assert!(stopped.finish_closing());
+        let mut changed = base;
+        changed.lifecycle = stopped;
+        assert!(
+            admit_prepared_surface_refresh(
+                &mut WindowStageOwner::new(
+                    super::super::frame_scheduler::FrameScheduleKey::Primary
+                ),
+                changed,
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -225,45 +271,66 @@ mod tests {
         original: PreparedSurfaceRefreshNativeEvidence,
         changed: PreparedSurfaceRefreshNativeEvidence,
     ) {
-        let mut owner = PreparedSurfaceRefreshOwner::new(FrameScheduleKey::Primary);
-        let ticket = owner.begin(original).expect("ticket");
-        assert!(!owner.is_current(&ticket, changed));
-        assert!(owner.complete(ticket));
+        let mut owner =
+            WindowStageOwner::new(super::super::frame_scheduler::FrameScheduleKey::Primary);
+        let ticket = admit_prepared_surface_refresh(&mut owner, original).expect("ticket");
+        assert!(!ticket.is_current(&owner, changed));
+        assert!(owner.complete_projection(ticket.into_stage_ticket()));
+    }
+
+    #[test]
+    fn newer_request_and_resize_evidence_veto_publication() {
+        let base = evidence();
+        let mut owner =
+            WindowStageOwner::new(super::super::frame_scheduler::FrameScheduleKey::Primary);
+        let ticket = admit_prepared_surface_refresh(&mut owner, base).expect("ticket");
+
+        let mut newer_request = base;
+        newer_request.newer_visual_request = true;
+        assert!(!ticket.is_current(&owner, newer_request));
+
+        let mut viewport_resize = base;
+        viewport_resize.pending_viewport_resize = true;
+        assert!(!ticket.is_current(&owner, viewport_resize));
+
+        let mut surface_resize = base;
+        surface_resize.pending_surface_resize = true;
+        assert!(!ticket.is_current(&owner, surface_resize));
+
+        assert!(owner.complete_projection(ticket.into_stage_ticket()));
     }
 
     #[test]
     fn ticket_stage_owner_generation_and_attempt_revision_are_exact() {
-        let mut owner = PreparedSurfaceRefreshOwner::new(FrameScheduleKey::Primary);
+        let mut owner =
+            WindowStageOwner::new(super::super::frame_scheduler::FrameScheduleKey::Primary);
         let evidence = evidence();
-        let mut ticket = owner.begin(evidence).expect("ticket");
-        let owner_generation = ticket.owner_generation;
-        let attempt_revision = ticket.attempt_revision;
-
-        ticket.stage = SchedulerStage::Layout;
-        assert!(!owner.is_current(&ticket, evidence));
-        ticket.stage = PREPARED_SURFACE_REFRESH_STAGE;
-
-        ticket.owner_generation = owner_generation.saturating_add(1);
-        assert!(!owner.is_current(&ticket, evidence));
-        ticket.owner_generation = owner_generation;
-
-        ticket.attempt_revision = attempt_revision.saturating_add(1);
-        assert!(!owner.is_current(&ticket, evidence));
-        ticket.attempt_revision = attempt_revision;
-
-        assert!(owner.is_current(&ticket, evidence));
-        assert!(owner.complete(ticket));
+        let ticket = admit_prepared_surface_refresh(&mut owner, evidence).expect("ticket");
+        let identity = ticket.stage_ticket.identity();
+        assert_eq!(
+            identity.stage(),
+            super::super::frame_scheduler_policy::SchedulerStage::Projection
+        );
+        assert_eq!(identity.owner_generation(), owner.owner_generation());
+        assert_eq!(identity.revision(), 1);
+        assert!(ticket.is_current(&owner, evidence));
+        assert!(owner.complete_projection(ticket.into_stage_ticket()));
     }
 
     #[test]
     fn completion_requires_the_exact_in_flight_attempt() {
-        let mut owner = PreparedSurfaceRefreshOwner::new(FrameScheduleKey::Primary);
+        let mut owner =
+            WindowStageOwner::new(super::super::frame_scheduler::FrameScheduleKey::Primary);
         let evidence = evidence();
-        let mut ticket = owner.begin(evidence).expect("ticket");
-        ticket.attempt_revision = ticket.attempt_revision.saturating_add(1);
-
-        assert!(!owner.complete(ticket));
-        assert!(owner.in_flight_attempt_revision.is_some());
-        assert!(owner.begin(evidence).is_none());
+        let ticket = admit_prepared_surface_refresh(&mut owner, evidence).expect("ticket");
+        let wrong = owner
+            .admit_projection(
+                NativeAdapterGeneration::from_test_serial(2),
+                NativeTargetGeneration::from_test_serial(1),
+            )
+            .is_none();
+        assert!(wrong);
+        assert!(owner.projection_ticket_is_current(&ticket.stage_ticket));
+        assert!(owner.complete_projection(ticket.into_stage_ticket()));
     }
 }

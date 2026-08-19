@@ -120,7 +120,7 @@ where
     }
 
     pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) -> GenericRouteOutcome {
-        self.timing.redraw_requested = false;
+        self.clear_native_visual_request_wake_timing();
         self.request_redraw_for_frame_work(FrameWork::PaintOnly {
             reason: FrameWorkReason::NativeFocusRegained,
         });

@@ -1,5 +1,6 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
+use super::native_visual_packet::NativeVisualRequestDisposition;
 use super::runner_state::{
     NativeResourceMaintenanceTurn, NativeWindowResourceBundle, SurfaceAcquirePolicy,
     surface_acquire_policy,
@@ -221,6 +222,12 @@ where
         native_resource_publication.publish(native_resources);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
+        if !self.window.native_visual_requests.bind_window(window.id()) {
+            return Err(native_initialization_error(
+                NativeInitializationStage::DeviceAcquisition,
+                "native visual request mailbox could not bind the window identity",
+            ));
+        }
         self.sync_native_ime_allowed();
         self.window.native_dpi_scale = candidate_native_dpi_scale;
         self.window.dpi_scale = candidate_dpi_scale;
@@ -271,6 +278,9 @@ where
     ) {
         if size.width == 0 || size.height == 0 {
             return;
+        }
+        if self.window.native_surface_target_fenced || !self.window.target_generation.is_known() {
+            self.arm_requested_recovery_redraw();
         }
         self.timing.pending_surface_resize = Some(size);
         self.timing.pending_surface_resize_reason = Some(reason);
@@ -350,6 +360,13 @@ where
         }
         self.timing.pending_surface_resize = None;
         self.timing.pending_surface_resize_reason = None;
+        // A Lost/Outdated surface is a resource-failure boundary, not an
+        // ordinary deferred resize. Fence the claimed packet before
+        // reconfiguration so recovery cannot finish stale work.
+        if self.window.native_resources.is_none() {
+            return false;
+        }
+        self.fence_native_surface_target();
         if let Some(resources) = self.window.native_resources.as_mut() {
             if !adapter.resize_surface(&mut resources.render_surface, size.width, size.height) {
                 return false;
@@ -361,7 +378,10 @@ where
     }
 
     fn complete_target_transition(&mut self) {
-        self.fence_native_surface_target();
+        // Ordinary deferred resize is applied after RedrawRequested claims its
+        // packet. Advance only the physical target evidence here; the
+        // target-unbound packet must survive to its normal finish boundary.
+        self.fence_native_surface_target_for_transition();
         if self.window.target_generation.advance() {
             self.window.native_surface_target_fenced = false;
         }
@@ -372,7 +392,24 @@ where
         self.complete_target_transition();
     }
 
+    /// Fence packet ownership for a true surface/resource or lifecycle
+    /// boundary. Ordinary deferred resize uses the transition-only helper
+    /// above so its already-claimed target-unbound packet can finish.
     fn fence_native_surface_target(&mut self) {
+        let already_fenced = self.window.native_surface_target_fenced;
+        let had_packet_work = self.window.native_visual_requests.has_work();
+        self.clear_native_visual_request_wake();
+        if already_fenced {
+            if had_packet_work {
+                let _ = self.invalidate_native_visual_requests();
+            }
+            return;
+        }
+        self.fence_native_surface_target_for_transition();
+        let _ = self.invalidate_native_visual_requests();
+    }
+
+    fn fence_native_surface_target_for_transition(&mut self) {
         if self.window.native_surface_target_fenced {
             return;
         }
@@ -384,7 +421,11 @@ where
         self.window.target_generation.invalidate_unknown();
     }
 
-    pub(super) fn handle_other_surface_acquire_failure(&mut self, size: PhysicalSize<u32>) {
+    fn handle_other_surface_acquire_failure_for_packet(
+        &mut self,
+        size: PhysicalSize<u32>,
+        requested_packet: bool,
+    ) {
         self.window
             .surface_recovery
             .observe_acquire_error(&wgpu::SurfaceError::Other);
@@ -395,9 +436,9 @@ where
         ) && self
             .window
             .surface_recovery
-            .record_other_retry_request(size.width > 0 && size.height > 0)
+            .record_other_retry_request(requested_packet && size.width > 0 && size.height > 0)
         {
-            self.request_redraw_for_frame_work(FrameWork::None);
+            self.request_redraw_for_recovery();
         }
     }
 
@@ -491,42 +532,58 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
         adapter: &GenericNativeAdapterOwner,
-    ) -> Option<wgpu::SurfaceTexture> {
+        requested_packet: bool,
+    ) -> Result<wgpu::SurfaceTexture, NativeVisualRequestDisposition> {
         if !self.admit_native_resources(adapter) {
-            return None;
+            return Err(NativeVisualRequestDisposition::DropPacket);
         }
         let texture = {
-            let resources = self.window.native_resources.as_mut()?;
+            let Some(resources) = self.window.native_resources.as_mut() else {
+                return Err(NativeVisualRequestDisposition::DropPacket);
+            };
             resources.render_surface.surface.get_current_texture()
         };
         match texture {
             Ok(frame) => {
                 self.prepare_successful_surface_acquisition();
-                Some(frame)
+                Ok(frame)
             }
             Err(error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
                 self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
-                let size = self.window.window.as_ref()?.inner_size();
+                let Some(size) = self
+                    .window
+                    .window
+                    .as_ref()
+                    .map(|window| window.inner_size())
+                else {
+                    return Err(NativeVisualRequestDisposition::DropPacket);
+                };
                 match surface_acquire_policy(error, size) {
                     SurfaceAcquirePolicy::ReconfigureAndRetry
                         if self.resize_surface_now_for_recovery(size, adapter) =>
                     {
                         self.window.surface_recovery.record_completed_reconfigure();
                         self.window.surface_recovery.record_retry_request();
-                        self.request_redraw_for_frame_work(FrameWork::None);
+                        if requested_packet {
+                            self.request_redraw_for_recovery();
+                        }
                     }
                     SurfaceAcquirePolicy::Defer => {
                         self.window.surface_recovery.record_zero_size_deferral();
                     }
                     _ => {}
                 }
-                None
+                Err(NativeVisualRequestDisposition::DropPacket)
             }
             Err(error @ wgpu::SurfaceError::Timeout) => {
                 self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
-                let size = self.window.window.as_ref()?.inner_size();
+                let size = self
+                    .window
+                    .window
+                    .as_ref()
+                    .map_or(PhysicalSize::new(0, 0), |window| window.inner_size());
                 if matches!(
                     surface_acquire_policy(error, size),
                     SurfaceAcquirePolicy::Timeout
@@ -535,9 +592,9 @@ where
                     .surface_recovery
                     .record_timeout_retry_request(size.width > 0 && size.height > 0)
                 {
-                    self.request_redraw_for_frame_work(FrameWork::None);
+                    return Err(NativeVisualRequestDisposition::RetrySamePacket);
                 }
-                None
+                Err(NativeVisualRequestDisposition::DropPacket)
             }
             Err(wgpu::SurfaceError::Other) => {
                 self.mark_cpu_frame_observation_recovery();
@@ -546,11 +603,11 @@ where
                     .window
                     .as_ref()
                     .map_or(PhysicalSize::new(0, 0), |window| window.inner_size());
-                self.handle_other_surface_acquire_failure(size);
+                self.handle_other_surface_acquire_failure_for_packet(size, requested_packet);
                 warn!(
                     "radiant generic native vello: conservatively fenced surface after other acquire error"
                 );
-                None
+                Err(NativeVisualRequestDisposition::DropPacket)
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 self.mark_cpu_frame_observation_recovery();
@@ -559,22 +616,24 @@ where
                     event_loop,
                     Some(NativeGenericRunError::SurfaceAcquireOutOfMemory),
                 );
-                None
+                Err(NativeVisualRequestDisposition::DropPacket)
             }
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn handle_other_surface_acquire_failure(&mut self, size: PhysicalSize<u32>) {
+        self.handle_other_surface_acquire_failure_for_packet(size, false);
+    }
+
     pub(super) fn fence_native_presentation(&mut self) {
-        self.timing.redraw_requested = false;
-        self.timing.redraw_requested_at = None;
         self.timing.pending_surface_resize = None;
         self.timing.pending_surface_resize_reason = None;
         self.timing.pending_viewport_resize = None;
         self.timing.pending_viewport_resize_reason = None;
-        self.fence_native_surface_target();
-        if let Some(window) = self.window.window.as_ref() {
-            window.set_visible(false);
-        }
+        let _ = self.invalidate_native_visual_requests();
+        self.fence_native_surface_target_for_transition();
+        self.apply_native_window_visibility(false);
     }
 
     /// Admit the active window bundle against the owner's exact current

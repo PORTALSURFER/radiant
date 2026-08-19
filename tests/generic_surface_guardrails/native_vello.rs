@@ -12,6 +12,8 @@ mod generation_binding;
 mod gpu_surface;
 #[path = "native_vello/native_semantic_accessibility.rs"]
 mod native_semantic_accessibility;
+#[path = "native_vello/native_visual_packet.rs"]
+mod native_visual_packet;
 #[path = "native_vello/public_api_svg.rs"]
 mod public_api_svg;
 #[path = "native_vello/runtime_input.rs"]

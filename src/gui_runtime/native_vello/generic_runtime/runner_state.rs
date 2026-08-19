@@ -4,6 +4,7 @@ use super::NativeAdapterGeneration;
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
 use super::input::NativePointerGestureLatch;
+use super::native_visual_packet::NativeVisualRequestMailbox;
 use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
 use super::{
@@ -561,6 +562,14 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
     pub(super) native_window_focused: bool,
+    /// Last visibility state explicitly selected by Radiant.  This is a
+    /// display/lifecycle restoration hint only; it is never an eligibility
+    /// or presentation authority.
+    pub(super) logical_window_visible: bool,
+    /// A requested packet may cross a fenced target only when an explicit,
+    /// bounded recovery path armed it.  Unsolicited redraws never consume this
+    /// exception.
+    pub(super) requested_recovery_redraw: bool,
     pub(super) native_focus_lost: bool,
     pub(super) monitor_fingerprint: Option<MonitorFingerprint>,
     pub(super) accessibility_display: AccessibilityDisplaySnapshot,
@@ -569,6 +578,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) native_surface_target_fenced: bool,
     pub(super) surface_recovery: NativeSurfaceRecoveryState,
     pub(super) ime_cursor_area_cache: NativeImeCursorAreaCache,
+    pub(super) native_visual_requests: NativeVisualRequestMailbox,
 }
 
 impl NativeRunnerWindowState {
@@ -847,6 +857,7 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
     };
     use std::time::{Duration, Instant};
+    use winit::dpi::PhysicalSize;
 
     struct DropTracked {
         ready: bool,
@@ -1419,6 +1430,27 @@ mod tests {
     }
 
     #[test]
+    fn zero_sized_lost_and_outdated_targets_defer_without_retry_permission() {
+        let zero = PhysicalSize::new(0, 480);
+
+        assert_eq!(
+            super::surface_acquire_policy(vello::wgpu::SurfaceError::Lost, zero),
+            super::SurfaceAcquirePolicy::Defer
+        );
+        assert_eq!(
+            super::surface_acquire_policy(vello::wgpu::SurfaceError::Outdated, zero),
+            super::SurfaceAcquirePolicy::Defer
+        );
+        assert_eq!(
+            super::surface_acquire_policy(
+                vello::wgpu::SurfaceError::Lost,
+                PhysicalSize::new(640, 480)
+            ),
+            super::SurfaceAcquirePolicy::ReconfigureAndRetry
+        );
+    }
+
+    #[test]
     fn surface_recovery_counters_saturate_and_convert() {
         let mut state = NativeSurfaceRecoveryState::default();
         state.observe_acquire_error(&vello::wgpu::SurfaceError::Lost);
@@ -1522,5 +1554,17 @@ mod tests {
         assert_eq!(diagnostics.others, 4);
         assert_eq!(diagnostics.timeout_retry_requests, 2);
         assert_eq!(diagnostics.other_retry_requests, 1);
+    }
+
+    #[test]
+    fn other_recovery_retry_is_one_fresh_requested_packet_only() {
+        let mut state = NativeSurfaceRecoveryState::default();
+
+        assert!(state.record_other_retry_request(true));
+        assert!(!state.record_other_retry_request(true));
+
+        state.rearm_transient_retry();
+        assert!(!state.record_other_retry_request(false));
+        assert!(!state.record_other_retry_request(true));
     }
 }

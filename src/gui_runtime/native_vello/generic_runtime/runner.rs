@@ -3,6 +3,11 @@
 use super::frame_stage_admission::WindowStageOwner;
 #[cfg(target_os = "macos")]
 use super::native_semantic_accessibility::NativeSemanticAccessibilityAdapter;
+use super::native_visual_packet::{
+    NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestDisposition,
+    NativeVisualRequestEligibility, NativeVisualRequestEnqueue, NativeVisualRequestFinish,
+    NativeVisualRequestPacket,
+};
 use super::recovery::{
     NativeRecoveryCandidate, NativeRecoveryCoordinator, NativeRecoveryEpisodeToken,
     NativeRecoveryRequest,
@@ -96,7 +101,6 @@ where
     pub(super) recovery: NativeRecoveryCoordinator,
     pub(super) renderer_recovery: NativeRendererRecoveryPolicy,
     pub(super) recovery_cause: Option<NativeGenericRunError>,
-    pub(super) recovery_primary_was_visible: bool,
     pub(super) recovery_auxiliary_followup_pending: bool,
 }
 
@@ -305,7 +309,6 @@ where
             recovery: NativeRecoveryCoordinator::default(),
             renderer_recovery: NativeRendererRecoveryPolicy::default(),
             recovery_cause: None,
-            recovery_primary_was_visible: false,
             recovery_auxiliary_followup_pending: false,
         }
     }
@@ -712,6 +715,7 @@ where
         self.close_native_semantic_accessibility();
         let _ = self.core.runtime.begin_closing();
         self.fence_native_presentation();
+        self.window.native_visual_requests.retire();
         self.clear_cpu_frame_fairness();
         self.application_reopen_events.take();
         self.application_reopen_proxy.take();
@@ -902,6 +906,10 @@ where
         )
         .map_err(|veto| format!("renderer recovery preflight vetoed: {veto:?}"))?;
 
+        // Renderer recovery is a physical presentation concealment boundary,
+        // but it must not overwrite Radiant's latest visibility intent.
+        self.apply_native_window_visibility(false);
+
         // This is deliberately before event-proxy lookup and all candidate GPU
         // construction. Candidate failure therefore consumes the generation's
         // one bounded allowance just like a successful candidate.
@@ -940,6 +948,11 @@ where
                 "renderer recovery candidate failed final identity, generation, lifecycle, or publication validation",
             ));
         }
+        if !self.invalidate_native_visual_requests() {
+            return Err(String::from(
+                "native renderer recovery could not advance the visual request owner",
+            ));
+        }
         let Some(publication) = self.window.reserve_native_resource_publication() else {
             return Err(String::from(
                 "renderer recovery publication capacity changed before commit",
@@ -951,6 +964,7 @@ where
         self.frame.invalidate_native_resources_for_recovery();
         self.rebuild_scene();
         self.timing.last_redraw = Instant::now();
+        self.apply_native_window_visibility(self.window.logical_window_visible);
         self.request_redraw_for_frame_work(FrameWork::RebuildScene {
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
@@ -1046,7 +1060,6 @@ where
         #[cfg(target_os = "macos")]
         self.close_native_semantic_accessibility();
         self.recovery_cause = Some(cause);
-        self.recovery_primary_was_visible = window.is_visible().unwrap_or(true);
         if self
             .auxiliary_windows
             .iter_mut()
@@ -1182,15 +1195,11 @@ where
             }
         }
         self.rebuild_scene();
-        if self.recovery_primary_was_visible
-            && let Some(window) = self.window.window.as_ref()
-        {
-            window.set_visible(true);
-        }
-        self.recovery_primary_was_visible = false;
+        self.clear_native_visual_request_wake();
         self.recovery_auxiliary_followup_pending = true;
         self.timing.deferred_auxiliary_window_sync = true;
         self.timing.last_redraw = Instant::now();
+        self.apply_native_window_visibility(self.window.logical_window_visible);
         self.request_redraw_for_frame_work(FrameWork::RebuildScene {
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
@@ -1271,37 +1280,319 @@ where
         Err(terminal_cause)
     }
 
+    /// Apply an explicit Radiant visibility decision and retain it for
+    /// lifecycle recovery.  Eligibility never reads host visibility back.
+    pub(super) fn set_native_window_visibility(&mut self, visible: bool) {
+        self.window.logical_window_visible = visible;
+        if self.is_running() {
+            self.apply_native_window_visibility(visible);
+        }
+    }
+
+    /// Apply the current physical Winit visibility without changing Radiant's
+    /// desired visibility. Recovery and closing use this concealment-only
+    /// operation so a later success can restore the latest explicit intent.
+    pub(super) fn apply_native_window_visibility(&self, visible: bool) {
+        if let Some(window) = self.window.window.as_ref() {
+            window.set_visible(visible);
+        }
+    }
+
+    pub(super) fn clear_native_visual_request_wake(&mut self) {
+        self.timing.redraw_requested = false;
+        self.timing.redraw_requested_at = None;
+        self.window.requested_recovery_redraw = false;
+    }
+
+    pub(super) fn invalidate_native_visual_requests(&mut self) -> bool {
+        self.clear_native_visual_request_wake();
+        self.window.native_visual_requests.invalidate()
+    }
+
+    pub(super) fn suspend_native_visual_requests(&mut self) -> bool {
+        self.clear_native_visual_request_wake();
+        self.window.native_visual_requests.suspend()
+    }
+
+    pub(super) fn resume_native_visual_requests(&mut self) -> bool {
+        self.window.native_visual_requests.resume()
+    }
+
+    /// Veto the callback boundary when the primary adapter owner is absent or
+    /// cannot provide a current generation. This is a packet-ownership
+    /// transition, not a terminal lifecycle failure: any requested/pending
+    /// work is discarded, and stale wake/recovery state is cleared without
+    /// entering redraw, finish, fallback, or diagnostics.
+    pub(super) fn veto_native_visual_request_at_callback_boundary(
+        &mut self,
+    ) -> NativeVisualRequestBegin {
+        let begin = self.window.native_visual_requests.veto_requested();
+        self.clear_native_visual_request_wake();
+        begin
+    }
+
+    pub(super) fn arm_requested_recovery_redraw(&mut self) {
+        self.window.requested_recovery_redraw = true;
+    }
+
+    pub(super) fn request_redraw_for_recovery(&mut self) {
+        self.arm_requested_recovery_redraw();
+        self.request_redraw_for_frame_work(FrameWork::None);
+    }
+
     pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {
         if !self.is_running() {
             return;
         }
         self.record_frame_work(frame_work);
-        if self.window.native_resources.is_none() {
+        let ordinary = self.native_visual_request_offer_is_eligible();
+        let recovery = self.native_visual_request_recovery_offer_is_eligible();
+        if !ordinary && !recovery {
             return;
         }
+        let Some(window) = self.window.window.as_ref().cloned() else {
+            return;
+        };
+        let Some(window_id) = self.window.id else {
+            return;
+        };
         let now = Instant::now();
-        if self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now) {
-            return;
-        }
-        if let Some(window) = self.window.window.as_ref() {
-            if self.timing.redraw_requested
-                && let Some(requested_at) = self.timing.redraw_requested_at
-            {
-                let pending = now.duration_since(requested_at);
-                if slow_render_profile_enabled() && pending >= Self::REDRAW_REISSUE_LOG_AFTER {
-                    warn!(
-                        target: "radiant::debug::frame_profile",
-                        event = "radiant.redraw_request.reissued",
-                        pending_us = pending.as_micros(),
-                        stale_after_us = Self::REDRAW_REISSUE_AFTER.as_micros(),
-                        "Reissued stale redraw request"
-                    );
+        let stale_before_offer =
+            self.timing.redraw_requested && self.pending_redraw_request_is_stale(now);
+        // Allocate and enqueue the newest offer before reissuing a stale wake.
+        // Otherwise a stale wake can win the race and the newer work is never
+        // represented by a packet revision.
+        let enqueue = NativeVisualRequestAdapter::enqueue(
+            &mut self.window.native_visual_requests,
+            &window,
+            frame_work,
+        );
+        match enqueue {
+            NativeVisualRequestEnqueue::Issued => {
+                self.timing.redraw_requested = true;
+                self.timing.redraw_requested_at = Some(now);
+            }
+            NativeVisualRequestEnqueue::Replaced if stale_before_offer => {
+                if NativeVisualRequestAdapter::reissue(
+                    &mut self.window.native_visual_requests,
+                    &window,
+                    window_id,
+                ) {
+                    if let Some(requested_at) = self.timing.redraw_requested_at {
+                        let pending = now.duration_since(requested_at);
+                        if slow_render_profile_enabled()
+                            && pending >= Self::REDRAW_REISSUE_LOG_AFTER
+                        {
+                            warn!(
+                                target = "radiant::debug::frame_profile",
+                                event = "radiant.redraw_request.reissued",
+                                pending_us = pending.as_micros(),
+                                stale_after_us = Self::REDRAW_REISSUE_AFTER.as_millis(),
+                                "Reissued the newest native visual request packet"
+                            );
+                        }
+                    }
+                    self.timing.redraw_requested = true;
+                    self.timing.redraw_requested_at = Some(now);
                 }
             }
-            window.request_redraw();
+            NativeVisualRequestEnqueue::Replaced | NativeVisualRequestEnqueue::Queued => {
+                // Replaced requests already own the outstanding Winit wakeup;
+                // queued requests will publish one when consuming finishes.
+            }
+            NativeVisualRequestEnqueue::Rejected => {}
+        }
+    }
+
+    pub(super) fn clear_native_visual_request_wake_timing(&mut self) {
+        self.timing.redraw_requested = false;
+        self.timing.redraw_requested_at = None;
+    }
+
+    fn native_visual_request_local_fences_hold(&self) -> bool {
+        self.is_running()
+            && !self.has_terminal_cause()
+            && !self.is_recovering()
+            && !self.is_closing()
+            && !self.is_stopped()
+            && self
+                .window
+                .id
+                .is_some_and(|window_id| self.window.native_visual_requests.is_bound_to(window_id))
+            && self.window.window.is_some()
+            && self.window.native_resources.is_some()
+            && !self.window.native_visual_requests.is_suspended()
+    }
+
+    pub(super) fn native_visual_request_offer_is_eligible(&self) -> bool {
+        self.native_visual_request_local_fences_hold()
+            && self.window.target_generation.is_known()
+            && !self.window.native_surface_target_fenced
+    }
+
+    fn native_visual_request_recovery_offer_is_eligible(&self) -> bool {
+        self.native_visual_request_local_fences_hold()
+            && self.window.requested_recovery_redraw
+            && (self.validated_pending_resize().is_some()
+                || self.window.native_surface_target_fenced
+                || !self.window.target_generation.is_known())
+    }
+
+    pub(super) fn native_visual_request_schedule_is_eligible(&self) -> bool {
+        self.native_visual_request_scheduler_adapter_is_current()
+            && (self.native_visual_request_offer_is_eligible()
+                || (self.window.native_visual_requests.has_requested()
+                    && self.native_visual_request_recovery_offer_is_eligible()))
+    }
+
+    pub(super) fn native_visual_request_schedule_is_ordinary(&self) -> bool {
+        self.native_visual_request_scheduler_adapter_is_current()
+            && self.native_visual_request_offer_is_eligible()
+    }
+
+    pub(super) fn native_visual_request_recovery_schedule_is_eligible(&self) -> bool {
+        self.native_visual_request_scheduler_adapter_is_current()
+            && self.window.native_visual_requests.has_requested()
+            && self.native_visual_request_recovery_offer_is_eligible()
+    }
+
+    fn native_visual_request_scheduler_adapter_is_current(&self) -> bool {
+        // Auxiliary runners borrow the parent's adapter at each scheduler
+        // boundary; their parent generation is validated by
+        // `AuxiliaryScheduleEligibility` and must remain the authority.
+        if self.auxiliary_owner {
+            return true;
+        }
+        let Some(resource_generation) = self
+            .window
+            .native_resources
+            .as_ref()
+            .map(|resources| resources.generation)
+        else {
+            return false;
+        };
+        self.adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+            .is_some_and(|adapter_generation| adapter_generation == resource_generation)
+    }
+
+    pub(super) fn begin_native_visual_request(
+        &mut self,
+        adapter: &GenericNativeAdapterOwner,
+    ) -> NativeVisualRequestBegin {
+        let Some(window_id) = self.window.id else {
+            return self.veto_native_visual_request_at_callback_boundary();
+        };
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return self.veto_native_visual_request_at_callback_boundary();
+        };
+        let ordinary = self.native_visual_request_is_eligible(adapter_generation);
+        let requested = ordinary
+            || (self.window.requested_recovery_redraw
+                && self.native_visual_request_recovery_fences_hold(adapter_generation));
+        let begin = NativeVisualRequestAdapter::begin(
+            &mut self.window.native_visual_requests,
+            window_id,
+            NativeVisualRequestEligibility {
+                requested,
+                fallback: ordinary,
+            },
+        );
+        if matches!(begin, NativeVisualRequestBegin::Requested(_)) {
+            self.window.requested_recovery_redraw = false;
+        } else if matches!(begin, NativeVisualRequestBegin::RequestedVetoed) {
+            self.clear_native_visual_request_wake();
+        }
+        begin
+    }
+
+    fn native_visual_request_is_eligible(
+        &self,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_running()
+            && !self.has_terminal_cause()
+            && !self.is_recovering()
+            && !self.is_closing()
+            && !self.is_stopped()
+            && self.window.id.is_some()
+            && self.window.window.is_some()
+            && self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| resources.generation == adapter_generation)
+            && self.window.target_generation.is_known()
+            && !self.window.native_surface_target_fenced
+    }
+
+    fn native_visual_request_recovery_fences_hold(
+        &self,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_running()
+            && !self.has_terminal_cause()
+            && !self.is_recovering()
+            && !self.is_closing()
+            && !self.is_stopped()
+            && self.window.id.is_some()
+            && self.window.window.is_some()
+            && self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| resources.generation == adapter_generation)
+            && (self.validated_pending_resize().is_some()
+                || self.window.native_surface_target_fenced)
+    }
+
+    fn validated_pending_resize(&self) -> Option<winit::dpi::PhysicalSize<u32>> {
+        self.timing
+            .pending_surface_resize
+            .filter(|size| size.width > 0 && size.height > 0)
+    }
+
+    pub(super) fn native_presentation_target_is_ready(
+        &self,
+        adapter: &GenericNativeAdapterOwner,
+    ) -> bool {
+        let Some(generation) = adapter.capture_generation() else {
+            return false;
+        };
+        self.native_visual_request_is_eligible(generation)
+    }
+
+    pub(super) fn finish_native_visual_request(
+        &mut self,
+        packet: NativeVisualRequestPacket,
+        disposition: NativeVisualRequestDisposition,
+    ) -> NativeVisualRequestFinish {
+        let Some(window) = self.window.window.as_ref().cloned() else {
+            self.window.native_visual_requests.retire();
+            self.clear_native_visual_request_wake();
+            return NativeVisualRequestFinish::WrongWindow;
+        };
+        let Some(window_id) = self.window.id else {
+            self.window.native_visual_requests.retire();
+            self.clear_native_visual_request_wake();
+            return NativeVisualRequestFinish::WrongWindow;
+        };
+        let result = NativeVisualRequestAdapter::finish(
+            &mut self.window.native_visual_requests,
+            &window,
+            window_id,
+            packet,
+            disposition,
+        );
+        if matches!(result, NativeVisualRequestFinish::Reissued) {
+            let now = Instant::now();
             self.timing.redraw_requested = true;
             self.timing.redraw_requested_at = Some(now);
+        } else if !self.window.native_visual_requests.has_requested() {
+            self.clear_native_visual_request_wake_timing();
         }
+        result
     }
 
     pub(super) fn record_frame_work(&mut self, frame_work: FrameWork) {
@@ -1338,7 +1629,12 @@ where
     }
 
     pub(super) fn pending_redraw_retry_deadline(&self) -> Option<Instant> {
-        if !self.timing.redraw_requested {
+        if !self.timing.redraw_requested
+            || self.window.native_surface_target_fenced
+            || self.window.native_visual_requests.is_suspended()
+            || (!self.auxiliary_owner && !self.native_visual_request_scheduler_adapter_is_current())
+            || (self.window.id.is_some() && !self.native_visual_request_schedule_is_eligible())
+        {
             return None;
         }
         self.timing
@@ -1963,13 +2259,13 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
         adapter: &mut GenericNativeAdapterOwner,
-        observation: Option<&mut CpuFrameObservationOwner<'_>>,
+        _observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) {
         self.handle_route_outcome_inner(
             event_loop,
             outcome,
             Some(adapter),
-            observation,
+            _observation,
             true,
             false,
         );
@@ -2005,14 +2301,13 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
         adapter: Option<&mut GenericNativeAdapterOwner>,
-        observation: Option<&mut CpuFrameObservationOwner<'_>>,
+        _observation: Option<&mut CpuFrameObservationOwner<'_>>,
         merge_due_timed_frame: bool,
         publish_frame_diagnostics: bool,
     ) {
         if !self.is_running() {
             return;
         }
-        let pending_redraw_at_route_start = self.pending_redraw_elapsed(Instant::now());
         let applied = if merge_due_timed_frame {
             self.apply_route_outcome(outcome)
         } else {
@@ -2032,10 +2327,12 @@ where
         {
             return;
         }
-        if let Some(pending) = pending_redraw_at_route_start
-            && self.timing.redraw_requested
+        let route_end_now = Instant::now();
+        if self.timing.redraw_requested
+            && self.pending_redraw_request_is_stale(route_end_now)
+            && let Some(pending) = self.pending_redraw_elapsed(route_end_now)
         {
-            let since_last_present = Instant::now().duration_since(self.timing.last_redraw);
+            let since_last_present = route_end_now.duration_since(self.timing.last_redraw);
             if self.should_flush_pending_redraw_after_route(pending, since_last_present) {
                 if self.should_log_pending_redraw_route_flush(pending, since_last_present) {
                     warn!(
@@ -2044,15 +2341,13 @@ where
                         pending_us = pending.as_micros(),
                         since_last_present_us = since_last_present.as_micros(),
                         stale = pending >= Self::REDRAW_REISSUE_AFTER,
-                        "Flushed pending redraw request after route"
+                        "Flushed current pending redraw request after route"
                     );
                 }
-                match adapter {
-                    Some(adapter) => {
-                        self.redraw_and_exit_on_error_with_adapter(event_loop, adapter, observation)
-                    }
-                    None => self.redraw_and_exit_on_error(event_loop),
-                }
+                // Route-time work may reissue the exact native packet, but
+                // presentation is owned exclusively by the later
+                // `WindowEvent::RedrawRequested` boundary.
+                self.request_redraw_for_frame_work(FrameWork::None);
             }
         }
         if publish_frame_diagnostics {
@@ -2145,13 +2440,17 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::native_visual_packet::{
+        NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestEnqueue,
+    };
     use super::super::{
         FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleRedrawEvidence,
         assess_cpu_frame_fairness,
     };
     use super::{
-        FrameScheduleKey, FrameWork, FrameWorkReason, GenericNativeVelloRunner, NativeLifecycle,
-        TimedFrameCadence, recovery_completion_is_admissible,
+        DeviceLossRegistration, FrameScheduleKey, FrameWork, FrameWorkReason,
+        GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeAdapterGeneration,
+        NativeLifecycle, TimedFrameCadence, recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -2168,8 +2467,9 @@ mod tests {
     };
     use std::{
         sync::{Arc, Mutex},
-        time::Instant,
+        time::{Duration, Instant},
     };
+    use winit::window::WindowId;
 
     struct EmptyBridge;
 
@@ -2618,6 +2918,172 @@ mod tests {
         assert!(!runner.should_initialize_runtime());
         assert!(!runner.should_admit_auxiliary_sync());
         assert!(runner.native_shutdown_requested());
+    }
+
+    #[test]
+    fn exhausted_other_fence_has_no_scheduler_retry_until_target_rearm() {
+        let mut runner = runner();
+        let now = Instant::now();
+        runner.window.native_surface_target_fenced = true;
+        runner.window.requested_recovery_redraw = true;
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now - Duration::from_secs(1));
+
+        assert!(!runner.native_visual_request_schedule_is_eligible());
+        assert!(!runner.native_visual_request_schedule_is_ordinary());
+        assert_eq!(runner.pending_redraw_retry_deadline(), None);
+        let scheduled = now + Duration::from_secs(1);
+        assert_eq!(runner.frame_wait_deadline(scheduled), scheduled);
+
+        runner.prepare_successful_surface_acquisition();
+        assert!(!runner.window.native_surface_target_fenced);
+        assert!(runner.window.target_generation.is_known());
+        // Target rearm alone cannot recreate scheduler demand while the
+        // primary has no stored generation-bound adapter/resource bundle.
+        assert_eq!(runner.pending_redraw_retry_deadline(), None);
+    }
+
+    #[test]
+    fn missing_primary_adapter_vetoes_packet_and_clears_recovery_wake() {
+        let mut runner = runner();
+        let window_id = WindowId::from(17);
+        assert!(runner.window.native_visual_requests.bind_window(window_id));
+        assert_eq!(
+            runner
+                .window
+                .native_visual_requests
+                .enqueue_for_test(FrameWork::None),
+            NativeVisualRequestEnqueue::Issued
+        );
+        let _consuming = match NativeVisualRequestAdapter::begin(
+            &mut runner.window.native_visual_requests,
+            window_id,
+            true,
+        ) {
+            NativeVisualRequestBegin::Requested(packet) => packet,
+            other => panic!("unexpected seeded packet state: {other:?}"),
+        };
+        assert_eq!(
+            runner
+                .window
+                .native_visual_requests
+                .enqueue_for_test(FrameWork::None),
+            NativeVisualRequestEnqueue::Queued
+        );
+        let owner = runner
+            .window
+            .native_visual_requests
+            .owner_generation_for_test();
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(Instant::now());
+        runner.window.requested_recovery_redraw = true;
+
+        assert_eq!(
+            runner.veto_native_visual_request_at_callback_boundary(),
+            NativeVisualRequestBegin::RequestedVetoed
+        );
+        assert_eq!(
+            runner
+                .window
+                .native_visual_requests
+                .owner_generation_for_test(),
+            owner + 1
+        );
+        assert!(!runner.window.native_visual_requests.has_work());
+        assert!(!runner.timing.redraw_requested);
+        assert!(runner.timing.redraw_requested_at.is_none());
+        assert!(!runner.window.requested_recovery_redraw);
+
+        // A stray callback with no packet still clears stale wake state, but
+        // does not advance ownership or create fallback work.
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(Instant::now());
+        runner.window.requested_recovery_redraw = true;
+        assert_eq!(
+            runner.veto_native_visual_request_at_callback_boundary(),
+            NativeVisualRequestBegin::Ineligible
+        );
+        assert_eq!(
+            runner
+                .window
+                .native_visual_requests
+                .owner_generation_for_test(),
+            owner + 1
+        );
+        assert!(!runner.timing.redraw_requested);
+        assert!(runner.timing.redraw_requested_at.is_none());
+        assert!(!runner.window.requested_recovery_redraw);
+    }
+
+    #[test]
+    fn primary_scheduler_quiesces_without_current_stored_adapter_generation() {
+        let mut runner = runner();
+        assert!(!runner.native_visual_request_scheduler_adapter_is_current());
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::from_test_serial(1),
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        // A stored adapter is insufficient until the active resource bundle
+        // proves the same exact generation.
+        assert!(!runner.native_visual_request_scheduler_adapter_is_current());
+        assert_eq!(
+            runner.pending_redraw_retry_deadline(),
+            None,
+            "primary retry cadence remains quiescent without a current bundle"
+        );
+    }
+
+    #[test]
+    fn unknown_callback_adapter_generation_uses_the_same_requested_veto() {
+        let mut runner = runner();
+        let window_id = WindowId::from(18);
+        runner.window.id = Some(window_id);
+        assert!(runner.window.native_visual_requests.bind_window(window_id));
+        assert_eq!(
+            runner
+                .window
+                .native_visual_requests
+                .enqueue_for_test(FrameWork::None),
+            NativeVisualRequestEnqueue::Issued
+        );
+        runner.window.requested_recovery_redraw = true;
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(Instant::now());
+        let adapter = GenericNativeAdapterOwner::with_test_registration(
+            NativeAdapterGeneration::unknown(),
+            Arc::new(DeviceLossRegistration::new()),
+        );
+
+        assert_eq!(
+            runner.begin_native_visual_request(&adapter),
+            NativeVisualRequestBegin::RequestedVetoed
+        );
+        assert!(!runner.window.native_visual_requests.has_work());
+        assert!(!runner.timing.redraw_requested);
+        assert!(!runner.window.requested_recovery_redraw);
+    }
+
+    #[test]
+    fn visibility_intent_survives_recovery_concealment_and_reapplies_after_success() {
+        let mut runner = runner();
+        assert!(!runner.window.logical_window_visible);
+        runner.set_native_window_visibility(true);
+        assert!(runner.window.logical_window_visible);
+
+        assert!(runner.admit_device_recovery());
+        // Physical concealment must not erase the latest desired state.
+        assert!(runner.window.logical_window_visible);
+        assert!(runner.finish_device_recovery());
+        runner.apply_native_window_visibility(runner.window.logical_window_visible);
+        assert!(runner.window.logical_window_visible);
+
+        // An explicit hidden intent remains hidden through the same boundary.
+        assert!(runner.admit_device_recovery());
+        runner.set_native_window_visibility(false);
+        assert!(!runner.window.logical_window_visible);
+        assert!(runner.finish_device_recovery());
+        runner.apply_native_window_visibility(runner.window.logical_window_visible);
+        assert!(!runner.window.logical_window_visible);
     }
 
     #[test]

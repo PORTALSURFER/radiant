@@ -2,15 +2,16 @@
 
 use super::{
     AuxiliaryWindowEventResult, CpuFrameObservationOwner, FrameScheduleDeadlines,
-    FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence, GenericNativeAdapterOwner,
-    GenericNativeVelloRunner, NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent,
-    TimedFrameCadence, animation_frame_interval, assess_cpu_frame_fairness,
-    should_start_native_window_drag, should_toggle_native_window_maximized,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence, FrameWork,
+    GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeGenericRunError,
+    NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence, animation_frame_interval,
+    assess_cpu_frame_fairness, should_start_native_window_drag,
+    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::runtime::{
     FrameProfile, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
-    RuntimeBridge,
+    RuntimeAnimationActivity, RuntimeBridge,
 };
 use std::time::{Duration, Instant};
 use tracing::warn;
@@ -245,7 +246,7 @@ where
                     // retained and composited layers cannot remain at the old
                     // viewport while the new surface is already visible.
                     self.defer_interactive_scene_rebuild();
-                    window.request_redraw();
+                    self.request_redraw_for_frame_work(FrameWork::None);
                 } else if route.is_pressed()
                     && let (Some(position), Some(button)) = (route.position, route.button)
                     && should_start_native_window_drag(
@@ -419,22 +420,24 @@ where
         let primary_window_ready = self.window.window.is_some();
         let primary_resources_ready = self.window.native_resources.is_some();
         if primary_window_ready && !primary_resources_ready {
-            self.timing.redraw_requested = false;
-            self.timing.redraw_requested_at = None;
+            self.clear_native_visual_request_wake();
         }
 
-        if primary_window_ready && primary_resources_ready {
-            self.observe_pending_window_activation();
-        }
-
-        let current_generation = self
-            .adapter
-            .as_ref()
-            .and_then(GenericNativeAdapterOwner::capture_generation);
         let mut demands = Vec::with_capacity(1 + self.auxiliary_windows.len());
-        if primary_window_ready && primary_resources_ready {
+        if primary_window_ready
+            && primary_resources_ready
+            && self.native_visual_request_schedule_is_eligible()
+        {
+            let ordinary_schedule = self.native_visual_request_schedule_is_ordinary();
+            self.observe_pending_window_activation();
             let animation_activity = self.core.animation_activity();
-            let needs_text_caret_animation = self.core.has_focused_text_input();
+            let animation_activity = if ordinary_schedule {
+                animation_activity
+            } else {
+                RuntimeAnimationActivity::idle()
+            };
+            let needs_text_caret_animation =
+                ordinary_schedule && self.core.has_focused_text_input();
             let requested_target_fps = self.options.normalized_target_fps();
             let frame_target_fps = timed_frame_target_fps(
                 requested_target_fps,
@@ -455,7 +458,9 @@ where
                 animation_activity,
                 needs_text_caret_animation,
                 FrameScheduleRedrawEvidence {
-                    timed_repaint_deadline: self.core.timed_repaint_deadline(),
+                    timed_repaint_deadline: ordinary_schedule
+                        .then(|| self.core.timed_repaint_deadline())
+                        .flatten(),
                     pending_redraw_requested: self.timing.redraw_requested,
                     pending_redraw_age: self.pending_redraw_age(now),
                     pending_redraw_retry_deadline: self.pending_redraw_retry_deadline(),
@@ -464,6 +469,10 @@ where
                 },
             ));
         }
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
         for window in &mut self.auxiliary_windows {
             if let Some(demand) = window.observe_frame_schedule(now, current_generation) {
                 demands.push(demand);

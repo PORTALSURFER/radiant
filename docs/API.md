@@ -6998,3 +6998,112 @@ authoritative for virtual materialization and unsupported paths.
 `WindowStageOwner` now admits private Deadline work plus this synchronous
 Projection-to-Layout-to-PaintPlan handoff. Diagnostics and timing remain
 observational and non-authoritative.
+
+### Native visual request packet handoff (private native-window contract)
+
+The native event loop has one crate-private `NativeVisualRequestPacket` handoff
+per window. The packet is deliberately non-`Clone` and carries only the exact
+Winit `WindowId`, a checked non-wrapping `NativeVisualOwnerGeneration`, a
+checked non-wrapping `NativeVisualRevision`, and a private observational origin:
+`ScheduledOrRuntime` (which records `FrameWork`) or
+`NativeInvalidationFallback`. It is deliberately target-unbound and
+adapter-unbound: current adapter and target generations are eligibility
+evidence at `RedrawRequested`, not packet identity. `FrameWork` remains
+diagnostic evidence; it does not authorize rendering, scene reuse, partial
+work, or presentation.
+
+Each window owns a fixed mailbox with `requested`, `consuming`, and `pending`
+state, with at most two retained packet owners. `requested` and `consuming` are
+mutually exclusive. The requested state is the packet for the outstanding
+Winit redraw; an offer while `requested` is occupied replaces it with the
+newest revision and emits no additional Winit wakeup. `RedrawRequested` moves
+that packet to the consuming owner; only an offer while `consuming` is occupied
+uses or replaces the one newest `pending` successor. The private
+`NativeVisualRequestAdapter` is the only caller of raw
+`Window::request_redraw`. All other runtime paths record `FrameWork` and enqueue
+or reissue a packet. A reversible `suspended` state is distinct from retire: it
+rejects enqueue and unsolicited fallback, clears packet ownership and wake
+timing, advances the owner generation, and survives invalidation or native
+resource recovery until an explicit resume. Auxiliary hide/cache dormancy
+suspends the mailbox; inactive recovery rebuilds state without enqueue, an
+inactive `RedrawRequested` reasserts dormancy, and show resumes the mailbox and
+issues exactly one fresh latest-state packet.
+
+Only a `WindowEvent::RedrawRequested` boundary may begin the existing redraw
+kernel and reach presentation. Eligibility is a crate-private logical
+presentation-capability predicate: an initialized primary is eligible even
+while its host visibility is initially hidden or unknown, while an auxiliary
+also requires `active` and `admitted`. Neither scheduling nor admission may
+call or infer authority from Winit `is_visible()`. Every path still requires
+the exact live `WindowId`/owner, a complete current adapter resource bundle,
+running lifecycle, no recovery/closing/stopped state, and an ordinary known,
+unfenced target. Runtime and scene dirty state remains recorded even when no
+packet is admissible. Ordinary offers and scheduler demand use only that local
+predicate; exact current adapter-resource validation remains at the redraw
+callback. A requested packet whose begin eligibility fails returns the private
+`RequestedVetoed` outcome, clears the requested packet and associated pending
+packet, advances the owner generation, clears wake timing/stale state and the
+recovery exception, and performs no redraw, completion, or fallback. A
+`WrongWindow` result preserves the current packet; with no requested packet the
+result is `Ineligible`. Missing adapter generation follows `RequestedVetoed`
+when a requested packet exists rather than returning early. Requested packets
+may additionally cross a temporary target fence only for a validated nonzero
+pending resize that can restore the target or the existing one-shot `Other`
+recovery permit; an unsolicited fallback is restricted to ordinary eligibility.
+Scheduler demand exists only for ordinary eligibility or an outstanding
+requested packet with a valid recovery exception. Exhausted fenced state has no
+cadence/repaint demand, retry deadline, or `frame_wait` reinsertion until an
+explicit rearm. For the primary scheduler, retry deadlines, and `frame_wait`,
+the stored adapter owner must exist and expose the exact generation in the
+active resource bundle; missing or mismatched evidence is quiescent and does
+not reinsert work. Packet offering remains adapter-unbound so initialization
+and recovery may enqueue while holding the adapter externally; auxiliary
+scheduler admission remains parent-generation-authoritative. A primary
+`RedrawRequested` callback with no stored adapter owner is a hard
+`RequestedVetoed` transition: it clears requested and pending ownership,
+stale wake timing, and the recovery exception, advances the owner when packet
+work existed, and performs no redraw, finish, fallback, or diagnostics. With
+no packet it only clears inconsistent wake/recovery state. After
+resize/acquisition and before scene work, the current target must again be
+known and unfenced. Hide/cache dormancy, close/retire, owner replacement,
+recovery/loss, and resource isolation retain their explicit invalidation
+fences.
+
+Radiant stores desired visibility in crate-private
+`logical_window_visible`, separate from physical Winit application. An explicit
+policy update changes that desired state and applies it only while the local
+lifecycle is running. Recovery, loss, and closing physically conceal the
+window without changing desired state; successful renderer/device publication
+reapplies the latest desired state, while failed recovery remains physically
+hidden. Initial hidden and explicitly hidden windows remain hidden. Visibility
+intent received during recovery updates desired state and is applied only after
+successful publication. No path reads Winit visibility back.
+
+A stale owner generation or revision drops the packet and does not fall back
+into rendering. The redraw kernel returns one private typed disposition:
+`Presented`, `RetrySamePacket`, or `DropPacket` (with the existing renderer
+failure result kept separate). `Timeout` may return `RetrySamePacket` only
+within its bounded nonzero-size permit; exhausted/zero-size timeout drops.
+Nonzero `Lost`/`Outdated` invalidates and reconfigures, then may enqueue a fresh
+policy-authorized requested packet; zero-size variants drop/defer. `Other` may
+use at most one fresh requested recovery packet, never an unsolicited
+fallback; out-of-memory, renderer failure, pre/post-acquire veto, missing
+device, and no-submission paths drop. A completion promotes the newest pending
+successor; when a retry sees a pending successor, that newer packet wins, and
+only an empty pending slot retries the exact consuming identity. Offers allocate
+their newer revision before any stale-wake reissue, and route-end flushing
+rechecks current mailbox state and timestamp. Primary and auxiliary windows use
+the same typed begin/redraw/finish kernel and parent-owned observational frame
+evidence.
+
+Hide/cache, close/retire, `WindowId` replacement, adapter/device recovery or
+loss, and native resource isolation/replacement clear every mailbox state and
+advance the owner generation. Ordinary deferred resize and its
+target-generation advancement do not clear the mailbox: the packet claimed
+for that redraw survives its own target transition. Owner and request
+revisions are checked, start at one, and fail closed at exhaustion; neither
+wraps or is reused. Primary and auxiliary windows use the same begin/finish
+kernel and the same parent-owned observational frame evidence. This slice does
+not reorder surface acquisition, scene admission, encoding, submission, or
+presentation; it does not add `EncodePresent`, `NativeFrameSnapshotRevision`,
+a public API, or a renderer/scene cleanup policy.

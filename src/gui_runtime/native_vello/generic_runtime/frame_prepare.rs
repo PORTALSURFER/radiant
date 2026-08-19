@@ -1,5 +1,6 @@
 //! Per-frame model refresh and transient overlay preparation.
 
+use super::prepared_surface_refresh::admit_prepared_surface_refresh_layout;
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     NativeLifecycle, NativeRunnerTimingState, NativeRunnerWindowState,
@@ -32,18 +33,19 @@ where
         let mut used_prepared_refresh = false;
         let mut projection_admitted = false;
         let mut prepared_terminal_messages = None;
-        let mut projection_completion_mismatch = false;
         let (_, elapsed) = profile.measure(|| {
             if self.prepared_surface_refresh_is_eligible()
                 && let Some(ticket) =
                     admit_prepared_surface_refresh(&mut self.frame_stage_owner, native_evidence)
             {
                 projection_admitted = true;
+                let mut projection_ticket = Some(ticket);
+                let mut layout_ticket = None;
                 let adapter = self.adapter.as_ref();
                 let window = &self.window;
                 let timing = &self.timing;
                 let lifecycle = self.native_lifecycle_snapshot();
-                let owner = &self.frame_stage_owner;
+                let owner = &mut self.frame_stage_owner;
                 let core = &mut self.core;
                 let plan = &mut self.frame.last_paint_plan;
                 prepared_terminal_messages = core.try_prepared_surface_refresh(scope, plan, || {
@@ -52,17 +54,41 @@ where
                             adapter, window, timing, lifecycle,
                         )
                     });
-                    ticket.is_current(owner, current_native_evidence)
+                    let Some(ticket) = projection_ticket.as_ref() else {
+                        return false;
+                    };
+                    if !ticket.is_current(owner, current_native_evidence) {
+                        return false;
+                    }
+
+                    let Some(ticket) = projection_ticket.take() else {
+                        return false;
+                    };
+                    if !owner.complete_projection(ticket.into_stage_ticket()) {
+                        return false;
+                    }
+
+                    let Some(ticket) =
+                        admit_prepared_surface_refresh_layout(owner, current_native_evidence)
+                    else {
+                        return false;
+                    };
+                    let current = ticket.is_current(owner, current_native_evidence);
+                    layout_ticket = Some(ticket);
+                    current
                 });
                 used_prepared_refresh = prepared_terminal_messages.is_some();
-                projection_completion_mismatch = !self
-                    .frame_stage_owner
-                    .complete_projection(ticket.into_stage_ticket());
+                if let Some(ticket) = projection_ticket.take() {
+                    owner.complete_projection(ticket.into_stage_ticket());
+                }
+                if let Some(ticket) = layout_ticket.take() {
+                    owner.complete_layout(ticket.into_stage_ticket());
+                }
             }
             // Projection admission is the no-replay boundary. A prepared
             // candidate can veto before publication, but a None result after
             // admission must not re-enter the combined bridge/projection path.
-            if !projection_admitted && !projection_completion_mismatch {
+            if !projection_admitted {
                 self.core.refresh_surface_with_scope(scope);
             }
         });

@@ -49,6 +49,7 @@ pub(crate) use automation_compositor::{
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
+pub(crate) use fresh_surface_preparation::PreparedSurfaceRefresh;
 pub use layout_state::{SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement};
 pub(crate) use owner::AuxiliaryWindowOwner;
 pub(crate) use refresh::BasePaintPlanContext;

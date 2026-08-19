@@ -108,6 +108,7 @@ pub use command::{
 pub(crate) use command::{EffectId, WorkerEffectSink};
 pub(crate) use controller::AuxiliaryWindowOwner;
 pub(crate) use controller::BasePaintPlanContext;
+pub(crate) use controller::PreparedSurfaceRefresh;
 pub(crate) use controller::WheelOrScrollRoute;
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,

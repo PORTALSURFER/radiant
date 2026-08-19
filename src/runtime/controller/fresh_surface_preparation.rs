@@ -251,7 +251,7 @@ impl<Message> PreparedSurfaceRefresh<Message> {
         self.paint_candidate.is_current(runtime, self.appearance)
     }
 
-    fn discard(self) {}
+    pub(crate) fn discard(self) {}
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -2605,6 +2605,22 @@ mod tests {
         assert_eq!(after.widget_state_sync, before.widget_state_sync + 1);
         assert_eq!(after.layout, before.layout + 1);
         assert_eq!(runtime.layout_root, runtime.surface.layout_node());
+    }
+
+    #[test]
+    fn prepared_refresh_hold_and_discard_preserve_active_state() {
+        let (mut runtime, _, _) = runtime_fixture();
+        let before = active_snapshot(&runtime);
+        let prepared = runtime
+            .prepare_fresh_surface_refresh(
+                RepaintScope::Projection,
+                ResolvedAppearance::fixed(ThemeTokens::dark()),
+            )
+            .expect("ordinary neutral refresh should prepare");
+
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
+        prepared.discard();
+        assert_active_snapshot_unchanged(&before, &active_snapshot(&runtime));
     }
 
     #[test]

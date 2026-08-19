@@ -190,11 +190,13 @@ fn prepared_plan_admission_encodes_once_without_a_second_plan_build() {
     runner
         .core
         .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
-    let terminal_messages = runner.core.try_prepared_surface_refresh(
-        crate::runtime::RepaintScope::Projection,
-        &mut runner.frame.last_paint_plan,
-        || true,
-    );
+    let prepared = runner
+        .core
+        .prepare_prepared_surface_refresh(crate::runtime::RepaintScope::Projection)
+        .expect("prepared refresh candidate");
+    let terminal_messages = runner
+        .core
+        .publish_prepared_surface_refresh(&mut runner.frame.last_paint_plan, prepared);
     assert!(terminal_messages.is_some());
     let after_plan = runner.core.runtime.refresh_counters();
     assert_eq!(
@@ -245,6 +247,53 @@ fn prepared_refresh_veto_keeps_the_combined_refresh_fallback() {
         runner.core.runtime.bridge().project_count,
         project_count + 1
     );
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
+fn stale_native_evidence_drops_held_candidate_without_publication_or_replay() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        CountingProjectBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Projection);
+    let project_count = runner.core.runtime.bridge().project_count;
+    let before_refresh = runner.core.runtime.refresh_counters();
+    let native_evidence = valid_prepared_surface_refresh_native_evidence();
+    let mut stale_native_evidence = native_evidence;
+    stale_native_evidence.target_generation =
+        super::super::super::runner_state::NativeTargetGeneration::from_test_serial(2);
+    runner.timing.deferred_surface_refresh = true;
+
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        native_evidence,
+        stale_native_evidence,
+    );
+
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count + 1,
+        "candidate preparation pulls once and must not replay combined projection"
+    );
+    let after_refresh = runner.core.runtime.refresh_counters();
+    assert_eq!(
+        after_refresh.application_projection, before_refresh.application_projection,
+        "stale native evidence must not publish the candidate transaction"
+    );
+    assert_eq!(
+        after_refresh.runtime_projection,
+        before_refresh.runtime_projection,
+    );
+    assert_eq!(
+        after_refresh.widget_state_sync,
+        before_refresh.widget_state_sync
+    );
+    assert_eq!(after_refresh.layout, before_refresh.layout);
     assert!(!runner.frame_stage_owner.has_in_flight());
 }
 
@@ -355,11 +404,13 @@ fn prepared_refresh_dispatches_replacement_terminal_after_scene_admission() {
     // The native owner needs a real window/device resource bundle; exercise
     // the same prepared transaction directly and keep completion on the
     // production ordering helper below.
-    let terminal_messages = runner.core.try_prepared_surface_refresh(
-        crate::runtime::RepaintScope::Projection,
-        &mut runner.frame.last_paint_plan,
-        || true,
-    );
+    let prepared = runner
+        .core
+        .prepare_prepared_surface_refresh(crate::runtime::RepaintScope::Projection)
+        .expect("prepared refresh candidate");
+    let terminal_messages = runner
+        .core
+        .publish_prepared_surface_refresh(&mut runner.frame.last_paint_plan, prepared);
     let terminal_messages = terminal_messages.expect("prepared replacement terminal messages");
     assert_eq!(terminal_messages.len(), 1);
 
@@ -390,6 +441,64 @@ fn prepared_refresh_dispatches_replacement_terminal_after_scene_admission() {
             .base_paint_plan_rebuilds,
         after_plan.base_paint_plan_rebuilds
     );
+}
+
+#[test]
+fn prepared_refresh_orders_projection_candidate_layout_publication_scene_and_terminal() {
+    let recorder = prepared_refresh_scene_admission_recorder();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedRefreshReplacementBridge::new(Rc::clone(&recorder)),
+        Vector2::new(120.0, 40.0),
+    );
+
+    runner.rebuild_scene();
+    runner
+        .core
+        .set_test_prepared_surface_refresh_phase_observer(Rc::new({
+            let recorder = Rc::clone(&recorder);
+            move |phase| {
+                let event = match phase {
+                    "projection-admitted" => PreparedRefreshEvent::ProjectionAdmitted,
+                    "candidate-held" => PreparedRefreshEvent::CandidateHeld,
+                    "projection-complete" => PreparedRefreshEvent::ProjectionCompleted,
+                    "layout-admitted" => PreparedRefreshEvent::LayoutAdmitted,
+                    "published" => PreparedRefreshEvent::Published,
+                    _ => panic!("unexpected prepared refresh phase: {phase}"),
+                };
+                recorder.borrow_mut().push(event);
+            }
+        }));
+    runner.frame.set_test_scene_encode_observer(Rc::new({
+        let recorder = Rc::clone(&recorder);
+        move || record_prepared_refresh_scene_encode(&recorder)
+    }));
+    runner.frame.set_test_scene_admission_observer(Rc::new({
+        let recorder = Rc::clone(&recorder);
+        move || record_prepared_refresh_scene_admission(&recorder)
+    }));
+    runner.core.runtime.bridge_mut().replace = true;
+    runner.timing.deferred_surface_refresh = true;
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    assert_eq!(
+        prepared_refresh_events(&recorder),
+        vec![
+            PreparedRefreshEvent::ProjectionAdmitted,
+            PreparedRefreshEvent::CandidateHeld,
+            PreparedRefreshEvent::ProjectionCompleted,
+            PreparedRefreshEvent::LayoutAdmitted,
+            PreparedRefreshEvent::Published,
+            PreparedRefreshEvent::SceneEncode,
+            PreparedRefreshEvent::SceneAdmitted,
+            PreparedRefreshEvent::TerminalUpdate(PreparedRefreshTerminalMessage),
+        ]
+    );
+    assert!(!runner.frame_stage_owner.has_in_flight());
 }
 
 #[test]

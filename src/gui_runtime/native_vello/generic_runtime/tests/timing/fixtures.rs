@@ -262,6 +262,11 @@ pub(super) struct PreparedRefreshTerminalMessage;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PreparedRefreshEvent {
+    ProjectionAdmitted,
+    CandidateHeld,
+    ProjectionCompleted,
+    LayoutAdmitted,
+    Published,
     SceneEncode,
     SceneAdmitted,
     TerminalUpdate(PreparedRefreshTerminalMessage),

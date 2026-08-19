@@ -204,14 +204,47 @@ where
         repaint_requested
     }
 
-    /// Return and clear the currently admitted volatile GPU-shader presentation
-    /// uniform updates without allocating a new drain buffer.
+    #[cfg(test)]
     pub(crate) fn take_gpu_shader_presentation_updates(
         &mut self,
     ) -> &[GpuShaderPresentationUniformUpdate] {
         self.gpu_shader_presentation_uniform_mailbox
             .drain_into(&mut self.gpu_shader_presentation_uniform_updates);
         &self.gpu_shader_presentation_uniform_updates
+    }
+
+    /// Stage the currently admitted volatile GPU-shader updates without
+    /// removing them from the mailbox. The native frame must call
+    /// `commit_gpu_shader_presentation_updates` only after successful present,
+    /// or `abort_gpu_shader_presentation_updates` on every veto/failure path.
+    pub(crate) fn snapshot_gpu_shader_presentation_updates(
+        &mut self,
+    ) -> &[GpuShaderPresentationUniformUpdate] {
+        self.gpu_shader_presentation_uniform_mailbox
+            .snapshot_into(&mut self.gpu_shader_presentation_uniform_updates);
+        &self.gpu_shader_presentation_uniform_updates
+    }
+
+    /// Borrow the staged volatile updates without changing their ownership.
+    /// The slice is valid until the current native frame stops using it and
+    /// commits or aborts the snapshot.
+    pub(crate) fn staged_gpu_shader_presentation_updates(
+        &self,
+    ) -> &[GpuShaderPresentationUniformUpdate] {
+        &self.gpu_shader_presentation_uniform_updates
+    }
+
+    /// Commit the exact volatile update snapshot staged for the current frame.
+    pub(crate) fn commit_gpu_shader_presentation_updates(&mut self) {
+        self.gpu_shader_presentation_uniform_mailbox
+            .commit_snapshot();
+    }
+
+    /// Retain every volatile update selected by the current frame snapshot
+    /// after an acquisition, lifecycle, or renderer veto.
+    pub(crate) fn abort_gpu_shader_presentation_updates(&mut self) {
+        self.gpu_shader_presentation_uniform_mailbox
+            .abort_snapshot();
     }
 
     /// Return and clear the current runtime-exit request flag.

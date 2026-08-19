@@ -1,3 +1,4 @@
+use super::native_encode_present::NativeEncodePresentPath;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::{
     CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner, RenderFrameProfile,
@@ -30,10 +31,14 @@ where
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
         requested_packet: bool,
+        packet_identity: super::native_visual_packet::NativeVisualRequestIdentity,
     ) -> Result<NativeVisualRequestDisposition, NativeFrameRenderFailure> {
         self.cpu_frame_observation_capture.reset();
         self.clear_native_visual_request_wake_timing();
         self.timing.surface_resize_applied_this_frame = false;
+        if !self.resume_deferred_deadline_before_redraw(event_loop, adapter) {
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        }
         if !self.admit_native_resources(adapter) {
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
@@ -44,14 +49,6 @@ where
         if self.window.window.is_none() {
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
-        let surface_texture =
-            match self.acquire_present_surface_texture(event_loop, adapter, requested_packet) {
-                Ok(surface_texture) => surface_texture,
-                Err(disposition) => return Ok(disposition),
-            };
-        if !self.native_presentation_target_is_ready(adapter) {
-            return Ok(NativeVisualRequestDisposition::DropPacket);
-        };
         self.cpu_frame_observation_capture.mark_frame_path_started();
         let profile_enabled = render_profile_enabled();
         let diagnostics_requested = self.frame_observation_enabled;
@@ -126,6 +123,69 @@ where
         if !self.admit_native_resources(adapter) {
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        };
+        // Volatile GPU updates are staged before the final stage-owner ticket
+        // and before get_current_texture. Every veto below aborts this
+        // snapshot; only a successful present commits it.
+        self.core.runtime.snapshot_gpu_shader_presentation_updates();
+        let Some(snapshot_revision) = self.allocate_native_frame_snapshot_revision() else {
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        };
+        let path = if render_resize_frame_directly {
+            NativeEncodePresentPath::DirectResize
+        } else {
+            NativeEncodePresentPath::Composited
+        };
+        let Some(ticket) = self.admit_native_encode_present(
+            packet_identity,
+            adapter_generation,
+            path,
+            snapshot_revision,
+        ) else {
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        };
+        let mut ticket = Some(ticket);
+        let surface_texture = match self.acquire_present_surface_texture() {
+            Ok(surface_texture) => {
+                self.prepare_successful_surface_acquisition();
+                surface_texture
+            }
+            Err(error) => {
+                if let Some(ticket) = ticket.take() {
+                    let _ = self.veto_native_encode_present(ticket);
+                }
+                self.core.runtime.abort_gpu_shader_presentation_updates();
+                let disposition = self.handle_present_surface_acquire_error(
+                    event_loop,
+                    adapter,
+                    requested_packet,
+                    error,
+                );
+                return Ok(disposition);
+            }
+        };
+        let Some(ticket_ref) = ticket.as_ref() else {
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        };
+        if !self.native_presentation_target_is_ready(adapter)
+            || !self.native_encode_present_ticket_is_current(
+                ticket_ref,
+                packet_identity,
+                adapter,
+                path,
+            )
+        {
+            if let Some(ticket) = ticket.take() {
+                let _ = self.veto_native_encode_present(ticket);
+            }
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        }
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -133,10 +193,18 @@ where
             render_resize_frame_directly || self.frame.scene_texture_dirty;
         let render_to_texture_elapsed = {
             let Some(resources) = self.window.native_resources.as_mut() else {
+                if let Some(ticket) = ticket.take() {
+                    let _ = self.veto_native_encode_present(ticket);
+                }
+                self.core.runtime.abort_gpu_shader_presentation_updates();
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let surface = &mut resources.render_surface;
             let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
+                if let Some(ticket) = ticket.take() {
+                    let _ = self.veto_native_encode_present(ticket);
+                }
+                self.core.runtime.abort_gpu_shader_presentation_updates();
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let mut scene_texture_context = SceneTextureContext {
@@ -148,14 +216,30 @@ where
                 dpi_scale: self.window.dpi_scale,
                 record_timing: profile.record_timings,
             };
-            if render_resize_frame_directly {
-                render_scene_to_surface_view(
-                    &mut self.frame,
-                    &mut scene_texture_context,
-                    &surface_view,
-                )?
-            } else {
-                render_scene_texture_if_needed(&mut self.frame, &mut scene_texture_context)?
+            let mut render = || -> Result<_, NativeFrameRenderFailure> {
+                if render_resize_frame_directly {
+                    Ok(render_scene_to_surface_view(
+                        &mut self.frame,
+                        &mut scene_texture_context,
+                        &surface_view,
+                    )?)
+                } else {
+                    Ok(render_scene_texture_if_needed(
+                        &mut self.frame,
+                        &mut scene_texture_context,
+                    )?)
+                }
+            };
+            render()
+        };
+        let render_to_texture_elapsed = match render_to_texture_elapsed {
+            Ok(elapsed) => elapsed,
+            Err(failure) => {
+                if let Some(ticket) = ticket.take() {
+                    let _ = self.veto_native_encode_present(ticket);
+                }
+                self.core.runtime.abort_gpu_shader_presentation_updates();
+                return Err(failure);
             }
         };
         self.cpu_frame_observation_capture.record_profile_stage(
@@ -165,11 +249,33 @@ where
             render_to_texture_elapsed,
         );
         if render_resize_frame_directly {
-            if !self.admit_native_resources(adapter) {
+            let Some(ticket_ref) = ticket.as_ref() else {
+                self.core.runtime.abort_gpu_shader_presentation_updates();
+                return Ok(NativeVisualRequestDisposition::DropPacket);
+            };
+            if !self.native_encode_present_ticket_is_current(
+                ticket_ref,
+                packet_identity,
+                adapter,
+                path,
+            ) {
+                if let Some(ticket) = ticket.take() {
+                    let _ = self.veto_native_encode_present(ticket);
+                }
+                self.core.runtime.abort_gpu_shader_presentation_updates();
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             }
             let (_, elapsed) = profile.measure(|| surface_texture.present());
             profile.submit_present = elapsed;
+            let Some(ticket) = ticket.take() else {
+                self.core.runtime.abort_gpu_shader_presentation_updates();
+                return Ok(NativeVisualRequestDisposition::DropPacket);
+            };
+            if !self.complete_native_encode_present(ticket) {
+                self.core.runtime.abort_gpu_shader_presentation_updates();
+                return Ok(NativeVisualRequestDisposition::DropPacket);
+            }
+            self.core.runtime.commit_gpu_shader_presentation_updates();
             profile.frame_sequence = self.timing.allocate_frame_sequence();
             let input_to_present_latency_us =
                 self.timing.take_input_to_present_latency_us(Instant::now());
@@ -183,7 +289,16 @@ where
             );
             return Ok(NativeVisualRequestDisposition::Presented);
         }
-        if !self.admit_native_resources(adapter) {
+        let Some(ticket_ref) = ticket.as_ref() else {
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        };
+        if !self.native_encode_present_ticket_is_current(ticket_ref, packet_identity, adapter, path)
+        {
+            if let Some(ticket) = ticket.take() {
+                let _ = self.veto_native_encode_present(ticket);
+            }
+            self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         let Some(dev_handle) = self
@@ -192,6 +307,10 @@ where
             .as_ref()
             .and_then(|resources| adapter.device_handle_for_surface(&resources.render_surface))
         else {
+            if let Some(ticket) = ticket.take() {
+                let _ = self.veto_native_encode_present(ticket);
+            }
+            self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         let mut encoder =
@@ -200,10 +319,14 @@ where
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("generic_native_vello_present_blit"),
                 });
-        let presentation_updates = self.core.runtime.take_gpu_shader_presentation_updates();
+        let presentation_updates = self.core.runtime.staged_gpu_shader_presentation_updates();
         let started = profile.record_timings.then(Instant::now);
         let gpu_surface_stats = {
             let Some(resources) = self.window.native_resources.as_mut() else {
+                if let Some(ticket) = ticket.take() {
+                    let _ = self.veto_native_encode_present(ticket);
+                }
+                self.core.runtime.abort_gpu_shader_presentation_updates();
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let surface = &mut resources.render_surface;
@@ -265,7 +388,16 @@ where
             profile.record_timings,
             profile.full_screen_blit,
         );
-        if !self.admit_native_resources(adapter) {
+        let Some(ticket_ref) = ticket.as_ref() else {
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        };
+        if !self.native_encode_present_ticket_is_current(ticket_ref, packet_identity, adapter, path)
+        {
+            if let Some(ticket) = ticket.take() {
+                let _ = self.veto_native_encode_present(ticket);
+            }
+            self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         let (_, elapsed) = profile.measure(|| {
@@ -279,6 +411,15 @@ where
             self.record_successful_native_submission();
             surface_texture.present();
         });
+        let Some(ticket) = ticket.take() else {
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        };
+        if !self.complete_native_encode_present(ticket) {
+            self.core.runtime.abort_gpu_shader_presentation_updates();
+            return Ok(NativeVisualRequestDisposition::DropPacket);
+        }
+        self.core.runtime.commit_gpu_shader_presentation_updates();
         profile.submit_present = elapsed;
         profile.frame_sequence = self.timing.allocate_frame_sequence();
         let now = Instant::now();
@@ -378,9 +519,10 @@ where
             self.adapter = Some(adapter);
             return;
         };
+        let packet_identity = packet.identity();
         let admission =
             self.begin_cpu_frame_observation(super::FrameScheduleKey::Primary, Instant::now());
-        let result = self.redraw(event_loop, &mut adapter, requested_packet);
+        let result = self.redraw(event_loop, &mut adapter, requested_packet, packet_identity);
         let (disposition, redraw_failed) = match result {
             Ok(disposition) => (disposition, false),
             Err(failure) => {

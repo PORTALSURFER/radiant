@@ -1,6 +1,11 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::frame_stage_admission::WindowStageOwner;
+use super::native_encode_present::{
+    NativeEncodePresentAdmission, NativeEncodePresentCurrentEvidence, NativeEncodePresentPath,
+    NativeEncodePresentTicket, NativeFrameSnapshotRevision, complete_native_encode_present,
+    veto_native_encode_present,
+};
 #[cfg(target_os = "macos")]
 use super::native_semantic_accessibility::NativeSemanticAccessibilityAdapter;
 use super::native_visual_packet::{
@@ -1563,6 +1568,91 @@ where
         self.native_visual_request_is_eligible(generation)
     }
 
+    /// Admit the irreversible native encode/submit/present boundary only after
+    /// the caller has finished the CPU-side frame snapshot.  The exact packet
+    /// identity is carried separately from its consuming packet so a pending
+    /// visual successor cannot veto this complete snapshot.
+    pub(super) fn admit_native_encode_present(
+        &mut self,
+        packet: super::native_visual_packet::NativeVisualRequestIdentity,
+        adapter_generation: NativeAdapterGeneration,
+        path: NativeEncodePresentPath,
+        snapshot_revision: NativeFrameSnapshotRevision,
+    ) -> Option<NativeEncodePresentTicket> {
+        let lifecycle = self.native_lifecycle_snapshot();
+        if !lifecycle.is_running()
+            || !self.window.target_generation.is_known()
+            || self.window.native_surface_target_fenced
+            || self
+                .window
+                .native_resources
+                .as_ref()
+                .is_none_or(|resources| resources.generation != adapter_generation)
+        {
+            return None;
+        }
+        let target_generation = self.window.target_generation;
+        let stage = self
+            .frame_stage_owner
+            .admit_encode_present(adapter_generation, target_generation)?;
+        Some(NativeEncodePresentTicket::new(
+            stage,
+            NativeEncodePresentAdmission {
+                packet,
+                adapter_generation,
+                target_generation,
+                lifecycle,
+                path,
+                snapshot_revision,
+            },
+        ))
+    }
+
+    pub(super) fn native_encode_present_ticket_is_current(
+        &self,
+        ticket: &NativeEncodePresentTicket,
+        packet: super::native_visual_packet::NativeVisualRequestIdentity,
+        adapter: &GenericNativeAdapterOwner,
+        path: NativeEncodePresentPath,
+    ) -> bool {
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return false;
+        };
+        let resource_generation_current = self
+            .window
+            .native_resources
+            .as_ref()
+            .is_some_and(|resources| resources.generation == adapter_generation);
+        ticket.is_current(
+            &self.frame_stage_owner,
+            NativeEncodePresentCurrentEvidence {
+                packet,
+                adapter_generation,
+                target_generation: self.window.target_generation,
+                lifecycle: self.native_lifecycle_snapshot(),
+                path,
+                snapshot_revision: ticket.snapshot_revision(),
+            },
+        ) && resource_generation_current
+    }
+
+    pub(super) fn complete_native_encode_present(
+        &mut self,
+        ticket: NativeEncodePresentTicket,
+    ) -> bool {
+        complete_native_encode_present(&mut self.frame_stage_owner, ticket)
+    }
+
+    pub(super) fn veto_native_encode_present(&mut self, ticket: NativeEncodePresentTicket) -> bool {
+        veto_native_encode_present(&mut self.frame_stage_owner, ticket)
+    }
+
+    pub(super) fn allocate_native_frame_snapshot_revision(
+        &mut self,
+    ) -> Option<NativeFrameSnapshotRevision> {
+        self.timing.native_frame_snapshot_revision.allocate()
+    }
+
     pub(super) fn finish_native_visual_request(
         &mut self,
         packet: NativeVisualRequestPacket,
@@ -1702,6 +1792,32 @@ where
         self.timing.last_timed_frame_drain = now;
         self.core
             .drain_timed_frame(animation_activity, needs_text_caret_animation)
+    }
+
+    /// Resume a Deadline drain retained by the scheduler before this redraw
+    /// performs resize or any CPU/native frame preparation. The scheduler owns
+    /// the exact identity and payload; this boundary only dispatches its
+    /// terminal route outcome and never selects or replays another frame.
+    pub(super) fn resume_deferred_deadline_before_redraw(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter: &GenericNativeAdapterOwner,
+    ) -> bool {
+        if !self.is_running() || !self.frame_stage_owner.has_deferred_timed_frame() {
+            return true;
+        }
+        let key = self.frame_stage_owner.schedule_key().clone();
+        let admission = self.admit_deferred_timed_frame_deadline(
+            Instant::now(),
+            &key,
+            adapter.capture_generation(),
+            self.window.target_generation,
+        );
+        if !admission.route_outcome {
+            return true;
+        }
+        self.handle_route_outcome_deferred_publication(event_loop, admission.outcome);
+        self.is_running()
     }
 
     pub(super) fn merge_due_timed_frame_for_route(&mut self, outcome: &mut GenericRouteOutcome) {

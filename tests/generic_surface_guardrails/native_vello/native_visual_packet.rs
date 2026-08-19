@@ -18,6 +18,8 @@ fn native_visual_packets_have_one_bounded_redraw_authority() {
         .expect("native presentation source should be readable");
     let surface = fs::read_to_string(source_root.join("surface.rs"))
         .expect("native surface source should be readable");
+    let encode_present = fs::read_to_string(source_root.join("native_encode_present.rs"))
+        .expect("native encode/present source should be readable");
 
     assert!(
         packet.contains("pub(super) struct NativeVisualRequestPacket")
@@ -79,13 +81,98 @@ fn native_visual_packets_have_one_bounded_redraw_authority() {
     );
     assert!(
         present.contains("Result<NativeVisualRequestDisposition, NativeFrameRenderFailure>")
-            && surface.contains("Result<wgpu::SurfaceTexture, NativeVisualRequestDisposition>")
+            && surface.contains("Result<wgpu::SurfaceTexture, NativeSurfaceAcquireError>")
             && present.contains("NativeVisualRequestDisposition::Presented")
             && present.contains("NativeVisualRequestDisposition::DropPacket")
             && surface.contains("NativeVisualRequestDisposition::RetrySamePacket")
             && present.contains("let (disposition, redraw_failed) = match result")
             && auxiliary.contains("let (disposition, redraw_failed) = match redraw_result"),
         "primary and auxiliary wrappers must consume the typed native packet disposition"
+    );
+    assert!(
+        encode_present.contains("pub(super) struct NativeFrameSnapshotRevision")
+            && encode_present.contains("pub(super) struct NativeEncodePresentTicket")
+            && encode_present.contains("NativeVisualRequestIdentity")
+            && encode_present.contains("NativeEncodePresentPath")
+            && encode_present.contains("EncodePresentStageTicket")
+            && encode_present.contains(
+                "#[derive(Debug, PartialEq, Eq)]\npub(super) struct NativeFrameSnapshotRevision",
+            )
+            && !encode_present.contains(
+                "#[derive(Clone, Debug, PartialEq, Eq)]\npub(super) struct NativeEncodePresentTicket",
+            )
+            && !encode_present.contains("thread::")
+            && !encode_present.contains("Mutex")
+            && !encode_present.contains("Condvar")
+            && !encode_present.contains("sleep(")
+            && runner.contains("admit_native_encode_present(")
+            && runner.contains("complete_native_encode_present(")
+            && runner.contains("veto_native_encode_present(")
+            && present.contains("snapshot_gpu_shader_presentation_updates()")
+            && present.contains("commit_gpu_shader_presentation_updates()")
+            && present.contains("abort_gpu_shader_presentation_updates()")
+            && present.contains("acquire_present_surface_texture(")
+            && present.contains("admit_native_encode_present(")
+            && present.contains("NativeEncodePresentPath::DirectResize")
+            && present.contains("NativeEncodePresentPath::Composited"),
+        "native presentation must stage losslessly, admit one exact ticket immediately before acquisition, and share direct/composited ownership without waits or locks"
+    );
+
+    let redraw_start = present
+        .find("pub(super) fn redraw(")
+        .expect("redraw should remain the consuming presentation boundary");
+    let redraw = &present[redraw_start..];
+    let deferred_resume = redraw
+        .find("self.resume_deferred_deadline_before_redraw(event_loop, adapter)")
+        .expect("redraw should resume a deferred Deadline before preparation");
+    let deferred_resize = redraw
+        .find("self.apply_pending_surface_resize_if_needed(adapter);")
+        .expect("redraw should retain deferred resize application");
+    assert!(
+        deferred_resume < deferred_resize,
+        "deferred Deadline completion must precede deferred resize and CPU frame preparation"
+    );
+    let resume_start = runner
+        .find("pub(super) fn resume_deferred_deadline_before_redraw(")
+        .expect("runner should own the redraw-boundary deferred Deadline resume");
+    let resume = &runner[resume_start..];
+    let resume_admission = resume
+        .find("self.admit_deferred_timed_frame_deadline(")
+        .expect("redraw-boundary resume should consume the exact retained Deadline");
+    let resume_route = resume
+        .find("self.handle_route_outcome_deferred_publication(event_loop, admission.outcome);")
+        .expect("deferred Deadline route outcomes should dispatch at the redraw boundary");
+    let resume_continue_check = resume[resume_route..]
+        .find("self.is_running()")
+        .map(|offset| resume_route + offset)
+        .expect("redraw should continue only after the deferred route handler updates lifecycle");
+    assert!(
+        resume_admission < resume_route && resume_route < resume_continue_check,
+        "deferred Deadline route dispatch must follow exact resume and complete before redraw continuation"
+    );
+    let acquire_start = redraw
+        .find("let surface_texture = match self.acquire_present_surface_texture()")
+        .expect("redraw should use the raw acquisition seam");
+    let acquire = &redraw[acquire_start..];
+    let acquire_veto = acquire
+        .find("self.veto_native_encode_present(ticket)")
+        .expect("every acquisition error must retire the exact encode/present ticket");
+    let acquire_abort = acquire
+        .find("self.core.runtime.abort_gpu_shader_presentation_updates();")
+        .expect("every acquisition error must abort the volatile snapshot");
+    let acquire_policy = acquire
+        .find("self.handle_present_surface_acquire_error(")
+        .expect("surface recovery policy must run after ticket retirement");
+    assert!(
+        acquire_veto < acquire_abort && acquire_abort < acquire_policy,
+        "Lost/Outdated/Timeout/Other/OOM policy must follow exact ticket veto and snapshot abort"
+    );
+    let admitted_path = redraw
+        .find("let mut ticket = Some(ticket);")
+        .expect("redraw should retain the admitted ticket across native work");
+    assert!(
+        !redraw[admitted_path..].contains("self.admit_native_resources(adapter)"),
+        "post-admission paths must use pure ticket/resource currentness checks before vetoing, never recovery-capable resource admission"
     );
 
     let transition_start = surface

@@ -809,10 +809,42 @@ target-generation advancement do not clear the mailbox: the packet claimed
 for that redraw survives its own target transition. Owner and request
 revisions are checked, start at one, and fail closed at exhaustion; neither
 wraps or is reused. Primary and auxiliary windows use the same begin/finish
-kernel and the same parent-owned observational frame evidence. This slice does
-not reorder surface acquisition, scene admission, encoding, submission, or
-presentation; it does not add `EncodePresent`, `NativeFrameSnapshotRevision`,
-a public API, or a renderer/scene cleanup policy.
+kernel and the same parent-owned observational frame evidence.
+
+### Native encode/present snapshot ticket (private native-window contract)
+
+After deferred Deadline drain, route/input coalescing, deferred resize,
+scene admission/reuse, prepared-refresh terminal dispatch, auxiliary sync, and
+transient overlay work complete, the native kernel stages volatile GPU
+presentation updates into the existing fixed 32-slot mailbox. Staging is
+two-phase: an acquisition or lifecycle/renderer veto aborts the snapshot and
+retains every selected update; successful presentation commits only the exact
+selected presentation revisions, so a newer update admitted while the snapshot
+is in flight remains pending for the next frame. The steady-state path uses
+the existing preallocated storage and never makes the update mailbox a dirty
+bit or render-policy authority.
+
+Immediately before `get_current_texture`, the window's `WindowStageOwner`
+admits one crate-private non-`Clone` `NativeEncodePresentTicket`. It binds the
+exact stage-owner identity and revision, consuming `NativeVisualRequestPacket`
+identity, current adapter/resource generation, post-resize target generation,
+running lifecycle, finalized direct-resize or composited path, and a checked
+non-wrapping `NativeFrameSnapshotRevision`. No pending visual successor vetoes
+this complete snapshot unless lifecycle, resource, or target evidence changes.
+Every `get_current_texture`, surface-view creation, scene render, GPU encode,
+submit, and present operation is behind that exact current ticket. Each
+post-admission veto or failure consumes the exact ticket once without replay;
+a wrong ticket preserves the real owner. Direct-resize and composited paths
+share the same kernel and success-only completion gate.
+
+Only exact successful completion advances frame sequence and publishes frame
+diagnostics/profile, input-to-present latency, last-present timing, and first
+reveal. Surface loss, timeout, out-of-memory, renderer failure, lifecycle
+transition, resource loss, and target transition preserve the existing
+recovery matrix and abort the volatile snapshot. A same-packet retry prepares a
+fresh snapshot and fresh ticket. This remains crate-private and does not add a
+public API/schema, dirty-bit suppression, renderer retention, render thread,
+budget, timestamp, or platform claim.
 
 ## Modern CPU/GPU Architecture
 

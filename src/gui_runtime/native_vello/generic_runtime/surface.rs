@@ -37,6 +37,12 @@ mod viewport;
 
 use viewport::{logical_viewport_for_size, surface_size_changed};
 
+#[derive(Debug)]
+pub(super) enum NativeSurfaceAcquireError {
+    MissingResources,
+    Surface(wgpu::SurfaceError),
+}
+
 pub(super) fn instance_for_options(options: &NativeRunOptions) -> wgpu::Instance {
     backend::instance_for_options(options)
 }
@@ -530,25 +536,29 @@ where
 
     pub(super) fn acquire_present_surface_texture(
         &mut self,
-        event_loop: &ActiveEventLoop,
-        adapter: &GenericNativeAdapterOwner,
-        requested_packet: bool,
-    ) -> Result<wgpu::SurfaceTexture, NativeVisualRequestDisposition> {
-        if !self.admit_native_resources(adapter) {
-            return Err(NativeVisualRequestDisposition::DropPacket);
-        }
+    ) -> Result<wgpu::SurfaceTexture, NativeSurfaceAcquireError> {
         let texture = {
             let Some(resources) = self.window.native_resources.as_mut() else {
-                return Err(NativeVisualRequestDisposition::DropPacket);
+                return Err(NativeSurfaceAcquireError::MissingResources);
             };
             resources.render_surface.surface.get_current_texture()
         };
-        match texture {
-            Ok(frame) => {
-                self.prepare_successful_surface_acquisition();
-                Ok(frame)
-            }
-            Err(error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
+        texture.map_err(NativeSurfaceAcquireError::Surface)
+    }
+
+    pub(super) fn handle_present_surface_acquire_error(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter: &GenericNativeAdapterOwner,
+        requested_packet: bool,
+        error: NativeSurfaceAcquireError,
+    ) -> NativeVisualRequestDisposition {
+        let NativeSurfaceAcquireError::Surface(error) = error else {
+            let _ = self.admit_native_resources(adapter);
+            return NativeVisualRequestDisposition::DropPacket;
+        };
+        match error {
+            error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
                 let Some(size) = self
@@ -557,7 +567,7 @@ where
                     .as_ref()
                     .map(|window| window.inner_size())
                 else {
-                    return Err(NativeVisualRequestDisposition::DropPacket);
+                    return NativeVisualRequestDisposition::DropPacket;
                 };
                 match surface_acquire_policy(error, size) {
                     SurfaceAcquirePolicy::ReconfigureAndRetry
@@ -574,9 +584,9 @@ where
                     }
                     _ => {}
                 }
-                Err(NativeVisualRequestDisposition::DropPacket)
+                NativeVisualRequestDisposition::DropPacket
             }
-            Err(error @ wgpu::SurfaceError::Timeout) => {
+            error @ wgpu::SurfaceError::Timeout => {
                 self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
                 let size = self
@@ -592,11 +602,11 @@ where
                     .surface_recovery
                     .record_timeout_retry_request(size.width > 0 && size.height > 0)
                 {
-                    return Err(NativeVisualRequestDisposition::RetrySamePacket);
+                    return NativeVisualRequestDisposition::RetrySamePacket;
                 }
-                Err(NativeVisualRequestDisposition::DropPacket)
+                NativeVisualRequestDisposition::DropPacket
             }
-            Err(wgpu::SurfaceError::Other) => {
+            wgpu::SurfaceError::Other => {
                 self.mark_cpu_frame_observation_recovery();
                 let size = self
                     .window
@@ -607,16 +617,16 @@ where
                 warn!(
                     "radiant generic native vello: conservatively fenced surface after other acquire error"
                 );
-                Err(NativeVisualRequestDisposition::DropPacket)
+                NativeVisualRequestDisposition::DropPacket
             }
-            Err(wgpu::SurfaceError::OutOfMemory) => {
+            wgpu::SurfaceError::OutOfMemory => {
                 self.mark_cpu_frame_observation_recovery();
                 error!("radiant generic native vello: out of memory acquiring surface");
                 self.admit_native_shutdown(
                     event_loop,
                     Some(NativeGenericRunError::SurfaceAcquireOutOfMemory),
                 );
-                Err(NativeVisualRequestDisposition::DropPacket)
+                NativeVisualRequestDisposition::DropPacket
             }
         }
     }

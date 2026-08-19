@@ -183,8 +183,14 @@ fn retained_window_gpu_state_is_generation_owned_and_admitted() {
         "presentation should access retained GPU state through the active resource bundle"
     );
     assert!(
-        present.matches("admit_native_resources(adapter)").count() >= 3,
-        "presentation should admit the active generation before every GPU phase"
+        present.matches("admit_native_resources(adapter)").count() >= 2
+            && present.contains("native_encode_present_ticket_is_current(")
+            && present.contains("let mut ticket = Some(ticket);")
+            && !present[present
+                .find("let mut ticket = Some(ticket);")
+                .expect("presentation should retain its admitted ticket")..]
+                .contains("self.admit_native_resources(adapter)"),
+        "presentation should admit the active generation before ticket creation and use pure ticket currentness checks for every later GPU phase"
     );
 }
 
@@ -209,10 +215,15 @@ fn generic_native_resize_acquire_and_present_paths_admit_before_wgpu_work() {
         "surface acquisition should use only the admitted resource bundle"
     );
     assert!(
-        present.matches("admit_native_resources(adapter)").count() >= 3
+        present.matches("admit_native_resources(adapter)").count() >= 2
+            && present.contains("native_encode_present_ticket_is_current(")
             && present.contains("resources.renderer")
-            && present.contains("resources.render_surface"),
-        "render and presentation should use the admitted atomic bundle"
+            && present.contains("resources.render_surface")
+            && !present[present
+                .find("let mut ticket = Some(ticket);")
+                .expect("presentation should retain its admitted ticket")..]
+                .contains("self.admit_native_resources(adapter)"),
+        "render and presentation should use the admitted atomic bundle without recovery-capable re-admission after ticket creation"
     );
 }
 

@@ -312,6 +312,28 @@ struct InFlightPaintPlan {
     identity: FrameStageIdentity,
 }
 
+/// A non-`Clone` witness for the native encode/submit/present boundary.
+///
+/// This ticket is owned by the shared per-window stage owner until the native
+/// presentation kernel reaches its exact completion boundary.
+#[derive(Debug)]
+pub(super) struct EncodePresentStageTicket {
+    identity: FrameStageIdentity,
+    owner_token: usize,
+}
+
+impl EncodePresentStageTicket {
+    #[cfg(test)]
+    pub(super) fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+}
+
+#[derive(Debug)]
+struct InFlightEncodePresent {
+    identity: FrameStageIdentity,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -343,10 +365,12 @@ pub(super) struct WindowStageOwner {
     projection_in_flight: Option<InFlightProjection>,
     layout_in_flight: Option<InFlightLayout>,
     paint_plan_in_flight: Option<InFlightPaintPlan>,
+    encode_present_in_flight: Option<InFlightEncodePresent>,
     last_completion: Option<FrameStageCompletionEvidence>,
     last_projection_completion: Option<FrameStageIdentity>,
     last_layout_completion: Option<FrameStageIdentity>,
     last_paint_plan_completion: Option<FrameStageIdentity>,
+    last_encode_present_completion: Option<FrameStageIdentity>,
 }
 
 impl WindowStageOwner {
@@ -363,15 +387,21 @@ impl WindowStageOwner {
             projection_in_flight: None,
             layout_in_flight: None,
             paint_plan_in_flight: None,
+            encode_present_in_flight: None,
             last_completion: None,
             last_projection_completion: None,
             last_layout_completion: None,
             last_paint_plan_completion: None,
+            last_encode_present_completion: None,
         }
     }
 
     #[cfg(test)]
     pub(super) fn key(&self) -> &FrameScheduleKey {
+        &self.key
+    }
+
+    pub(super) fn schedule_key(&self) -> &FrameScheduleKey {
         &self.key
     }
 
@@ -388,6 +418,7 @@ impl WindowStageOwner {
             || self.projection_in_flight.is_some()
             || self.layout_in_flight.is_some()
             || self.paint_plan_in_flight.is_some()
+            || self.encode_present_in_flight.is_some()
     }
 
     pub(super) fn next_revision(&mut self) -> Option<u64> {
@@ -437,6 +468,7 @@ impl WindowStageOwner {
                 || self.projection_in_flight.is_some()
                 || self.layout_in_flight.is_some()
                 || self.paint_plan_in_flight.is_some()
+                || self.encode_present_in_flight.is_some()
             {
                 return false;
             }
@@ -630,6 +662,91 @@ impl WindowStageOwner {
         }
         self.paint_plan_in_flight = None;
         self.last_paint_plan_completion = Some(ticket.identity);
+        true
+    }
+
+    /// Admit one exact native encode/submit/present attempt after all
+    /// synchronous CPU-side work has reached a stable snapshot.
+    pub(super) fn admit_encode_present(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> Option<EncodePresentStageTicket> {
+        if self.pending.is_some()
+            || self.in_flight.is_some()
+            || self.projection_in_flight.is_some()
+            || self.layout_in_flight.is_some()
+            || self.paint_plan_in_flight.is_some()
+            || self.encode_present_in_flight.is_some()
+            || !self.prepare_fence(
+                adapter_generation,
+                target_generation,
+                SchedulerStage::EncodePresent,
+            )
+        {
+            return None;
+        }
+        let revision = self.next_revision()?;
+        let identity = FrameStageIdentity::new(
+            self.key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::EncodePresent,
+            self.owner_generation,
+            revision,
+        );
+        if self.stale(&identity) {
+            return None;
+        }
+        self.encode_present_in_flight = Some(InFlightEncodePresent {
+            identity: identity.clone(),
+        });
+        Some(EncodePresentStageTicket {
+            identity,
+            owner_token: self as *const Self as usize,
+        })
+    }
+
+    pub(super) fn encode_present_ticket_is_current(
+        &self,
+        ticket: &EncodePresentStageTicket,
+    ) -> bool {
+        self.encode_present_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity == ticket.identity
+                    && ticket.owner_token == self as *const Self as usize
+            })
+    }
+
+    /// Complete only the exact native encode/submit/present operation that was
+    /// admitted. A mismatch leaves the real owner in flight.
+    pub(super) fn complete_encode_present(&mut self, ticket: EncodePresentStageTicket) -> bool {
+        let Some(in_flight) = self.encode_present_in_flight.as_ref() else {
+            return false;
+        };
+        if in_flight.identity != ticket.identity
+            || ticket.owner_token != self as *const Self as usize
+        {
+            return false;
+        }
+        self.encode_present_in_flight = None;
+        self.last_encode_present_completion = Some(ticket.identity);
+        true
+    }
+
+    /// Veto the exact native encode/submit/present attempt without recording a
+    /// successful completion. A mismatched ticket preserves the real owner.
+    pub(super) fn veto_encode_present(&mut self, ticket: EncodePresentStageTicket) -> bool {
+        let Some(in_flight) = self.encode_present_in_flight.as_ref() else {
+            return false;
+        };
+        if in_flight.identity != ticket.identity
+            || ticket.owner_token != self as *const Self as usize
+        {
+            return false;
+        }
+        self.encode_present_in_flight = None;
         true
     }
 
@@ -855,6 +972,25 @@ impl WindowStageOwner {
             return true;
         }
         if self
+            .encode_present_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity.same_fence(identity)
+                    && identity.revision < in_flight.identity.revision
+            })
+        {
+            return true;
+        }
+        if self
+            .last_encode_present_completion
+            .as_ref()
+            .is_some_and(|completion| {
+                completion.same_fence(identity) && identity.revision <= completion.revision
+            })
+        {
+            return true;
+        }
+        if self
             .last_projection_completion
             .as_ref()
             .is_some_and(|completion| {
@@ -894,10 +1030,12 @@ impl WindowStageOwner {
             && self.projection_in_flight.is_none()
             && self.layout_in_flight.is_none()
             && self.paint_plan_in_flight.is_none()
+            && self.encode_present_in_flight.is_none()
             && self.last_completion.is_none()
             && self.last_projection_completion.is_none()
             && self.last_layout_completion.is_none()
             && self.last_paint_plan_completion.is_none()
+            && self.last_encode_present_completion.is_none()
         {
             return;
         }
@@ -906,10 +1044,12 @@ impl WindowStageOwner {
         self.projection_in_flight = None;
         self.layout_in_flight = None;
         self.paint_plan_in_flight = None;
+        self.encode_present_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
         self.last_paint_plan_completion = None;
+        self.last_encode_present_completion = None;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -948,6 +1088,7 @@ const fn stage_can_be_admitted(stage: SchedulerStage) -> bool {
             | SchedulerStage::Projection
             | SchedulerStage::Layout
             | SchedulerStage::PaintPlan
+            | SchedulerStage::EncodePresent
     )
 }
 
@@ -1580,8 +1721,7 @@ mod tests {
     }
 
     #[test]
-    fn all_scheduler_stage_variants_are_explicit_and_deadline_projection_layout_and_paint_plan_are_admitted()
-     {
+    fn all_scheduler_stage_variants_are_explicit_and_native_stages_are_admitted() {
         for stage in SchedulerStage::ORDER {
             assert!(stage.is_non_preemptive());
         }
@@ -1605,6 +1745,7 @@ mod tests {
                         | SchedulerStage::Projection
                         | SchedulerStage::Layout
                         | SchedulerStage::PaintPlan
+                        | SchedulerStage::EncodePresent
                 )
             );
         }

@@ -106,14 +106,14 @@ pub(super) struct NativeVisualRequestPacket {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct NativeVisualRequestIdentity {
+pub(super) struct NativeVisualRequestIdentity {
     window_id: WindowId,
     owner_generation: NativeVisualOwnerGeneration,
     revision: NativeVisualRevision,
 }
 
 impl NativeVisualRequestPacket {
-    fn identity(&self) -> NativeVisualRequestIdentity {
+    pub(super) fn identity(&self) -> NativeVisualRequestIdentity {
         NativeVisualRequestIdentity {
             window_id: self.window_id,
             owner_generation: self.owner_generation,

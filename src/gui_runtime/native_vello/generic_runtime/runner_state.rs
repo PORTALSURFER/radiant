@@ -756,6 +756,8 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) first_frame_presented: bool,
     pub(super) native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
     pub(super) next_frame_sequence: Option<u64>,
+    pub(super) native_frame_snapshot_revision:
+        super::native_encode_present::NativeFrameSnapshotRevisionAllocator,
     pub(super) animation_origin: Instant,
     pub(super) last_redraw: Instant,
     pub(super) last_timed_frame_drain: Instant,
@@ -792,6 +794,7 @@ impl NativeRunnerTimingState {
             first_frame_presented: false,
             native_window_diagnostic_identity,
             next_frame_sequence: Some(1),
+            native_frame_snapshot_revision: Default::default(),
             animation_origin: now,
             last_redraw: now,
             last_timed_frame_drain: now,

@@ -181,6 +181,7 @@ struct MailboxSlot {
     key: MailboxSlotKey,
     latest: Option<GpuShaderPresentationUniformUpdate>,
     last_presentation_revision: Option<u64>,
+    snapshot_revision: Option<u64>,
 }
 
 /// Fixed-capacity mailbox owned by one [`SurfaceRuntime`]. Pending updates are
@@ -221,6 +222,7 @@ impl GpuShaderPresentationUniformMailbox {
                 key,
                 latest: Some(update),
                 last_presentation_revision: Some(update.presentation_revision),
+                snapshot_revision: None,
             };
             return true;
         }
@@ -232,19 +234,59 @@ impl GpuShaderPresentationUniformMailbox {
             key,
             latest: Some(update),
             last_presentation_revision: Some(update.presentation_revision),
+            snapshot_revision: None,
         });
         true
     }
 
-    /// Drain all pending updates into caller-owned fixed-capacity storage.
-    pub(crate) fn drain_into(&mut self, updates: &mut Vec<GpuShaderPresentationUniformUpdate>) {
+    /// Stage all pending updates into caller-owned fixed-capacity storage.
+    ///
+    /// Staging does not clear the mailbox.  Each selected slot retains its
+    /// exact presentation revision until `commit_snapshot` succeeds, so a
+    /// surface-acquisition, renderer, or lifecycle veto cannot lose the
+    /// volatile update.  A newer update admitted while the snapshot is in
+    /// flight remains pending and is not cleared by the older commit.
+    pub(crate) fn snapshot_into(&mut self, updates: &mut Vec<GpuShaderPresentationUniformUpdate>) {
         updates.clear();
         debug_assert!(updates.capacity() >= self.slots.len());
         for slot in &mut self.slots {
-            if let Some(update) = slot.latest.take() {
+            if slot.snapshot_revision.is_some() {
+                continue;
+            }
+            if let Some(update) = slot.latest {
                 updates.push(update);
+                slot.snapshot_revision = Some(update.presentation_revision);
             }
         }
+    }
+
+    /// Commit only the exact revisions selected by the most recent snapshot.
+    /// Newer updates in the same slot remain pending for the next frame.
+    pub(crate) fn commit_snapshot(&mut self) {
+        for slot in &mut self.slots {
+            let Some(snapshot_revision) = slot.snapshot_revision.take() else {
+                continue;
+            };
+            if slot
+                .latest
+                .is_some_and(|update| update.presentation_revision == snapshot_revision)
+            {
+                slot.latest = None;
+            }
+        }
+    }
+
+    /// Abort the most recent snapshot while retaining every selected update.
+    pub(crate) fn abort_snapshot(&mut self) {
+        for slot in &mut self.slots {
+            slot.snapshot_revision = None;
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn drain_into(&mut self, updates: &mut Vec<GpuShaderPresentationUniformUpdate>) {
+        self.snapshot_into(updates);
+        self.commit_snapshot();
     }
 
     #[cfg(test)]
@@ -338,6 +380,10 @@ mod tests {
     #[test]
     fn mailbox_keeps_capacity_bounded_and_reuses_drained_slots() {
         let mut mailbox = GpuShaderPresentationUniformMailbox::default();
+        assert_eq!(
+            mailbox.slots.capacity(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
         for storage_identity in 0..GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64 {
             assert!(mailbox.admit(update_with_storage(
                 2,
@@ -362,7 +408,15 @@ mod tests {
             drained.len(),
             GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
         );
+        assert_eq!(
+            drained.capacity(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
         assert_eq!(mailbox.pending_len(), 0);
+        assert_eq!(
+            mailbox.slots.capacity(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
 
         for storage_identity in GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY as u64
             ..(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY * 2) as u64
@@ -381,6 +435,10 @@ mod tests {
         );
         assert_eq!(
             mailbox.slots.len(),
+            GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
+        );
+        assert_eq!(
+            mailbox.slots.capacity(),
             GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY
         );
         assert!(!mailbox.admit(update_with_storage(
@@ -418,6 +476,30 @@ mod tests {
                 && update.storage_revision == 13
                 && update.presentation_revision == 2
         }));
+    }
+
+    #[test]
+    fn mailbox_snapshot_abort_is_lossless_and_newer_commit_survives() {
+        let mut mailbox = GpuShaderPresentationUniformMailbox::default();
+        assert!(mailbox.admit(update(2, 1, &[1, 1, 1, 1])));
+        let mut staged = Vec::with_capacity(GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY);
+        mailbox.snapshot_into(&mut staged);
+        assert_eq!(staged[0].presentation_revision, 1);
+        mailbox.abort_snapshot();
+        mailbox.snapshot_into(&mut staged);
+        assert_eq!(staged[0].presentation_revision, 1);
+        mailbox.commit_snapshot();
+        assert_eq!(mailbox.pending_len(), 0);
+
+        assert!(mailbox.admit(update(2, 2, &[2, 2, 2, 2])));
+        mailbox.snapshot_into(&mut staged);
+        assert!(mailbox.admit(update(2, 3, &[3, 3, 3, 3])));
+        mailbox.commit_snapshot();
+        assert_eq!(mailbox.pending_len(), 1);
+        mailbox.snapshot_into(&mut staged);
+        assert_eq!(staged[0].presentation_revision, 3);
+        mailbox.commit_snapshot();
+        assert_eq!(mailbox.pending_len(), 0);
     }
 
     #[test]

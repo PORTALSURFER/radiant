@@ -350,7 +350,7 @@ fn native_renderer_recovery_order_keeps_failure_fence_and_publication_atomic() {
     );
 
     let redraw_return = present
-        .find("let result = self.redraw(event_loop, &mut adapter, requested_packet);")
+        .find("let result = self.redraw(event_loop, &mut adapter, requested_packet, packet_identity);")
         .expect("primary redraw should return before recovery is considered");
     let recovery_after_return = present[redraw_return..]
         .find("self.recover_frame_render_failure(")

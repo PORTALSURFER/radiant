@@ -781,11 +781,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     | NativeVisualRequestBegin::Exhausted => None,
                 };
                 if let Some((packet, requested_packet)) = packet {
+                    let packet_identity = packet.identity();
                     let admission = observation.as_deref_mut().map(|owner| {
                         self.runner
                             .begin_cpu_frame_observation_with_owner(owner, Instant::now())
                     });
-                    let redraw_result = self.runner.redraw(event_loop, adapter, requested_packet);
+                    let redraw_result =
+                        self.runner
+                            .redraw(event_loop, adapter, requested_packet, packet_identity);
                     let (disposition, redraw_failed) = match redraw_result {
                         Ok(disposition) => (disposition, false),
                         Err(failure) => {

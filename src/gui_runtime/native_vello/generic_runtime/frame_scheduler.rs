@@ -519,7 +519,7 @@ where
         }
     }
 
-    fn admit_deferred_timed_frame_deadline(
+    pub(super) fn admit_deferred_timed_frame_deadline(
         &mut self,
         now: Instant,
         key: &FrameScheduleKey,

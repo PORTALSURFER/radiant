@@ -39,6 +39,8 @@ where
                     admit_prepared_surface_refresh(&mut self.frame_stage_owner, native_evidence)
             {
                 projection_admitted = true;
+                self.core
+                    .record_test_prepared_surface_refresh_phase("projection-admitted");
                 let mut projection_ticket = Some(ticket);
                 let mut layout_ticket = None;
                 let adapter = self.adapter.as_ref();
@@ -48,35 +50,39 @@ where
                 let owner = &mut self.frame_stage_owner;
                 let core = &mut self.core;
                 let plan = &mut self.frame.last_paint_plan;
-                prepared_terminal_messages = core.try_prepared_surface_refresh(scope, plan, || {
-                    let current_native_evidence = current_native_evidence.unwrap_or_else(|| {
-                        Self::prepared_surface_refresh_native_evidence_from_parts(
-                            adapter, window, timing, lifecycle,
-                        )
-                    });
-                    let Some(ticket) = projection_ticket.as_ref() else {
-                        return false;
-                    };
-                    if !ticket.is_current(owner, current_native_evidence) {
-                        return false;
-                    }
-
-                    let Some(ticket) = projection_ticket.take() else {
-                        return false;
-                    };
-                    if !owner.complete_projection(ticket.into_stage_ticket()) {
-                        return false;
-                    }
-
-                    let Some(ticket) =
-                        admit_prepared_surface_refresh_layout(owner, current_native_evidence)
-                    else {
-                        return false;
-                    };
-                    let current = ticket.is_current(owner, current_native_evidence);
-                    layout_ticket = Some(ticket);
-                    current
+                let mut prepared = core.prepare_prepared_surface_refresh(scope);
+                if prepared.is_some() {
+                    core.record_test_prepared_surface_refresh_phase("candidate-held");
+                }
+                let current_native_evidence = current_native_evidence.unwrap_or_else(|| {
+                    Self::prepared_surface_refresh_native_evidence_from_parts(
+                        adapter, window, timing, lifecycle,
+                    )
                 });
+                if projection_ticket
+                    .as_ref()
+                    .is_some_and(|ticket| ticket.is_current(owner, current_native_evidence))
+                    && let Some(ticket) = projection_ticket.take()
+                    && owner.complete_projection(ticket.into_stage_ticket())
+                {
+                    core.record_test_prepared_surface_refresh_phase("projection-complete");
+                    if prepared.is_some()
+                        && let Some(ticket) =
+                            admit_prepared_surface_refresh_layout(owner, current_native_evidence)
+                    {
+                        let current = ticket.is_current(owner, current_native_evidence);
+                        layout_ticket = Some(ticket);
+                        core.record_test_prepared_surface_refresh_phase("layout-admitted");
+                        if current && let Some(prepared) = prepared.take() {
+                            prepared_terminal_messages =
+                                core.publish_prepared_surface_refresh(plan, prepared);
+                            core.record_test_prepared_surface_refresh_phase("published");
+                        }
+                    }
+                }
+                if let Some(prepared) = prepared.take() {
+                    core.discard_prepared_surface_refresh(prepared);
+                }
                 used_prepared_refresh = prepared_terminal_messages.is_some();
                 if let Some(ticket) = projection_ticket.take() {
                     owner.complete_projection(ticket.into_stage_ticket());
@@ -137,10 +143,24 @@ where
         profile: &mut RenderFrameProfile,
         native_evidence: PreparedSurfaceRefreshNativeEvidence,
     ) {
+        self.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+            profile,
+            native_evidence,
+            native_evidence,
+        );
+    }
+
+    #[cfg(test)]
+    pub(super) fn refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut self,
+        profile: &mut RenderFrameProfile,
+        native_evidence: PreparedSurfaceRefreshNativeEvidence,
+        current_native_evidence: PreparedSurfaceRefreshNativeEvidence,
+    ) {
         self.refresh_deferred_surface_if_needed_with_evidence(
             profile,
             native_evidence,
-            Some(native_evidence),
+            Some(current_native_evidence),
         );
     }
 

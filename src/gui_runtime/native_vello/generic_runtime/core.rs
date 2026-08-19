@@ -4,11 +4,15 @@ use super::{FrameWorkReason, GenericRouteOutcome};
 use crate::gui::types::{Point, Vector2};
 use crate::runtime::BasePaintPlanContext;
 use crate::runtime::{
-    CommandOutcome, DevtoolsOverlayOptions, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime,
+    CommandOutcome, DevtoolsOverlayOptions, PreparedSurfaceRefresh, RuntimeAnimationActivity,
+    RuntimeBridge, SurfaceRuntime,
 };
 use crate::theme::{AppearancePolicy, ResolvedAppearance};
 use crate::widgets::{PointerButton, WidgetKey};
 use std::time::Instant;
+
+#[cfg(test)]
+use std::rc::Rc;
 
 pub(in crate::gui_runtime::native_vello) struct GenericNativeRuntimeCore<Bridge, Message>
 where
@@ -20,6 +24,8 @@ where
     resolved_appearance: ResolvedAppearance,
     base_paint_plan_context: Option<(BasePaintPlanContext, ResolvedAppearance)>,
     paint_segment_observer: crate::runtime::PaintSegmentObserver,
+    #[cfg(test)]
+    prepared_surface_refresh_phase_observer: Option<Rc<dyn Fn(&'static str)>>,
 }
 
 /// Result of one backend-neutral base paint-plan preparation pass.
@@ -97,6 +103,8 @@ where
             resolved_appearance: ResolvedAppearance::fixed(crate::theme::ThemeTokens::dark()),
             base_paint_plan_context: None,
             paint_segment_observer: crate::runtime::PaintSegmentObserver::new(),
+            #[cfg(test)]
+            prepared_surface_refresh_phase_observer: None,
         }
     }
 
@@ -219,29 +227,31 @@ where
         self.runtime.refresh_with_scope(scope);
     }
 
-    /// Try one candidate-local refresh after Projection admission.
+    /// Prepare one candidate-local refresh after Projection admission.
     ///
-    /// `None` is a prepublication veto. Once the caller has admitted the
-    /// Projection ticket, it must complete that ticket and must not re-enter
-    /// the combined refresh path for this result.
-    pub(super) fn try_prepared_surface_refresh<F>(
+    /// The returned non-`Clone` transaction remains inert until the caller
+    /// passes the native Layout gate and invokes publication explicitly.
+    pub(super) fn prepare_prepared_surface_refresh(
         &mut self,
         scope: crate::runtime::RepaintScope,
-        plan: &mut crate::runtime::SurfacePaintPlan,
-        before_publication: F,
-    ) -> Option<Vec<Message>>
-    where
-        F: FnOnce() -> bool,
-    {
+    ) -> Option<PreparedSurfaceRefresh<Message>> {
         let environment = self.runtime.context().resolved_environment();
         let appearance = self.appearance_policy.resolve(environment);
-        let candidate = self
-            .runtime
-            .prepare_fresh_surface_refresh(scope, appearance)?;
-        if !before_publication() {
-            return None;
-        }
-        let publication = self.runtime.publish_prepared_surface_refresh(candidate)?;
+        self.runtime
+            .prepare_fresh_surface_refresh(scope, appearance)
+    }
+
+    /// Publish one candidate after all native gates have passed.
+    ///
+    /// This is the only native operation that consumes a prepared refresh.
+    /// Candidate publication installs the plan exactly once; scene admission
+    /// and terminal dispatch remain outside this method.
+    pub(super) fn publish_prepared_surface_refresh(
+        &mut self,
+        plan: &mut crate::runtime::SurfacePaintPlan,
+        prepared: PreparedSurfaceRefresh<Message>,
+    ) -> Option<Vec<Message>> {
+        let publication = self.runtime.publish_prepared_surface_refresh(prepared)?;
         let (prepared_plan, appearance, terminal_messages) = publication.into_parts();
         *plan = prepared_plan;
         self.resolved_appearance = appearance;
@@ -257,6 +267,31 @@ where
         // publication above is irreversible, so a later scene failure must
         // use terminal recovery rather than direct refresh fallback.
         Some(terminal_messages)
+    }
+
+    /// Drop a held candidate without entering any active runtime path.
+    pub(super) fn discard_prepared_surface_refresh(
+        &mut self,
+        prepared: PreparedSurfaceRefresh<Message>,
+    ) {
+        prepared.discard();
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_test_prepared_surface_refresh_phase_observer(
+        &mut self,
+        observer: Rc<dyn Fn(&'static str)>,
+    ) {
+        self.prepared_surface_refresh_phase_observer = Some(observer);
+    }
+
+    pub(super) fn record_test_prepared_surface_refresh_phase(&self, phase: &'static str) {
+        #[cfg(test)]
+        if let Some(observer) = self.prepared_surface_refresh_phase_observer.as_ref() {
+            observer(phase);
+        }
+        #[cfg(not(test))]
+        let _ = phase;
     }
 
     pub(super) fn finish_prepared_surface_refresh(&mut self, terminal_messages: Vec<Message>) {

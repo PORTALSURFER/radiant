@@ -82,13 +82,12 @@ fn auxiliary_route_redraw_observation_stays_parent_owned() {
         "auxiliary event and schedule boundaries should receive a parent-owned observation scope"
     );
     assert!(
-        runner.contains("match adapter")
-            && runner.contains(
-                "redraw_and_exit_on_error_with_adapter(event_loop, adapter, observation)"
-            )
-            && present.contains("begin_cpu_frame_observation_with_owner(owner")
-            && present.contains("if let (Some(owner), Some(admission))")
-            && present.contains("finish_cpu_frame_observation_with_owner(owner"),
-        "route-time auxiliary redraws should commit through the parent owner and never use an ownerless child wrapper"
+        runner.contains("pub(super) fn begin_native_visual_request(")
+            && runner.contains("pub(super) fn finish_native_visual_request(")
+            && !runner.contains("redraw_and_exit_on_error_with_adapter")
+            && auxiliary.contains("begin_cpu_frame_observation_with_owner(owner")
+            && auxiliary.contains("finish_cpu_frame_observation_with_owner(")
+            && present.contains("begin_native_visual_request(&adapter)"),
+        "redraw boundaries should use the shared native packet kernel and parent-owned observation"
     );
 }

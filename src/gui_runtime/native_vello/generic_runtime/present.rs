@@ -1,8 +1,9 @@
+use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::{
-    CpuFrameObservationOwner, CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    RenderFrameProfile, RenderSurfacePixelSize, hide_window_after_first_present,
-    maybe_log_render_profile, maybe_log_slow_render_profile, post_gpu_overlay,
-    render_profile_enabled, reveal_window_after_first_present, slow_render_profile_enabled,
+    CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner, RenderFrameProfile,
+    RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
+    maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
+    reveal_window_after_first_present, slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -28,24 +29,28 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
         adapter: &mut GenericNativeAdapterOwner,
-    ) -> Result<(), NativeFrameRenderFailure> {
+        requested_packet: bool,
+    ) -> Result<NativeVisualRequestDisposition, NativeFrameRenderFailure> {
         self.cpu_frame_observation_capture.reset();
-        self.timing.redraw_requested = false;
-        self.timing.redraw_requested_at = None;
+        self.clear_native_visual_request_wake_timing();
         self.timing.surface_resize_applied_this_frame = false;
         if !self.admit_native_resources(adapter) {
-            return Ok(());
+            return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         if !self.timing.first_frame_presented {
             self.timing.startup_timing.mark_first_redraw_started();
         }
         self.apply_pending_surface_resize_if_needed(adapter);
         if self.window.window.is_none() {
-            return Ok(());
+            return Ok(NativeVisualRequestDisposition::DropPacket);
         }
-        let Some(surface_texture) = self.acquire_present_surface_texture(event_loop, adapter)
-        else {
-            return Ok(());
+        let surface_texture =
+            match self.acquire_present_surface_texture(event_loop, adapter, requested_packet) {
+                Ok(surface_texture) => surface_texture,
+                Err(disposition) => return Ok(disposition),
+            };
+        if !self.native_presentation_target_is_ready(adapter) {
+            return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         self.cpu_frame_observation_capture.mark_frame_path_started();
         let profile_enabled = render_profile_enabled();
@@ -119,7 +124,7 @@ where
         );
         let render_resize_frame_directly = self.should_render_resize_frame_directly();
         if !self.admit_native_resources(adapter) {
-            return Ok(());
+            return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         let surface_view = surface_texture
             .texture
@@ -128,11 +133,11 @@ where
             render_resize_frame_directly || self.frame.scene_texture_dirty;
         let render_to_texture_elapsed = {
             let Some(resources) = self.window.native_resources.as_mut() else {
-                return Ok(());
+                return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let surface = &mut resources.render_surface;
             let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
-                return Ok(());
+                return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let mut scene_texture_context = SceneTextureContext {
                 renderer: &mut resources.renderer,
@@ -161,7 +166,7 @@ where
         );
         if render_resize_frame_directly {
             if !self.admit_native_resources(adapter) {
-                return Ok(());
+                return Ok(NativeVisualRequestDisposition::DropPacket);
             }
             let (_, elapsed) = profile.measure(|| surface_texture.present());
             profile.submit_present = elapsed;
@@ -176,10 +181,10 @@ where
                 frame_work,
                 input_to_present_latency_us,
             );
-            return Ok(());
+            return Ok(NativeVisualRequestDisposition::Presented);
         }
         if !self.admit_native_resources(adapter) {
-            return Ok(());
+            return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         let Some(dev_handle) = self
             .window
@@ -187,7 +192,7 @@ where
             .as_ref()
             .and_then(|resources| adapter.device_handle_for_surface(&resources.render_surface))
         else {
-            return Ok(());
+            return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         let mut encoder =
             dev_handle
@@ -199,7 +204,7 @@ where
         let started = profile.record_timings.then(Instant::now);
         let gpu_surface_stats = {
             let Some(resources) = self.window.native_resources.as_mut() else {
-                return Ok(());
+                return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let surface = &mut resources.render_surface;
             let gpu_resources = &mut resources.gpu_resources;
@@ -261,7 +266,7 @@ where
             profile.full_screen_blit,
         );
         if !self.admit_native_resources(adapter) {
-            return Ok(());
+            return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         let (_, elapsed) = profile.measure(|| {
             dev_handle.queue.submit(std::iter::once(encoder.finish()));
@@ -349,59 +354,51 @@ where
         }
         self.timing.last_redraw = now;
         self.mark_first_presented();
-        Ok(())
+        Ok(NativeVisualRequestDisposition::Presented)
     }
 
     pub(super) fn redraw_and_exit_on_error(&mut self, event_loop: &ActiveEventLoop) {
         let Some(mut adapter) = self.adapter.take() else {
+            let _ = self.veto_native_visual_request_at_callback_boundary();
+            return;
+        };
+        let packet = match self.begin_native_visual_request(&adapter) {
+            NativeVisualRequestBegin::Requested(packet) => Some((packet, true)),
+            NativeVisualRequestBegin::UnsolicitedFallback(packet) => Some((packet, false)),
+            NativeVisualRequestBegin::Stale => {
+                self.clear_native_visual_request_wake();
+                None
+            }
+            NativeVisualRequestBegin::RequestedVetoed
+            | NativeVisualRequestBegin::WrongWindow
+            | NativeVisualRequestBegin::Ineligible
+            | NativeVisualRequestBegin::Exhausted => None,
+        };
+        let Some((packet, requested_packet)) = packet else {
+            self.adapter = Some(adapter);
             return;
         };
         let admission =
             self.begin_cpu_frame_observation(super::FrameScheduleKey::Primary, Instant::now());
-        let result = self.redraw(event_loop, &mut adapter);
-        let redraw_failed = result.is_err();
-        if let Err(failure) = result {
-            // `redraw` has returned, so its acquired SurfaceTexture is gone
-            // before reconstruction can touch the native bundle.
-            self.mark_cpu_frame_observation_recovery();
-            let _ = self.recover_frame_render_failure(
-                event_loop,
-                &adapter,
-                failure,
-                super::NativeRendererRecoveryWindowKind::Primary,
-            );
-        }
+        let result = self.redraw(event_loop, &mut adapter, requested_packet);
+        let (disposition, redraw_failed) = match result {
+            Ok(disposition) => (disposition, false),
+            Err(failure) => {
+                // `redraw` has returned, so its acquired SurfaceTexture is gone
+                // before reconstruction can touch the native bundle.
+                self.mark_cpu_frame_observation_recovery();
+                let _ = self.recover_frame_render_failure(
+                    event_loop,
+                    &adapter,
+                    failure,
+                    super::NativeRendererRecoveryWindowKind::Primary,
+                );
+                (NativeVisualRequestDisposition::DropPacket, true)
+            }
+        };
+        let _ = self.finish_native_visual_request(packet, disposition);
         self.finish_cpu_frame_observation(admission, redraw_failed);
         self.adapter = Some(adapter);
-    }
-
-    pub(super) fn redraw_and_exit_on_error_with_adapter(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        adapter: &mut GenericNativeAdapterOwner,
-        mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
-    ) {
-        let admission = observation
-            .as_deref_mut()
-            .map(|owner| self.begin_cpu_frame_observation_with_owner(owner, Instant::now()));
-        let result = self.redraw(event_loop, adapter);
-        let redraw_failed = result.is_err();
-        if let Err(failure) = result {
-            // `redraw` has returned, so its acquired SurfaceTexture is gone
-            // before reconstruction can touch the native bundle.
-            self.mark_cpu_frame_observation_recovery();
-            let _ = self.recover_frame_render_failure(
-                event_loop,
-                adapter,
-                failure,
-                super::NativeRendererRecoveryWindowKind::Primary,
-            );
-        }
-        if let (Some(owner), Some(admission)) = (observation, admission) {
-            self.finish_cpu_frame_observation_with_owner(owner, admission, redraw_failed);
-        }
-        // A child-only fallback has no parent ledger.  Leave its ephemeral
-        // capture untouched instead of consuming evidence without an owner.
     }
 
     pub(super) fn should_render_resize_frame_directly(&self) -> bool {
@@ -499,16 +496,12 @@ where
     fn mark_first_presented(&mut self) {
         if !self.timing.first_frame_presented {
             self.timing.first_frame_presented = true;
-            if reveal_window_after_first_present(&self.options)
-                && let Some(window) = self.window.window.as_ref()
-            {
-                window.set_visible(true);
+            if reveal_window_after_first_present(&self.options) {
+                self.set_native_window_visibility(true);
                 self.timing.startup_timing.mark_window_revealed();
             }
-            if hide_window_after_first_present(&self.options)
-                && let Some(window) = self.window.window.as_ref()
-            {
-                window.set_visible(false);
+            if hide_window_after_first_present(&self.options) {
+                self.set_native_window_visibility(false);
             }
             self.timing.startup_timing.mark_first_presented();
             self.timing.startup_timing.maybe_emit_summary();

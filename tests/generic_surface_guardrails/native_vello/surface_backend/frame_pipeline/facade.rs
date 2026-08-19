@@ -214,7 +214,7 @@ fn native_present_propagates_direct_and_cached_scene_failures_before_completion(
         .expect("normal redraw should retain its success completion path");
 
     assert!(
-        redraw.contains("Result<(), NativeFrameRenderFailure>")
+        redraw.contains("Result<NativeVisualRequestDisposition, NativeFrameRenderFailure>")
             && redraw.matches(")?").count() >= 2
             && direct_render < direct_completion
             && cached_render < cached_completion,
@@ -350,7 +350,7 @@ fn native_renderer_recovery_order_keeps_failure_fence_and_publication_atomic() {
     );
 
     let redraw_return = present
-        .find("let result = self.redraw(event_loop, &mut adapter);")
+        .find("let result = self.redraw(event_loop, &mut adapter, requested_packet);")
         .expect("primary redraw should return before recovery is considered");
     let recovery_after_return = present[redraw_return..]
         .find("self.recover_frame_render_failure(")

@@ -366,12 +366,12 @@ where
     }
 
     fn reveal_prepared_window(&mut self, reason: &'static str) {
-        let Some(window) = self.window.window.as_ref() else {
+        if self.window.window.is_none() {
             return;
-        };
+        }
         self.application_reopen_events.take();
         self.application_reopen_proxy.take();
-        window.set_visible(true);
+        self.set_native_window_visibility(true);
         self.timing.startup_timing.mark_window_revealed();
         info!(
             target: "radiant::native::activation",

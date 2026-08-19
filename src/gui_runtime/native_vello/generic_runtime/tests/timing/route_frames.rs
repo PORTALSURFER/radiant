@@ -584,7 +584,7 @@ fn pending_redraw_elapsed_tracks_present_age() {
 }
 
 #[test]
-fn frame_wait_deadline_includes_pending_redraw_reissue_deadline() {
+fn frame_wait_deadline_suppresses_retry_without_current_adapter_bundle() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         TestFrameMessageBridge::default(),
@@ -600,8 +600,8 @@ fn frame_wait_deadline_includes_pending_redraw_reissue_deadline() {
 
     assert_eq!(
         runner.frame_wait_deadline(scheduled),
-        now + Duration::from_millis(16),
-        "animation waits should wake early enough to recover a swallowed redraw"
+        scheduled,
+        "a missing primary adapter/resource generation must remain quiescent"
     );
 }
 

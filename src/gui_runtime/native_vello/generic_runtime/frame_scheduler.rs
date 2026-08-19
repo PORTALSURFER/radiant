@@ -32,14 +32,14 @@ pub(super) enum FrameScheduleKey {
 
 /// Independent eligibility evidence for one admitted auxiliary window.
 ///
-/// These fields are intentionally explicit so every lifecycle, visibility,
-/// native-window, and generation fence remains a visible veto in tests and in
-/// the caller that collects live native evidence.
+/// These fields are intentionally explicit so every lifecycle, native-window,
+/// and generation fence remains a visible veto in tests and in the caller that
+/// collects live native evidence. Host-reported window visibility is not part
+/// of logical presentation eligibility.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct AuxiliaryScheduleEligibility {
     pub(super) active: bool,
     pub(super) admitted: bool,
-    pub(super) visible: bool,
     pub(super) local_running: bool,
     pub(super) live_window: bool,
     pub(super) recovering: bool,
@@ -47,6 +47,7 @@ pub(super) struct AuxiliaryScheduleEligibility {
     pub(super) stopped: bool,
     pub(super) native_resources_present: bool,
     pub(super) resource_generation_current: bool,
+    pub(super) mailbox_suspended: bool,
     pub(super) target_generation_known: bool,
     pub(super) native_surface_target_unfenced: bool,
 }
@@ -55,7 +56,6 @@ impl AuxiliaryScheduleEligibility {
     pub(super) const fn is_eligible(self) -> bool {
         self.active
             && self.admitted
-            && self.visible
             && self.local_running
             && self.live_window
             && !self.recovering
@@ -63,8 +63,22 @@ impl AuxiliaryScheduleEligibility {
             && !self.stopped
             && self.native_resources_present
             && self.resource_generation_current
+            && !self.mailbox_suspended
             && self.target_generation_known
             && self.native_surface_target_unfenced
+    }
+
+    pub(super) const fn is_recovery_eligible(self) -> bool {
+        self.active
+            && self.admitted
+            && self.local_running
+            && self.live_window
+            && !self.recovering
+            && !self.closing
+            && !self.stopped
+            && self.native_resources_present
+            && self.resource_generation_current
+            && !self.mailbox_suspended
     }
 }
 
@@ -2301,7 +2315,6 @@ mod tests {
         AuxiliaryScheduleEligibility {
             active: true,
             admitted: true,
-            visible: true,
             local_running: true,
             live_window: true,
             recovering: false,
@@ -2309,6 +2322,7 @@ mod tests {
             stopped: false,
             native_resources_present: true,
             resource_generation_current: true,
+            mailbox_suspended: false,
             target_generation_known: true,
             native_surface_target_unfenced: true,
         }
@@ -2321,9 +2335,6 @@ mod tests {
         }
         fn veto_admitted(state: &mut AuxiliaryScheduleEligibility) {
             state.admitted = false;
-        }
-        fn veto_visible(state: &mut AuxiliaryScheduleEligibility) {
-            state.visible = false;
         }
         fn veto_local_running(state: &mut AuxiliaryScheduleEligibility) {
             state.local_running = false;
@@ -2346,6 +2357,9 @@ mod tests {
         fn veto_generation(state: &mut AuxiliaryScheduleEligibility) {
             state.resource_generation_current = false;
         }
+        fn veto_suspended(state: &mut AuxiliaryScheduleEligibility) {
+            state.mailbox_suspended = true;
+        }
         fn veto_target_generation(state: &mut AuxiliaryScheduleEligibility) {
             state.target_generation_known = false;
         }
@@ -2356,7 +2370,6 @@ mod tests {
         let vetoes: [fn(&mut AuxiliaryScheduleEligibility); 12] = [
             veto_active,
             veto_admitted,
-            veto_visible,
             veto_local_running,
             veto_live_window,
             veto_recovering,
@@ -2364,6 +2377,7 @@ mod tests {
             veto_stopped,
             veto_resources,
             veto_generation,
+            veto_suspended,
             veto_target_generation,
             veto_target_fence,
         ];

@@ -6,7 +6,7 @@ fn native_surface_texture_acquire_stays_with_surface_lifecycle() {
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
 
     assert!(
-        present.contains("self.acquire_present_surface_texture(event_loop, adapter)")
+        present.contains("self.acquire_present_surface_texture(")
             && present.contains("self.window.window.is_none()")
             && !present.contains("window.clone()")
             && !present.contains("get_current_texture()")

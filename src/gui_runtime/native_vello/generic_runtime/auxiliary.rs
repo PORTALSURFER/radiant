@@ -1,3 +1,4 @@
+use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::renderer_recovery::NativeRendererRecoveryWindowKind;
 use super::runner_state::{NativeWindowDiagnosticIdentityAllocator, NativeWindowResourceBundle};
 #[cfg(test)]
@@ -10,7 +11,6 @@ use super::{
     RuntimeUserEvent, SceneRebuildMode, initial_viewport, owner_window_handle,
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
-use crate::runtime::AuxiliaryWindowOwner;
 #[cfg(test)]
 use crate::runtime::{
     AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
@@ -20,6 +20,7 @@ use crate::runtime::{
 use crate::runtime::{
     AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
 };
+use crate::runtime::{AuxiliaryWindowOwner, RuntimeAnimationActivity};
 use crate::runtime::{ExternalDragIdentity, ExternalDragOutcome};
 pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
@@ -357,13 +358,26 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.rebuild_scene();
         self.recovery_rebuild_pending = false;
         if self.active {
-            self.show();
+            // Recovery physically conceals the child without changing its
+            // latest explicit visibility intent. Reapply that intent only
+            // after the fresh bundle has been published successfully.
+            self.runner
+                .apply_native_window_visibility(self.runner.window.logical_window_visible);
+            self.runner
+                .request_redraw_for_frame_work(FrameWork::RebuildScene {
+                    reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                    mode: SceneRebuildMode::Immediate,
+                });
+        } else {
+            // Recovery rebuilds the cached scene state, but dormancy remains
+            // authoritative until an explicit show resumes this mailbox.
+            self.runner.suspend_native_visual_requests();
+            self.runner
+                .request_redraw_for_frame_work(FrameWork::RebuildScene {
+                    reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                    mode: SceneRebuildMode::Immediate,
+                });
         }
-        self.runner
-            .request_redraw_for_frame_work(FrameWork::RebuildScene {
-                reason: FrameWorkReason::RuntimeSurfaceRepaint,
-                mode: SceneRebuildMode::Immediate,
-            });
         Ok(true)
     }
 
@@ -413,17 +427,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         current_generation: Option<NativeAdapterGeneration>,
     ) -> AuxiliaryScheduleEligibility {
         let native_resources = self.runner.window.native_resources.as_ref();
-        let visible = self
-            .runner
-            .window
-            .window
-            .as_ref()
-            .and_then(|window| window.is_visible())
-            .unwrap_or(false);
         AuxiliaryScheduleEligibility {
             active: self.active,
             admitted: self.is_admitted(),
-            visible,
             local_running: self.runner.is_running() && !self.runner.has_terminal_cause(),
             live_window: self.runner.window.id.is_some() && self.runner.window.window.is_some(),
             recovering: self.runner.is_recovering() || self.recovery_rebuild_pending,
@@ -432,6 +438,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             native_resources_present: native_resources.is_some(),
             resource_generation_current: native_resources
                 .is_some_and(|resources| current_generation == Some(resources.generation)),
+            mailbox_suspended: self.runner.window.native_visual_requests.is_suspended(),
             target_generation_known: self.runner.window.target_generation.is_known(),
             native_surface_target_unfenced: !self.runner.window.native_surface_target_fenced,
         }
@@ -442,14 +449,22 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         now: Instant,
         current_generation: Option<NativeAdapterGeneration>,
     ) -> Option<FrameScheduleDemand> {
-        if !self
-            .frame_schedule_eligibility(current_generation)
-            .is_eligible()
-        {
+        let eligibility = self.frame_schedule_eligibility(current_generation);
+        let ordinary = eligibility.is_eligible();
+        let recovery = !ordinary
+            && eligibility.is_recovery_eligible()
+            && self
+                .runner
+                .native_visual_request_recovery_schedule_is_eligible();
+        if !ordinary && !recovery {
             return None;
         }
-        let animation_activity = self.runner.core.animation_activity();
-        let needs_text_caret_animation = self.runner.core.has_focused_text_input();
+        let animation_activity = if ordinary {
+            self.runner.core.animation_activity()
+        } else {
+            RuntimeAnimationActivity::idle()
+        };
+        let needs_text_caret_animation = ordinary && self.runner.core.has_focused_text_input();
         Some(FrameScheduleDemand::observe_runtime(
             FrameScheduleKey::Auxiliary(self.key.clone()),
             now,
@@ -458,7 +473,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             animation_activity,
             needs_text_caret_animation,
             FrameScheduleRedrawEvidence {
-                timed_repaint_deadline: self.runner.core.timed_repaint_deadline(),
+                timed_repaint_deadline: ordinary
+                    .then(|| self.runner.core.timed_repaint_deadline())
+                    .flatten(),
                 pending_redraw_requested: self.runner.timing.redraw_requested,
                 pending_redraw_age: self.runner.pending_redraw_age(now),
                 pending_redraw_retry_deadline: self.runner.pending_redraw_retry_deadline(),
@@ -483,10 +500,16 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if !matches!(
             demand.key(),
             FrameScheduleKey::Auxiliary(key) if key == &self.key
-        ) || !self
-            .frame_schedule_eligibility(Some(parent_generation))
-            .is_eligible()
-        {
+        ) {
+            return None;
+        }
+        let eligibility = self.frame_schedule_eligibility(Some(parent_generation));
+        let schedule_eligible = eligibility.is_eligible()
+            || (eligibility.is_recovery_eligible()
+                && self
+                    .runner
+                    .native_visual_request_recovery_schedule_is_eligible());
+        if !schedule_eligible {
             return None;
         }
         let admission =
@@ -563,19 +586,26 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn hide(&mut self) {
         self.active = false;
-        if let Some(window) = self.runner.window.window.as_ref() {
-            window.set_visible(false);
-        }
+        self.runner.suspend_native_visual_requests();
+        self.runner.set_native_window_visibility(false);
     }
 
     pub(super) fn show(&mut self) {
         if !self.is_admitted() {
             return;
         }
+        let was_inactive = !self.active;
         self.active = true;
+        if !self.runner.resume_native_visual_requests() {
+            self.active = false;
+            return;
+        }
+        self.runner.set_native_window_visibility(true);
         if let Some(window) = self.runner.window.window.as_ref() {
-            window.set_visible(true);
             window.focus_window();
+        }
+        if was_inactive {
+            self.runner.request_redraw_for_frame_work(FrameWork::None);
         }
     }
 
@@ -734,16 +764,52 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 );
             }
             WindowEvent::RedrawRequested => {
-                let redraw_result = self.runner.redraw(event_loop, adapter);
-                if let Err(failure) = redraw_result {
-                    self.runner.mark_cpu_frame_observation_recovery();
-                    let kind = NativeRendererRecoveryWindowKind::Auxiliary {
-                        requested_backend: self.runner.options.gpu.backend,
+                if !self.active || !self.is_admitted() {
+                    self.runner.suspend_native_visual_requests();
+                    return self.event_result(None);
+                }
+                let packet = match self.runner.begin_native_visual_request(adapter) {
+                    NativeVisualRequestBegin::Requested(packet) => Some((packet, true)),
+                    NativeVisualRequestBegin::UnsolicitedFallback(packet) => Some((packet, false)),
+                    NativeVisualRequestBegin::Stale => {
+                        self.runner.clear_native_visual_request_wake();
+                        None
+                    }
+                    NativeVisualRequestBegin::RequestedVetoed
+                    | NativeVisualRequestBegin::WrongWindow
+                    | NativeVisualRequestBegin::Ineligible
+                    | NativeVisualRequestBegin::Exhausted => None,
+                };
+                if let Some((packet, requested_packet)) = packet {
+                    let admission = observation.as_deref_mut().map(|owner| {
+                        self.runner
+                            .begin_cpu_frame_observation_with_owner(owner, Instant::now())
+                    });
+                    let redraw_result = self.runner.redraw(event_loop, adapter, requested_packet);
+                    let (disposition, redraw_failed) = match redraw_result {
+                        Ok(disposition) => (disposition, false),
+                        Err(failure) => {
+                            self.runner.mark_cpu_frame_observation_recovery();
+                            let kind = NativeRendererRecoveryWindowKind::Auxiliary {
+                                requested_backend: self.runner.options.gpu.backend,
+                            };
+                            terminal_cause = self
+                                .runner
+                                .recover_frame_render_failure(event_loop, adapter, failure, kind)
+                                .err();
+                            (NativeVisualRequestDisposition::DropPacket, true)
+                        }
                     };
-                    terminal_cause = self
+                    let _ = self
                         .runner
-                        .recover_frame_render_failure(event_loop, adapter, failure, kind)
-                        .err();
+                        .finish_native_visual_request(packet, disposition);
+                    if let (Some(owner), Some(admission)) = (observation, admission) {
+                        self.runner.finish_cpu_frame_observation_with_owner(
+                            owner,
+                            admission,
+                            redraw_failed,
+                        );
+                    }
                 }
             }
             _ => {}
@@ -1067,9 +1133,9 @@ impl AuxiliaryRecoveryOpportunity {
 mod tests {
     use super::{
         AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity, AuxiliarySurfaceBridge,
-        AuxiliaryWindowEventResult, FrameScheduleKey, GenericNativeVelloRunner,
-        NativeFrameRenderFailure, NativeResourceMaintenanceTurn,
-        append_initialized_auxiliary_window, auxiliary_key_is_retiring,
+        AuxiliaryWindowEventResult, FrameScheduleKey, FrameWork, FrameWorkReason,
+        GenericNativeVelloRunner, NativeFrameRenderFailure, NativeResourceMaintenanceTurn,
+        SceneRebuildMode, append_initialized_auxiliary_window, auxiliary_key_is_retiring,
         auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
         take_deferred_auxiliary_recovery_failure_cause,
     };
@@ -1261,6 +1327,63 @@ mod tests {
 
         let duplicate = window.handle_close_requested();
         assert!(duplicate.messages.is_empty());
+    }
+
+    #[test]
+    fn cached_auxiliary_hide_recovery_and_show_rearm_mailbox_dormancy() {
+        let mut window = auxiliary_window(true);
+
+        window.hide();
+        assert!(!window.active);
+        assert!(window.runner.window.native_visual_requests.is_suspended());
+        assert!(!window.runner.window.native_visual_requests.has_work());
+
+        // A device/resource invalidation must not turn a cached inactive child
+        // back into an unsolicited redraw source.
+        assert!(window.runner.invalidate_native_visual_requests());
+        window
+            .runner
+            .request_redraw_for_frame_work(FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::Immediate,
+            });
+        assert!(window.runner.window.native_visual_requests.is_suspended());
+        assert!(!window.runner.window.native_visual_requests.has_work());
+
+        // Repeated inactive callbacks reassert dormancy; explicit show is the
+        // only rearm and leaves no stale packet to replay.
+        window.hide();
+        window.show();
+        assert!(window.active);
+        assert!(!window.runner.window.native_visual_requests.is_suspended());
+        assert!(!window.runner.window.native_visual_requests.has_work());
+    }
+
+    #[test]
+    fn auxiliary_active_and_inactive_recovery_preserve_dormancy_boundaries() {
+        let mut active = auxiliary_window(true);
+        active.runner.set_native_window_visibility(true);
+        assert!(active.runner.window.logical_window_visible);
+        assert!(active.admit_device_recovery());
+        assert!(active.runner.window.logical_window_visible);
+        assert!(active.finish_device_recovery_if_no_rebuild());
+        active
+            .runner
+            .apply_native_window_visibility(active.runner.window.logical_window_visible);
+        assert!(active.runner.window.logical_window_visible);
+
+        let mut inactive = auxiliary_window(true);
+        inactive.hide();
+        assert!(inactive.runner.window.native_visual_requests.is_suspended());
+        assert!(inactive.admit_device_recovery());
+        assert!(inactive.finish_device_recovery_if_no_rebuild());
+        assert!(!inactive.active);
+        assert!(inactive.runner.window.native_visual_requests.is_suspended());
+        assert!(!inactive.runner.window.native_visual_requests.has_work());
+        inactive.show();
+        assert!(inactive.active);
+        assert!(!inactive.runner.window.native_visual_requests.is_suspended());
+        assert!(!inactive.runner.window.native_visual_requests.has_work());
     }
 
     #[test]

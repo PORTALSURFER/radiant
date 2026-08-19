@@ -298,6 +298,88 @@ fn stale_native_evidence_drops_held_candidate_without_publication_or_replay() {
 }
 
 #[test]
+fn post_projection_layout_veto_discards_without_running_active_refresh_tail() {
+    let recorder = prepared_refresh_scene_admission_recorder();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedRefreshReplacementBridge::new(Rc::clone(&recorder)),
+        Vector2::new(120.0, 40.0),
+    );
+
+    runner.rebuild_scene();
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+    let before_plan = runner.frame.last_paint_plan.clone();
+    let before_scene_stats = runner.frame.last_scene_stats;
+    let before_scene_encode_count = runner.frame.scene_encode_count;
+    let before_scene_reuse_count = runner.frame.scene_reuse_count;
+    let before_scene_texture_dirty = runner.frame.scene_texture_dirty;
+    let before_composited_base_dirty = runner.frame.composited_base_dirty;
+    let before_refresh = runner.core.runtime.refresh_counters();
+    let before_frame_work = runner.timing.pending_frame_work;
+    let before_project_count = runner.core.runtime.bridge().project_count;
+    let automation_export_path = std::env::temp_dir().join(format!(
+        "radiant_post_projection_layout_veto_{}.json",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&automation_export_path);
+    runner.automation_targets =
+        NativeAutomationTargetExporter::new(Some(automation_export_path.clone()), false);
+
+    runner
+        .core
+        .set_test_prepared_surface_refresh_phase_observer(Rc::new({
+            let recorder = Rc::clone(&recorder);
+            move |phase| {
+                let event = match phase {
+                    "projection-admitted" => PreparedRefreshEvent::ProjectionAdmitted,
+                    "projection-complete" => PreparedRefreshEvent::ProjectionCompleted,
+                    _ => panic!("unexpected prepared refresh phase: {phase}"),
+                };
+                recorder.borrow_mut().push(event);
+            }
+        }));
+    runner.core.runtime.bridge_mut().root_id = 102;
+    runner.timing.deferred_surface_refresh = true;
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        before_project_count + 1,
+        "the held candidate may pull once, but a post-Projection veto must not replay projection"
+    );
+    assert_eq!(runner.frame.last_paint_plan, before_plan);
+    assert_eq!(runner.frame.last_scene_stats, before_scene_stats);
+    assert_eq!(runner.frame.scene_encode_count, before_scene_encode_count);
+    assert_eq!(runner.frame.scene_reuse_count, before_scene_reuse_count);
+    assert_eq!(runner.frame.scene_texture_dirty, before_scene_texture_dirty);
+    assert_eq!(
+        runner.frame.composited_base_dirty,
+        before_composited_base_dirty
+    );
+    assert_eq!(runner.core.runtime.refresh_counters(), before_refresh);
+    assert_eq!(runner.timing.pending_frame_work, before_frame_work);
+    assert!(!runner.timing.deferred_surface_refresh);
+    assert_eq!(
+        prepared_refresh_events(&recorder),
+        vec![
+            PreparedRefreshEvent::ProjectionAdmitted,
+            PreparedRefreshEvent::ProjectionCompleted,
+        ],
+        "a Layout veto must not publish scene or terminal work"
+    );
+    assert!(runner.automation_targets.path().is_some());
+    assert!(!automation_export_path.exists());
+    assert!(!runner.frame_stage_owner.has_in_flight());
+
+    let _ = std::fs::remove_file(automation_export_path);
+}
+
+#[test]
 fn active_virtual_layout_vetoes_prepared_admission_and_materializes_combined_refresh() {
     let policy_queries = Rc::new(Cell::new(0));
     let mut runner = GenericNativeVelloRunner::new(

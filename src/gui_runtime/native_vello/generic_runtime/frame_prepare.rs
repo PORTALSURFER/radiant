@@ -127,6 +127,15 @@ where
             self.complete_prepared_surface_refresh(terminal_messages);
         }
 
+        // Projection admission is the no-replay boundary. A later candidate,
+        // Layout, PaintPlan, or currentness veto has already discarded its
+        // inert candidate and cleaned every exact ticket; it must not fall
+        // through to active paint, IME, scene, automation, or frame-work
+        // publication. Only a pre-Projection veto may use the combined path.
+        if projection_admitted && !used_prepared_refresh {
+            return;
+        }
+
         let paint_plan_decision = if used_prepared_refresh {
             super::PaintPlanCacheDecision::Rebuilt
         } else {

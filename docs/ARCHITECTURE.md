@@ -884,13 +884,17 @@ dispatched only afterward. No scheduler yield occurs after cleanup begins. A
 panic after that point is terminal recovery/shutdown, not rollback.
 
 The prepared refresh path is the first private production Projection-stage
-consumer of the safe-boundary owner. Preparation remains a reversible
-prerequisite/evidence contract; Reconciliation/Layout/Paint are not
-independently scheduled. The existing combined path remains authoritative for
-virtual materialization and unsupported paths. The parent event loop is the sole
-cross-window authority; `WindowStageOwner` admits the existing private Deadline
-work and this one synchronous Projection ticket. Diagnostics and timing are
-observational and cannot authorize execution, cache, admission, or commit.
+consumer of the safe-boundary owner. After candidate-local preparation passes
+currentness, it completes the Projection ticket and admits/checks one exact
+private Layout ticket immediately before irreversible runtime publication; the
+Layout ticket completes after the candidate publication call returns. This
+remains one synchronous candidate transaction with no scheduler yield: it does
+not claim independently scheduled Reconciliation/Layout/Paint, a public API, a
+second event loop, or cross-window policy. The existing combined path remains
+authoritative for virtual materialization and unsupported paths.
+`WindowStageOwner` now admits private Deadline work plus this synchronous
+Projection-to-Layout handoff. Diagnostics and timing remain observational and
+non-authoritative.
 
 ## Text Boundary
 

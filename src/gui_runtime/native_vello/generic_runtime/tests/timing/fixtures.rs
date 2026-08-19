@@ -266,7 +266,10 @@ pub(super) enum PreparedRefreshEvent {
     CandidateHeld,
     ProjectionCompleted,
     LayoutAdmitted,
+    LayoutCompleted,
+    PaintPlanAdmitted,
     Published,
+    PaintPlanCompleted,
     SceneEncode,
     SceneAdmitted,
     TerminalUpdate(PreparedRefreshTerminalMessage),
@@ -284,9 +287,9 @@ struct PreparedRefreshReplacementWidget {
 }
 
 impl PreparedRefreshReplacementWidget {
-    fn new(paint_revision: u64) -> Self {
+    fn new(paint_revision: u64, root_id: u64) -> Self {
         Self {
-            common: crate::widgets::WidgetCommon::fixed(101, 120.0, 28.0),
+            common: crate::widgets::WidgetCommon::fixed(root_id, 120.0, 28.0),
             paint_revision,
         }
     }
@@ -354,6 +357,8 @@ fn prepared_refresh_message_mapper() -> WidgetMessageMapper<PreparedRefreshTermi
 
 pub(super) struct PreparedRefreshReplacementBridge {
     pub(super) replace: bool,
+    pub(super) root_id: u64,
+    pub(super) project_count: usize,
     recorder: PreparedRefreshRecorder,
 }
 
@@ -361,6 +366,8 @@ impl PreparedRefreshReplacementBridge {
     pub(super) fn new(recorder: PreparedRefreshRecorder) -> Self {
         Self {
             replace: false,
+            root_id: 101,
+            project_count: 0,
             recorder,
         }
     }
@@ -368,9 +375,10 @@ impl PreparedRefreshReplacementBridge {
 
 impl RuntimeBridge<PreparedRefreshTerminalMessage> for PreparedRefreshReplacementBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<PreparedRefreshTerminalMessage>> {
+        self.project_count += 1;
         let paint_revision = if self.replace { 2 } else { 1 };
         crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
-            PreparedRefreshReplacementWidget::new(paint_revision),
+            PreparedRefreshReplacementWidget::new(paint_revision, self.root_id),
             prepared_refresh_message_mapper(),
         )))
     }

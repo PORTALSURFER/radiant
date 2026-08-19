@@ -6985,13 +6985,16 @@ follows cleanup start; a panic then is terminal recovery/shutdown, not rollback.
 
 The prepared refresh path is the first private production Projection-stage
 consumer of the safe-boundary owner. After candidate-local preparation passes
-currentness, it completes the Projection ticket and admits/checks one exact
-private Layout ticket immediately before irreversible runtime publication; the
-Layout ticket completes after the candidate publication call returns. This
-remains one synchronous candidate transaction with no scheduler yield: it does
-not claim independently scheduled Reconciliation/Layout/Paint, a public API, a
-second event loop, or cross-window policy. The existing combined path remains
+currentness, it completes the Projection ticket, admits/checks one exact
+private Layout ticket, and completes Layout before admitting/checking one exact
+private PaintPlan ticket immediately before irreversible runtime publication;
+the PaintPlan ticket completes after the candidate publication call returns.
+This remains one synchronous candidate transaction with no scheduler yield: it
+does not claim independently scheduled Reconciliation/Layout/Paint, a public
+API, a second event loop, or cross-window policy. Projection remains the
+no-replay boundary; a later Layout or PaintPlan veto drops the inert candidate
+without re-entering the combined path. The existing combined path remains
 authoritative for virtual materialization and unsupported paths.
 `WindowStageOwner` now admits private Deadline work plus this synchronous
-Projection-to-Layout handoff. Diagnostics and timing remain observational and
-non-authoritative.
+Projection-to-Layout-to-PaintPlan handoff. Diagnostics and timing remain
+observational and non-authoritative.

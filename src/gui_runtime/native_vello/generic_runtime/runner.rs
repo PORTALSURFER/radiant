@@ -3449,7 +3449,7 @@ mod tests {
     fn finish_evidence(
         key: FrameScheduleKey,
         adapter_generation: NativeAdapterGeneration,
-        window_id: Option<WindowId>,
+        evidence_window: Option<WindowId>,
         active_resource_generation: Option<NativeAdapterGeneration>,
         target_generation: NativeTargetGeneration,
         target_fenced: bool,
@@ -3460,7 +3460,7 @@ mod tests {
             key,
             transition: NativeLifecycleTransitionKind::FinishDeviceRecovery,
             source_phase,
-            window_id,
+            window_id: evidence_window,
             adapter_generation: Some(adapter_generation),
             active_resource_generation,
             target_generation,

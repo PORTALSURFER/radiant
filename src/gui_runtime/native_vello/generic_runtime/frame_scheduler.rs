@@ -30,6 +30,17 @@ pub(super) enum FrameScheduleKey {
     Auxiliary(String),
 }
 
+/// The scheduler's explicit lane for one selected stable window key.
+///
+/// Visual and maintenance demand is observed together, but routing must use
+/// the lane selected by the policy rather than infer it from the remaining
+/// fields on a merged demand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FrameScheduleLane {
+    Visual,
+    Maintenance,
+}
+
 /// Independent eligibility evidence for one admitted auxiliary window.
 ///
 /// These fields are intentionally explicit so every lifecycle, native-window,
@@ -80,6 +91,21 @@ impl AuxiliaryScheduleEligibility {
             && self.resource_generation_current
             && !self.mailbox_suspended
     }
+
+    /// Normal resource maintenance may continue for an inactive cached
+    /// auxiliary, but never makes that window visually schedulable.
+    pub(super) const fn is_maintenance_eligible(self) -> bool {
+        self.admitted
+            && self.local_running
+            && self.live_window
+            && !self.recovering
+            && !self.closing
+            && !self.stopped
+            && self.native_resources_present
+            && self.resource_generation_current
+            && self.target_generation_known
+            && self.native_surface_target_unfenced
+    }
 }
 
 /// The one newly due operation admitted for a selected window.
@@ -88,11 +114,19 @@ pub(super) struct FrameScheduleWork {
     pub(super) advance_timed_repaint: bool,
     pub(super) drain_timed_frame: bool,
     pub(super) reissue_pending_redraw: bool,
+    pub(super) maintenance: bool,
 }
 
 impl FrameScheduleWork {
     pub(super) const fn is_empty(self) -> bool {
-        !self.advance_timed_repaint && !self.drain_timed_frame && !self.reissue_pending_redraw
+        !self.advance_timed_repaint
+            && !self.drain_timed_frame
+            && !self.reissue_pending_redraw
+            && !self.maintenance
+    }
+
+    pub(super) const fn has_visual_work(self) -> bool {
+        self.advance_timed_repaint || self.drain_timed_frame || self.reissue_pending_redraw
     }
 }
 
@@ -119,6 +153,7 @@ pub(super) struct FrameScheduleDemand {
     pending_redraw_age: CpuFramePendingRedrawAge,
     pending_redraw_retry_deadline: Option<Instant>,
     pending_redraw_fresh: bool,
+    maintenance_deadline: Option<Instant>,
     fallback_interval: Duration,
 }
 
@@ -166,6 +201,7 @@ impl FrameScheduleDemand {
             pending_redraw_age: redraw.pending_redraw_age,
             pending_redraw_retry_deadline: redraw.pending_redraw_retry_deadline,
             pending_redraw_fresh: redraw.pending_redraw_fresh,
+            maintenance_deadline: None,
             fallback_interval: animation_frame_interval(frame_target_fps),
         }
     }
@@ -235,6 +271,15 @@ impl FrameScheduleDemand {
         self.pending_redraw_requested
     }
 
+    pub(super) const fn maintenance_deadline(&self) -> Option<Instant> {
+        self.maintenance_deadline
+    }
+
+    pub(super) fn with_maintenance_deadline(mut self, deadline: Option<Instant>) -> Self {
+        self.maintenance_deadline = deadline;
+        self
+    }
+
     pub(super) fn work(&self, now: Instant) -> FrameScheduleWork {
         let advance_timed_repaint = self
             .timed_repaint_deadline
@@ -246,10 +291,14 @@ impl FrameScheduleDemand {
                 .pending_redraw_retry_deadline
                 .is_some_and(|deadline| deadline <= now)
             && !drain_timed_frame;
+        let maintenance = self
+            .maintenance_deadline
+            .is_some_and(|deadline| deadline <= now);
         FrameScheduleWork {
             advance_timed_repaint,
             drain_timed_frame,
             reissue_pending_redraw,
+            maintenance,
         }
     }
 
@@ -271,10 +320,14 @@ impl FrameScheduleDemand {
                 self.fallback_interval,
             )
         });
+        let maintenance = self
+            .maintenance_deadline
+            .map(|deadline| future_or_opportunity(Some(deadline), now, self.fallback_interval));
         FrameScheduleDeadlines {
             cadence,
             repaint,
             reissue: reissue.flatten(),
+            maintenance: maintenance.flatten(),
             ..FrameScheduleDeadlines::default()
         }
     }
@@ -349,6 +402,7 @@ fn earlier(left: Option<Instant>, right: Option<Instant>) -> Option<Instant> {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct FrameSchedulerPlan {
     pub(super) selected: Option<FrameScheduleKey>,
+    pub(super) selected_lane: Option<FrameScheduleLane>,
     pub(super) deadlines: FrameScheduleDeadlines,
 }
 
@@ -357,6 +411,7 @@ pub(super) struct FrameSchedulerPlan {
 pub(super) struct NativeFrameScheduler {
     last_admitted: Option<FrameScheduleKey>,
     fairness: SchedulerFairnessLedger,
+    maintenance_owed: Vec<FrameScheduleKey>,
 }
 
 impl NativeFrameScheduler {
@@ -370,9 +425,17 @@ impl NativeFrameScheduler {
         for demand in demands {
             deadlines = deadlines.merge(demand.deadlines(now));
         }
+        self.maintenance_owed.retain(|key| {
+            demands
+                .iter()
+                .any(|demand| demand.key() == key && demand.maintenance_deadline().is_some())
+        });
         let policy_demands = demands
             .iter()
-            .map(|demand| scheduler_policy_demand(demand, now))
+            .filter_map(|demand| {
+                self.lane_for(demand, now)
+                    .map(|lane| scheduler_policy_demand(demand, now, lane))
+            })
             .collect::<Vec<_>>();
         self.fairness.remove_absent(&policy_demands);
         let has_eligible_demand = policy_demands
@@ -386,10 +449,19 @@ impl NativeFrameScheduler {
         {
             self.fairness.complete_epoch(&policy_demands);
         }
+        let selected = self
+            .fairness
+            .select_candidate(&policy_demands, self.last_admitted.as_ref());
+        let selected_lane = selected.as_ref().and_then(|key| {
+            demands.iter().find_map(|demand| {
+                (demand.key() == key)
+                    .then(|| self.lane_for(demand, now))
+                    .flatten()
+            })
+        });
         FrameSchedulerPlan {
-            selected: self
-                .fairness
-                .select_candidate(&policy_demands, self.last_admitted.as_ref()),
+            selected,
+            selected_lane,
             deadlines,
         }
     }
@@ -398,28 +470,90 @@ impl NativeFrameScheduler {
         self.fairness.record_admission(&key);
         self.last_admitted = Some(key);
     }
+
+    /// Record a selected stage only after the owning runner has accepted the
+    /// exact lane. A completed visual Deadline bundle that leaves maintenance
+    /// due creates one bounded same-key maintenance opportunity; a maintenance
+    /// veto does not clear that debt.
+    pub(super) fn record_selected_admission(
+        &mut self,
+        key: FrameScheduleKey,
+        lane: FrameScheduleLane,
+        visual_deadline_completed: bool,
+        maintenance_due: bool,
+    ) {
+        self.record_admission(key.clone());
+        match lane {
+            FrameScheduleLane::Maintenance => {
+                self.maintenance_owed.retain(|owed| owed != &key);
+            }
+            FrameScheduleLane::Visual if visual_deadline_completed && maintenance_due => {
+                if !self.maintenance_owed.iter().any(|owed| owed == &key) {
+                    self.maintenance_owed.push(key);
+                }
+            }
+            FrameScheduleLane::Visual => {}
+        }
+    }
+
+    #[cfg(test)]
+    fn maintenance_is_owed(&self, key: &FrameScheduleKey) -> bool {
+        self.maintenance_owed.iter().any(|owed| owed == key)
+    }
+
+    fn lane_for(&self, demand: &FrameScheduleDemand, now: Instant) -> Option<FrameScheduleLane> {
+        let work = demand.work(now);
+        if work.is_empty() {
+            return None;
+        }
+        if self.maintenance_is_owed_unchecked(demand.key()) && work.maintenance {
+            return Some(FrameScheduleLane::Maintenance);
+        }
+        if work.has_visual_work() {
+            return Some(FrameScheduleLane::Visual);
+        }
+        work.maintenance.then_some(FrameScheduleLane::Maintenance)
+    }
+
+    fn maintenance_is_owed_unchecked(&self, key: &FrameScheduleKey) -> bool {
+        self.maintenance_owed.iter().any(|owed| owed == key)
+    }
 }
 
-fn scheduler_policy_demand(demand: &FrameScheduleDemand, now: Instant) -> SchedulerDemand {
+fn scheduler_policy_demand(
+    demand: &FrameScheduleDemand,
+    now: Instant,
+    lane: FrameScheduleLane,
+) -> SchedulerDemand {
     let work = demand.work(now);
-    let class = if work.drain_timed_frame {
-        SchedulerWorkClass::Deadline
-    } else if work.advance_timed_repaint || work.reissue_pending_redraw {
-        SchedulerWorkClass::Animation
-    } else {
-        SchedulerWorkClass::Transient
-    };
-    let deadline = if work.drain_timed_frame {
-        match demand.cadence() {
-            TimedFrameCadence::DrainNow { due_at, .. } => due_at,
-            TimedFrameCadence::Idle | TimedFrameCadence::WaitUntil(_) => now,
+    let class = match lane {
+        FrameScheduleLane::Maintenance => SchedulerWorkClass::Maintenance,
+        FrameScheduleLane::Visual => {
+            if work.drain_timed_frame {
+                SchedulerWorkClass::Deadline
+            } else if work.advance_timed_repaint || work.reissue_pending_redraw {
+                SchedulerWorkClass::Animation
+            } else {
+                SchedulerWorkClass::Transient
+            }
         }
-    } else if work.advance_timed_repaint {
-        demand.timed_repaint_deadline.unwrap_or(now)
-    } else if work.reissue_pending_redraw {
-        demand.pending_redraw_retry_deadline.unwrap_or(now)
-    } else {
-        now
+    };
+    let deadline = match lane {
+        FrameScheduleLane::Maintenance => demand.maintenance_deadline().unwrap_or(now),
+        FrameScheduleLane::Visual => {
+            if work.drain_timed_frame {
+                match demand.cadence() {
+                    TimedFrameCadence::DrainNow { due_at, .. } => due_at,
+                    TimedFrameCadence::Idle | TimedFrameCadence::WaitUntil(_) => now,
+                }
+            } else if work.advance_timed_repaint {
+                demand.timed_repaint_deadline.unwrap_or(now)
+            } else if work.reissue_pending_redraw {
+                demand.pending_redraw_retry_deadline.unwrap_or(now)
+            } else {
+                now
+            }
+        }
     };
     SchedulerDemand::new(
         demand.key.clone(),
@@ -440,6 +574,9 @@ pub(super) struct FrameScheduleAdmission {
     pub(super) route_outcome: bool,
     pub(super) did_work: bool,
     pub(super) timed_frame_already_handled: bool,
+    /// True only after a visual Deadline bundle completed through the exact
+    /// stage owner. Deferred or currentness-vetoed work leaves this false.
+    pub(super) visual_deadline_completed: bool,
 }
 
 struct DeadlineBundleExecution {
@@ -463,6 +600,7 @@ where
             route_outcome: true,
             did_work: true,
             timed_frame_already_handled: true,
+            visual_deadline_completed: false,
         }
     }
 
@@ -496,6 +634,7 @@ where
                     route_outcome: false,
                     did_work: true,
                     timed_frame_already_handled: false,
+                    visual_deadline_completed: false,
                 },
                 drain_deferred: false,
             };
@@ -509,6 +648,7 @@ where
                 route_outcome: false,
                 did_work: true,
                 timed_frame_already_handled: true,
+                visual_deadline_completed: false,
             }
         } else {
             self.execute_timed_frame_drain(bundle)
@@ -559,6 +699,8 @@ where
             // replay it or invoke any fallback path.
             return admission;
         }
+        let mut admission = admission;
+        admission.visual_deadline_completed = true;
         admission
     }
 
@@ -641,7 +783,9 @@ where
             // fall back to a second repaint advance, redraw request, or drain.
             return execution.admission;
         }
-        execution.admission
+        let mut admission = execution.admission;
+        admission.visual_deadline_completed = true;
+        admission
     }
 
     /// Apply one already-selected window's existing timed-frame policy.
@@ -846,6 +990,18 @@ mod tests {
                 ..FrameScheduleRedrawEvidence::default()
             },
         )
+    }
+
+    fn maintenance_demand(key: FrameScheduleKey, due_at: Instant) -> FrameScheduleDemand {
+        FrameScheduleDemand::from_cadence(
+            key,
+            TimedFrameCadence::Idle,
+            60,
+            RuntimeAnimationActivity::idle(),
+            false,
+            FrameScheduleRedrawEvidence::default(),
+        )
+        .with_maintenance_deadline(Some(due_at))
     }
 
     fn pure_timed_repaint_demand(
@@ -2391,6 +2547,19 @@ mod tests {
     }
 
     #[test]
+    fn inactive_cached_auxiliary_can_maintain_without_visual_eligibility() {
+        let mut state = eligible();
+        state.active = false;
+        state.mailbox_suspended = true;
+
+        assert!(!state.is_eligible());
+        assert!(state.is_maintenance_eligible());
+
+        state.target_generation_known = false;
+        assert!(!state.is_maintenance_eligible());
+    }
+
+    #[test]
     fn due_auxiliary_is_selected_when_primary_is_idle() {
         let now = Instant::now();
         let demands = [due_demand(
@@ -2531,6 +2700,164 @@ mod tests {
             Some(FrameScheduleKey::Auxiliary("settings".into()))
         );
         assert_eq!(third.selected, Some(FrameScheduleKey::Primary));
+    }
+
+    #[test]
+    fn visual_deadline_outranks_due_maintenance() {
+        let now = Instant::now();
+        let visual = due_demand(FrameScheduleKey::Auxiliary("visible".into()), now);
+        let maintenance = maintenance_demand(FrameScheduleKey::Primary, now);
+        let plan = NativeFrameScheduler::default().observe(
+            now,
+            &[maintenance, visual],
+            FrameScheduleDeadlines::default(),
+        );
+
+        assert_eq!(
+            plan.selected,
+            Some(FrameScheduleKey::Auxiliary("visible".into()))
+        );
+    }
+
+    #[test]
+    fn joint_due_key_selects_visual_then_owed_maintenance() {
+        let now = Instant::now();
+        let key = FrameScheduleKey::Auxiliary("joint".into());
+        let demand = mixed_due_demand(key.clone(), now).with_maintenance_deadline(Some(now));
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let first = scheduler.observe(now, std::slice::from_ref(&demand), Default::default());
+        assert_eq!(first.selected, Some(key.clone()));
+        assert_eq!(first.selected_lane, Some(FrameScheduleLane::Visual));
+        scheduler.record_selected_admission(key.clone(), FrameScheduleLane::Visual, true, true);
+        assert!(scheduler.maintenance_is_owed(&key));
+
+        let second = scheduler.observe(now, std::slice::from_ref(&demand), Default::default());
+        assert_eq!(second.selected, Some(key));
+        assert_eq!(second.selected_lane, Some(FrameScheduleLane::Maintenance));
+    }
+
+    #[test]
+    fn owed_maintenance_does_not_preempt_another_key_deadline() {
+        let now = Instant::now();
+        let owed_key = FrameScheduleKey::Auxiliary("owed".into());
+        let owed = mixed_due_demand(owed_key.clone(), now).with_maintenance_deadline(Some(now));
+        let other_key = FrameScheduleKey::Auxiliary("deadline".into());
+        let other = due_demand(other_key.clone(), now);
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let first = scheduler.observe(now, std::slice::from_ref(&owed), Default::default());
+        scheduler.record_selected_admission(
+            owed_key.clone(),
+            FrameScheduleLane::Visual,
+            true,
+            true,
+        );
+
+        let second = scheduler.observe(now, &[owed, other], Default::default());
+        assert_eq!(first.selected, Some(owed_key));
+        assert_eq!(second.selected, Some(other_key));
+        assert_eq!(second.selected_lane, Some(FrameScheduleLane::Visual));
+    }
+
+    #[test]
+    fn incomplete_visual_does_not_arm_maintenance_debt() {
+        let now = Instant::now();
+        let key = FrameScheduleKey::Auxiliary("deferred".into());
+        let demand = mixed_due_demand(key.clone(), now).with_maintenance_deadline(Some(now));
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let first = scheduler.observe(now, std::slice::from_ref(&demand), Default::default());
+        assert_eq!(first.selected_lane, Some(FrameScheduleLane::Visual));
+        scheduler.record_selected_admission(key.clone(), FrameScheduleLane::Visual, false, true);
+        assert!(!scheduler.maintenance_is_owed(&key));
+
+        let second = scheduler.observe(now, std::slice::from_ref(&demand), Default::default());
+        assert_eq!(second.selected_lane, Some(FrameScheduleLane::Visual));
+    }
+
+    #[test]
+    fn maintenance_veto_retains_owed_lane_without_busy_loop() {
+        let now = Instant::now();
+        let key = FrameScheduleKey::Auxiliary("veto".into());
+        let demand = mixed_due_demand(key.clone(), now).with_maintenance_deadline(Some(now));
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let first = scheduler.observe(now, std::slice::from_ref(&demand), Default::default());
+        scheduler.record_selected_admission(key.clone(), FrameScheduleLane::Visual, true, true);
+        let owed = scheduler.observe(now, std::slice::from_ref(&demand), Default::default());
+        assert_eq!(owed.selected_lane, Some(FrameScheduleLane::Maintenance));
+        assert!(
+            owed.deadlines
+                .earliest()
+                .is_some_and(|deadline| deadline > now)
+        );
+
+        let after_veto = scheduler.observe(now, std::slice::from_ref(&demand), Default::default());
+        assert_eq!(after_veto.selected, first.selected);
+        assert_eq!(
+            after_veto.selected_lane,
+            Some(FrameScheduleLane::Maintenance)
+        );
+        assert!(scheduler.maintenance_is_owed(&key));
+    }
+
+    #[test]
+    fn owed_maintenance_survives_bounded_future_deadline_until_due() {
+        let now = Instant::now();
+        let key = FrameScheduleKey::Auxiliary("bounded-debt".into());
+        let due = mixed_due_demand(key.clone(), now).with_maintenance_deadline(Some(now));
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let first = scheduler.observe(now, std::slice::from_ref(&due), Default::default());
+        assert_eq!(first.selected_lane, Some(FrameScheduleLane::Visual));
+        scheduler.record_selected_admission(key.clone(), FrameScheduleLane::Visual, true, true);
+
+        let future_deadline = now + Duration::from_millis(16);
+        let future =
+            mixed_due_demand(key.clone(), now).with_maintenance_deadline(Some(future_deadline));
+        let between = scheduler.observe(now, std::slice::from_ref(&future), Default::default());
+        assert_eq!(between.selected, Some(key.clone()));
+        assert_eq!(between.selected_lane, Some(FrameScheduleLane::Visual));
+        assert!(scheduler.maintenance_is_owed(&key));
+
+        let after_deadline = future_deadline + Duration::from_millis(1);
+        let due_again = scheduler.observe(
+            after_deadline,
+            std::slice::from_ref(&future),
+            Default::default(),
+        );
+        assert_eq!(due_again.selected, Some(key));
+        assert_eq!(
+            due_again.selected_lane,
+            Some(FrameScheduleLane::Maintenance)
+        );
+    }
+
+    #[test]
+    fn maintenance_only_demand_is_selected_once_by_stable_key() {
+        let now = Instant::now();
+        let primary = maintenance_demand(FrameScheduleKey::Primary, now);
+        let auxiliary = maintenance_demand(FrameScheduleKey::Auxiliary("cached".into()), now);
+        let mut scheduler = NativeFrameScheduler::default();
+
+        let first = scheduler.observe(
+            now,
+            &[auxiliary.clone(), primary.clone()],
+            FrameScheduleDeadlines::default(),
+        );
+        scheduler.record_admission(first.selected.clone().expect("one maintenance key"));
+        let second = scheduler.observe(
+            now,
+            &[auxiliary, primary],
+            FrameScheduleDeadlines::default(),
+        );
+
+        assert_eq!(first.selected, Some(FrameScheduleKey::Primary));
+        assert_eq!(
+            second.selected,
+            Some(FrameScheduleKey::Auxiliary("cached".into()))
+        );
     }
 
     #[test]

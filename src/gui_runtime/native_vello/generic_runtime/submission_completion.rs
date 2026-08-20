@@ -11,6 +11,32 @@ use winit::event_loop::EventLoopProxy;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct NativeSubmissionCallbackId(u64);
 
+/// Inspectable completion-witness state used to bind one maintenance ticket.
+///
+/// The generation is kept beside the phase so a callback state from an older
+/// resource bundle cannot be reused after publication or quarantine moves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativeSubmissionCompletionIdentity {
+    generation: NativeAdapterGeneration,
+    phase: NativeSubmissionCompletionPhase,
+    callback_sequence: u64,
+}
+
+impl NativeSubmissionCompletionIdentity {
+    #[cfg(test)]
+    pub(super) const fn never_submitted(generation: NativeAdapterGeneration) -> Self {
+        Self {
+            generation,
+            phase: NativeSubmissionCompletionPhase::NeverSubmitted,
+            callback_sequence: 0,
+        }
+    }
+
+    pub(super) const fn generation(self) -> NativeAdapterGeneration {
+        self.generation
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NativeSubmissionCompletionPhase {
     NeverSubmitted,
@@ -139,6 +165,17 @@ impl NativeSubmissionCompletionState {
         )
     }
 
+    pub(super) const fn identity(
+        self,
+        generation: NativeAdapterGeneration,
+    ) -> NativeSubmissionCompletionIdentity {
+        NativeSubmissionCompletionIdentity {
+            generation,
+            phase: self.phase,
+            callback_sequence: self.next_callback_id,
+        }
+    }
+
     fn allocate_callback(&mut self) -> Option<NativeSubmissionCallbackId> {
         let Some(callback_id) = self.next_callback_id.checked_add(1) else {
             self.phase = NativeSubmissionCompletionPhase::Exhausted;
@@ -252,6 +289,21 @@ impl NativeSubmissionCompletionWitness {
             self.register_callback(callback_id);
         }
         self.state.callback_pending()
+    }
+
+    /// Perform one nonblocking completion transition.  This is intentionally
+    /// the same witness kernel used by lifecycle retirement; normal Running
+    /// admission merely limits it to one exact resource slot per ticket.
+    pub(super) fn maintain_once(&mut self) -> bool {
+        self.maintain()
+    }
+
+    pub(super) fn maintenance_identity(&self) -> NativeSubmissionCompletionIdentity {
+        self.state.identity(self.capability.generation)
+    }
+
+    pub(super) fn maintenance_pending(&self) -> bool {
+        self.state.callback_pending() || self.state.rearm_required()
     }
 
     pub(super) const fn retirement_eligible(&self) -> bool {

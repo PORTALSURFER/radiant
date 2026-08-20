@@ -2,8 +2,8 @@
 
 use super::{
     AuxiliaryWindowEventResult, CpuFrameObservationOwner, FrameScheduleDeadlines,
-    FrameScheduleDemand, FrameScheduleKey, FrameScheduleRedrawEvidence, FrameWork,
-    GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeGenericRunError,
+    FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane, FrameScheduleRedrawEvidence,
+    FrameWork, GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeGenericRunError,
     NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence, animation_frame_interval,
     assess_cpu_frame_fairness, should_start_native_window_drag,
     should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
@@ -144,6 +144,7 @@ where
                 message_origin,
                 terminal_cause,
                 shutdown_requested,
+                visual_deadline_completed: _,
             } = route_result;
             if let Some(Some(admission)) = admission {
                 let capture = self.auxiliary_windows[index].take_cpu_frame_observation_capture();
@@ -345,7 +346,18 @@ where
                 } else if self.is_recovering() {
                     let _ = self.begin_native_resource_maintenance();
                 } else if self.is_running() {
-                    let _ = self.begin_native_resource_maintenance_and_wake_primary();
+                    // Completion callbacks are wake-only.  Normal Running
+                    // maintenance is admitted by the parent scheduler below.
+                    self.wake_normal_native_resource_maintenance();
+                    if let Some(generation) = self
+                        .adapter
+                        .as_ref()
+                        .and_then(GenericNativeAdapterOwner::capture_generation)
+                    {
+                        for window in &mut self.auxiliary_windows {
+                            window.wake_normal_native_resource_maintenance(generation);
+                        }
+                    }
                 }
             }
             #[cfg(target_os = "macos")]
@@ -413,10 +425,13 @@ where
         if !self.is_running() {
             return;
         }
-        let maintenance_pending = self
-            .begin_native_resource_maintenance_and_wake_primary()
-            .has_pending();
         let now = Instant::now();
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let primary_maintenance_deadline =
+            self.normal_native_resource_maintenance_deadline(now, current_generation);
         let primary_window_ready = self.window.window.is_some();
         let primary_resources_ready = self.window.native_resources.is_some();
         if primary_window_ready && !primary_resources_ready {
@@ -424,11 +439,12 @@ where
         }
 
         let mut demands = Vec::with_capacity(1 + self.auxiliary_windows.len());
-        if primary_window_ready
+        let primary_visual_schedule_eligible = primary_window_ready
             && primary_resources_ready
-            && self.native_visual_request_schedule_is_eligible()
-        {
-            let ordinary_schedule = self.native_visual_request_schedule_is_ordinary();
+            && self.native_visual_request_schedule_is_eligible();
+        if primary_visual_schedule_eligible || primary_maintenance_deadline.is_some() {
+            let ordinary_schedule = primary_visual_schedule_eligible
+                && self.native_visual_request_schedule_is_ordinary();
             self.observe_pending_window_activation();
             let animation_activity = self.core.animation_activity();
             let animation_activity = if ordinary_schedule {
@@ -450,34 +466,37 @@ where
                 frame_target_fps,
                 animation_activity.needs_animation() || needs_text_caret_animation,
             );
-            demands.push(FrameScheduleDemand::from_cadence_with_requested_target_fps(
-                FrameScheduleKey::Primary,
-                cadence,
-                requested_target_fps,
-                frame_target_fps,
-                animation_activity,
-                needs_text_caret_animation,
-                FrameScheduleRedrawEvidence {
-                    timed_repaint_deadline: ordinary_schedule
-                        .then(|| self.core.timed_repaint_deadline())
-                        .flatten(),
-                    pending_redraw_requested: self.timing.redraw_requested,
-                    pending_redraw_age: self.pending_redraw_age(now),
-                    pending_redraw_retry_deadline: self.pending_redraw_retry_deadline(),
-                    pending_redraw_fresh: self.timing.redraw_requested
-                        && !self.pending_redraw_request_is_stale(now),
-                },
-            ));
+            demands.push(
+                FrameScheduleDemand::from_cadence_with_requested_target_fps(
+                    FrameScheduleKey::Primary,
+                    cadence,
+                    requested_target_fps,
+                    frame_target_fps,
+                    animation_activity,
+                    needs_text_caret_animation,
+                    FrameScheduleRedrawEvidence {
+                        timed_repaint_deadline: ordinary_schedule
+                            .then(|| self.core.timed_repaint_deadline())
+                            .flatten(),
+                        pending_redraw_requested: self.timing.redraw_requested,
+                        pending_redraw_age: self.pending_redraw_age(now),
+                        pending_redraw_retry_deadline: self.pending_redraw_retry_deadline(),
+                        pending_redraw_fresh: self.timing.redraw_requested
+                            && !self.pending_redraw_request_is_stale(now),
+                    },
+                )
+                .with_maintenance_deadline(primary_maintenance_deadline),
+            );
         }
-        let current_generation = self
-            .adapter
-            .as_ref()
-            .and_then(GenericNativeAdapterOwner::capture_generation);
         for window in &mut self.auxiliary_windows {
             if let Some(demand) = window.observe_frame_schedule(now, current_generation) {
                 demands.push(demand);
             }
         }
+
+        let maintenance_pending = demands
+            .iter()
+            .any(|demand| demand.maintenance_deadline().is_some());
 
         let plan = self.frame_scheduler.observe(
             now,
@@ -501,129 +520,180 @@ where
                 .find(|demand| demand.key() == &selected)
                 .cloned()
         {
+            let selected_lane = plan.selected_lane.unwrap_or(FrameScheduleLane::Visual);
             match selected.clone() {
                 FrameScheduleKey::Primary => {
                     let work = demand.work(now);
-                    if let TimedFrameCadence::DrainNow { due_at, next_wake } = demand.cadence() {
-                        let _next_wake = next_wake;
-                        if work.drain_timed_frame
-                            && !self.should_defer_timed_frame_drain_for_pending_redraw(now)
+                    if selected_lane == FrameScheduleLane::Maintenance {
+                        if let Some(adapter_generation) = current_generation
+                            && self.admit_native_resource_maintenance(
+                                now,
+                                &FrameScheduleKey::Primary,
+                                adapter_generation,
+                            )
                         {
-                            let expected_interval =
-                                animation_frame_interval(demand.frame_target_fps());
-                            let elapsed_since_last =
-                                now.saturating_duration_since(self.timing.last_timed_frame_drain);
-                            let overdue = now.saturating_duration_since(due_at);
-                            if overdue >= LATE_TIMED_FRAME_LOG_THRESHOLD
-                                && elapsed_since_last <= LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP
-                                && slow_render_profile_enabled()
+                            self.record_frame_schedule_admission_with_lane(
+                                selected,
+                                selected_lane,
+                                false,
+                                false,
+                            );
+                        }
+                    } else {
+                        if let TimedFrameCadence::DrainNow { due_at, next_wake } = demand.cadence()
+                        {
+                            let _next_wake = next_wake;
+                            if work.drain_timed_frame
+                                && !self.should_defer_timed_frame_drain_for_pending_redraw(now)
                             {
-                                warn!(
-                                    target: "radiant::debug::frame_profile",
-                                    event = "radiant.timed_frame.late",
-                                    target_fps = demand.frame_target_fps(),
-                                    elapsed_since_last_frame_us = elapsed_since_last.as_micros(),
-                                    expected_interval_us = expected_interval.as_micros(),
-                                    overdue_us = overdue.as_micros(),
-                                    animation_needs_frame_message = demand
-                                        .animation_activity()
-                                        .needs_frame_message(),
-                                    animation_needs_animation = demand
-                                        .animation_activity()
-                                        .needs_animation(),
-                                    needs_text_caret_animation = demand
-                                        .needs_text_caret_animation(),
-                                    redraw_requested = self.timing.redraw_requested,
-                                    redraw_pending_us = self
-                                        .timing
-                                        .redraw_requested_at
-                                        .map(|requested_at| {
-                                            now.duration_since(requested_at).as_micros()
-                                        })
-                                        .unwrap_or(0),
-                                    "Timed frame wakeup arrived late"
-                                );
+                                let expected_interval =
+                                    animation_frame_interval(demand.frame_target_fps());
+                                let elapsed_since_last = now
+                                    .saturating_duration_since(self.timing.last_timed_frame_drain);
+                                let overdue = now.saturating_duration_since(due_at);
+                                if overdue >= LATE_TIMED_FRAME_LOG_THRESHOLD
+                                    && elapsed_since_last <= LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP
+                                    && slow_render_profile_enabled()
+                                {
+                                    warn!(
+                                        target: "radiant::debug::frame_profile",
+                                        event = "radiant.timed_frame.late",
+                                        target_fps = demand.frame_target_fps(),
+                                        elapsed_since_last_frame_us = elapsed_since_last.as_micros(),
+                                        expected_interval_us = expected_interval.as_micros(),
+                                        overdue_us = overdue.as_micros(),
+                                        animation_needs_frame_message = demand
+                                            .animation_activity()
+                                            .needs_frame_message(),
+                                        animation_needs_animation = demand
+                                            .animation_activity()
+                                            .needs_animation(),
+                                        needs_text_caret_animation = demand
+                                            .needs_text_caret_animation(),
+                                        redraw_requested = self.timing.redraw_requested,
+                                        redraw_pending_us = self
+                                            .timing
+                                            .redraw_requested_at
+                                            .map(|requested_at| {
+                                                now.duration_since(requested_at).as_micros()
+                                            })
+                                            .unwrap_or(0),
+                                        "Timed frame wakeup arrived late"
+                                    );
+                                }
                             }
                         }
-                    }
-                    let admission = self.admit_frame_schedule_work(now, &demand);
-                    if admission.route_outcome {
-                        if admission.outcome.exit_requested {
-                            self.admit_native_shutdown(event_loop, None);
-                            return;
+                        let admission = self.admit_frame_schedule_work(now, &demand);
+                        if admission.route_outcome {
+                            if admission.outcome.exit_requested {
+                                self.admit_native_shutdown(event_loop, None);
+                                return;
+                            }
+                            self.handle_route_outcome_deferred_publication(
+                                event_loop,
+                                admission.outcome,
+                            );
                         }
-                        self.handle_route_outcome_deferred_publication(
-                            event_loop,
-                            admission.outcome,
-                        );
-                    }
-                    if admission.did_work {
-                        self.record_frame_schedule_admission(selected);
-                        self.publish_staged_frame_diagnostics();
+                        if admission.did_work {
+                            self.record_frame_schedule_admission_with_lane(
+                                selected,
+                                selected_lane,
+                                admission.visual_deadline_completed,
+                                work.maintenance,
+                            );
+                            self.publish_staged_frame_diagnostics();
+                        }
                     }
                 }
                 FrameScheduleKey::Auxiliary(key) => {
-                    let result = self.adapter.as_mut().and_then(|adapter| {
-                        let mut observation = self
-                            .cpu_frame_observation
-                            .as_mut()
-                            .map(|ledger| CpuFrameObservationOwner::new(ledger, selected.clone()));
-                        self.auxiliary_windows
-                            .iter_mut()
-                            .find(|window| window.key() == key)
-                            .and_then(|window| {
-                                window.admit_frame_schedule_work(
-                                    event_loop,
-                                    adapter,
-                                    observation.as_mut(),
-                                    now,
-                                    &demand,
-                                )
-                            })
-                    });
-                    if let Some(result) = result {
-                        let super::AuxiliaryWindowEventResult {
-                            messages,
-                            message_origin,
-                            terminal_cause,
-                            shutdown_requested,
-                        } = result;
-                        let frame_diagnostics = if !shutdown_requested && terminal_cause.is_none() {
-                            self.record_frame_schedule_admission(selected.clone());
-                            if let Some(window) = self
-                                .auxiliary_windows
+                    let work = demand.work(now);
+                    if selected_lane == FrameScheduleLane::Maintenance {
+                        let admitted = self.adapter.as_ref().is_some_and(|adapter| {
+                            self.auxiliary_windows
                                 .iter_mut()
                                 .find(|window| window.key() == key)
-                            {
-                                window.finalize_parent_frame_observation(true)
-                            } else {
-                                None
-                            }
-                        } else {
-                            if let Some(window) = self
-                                .auxiliary_windows
-                                .iter_mut()
-                                .find(|window| window.key() == key)
-                            {
-                                window.discard_frame_diagnostics();
-                            }
-                            None
-                        };
-                        forward_auxiliary_frame_diagnostics(self, &selected, frame_diagnostics);
-                        if shutdown_requested {
-                            self.admit_native_shutdown(event_loop, terminal_cause);
-                            return;
-                        }
-                        if let Some(error) = terminal_cause {
-                            self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
-                            return;
-                        }
-                        if !messages.is_empty() {
-                            self.dispatch_auxiliary_messages_without_timed_frame(
-                                event_loop,
-                                message_origin,
-                                messages,
+                                .is_some_and(|window| {
+                                    window.admit_native_resource_maintenance(adapter, now)
+                                })
+                        });
+                        if admitted {
+                            self.record_frame_schedule_admission_with_lane(
+                                selected,
+                                selected_lane,
+                                false,
+                                false,
                             );
+                        }
+                    } else {
+                        let result = self.adapter.as_mut().and_then(|adapter| {
+                            let mut observation =
+                                self.cpu_frame_observation.as_mut().map(|ledger| {
+                                    CpuFrameObservationOwner::new(ledger, selected.clone())
+                                });
+                            self.auxiliary_windows
+                                .iter_mut()
+                                .find(|window| window.key() == key)
+                                .and_then(|window| {
+                                    window.admit_frame_schedule_work(
+                                        event_loop,
+                                        adapter,
+                                        observation.as_mut(),
+                                        now,
+                                        &demand,
+                                    )
+                                })
+                        });
+                        if let Some(result) = result {
+                            let super::AuxiliaryWindowEventResult {
+                                messages,
+                                message_origin,
+                                terminal_cause,
+                                shutdown_requested,
+                                visual_deadline_completed,
+                            } = result;
+                            let frame_diagnostics =
+                                if !shutdown_requested && terminal_cause.is_none() {
+                                    self.record_frame_schedule_admission_with_lane(
+                                        selected.clone(),
+                                        selected_lane,
+                                        visual_deadline_completed,
+                                        work.maintenance,
+                                    );
+                                    if let Some(window) = self
+                                        .auxiliary_windows
+                                        .iter_mut()
+                                        .find(|window| window.key() == key)
+                                    {
+                                        window.finalize_parent_frame_observation(true)
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    if let Some(window) = self
+                                        .auxiliary_windows
+                                        .iter_mut()
+                                        .find(|window| window.key() == key)
+                                    {
+                                        window.discard_frame_diagnostics();
+                                    }
+                                    None
+                                };
+                            forward_auxiliary_frame_diagnostics(self, &selected, frame_diagnostics);
+                            if shutdown_requested {
+                                self.admit_native_shutdown(event_loop, terminal_cause);
+                                return;
+                            }
+                            if let Some(error) = terminal_cause {
+                                self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
+                                return;
+                            }
+                            if !messages.is_empty() {
+                                self.dispatch_auxiliary_messages_without_timed_frame(
+                                    event_loop,
+                                    message_origin,
+                                    messages,
+                                );
+                            }
                         }
                     }
                 }

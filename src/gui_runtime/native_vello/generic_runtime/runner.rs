@@ -1,9 +1,10 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
-use super::frame_stage_admission::WindowStageOwner;
+use super::frame_scheduler_policy::SchedulerSoftBudgets;
+use super::frame_stage_admission::{FrameStageBudgetBinding, WindowStageOwner};
 use super::native_discrete_input_stage::{
     NativeDiscreteInputKind, NativeDiscreteInputStageEvidence, NativeDiscreteInputStageTicket,
-    admit_native_discrete_input as admit_native_discrete_input_stage,
+    admit_native_discrete_input_with_budget as admit_native_discrete_input_stage_with_budget,
     complete_native_discrete_input as complete_native_discrete_input_stage,
     veto_native_discrete_input as veto_native_discrete_input_stage,
 };
@@ -15,7 +16,7 @@ use super::native_encode_present::{
 use super::native_immediate_transient_stage::{
     NativeImmediateTransientKind, NativeImmediateTransientStageEvidence,
     NativeImmediateTransientStageTicket,
-    admit_native_immediate_transient as admit_native_immediate_transient_stage,
+    admit_native_immediate_transient_with_budget as admit_native_immediate_transient_stage_with_budget,
     complete_native_immediate_transient as complete_native_immediate_transient_stage,
     veto_native_immediate_transient as veto_native_immediate_transient_stage,
 };
@@ -780,6 +781,22 @@ where
         veto_native_lifecycle_stage(&mut self.frame_stage_owner, ticket)
     }
 
+    /// Bind the private input/transient soft budget once, after any deferred
+    /// Deadline drainage and immediately before exact stage admission. The
+    /// binding is observational only; no scheduler decision consumes it.
+    fn input_transient_budget_binding(&mut self) -> FrameStageBudgetBinding {
+        if !self.frame_observation_enabled {
+            return FrameStageBudgetBinding::not_budgeted();
+        }
+        let effective_fps = timed_frame_target_fps(
+            self.options.normalized_target_fps(),
+            self.core.animation_activity(),
+            self.core.has_focused_text_input(),
+        );
+        let budget = SchedulerSoftBudgets::for_effective_fps(effective_fps).input_transient;
+        FrameStageBudgetBinding::input_transient(budget)
+    }
+
     fn native_discrete_input_stage_evidence(
         &self,
         kind: NativeDiscreteInputKind,
@@ -839,7 +856,8 @@ where
             adapter_generation,
             wrapper_eligible,
         );
-        admit_native_discrete_input_stage(&mut self.frame_stage_owner, evidence)
+        let budget = self.input_transient_budget_binding();
+        admit_native_discrete_input_stage_with_budget(&mut self.frame_stage_owner, evidence, budget)
     }
 
     /// Capture the exact safe-boundary admission for one native input event.
@@ -979,7 +997,12 @@ where
             adapter_generation,
             wrapper_eligible,
         );
-        let ticket = admit_native_immediate_transient_stage(&mut self.frame_stage_owner, evidence)?;
+        let budget = self.input_transient_budget_binding();
+        let ticket = admit_native_immediate_transient_stage_with_budget(
+            &mut self.frame_stage_owner,
+            evidence,
+            budget,
+        )?;
         if !self.native_immediate_transient_ticket_is_current(
             &ticket,
             adapter_generation,
@@ -3653,6 +3676,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::frame_stage_admission::FrameStageBudgetStatus;
     use super::super::native_discrete_input_stage::NativeDiscreteInputKind;
     use super::super::native_visual_packet::{
         NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestEnqueue,
@@ -3678,8 +3702,8 @@ mod tests {
             NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
             NativeCpuFrameObservationDiagnostics, NativeFrameDiagnostics,
             NativeWindowDiagnosticIdentity, ProfilingOptions, RuntimeAnimationActivity,
-            RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeFrameProfileHost,
-            RuntimeHostCapabilities, UiSurface,
+            RuntimeAnimationHost, RuntimeBridge, RuntimeFrameDiagnosticsHost,
+            RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
         },
     };
     use std::{
@@ -3693,6 +3717,28 @@ mod tests {
     impl RuntimeBridge<()> for EmptyBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
             crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+    }
+
+    #[derive(Default)]
+    struct CountingAnimationActivityBridge {
+        animation_activity_polls: usize,
+    }
+
+    impl RuntimeBridge<()> for CountingAnimationActivityBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_animation()
+        }
+    }
+
+    impl RuntimeAnimationHost for CountingAnimationActivityBridge {
+        fn animation_activity(&mut self) -> RuntimeAnimationActivity {
+            self.animation_activity_polls += 1;
+            RuntimeAnimationActivity::idle()
         }
     }
 
@@ -3866,6 +3912,52 @@ mod tests {
         assert!(!runner.frame_diagnostics_enabled);
         assert!(runner.cpu_frame_observation.is_none());
         assert_eq!(runner.frame_diagnostics_publication.take(), None);
+    }
+
+    #[test]
+    fn disabled_input_budget_binding_skips_animation_poll_and_records_unbudgeted() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            CountingAnimationActivityBridge::default(),
+            Vector2::new(320.0, 240.0),
+        );
+
+        assert!(!runner.frame_observation_enabled);
+        assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 0);
+        let first_binding = runner.input_transient_budget_binding();
+        let second_binding = runner.input_transient_budget_binding();
+        assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 0);
+        assert_eq!(first_binding.budget(), None);
+        assert_eq!(first_binding.started_at(), None);
+        assert_eq!(second_binding.budget(), None);
+        assert_eq!(second_binding.started_at(), None);
+
+        let ticket = runner
+            .frame_stage_owner
+            .admit_discrete_input_with_budget(
+                NativeAdapterGeneration::from_test_serial(1),
+                NativeTargetGeneration::from_test_serial(1),
+                first_binding,
+            )
+            .expect("disabled observation should still admit input");
+        assert!(
+            runner
+                .frame_stage_owner
+                .complete_discrete_input_at(ticket, None)
+        );
+        let evidence = runner
+            .frame_stage_owner
+            .discrete_input_budget_evidence()
+            .expect("unbudgeted completion evidence");
+        assert_eq!(evidence.budget(), None);
+        assert_eq!(evidence.elapsed(), Duration::ZERO);
+        assert_eq!(evidence.status(), FrameStageBudgetStatus::NotBudgeted);
+        assert_eq!(
+            runner
+                .frame_stage_owner
+                .discrete_input_budget_breach_count(),
+            0
+        );
     }
 
     #[test]

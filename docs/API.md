@@ -7365,6 +7365,26 @@ delta, newest metadata, sequence range, axis-change flush, focus-loss clearing,
 and admitted queued-sample completion behavior. This private slice adds no
 pointer-motion coalescer, fairness consumer, or public API.
 
+For private observation, a successful exact `DiscreteInput` or
+`ImmediateTransient` admission binds the `input_transient` budget returned by
+`SchedulerSoftBudgets::for_effective_fps` and captures its start instant only
+when private frame observation is enabled. When frame observation is disabled,
+admission binds no budget and reads no additional budget-timing clock;
+successful completion therefore records `NotBudgeted` with an absent budget
+and zero elapsed time. Completion through synchronous route/message reduction
+retains one bounded latest per-window stage sample and a saturating per-stage
+breach count. A timed sample uses saturating elapsed time and is `Exceeded`
+only when elapsed is strictly greater than its bound budget; equality is
+`Within`. Vetoed, stale, lifecycle-invalidated, wrong, or repeated tickets
+publish no new evidence, and an over-budget completion remains successful.
+
+For this private observational implementation phase, the evidence is
+non-authoritative: it does not itself trigger deferral or any other
+scheduler-policy change. The target scheduler policy remains that an
+over-budget stage completes and a future policy consumer defers only
+lower-priority work at the next safe boundary. `Deadline` and `Lifecycle`
+remain unbudgeted, and this slice adds no public diagnostics/API.
+
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and
 target transition are published, the primary and every admitted auxiliary that

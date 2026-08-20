@@ -7,7 +7,9 @@
 
 use super::{
     adapter::NativeAdapterGeneration, frame_scheduler::FrameScheduleKey,
-    frame_scheduler_policy::SchedulerStage, runner_state::NativeTargetGeneration,
+    frame_scheduler_policy::SchedulerStage,
+    native_resource_maintenance::NativeResourceMaintenanceBinding,
+    runner_state::NativeTargetGeneration,
 };
 use crate::runtime::RuntimeAnimationActivity;
 use std::time::{Duration, Instant};
@@ -334,6 +336,32 @@ struct InFlightEncodePresent {
     identity: FrameStageIdentity,
 }
 
+/// A non-`Clone` witness for one exact normal-Running native-resource unit.
+#[derive(Debug)]
+pub(super) struct MaintenanceStageTicket {
+    identity: FrameStageIdentity,
+    binding: NativeResourceMaintenanceBinding,
+    owner_token: usize,
+}
+
+impl MaintenanceStageTicket {
+    #[cfg(test)]
+    pub(super) fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+
+    #[cfg(test)]
+    pub(super) const fn binding(&self) -> NativeResourceMaintenanceBinding {
+        self.binding
+    }
+}
+
+#[derive(Debug)]
+struct InFlightMaintenance {
+    identity: FrameStageIdentity,
+    binding: NativeResourceMaintenanceBinding,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -366,11 +394,13 @@ pub(super) struct WindowStageOwner {
     layout_in_flight: Option<InFlightLayout>,
     paint_plan_in_flight: Option<InFlightPaintPlan>,
     encode_present_in_flight: Option<InFlightEncodePresent>,
+    maintenance_in_flight: Option<InFlightMaintenance>,
     last_completion: Option<FrameStageCompletionEvidence>,
     last_projection_completion: Option<FrameStageIdentity>,
     last_layout_completion: Option<FrameStageIdentity>,
     last_paint_plan_completion: Option<FrameStageIdentity>,
     last_encode_present_completion: Option<FrameStageIdentity>,
+    last_maintenance_completion: Option<FrameStageIdentity>,
 }
 
 impl WindowStageOwner {
@@ -388,11 +418,13 @@ impl WindowStageOwner {
             layout_in_flight: None,
             paint_plan_in_flight: None,
             encode_present_in_flight: None,
+            maintenance_in_flight: None,
             last_completion: None,
             last_projection_completion: None,
             last_layout_completion: None,
             last_paint_plan_completion: None,
             last_encode_present_completion: None,
+            last_maintenance_completion: None,
         }
     }
 
@@ -419,6 +451,7 @@ impl WindowStageOwner {
             || self.layout_in_flight.is_some()
             || self.paint_plan_in_flight.is_some()
             || self.encode_present_in_flight.is_some()
+            || self.maintenance_in_flight.is_some()
     }
 
     pub(super) fn next_revision(&mut self) -> Option<u64> {
@@ -469,12 +502,18 @@ impl WindowStageOwner {
                 || self.layout_in_flight.is_some()
                 || self.paint_plan_in_flight.is_some()
                 || self.encode_present_in_flight.is_some()
+                || self.maintenance_in_flight.is_some()
             {
                 return false;
             }
-            if stage == SchedulerStage::Projection && self.pending.is_some() {
+            if matches!(
+                stage,
+                SchedulerStage::Projection | SchedulerStage::Maintenance
+            ) && self.pending.is_some()
+            {
                 // Do not discard a selected Deadline payload merely because a
-                // later redraw reaches the synchronous Projection boundary.
+                // later redraw or maintenance opportunity reaches a later
+                // synchronous boundary.
                 return false;
             }
             if self.fence.is_some() {
@@ -750,6 +789,83 @@ impl WindowStageOwner {
         true
     }
 
+    /// Admit one exact bounded normal-Running maintenance unit.  The resource
+    /// binding is retained beside the stage identity so execution cannot scan
+    /// for a replacement slot after a currentness veto.
+    pub(super) fn admit_maintenance(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+        binding: NativeResourceMaintenanceBinding,
+    ) -> Option<MaintenanceStageTicket> {
+        if self.pending.is_some()
+            || self.has_in_flight()
+            || !binding.generation().is_known()
+            || binding.completion().generation() != binding.generation()
+        {
+            return None;
+        }
+        if !self.prepare_fence(
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Maintenance,
+        ) {
+            return None;
+        }
+        let revision = self.next_revision()?;
+        let identity = FrameStageIdentity::new(
+            self.key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Maintenance,
+            self.owner_generation,
+            revision,
+        );
+        if self.stale(&identity) {
+            return None;
+        }
+        self.maintenance_in_flight = Some(InFlightMaintenance {
+            identity: identity.clone(),
+            binding,
+        });
+        Some(MaintenanceStageTicket {
+            identity,
+            binding,
+            owner_token: self as *const Self as usize,
+        })
+    }
+
+    pub(super) fn maintenance_ticket_is_current(&self, ticket: &MaintenanceStageTicket) -> bool {
+        self.maintenance_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity == ticket.identity
+                    && in_flight.binding == ticket.binding
+                    && ticket.owner_token == self as *const Self as usize
+            })
+    }
+
+    /// Complete only the exact maintenance unit that was admitted.
+    pub(super) fn complete_maintenance(&mut self, ticket: MaintenanceStageTicket) -> bool {
+        if !self.maintenance_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.maintenance_in_flight = None;
+        self.last_maintenance_completion = Some(ticket.identity);
+        true
+    }
+
+    /// Veto the exact ticket after a resource currentness check fails.  A
+    /// wrong ticket cannot clear the real owner and therefore cannot authorize
+    /// a fallback maintenance scan.
+    pub(super) fn veto_maintenance(&mut self, ticket: MaintenanceStageTicket) -> bool {
+        if !self.maintenance_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.maintenance_in_flight = None;
+        true
+    }
+
     /// Queue one exact frame, coalescing only compatible work.
     ///
     /// A duplicate revision updates its payload while retaining the earliest
@@ -982,6 +1098,16 @@ impl WindowStageOwner {
             return true;
         }
         if self
+            .maintenance_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity.same_fence(identity)
+                    && identity.revision < in_flight.identity.revision
+            })
+        {
+            return true;
+        }
+        if self
             .last_encode_present_completion
             .as_ref()
             .is_some_and(|completion| {
@@ -1017,6 +1143,15 @@ impl WindowStageOwner {
         {
             return true;
         }
+        if self
+            .last_maintenance_completion
+            .as_ref()
+            .is_some_and(|completion| {
+                completion.same_fence(identity) && identity.revision <= completion.revision
+            })
+        {
+            return true;
+        }
         self.pending.as_ref().is_some_and(|pending| {
             pending.identity.same_fence(identity) && identity.revision < pending.identity.revision
         })
@@ -1031,11 +1166,13 @@ impl WindowStageOwner {
             && self.layout_in_flight.is_none()
             && self.paint_plan_in_flight.is_none()
             && self.encode_present_in_flight.is_none()
+            && self.maintenance_in_flight.is_none()
             && self.last_completion.is_none()
             && self.last_projection_completion.is_none()
             && self.last_layout_completion.is_none()
             && self.last_paint_plan_completion.is_none()
             && self.last_encode_present_completion.is_none()
+            && self.last_maintenance_completion.is_none()
         {
             return;
         }
@@ -1045,11 +1182,13 @@ impl WindowStageOwner {
         self.layout_in_flight = None;
         self.paint_plan_in_flight = None;
         self.encode_present_in_flight = None;
+        self.maintenance_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
         self.last_paint_plan_completion = None;
         self.last_encode_present_completion = None;
+        self.last_maintenance_completion = None;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -1089,11 +1228,14 @@ const fn stage_can_be_admitted(stage: SchedulerStage) -> bool {
             | SchedulerStage::Layout
             | SchedulerStage::PaintPlan
             | SchedulerStage::EncodePresent
+            | SchedulerStage::Maintenance
     )
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::native_resource_maintenance::NativeResourceMaintenanceSlot;
+    use super::super::submission_completion::NativeSubmissionCompletionIdentity;
     use super::*;
     use std::time::Duration;
 
@@ -1746,6 +1888,7 @@ mod tests {
                         | SchedulerStage::Layout
                         | SchedulerStage::PaintPlan
                         | SchedulerStage::EncodePresent
+                        | SchedulerStage::Maintenance
                 )
             );
         }
@@ -2004,5 +2147,109 @@ mod tests {
             .expect("next paint-plan ticket");
         assert_eq!(next.identity().revision(), exact.revision() + 1);
         assert!(owner.complete_paint_plan(next));
+    }
+
+    #[test]
+    fn maintenance_ticket_is_exact_and_follows_encode_present_stage() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let binding = NativeResourceMaintenanceBinding::new(
+            NativeResourceMaintenanceSlot::Quarantine(0),
+            adapter(1),
+            NativeSubmissionCompletionIdentity::never_submitted(adapter(1)),
+        );
+        let mismatched_witness = NativeResourceMaintenanceBinding::new(
+            NativeResourceMaintenanceSlot::Quarantine(0),
+            adapter(1),
+            NativeSubmissionCompletionIdentity::never_submitted(adapter(2)),
+        );
+        assert!(
+            owner
+                .admit_maintenance(adapter(2), target(1), mismatched_witness)
+                .is_none()
+        );
+        let ticket = owner
+            .admit_maintenance(adapter(2), target(1), binding)
+            .expect("known maintenance evidence should admit");
+        assert_eq!(ticket.identity().stage(), SchedulerStage::Maintenance);
+        assert_eq!(ticket.identity().adapter_generation(), adapter(2));
+        assert_eq!(ticket.binding(), binding);
+
+        let wrong = MaintenanceStageTicket {
+            identity: FrameStageIdentity::new(
+                FrameScheduleKey::Primary,
+                adapter(2),
+                target(1),
+                SchedulerStage::Maintenance,
+                ticket.identity().owner_generation(),
+                ticket.identity().revision() + 1,
+            ),
+            binding,
+            owner_token: ticket.owner_token,
+        };
+        assert!(!owner.complete_maintenance(wrong));
+        assert!(owner.maintenance_ticket_is_current(&ticket));
+        assert!(owner.complete_maintenance(ticket));
+        assert!(!owner.has_in_flight());
+        let owner_generation = owner.owner_generation();
+        owner.invalidate();
+        assert_eq!(owner.owner_generation(), owner_generation + 1);
+    }
+
+    #[test]
+    fn invalid_maintenance_witness_preserves_completed_deadline_owner() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("deadline revision");
+        let completed_identity = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        let completed_bundle = frame(now, false);
+        assert!(owner.queue(completed_identity.clone(), completed_bundle));
+        assert_eq!(
+            owner.begin(&completed_identity, now),
+            Some(completed_bundle)
+        );
+        assert!(owner.complete(&completed_identity, now, now + Duration::from_millis(1)));
+
+        let owner_generation = owner.owner_generation();
+        let fence = owner.fence;
+        let completion = owner.last_completion.clone();
+        assert_eq!(owner.completion_bundle(), Some(completed_bundle));
+        assert!(owner.stale(&completed_identity));
+
+        let invalid_bindings = [
+            NativeResourceMaintenanceBinding::new(
+                NativeResourceMaintenanceSlot::Quarantine(0),
+                NativeAdapterGeneration::unknown(),
+                NativeSubmissionCompletionIdentity::never_submitted(
+                    NativeAdapterGeneration::unknown(),
+                ),
+            ),
+            NativeResourceMaintenanceBinding::new(
+                NativeResourceMaintenanceSlot::Quarantine(0),
+                adapter(1),
+                NativeSubmissionCompletionIdentity::never_submitted(adapter(2)),
+            ),
+        ];
+
+        for binding in invalid_bindings {
+            assert!(
+                owner
+                    .admit_maintenance(adapter(2), target(1), binding)
+                    .is_none()
+            );
+            assert_eq!(owner.owner_generation(), owner_generation);
+            assert_eq!(owner.fence, fence);
+            assert_eq!(owner.last_completion, completion);
+            assert_eq!(owner.completion_bundle(), Some(completed_bundle));
+            assert!(!owner.has_in_flight());
+            assert!(owner.stale(&completed_identity));
+        }
     }
 }

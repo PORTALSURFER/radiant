@@ -143,7 +143,6 @@ fn retained_window_gpu_state_is_generation_owned_and_admitted() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
     )
     .expect("generic present source should be readable");
-
     for required in [
         "struct NativeWindowGpuResources",
         "gpu_surface_renderer: GpuSurfaceRenderer",
@@ -363,10 +362,6 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
     )
     .expect("generic surface source should be readable");
-    let present = fs::read_to_string(
-        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
-    )
-    .expect("generic present source should be readable");
 
     assert!(
         runner.contains("self.window.maintain_native_resources(turn)")
@@ -399,23 +394,29 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
     let completion_wake_start = lifecycle
         .find("RuntimeUserEvent::NativeResourceMaintenanceRequested => {")
         .expect("completion wake should be handled at the native event-loop boundary");
-    let completion_wake = &lifecycle[completion_wake_start..][..lifecycle[completion_wake_start..]
-        .find("#[cfg(target_os = \"macos\")]\n")
-        .expect("completion wake branch should end before platform-specific events")];
+    let completion_wake = lifecycle[completion_wake_start..]
+        .split("} else if self.is_running() {")
+        .nth(1)
+        .and_then(|branch| branch.split("#[cfg(target_os = \"macos\")]\n").next())
+        .expect("running completion wake branch should be present");
     assert!(
-        completion_wake.contains("self.begin_native_resource_maintenance_and_wake_primary()")
-            && !completion_wake.contains("FrameWork::RebuildScene"),
-        "completion retirement should wake exactly one primary redraw without adding unrelated frame work"
+        completion_wake.contains("self.wake_normal_native_resource_maintenance();")
+            && completion_wake
+                .contains("window.wake_normal_native_resource_maintenance(generation);")
+            && !completion_wake.contains("begin_native_resource_maintenance")
+            && !completion_wake.contains("request_redraw")
+            && !completion_wake.contains("FrameWork"),
+        "completion callbacks should wake primary and auxiliary maintenance only"
     );
     assert!(
-        runner.contains("begin_native_resource_maintenance_and_wake_primary")
-            && runner.contains("if self.maintain_native_resources_with_turn(&mut turn)")
-            && runner.contains("self.request_redraw_for_frame_work(FrameWork::None);"),
-        "maintenance should request the smallest primary redraw only after auxiliary removal"
-    );
-    assert!(
-        present.contains("self.sync_deferred_auxiliary_windows_if_needed(event_loop, adapter);"),
-        "the completion redraw should reach the existing deferred auxiliary sync consumer"
+        lifecycle.contains("selected_lane == FrameScheduleLane::Maintenance")
+            && lifecycle.contains("self.admit_native_resource_maintenance(")
+            && runner.contains("pub(super) fn admit_native_resource_maintenance(")
+            && runner.contains("self.window.maintain_native_resource_slot(binding)")
+            && runner.contains("advance_native_resource_maintenance_cursor")
+            && !lifecycle.contains("begin_native_resource_maintenance_and_wake_primary")
+            && !runner.contains("begin_native_resource_maintenance_and_wake_primary"),
+        "normal Running maintenance should use the selected exact Maintenance lane and slot ticket"
     );
     assert!(
         surface.contains("maintenance: &mut NativeResourceMaintenanceTurn")

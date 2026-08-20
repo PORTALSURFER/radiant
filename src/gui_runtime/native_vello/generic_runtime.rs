@@ -54,6 +54,7 @@ mod native_encode_present;
 mod native_file_drop;
 mod native_file_open;
 mod native_pointer;
+mod native_resource_maintenance;
 #[cfg(target_os = "macos")]
 mod native_semantic_accessibility;
 mod native_visual_packet;
@@ -103,7 +104,8 @@ use frame_cadence::{
 use frame_diagnostics_publication::NativeFrameDiagnosticsPublication;
 use frame_scheduler::{
     AuxiliaryScheduleEligibility, FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey,
-    FrameScheduleRedrawEvidence, FrameScheduleWork, FrameSchedulerPlan, NativeFrameScheduler,
+    FrameScheduleLane, FrameScheduleRedrawEvidence, FrameScheduleWork, FrameSchedulerPlan,
+    NativeFrameScheduler,
 };
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;

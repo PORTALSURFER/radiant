@@ -26,7 +26,7 @@ use super::{
     ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow,
     CpuFrameFairnessLedger, CpuFrameObservationAdmission, CpuFrameObservationCapture,
     CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFramePendingRedrawAge,
-    DeviceLossRegistration, FrameScheduleKey, FrameWork, FrameWorkReason,
+    DeviceLossRegistration, FrameScheduleKey, FrameScheduleLane, FrameWork, FrameWorkReason,
     GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
     NativeAdapterGeneration, NativeAutomationTargetExporter, NativeClosingProgress,
     NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
@@ -402,12 +402,33 @@ where
         self.native_window_diagnostic_identity_allocator.allocate()
     }
 
+    #[cfg(test)]
     pub(super) fn record_frame_schedule_admission(&mut self, key: FrameScheduleKey) {
+        self.record_frame_schedule_admission_with_lane(
+            key,
+            FrameScheduleLane::Visual,
+            false,
+            false,
+        );
+    }
+
+    pub(super) fn record_frame_schedule_admission_with_lane(
+        &mut self,
+        key: FrameScheduleKey,
+        lane: FrameScheduleLane,
+        visual_deadline_completed: bool,
+        maintenance_due: bool,
+    ) {
         let is_primary = matches!(&key, FrameScheduleKey::Primary);
         if let Some(ledger) = self.cpu_frame_fairness.as_mut() {
             ledger.mark_admitted(&key);
         }
-        self.frame_scheduler.record_admission(key);
+        self.frame_scheduler.record_selected_admission(
+            key,
+            lane,
+            visual_deadline_completed,
+            maintenance_due,
+        );
         if self.frame_observation_enabled && !self.auxiliary_owner && is_primary {
             self.frame_diagnostics_publication
                 .mark_schedule_admission_recorded();
@@ -793,14 +814,141 @@ where
         turn
     }
 
-    pub(super) fn begin_native_resource_maintenance_and_wake_primary(
+    fn normal_native_resource_maintenance_eligible(
+        &self,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_running()
+            && !self.has_terminal_cause()
+            && self.window.id.is_some()
+            && self.window.window.is_some()
+            && self.window.target_generation.is_known()
+            && !self.window.native_surface_target_fenced
+            && self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| resources.generation == adapter_generation)
+    }
+
+    pub(super) fn normal_native_resource_maintenance_deadline(
         &mut self,
-    ) -> NativeResourceMaintenanceTurn {
-        let mut turn = NativeResourceMaintenanceTurn::new();
-        if self.maintain_native_resources_with_turn(&mut turn) {
-            self.request_redraw_for_frame_work(FrameWork::None);
+        now: Instant,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<Instant> {
+        let Some(adapter_generation) = adapter_generation else {
+            self.timing.native_resource_maintenance_deadline = None;
+            return None;
+        };
+        if !self.normal_native_resource_maintenance_eligible(adapter_generation)
+            || self
+                .window
+                .native_resource_maintenance_candidate()
+                .is_none()
+        {
+            self.timing.native_resource_maintenance_deadline = None;
+            return None;
         }
-        turn
+        Some(
+            *self
+                .timing
+                .native_resource_maintenance_deadline
+                .get_or_insert(now),
+        )
+    }
+
+    /// A completion callback only wakes the event loop.  The next scheduler
+    /// observation may make one exact window due; no redraw or frame work is
+    /// requested here.
+    pub(super) fn wake_normal_native_resource_maintenance(&mut self) {
+        let Some(adapter_generation) = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+        else {
+            return;
+        };
+        self.wake_normal_native_resource_maintenance_with_generation(adapter_generation);
+    }
+
+    pub(super) fn wake_normal_native_resource_maintenance_with_generation(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+    ) {
+        if !self.is_running() || self.has_terminal_cause() {
+            return;
+        }
+        if self.normal_native_resource_maintenance_eligible(adapter_generation)
+            && self
+                .window
+                .native_resource_maintenance_candidate()
+                .is_some()
+        {
+            self.timing.native_resource_maintenance_deadline = Some(Instant::now());
+        }
+    }
+
+    fn defer_normal_native_resource_maintenance(&mut self, now: Instant) {
+        self.timing.native_resource_maintenance_deadline = self
+            .window
+            .native_resource_maintenance_candidate()
+            .map(|_| {
+                now + super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL
+            });
+    }
+
+    /// Admit and execute one exact Maintenance-stage unit for this window.
+    /// Every currentness failure is inert and leaves the real owner intact.
+    pub(super) fn admit_native_resource_maintenance(
+        &mut self,
+        now: Instant,
+        key: &FrameScheduleKey,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        if !self.frame_stage_owner.owns_key(key)
+            || !self.normal_native_resource_maintenance_eligible(adapter_generation)
+        {
+            return false;
+        }
+        let Some(binding) = self.window.native_resource_maintenance_candidate() else {
+            self.timing.native_resource_maintenance_deadline = None;
+            return false;
+        };
+        let Some(ticket) = self.frame_stage_owner.admit_maintenance(
+            adapter_generation,
+            self.window.target_generation,
+            binding,
+        ) else {
+            self.defer_normal_native_resource_maintenance(now);
+            return false;
+        };
+        let current = self
+            .window
+            .native_resource_maintenance_binding(binding.slot());
+        if current != Some(binding)
+            || !self
+                .frame_stage_owner
+                .maintenance_ticket_is_current(&ticket)
+        {
+            let _ = self.frame_stage_owner.veto_maintenance(ticket);
+            self.defer_normal_native_resource_maintenance(now);
+            return false;
+        }
+        let Some(quarantine_removed) = self.window.maintain_native_resource_slot(binding) else {
+            let _ = self.frame_stage_owner.veto_maintenance(ticket);
+            self.defer_normal_native_resource_maintenance(now);
+            return false;
+        };
+        if !self.frame_stage_owner.complete_maintenance(ticket) {
+            // The bounded unit already ran.  Never retry it through a broad
+            // maintenance fallback after a completion mismatch.
+            self.defer_normal_native_resource_maintenance(now);
+            return false;
+        }
+        self.window
+            .advance_native_resource_maintenance_cursor(binding.slot(), quarantine_removed);
+        self.defer_normal_native_resource_maintenance(now);
+        true
     }
 
     pub(super) fn maintain_native_resources_with_turn(
@@ -820,6 +968,33 @@ where
         let auxiliary_count = self.auxiliary_windows.len();
         self.auxiliary_windows
             .retain_mut(|window| !window.maintain_native_resources_with_turn(turn));
+        let removed_auxiliary = self.auxiliary_windows.len() != auxiliary_count;
+        if removed_auxiliary {
+            self.timing.deferred_auxiliary_window_sync = true;
+        }
+        removed_auxiliary
+    }
+
+    /// Normal Running auxiliary projection sync may only advance cleanup for
+    /// children that are already retiring.  Active resources are consumed by
+    /// the exact per-window Maintenance ticket path in the parent scheduler.
+    pub(super) fn maintain_retiring_auxiliary_resources_with_turn(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        let retiring_auxiliary_keys = self
+            .auxiliary_windows
+            .iter()
+            .filter(|window| window.is_retiring())
+            .map(|window| FrameScheduleKey::Auxiliary(window.key().to_owned()))
+            .collect::<Vec<_>>();
+        for key in retiring_auxiliary_keys {
+            self.remove_cpu_frame_observation(&key);
+        }
+        let auxiliary_count = self.auxiliary_windows.len();
+        self.auxiliary_windows.retain_mut(|window| {
+            !window.is_retiring() || !window.maintain_native_resources_with_turn(turn)
+        });
         let removed_auxiliary = self.auxiliary_windows.len() != auxiliary_count;
         if removed_auxiliary {
             self.timing.deferred_auxiliary_window_sync = true;

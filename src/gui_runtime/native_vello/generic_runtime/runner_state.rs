@@ -4,6 +4,10 @@ use super::NativeAdapterGeneration;
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
 use super::input::NativePointerGestureLatch;
+use super::native_resource_maintenance::{
+    NativeResourceMaintenanceBinding, NativeResourceMaintenanceKernel,
+    NativeResourceMaintenanceSlot,
+};
 use super::native_visual_packet::NativeVisualRequestMailbox;
 use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
@@ -302,6 +306,25 @@ impl NativeWindowResourceBundle {
         self.completion_witness.maintain()
     }
 
+    pub(super) fn maintenance_binding(
+        &self,
+        slot: NativeResourceMaintenanceSlot,
+    ) -> NativeResourceMaintenanceBinding {
+        NativeResourceMaintenanceBinding::new(
+            slot,
+            self.generation,
+            self.completion_witness.maintenance_identity(),
+        )
+    }
+
+    pub(super) fn maintenance_pending(&self) -> bool {
+        self.completion_witness.maintenance_pending()
+    }
+
+    pub(super) fn maintain_completion_once(&mut self) -> bool {
+        self.completion_witness.maintain_once()
+    }
+
     pub(super) const fn retirement_eligible(&self) -> bool {
         self.completion_witness.retirement_eligible()
     }
@@ -328,6 +351,7 @@ impl NativeResourceMaintenanceTurn {
         }
     }
 
+    #[cfg(test)]
     pub(super) const fn has_pending(&self) -> bool {
         self.pending
     }
@@ -558,6 +582,9 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) window: Option<Arc<Window>>,
     pub(super) native_resources: Option<NativeWindowResourceBundle>,
     pub(super) quarantined_native_resources: NativeResourceQuarantine<NativeWindowResourceBundle>,
+    /// Round-robin position for normal Running maintenance in Q0, Q1, Active
+    /// order. It advances only after an exact ticket executes successfully.
+    pub(super) native_resource_maintenance_cursor: u8,
     pub(super) native_dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale: crate::theme::DpiScale,
     pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
@@ -616,6 +643,105 @@ impl NativeRunnerWindowState {
             NativeWindowResourceBundle::maintain_completion,
             NativeWindowResourceBundle::retirement_eligible,
         );
+    }
+
+    /// Select one exact active/quarantine slot for normal Running maintenance.
+    /// The snapshot is fixed-capacity and never falls back to a broad scan at
+    /// execution time.
+    pub(super) fn native_resource_maintenance_candidate(
+        &self,
+    ) -> Option<NativeResourceMaintenanceBinding> {
+        NativeResourceMaintenanceKernel::select(
+            self.native_resource_maintenance_bindings(),
+            self.native_resource_maintenance_cursor,
+        )
+    }
+
+    /// Return the current binding for one exact positional slot.  This is
+    /// deliberately separate from candidate selection: revalidation must not
+    /// scan to another slot after the scheduler has issued a ticket.
+    pub(super) fn native_resource_maintenance_binding(
+        &self,
+        slot: NativeResourceMaintenanceSlot,
+    ) -> Option<NativeResourceMaintenanceBinding> {
+        let index = match slot {
+            NativeResourceMaintenanceSlot::Quarantine(0) => 0,
+            NativeResourceMaintenanceSlot::Quarantine(1) => 1,
+            NativeResourceMaintenanceSlot::Active => 2,
+            NativeResourceMaintenanceSlot::Quarantine(_) => return None,
+        };
+        self.native_resource_maintenance_bindings()[index]
+    }
+
+    fn native_resource_maintenance_bindings(
+        &self,
+    ) -> [Option<NativeResourceMaintenanceBinding>; 3] {
+        let mut quarantine = [None; 2];
+        for (index, resources) in self.quarantined_native_resources.entries.iter().enumerate() {
+            if index >= quarantine.len() {
+                break;
+            }
+            if resources.maintenance_pending() || resources.retirement_eligible() {
+                quarantine[index] = Some(
+                    resources.maintenance_binding(NativeResourceMaintenanceSlot::Quarantine(
+                        index as u8,
+                    )),
+                );
+            }
+        }
+        let active = self.native_resources.as_ref().and_then(|resources| {
+            resources
+                .maintenance_pending()
+                .then(|| resources.maintenance_binding(NativeResourceMaintenanceSlot::Active))
+        });
+        [quarantine[0], quarantine[1], active]
+    }
+
+    pub(super) fn advance_native_resource_maintenance_cursor(
+        &mut self,
+        slot: NativeResourceMaintenanceSlot,
+        quarantine_removed: bool,
+    ) {
+        self.native_resource_maintenance_cursor =
+            if quarantine_removed && slot == NativeResourceMaintenanceSlot::Quarantine(0) {
+                0
+            } else {
+                NativeResourceMaintenanceKernel::next_cursor(slot)
+            };
+    }
+
+    /// Execute one already-admitted exact slot.  A false result is a current
+    /// evidence veto and performs no poll, rearm, removal, or fallback scan.
+    pub(super) fn maintain_native_resource_slot(
+        &mut self,
+        binding: NativeResourceMaintenanceBinding,
+    ) -> Option<bool> {
+        match binding.slot() {
+            NativeResourceMaintenanceSlot::Active => {
+                let resources = self.native_resources.as_mut()?;
+                let current = resources.maintenance_binding(NativeResourceMaintenanceSlot::Active);
+                if !NativeResourceMaintenanceKernel::is_current(binding, current) {
+                    return None;
+                }
+                let _ = resources.maintain_completion_once();
+                Some(false)
+            }
+            NativeResourceMaintenanceSlot::Quarantine(index) => {
+                let index = usize::from(index);
+                let resources = self.quarantined_native_resources.entries.get_mut(index)?;
+                let current = resources
+                    .maintenance_binding(NativeResourceMaintenanceSlot::Quarantine(index as u8));
+                if !NativeResourceMaintenanceKernel::is_current(binding, current) {
+                    return None;
+                }
+                let _ = resources.maintain_completion_once();
+                let retirement_eligible = resources.retirement_eligible();
+                if retirement_eligible {
+                    let _ = self.quarantined_native_resources.entries.remove(index);
+                }
+                Some(retirement_eligible)
+            }
+        }
     }
 
     /// Move the complete active bundle into bounded retirement ownership,
@@ -773,6 +899,9 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) pending_viewport_resize_reason: Option<FrameWorkReason>,
     pub(super) surface_resize_applied_this_frame: bool,
     pub(super) pending_frame_work: FrameWork,
+    /// Next normal Running maintenance opportunity for this window.  Lifecycle
+    /// maintenance uses its separate turn and does not consume this deadline.
+    pub(super) native_resource_maintenance_deadline: Option<Instant>,
 }
 
 impl Default for NativeRunnerTimingState {
@@ -810,6 +939,7 @@ impl NativeRunnerTimingState {
             pending_viewport_resize_reason: None,
             surface_resize_applied_this_frame: false,
             pending_frame_work: FrameWork::None,
+            native_resource_maintenance_deadline: None,
         }
     }
 

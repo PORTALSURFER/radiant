@@ -201,12 +201,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     fn event_result(
         &mut self,
         terminal_cause: Option<NativeGenericRunError>,
+        visual_deadline_completed: bool,
     ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
             messages: self.take_messages(),
             message_origin: Some(self.owner.clone()),
             terminal_cause,
             shutdown_requested: self.runner.native_shutdown_requested(),
+            visual_deadline_completed,
         }
     }
 
@@ -451,12 +453,21 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) -> Option<FrameScheduleDemand> {
         let eligibility = self.frame_schedule_eligibility(current_generation);
         let ordinary = eligibility.is_eligible();
+        let maintenance_deadline = current_generation.and_then(|generation| {
+            eligibility
+                .is_maintenance_eligible()
+                .then(|| {
+                    self.runner
+                        .normal_native_resource_maintenance_deadline(now, Some(generation))
+                })
+                .flatten()
+        });
         let recovery = !ordinary
             && eligibility.is_recovery_eligible()
             && self
                 .runner
                 .native_visual_request_recovery_schedule_is_eligible();
-        if !ordinary && !recovery {
+        if !ordinary && !recovery && maintenance_deadline.is_none() {
             return None;
         }
         let animation_activity = if ordinary {
@@ -465,24 +476,57 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             RuntimeAnimationActivity::idle()
         };
         let needs_text_caret_animation = ordinary && self.runner.core.has_focused_text_input();
-        Some(FrameScheduleDemand::observe_runtime(
-            FrameScheduleKey::Auxiliary(self.key.clone()),
+        Some(
+            FrameScheduleDemand::observe_runtime(
+                FrameScheduleKey::Auxiliary(self.key.clone()),
+                now,
+                self.runner.timing.last_timed_frame_drain,
+                self.runner.options.normalized_target_fps(),
+                animation_activity,
+                needs_text_caret_animation,
+                FrameScheduleRedrawEvidence {
+                    timed_repaint_deadline: ordinary
+                        .then(|| self.runner.core.timed_repaint_deadline())
+                        .flatten(),
+                    pending_redraw_requested: self.runner.timing.redraw_requested,
+                    pending_redraw_age: self.runner.pending_redraw_age(now),
+                    pending_redraw_retry_deadline: self.runner.pending_redraw_retry_deadline(),
+                    pending_redraw_fresh: self.runner.timing.redraw_requested
+                        && !self.runner.pending_redraw_request_is_stale(now),
+                },
+            )
+            .with_maintenance_deadline(maintenance_deadline),
+        )
+    }
+
+    pub(super) fn wake_normal_native_resource_maintenance(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+    ) {
+        self.runner
+            .wake_normal_native_resource_maintenance_with_generation(adapter_generation);
+    }
+
+    pub(super) fn admit_native_resource_maintenance(
+        &mut self,
+        adapter: &GenericNativeAdapterOwner,
+        now: Instant,
+    ) -> bool {
+        let Some(parent_generation) = adapter.capture_generation() else {
+            return false;
+        };
+        if !adapter.admit_generation(parent_generation)
+            || !self
+                .frame_schedule_eligibility(Some(parent_generation))
+                .is_maintenance_eligible()
+        {
+            return false;
+        }
+        self.runner.admit_native_resource_maintenance(
             now,
-            self.runner.timing.last_timed_frame_drain,
-            self.runner.options.normalized_target_fps(),
-            animation_activity,
-            needs_text_caret_animation,
-            FrameScheduleRedrawEvidence {
-                timed_repaint_deadline: ordinary
-                    .then(|| self.runner.core.timed_repaint_deadline())
-                    .flatten(),
-                pending_redraw_requested: self.runner.timing.redraw_requested,
-                pending_redraw_age: self.runner.pending_redraw_age(now),
-                pending_redraw_retry_deadline: self.runner.pending_redraw_retry_deadline(),
-                pending_redraw_fresh: self.runner.timing.redraw_requested
-                    && !self.runner.pending_redraw_request_is_stale(now),
-            },
-        ))
+            &FrameScheduleKey::Auxiliary(self.key.clone()),
+            parent_generation,
+        )
     }
 
     pub(super) fn admit_frame_schedule_work(
@@ -538,7 +582,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             }
         }
         let terminal_cause = self.runner.take_terminal_cause();
-        Some(self.event_result(terminal_cause))
+        Some(self.event_result(terminal_cause, admission.visual_deadline_completed))
     }
 
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
@@ -662,6 +706,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             message_origin: None,
             terminal_cause: None,
             shutdown_requested: false,
+            visual_deadline_completed: false,
         }
     }
 
@@ -766,7 +811,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::RedrawRequested => {
                 if !self.active || !self.is_admitted() {
                     self.runner.suspend_native_visual_requests();
-                    return self.event_result(None);
+                    return self.event_result(None, false);
                 }
                 let packet = match self.runner.begin_native_visual_request(adapter) {
                     NativeVisualRequestBegin::Requested(packet) => Some((packet, true)),
@@ -818,7 +863,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             _ => {}
         }
         let terminal_cause = terminal_cause.or_else(|| self.runner.take_terminal_cause());
-        self.event_result(terminal_cause)
+        self.event_result(terminal_cause, false)
     }
 
     fn take_messages(&mut self) -> Vec<Message> {
@@ -840,6 +885,7 @@ pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) message_origin: Option<AuxiliaryWindowOwner>,
     pub(super) terminal_cause: Option<NativeGenericRunError>,
     pub(super) shutdown_requested: bool,
+    pub(super) visual_deadline_completed: bool,
 }
 
 impl<Message> AuxiliaryWindowEventResult<Message> {
@@ -849,6 +895,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
             message_origin: None,
             terminal_cause: None,
             shutdown_requested: false,
+            visual_deadline_completed: false,
         }
     }
 }
@@ -927,7 +974,7 @@ where
         if !self.should_admit_auxiliary_sync() {
             return Ok(());
         }
-        let mut maintenance = self.begin_native_resource_maintenance();
+        let mut maintenance = NativeResourceMaintenanceTurn::new();
         let Some(mut adapter) = self.adapter.take() else {
             return Err(NativeGenericRunError::NativeInitialization {
                 stage: super::NativeInitializationStage::DeviceAcquisition,
@@ -953,7 +1000,7 @@ where
         if !self.should_admit_auxiliary_sync() {
             return Ok(());
         }
-        let mut maintenance = self.begin_native_resource_maintenance();
+        let mut maintenance = NativeResourceMaintenanceTurn::new();
         self.sync_auxiliary_windows_with_adapter_in_turn(
             event_loop,
             event_proxy,
@@ -974,6 +1021,7 @@ where
         if !self.should_admit_auxiliary_sync() {
             return Ok(());
         }
+        self.maintain_retiring_auxiliary_resources_with_turn(_maintenance);
         let mut recovery_opportunity = AuxiliaryRecoveryOpportunity::default();
         if recovery_opportunity.admit_rebuild()
             && let Some(index) = self
@@ -1280,7 +1328,7 @@ mod tests {
     fn child_outbox_messages_carry_the_auxiliary_generation_owner() {
         let mut window = auxiliary_window(false);
         let _ = window.runner.core.runtime.dispatch_message(17);
-        let result = window.event_result(None);
+        let result = window.event_result(None, false);
         assert_eq!(result.messages, [17]);
         let owner = window.effect_owner();
         assert!(

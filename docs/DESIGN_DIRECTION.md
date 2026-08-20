@@ -5200,6 +5200,43 @@ fresh snapshot and fresh ticket. This remains crate-private and does not add a
 public API/schema, dirty-bit suppression, renderer retention, render thread,
 budget, timestamp, or platform claim.
 
+### Native submission maintenance ticket (private native-window contract)
+
+For normal `Running` native submission maintenance, after the parent scheduler
+selects one exact stable window key, that window's `WindowStageOwner` admits
+one crate-private non-`Clone` `MaintenanceStageTicket`. The ticket binds the
+exact stable window key, the current window-owner adapter and target
+generations, the exact active or quarantine resource slot, and the exact
+`NativeSubmissionCompletionIdentity` witness. The owner adapter/target
+generations fence the `FrameStageIdentity`; the bound resource generation is
+independent and may be older for a quarantine slot. Admission requires a
+known/valid owner fence, a known resource generation, and a completion witness
+with that same resource generation; it does not require resource generation to
+equal the current adapter generation. An inactive cached auxiliary may maintain
+exact resources but stays visually dormant and cannot present. For one key with
+jointly due visual and maintenance work, the first opportunity selects visual;
+only after a visual `Deadline` bundle completes successfully while maintenance
+remains due does the next same-key fairness-eligible opportunity select bounded
+`Maintenance`, even if visual work remains due. An owed same-key maintenance
+opportunity remains below another key's `Deadline`.
+
+The ticket executes one bounded nonblocking unit with at most one device
+`PollType::Poll`, one completion callback observation/rearm, and one exact
+quarantined-resource removal. `NeverSubmitted` quarantine retires only its
+exact slot; submitted retirement requires the exact callback; coalesced
+completion requires the rearm and second callback; indeterminate completion
+remains fenced until exact callback evidence. If work remains, scheduling
+records only a bounded future maintenance deadline. Missing, unknown, wrong,
+stale, exhausted, fenced, non-running, conflicting, or ambiguous key,
+generation, target, slot, or witness evidence is inert: it performs no poll,
+rearm, removal, redraw, present, or broad fallback scan, and preserves the
+resources and real owner while demand is recomputed. Completion user events
+are wake-only and do not perform maintenance or request unrelated `FrameWork`.
+This private ticket path is only for normal `Running` submission maintenance;
+startup/preflight, recovery, `Closing`, and already-retiring auxiliary cleanup
+retain lifecycle-authoritative bounded paths and reuse the same witness
+transition kernel.
+
 ## Invalidation
 
 Application code declares the *cause* of a change. The runtime chooses the

@@ -1,3 +1,4 @@
+use super::super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::*;
 use crate::application::IntoView;
 use crate::gui::{
@@ -5,7 +6,7 @@ use crate::gui::{
     input::{InputSequenceRange, InputTimestamp, KeyCode, KeyPress},
     shortcuts::ShortcutResolution,
 };
-use crate::runtime::{RuntimeHostCapabilities, RuntimeInputHost};
+use crate::runtime::{ExternalDragRequest, RuntimeHostCapabilities, RuntimeInputHost};
 use crate::{
     layout::LayoutOutput,
     theme::ThemeTokens,
@@ -14,7 +15,10 @@ use crate::{
         WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
-use std::time::{Duration, Instant};
+use std::{
+    cell::Cell,
+    time::{Duration, Instant},
+};
 use winit::{
     dpi::PhysicalPosition,
     event::{MouseButton, MouseScrollDelta, TouchPhase},
@@ -1786,4 +1790,51 @@ fn native_pointer_focus_loss_clears_retained_widget_hover() {
             .state
             .hovered
     );
+}
+
+#[test]
+fn external_drag_finalize_waits_for_transient_completion() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    runner.input.last_cursor = Some(Point::new(60.0, 20.0));
+    runner
+        .core
+        .runtime
+        .execute_command(Command::begin_external_drag_without_completion(
+            ExternalDragRequest::files(
+                [std::path::PathBuf::from(r"C:\samples\kick.wav")],
+                "kick.wav",
+            ),
+        ));
+    let route = runner.route_cursor_left();
+    assert_eq!(runner.input.last_cursor, None);
+    assert!(route.launch_external_drag);
+
+    let launch_calls = Cell::new(0);
+    let rejected = finalize_native_immediate_transient_route(
+        false,
+        route.outcome,
+        route.launch_external_drag,
+        || {
+            launch_calls.set(launch_calls.get() + 1);
+            GenericRouteOutcome::default()
+        },
+    );
+    assert!(rejected.is_none());
+    assert_eq!(launch_calls.get(), 0);
+    assert!(runner.core.runtime.external_drag_armed());
+
+    let mut local_route = GenericRouteOutcome::default();
+    local_route.request_scene_rebuild(FrameWorkReason::ExternalDragPreview);
+    let accepted = finalize_native_immediate_transient_route(true, local_route, true, || {
+        launch_calls.set(launch_calls.get() + 1);
+        GenericRouteOutcome::default()
+    })
+    .expect("completed transient should publish its retained route");
+    assert_eq!(launch_calls.get(), 1);
+    assert_eq!(accepted.frame_work(), local_route.frame_work());
 }

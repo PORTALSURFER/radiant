@@ -1,6 +1,8 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
+use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
+use super::native_immediate_transient_stage::NativeImmediateTransientKind;
 use super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL;
 use super::{
     AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
@@ -223,31 +225,163 @@ where
             }
             WindowEvent::ThemeChanged(theme) => self.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::Focused(false),
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let Some(ticket) =
+                    self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+                else {
+                    return;
+                };
                 self.window.native_window_focused = false;
                 let routed = self.handle_focus_lost_before_external_drag();
-                self.handle_route_outcome(event_loop, routed);
-                if self.core.runtime.external_drag_armed() {
-                    let outcome = self.launch_external_drag_if_armed();
-                    self.handle_route_outcome(event_loop, outcome);
+                let launch_external_drag = self.core.runtime.external_drag_armed();
+                if let Some(routed) = finalize_native_immediate_transient_route(
+                    self.complete_native_immediate_transient(ticket),
+                    routed,
+                    launch_external_drag,
+                    || self.launch_external_drag_if_armed(),
+                ) {
+                    self.handle_route_outcome(event_loop, routed);
+                    #[cfg(target_os = "macos")]
+                    self.republish_native_semantic_accessibility_passively();
                 }
-                #[cfg(target_os = "macos")]
-                self.republish_native_semantic_accessibility_passively();
             }
             WindowEvent::Focused(true) => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::Focused(true),
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let Some(ticket) =
+                    self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+                else {
+                    return;
+                };
                 self.window.native_window_focused = true;
                 let routed = self.handle_focus_regained_after_native_modal_loop();
-                self.handle_route_outcome(event_loop, routed);
-                #[cfg(target_os = "macos")]
-                self.republish_native_semantic_accessibility_passively();
+                if self.complete_native_immediate_transient(ticket) {
+                    self.handle_route_outcome(event_loop, routed);
+                    #[cfg(target_os = "macos")]
+                    self.republish_native_semantic_accessibility_passively();
+                }
             }
-            WindowEvent::CursorEntered { .. } => self.handle_cursor_entered(),
+            WindowEvent::CursorEntered { .. } => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::CursorEntered,
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let Some(ticket) =
+                    self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+                else {
+                    return;
+                };
+                self.handle_cursor_entered();
+                let _ = self.complete_native_immediate_transient(ticket);
+            }
             WindowEvent::CursorMoved { position, .. } => {
-                self.handle_cursor_moved(position);
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::CursorMoved,
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let Some(ticket) =
+                    self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+                else {
+                    return;
+                };
+                let route = self.route_cursor_moved_with_timestamp(position, timestamp);
+                if self.complete_native_immediate_transient(ticket) {
+                    self.apply_cursor_moved_route(route);
+                }
             }
             WindowEvent::HoveredFile(path) => self.handle_native_file_hover(event_loop, path),
             WindowEvent::HoveredFileCancelled => self.handle_native_file_cancel(event_loop),
             WindowEvent::DroppedFile(path) => self.handle_native_file_drop(event_loop, path),
-            WindowEvent::CursorLeft { .. } => self.handle_cursor_left(event_loop),
+            WindowEvent::CursorLeft { .. } => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::CursorLeft,
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let Some(ticket) =
+                    self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+                else {
+                    return;
+                };
+                let route = self.route_cursor_left();
+                if let Some(routed) = finalize_native_immediate_transient_route(
+                    self.complete_native_immediate_transient(ticket),
+                    route.outcome,
+                    route.launch_external_drag,
+                    || self.launch_external_drag_if_armed(),
+                ) {
+                    self.handle_route_outcome(event_loop, routed);
+                }
+            }
             WindowEvent::MouseInput { button, state, .. } => {
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = self
@@ -307,8 +441,40 @@ where
                 self.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
-                let route = self.route_native_mouse_wheel_with_phase(delta, phase);
-                self.handle_route_outcome(event_loop, route.outcome);
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::MouseWheel(phase),
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let Some(ticket) =
+                    self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+                else {
+                    return;
+                };
+                let route =
+                    self.route_native_mouse_wheel_with_phase_and_timestamp(delta, phase, timestamp);
+                if self.complete_native_immediate_transient(ticket) {
+                    self.apply_deferred_wheel_route_effects(route.deferred_wheel_effects);
+                    if route.redraw_requested {
+                        self.request_redraw_for_frame_work(FrameWork::None);
+                    }
+                    if let Some(position) = route.position {
+                        self.handle_gpu_surface_route_outcome(route.outcome, position, route.delta);
+                    }
+                    self.handle_route_outcome(event_loop, route.outcome);
+                }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.handle_keyboard_event(event_loop, event)

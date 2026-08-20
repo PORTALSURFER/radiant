@@ -704,11 +704,11 @@ where
         admission
     }
 
-    /// Finish the exact deferred Deadline operation before a native
-    /// DiscreteInput admission. The caller owns any route-outcome publication;
-    /// this helper only consumes the retained deadline ticket once and never
-    /// supplies a replay or fallback payload.
-    pub(super) fn admit_deferred_timed_frame_before_discrete_input(
+    /// Finish the exact deferred Deadline operation before a native input
+    /// admission. The caller owns any route-outcome publication; this helper
+    /// only consumes the retained deadline ticket once and never supplies a
+    /// replay or fallback payload.
+    pub(super) fn admit_deferred_timed_frame_before_native_input(
         &mut self,
         adapter_generation: NativeAdapterGeneration,
         target_generation: NativeTargetGeneration,
@@ -739,6 +739,16 @@ where
         let mut admission = admission;
         admission.visual_deadline_completed = true;
         admission
+    }
+
+    /// Finish the exact deferred Deadline operation before a native
+    /// DiscreteInput admission.
+    pub(super) fn admit_deferred_timed_frame_before_discrete_input(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> FrameScheduleAdmission {
+        self.admit_deferred_timed_frame_before_native_input(adapter_generation, target_generation)
     }
 
     fn admit_timed_frame_deadline(
@@ -928,6 +938,10 @@ mod tests {
     use super::super::{
         DeviceLossRegistration, GenericNativeAdapterOwner, NativeAdapterGeneration,
         native_discrete_input_stage::NativeDiscreteInputKind,
+        native_immediate_transient_stage::{
+            NativeImmediateTransientKind, NativeImmediateTransientStageEvidence,
+            admit_native_immediate_transient, complete_native_immediate_transient,
+        },
     };
     use super::*;
     use crate::{
@@ -1882,7 +1896,7 @@ mod tests {
     }
 
     #[test]
-    fn discrete_input_boundary_finishes_one_exact_deferred_deadline_without_replay() {
+    fn native_input_boundary_finishes_one_exact_deferred_deadline_without_replay() {
         let repaint_advance_calls = Rc::new(Cell::new(0));
         let mut runner = GenericNativeVelloRunner::new(
             NativeRunOptions::default(),
@@ -1905,7 +1919,11 @@ mod tests {
         assert!(deferred.did_work);
         assert!(runner.frame_stage_owner.has_deferred_timed_frame());
 
-        let finished = runner.admit_deferred_timed_frame_before_discrete_input(
+        // Capture the native timestamp before the Deadline bridge.  The
+        // bridge may drain retained work, but it must not replace the event's
+        // arrival evidence.
+        let input_timestamp = crate::gui::input::InputTimestamp::capture();
+        let finished = runner.admit_deferred_timed_frame_before_native_input(
             adapter_generation,
             runner.window.target_generation,
         );
@@ -1918,7 +1936,6 @@ mod tests {
         // window/resource bundle.  The exact Deadline owner is still drained
         // before the input admission attempt, but the primary input must stay
         // inert at that native eligibility boundary.
-        let input_timestamp = crate::gui::input::InputTimestamp::capture();
         assert!(
             runner
                 .admit_native_discrete_input_with_generation(
@@ -1931,7 +1948,29 @@ mod tests {
         );
         assert!(!runner.frame_stage_owner.has_in_flight());
 
-        let replay = runner.admit_deferred_timed_frame_before_discrete_input(
+        let transient_evidence = NativeImmediateTransientStageEvidence {
+            key: FrameScheduleKey::Primary,
+            kind: NativeImmediateTransientKind::CursorMoved,
+            timestamp: input_timestamp,
+            window_id: Some(winit::window::WindowId::dummy()),
+            adapter_generation,
+            active_resource_generation: Some(adapter_generation),
+            target_generation: runner.window.target_generation,
+            native_surface_target_fenced: false,
+            lifecycle: super::super::NativeLifecycle::default(),
+            native_window_eligible: true,
+            wrapper_eligible: true,
+        };
+        let transient =
+            admit_native_immediate_transient(&mut runner.frame_stage_owner, transient_evidence)
+                .expect("captured transient should admit after the Deadline bridge");
+        assert_eq!(transient.evidence().timestamp, input_timestamp);
+        assert!(complete_native_immediate_transient(
+            &mut runner.frame_stage_owner,
+            transient
+        ));
+
+        let replay = runner.admit_deferred_timed_frame_before_native_input(
             adapter_generation,
             runner.window.target_generation,
         );

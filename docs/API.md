@@ -7331,6 +7331,40 @@ This slice covers only `MouseInput`, `KeyboardInput`, `ModifiersChanged`, and
 resize, redraw, and `ImmediateTransient` behavior remain outside this
 contract.
 
+### Native ImmediateTransient stage contract
+
+The native event-loop owner admits exactly one non-`Clone` `ImmediateTransient`
+ticket for each `Focused(false)`, `Focused(true)`, `CursorEntered`,
+`CursorMoved`, `CursorLeft`, or `MouseWheel` event. Primary and auxiliary
+windows use the same private stage owner and route boundary; a wheel ticket
+retains the exact native `TouchPhase`. The event timestamp is captured at
+native arrival before any forced exact deferred-`Deadline` terminal drainage.
+If a deferred `Deadline` ticket is present, that exact owner is drained and
+completed before transient admission, never bypassed or replayed.
+
+Admission binds the stable window key, live native `WindowId`, active native
+resource generation matching the adapter, known unfenced target, running
+nonterminal native-window eligibility, exact event kind/phase, and captured
+timestamp. Auxiliary admission also binds caller-supplied active, admitted,
+materialized wrapper eligibility; inactive, cached, retiring, or unmaterialized
+children remain inert. Exact owner and native evidence currentness are
+revalidated immediately before routing. An existing `DiscreteInput` owner is
+never drained or replaced: transient admission fails inertly and leaves that
+owner current. A pre-route veto is fully inert with no retry, replay, fallback,
+or lower-stage mutation.
+
+The ticket remains live through synchronous runtime-local mutation, native
+routing, message reduction, and the current semantic flush. Exact completion
+occurs before timed-frame merge or `Deadline`, refresh/projection, redraw
+publication, auxiliary synchronization, wakeup, or presentation. A post-route
+completion mismatch never reroutes, replays, or applies a lower-stage outcome;
+a wrong ticket never clears the real owner. Focus and cursor boundaries, plus
+wheel `Started`, `Ended`, and `Cancelled`, remain non-coalesced. `CursorMoved`
+and wheel `Moved` preserve the existing direct/coalesced policy, accumulated
+delta, newest metadata, sequence range, axis-change flush, focus-loss clearing,
+and admitted queued-sample completion behavior. This private slice adds no
+pointer-motion coalescer, fairness consumer, or public API.
+
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and
 target transition are published, the primary and every admitted auxiliary that

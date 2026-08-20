@@ -238,13 +238,13 @@ fn native_pointer_lifecycle_uses_explicit_imports() {
             && lifecycle_pointer.contains("use crate::runtime::RuntimeBridge;")
             && lifecycle_pointer.contains("use std::time::Instant;")
             && lifecycle_pointer
-                .contains("use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop")
+                .contains("use winit::{dpi::PhysicalPosition, keyboard::ModifiersState};")
             && !lifecycle_pointer.starts_with("use super::*;"),
         "native pointer lifecycle should name runner, input conversion, profiling, bridge, timing, and winit dependencies"
     );
     assert!(
         lifecycle_pointer.contains("fn handle_cursor_moved(")
-            && lifecycle_pointer.contains("fn handle_cursor_left(")
+            && lifecycle_pointer.contains("fn route_cursor_left(")
             && lifecycle_pointer.contains("PhysicalPosition<f64>")
             && lifecycle_pointer
                 .contains("logical_point_from_winit(position, self.window.dpi_scale)")

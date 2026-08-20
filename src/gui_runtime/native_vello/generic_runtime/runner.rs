@@ -1089,6 +1089,7 @@ where
 
     fn stop_native_event_loop(&mut self, event_loop: &ActiveEventLoop) {
         let _ = self.native_lifecycle.finish_closing();
+        self.clear_retiring_auxiliary_maintenance();
         if !self.auxiliary_owner {
             event_loop.exit();
         }
@@ -1102,6 +1103,44 @@ where
                 .iter()
                 .all(AuxiliaryNativeWindow::native_resource_ownership_is_empty)
             && !self.recovery.has_in_flight_candidate()
+    }
+
+    pub(super) fn has_retiring_auxiliary_windows(&self) -> bool {
+        self.auxiliary_windows
+            .iter()
+            .any(AuxiliaryNativeWindow::is_retiring)
+    }
+
+    pub(super) fn retiring_auxiliary_maintenance_deadline(&self) -> Option<Instant> {
+        self.timing.retiring_auxiliary_maintenance_deadline
+    }
+
+    pub(super) fn retiring_auxiliary_maintenance_is_due(&self, now: Instant) -> bool {
+        self.timing
+            .retiring_auxiliary_maintenance_deadline
+            .is_some_and(|deadline| deadline <= now)
+    }
+
+    /// Arm the parent-owned retirement opportunity without doing any work.
+    /// Completion callbacks and accepted close events use this wake-only hook;
+    /// the actual bounded cleanup remains an `AboutToWait` authority.
+    pub(super) fn arm_retiring_auxiliary_maintenance_due_now(&mut self) {
+        if self.is_running() {
+            self.timing.retiring_auxiliary_maintenance_deadline = self
+                .has_retiring_auxiliary_windows()
+                .then_some(Instant::now());
+        }
+    }
+
+    pub(super) fn rearm_retiring_auxiliary_maintenance(&mut self, now: Instant) {
+        self.timing.retiring_auxiliary_maintenance_deadline =
+            self.has_retiring_auxiliary_windows().then_some(
+                now + super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL,
+            );
+    }
+
+    fn clear_retiring_auxiliary_maintenance(&mut self) {
+        self.timing.retiring_auxiliary_maintenance_deadline = None;
     }
 
     pub(super) fn begin_native_resource_maintenance(&mut self) -> NativeResourceMaintenanceTurn {
@@ -1629,6 +1668,7 @@ where
                 ));
             }
         }
+        self.arm_retiring_auxiliary_maintenance_due_now();
         Ok(())
     }
 
@@ -3306,8 +3346,8 @@ mod tests {
         AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
         FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
         NativeAdapterGeneration, NativeGenericRunError, NativeLifecycle,
-        NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeTargetGeneration,
-        TimedFrameCadence, recovery_completion_is_admissible,
+        NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
+        NativeTargetGeneration, TimedFrameCadence, recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -3639,6 +3679,203 @@ mod tests {
             EmptyBridge,
             Vector2::new(320.0, 240.0),
         )
+    }
+
+    fn retiring_auxiliary_window_with_key(key: &str) -> AuxiliaryNativeWindow<()> {
+        let surface = crate::runtime::test_arc_surface(empty::<()>().into_surface());
+        let options = NativeRunOptions::default();
+        let mut window = AuxiliaryNativeWindow::new(
+            AuxiliaryWindow::new(key, options.clone(), surface),
+            &options,
+            None,
+            false,
+            false,
+        );
+        let close = window.stage_destructive_close_for_test();
+        let ticket = close.close_admission.expect("retiring close ticket").ticket;
+        assert!(window.prepare_destructive_close(&ticket));
+        assert!(window.complete_native_lifecycle(ticket));
+        assert!(window.is_retiring());
+        assert_eq!(window.take_close_message(), None);
+        window
+    }
+
+    fn retiring_auxiliary_window() -> AuxiliaryNativeWindow<()> {
+        retiring_auxiliary_window_with_key("settings")
+    }
+
+    fn retiring_auxiliary_window_with_pending_resource(key: &str) -> AuxiliaryNativeWindow<()> {
+        let mut window = retiring_auxiliary_window_with_key(key);
+        window.install_retiring_resource_test();
+        window
+    }
+
+    #[test]
+    fn retiring_auxiliary_deadline_is_due_now_rearmed_and_cleared_by_one_turn() {
+        let mut runner = runner();
+        runner
+            .auxiliary_windows
+            .push(retiring_auxiliary_window_with_key("retiring"));
+        let now = Instant::now();
+
+        runner.timing.retiring_auxiliary_maintenance_deadline =
+            Some(now + Duration::from_millis(16));
+        assert!(!runner.retiring_auxiliary_maintenance_is_due(now));
+        assert_eq!(
+            runner.retiring_auxiliary_maintenance_deadline(),
+            Some(now + Duration::from_millis(16))
+        );
+
+        runner.arm_retiring_auxiliary_maintenance_due_now();
+        assert!(runner.retiring_auxiliary_maintenance_is_due(Instant::now()));
+
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        assert!(runner.maintain_retiring_auxiliary_resources_with_turn(&mut turn));
+        runner.rearm_retiring_auxiliary_maintenance(now);
+        assert!(runner.auxiliary_windows.is_empty());
+        assert_eq!(runner.retiring_auxiliary_maintenance_deadline(), None);
+        assert!(runner.timing.deferred_auxiliary_window_sync);
+    }
+
+    #[test]
+    fn retiring_auxiliary_late_wake_does_not_rearm_without_a_retiring_child() {
+        let mut runner = runner();
+        let deadline = Instant::now() + Duration::from_millis(16);
+        runner.timing.retiring_auxiliary_maintenance_deadline = Some(deadline);
+
+        runner.arm_retiring_auxiliary_maintenance_due_now();
+
+        assert_eq!(runner.retiring_auxiliary_maintenance_deadline(), None);
+    }
+
+    #[test]
+    fn retiring_auxiliary_pending_deadline_does_not_fire_early() {
+        let mut runner = runner();
+        runner.auxiliary_windows.push(retiring_auxiliary_window());
+        let now = Instant::now();
+        let deadline = now + Duration::from_millis(16);
+        runner.timing.retiring_auxiliary_maintenance_deadline = Some(deadline);
+
+        assert!(!runner.retiring_auxiliary_maintenance_is_due(now));
+        assert_eq!(
+            runner.retiring_auxiliary_maintenance_deadline(),
+            Some(deadline)
+        );
+        assert!(runner.retiring_auxiliary_maintenance_is_due(deadline));
+    }
+
+    #[test]
+    fn retiring_auxiliary_deadline_tracks_pending_completion_then_one_drop() {
+        let mut runner = runner();
+        runner
+            .auxiliary_windows
+            .push(retiring_auxiliary_window_with_pending_resource("pending"));
+        let now = Instant::now();
+
+        runner.arm_retiring_auxiliary_maintenance_due_now();
+        assert!(runner.retiring_auxiliary_maintenance_is_due(Instant::now()));
+        assert!(runner.auxiliary_windows[0].retiring_resource_test_is_pending());
+
+        // The wake/callback arm is inert with respect to resource ownership;
+        // the child remains pending until the due AboutToWait turn.
+        runner.arm_retiring_auxiliary_maintenance_due_now();
+        assert!(runner.auxiliary_windows[0].retiring_resource_test_is_pending());
+
+        let mut pending_turn = NativeResourceMaintenanceTurn::new();
+        assert!(!runner.maintain_retiring_auxiliary_resources_with_turn(&mut pending_turn));
+        assert_eq!(runner.auxiliary_windows.len(), 1);
+        assert!(runner.auxiliary_windows[0].retiring_resource_test_is_completed());
+        assert!(pending_turn.has_pending());
+
+        runner.rearm_retiring_auxiliary_maintenance(now);
+        let rearmed = runner
+            .retiring_auxiliary_maintenance_deadline()
+            .expect("pending completion should rearm retirement");
+        assert!(rearmed > now);
+
+        // A later due turn consumes the single drop budget and removes the
+        // now-completed child, then the parent clears its deadline.
+        runner.timing.retiring_auxiliary_maintenance_deadline =
+            Some(Instant::now() - Duration::from_millis(1));
+        let mut completed_turn = NativeResourceMaintenanceTurn::new();
+        assert!(runner.maintain_retiring_auxiliary_resources_with_turn(&mut completed_turn));
+        assert!(runner.auxiliary_windows.is_empty());
+        runner.rearm_retiring_auxiliary_maintenance(Instant::now());
+        assert_eq!(runner.retiring_auxiliary_maintenance_deadline(), None);
+        assert!(runner.timing.deferred_auxiliary_window_sync);
+    }
+
+    #[test]
+    fn retiring_auxiliary_opportunity_has_no_window_demand_but_keeps_exact_wait_deadline() {
+        let mut runner = runner();
+        let now = Instant::now();
+        let deadline = now + Duration::from_millis(16);
+        runner.timing.retiring_auxiliary_maintenance_deadline = Some(deadline);
+
+        let plan = runner.frame_scheduler.observe(
+            now,
+            &[],
+            FrameScheduleDeadlines {
+                maintenance: runner.retiring_auxiliary_maintenance_deadline(),
+                ..FrameScheduleDeadlines::default()
+            },
+        );
+
+        assert_eq!(plan.selected, None);
+        assert_eq!(plan.deadlines.earliest(), Some(deadline));
+    }
+
+    #[test]
+    fn retiring_auxiliary_opportunity_shares_one_turn_across_multiple_children() {
+        let mut runner = runner();
+        runner
+            .auxiliary_windows
+            .push(retiring_auxiliary_window_with_pending_resource("first"));
+        runner
+            .auxiliary_windows
+            .push(retiring_auxiliary_window_with_pending_resource("second"));
+
+        let mut pending_turn = NativeResourceMaintenanceTurn::new();
+        assert!(!runner.maintain_retiring_auxiliary_resources_with_turn(&mut pending_turn));
+        assert_eq!(runner.auxiliary_windows.len(), 2);
+        assert!(
+            runner
+                .auxiliary_windows
+                .iter()
+                .all(AuxiliaryNativeWindow::retiring_resource_test_is_completed)
+        );
+        assert!(pending_turn.has_pending());
+
+        let mut one_drop_turn = NativeResourceMaintenanceTurn::new();
+        assert!(runner.maintain_retiring_auxiliary_resources_with_turn(&mut one_drop_turn));
+        assert_eq!(runner.auxiliary_windows.len(), 1);
+        assert!(runner.auxiliary_windows[0].retiring_resource_test_is_completed());
+        assert!(one_drop_turn.has_pending());
+        assert!(runner.timing.deferred_auxiliary_window_sync);
+    }
+
+    #[test]
+    fn due_retiring_auxiliary_turn_leaves_normal_maintenance_due() {
+        let mut runner = runner();
+        runner
+            .auxiliary_windows
+            .push(retiring_auxiliary_window_with_pending_resource("retiring"));
+        let normal_deadline = Instant::now() - Duration::from_millis(1);
+        runner.timing.native_resource_maintenance_deadline = Some(normal_deadline);
+        runner.arm_retiring_auxiliary_maintenance_due_now();
+
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        assert!(runner.retiring_auxiliary_maintenance_is_due(Instant::now()));
+        assert!(!runner.maintain_retiring_auxiliary_resources_with_turn(&mut turn));
+        runner.rearm_retiring_auxiliary_maintenance(Instant::now());
+
+        // AboutToWait spends this turn exclusively on the retiring-child
+        // opportunity; the separate normal MaintenanceStage ticket remains
+        // due for the next scheduler opportunity.
+        assert_eq!(
+            runner.timing.native_resource_maintenance_deadline,
+            Some(normal_deadline)
+        );
     }
 
     fn finish_evidence(
@@ -4363,6 +4600,11 @@ mod tests {
         assert!(auxiliary.admit_device_recovery());
         assert!(!auxiliary.recovery_rebuild_pending());
         runner.auxiliary_windows.push(auxiliary);
+        // A resident child that is already retiring is not part of the finish
+        // ticket set, but its bounded cleanup must be handed back to Running.
+        runner
+            .auxiliary_windows
+            .push(retiring_auxiliary_window_with_key("retiring"));
 
         let primary_evidence = finish_evidence(
             FrameScheduleKey::Primary,
@@ -4399,7 +4641,6 @@ mod tests {
                 &auxiliary_evidence
             )
         );
-
         assert!(
             runner
                 .finish_staged_native_lifecycle_with_evidence(
@@ -4413,6 +4654,7 @@ mod tests {
         assert!(runner.is_running());
         assert!(!runner.frame_stage_owner.has_in_flight());
         assert!(runner.auxiliary_windows[0].can_prepare_device_recovery(generation));
+        assert!(runner.retiring_auxiliary_maintenance_is_due(Instant::now()));
     }
 
     #[test]

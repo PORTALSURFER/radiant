@@ -1,5 +1,6 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
+use super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL;
 use super::{
     AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
     FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane,
@@ -24,7 +25,6 @@ use winit::{
 
 const LATE_TIMED_FRAME_LOG_THRESHOLD: Duration = Duration::from_millis(24);
 const LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP: Duration = Duration::from_secs(1);
-const NATIVE_RESOURCE_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(16);
 
 fn is_native_interactive_window_event(event: &WindowEvent) -> bool {
     matches!(
@@ -185,10 +185,7 @@ where
                 // needs its bounded resource retirement opportunity. The
                 // next independent sync may recreate a same-key projection
                 // after this retirement-removal turn has completed.
-                self.defer_auxiliary_window_sync();
-                if let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy() {
-                    let _ = self.sync_auxiliary_windows(event_loop, event_proxy);
-                }
+                self.arm_retiring_auxiliary_maintenance_due_now();
             }
             if let Some(messages) = accepted_close_messages {
                 if !messages.is_empty() {
@@ -367,14 +364,10 @@ where
                 } else if self.is_recovering() {
                     let _ = self.begin_native_resource_maintenance();
                 } else if self.is_running() {
-                    if self.timing.deferred_auxiliary_window_sync
-                        && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()
-                    {
-                        let _ = self.sync_auxiliary_windows(event_loop, event_proxy);
-                    }
-                    // Normal Running maintenance remains admitted by the
-                    // parent scheduler below; retiring children use the
-                    // deferred sync boundary above.
+                    // Completion callbacks are wake-only. They may make the
+                    // parent-owned retiring-child opportunity due, but never
+                    // poll, sync, remove, or dispatch from this callback.
+                    self.arm_retiring_auxiliary_maintenance_due_now();
                     self.wake_normal_native_resource_maintenance();
                     if let Some(generation) = self
                         .adapter
@@ -453,6 +446,15 @@ where
             return;
         }
         let now = Instant::now();
+        let retiring_auxiliary_maintenance_due = self.retiring_auxiliary_maintenance_is_due(now);
+        if retiring_auxiliary_maintenance_due {
+            // One shared turn covers the parent and all retiring children.
+            // It intentionally excludes the primary and active auxiliary
+            // maintenance-ticket paths for this opportunity.
+            let mut maintenance = super::NativeResourceMaintenanceTurn::new();
+            self.maintain_retiring_auxiliary_resources_with_turn(&mut maintenance);
+            self.rearm_retiring_auxiliary_maintenance(now);
+        }
         let current_generation = self
             .adapter
             .as_ref()
@@ -533,7 +535,11 @@ where
                 maintenance: native_resource_maintenance_deadline(now, maintenance_pending),
                 recovery: self.recovery_deadline(),
                 ..FrameScheduleDeadlines::default()
-            },
+            }
+            .merge(FrameScheduleDeadlines {
+                maintenance: self.retiring_auxiliary_maintenance_deadline(),
+                ..FrameScheduleDeadlines::default()
+            }),
         );
         let shadow_fairness =
             assess_cpu_frame_fairness(now, &demands, self.cpu_frame_observation.as_ref());
@@ -552,7 +558,8 @@ where
                 FrameScheduleKey::Primary => {
                     let work = demand.work(now);
                     if selected_lane == FrameScheduleLane::Maintenance {
-                        if let Some(adapter_generation) = current_generation
+                        if !retiring_auxiliary_maintenance_due
+                            && let Some(adapter_generation) = current_generation
                             && self.admit_native_resource_maintenance(
                                 now,
                                 &FrameScheduleKey::Primary,
@@ -635,21 +642,23 @@ where
                 FrameScheduleKey::Auxiliary(key) => {
                     let work = demand.work(now);
                     if selected_lane == FrameScheduleLane::Maintenance {
-                        let admitted = self.adapter.as_ref().is_some_and(|adapter| {
-                            self.auxiliary_windows
-                                .iter_mut()
-                                .find(|window| window.key() == key)
-                                .is_some_and(|window| {
-                                    window.admit_native_resource_maintenance(adapter, now)
-                                })
-                        });
-                        if admitted {
-                            self.record_frame_schedule_admission_with_lane(
-                                selected,
-                                selected_lane,
-                                false,
-                                false,
-                            );
+                        if !retiring_auxiliary_maintenance_due {
+                            let admitted = self.adapter.as_ref().is_some_and(|adapter| {
+                                self.auxiliary_windows
+                                    .iter_mut()
+                                    .find(|window| window.key() == key)
+                                    .is_some_and(|window| {
+                                        window.admit_native_resource_maintenance(adapter, now)
+                                    })
+                            });
+                            if admitted {
+                                self.record_frame_schedule_admission_with_lane(
+                                    selected,
+                                    selected_lane,
+                                    false,
+                                    false,
+                                );
+                            }
                         }
                     } else {
                         let result = self.adapter.as_mut().and_then(|adapter| {
@@ -836,16 +845,22 @@ where
             // the committed app-owned close message and emit it exactly once
             // after local convergence, even when owner retirement reports a
             // post-terminal fault.
-            return Some(window.take_close_message().into_iter().collect());
+            let messages = window.take_close_message().into_iter().collect();
+            self.arm_retiring_auxiliary_maintenance_due_now();
+            return Some(messages);
         }
         if !window.complete_native_lifecycle(admission.ticket) {
             window.invalidate_terminal_convergence_stage_owner();
             // Completion faults are likewise post-terminal: converge only
             // this child, then retain the already-committed message's
             // exactly-once dispatch obligation.
-            return Some(window.take_close_message().into_iter().collect());
+            let messages = window.take_close_message().into_iter().collect();
+            self.arm_retiring_auxiliary_maintenance_due_now();
+            return Some(messages);
         }
-        Some(window.take_close_message().into_iter().collect())
+        let messages = window.take_close_message().into_iter().collect();
+        self.arm_retiring_auxiliary_maintenance_due_now();
+        Some(messages)
     }
 
     #[cfg(target_os = "macos")]
@@ -1112,6 +1127,7 @@ mod tests {
             .expect("accepted close");
         assert_eq!(messages, [7]);
         assert!(parent.auxiliary_windows[0].is_retiring());
+        assert!(parent.retiring_auxiliary_maintenance_is_due(Instant::now()));
         assert!(!owner.is_open());
         assert!(!parent.core.runtime.auxiliary_effect_owner_is_active(&owner));
         assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());

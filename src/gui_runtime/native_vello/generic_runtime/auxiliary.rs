@@ -44,6 +44,13 @@ enum AuxiliaryNativeWindowLifecycle {
     Retiring,
 }
 
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RetiringResourceTestState {
+    PendingSubmission,
+    Completed,
+}
+
 pub(super) struct AuxiliaryNativeWindow<Message> {
     key: String,
     owner: AuxiliaryWindowOwner,
@@ -53,6 +60,8 @@ pub(super) struct AuxiliaryNativeWindow<Message> {
     active: bool,
     lifecycle: AuxiliaryNativeWindowLifecycle,
     recovery_rebuild_pending: bool,
+    #[cfg(test)]
+    retiring_resource_test_state: Option<RetiringResourceTestState>,
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
@@ -114,6 +123,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             active: true,
             lifecycle: AuxiliaryNativeWindowLifecycle::Admitted,
             recovery_rebuild_pending: false,
+            #[cfg(test)]
+            retiring_resource_test_state: None,
         }
     }
 
@@ -222,6 +233,22 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn is_retiring(&self) -> bool {
         matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Retiring)
+    }
+
+    #[cfg(test)]
+    pub(super) fn install_retiring_resource_test(&mut self) {
+        assert!(self.is_retiring());
+        self.retiring_resource_test_state = Some(RetiringResourceTestState::PendingSubmission);
+    }
+
+    #[cfg(test)]
+    pub(super) fn retiring_resource_test_is_pending(&self) -> bool {
+        self.retiring_resource_test_state == Some(RetiringResourceTestState::PendingSubmission)
+    }
+
+    #[cfg(test)]
+    pub(super) fn retiring_resource_test_is_completed(&self) -> bool {
+        self.retiring_resource_test_state == Some(RetiringResourceTestState::Completed)
     }
 
     pub(super) fn recovery_rebuild_pending(&self) -> bool {
@@ -565,6 +592,25 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
         if self.is_retiring() {
+            #[cfg(test)]
+            if let Some(state) = self.retiring_resource_test_state {
+                match state {
+                    RetiringResourceTestState::PendingSubmission => {
+                        self.retiring_resource_test_state =
+                            Some(RetiringResourceTestState::Completed);
+                        turn.record_pending_for_test();
+                        return false;
+                    }
+                    RetiringResourceTestState::Completed => {
+                        if turn.consume_drop_for_test() {
+                            self.retiring_resource_test_state = None;
+                            return true;
+                        }
+                        turn.record_pending_for_test();
+                        return false;
+                    }
+                }
+            }
             return self.runner.retire_native_resources_with_turn(turn);
         }
         self.runner.maintain_native_resources_with_turn(turn);
@@ -1243,6 +1289,7 @@ where
             .map(|window| window.key().to_owned())
             .collect::<Vec<_>>();
         self.maintain_retiring_auxiliary_resources_with_turn(_maintenance);
+        self.rearm_retiring_auxiliary_maintenance(Instant::now());
         let retired_keys_removed_this_sync = auxiliary_keys_removed_during_sync(
             &retiring_keys_before_maintenance,
             &self.auxiliary_windows,

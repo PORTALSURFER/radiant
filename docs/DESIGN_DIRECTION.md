@@ -5344,6 +5344,23 @@ turn; a later independent sync may recreate the projection. This private
 transaction does not widen the whole-run, `DiscreteInput`, or
 `ImmediateTransient` contracts and adds no public API.
 
+The parent owns a distinct retiring-auxiliary maintenance deadline on the
+canonical 16 ms native-resource cadence. An accepted destructive close arms
+that deadline due immediately, even when there is no close message or event
+proxy. In `Running` `AboutToWait`, one shared `NativeResourceMaintenanceTurn`
+may advance retiring auxiliary children only, preserving the existing one-drop
+budget; it rearms to `now + 16 ms` while any child remains and clears the
+deadline when none remain. The exact retirement deadline is composed into the
+parent `FrameScheduleDeadlines` and `WaitUntil` plan even with zero window
+demand. When that retirement opportunity is due, a normal maintenance-stage
+ticket is skipped for that opportunity but remains due for the next one.
+`NativeResourceMaintenanceRequested` remains wake-only: it may accelerate an
+existing retiring deadline to now, but performs no poll, sync, removal, or
+message dispatch. `Recovering` and `Closing` retain their existing lifecycle
+authorities; a return to `Running` arms due-now cleanup when a retiring child
+remains, while `Stopped` clears the deadline. A removal marks deferred sync,
+and same-key recreation waits for a later independent sync boundary.
+
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and
 target transition are published, the primary and every admitted auxiliary that

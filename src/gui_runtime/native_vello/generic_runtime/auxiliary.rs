@@ -353,6 +353,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 
     #[cfg(test)]
+    pub(super) fn frame_stage_owner_has_in_flight(&self) -> bool {
+        self.runner.frame_stage_owner.has_in_flight()
+    }
+
+    #[cfg(test)]
     pub(super) fn begin_controller_closing_for_test(&mut self) -> bool {
         self.runner.core.runtime.begin_closing()
     }
@@ -1651,6 +1656,8 @@ mod tests {
         let identity = ticket.stage_ticket().identity().clone();
         let owner_generation = auxiliary.runner.frame_stage_owner.owner_generation();
         assert!(auxiliary.runner.frame_stage_owner.has_in_flight());
+        assert!(auxiliary.prepare_whole_run_closing());
+        assert!(auxiliary.runner.is_closing());
 
         auxiliary.invalidate_terminal_convergence_stage_owner();
 

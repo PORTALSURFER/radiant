@@ -1140,9 +1140,18 @@ reopen, and wake state is cleared, and auxiliary wrappers retire without
 dispatching close messages. Each exact ticket completes only after its
 window's Closing fences. Only then does unchanged bounded resource retirement,
 scheduling, and event-loop exit run. Any staging/currentness fault vetoes its
-staged tickets once; any post-terminal-intent owner or completion fault
-converges one-way through bounded Closing without ticket retry/replay, redraw,
-visibility restore, or lower-stage execution, preserving the original cause.
+staged tickets once; before terminal intent, failure to admit the primary or an
+eligible auxiliary, complete-set currentness failure, or primary Closing
+preparation rejection returns inert without cause, recovery, controller,
+native, resource, wrapper, visibility, budget, or event-loop mutation, without
+ticket-free convergence or automatic retry. A later independent event may
+make a fresh admission. Primary native Closing admission occurs before
+cause/recovery mutation, preserving recovering-cause precedence even when
+preparation is rejected. After primary Closing preparation succeeds, any
+auxiliary-preparation, stage-owner, or completion fault converges one-way
+through bounded Closing without a cause argument; it requires the primary
+already Closing and preserves the first/original cause, without ticket
+retry/replay, redraw, visibility restore, or lower-stage execution.
 That fallback first invalidates each resident stage owner once, clearing any
 surviving lower or lifecycle work and making its tickets stale before bounded
 Closing continues.

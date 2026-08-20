@@ -44,6 +44,13 @@ enum AuxiliaryNativeWindowLifecycle {
     Retiring,
 }
 
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RetiringResourceTestState {
+    PendingSubmission,
+    Completed,
+}
+
 pub(super) struct AuxiliaryNativeWindow<Message> {
     key: String,
     owner: AuxiliaryWindowOwner,
@@ -53,6 +60,8 @@ pub(super) struct AuxiliaryNativeWindow<Message> {
     active: bool,
     lifecycle: AuxiliaryNativeWindowLifecycle,
     recovery_rebuild_pending: bool,
+    #[cfg(test)]
+    retiring_resource_test_state: Option<RetiringResourceTestState>,
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
@@ -114,6 +123,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             active: true,
             lifecycle: AuxiliaryNativeWindowLifecycle::Admitted,
             recovery_rebuild_pending: false,
+            #[cfg(test)]
+            retiring_resource_test_state: None,
         }
     }
 
@@ -209,6 +220,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         AuxiliaryWindowEventResult {
             messages: self.take_messages(),
             message_origin: Some(self.owner.clone()),
+            close_admission: None,
             terminal_cause,
             shutdown_requested: self.runner.native_shutdown_requested(),
             visual_deadline_completed,
@@ -221,6 +233,22 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn is_retiring(&self) -> bool {
         matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Retiring)
+    }
+
+    #[cfg(test)]
+    pub(super) fn install_retiring_resource_test(&mut self) {
+        assert!(self.is_retiring());
+        self.retiring_resource_test_state = Some(RetiringResourceTestState::PendingSubmission);
+    }
+
+    #[cfg(test)]
+    pub(super) fn retiring_resource_test_is_pending(&self) -> bool {
+        self.retiring_resource_test_state == Some(RetiringResourceTestState::PendingSubmission)
+    }
+
+    #[cfg(test)]
+    pub(super) fn retiring_resource_test_is_completed(&self) -> bool {
+        self.retiring_resource_test_state == Some(RetiringResourceTestState::Completed)
     }
 
     pub(super) fn recovery_rebuild_pending(&self) -> bool {
@@ -334,6 +362,34 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn veto_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
         self.runner.veto_native_lifecycle(ticket)
+    }
+
+    /// Apply the local fences for an independently requested destructive close
+    /// after the parent has preflighted the exact auxiliary owner.  The
+    /// lifecycle ticket remains in flight until the parent has retired that
+    /// owner and completes it after all local fences are installed.
+    pub(super) fn prepare_destructive_close(
+        &mut self,
+        ticket: &NativeLifecycleStageTicket,
+    ) -> bool {
+        if !self.is_admitted() || !self.native_lifecycle_stage_ticket_is_current(ticket) {
+            return false;
+        }
+        if self.runner.prepare_native_shutdown(None).is_none() {
+            return false;
+        }
+        self.discard_frame_diagnostics();
+        self.begin_retiring();
+        true
+    }
+
+    pub(super) fn take_close_message(&mut self) -> Option<Message> {
+        self.close_message.take()
+    }
+
+    #[cfg(test)]
+    pub(super) fn has_close_message_for_test(&self) -> bool {
+        self.close_message.is_some()
     }
 
     pub(super) fn prepare_whole_run_closing(&mut self) -> bool {
@@ -536,6 +592,25 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
         if self.is_retiring() {
+            #[cfg(test)]
+            if let Some(state) = self.retiring_resource_test_state {
+                match state {
+                    RetiringResourceTestState::PendingSubmission => {
+                        self.retiring_resource_test_state =
+                            Some(RetiringResourceTestState::Completed);
+                        turn.record_pending_for_test();
+                        return false;
+                    }
+                    RetiringResourceTestState::Completed => {
+                        if turn.consume_drop_for_test() {
+                            self.retiring_resource_test_state = None;
+                            return true;
+                        }
+                        turn.record_pending_for_test();
+                        return false;
+                    }
+                }
+            }
             return self.runner.retire_native_resources_with_turn(turn);
         }
         self.runner.maintain_native_resources_with_turn(turn);
@@ -828,7 +903,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         let _ = event_loop;
     }
 
-    fn handle_close_requested(&mut self) -> AuxiliaryWindowEventResult<Message> {
+    fn handle_close_requested(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> AuxiliaryWindowEventResult<Message> {
         if self.is_retiring() {
             self.discard_frame_diagnostics();
             return AuxiliaryWindowEventResult::ignored();
@@ -839,10 +917,35 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             let messages = self.close_message.take().into_iter().collect();
             return self.event_result_with_messages(messages);
         }
-        self.begin_retiring();
-        self.discard_frame_diagnostics();
-        let messages = self.close_message.take().into_iter().collect();
-        self.event_result_with_messages(messages)
+        // Native auxiliary windows are initialized only after the parent has
+        // selected a known adapter generation, so the production event route
+        // supplies `Some(generation)`. `None` remains exact absent evidence
+        // for whole-run terminal staging and unit fixtures; it cannot be an
+        // OS close event for an uninitialized auxiliary.
+        let Some(ticket) = self.admit_native_closing(adapter_generation) else {
+            // The close message remains owned by the projection until the
+            // parent accepts the exact child ticket.  A rejected admission is
+            // therefore inert and can be retried by a later event.
+            return AuxiliaryWindowEventResult::ignored();
+        };
+        AuxiliaryWindowEventResult {
+            messages: Vec::new(),
+            message_origin: None,
+            close_admission: Some(AuxiliaryWindowCloseAdmission {
+                owner: self.owner.clone(),
+                ticket,
+            }),
+            terminal_cause: None,
+            shutdown_requested: false,
+            visual_deadline_completed: false,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn stage_destructive_close_for_test(
+        &mut self,
+    ) -> AuxiliaryWindowEventResult<Message> {
+        self.handle_close_requested(None)
     }
 
     fn event_result_with_messages(
@@ -852,6 +955,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         AuxiliaryWindowEventResult {
             messages,
             message_origin: None,
+            close_admission: None,
             terminal_cause: None,
             shutdown_requested: false,
             visual_deadline_completed: false,
@@ -871,7 +975,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         let mut terminal_cause = None;
         match event {
-            WindowEvent::CloseRequested => return self.handle_close_requested(),
+            WindowEvent::CloseRequested => {
+                return self.handle_close_requested(adapter.capture_generation());
+            }
             WindowEvent::Resized(size) => self.runner.resize_surface(size),
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.runner.update_native_dpi_scale(scale_factor);
@@ -1031,9 +1137,15 @@ fn auxiliary_redraw_terminal_cause(
 pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) messages: Vec<Message>,
     pub(super) message_origin: Option<AuxiliaryWindowOwner>,
+    pub(super) close_admission: Option<AuxiliaryWindowCloseAdmission>,
     pub(super) terminal_cause: Option<NativeGenericRunError>,
     pub(super) shutdown_requested: bool,
     pub(super) visual_deadline_completed: bool,
+}
+
+pub(super) struct AuxiliaryWindowCloseAdmission {
+    pub(super) owner: AuxiliaryWindowOwner,
+    pub(super) ticket: NativeLifecycleStageTicket,
 }
 
 impl<Message> AuxiliaryWindowEventResult<Message> {
@@ -1041,6 +1153,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
         Self {
             messages: Vec::new(),
             message_origin: None,
+            close_admission: None,
             terminal_cause: None,
             shutdown_requested: false,
             visual_deadline_completed: false,
@@ -1169,7 +1282,18 @@ where
         if !self.should_admit_auxiliary_sync() {
             return Ok(());
         }
+        let retiring_keys_before_maintenance = self
+            .auxiliary_windows
+            .iter()
+            .filter(|window| window.is_retiring())
+            .map(|window| window.key().to_owned())
+            .collect::<Vec<_>>();
         self.maintain_retiring_auxiliary_resources_with_turn(_maintenance);
+        self.rearm_retiring_auxiliary_maintenance(Instant::now());
+        let retired_keys_removed_this_sync = auxiliary_keys_removed_during_sync(
+            &retiring_keys_before_maintenance,
+            &self.auxiliary_windows,
+        );
         let mut recovery_opportunity = AuxiliaryRecoveryOpportunity::default();
         if recovery_opportunity.admit_rebuild()
             && let Some(index) = self
@@ -1207,10 +1331,16 @@ where
                 .find(|window| window.is_admitted() && window.key() == projection.key)
             {
                 window.update_projection(projection);
-            } else if auxiliary_key_is_retiring(&self.auxiliary_windows, &projection.key) {
+            } else if auxiliary_key_is_suppressed_for_sync(
+                &self.auxiliary_windows,
+                &retired_keys_removed_this_sync,
+                &projection.key,
+            ) {
                 // Keep the projection pending in application state, but do
                 // not reactivate, recreate, or replay it while the older
-                // generation-bound child is still retiring.
+                // generation-bound child is still retiring, or during the
+                // same sync turn that removed that child. Removal and
+                // recreation are separate sync boundaries.
                 continue;
             } else {
                 let native_window_diagnostic_identity =
@@ -1290,6 +1420,29 @@ fn auxiliary_key_is_retiring<Message>(
         .any(|window| window.is_retiring() && window.key() == key)
 }
 
+fn auxiliary_keys_removed_during_sync<Message>(
+    retiring_keys_before_maintenance: &[String],
+    windows_after_maintenance: &[AuxiliaryNativeWindow<Message>],
+) -> Vec<String> {
+    retiring_keys_before_maintenance
+        .iter()
+        .filter(|key| {
+            !windows_after_maintenance
+                .iter()
+                .any(|window| window.key() == *key)
+        })
+        .cloned()
+        .collect()
+}
+
+fn auxiliary_key_is_suppressed_for_sync<Message>(
+    windows: &[AuxiliaryNativeWindow<Message>],
+    removed_keys: &[String],
+    key: &str,
+) -> bool {
+    auxiliary_key_is_retiring(windows, key) || removed_keys.iter().any(|removed| removed == key)
+}
+
 fn append_initialized_auxiliary_window<T>(
     windows: &mut Vec<T>,
     initialized: Result<T, NativeGenericRunError>,
@@ -1337,7 +1490,8 @@ mod tests {
         AuxiliaryWindowEventResult, FrameScheduleKey, FrameWork, FrameWorkReason,
         GenericNativeVelloRunner, NativeAdapterGeneration, NativeFrameRenderFailure,
         NativeResourceMaintenanceTurn, SceneRebuildMode, append_initialized_auxiliary_window,
-        auxiliary_key_is_retiring, auxiliary_projection_contains_key,
+        auxiliary_key_is_retiring, auxiliary_key_is_suppressed_for_sync,
+        auxiliary_keys_removed_during_sync, auxiliary_projection_contains_key,
         auxiliary_redraw_terminal_cause, take_deferred_auxiliary_recovery_failure_cause,
     };
     use crate::gui::types::Vector2;
@@ -1411,6 +1565,41 @@ mod tests {
     }
 
     #[test]
+    fn same_key_recreation_is_suppressed_through_removal_sync_only() {
+        let mut retiring = auxiliary_window(false);
+        retiring.begin_retiring();
+        let retiring_keys_before_maintenance = vec![retiring.key().to_owned()];
+
+        let still_retiring = vec![retiring];
+        let removed_keys =
+            auxiliary_keys_removed_during_sync(&retiring_keys_before_maintenance, &still_retiring);
+        assert!(removed_keys.is_empty());
+        assert!(auxiliary_key_is_suppressed_for_sync(
+            &still_retiring,
+            &removed_keys,
+            "settings"
+        ));
+
+        let removed_keys =
+            auxiliary_keys_removed_during_sync::<i32>(&retiring_keys_before_maintenance, &[]);
+        assert_eq!(removed_keys, [String::from("settings")]);
+        assert!(auxiliary_key_is_suppressed_for_sync::<i32>(
+            &[],
+            &removed_keys,
+            "settings"
+        ));
+
+        // A later independent sync has no removal witness and may recreate
+        // the same projected key.
+        assert!(!auxiliary_key_is_suppressed_for_sync::<i32>(
+            &[],
+            &[],
+            "settings"
+        ));
+        assert!(!auxiliary_key_is_retiring::<i32>(&[], "settings"));
+    }
+
+    #[test]
     fn failed_auxiliary_initialization_propagates_without_appending_child() {
         let failure = crate::gui_runtime::NativeGenericRunError::NativeInitialization {
             stage: crate::gui_runtime::NativeInitializationStage::RendererCreation,
@@ -1445,15 +1634,22 @@ mod tests {
     }
 
     #[test]
-    fn destructive_close_enters_retiring_and_consumes_its_message_once() {
+    fn destructive_close_stages_a_ticket_and_retains_its_message_until_accepted() {
         let mut window = auxiliary_window(false);
 
-        let first = window.handle_close_requested();
-        assert_eq!(first.messages, [7]);
+        let first = window.handle_close_requested(None);
+        assert!(first.messages.is_empty());
         assert!(first.message_origin.is_none());
+        let admission = first.close_admission.expect("close ticket");
+        assert!(window.is_admitted());
+        assert!(window.active);
+        assert!(window.window_id().is_none());
+        assert!(window.close_message.is_some());
+        assert!(window.prepare_destructive_close(&admission.ticket));
+        assert!(window.complete_native_lifecycle(admission.ticket));
         assert!(window.is_retiring());
         assert!(!window.active);
-        assert!(window.window_id().is_none());
+        assert_eq!(window.take_close_message(), Some(7));
         assert!(!window.runner.core.runtime.begin_closing());
 
         let unrelated = auxiliary_window(true);
@@ -1466,7 +1662,7 @@ mod tests {
             "mixer"
         ));
 
-        let duplicate = window.handle_close_requested();
+        let duplicate = window.handle_close_requested(None);
         assert_eq!(duplicate.messages, Vec::<i32>::new());
         assert!(duplicate.terminal_cause.is_none());
 
@@ -1474,6 +1670,45 @@ mod tests {
         assert!(late.messages.is_empty());
         assert!(late.terminal_cause.is_none());
         assert!(!late.shutdown_requested);
+    }
+
+    #[test]
+    fn destructive_close_duplicate_is_suppressed_until_the_first_ticket_is_vetoed() {
+        let mut window = auxiliary_window(false);
+        let first = window.stage_destructive_close_for_test();
+        let admission = first.close_admission.expect("first close ticket");
+
+        let duplicate = window.stage_destructive_close_for_test();
+        assert!(duplicate.close_admission.is_none());
+        assert!(duplicate.messages.is_empty());
+        assert!(window.native_lifecycle_stage_ticket_is_current(&admission.ticket));
+        assert!(window.has_close_message_for_test());
+
+        assert!(window.veto_native_lifecycle(admission.ticket));
+        let retry = window.stage_destructive_close_for_test();
+        assert!(retry.close_admission.is_some());
+        assert!(
+            window.veto_native_lifecycle(retry.close_admission.expect("retry close ticket").ticket)
+        );
+    }
+
+    #[test]
+    fn destructive_close_while_recovering_preserves_child_cause_and_cancels_only_child_recovery() {
+        let mut window = auxiliary_window(false);
+        assert!(window.admit_device_recovery());
+        let original =
+            crate::gui_runtime::NativeGenericRunError::RenderDeviceLost(String::from("child loss"));
+        window.runner.recovery_cause = Some(original.clone());
+
+        let close = window.stage_destructive_close_for_test();
+        let admission = close.close_admission.expect("recovering close ticket");
+        assert!(admission.ticket.evidence().source_phase.is_recovering());
+        assert!(window.prepare_destructive_close(&admission.ticket));
+        assert!(window.complete_native_lifecycle(admission.ticket));
+        assert!(window.runner.is_closing());
+        assert_eq!(window.runner.take_terminal_cause(), Some(original));
+        assert!(window.is_retiring());
+        assert!(!window.runner.recovery.has_in_flight_candidate());
     }
 
     #[test]
@@ -1504,7 +1739,7 @@ mod tests {
         assert!(window.is_retiring());
         window.mark_parent_observation_finalized();
         assert_eq!(window.take_ready_frame_diagnostics(), None);
-        let late_close = window.handle_close_requested();
+        let late_close = window.handle_close_requested(None);
         assert!(late_close.messages.is_empty());
         assert!(!late_close.shutdown_requested);
     }
@@ -1514,7 +1749,7 @@ mod tests {
         let mut window = auxiliary_window(true);
         let owner = window.effect_owner();
 
-        let close = window.handle_close_requested();
+        let close = window.handle_close_requested(None);
         assert_eq!(close.messages, [7]);
         assert!(!window.is_retiring());
         assert!(!window.active);
@@ -1528,7 +1763,7 @@ mod tests {
         assert!(window.effect_owner().is_same_generation(&owner));
         assert!(window.runner.core.runtime.begin_closing());
 
-        let duplicate = window.handle_close_requested();
+        let duplicate = window.handle_close_requested(None);
         assert!(duplicate.messages.is_empty());
     }
 
@@ -1711,7 +1946,7 @@ mod tests {
             .runtime
             .bridge_mut()
             .observe_frame_diagnostics(diagnostics);
-        let close = window.handle_close_requested();
+        let close = window.handle_close_requested(None);
         assert_eq!(close.messages, [7]);
         assert_eq!(window.take_ready_frame_diagnostics(), None);
     }
@@ -1729,8 +1964,11 @@ mod tests {
             .auxiliary_windows
             .last_mut()
             .expect("test parent should retain the auxiliary child");
-        let close = child.handle_close_requested();
-        assert_eq!(close.messages, [7]);
+        let close = child.handle_close_requested(None);
+        let admission = close.close_admission.expect("close ticket");
+        assert!(child.prepare_destructive_close(&admission.ticket));
+        assert!(child.complete_native_lifecycle(admission.ticket));
+        assert_eq!(child.take_close_message(), Some(7));
 
         let mut turn = NativeResourceMaintenanceTurn::new();
         assert!(parent.maintain_native_resources_with_turn(&mut turn));
@@ -1738,6 +1976,46 @@ mod tests {
         assert!(parent.auxiliary_windows.is_empty());
         assert!(parent.timing.deferred_auxiliary_window_sync);
         assert!(!turn.has_pending());
+    }
+
+    #[test]
+    fn destructive_close_without_message_still_enters_bounded_retirement() {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(surface, false, false),
+            Vector2::new(1280.0, 720.0),
+        );
+        let owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("settings");
+        let child_surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        parent
+            .auxiliary_windows
+            .push(AuxiliaryNativeWindow::new_with_owner(
+                AuxiliaryWindow::new("settings", NativeRunOptions::default(), child_surface),
+                &NativeRunOptions::default(),
+                None,
+                false,
+                false,
+                owner.clone(),
+            ));
+        let child = parent
+            .auxiliary_windows
+            .last_mut()
+            .expect("test parent should retain the auxiliary child");
+        let close = child.stage_destructive_close_for_test();
+        let admission = close.close_admission.expect("close ticket");
+        assert!(child.prepare_destructive_close(&admission.ticket));
+        assert!(child.complete_native_lifecycle(admission.ticket));
+        assert_eq!(child.take_close_message(), None);
+        assert!(child.is_retiring());
+
+        let mut turn = NativeResourceMaintenanceTurn::new();
+        assert!(parent.maintain_native_resources_with_turn(&mut turn));
+        assert!(parent.auxiliary_windows.is_empty());
+        assert!(parent.timing.deferred_auxiliary_window_sync);
     }
 
     #[test]

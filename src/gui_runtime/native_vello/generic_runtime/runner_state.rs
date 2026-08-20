@@ -356,6 +356,20 @@ impl NativeResourceMaintenanceTurn {
         self.pending
     }
 
+    #[cfg(test)]
+    pub(super) fn record_pending_for_test(&mut self) {
+        self.record_pending();
+    }
+
+    #[cfg(test)]
+    pub(super) fn consume_drop_for_test(&mut self) -> bool {
+        if !self.drop_available {
+            return false;
+        }
+        self.record_drop();
+        true
+    }
+
     fn record_pending(&mut self) {
         self.pending = true;
     }
@@ -902,6 +916,9 @@ pub(super) struct NativeRunnerTimingState {
     /// Next normal Running maintenance opportunity for this window.  Lifecycle
     /// maintenance uses its separate turn and does not consume this deadline.
     pub(super) native_resource_maintenance_deadline: Option<Instant>,
+    /// Parent-owned opportunity for bounded cleanup of retiring auxiliary
+    /// children. Nested auxiliary runners leave this unused.
+    pub(super) retiring_auxiliary_maintenance_deadline: Option<Instant>,
 }
 
 impl Default for NativeRunnerTimingState {
@@ -940,6 +957,7 @@ impl NativeRunnerTimingState {
             surface_resize_applied_this_frame: false,
             pending_frame_work: FrameWork::None,
             native_resource_maintenance_deadline: None,
+            retiring_auxiliary_maintenance_deadline: None,
         }
     }
 

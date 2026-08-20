@@ -1,11 +1,13 @@
 //! Exact private admission for one native lifecycle transition.
 //!
 //! Device-loss recovery is a lifecycle operation before it is a resource
-//! operation.  This module binds the shared stage-owner ticket to the native
+//! operation. This module binds the shared stage-owner ticket to native
 //! evidence that must remain unchanged between staging and the synchronous
-//! transition boundary.  Finish admission distinguishes a materialized
-//! primary/auxiliary window from an unmaterialized auxiliary: absence is exact
-//! evidence only for the latter shape.
+//! transition boundary. `BeginClosing` is shared by whole-run shutdown and
+//! independent destructive auxiliary retirement. Finish admission
+//! distinguishes a materialized primary/auxiliary window from an
+//! unmaterialized auxiliary: absence is exact evidence only for the latter
+//! shape.
 
 use super::NativeAdapterGeneration;
 use super::NativeLifecycle;
@@ -20,6 +22,7 @@ use winit::window::WindowId;
 pub(super) enum NativeLifecycleTransitionKind {
     BeginDeviceRecovery,
     FinishDeviceRecovery,
+    /// A terminal transition for whole-run shutdown or one child-local close.
     BeginClosing,
 }
 

@@ -35,7 +35,7 @@ pub(super) fn push_fill_path_vertices(
     let Some(geometry) = tessellated_geometry(fill) else {
         return;
     };
-    for indices in geometry.indices.chunks_exact(3) {
+    for indices in geometry.indices.as_chunks::<3>().0 {
         if let Some(triangle) = painted_triangle(fill, &geometry, indices) {
             push_triangle(vertices, target_size, triangle);
         }
@@ -90,7 +90,7 @@ fn push_fill_path_vertices_in_regions_with_opacity_policy(
     };
     let mut input = Vec::with_capacity(8);
     let mut output = Vec::with_capacity(8);
-    for indices in geometry.indices.chunks_exact(3) {
+    for indices in geometry.indices.as_chunks::<3>().0 {
         let Some(triangle) = painted_triangle(fill, &geometry, indices) else {
             continue;
         };

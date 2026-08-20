@@ -146,7 +146,9 @@ fn parse_points(points: &str) -> Option<Vec<KurboPoint>> {
     }
     Some(
         coords
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| KurboPoint::new(pair[0], pair[1]))
             .collect(),
     )

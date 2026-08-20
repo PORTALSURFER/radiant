@@ -656,11 +656,12 @@ where
 
     fn native_lifecycle_stage_evidence(
         &self,
+        transition: NativeLifecycleTransitionKind,
         adapter_generation: Option<NativeAdapterGeneration>,
     ) -> NativeLifecycleStageEvidence {
         NativeLifecycleStageEvidence {
             key: self.frame_stage_owner.schedule_key().clone(),
-            transition: NativeLifecycleTransitionKind::BeginDeviceRecovery,
+            transition,
             source_phase: self.native_lifecycle,
             window_id: self.window.id,
             adapter_generation,
@@ -682,7 +683,29 @@ where
         &mut self,
         adapter_generation: Option<NativeAdapterGeneration>,
     ) -> Option<NativeLifecycleStageTicket> {
-        let evidence = self.native_lifecycle_stage_evidence(adapter_generation);
+        let evidence = self.native_lifecycle_stage_evidence(
+            NativeLifecycleTransitionKind::BeginDeviceRecovery,
+            adapter_generation,
+        );
+        admit_native_lifecycle_stage(&mut self.frame_stage_owner, evidence)
+    }
+
+    pub(super) fn admit_native_lifecycle_finish(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<NativeLifecycleStageTicket> {
+        let evidence = self.native_lifecycle_stage_evidence(
+            NativeLifecycleTransitionKind::FinishDeviceRecovery,
+            adapter_generation,
+        );
+        admit_native_lifecycle_stage(&mut self.frame_stage_owner, evidence)
+    }
+
+    #[cfg(test)]
+    pub(super) fn admit_native_lifecycle_finish_with_evidence(
+        &mut self,
+        evidence: NativeLifecycleStageEvidence,
+    ) -> Option<NativeLifecycleStageTicket> {
         admit_native_lifecycle_stage(&mut self.frame_stage_owner, evidence)
     }
 
@@ -702,8 +725,18 @@ where
         ticket: &NativeLifecycleStageTicket,
         adapter_generation: Option<NativeAdapterGeneration>,
     ) -> bool {
-        let evidence = self.native_lifecycle_stage_evidence(adapter_generation);
+        let evidence =
+            self.native_lifecycle_stage_evidence(ticket.transition(), adapter_generation);
         ticket.is_current(&self.frame_stage_owner, &evidence)
+    }
+
+    #[cfg(test)]
+    pub(super) fn native_lifecycle_ticket_is_current_with_evidence(
+        &self,
+        ticket: &NativeLifecycleStageTicket,
+        evidence: &NativeLifecycleStageEvidence,
+    ) -> bool {
+        ticket.is_current(&self.frame_stage_owner, evidence)
     }
 
     pub(super) fn complete_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
@@ -740,6 +773,9 @@ where
         }
     }
 
+    /// Apply the existing controller/native finish hooks after the caller has
+    /// staged and revalidated an exact FinishDeviceRecovery Lifecycle ticket.
+    /// Production callers must not use this hook as an admission path.
     pub(super) fn finish_device_recovery(&mut self) -> bool {
         if !self.native_lifecycle.is_recovering() {
             return false;
@@ -779,8 +815,30 @@ where
         event_loop: &ActiveEventLoop,
         cause: Option<NativeGenericRunError>,
     ) {
-        if self.is_closing() || self.native_lifecycle.is_stopped() {
+        let Some(now) = self.prepare_native_shutdown(cause) else {
             return;
+        };
+        let retiring_auxiliary_keys = self
+            .auxiliary_windows
+            .iter()
+            .map(|window| FrameScheduleKey::Auxiliary(window.key().to_owned()))
+            .collect::<Vec<_>>();
+        for key in retiring_auxiliary_keys {
+            self.remove_cpu_frame_observation(&key);
+        }
+        for window in &mut self.auxiliary_windows {
+            window.begin_whole_run_retiring(event_loop);
+        }
+        if self.native_resource_ownership_is_empty() {
+            self.stop_native_event_loop(event_loop);
+        } else {
+            self.schedule_native_closing(event_loop, now);
+        }
+    }
+
+    fn prepare_native_shutdown(&mut self, cause: Option<NativeGenericRunError>) -> Option<Instant> {
+        if self.is_closing() || self.native_lifecycle.is_stopped() {
+            return None;
         }
         let cause = if self.is_recovering() {
             self.recovery_cause.take().or(cause)
@@ -793,7 +851,7 @@ where
         self.recovery_auxiliary_followup_pending = false;
         let now = Instant::now();
         if !self.native_lifecycle.admit_closing(now) {
-            return;
+            return None;
         }
         if let Some(cause) = cause
             && self.record_terminal_cause(cause.clone())
@@ -812,22 +870,7 @@ where
         self.application_reopen_events.take();
         self.application_reopen_proxy.take();
         self.runtime_wakeup.clear_pending();
-        let retiring_auxiliary_keys = self
-            .auxiliary_windows
-            .iter()
-            .map(|window| FrameScheduleKey::Auxiliary(window.key().to_owned()))
-            .collect::<Vec<_>>();
-        for key in retiring_auxiliary_keys {
-            self.remove_cpu_frame_observation(&key);
-        }
-        for window in &mut self.auxiliary_windows {
-            window.begin_whole_run_retiring(event_loop);
-        }
-        if self.native_resource_ownership_is_empty() {
-            self.stop_native_event_loop(event_loop);
-        } else {
-            self.schedule_native_closing(event_loop, now);
-        }
+        Some(now)
     }
 
     pub(super) fn advance_native_closing(&mut self, event_loop: &ActiveEventLoop, now: Instant) {
@@ -1277,6 +1320,123 @@ where
         self.admit_native_shutdown(event_loop, Some(cause));
     }
 
+    fn finish_staged_native_lifecycle(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        primary: NativeLifecycleStageTicket,
+        auxiliaries: Vec<(usize, NativeLifecycleStageTicket)>,
+    ) -> Result<(), String> {
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let staged_current = current_generation == Some(generation)
+            && self.native_lifecycle_ticket_is_current(&primary, current_generation)
+            && auxiliaries.iter().all(|(index, ticket)| {
+                self.auxiliary_windows[*index]
+                    .native_lifecycle_ticket_is_current(ticket, current_generation)
+            });
+        self.finish_staged_native_lifecycle_after_revalidation(primary, auxiliaries, staged_current)
+    }
+
+    #[cfg(test)]
+    fn finish_staged_native_lifecycle_with_evidence(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        primary: NativeLifecycleStageTicket,
+        primary_evidence: NativeLifecycleStageEvidence,
+        auxiliaries: Vec<(
+            usize,
+            NativeLifecycleStageTicket,
+            NativeLifecycleStageEvidence,
+        )>,
+    ) -> Result<(), String> {
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let staged_current = current_generation == Some(generation)
+            && primary.is_current(&self.frame_stage_owner, &primary_evidence)
+            && auxiliaries.iter().all(|(index, ticket, evidence)| {
+                self.auxiliary_windows[*index]
+                    .native_lifecycle_ticket_is_current_with_evidence(ticket, evidence)
+            });
+        let auxiliaries = auxiliaries
+            .into_iter()
+            .map(|(index, ticket, _)| (index, ticket))
+            .collect();
+        self.finish_staged_native_lifecycle_after_revalidation(primary, auxiliaries, staged_current)
+    }
+
+    fn finish_staged_native_lifecycle_after_revalidation(
+        &mut self,
+        primary: NativeLifecycleStageTicket,
+        auxiliaries: Vec<(usize, NativeLifecycleStageTicket)>,
+        staged_current: bool,
+    ) -> Result<(), String> {
+        let mut primary = Some(primary);
+        if !staged_current {
+            self.veto_staged_native_lifecycle(primary, auxiliaries);
+            return Err(String::from(
+                "native recovery finish lifecycle ticket currentness was lost",
+            ));
+        }
+
+        // Every finishing window is staged and revalidated before the first
+        // Recovering-to-Running transition mutates a native or controller
+        // phase. The set remains a single event-loop turn with no yield.
+        if !self.finish_device_recovery() {
+            self.veto_staged_native_lifecycle(primary, auxiliaries);
+            return Err(String::from(
+                "native recovery primary lifecycle finish transition was vetoed",
+            ));
+        }
+
+        let Some(primary_ticket) = primary.take() else {
+            self.veto_staged_native_lifecycle(None, auxiliaries);
+            return Err(String::from(
+                "native recovery primary lifecycle finish ticket disappeared",
+            ));
+        };
+        if !self.native_lifecycle_stage_ticket_is_current(&primary_ticket) {
+            self.veto_staged_native_lifecycle(None, auxiliaries);
+            return Err(String::from(
+                "native recovery primary lifecycle finish owner changed",
+            ));
+        }
+        if !self.complete_native_lifecycle(primary_ticket) {
+            self.veto_staged_native_lifecycle(None, auxiliaries);
+            return Err(String::from(
+                "native recovery primary lifecycle finish completion was vetoed",
+            ));
+        }
+
+        let mut remaining_auxiliaries = auxiliaries.into_iter();
+        while let Some((index, ticket)) = remaining_auxiliaries.next() {
+            if !self.auxiliary_windows[index].finish_device_recovery_if_no_rebuild() {
+                let _ = self.auxiliary_windows[index].veto_native_lifecycle(ticket);
+                self.veto_staged_native_lifecycle(None, remaining_auxiliaries.collect::<Vec<_>>());
+                return Err(String::from(
+                    "native recovery auxiliary lifecycle finish transition was vetoed",
+                ));
+            }
+            if !self.auxiliary_windows[index].native_lifecycle_stage_ticket_is_current(&ticket) {
+                let _ = self.auxiliary_windows[index].veto_native_lifecycle(ticket);
+                self.veto_staged_native_lifecycle(None, remaining_auxiliaries.collect::<Vec<_>>());
+                return Err(String::from(
+                    "native recovery auxiliary lifecycle finish owner changed",
+                ));
+            }
+            if !self.auxiliary_windows[index].complete_native_lifecycle(ticket) {
+                self.veto_staged_native_lifecycle(None, remaining_auxiliaries.collect::<Vec<_>>());
+                return Err(String::from(
+                    "native recovery auxiliary lifecycle finish completion was vetoed",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     fn begin_device_recovery(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -1479,7 +1639,8 @@ where
             Ok(candidate) => {
                 if let Err(error) = self.commit_device_recovery_candidate(candidate) {
                     warn!(error = %error, "radiant generic native vello: recovery candidate publication failed");
-                    self.admit_native_shutdown(event_loop, None);
+                    let cause = self.recovery_cause.take();
+                    self.admit_native_shutdown(event_loop, cause);
                 }
             }
             Err(error) => {
@@ -1551,21 +1712,36 @@ where
         self.adapter = Some(adapter);
         self.complete_native_recovery_target_transition();
         self.frame.invalidate_native_resources_for_recovery();
-        if !self.finish_device_recovery() {
+
+        let generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+            .ok_or_else(|| String::from("native recovery finish adapter generation disappeared"))?;
+        let Some(primary_ticket) = self.admit_native_lifecycle_finish(Some(generation)) else {
             return Err(String::from(
-                "native recovery lifecycle completion was vetoed",
+                "native recovery primary finish lifecycle ticket was not admitted",
             ));
+        };
+        let mut auxiliary_tickets = Vec::new();
+        for index in 0..self.auxiliary_windows.len() {
+            let window = &mut self.auxiliary_windows[index];
+            if !window.is_admitted() || window.recovery_rebuild_pending() {
+                continue;
+            }
+            let Some(ticket) = window.admit_native_lifecycle_finish(Some(generation)) else {
+                self.veto_staged_native_lifecycle(Some(primary_ticket), auxiliary_tickets);
+                return Err(String::from(
+                    "native recovery auxiliary finish lifecycle ticket was not admitted",
+                ));
+            };
+            auxiliary_tickets.push((index, ticket));
         }
+        self.finish_staged_native_lifecycle(generation, primary_ticket, auxiliary_tickets)?;
+
         #[cfg(target_os = "macos")]
         if let Some(proxy) = self.runtime_wakeup.event_loop_proxy() {
             self.attach_native_semantic_accessibility(proxy);
-        }
-        for window in &mut self.auxiliary_windows {
-            if !window.finish_device_recovery_if_no_rebuild() {
-                return Err(String::from(
-                    "native recovery auxiliary lifecycle completion was vetoed",
-                ));
-            }
         }
         self.rebuild_scene();
         self.clear_native_visual_request_wake();
@@ -2932,9 +3108,11 @@ mod tests {
         assess_cpu_frame_fairness,
     };
     use super::{
-        DeviceLossRegistration, FrameScheduleKey, FrameWork, FrameWorkReason,
-        GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeAdapterGeneration,
-        NativeLifecycle, TimedFrameCadence, recovery_completion_is_admissible,
+        AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
+        FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+        NativeAdapterGeneration, NativeLifecycle, NativeLifecycleStageEvidence,
+        NativeLifecycleTransitionKind, NativeTargetGeneration, TimedFrameCadence,
+        recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -2942,11 +3120,12 @@ mod tests {
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
-            FrameProfile, NativeCpuFrameCompletionOutcome, NativeCpuFrameFairnessDiagnostics,
-            NativeCpuFrameFairnessDisposition, NativeCpuFrameObservationDiagnostics,
-            NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, ProfilingOptions,
-            RuntimeAnimationActivity, RuntimeBridge, RuntimeFrameDiagnosticsHost,
-            RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
+            AuxiliaryWindow, FrameProfile, NativeCpuFrameCompletionOutcome,
+            NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
+            NativeCpuFrameObservationDiagnostics, NativeFrameDiagnostics,
+            NativeWindowDiagnosticIdentity, ProfilingOptions, RuntimeAnimationActivity,
+            RuntimeBridge, RuntimeFrameDiagnosticsHost, RuntimeFrameProfileHost,
+            RuntimeHostCapabilities, UiSurface,
         },
     };
     use std::{
@@ -3265,6 +3444,28 @@ mod tests {
             EmptyBridge,
             Vector2::new(320.0, 240.0),
         )
+    }
+
+    fn finish_evidence(
+        key: FrameScheduleKey,
+        adapter_generation: NativeAdapterGeneration,
+        window_id: Option<WindowId>,
+        active_resource_generation: Option<NativeAdapterGeneration>,
+        target_generation: NativeTargetGeneration,
+        target_fenced: bool,
+    ) -> NativeLifecycleStageEvidence {
+        let mut source_phase = NativeLifecycle::default();
+        assert!(source_phase.admit_recovery());
+        NativeLifecycleStageEvidence {
+            key,
+            transition: NativeLifecycleTransitionKind::FinishDeviceRecovery,
+            source_phase,
+            window_id,
+            adapter_generation: Some(adapter_generation),
+            active_resource_generation,
+            target_generation,
+            target_fenced,
+        }
     }
 
     #[test]
@@ -3642,6 +3843,170 @@ mod tests {
         assert!(runner.native_lifecycle_stage_ticket_is_current(&ticket));
         assert!(runner.complete_native_lifecycle(ticket));
         assert!(!runner.frame_stage_owner.has_in_flight());
+    }
+
+    #[test]
+    fn finish_stages_primary_and_unmaterialized_auxiliary_before_phase_mutation() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut runner = runner();
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let surface = crate::runtime::test_arc_surface(empty::<()>().into_surface());
+        let projection = AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface);
+        let mut auxiliary = AuxiliaryNativeWindow::new(
+            projection,
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+
+        assert!(runner.admit_device_recovery());
+        assert!(auxiliary.admit_device_recovery());
+        assert!(!auxiliary.recovery_rebuild_pending());
+        runner.auxiliary_windows.push(auxiliary);
+
+        let primary_evidence = finish_evidence(
+            FrameScheduleKey::Primary,
+            generation,
+            Some(WindowId::dummy()),
+            Some(generation),
+            NativeTargetGeneration::from_test_serial(2),
+            false,
+        );
+        let auxiliary_evidence = finish_evidence(
+            FrameScheduleKey::Auxiliary(String::from("settings")),
+            generation,
+            None,
+            None,
+            NativeTargetGeneration::unknown(),
+            true,
+        );
+        let primary_ticket = runner
+            .admit_native_lifecycle_finish_with_evidence(primary_evidence.clone())
+            .expect("primary finish ticket");
+        let auxiliary_ticket = runner.auxiliary_windows[0]
+            .admit_native_lifecycle_finish_with_evidence(auxiliary_evidence.clone())
+            .expect("unmaterialized auxiliary finish ticket");
+        assert!(runner.is_recovering());
+        assert!(
+            runner.native_lifecycle_ticket_is_current_with_evidence(
+                &primary_ticket,
+                &primary_evidence
+            )
+        );
+        assert!(
+            runner.auxiliary_windows[0].native_lifecycle_ticket_is_current_with_evidence(
+                &auxiliary_ticket,
+                &auxiliary_evidence
+            )
+        );
+
+        assert!(
+            runner
+                .finish_staged_native_lifecycle_with_evidence(
+                    generation,
+                    primary_ticket,
+                    primary_evidence,
+                    vec![(0, auxiliary_ticket, auxiliary_evidence)]
+                )
+                .is_ok()
+        );
+        assert!(runner.is_running());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert!(runner.auxiliary_windows[0].can_prepare_device_recovery(generation));
+    }
+
+    #[test]
+    fn primary_finish_admission_rejects_unmaterialized_evidence() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut runner = runner();
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        assert!(runner.admit_device_recovery());
+        assert!(
+            runner
+                .admit_native_lifecycle_finish(Some(generation))
+                .is_none()
+        );
+        assert!(runner.is_recovering());
+    }
+
+    #[test]
+    fn finish_auxiliary_failure_preserves_original_recovery_cause_without_replay() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut runner = runner();
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let surface = crate::runtime::test_arc_surface(empty::<()>().into_surface());
+        let projection = AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface);
+        let mut auxiliary = AuxiliaryNativeWindow::new(
+            projection,
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+        let cause = crate::gui_runtime::NativeGenericRunError::RenderDeviceLost(String::from(
+            "driver reset",
+        ));
+
+        assert!(runner.admit_device_recovery());
+        assert!(auxiliary.admit_device_recovery());
+        runner.recovery_cause = Some(cause.clone());
+        runner.auxiliary_windows.push(auxiliary);
+
+        let primary_evidence = finish_evidence(
+            FrameScheduleKey::Primary,
+            generation,
+            Some(WindowId::dummy()),
+            Some(generation),
+            NativeTargetGeneration::from_test_serial(2),
+            false,
+        );
+        let auxiliary_evidence = finish_evidence(
+            FrameScheduleKey::Auxiliary(String::from("settings")),
+            generation,
+            None,
+            None,
+            NativeTargetGeneration::unknown(),
+            true,
+        );
+        let primary_ticket = runner
+            .admit_native_lifecycle_finish_with_evidence(primary_evidence.clone())
+            .expect("primary finish ticket");
+        let auxiliary_ticket = runner.auxiliary_windows[0]
+            .admit_native_lifecycle_finish_with_evidence(auxiliary_evidence.clone())
+            .expect("auxiliary finish ticket");
+        assert!(runner.auxiliary_windows[0].begin_controller_closing_for_test());
+        assert!(
+            runner
+                .finish_staged_native_lifecycle_with_evidence(
+                    generation,
+                    primary_ticket,
+                    primary_evidence,
+                    vec![(0, auxiliary_ticket, auxiliary_evidence.clone())],
+                )
+                .is_err()
+        );
+        assert!(runner.is_running());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        let shutdown_cause = runner.recovery_cause.take();
+        assert_eq!(shutdown_cause, Some(cause.clone()));
+        assert!(runner.prepare_native_shutdown(shutdown_cause).is_some());
+        assert!(runner.is_closing());
+        assert_eq!(runner.take_terminal_cause(), Some(cause));
+        let retry = runner.auxiliary_windows[0]
+            .admit_native_lifecycle_finish_with_evidence(auxiliary_evidence)
+            .expect("failed staged auxiliary ticket was vetoed");
+        assert!(runner.auxiliary_windows[0].veto_native_lifecycle(retry));
     }
 
     #[test]

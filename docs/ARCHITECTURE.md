@@ -1114,6 +1114,28 @@ recovery/closing maintenance retains its existing bounded authority. This is
 crate-private and does not add a public API, schema, queue, worker, or event
 loop.
 
+Every successful native `Recovering`-to-`Running` transition consumes an exact
+`FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and
+target transition are published, the primary and every admitted auxiliary that
+has no rebuild pending (including an unmaterialized auxiliary) are staged as
+one no-yield set and synchronously revalidated before any finish phase mutates.
+The finish ticket binds source phase `Recovering`, the exact Winit identity and
+stable key, the accepted new shared adapter generation, and the exact active
+resource generation or absence, target generation, and target-fenced state.
+Materialized evidence requires a present Winit identity, an active resource
+generation equal to the accepted adapter generation, and a known unfenced
+target; unmaterialized evidence is admitted only for an auxiliary key with
+absent Winit/resource state, a retained target generation (possibly unknown),
+and a fenced target.
+Materialized auxiliaries retain the existing lazy one-window rebuild order;
+after fresh bundle publication and target transition they stage and revalidate
+the exact ticket, apply the local native/controller finish hook, then complete
+that exact ticket before rebuild, visibility, or redraw. Retiring auxiliaries
+are excluded. Any finish staging, currentness, transition, or
+completion failure consumes or vetoes only its exact ticket, performs no retry,
+replay, redraw, or visibility restoration, and converges through bounded
+`Closing` with the original `RenderDeviceLost` cause.
+
 ## Text Boundary
 
 Radiant treats text as a first-class GUI concern but keeps the responsibilities

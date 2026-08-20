@@ -800,14 +800,16 @@ impl WindowStageOwner {
     ) -> Option<MaintenanceStageTicket> {
         if self.pending.is_some()
             || self.has_in_flight()
-            || !self.prepare_fence(
-                adapter_generation,
-                target_generation,
-                SchedulerStage::Maintenance,
-            )
             || !binding.generation().is_known()
             || binding.completion().generation() != binding.generation()
         {
+            return None;
+        }
+        if !self.prepare_fence(
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Maintenance,
+        ) {
             return None;
         }
         let revision = self.next_revision()?;
@@ -2191,5 +2193,63 @@ mod tests {
         let owner_generation = owner.owner_generation();
         owner.invalidate();
         assert_eq!(owner.owner_generation(), owner_generation + 1);
+    }
+
+    #[test]
+    fn invalid_maintenance_witness_preserves_completed_deadline_owner() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let revision = owner.next_revision().expect("deadline revision");
+        let completed_identity = identity(
+            &owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            revision,
+        );
+        let completed_bundle = frame(now, false);
+        assert!(owner.queue(completed_identity.clone(), completed_bundle));
+        assert_eq!(
+            owner.begin(&completed_identity, now),
+            Some(completed_bundle)
+        );
+        assert!(owner.complete(&completed_identity, now, now + Duration::from_millis(1)));
+
+        let owner_generation = owner.owner_generation();
+        let fence = owner.fence;
+        let completion = owner.last_completion.clone();
+        assert_eq!(owner.completion_bundle(), Some(completed_bundle));
+        assert!(owner.stale(&completed_identity));
+
+        let invalid_bindings = [
+            NativeResourceMaintenanceBinding::new(
+                NativeResourceMaintenanceSlot::Quarantine(0),
+                NativeAdapterGeneration::unknown(),
+                NativeSubmissionCompletionIdentity::never_submitted(
+                    NativeAdapterGeneration::unknown(),
+                ),
+            ),
+            NativeResourceMaintenanceBinding::new(
+                NativeResourceMaintenanceSlot::Quarantine(0),
+                adapter(1),
+                NativeSubmissionCompletionIdentity::never_submitted(adapter(2)),
+            ),
+        ];
+
+        for binding in invalid_bindings {
+            assert!(
+                owner
+                    .admit_maintenance(adapter(2), target(1), binding)
+                    .is_none()
+            );
+            assert_eq!(owner.owner_generation(), owner_generation);
+            assert_eq!(owner.fence, fence);
+            assert_eq!(owner.last_completion, completion);
+            assert_eq!(owner.completion_bundle(), Some(completed_bundle));
+            assert!(!owner.has_in_flight());
+            assert!(owner.stale(&completed_identity));
+        }
     }
 }

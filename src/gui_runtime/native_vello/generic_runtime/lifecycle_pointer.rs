@@ -8,7 +8,16 @@ use crate::gui::input::InputTimestamp;
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
 use tracing::debug;
-use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop, keyboard::ModifiersState};
+use winit::{dpi::PhysicalPosition, keyboard::ModifiersState};
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct NativeCursorMovedRoute {
+    pub(super) outcome: GenericRouteOutcome,
+    pub(super) previous: Option<crate::gui::types::Point>,
+    pub(super) position: Option<crate::gui::types::Point>,
+    pub(super) apply_pointer_move_outcome: bool,
+    pub(super) redraw_work: Option<FrameWork>,
+}
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -19,13 +28,29 @@ where
         self.force_native_cursor(crate::widgets::WidgetCursor::Default);
     }
 
+    #[cfg(test)]
     pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
-        let timestamp = Some(InputTimestamp::capture());
+        let route = self.route_cursor_moved_with_timestamp(position, InputTimestamp::capture());
+        self.apply_cursor_moved_route(route);
+    }
+
+    pub(super) fn route_cursor_moved_with_timestamp(
+        &mut self,
+        position: PhysicalPosition<f64>,
+        timestamp: InputTimestamp,
+    ) -> NativeCursorMovedRoute {
+        let timestamp = Some(timestamp);
         let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
             self.input.last_cursor = None;
             self.set_native_cursor_visible(true);
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
-            return;
+            return NativeCursorMovedRoute {
+                outcome: GenericRouteOutcome::default(),
+                previous: self.input.last_cursor,
+                position: None,
+                apply_pointer_move_outcome: false,
+                redraw_work: None,
+            };
         };
         let sequence_range = self.input.input_sequence_allocator.allocate();
         let previous = self.input.last_cursor;
@@ -43,28 +68,46 @@ where
                     timestamp,
                     sequence_range,
                 );
-                self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
-                return;
+                return NativeCursorMovedRoute {
+                    outcome,
+                    previous,
+                    position: Some(position),
+                    apply_pointer_move_outcome: true,
+                    redraw_work: None,
+                };
             }
-            self.queue_scrollbar_drag_with_metadata(position, modifiers, timestamp, sequence_range);
-            return;
+            self.queue_scrollbar_drag_with_metadata_for_immediate_transient(
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+            );
+            return NativeCursorMovedRoute {
+                outcome: GenericRouteOutcome::default(),
+                previous,
+                position: Some(position),
+                apply_pointer_move_outcome: false,
+                redraw_work: Some(FrameWork::None),
+            };
         }
         if self.can_fast_path_native_hover_move(position) {
             self.update_gpu_surface_cursor_overlay(position);
             self.update_native_cursor_at_last_position();
-            self.request_redraw_for_frame_work(FrameWork::PaintOnly {
-                reason: FrameWorkReason::PointerHover,
-            });
-            return;
+            return NativeCursorMovedRoute {
+                outcome: GenericRouteOutcome::default(),
+                previous,
+                position: Some(position),
+                apply_pointer_move_outcome: false,
+                redraw_work: Some(FrameWork::PaintOnly {
+                    reason: FrameWorkReason::PointerHover,
+                }),
+            };
         }
         let cleared_previous_gpu_hover = previous
             .is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
             && previous.is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous));
         if cleared_previous_gpu_hover {
             self.update_native_cursor_at_last_position();
-            self.request_redraw_for_frame_work(FrameWork::PaintOnly {
-                reason: FrameWorkReason::NativePointerClear,
-            });
         }
         let started = Instant::now();
         let outcome = self.core.route_pointer_move_with_metadata(
@@ -77,10 +120,29 @@ where
             self.update_native_cursor_at_last_position();
         }
         maybe_log_route_profile("pointer_move", started.elapsed(), outcome);
-        self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
+        NativeCursorMovedRoute {
+            outcome,
+            previous,
+            position: Some(position),
+            apply_pointer_move_outcome: true,
+            redraw_work: cleared_previous_gpu_hover.then_some(FrameWork::PaintOnly {
+                reason: FrameWorkReason::NativePointerClear,
+            }),
+        }
     }
 
-    pub(super) fn handle_cursor_left(&mut self, event_loop: &ActiveEventLoop) {
+    pub(super) fn apply_cursor_moved_route(&mut self, route: NativeCursorMovedRoute) {
+        if let Some(work) = route.redraw_work {
+            self.request_redraw_for_frame_work(work);
+        }
+        if route.apply_pointer_move_outcome
+            && let Some(position) = route.position
+        {
+            self.handle_gpu_surface_pointer_move_outcome(route.outcome, route.previous, position);
+        }
+    }
+
+    pub(super) fn route_cursor_left(&mut self) -> GenericRouteOutcome {
         if self.core.runtime.external_drag_armed() {
             debug!(
                 target: "radiant::external_drag",
@@ -89,25 +151,21 @@ where
             );
         }
         let pointer_cleared = self.clear_native_pointer_presence();
-        if pointer_cleared.needs_redraw() {
-            self.request_redraw_for_frame_work(pointer_cleared.frame_work());
-        }
+        let mut outcome = pointer_cleared;
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
         if preview_hidden {
             if self.core.runtime.external_drag_armed() {
-                let outcome = self.launch_external_drag_if_armed();
-                self.handle_route_outcome(event_loop, outcome);
+                outcome.merge(self.launch_external_drag_if_armed());
             } else {
-                self.rebuild_scene();
-                self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+                outcome.request_frame_work(FrameWork::RebuildScene {
                     reason: FrameWorkReason::ExternalDragPreview,
                     mode: SceneRebuildMode::Immediate,
                 });
             }
-            return;
+            return outcome;
         }
-        let outcome = self.launch_external_drag_if_armed();
-        self.handle_route_outcome(event_loop, outcome);
+        outcome.merge(self.launch_external_drag_if_armed());
+        outcome
     }
 
     pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {
@@ -121,15 +179,17 @@ where
 
     pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) -> GenericRouteOutcome {
         self.clear_native_visual_request_wake_timing();
-        self.request_redraw_for_frame_work(FrameWork::PaintOnly {
+        let mut outcome = GenericRouteOutcome::default();
+        outcome.request_frame_work(FrameWork::PaintOnly {
             reason: FrameWorkReason::NativeFocusRegained,
         });
         if !std::mem::take(&mut self.window.native_focus_lost) {
-            return GenericRouteOutcome::default();
+            return outcome;
         }
         let command = self.core.runtime.host_native_focus_regained();
-        let outcome = self.core.runtime.execute_command(command);
-        self.core.route_command_outcome(outcome)
+        let command_outcome = self.core.runtime.execute_command(command);
+        outcome.merge(self.core.route_command_outcome(command_outcome));
+        outcome
     }
 
     fn clear_native_pointer_presence(&mut self) -> GenericRouteOutcome {

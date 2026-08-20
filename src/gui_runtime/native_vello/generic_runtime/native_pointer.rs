@@ -1,5 +1,6 @@
 //! Native pointer routing contract for the generic native Vello runner.
 
+use super::gpu_surface_wheel::DeferredWheelRouteEffects;
 use super::input::NativePointerGestureLatch;
 use super::{
     GenericNativeVelloRunner, GenericRouteOutcome, is_double_click, maybe_log_route_profile,
@@ -91,14 +92,29 @@ impl NativeMouseInputRoute {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct NativeWheelRoute {
     pub(super) outcome: GenericRouteOutcome,
+    pub(super) position: Option<Point>,
+    pub(super) delta: crate::gui::types::Vector2,
+    pub(super) deferred_wheel_effects: DeferredWheelRouteEffects,
+    pub(super) redraw_requested: bool,
     #[cfg(test)]
     pub(super) diagnostic: NativePointerRouteDiagnostic,
 }
 
 impl NativeWheelRoute {
-    fn new(outcome: GenericRouteOutcome, _diagnostic: NativePointerRouteDiagnostic) -> Self {
+    fn new(
+        outcome: GenericRouteOutcome,
+        position: Option<Point>,
+        delta: crate::gui::types::Vector2,
+        deferred_wheel_effects: DeferredWheelRouteEffects,
+        redraw_requested: bool,
+        _diagnostic: NativePointerRouteDiagnostic,
+    ) -> Self {
         Self {
             outcome,
+            position,
+            delta,
+            deferred_wheel_effects,
+            redraw_requested,
             #[cfg(test)]
             diagnostic: _diagnostic,
         }
@@ -236,23 +252,37 @@ where
 
     #[cfg(test)]
     pub(super) fn route_native_mouse_wheel(&mut self, delta: MouseScrollDelta) -> NativeWheelRoute {
-        self.route_native_mouse_wheel_internal(delta, None)
+        self.route_native_mouse_wheel_internal(delta, None, None, true)
     }
 
+    #[cfg(test)]
     pub(super) fn route_native_mouse_wheel_with_phase(
         &mut self,
         raw_delta: MouseScrollDelta,
         phase: TouchPhase,
     ) -> NativeWheelRoute {
-        self.route_native_mouse_wheel_internal(raw_delta, Some(phase))
+        self.route_native_mouse_wheel_internal(raw_delta, Some(phase), None, true)
+    }
+
+    /// Route one wheel event for the ImmediateTransient stage. Lower-stage
+    /// GPU/redraw work is applied by the event owner after ticket completion.
+    pub(super) fn route_native_mouse_wheel_with_phase_and_timestamp(
+        &mut self,
+        raw_delta: MouseScrollDelta,
+        phase: TouchPhase,
+        timestamp: InputTimestamp,
+    ) -> NativeWheelRoute {
+        self.route_native_mouse_wheel_internal(raw_delta, Some(phase), Some(timestamp), false)
     }
 
     fn route_native_mouse_wheel_internal(
         &mut self,
         raw_delta: MouseScrollDelta,
         phase: Option<TouchPhase>,
+        captured_timestamp: Option<InputTimestamp>,
+        apply_route_effects: bool,
     ) -> NativeWheelRoute {
-        let timestamp = Some(InputTimestamp::capture());
+        let timestamp = captured_timestamp.or_else(|| Some(InputTimestamp::capture()));
         let position = self.input.last_cursor;
         let delta = scroll_delta_to_logical(raw_delta, self.window.dpi_scale);
         let consume_control = self
@@ -267,11 +297,26 @@ where
                 TouchPhase::Started | TouchPhase::Ended | TouchPhase::Cancelled
             )
         });
-        if lifecycle_boundary {
-            self.flush_pending_wheel_input_now();
+        let mut deferred_wheel_effects = if lifecycle_boundary {
+            if apply_route_effects {
+                self.flush_pending_wheel_input_now();
+                DeferredWheelRouteEffects::default()
+            } else {
+                self.route_pending_wheel_input_for_immediate_transient()
+            }
         } else {
-            self.flush_stale_pending_wheel_input(now);
-        }
+            if self.pending_interactive_scroll_flush_is_due(now) {
+                if apply_route_effects {
+                    self.flush_stale_pending_wheel_input(now);
+                    DeferredWheelRouteEffects::default()
+                } else {
+                    self.route_pending_wheel_input_for_immediate_transient()
+                }
+            } else {
+                DeferredWheelRouteEffects::default()
+            }
+        };
+        let mut redraw_requested = false;
         let mut diagnostic = self.native_pointer_diagnostic(
             NativePointerEventKind::MouseWheel,
             position,
@@ -281,7 +326,14 @@ where
         let Some(position) = position else {
             diagnostic.result = NativePointerRouteResult::NoCursor;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeWheelRoute::new(GenericRouteOutcome::default(), diagnostic);
+            return NativeWheelRoute::new(
+                GenericRouteOutcome::default(),
+                None,
+                delta,
+                deferred_wheel_effects,
+                redraw_requested,
+                diagnostic,
+            );
         };
         let sequence_range = self.input.input_sequence_allocator.allocate();
         let exact_sample = phase.map(|phase| {
@@ -295,20 +347,40 @@ where
             )
         });
         if phase.is_none() && self.can_coalesce_gpu_surface_wheel(position, delta) {
-            self.queue_gpu_surface_wheel_with_metadata(
-                position,
-                delta,
-                modifiers,
-                timestamp,
-                sequence_range,
-            );
+            let queued_effects = if apply_route_effects {
+                self.queue_gpu_surface_wheel_with_metadata(
+                    position,
+                    delta,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                );
+                DeferredWheelRouteEffects::default()
+            } else {
+                self.queue_gpu_surface_wheel_with_metadata_for_immediate_transient(
+                    position,
+                    delta,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                )
+            };
+            deferred_wheel_effects.merge(queued_effects);
+            redraw_requested = true;
             let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
             diagnostic.deferred_surface_refresh = self.timing.deferred_surface_refresh;
             diagnostic.deferred_scene_rebuild = self.timing.deferred_scene_rebuild;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeWheelRoute::new(outcome, diagnostic);
+            return NativeWheelRoute::new(
+                outcome,
+                Some(position),
+                delta,
+                deferred_wheel_effects,
+                redraw_requested,
+                diagnostic,
+            );
         }
         let can_queue_scroll_container_wheel = match exact_sample.as_ref() {
             Some(Ok(sample)) => self
@@ -322,20 +394,40 @@ where
         } && !self
             .pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
-            self.queue_scroll_container_wheel_with_metadata(
-                position,
-                delta,
-                modifiers,
-                timestamp,
-                sequence_range,
-            );
+            let queued_effects = if apply_route_effects {
+                self.queue_scroll_container_wheel_with_metadata(
+                    position,
+                    delta,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                );
+                DeferredWheelRouteEffects::default()
+            } else {
+                self.queue_scroll_container_wheel_with_metadata_for_immediate_transient(
+                    position,
+                    delta,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                )
+            };
+            deferred_wheel_effects.merge(queued_effects);
+            redraw_requested = true;
             let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
             diagnostic.deferred_surface_refresh = self.timing.deferred_surface_refresh;
             diagnostic.deferred_scene_rebuild = self.timing.deferred_scene_rebuild;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeWheelRoute::new(outcome, diagnostic);
+            return NativeWheelRoute::new(
+                outcome,
+                Some(position),
+                delta,
+                deferred_wheel_effects,
+                redraw_requested,
+                diagnostic,
+            );
         }
         let started = Instant::now();
         let outcome = match exact_sample {
@@ -351,10 +443,19 @@ where
             ),
         };
         maybe_log_route_profile("wheel", started.elapsed(), outcome);
-        self.handle_gpu_surface_route_outcome(outcome, position, delta);
+        if apply_route_effects {
+            self.handle_gpu_surface_route_outcome(outcome, position, delta);
+        }
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
-        NativeWheelRoute::new(outcome, diagnostic)
+        NativeWheelRoute::new(
+            outcome,
+            Some(position),
+            delta,
+            deferred_wheel_effects,
+            redraw_requested,
+            diagnostic,
+        )
     }
 
     fn flush_stale_pending_wheel_input(&mut self, now: Instant) {

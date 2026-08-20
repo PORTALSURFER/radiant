@@ -59,6 +59,22 @@ pub(super) struct PendingScrollbarDrag {
     pub(super) sequence_range: Option<InputSequenceRange>,
 }
 
+/// Pending wheel routes produced while an ImmediateTransient ticket is live.
+/// They retain semantic ordering but defer scene/refresh/redraw effects until
+/// the exact native ticket completes.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct DeferredWheelRouteEffects {
+    pub(super) gpu_surface: Option<super::GenericRouteOutcome>,
+    pub(super) scroll_container: Option<super::GenericRouteOutcome>,
+}
+
+impl DeferredWheelRouteEffects {
+    pub(super) fn merge(&mut self, other: Self) {
+        self.gpu_surface = other.gpu_surface.or(self.gpu_surface);
+        self.scroll_container = other.scroll_container.or(self.scroll_container);
+    }
+}
+
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: crate::runtime::RuntimeBridge<Message>,
@@ -92,15 +108,58 @@ where
         timestamp: Option<InputTimestamp>,
         sequence_range: Option<InputSequenceRange>,
     ) {
+        let _ = self.queue_gpu_surface_wheel_with_metadata_internal(
+            position,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+            true,
+        );
+    }
+
+    pub(super) fn queue_gpu_surface_wheel_with_metadata_for_immediate_transient(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+    ) -> DeferredWheelRouteEffects {
+        self.queue_gpu_surface_wheel_with_metadata_internal(
+            position,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+            false,
+        )
+    }
+
+    fn queue_gpu_surface_wheel_with_metadata_internal(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+        apply_route_effects: bool,
+    ) -> DeferredWheelRouteEffects {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
+        let mut deferred = DeferredWheelRouteEffects::default();
         if self
             .input
             .pending_gpu_surface_wheel
             .as_ref()
             .is_some_and(|pending| pending.axis != axis)
         {
-            self.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+            if apply_route_effects {
+                self.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+            } else {
+                deferred.gpu_surface =
+                    self.route_pending_gpu_surface_wheel_for_immediate_transient();
+            }
         }
         match &mut self.input.pending_gpu_surface_wheel {
             Some(pending) => {
@@ -122,7 +181,10 @@ where
             }
         }
         self.update_gpu_surface_cursor_overlay(position);
-        self.request_redraw_for_frame_work(FrameWork::None);
+        if apply_route_effects {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+        deferred
     }
 
     pub(super) fn queue_scroll_container_wheel_with_metadata(
@@ -133,15 +195,58 @@ where
         timestamp: Option<InputTimestamp>,
         sequence_range: Option<InputSequenceRange>,
     ) {
+        let _ = self.queue_scroll_container_wheel_with_metadata_internal(
+            position,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+            true,
+        );
+    }
+
+    pub(super) fn queue_scroll_container_wheel_with_metadata_for_immediate_transient(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+    ) -> DeferredWheelRouteEffects {
+        self.queue_scroll_container_wheel_with_metadata_internal(
+            position,
+            delta,
+            modifiers,
+            timestamp,
+            sequence_range,
+            false,
+        )
+    }
+
+    fn queue_scroll_container_wheel_with_metadata_internal(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+        apply_route_effects: bool,
+    ) -> DeferredWheelRouteEffects {
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
+        let mut deferred = DeferredWheelRouteEffects::default();
         if self
             .input
             .pending_scroll_container_wheel
             .as_ref()
             .is_some_and(|pending| pending.axis != axis)
         {
-            self.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+            if apply_route_effects {
+                self.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+            } else {
+                deferred.scroll_container =
+                    self.route_pending_scroll_container_wheel_for_immediate_transient();
+            }
         }
         match &mut self.input.pending_scroll_container_wheel {
             Some(pending) => {
@@ -162,7 +267,10 @@ where
                 });
             }
         }
-        self.request_redraw_for_frame_work(FrameWork::None);
+        if apply_route_effects {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+        deferred
     }
 
     #[cfg(test)]
@@ -170,12 +278,46 @@ where
         self.queue_scrollbar_drag_with_metadata(position, PointerModifiers::default(), None, None);
     }
 
+    #[cfg(test)]
     pub(super) fn queue_scrollbar_drag_with_metadata(
         &mut self,
         position: Point,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
         sequence_range: Option<InputSequenceRange>,
+    ) {
+        self.queue_scrollbar_drag_with_metadata_internal(
+            position,
+            modifiers,
+            timestamp,
+            sequence_range,
+            true,
+        );
+    }
+
+    pub(super) fn queue_scrollbar_drag_with_metadata_for_immediate_transient(
+        &mut self,
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+    ) {
+        self.queue_scrollbar_drag_with_metadata_internal(
+            position,
+            modifiers,
+            timestamp,
+            sequence_range,
+            false,
+        );
+    }
+
+    fn queue_scrollbar_drag_with_metadata_internal(
+        &mut self,
+        position: Point,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+        apply_route_effects: bool,
     ) {
         match &mut self.input.pending_scrollbar_drag {
             Some(pending) => {
@@ -193,7 +335,9 @@ where
                 });
             }
         }
-        self.request_redraw_for_frame_work(FrameWork::None);
+        if apply_route_effects {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
     }
 
     pub(super) fn flush_pending_scrollbar_drag_now(&mut self) {
@@ -224,6 +368,72 @@ where
         self.flush_pending_scroll_container_wheel(&mut profile);
     }
 
+    /// Route pending wheel samples in semantic order without applying their
+    /// refresh, scene, or redraw effects. The ImmediateTransient owner applies
+    /// the returned effects after its exact ticket completes.
+    pub(super) fn route_pending_wheel_input_for_immediate_transient(
+        &mut self,
+    ) -> DeferredWheelRouteEffects {
+        DeferredWheelRouteEffects {
+            gpu_surface: self.route_pending_gpu_surface_wheel_for_immediate_transient(),
+            scroll_container: self.route_pending_scroll_container_wheel_for_immediate_transient(),
+        }
+    }
+
+    fn route_pending_gpu_surface_wheel_for_immediate_transient(
+        &mut self,
+    ) -> Option<super::GenericRouteOutcome> {
+        self.input.pending_gpu_surface_wheel.take().map(|pending| {
+            let outcome = self.core.route_scroll_deferred_refresh_with_metadata(
+                pending.position,
+                pending.delta,
+                pending.modifiers,
+                pending.timestamp,
+                pending.sequence_range,
+            );
+            maybe_log_route_profile("coalesced_wheel", std::time::Duration::ZERO, outcome);
+            outcome
+        })
+    }
+
+    fn route_pending_scroll_container_wheel_for_immediate_transient(
+        &mut self,
+    ) -> Option<super::GenericRouteOutcome> {
+        self.input
+            .pending_scroll_container_wheel
+            .take()
+            .map(|pending| {
+                let outcome = self.core.route_scroll_deferred_refresh_with_metadata(
+                    pending.position,
+                    pending.delta,
+                    pending.modifiers,
+                    pending.timestamp,
+                    pending.sequence_range,
+                );
+                maybe_log_route_profile(
+                    "coalesced_scroll_wheel",
+                    std::time::Duration::ZERO,
+                    outcome,
+                );
+                outcome
+            })
+    }
+
+    /// Apply pending wheel effects after an ImmediateTransient ticket has
+    /// completed, preserving the existing GPU-surface and scroll-container
+    /// policies.
+    pub(super) fn apply_deferred_wheel_route_effects(
+        &mut self,
+        effects: DeferredWheelRouteEffects,
+    ) {
+        if let Some(outcome) = effects.gpu_surface {
+            self.apply_flushed_gpu_surface_wheel_outcome(outcome);
+        }
+        if let Some(outcome) = effects.scroll_container {
+            self.apply_flushed_scroll_container_wheel_outcome(outcome);
+        }
+    }
+
     pub(super) fn flush_pending_gpu_surface_wheel(&mut self, profile: &mut RenderFrameProfile) {
         let Some(pending) = self.input.pending_gpu_surface_wheel.take() else {
             return;
@@ -239,6 +449,10 @@ where
         });
         profile.coalesced_wheel_route = elapsed;
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
+        self.apply_flushed_gpu_surface_wheel_outcome(outcome);
+    }
+
+    fn apply_flushed_gpu_surface_wheel_outcome(&mut self, outcome: super::GenericRouteOutcome) {
         self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
@@ -289,6 +503,13 @@ where
         });
         profile.coalesced_wheel_route += elapsed;
         maybe_log_route_profile("coalesced_scroll_wheel", elapsed, outcome);
+        self.apply_flushed_scroll_container_wheel_outcome(outcome);
+    }
+
+    fn apply_flushed_scroll_container_wheel_outcome(
+        &mut self,
+        outcome: super::GenericRouteOutcome,
+    ) {
         self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(

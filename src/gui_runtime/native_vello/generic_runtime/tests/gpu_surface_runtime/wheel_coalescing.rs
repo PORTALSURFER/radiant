@@ -1,7 +1,14 @@
+use super::super::super::native_immediate_transient_stage::{
+    NativeImmediateTransientKind, NativeImmediateTransientStageEvidence,
+    admit_native_immediate_transient, complete_native_immediate_transient,
+};
+use super::super::super::runner_state::NativeTargetGeneration;
+use super::super::super::{NativeAdapterGeneration, NativeLifecycle};
 use super::*;
 use crate::gui::input::InputTimestamp;
 use crate::runtime::{RepaintScope, SurfaceInvalidation};
 use crate::widgets::PointerModifiers;
+use winit::event::TouchPhase;
 
 #[test]
 fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
@@ -424,6 +431,171 @@ fn queued_scroll_container_wheel_keeps_newest_sample_metadata() {
         .expect("coalesced scroll-container wheel should retain sequence metadata");
     assert_eq!(pending_sequence.start(), first_sequence.start());
     assert_eq!(pending_sequence.end(), newest_sequence.end());
+}
+
+#[test]
+fn fixed_alternating_transient_burst_keeps_owner_and_coalescers_bounded() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelScrollBridge::default(),
+        Vector2::new(240.0, 40.0),
+    );
+    runner.rebuild_scene();
+
+    const BURST_LEN: u64 = 512;
+    let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+    let target_generation = NativeTargetGeneration::from_test_serial(1);
+    let mut first_cursor_sequence = None;
+    let mut newest_cursor_sequence = None;
+    let mut newest_cursor_timestamp = None;
+    let mut newest_cursor_position = None;
+    let mut newest_cursor_modifiers = None;
+    let mut first_wheel_sequence = None;
+    let mut newest_wheel_sequence = None;
+    let mut newest_wheel_timestamp = None;
+    let mut newest_wheel_position = None;
+    let mut newest_wheel_modifiers = None;
+
+    for index in 0..BURST_LEN {
+        let timestamp = InputTimestamp::capture();
+        let sequence = runner
+            .input
+            .input_sequence_allocator
+            .allocate()
+            .expect("fixed burst sample should receive a sequence range");
+        let position = Point::new(index as f32, (index % 31) as f32);
+        let modifiers = if index % 4 == 0 {
+            PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            }
+        } else {
+            PointerModifiers {
+                command: true,
+                alt: index % 3 == 0,
+                ..PointerModifiers::default()
+            }
+        };
+        let cursor = index % 2 == 0;
+        let evidence = NativeImmediateTransientStageEvidence {
+            key: runner.frame_stage_owner.schedule_key().clone(),
+            kind: if cursor {
+                NativeImmediateTransientKind::CursorMoved
+            } else {
+                NativeImmediateTransientKind::MouseWheel(TouchPhase::Moved)
+            },
+            timestamp,
+            window_id: Some(winit::window::WindowId::dummy()),
+            adapter_generation,
+            active_resource_generation: Some(adapter_generation),
+            target_generation,
+            native_surface_target_fenced: false,
+            lifecycle: NativeLifecycle::default(),
+            native_window_eligible: true,
+            wrapper_eligible: true,
+        };
+        let ticket = admit_native_immediate_transient(&mut runner.frame_stage_owner, evidence)
+            .expect("alternating transient sample should admit");
+
+        if cursor {
+            runner.queue_scrollbar_drag_with_metadata_for_immediate_transient(
+                position,
+                modifiers,
+                Some(timestamp),
+                Some(sequence),
+            );
+            first_cursor_sequence.get_or_insert(sequence);
+            newest_cursor_sequence = Some(sequence);
+            newest_cursor_timestamp = Some(timestamp);
+            newest_cursor_position = Some(position);
+            newest_cursor_modifiers = Some(modifiers);
+        } else {
+            runner.queue_scroll_container_wheel_with_metadata_for_immediate_transient(
+                position,
+                Vector2::new(0.0, 1.0),
+                modifiers,
+                Some(timestamp),
+                Some(sequence),
+            );
+            first_wheel_sequence.get_or_insert(sequence);
+            newest_wheel_sequence = Some(sequence);
+            newest_wheel_timestamp = Some(timestamp);
+            newest_wheel_position = Some(position);
+            newest_wheel_modifiers = Some(modifiers);
+        }
+
+        assert!(complete_native_immediate_transient(
+            &mut runner.frame_stage_owner,
+            ticket
+        ));
+        assert!(
+            !runner.frame_stage_owner.has_in_flight(),
+            "transient owner must be empty after every fixed-burst completion"
+        );
+        if cursor {
+            assert!(runner.input.pending_scrollbar_drag.is_some());
+        } else {
+            assert!(runner.input.pending_scroll_container_wheel.is_some());
+        }
+        assert!(
+            usize::from(runner.input.pending_scrollbar_drag.is_some())
+                + usize::from(runner.input.pending_scroll_container_wheel.is_some())
+                <= 2,
+            "the fixed burst must retain at most one sample per existing bounded slot"
+        );
+    }
+
+    let cursor = runner
+        .input
+        .pending_scrollbar_drag
+        .expect("cursor samples should occupy one bounded latest-only slot");
+    assert_eq!(
+        cursor.position,
+        newest_cursor_position.expect("cursor sample")
+    );
+    assert_eq!(cursor.timestamp, newest_cursor_timestamp);
+    assert_eq!(
+        cursor.modifiers,
+        newest_cursor_modifiers.expect("cursor metadata")
+    );
+    let cursor_sequence = cursor
+        .sequence_range
+        .expect("cursor slot should retain sequence metadata");
+    assert_eq!(
+        cursor_sequence.start(),
+        first_cursor_sequence
+            .expect("first cursor sequence")
+            .start()
+    );
+    assert_eq!(
+        cursor_sequence.end(),
+        newest_cursor_sequence
+            .expect("newest cursor sequence")
+            .end()
+    );
+
+    let wheel = runner
+        .input
+        .pending_scroll_container_wheel
+        .expect("wheel samples should occupy one bounded coalescing slot");
+    assert_eq!(wheel.position, newest_wheel_position.expect("wheel sample"));
+    assert_eq!(wheel.timestamp, newest_wheel_timestamp);
+    assert_eq!(
+        wheel.modifiers,
+        newest_wheel_modifiers.expect("wheel metadata")
+    );
+    assert_eq!(wheel.delta, Vector2::new(0.0, (BURST_LEN / 2) as f32));
+    let wheel_sequence = wheel
+        .sequence_range
+        .expect("wheel slot should retain sequence metadata");
+    assert_eq!(
+        wheel_sequence.start(),
+        first_wheel_sequence.expect("first wheel sequence").start()
+    );
+    assert_eq!(
+        wheel_sequence.end(),
+        newest_wheel_sequence.expect("newest wheel sequence").end()
+    );
 }
 
 #[test]

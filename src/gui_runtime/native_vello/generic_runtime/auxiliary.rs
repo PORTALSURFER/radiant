@@ -1,4 +1,5 @@
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
+use super::native_immediate_transient_stage::NativeImmediateTransientKind;
 #[cfg(test)]
 use super::native_lifecycle_stage::NativeLifecycleStageEvidence;
 use super::native_lifecycle_stage::NativeLifecycleStageTicket;
@@ -995,35 +996,164 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::Moved(_) => self.runner.observe_monitor_move(),
             WindowEvent::ThemeChanged(theme) => self.runner.observe_theme_change(Some(theme)),
             WindowEvent::Focused(false) => {
-                let routed = self.runner.handle_focus_lost_before_external_drag();
-                self.runner.handle_route_outcome_with_adapter(
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_immediate_transient_event(
                     event_loop,
-                    routed,
-                    adapter,
-                    observation.as_deref_mut(),
-                );
+                    NativeImmediateTransientKind::Focused(false),
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let Some(ticket) = self.runner.revalidate_native_immediate_transient(
+                    ticket,
+                    adapter_generation,
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let mut routed = self.runner.handle_focus_lost_before_external_drag();
                 if self.runner.core.runtime.external_drag_armed() {
                     let outcome = self.runner.launch_external_drag_if_armed();
+                    routed.merge(outcome);
+                }
+                if self.runner.complete_native_immediate_transient(ticket) {
                     self.runner.handle_route_outcome_with_adapter(
                         event_loop,
-                        outcome,
+                        routed,
                         adapter,
                         observation.as_deref_mut(),
                     );
                 }
             }
             WindowEvent::Focused(true) => {
-                let routed = self.runner.handle_focus_regained_after_native_modal_loop();
-                self.runner.handle_route_outcome_with_adapter(
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_immediate_transient_event(
                     event_loop,
-                    routed,
-                    adapter,
-                    observation,
-                );
+                    NativeImmediateTransientKind::Focused(true),
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let Some(ticket) = self.runner.revalidate_native_immediate_transient(
+                    ticket,
+                    adapter_generation,
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let routed = self.runner.handle_focus_regained_after_native_modal_loop();
+                if self.runner.complete_native_immediate_transient(ticket) {
+                    self.runner.handle_route_outcome_with_adapter(
+                        event_loop,
+                        routed,
+                        adapter,
+                        observation,
+                    );
+                }
             }
-            WindowEvent::CursorEntered { .. } => self.runner.handle_cursor_entered(),
-            WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
-            WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
+            WindowEvent::CursorEntered { .. } => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::CursorEntered,
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let Some(ticket) = self.runner.revalidate_native_immediate_transient(
+                    ticket,
+                    adapter_generation,
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+                ) else {
+                    return self.event_result(None, false);
+                };
+                self.runner.handle_cursor_entered();
+                let _ = self.runner.complete_native_immediate_transient(ticket);
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::CursorMoved,
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let Some(ticket) = self.runner.revalidate_native_immediate_transient(
+                    ticket,
+                    adapter_generation,
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let route = self
+                    .runner
+                    .route_cursor_moved_with_timestamp(position, timestamp);
+                if self.runner.complete_native_immediate_transient(ticket) {
+                    self.runner.apply_cursor_moved_route(route);
+                }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::CursorLeft,
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let Some(ticket) = self.runner.revalidate_native_immediate_transient(
+                    ticket,
+                    adapter_generation,
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let routed = self.runner.route_cursor_left();
+                if self.runner.complete_native_immediate_transient(ticket) {
+                    self.runner.handle_route_outcome_with_adapter(
+                        event_loop,
+                        routed,
+                        adapter,
+                        observation.as_deref_mut(),
+                    );
+                }
+            }
             WindowEvent::MouseInput { button, state, .. } => {
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = adapter.capture_generation() else {
@@ -1055,15 +1185,51 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 }
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::MouseWheel(phase),
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let Some(ticket) = self.runner.revalidate_native_immediate_transient(
+                    ticket,
+                    adapter_generation,
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+                ) else {
+                    return self.event_result(None, false);
+                };
                 let route = self
                     .runner
-                    .route_native_mouse_wheel_with_phase(delta, phase);
-                self.runner.handle_route_outcome_with_adapter(
-                    event_loop,
-                    route.outcome,
-                    adapter,
-                    observation.as_deref_mut(),
-                );
+                    .route_native_mouse_wheel_with_phase_and_timestamp(delta, phase, timestamp);
+                if self.runner.complete_native_immediate_transient(ticket) {
+                    self.runner
+                        .apply_deferred_wheel_route_effects(route.deferred_wheel_effects);
+                    if route.redraw_requested {
+                        self.runner.request_redraw_for_frame_work(FrameWork::None);
+                    }
+                    if let Some(position) = route.position {
+                        self.runner.handle_gpu_surface_route_outcome(
+                            route.outcome,
+                            position,
+                            route.delta,
+                        );
+                    }
+                    self.runner.handle_route_outcome_with_adapter(
+                        event_loop,
+                        route.outcome,
+                        adapter,
+                        observation.as_deref_mut(),
+                    );
+                }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let wrapper_eligible = adapter.capture_generation().is_some_and(|generation| {

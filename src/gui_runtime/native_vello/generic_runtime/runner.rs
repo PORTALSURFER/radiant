@@ -12,6 +12,13 @@ use super::native_encode_present::{
     NativeEncodePresentTicket, NativeFrameSnapshotRevision, complete_native_encode_present,
     veto_native_encode_present,
 };
+use super::native_immediate_transient_stage::{
+    NativeImmediateTransientKind, NativeImmediateTransientStageEvidence,
+    NativeImmediateTransientStageTicket,
+    admit_native_immediate_transient as admit_native_immediate_transient_stage,
+    complete_native_immediate_transient as complete_native_immediate_transient_stage,
+    veto_native_immediate_transient as veto_native_immediate_transient_stage,
+};
 use super::native_lifecycle_stage::{
     NativeLifecycleStageEvidence, NativeLifecycleStageTicket, NativeLifecycleTransitionKind,
     admit_native_lifecycle as admit_native_lifecycle_stage,
@@ -899,6 +906,140 @@ where
         ticket: NativeDiscreteInputStageTicket,
     ) -> bool {
         veto_native_discrete_input_stage(&mut self.frame_stage_owner, ticket)
+    }
+
+    fn native_immediate_transient_stage_evidence(
+        &self,
+        kind: NativeImmediateTransientKind,
+        timestamp: InputTimestamp,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> NativeImmediateTransientStageEvidence {
+        NativeImmediateTransientStageEvidence {
+            key: self.frame_stage_owner.schedule_key().clone(),
+            kind,
+            timestamp,
+            window_id: self.window.id,
+            adapter_generation,
+            active_resource_generation: self
+                .window
+                .native_resources
+                .as_ref()
+                .map(|resources| resources.generation),
+            target_generation: self.window.target_generation,
+            native_surface_target_fenced: self.window.native_surface_target_fenced,
+            lifecycle: self.native_lifecycle,
+            native_window_eligible: self
+                .native_immediate_transient_native_window_is_eligible(adapter_generation),
+            wrapper_eligible,
+        }
+    }
+
+    fn native_immediate_transient_native_window_is_eligible(
+        &self,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_running()
+            && !self.has_terminal_cause()
+            && self.window.id.is_some()
+            && self.window.window.is_some()
+            && self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| resources.generation == adapter_generation)
+            && self.window.target_generation.is_known()
+            && !self.window.native_surface_target_fenced
+    }
+
+    /// Stage one exact native ImmediateTransient event for a primary or
+    /// auxiliary runner.  The caller must capture `timestamp` before this
+    /// boundary and keep the returned ticket live through synchronous local
+    /// routing and message reduction.
+    pub(super) fn begin_native_immediate_transient_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        kind: NativeImmediateTransientKind,
+        timestamp: InputTimestamp,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> Option<NativeImmediateTransientStageTicket> {
+        if !wrapper_eligible
+            || !self.native_immediate_transient_native_window_is_eligible(adapter_generation)
+        {
+            return None;
+        }
+        if !self.resume_deferred_deadline_before_immediate_transient(event_loop, adapter_generation)
+        {
+            return None;
+        }
+        let evidence = self.native_immediate_transient_stage_evidence(
+            kind,
+            timestamp,
+            adapter_generation,
+            wrapper_eligible,
+        );
+        let ticket = admit_native_immediate_transient_stage(&mut self.frame_stage_owner, evidence)?;
+        if !self.native_immediate_transient_ticket_is_current(
+            &ticket,
+            adapter_generation,
+            wrapper_eligible,
+        ) {
+            let _ = self.veto_native_immediate_transient(ticket);
+            return None;
+        }
+        Some(ticket)
+    }
+
+    pub(super) fn native_immediate_transient_ticket_is_current(
+        &self,
+        ticket: &NativeImmediateTransientStageTicket,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> bool {
+        let captured = ticket.evidence();
+        let evidence = self.native_immediate_transient_stage_evidence(
+            captured.kind,
+            captured.timestamp,
+            adapter_generation,
+            wrapper_eligible,
+        );
+        ticket.is_current(&self.frame_stage_owner, evidence)
+    }
+
+    /// Revalidate the exact transient witness immediately before its caller
+    /// mutates runtime-local state. A failed revalidation consumes only the
+    /// incoming witness and leaves the event inert.
+    pub(super) fn revalidate_native_immediate_transient(
+        &mut self,
+        ticket: NativeImmediateTransientStageTicket,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> Option<NativeImmediateTransientStageTicket> {
+        if self.native_immediate_transient_ticket_is_current(
+            &ticket,
+            adapter_generation,
+            wrapper_eligible,
+        ) {
+            Some(ticket)
+        } else {
+            let _ = self.veto_native_immediate_transient(ticket);
+            None
+        }
+    }
+
+    pub(super) fn complete_native_immediate_transient(
+        &mut self,
+        ticket: NativeImmediateTransientStageTicket,
+    ) -> bool {
+        complete_native_immediate_transient_stage(&mut self.frame_stage_owner, ticket)
+    }
+
+    pub(super) fn veto_native_immediate_transient(
+        &mut self,
+        ticket: NativeImmediateTransientStageTicket,
+    ) -> bool {
+        veto_native_immediate_transient_stage(&mut self.frame_stage_owner, ticket)
     }
 
     pub(super) fn admit_device_recovery(&mut self) -> bool {
@@ -2746,6 +2887,27 @@ where
             return self.is_running();
         }
         let admission = self.admit_deferred_timed_frame_before_discrete_input(
+            adapter_generation,
+            self.window.target_generation,
+        );
+        if admission.route_outcome {
+            self.handle_route_outcome_deferred_publication(event_loop, admission.outcome);
+        }
+        self.is_running()
+    }
+
+    /// Finish an exact deferred Deadline operation before an
+    /// ImmediateTransient event is admitted. The transient timestamp was
+    /// captured by the caller before this synchronous drainage.
+    pub(super) fn resume_deferred_deadline_before_immediate_transient(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        if !self.is_running() || !self.frame_stage_owner.has_deferred_timed_frame() {
+            return self.is_running();
+        }
+        let admission = self.admit_deferred_timed_frame_before_native_input(
             adapter_generation,
             self.window.target_generation,
         );

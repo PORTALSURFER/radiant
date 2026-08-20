@@ -408,6 +408,29 @@ struct InFlightDiscreteInput {
     identity: FrameStageIdentity,
 }
 
+/// A non-`Clone` witness for one exact synchronous ImmediateTransient attempt.
+///
+/// Transient native feedback remains live until its runtime-local route and
+/// semantic reduction finish.  Lower-stage route outcomes are applied only
+/// after this ticket completes.
+#[derive(Debug)]
+pub(super) struct ImmediateTransientStageTicket {
+    identity: FrameStageIdentity,
+    owner_token: usize,
+}
+
+impl ImmediateTransientStageTicket {
+    #[cfg(test)]
+    pub(super) fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+}
+
+#[derive(Debug)]
+struct InFlightImmediateTransient {
+    identity: FrameStageIdentity,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -443,6 +466,7 @@ pub(super) struct WindowStageOwner {
     maintenance_in_flight: Option<InFlightMaintenance>,
     lifecycle_in_flight: Option<InFlightLifecycle>,
     discrete_input_in_flight: Option<InFlightDiscreteInput>,
+    immediate_transient_in_flight: Option<InFlightImmediateTransient>,
     last_completion: Option<FrameStageCompletionEvidence>,
     last_projection_completion: Option<FrameStageIdentity>,
     last_layout_completion: Option<FrameStageIdentity>,
@@ -451,6 +475,7 @@ pub(super) struct WindowStageOwner {
     last_maintenance_completion: Option<FrameStageIdentity>,
     last_lifecycle_completion: Option<FrameStageIdentity>,
     last_discrete_input_completion: Option<FrameStageIdentity>,
+    last_immediate_transient_completion: Option<FrameStageIdentity>,
 }
 
 impl WindowStageOwner {
@@ -471,6 +496,7 @@ impl WindowStageOwner {
             maintenance_in_flight: None,
             lifecycle_in_flight: None,
             discrete_input_in_flight: None,
+            immediate_transient_in_flight: None,
             last_completion: None,
             last_projection_completion: None,
             last_layout_completion: None,
@@ -479,6 +505,7 @@ impl WindowStageOwner {
             last_maintenance_completion: None,
             last_lifecycle_completion: None,
             last_discrete_input_completion: None,
+            last_immediate_transient_completion: None,
         }
     }
 
@@ -508,6 +535,7 @@ impl WindowStageOwner {
             || self.maintenance_in_flight.is_some()
             || self.lifecycle_in_flight.is_some()
             || self.discrete_input_in_flight.is_some()
+            || self.immediate_transient_in_flight.is_some()
     }
 
     pub(super) fn next_revision(&mut self) -> Option<u64> {
@@ -562,6 +590,7 @@ impl WindowStageOwner {
                 || self.maintenance_in_flight.is_some()
                 || self.lifecycle_in_flight.is_some()
                 || self.discrete_input_in_flight.is_some()
+                || self.immediate_transient_in_flight.is_some()
             {
                 return false;
             }
@@ -687,6 +716,7 @@ impl WindowStageOwner {
         self.encode_present_in_flight = None;
         self.maintenance_in_flight = None;
         self.discrete_input_in_flight = None;
+        self.immediate_transient_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
@@ -695,6 +725,7 @@ impl WindowStageOwner {
         self.last_maintenance_completion = None;
         self.last_lifecycle_completion = None;
         self.last_discrete_input_completion = None;
+        self.last_immediate_transient_completion = None;
 
         let identity = FrameStageIdentity::new(
             self.key.clone(),
@@ -811,6 +842,83 @@ impl WindowStageOwner {
             return false;
         }
         self.discrete_input_in_flight = None;
+        true
+    }
+
+    /// Admit one exact synchronous native ImmediateTransient attempt. A
+    /// currently admitted DiscreteInput owner is never drained or replaced;
+    /// the transient attempt fails inertly until that owner completes.
+    pub(super) fn admit_immediate_transient(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> Option<ImmediateTransientStageTicket> {
+        if self.has_in_flight()
+            || !self.prepare_fence(
+                adapter_generation,
+                target_generation,
+                SchedulerStage::ImmediateTransient,
+            )
+        {
+            return None;
+        }
+        let revision = self.next_revision()?;
+        let identity = FrameStageIdentity::new(
+            self.key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::ImmediateTransient,
+            self.owner_generation,
+            revision,
+        );
+        if self.stale(&identity) {
+            return None;
+        }
+        self.immediate_transient_in_flight = Some(InFlightImmediateTransient {
+            identity: identity.clone(),
+        });
+        Some(ImmediateTransientStageTicket {
+            identity,
+            owner_token: self as *const Self as usize,
+        })
+    }
+
+    pub(super) fn immediate_transient_ticket_is_current(
+        &self,
+        ticket: &ImmediateTransientStageTicket,
+    ) -> bool {
+        self.immediate_transient_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity == ticket.identity
+                    && ticket.owner_token == self as *const Self as usize
+            })
+    }
+
+    /// Complete only the exact ImmediateTransient attempt. A mismatch keeps
+    /// the real owner in flight so no route can be replayed or downgraded.
+    pub(super) fn complete_immediate_transient(
+        &mut self,
+        ticket: ImmediateTransientStageTicket,
+    ) -> bool {
+        if !self.immediate_transient_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.immediate_transient_in_flight = None;
+        self.last_immediate_transient_completion = Some(ticket.identity);
+        true
+    }
+
+    /// Veto the exact ImmediateTransient attempt before routing. A wrong
+    /// ticket is inert and cannot clear the actual owner.
+    pub(super) fn veto_immediate_transient(
+        &mut self,
+        ticket: ImmediateTransientStageTicket,
+    ) -> bool {
+        if !self.immediate_transient_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.immediate_transient_in_flight = None;
         true
     }
 
@@ -1374,6 +1482,16 @@ impl WindowStageOwner {
             return true;
         }
         if self
+            .immediate_transient_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity.same_fence(identity)
+                    && identity.revision < in_flight.identity.revision
+            })
+        {
+            return true;
+        }
+        if self
             .last_encode_present_completion
             .as_ref()
             .is_some_and(|completion| {
@@ -1436,6 +1554,15 @@ impl WindowStageOwner {
         {
             return true;
         }
+        if self
+            .last_immediate_transient_completion
+            .as_ref()
+            .is_some_and(|completion| {
+                completion.same_fence(identity) && identity.revision <= completion.revision
+            })
+        {
+            return true;
+        }
         self.pending.as_ref().is_some_and(|pending| {
             pending.identity.same_fence(identity) && identity.revision < pending.identity.revision
         })
@@ -1453,6 +1580,7 @@ impl WindowStageOwner {
             && self.maintenance_in_flight.is_none()
             && self.lifecycle_in_flight.is_none()
             && self.discrete_input_in_flight.is_none()
+            && self.immediate_transient_in_flight.is_none()
             && self.last_completion.is_none()
             && self.last_projection_completion.is_none()
             && self.last_layout_completion.is_none()
@@ -1461,6 +1589,7 @@ impl WindowStageOwner {
             && self.last_maintenance_completion.is_none()
             && self.last_lifecycle_completion.is_none()
             && self.last_discrete_input_completion.is_none()
+            && self.last_immediate_transient_completion.is_none()
         {
             return;
         }
@@ -1473,6 +1602,7 @@ impl WindowStageOwner {
         self.maintenance_in_flight = None;
         self.lifecycle_in_flight = None;
         self.discrete_input_in_flight = None;
+        self.immediate_transient_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
@@ -1481,6 +1611,7 @@ impl WindowStageOwner {
         self.last_maintenance_completion = None;
         self.last_lifecycle_completion = None;
         self.last_discrete_input_completion = None;
+        self.last_immediate_transient_completion = None;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -1523,6 +1654,7 @@ const fn stage_can_be_admitted(stage: SchedulerStage) -> bool {
     matches!(
         stage,
         SchedulerStage::Lifecycle
+            | SchedulerStage::ImmediateTransient
             | SchedulerStage::Deadline
             | SchedulerStage::Projection
             | SchedulerStage::Layout
@@ -2185,6 +2317,7 @@ mod tests {
                 matches!(
                     stage,
                     SchedulerStage::DiscreteInput
+                        | SchedulerStage::ImmediateTransient
                         | SchedulerStage::Deadline
                         | SchedulerStage::Projection
                         | SchedulerStage::Layout

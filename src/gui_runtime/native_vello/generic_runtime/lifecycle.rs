@@ -1088,16 +1088,16 @@ mod tests {
     }
 
     fn parent_with_destructive_auxiliary_close() -> (
-        GenericNativeVelloRunner<OrderedAuxiliaryBridge, u8>,
+        Box<GenericNativeVelloRunner<OrderedAuxiliaryBridge, u8>>,
         crate::runtime::AuxiliaryWindowOwner,
     ) {
         let events = Arc::new(Mutex::new(Vec::new()));
         let options = NativeRunOptions::default();
-        let mut parent = GenericNativeVelloRunner::new(
+        let mut parent = Box::new(GenericNativeVelloRunner::new(
             options.clone(),
             OrderedAuxiliaryBridge { events },
             Vector2::new(320.0, 240.0),
-        );
+        ));
         let owner = parent
             .core
             .runtime

@@ -883,6 +883,43 @@ startup/preflight, recovery, `Closing`, and already-retiring auxiliary cleanup
 retain lifecycle-authoritative bounded paths and reuse the same witness
 transition kernel.
 
+### Native lifecycle admission ticket (private native-window contract)
+
+An accepted current-generation device-loss callback is a per-window
+`SchedulerStage::Lifecycle` operation before it is a recovery-resource
+operation. Before any native or controller lifecycle phase changes from
+`Running` to `Recovering`, the primary window and every admitted auxiliary
+window stage one exact non-`Clone` `LifecycleStageTicket`. The shared
+`WindowStageOwner` precomputes checked owner-generation and revision evidence,
+atomically retires all lower-stage pending, in-flight, and completion state,
+then installs one exact `Lifecycle` identity and owner token. Lower stages are
+blocked until that exact ticket completes or is vetoed, and all older
+lower-stage tickets are stale.
+
+The private native ticket binds `BeginDeviceRecovery`, source phase `Running`,
+the exact stable key and Winit `WindowId` presence, the accepted shared adapter
+generation, the exact active-resource generation or absence, the exact
+`NativeTargetGeneration` state (including unknown), the target-fenced state,
+and the underlying lifecycle ticket. Unknown or absent evidence is exact
+evidence; admission does not use ordinary `prepare_fence` or require a usable
+post-transition adapter or target. A wrong completion or veto preserves the
+real owner; an exact veto preserves the advanced fence.
+
+The existing current registration/generation and publication-capacity
+preflight remains authoritative. The callback registration and generation are
+rechecked immediately before staging, then the complete primary-plus-
+auxiliary ticket set is revalidated synchronously without a yield. Only after
+that validation do the existing native/controller recovery hooks apply their
+presentation, mailbox, target, diagnostic, and fairness fences; every exact
+ticket completes before the existing one-candidate recovery worker starts.
+Any staging, currentness, transition, or completion failure vetoes the staged
+set, starts no recovery candidate, and converges once through the existing
+bounded `Closing` path with the original loss cause. A stale registration or
+generation remains inert, visibility and dormancy intent are unchanged, and
+recovery/closing maintenance retains its existing bounded authority. This is
+crate-private and does not add a public API, schema, queue, worker, or event
+loop.
+
 ## Modern CPU/GPU Architecture
 
 Radiant should be designed from the ground up to take advantage of modern CPU and GPU capabilities.

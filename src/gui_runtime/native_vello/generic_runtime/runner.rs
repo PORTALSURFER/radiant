@@ -6,6 +6,12 @@ use super::native_encode_present::{
     NativeEncodePresentTicket, NativeFrameSnapshotRevision, complete_native_encode_present,
     veto_native_encode_present,
 };
+use super::native_lifecycle_stage::{
+    NativeLifecycleStageEvidence, NativeLifecycleStageTicket, NativeLifecycleTransitionKind,
+    admit_native_lifecycle as admit_native_lifecycle_stage,
+    complete_native_lifecycle as complete_native_lifecycle_stage,
+    veto_native_lifecycle as veto_native_lifecycle_stage,
+};
 #[cfg(target_os = "macos")]
 use super::native_semantic_accessibility::NativeSemanticAccessibilityAdapter;
 use super::native_visual_packet::{
@@ -648,6 +654,66 @@ where
         self.native_lifecycle.recovery_expired(now)
     }
 
+    fn native_lifecycle_stage_evidence(
+        &self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> NativeLifecycleStageEvidence {
+        NativeLifecycleStageEvidence {
+            key: self.frame_stage_owner.schedule_key().clone(),
+            transition: NativeLifecycleTransitionKind::BeginDeviceRecovery,
+            source_phase: self.native_lifecycle,
+            window_id: self.window.id,
+            adapter_generation,
+            active_resource_generation: self
+                .window
+                .native_resources
+                .as_ref()
+                .map(|resources| resources.generation),
+            target_generation: self.window.target_generation,
+            target_fenced: self.window.native_surface_target_fenced,
+        }
+    }
+
+    /// Stage one exact lifecycle transition before any native/controller
+    /// lifecycle phase mutates.  Target and resource absence remain part of
+    /// the exact evidence rather than being rejected as unusable post-
+    /// transition state.
+    pub(super) fn admit_native_lifecycle(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<NativeLifecycleStageTicket> {
+        let evidence = self.native_lifecycle_stage_evidence(adapter_generation);
+        admit_native_lifecycle_stage(&mut self.frame_stage_owner, evidence)
+    }
+
+    pub(super) fn native_lifecycle_stage_ticket_is_current(
+        &self,
+        ticket: &NativeLifecycleStageTicket,
+    ) -> bool {
+        self.frame_stage_owner.lifecycle_ticket_is_current(
+            // The owner check does not consume or clone the ticket.  Native
+            // evidence currentness is checked separately before transition.
+            ticket.stage_ticket(),
+        )
+    }
+
+    pub(super) fn native_lifecycle_ticket_is_current(
+        &self,
+        ticket: &NativeLifecycleStageTicket,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> bool {
+        let evidence = self.native_lifecycle_stage_evidence(adapter_generation);
+        ticket.is_current(&self.frame_stage_owner, &evidence)
+    }
+
+    pub(super) fn complete_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
+        complete_native_lifecycle_stage(&mut self.frame_stage_owner, ticket)
+    }
+
+    pub(super) fn veto_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
+        veto_native_lifecycle_stage(&mut self.frame_stage_owner, ticket)
+    }
+
     pub(super) fn admit_device_recovery(&mut self) -> bool {
         if !self.native_lifecycle.admit_recovery() {
             return false;
@@ -1170,7 +1236,7 @@ where
             return;
         }
         let cause = NativeGenericRunError::RenderDeviceLost(message);
-        self.begin_device_recovery(event_loop, generation, cause);
+        self.begin_device_recovery(event_loop, generation, registration, cause);
     }
 
     fn can_prepare_device_recovery(&self, generation: NativeAdapterGeneration) -> bool {
@@ -1185,19 +1251,50 @@ where
                 .all(|window| window.can_prepare_device_recovery(generation))
     }
 
+    fn veto_staged_native_lifecycle(
+        &mut self,
+        primary: Option<NativeLifecycleStageTicket>,
+        auxiliaries: Vec<(usize, NativeLifecycleStageTicket)>,
+    ) {
+        if let Some(ticket) = primary {
+            let _ = self.veto_native_lifecycle(ticket);
+        }
+        for (index, ticket) in auxiliaries {
+            if let Some(window) = self.auxiliary_windows.get_mut(index) {
+                let _ = window.veto_native_lifecycle(ticket);
+            }
+        }
+    }
+
+    fn fail_staged_native_lifecycle(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        cause: NativeGenericRunError,
+        primary: Option<NativeLifecycleStageTicket>,
+        auxiliaries: Vec<(usize, NativeLifecycleStageTicket)>,
+    ) {
+        self.veto_staged_native_lifecycle(primary, auxiliaries);
+        self.admit_native_shutdown(event_loop, Some(cause));
+    }
+
     fn begin_device_recovery(
         &mut self,
         event_loop: &ActiveEventLoop,
         generation: NativeAdapterGeneration,
+        registration: Arc<DeviceLossRegistration>,
         cause: NativeGenericRunError,
     ) {
+        // Recheck the callback witness before any fallback or staging.  A
+        // late registration/generation remains inert rather than turning an
+        // already superseded device-loss notification into Closing.
+        if !self.device_loss_event_is_current(generation, &registration) {
+            return;
+        }
         let Some(adapter) = self.adapter.as_ref() else {
             self.admit_native_shutdown(event_loop, Some(cause));
             return;
         };
-        if adapter.capture_generation() != Some(generation)
-            || !self.can_prepare_device_recovery(generation)
-        {
+        if !self.can_prepare_device_recovery(generation) {
             self.admit_native_shutdown(event_loop, Some(cause));
             return;
         }
@@ -1234,20 +1331,116 @@ where
             self.admit_native_shutdown(event_loop, Some(cause));
             return;
         };
-        if !self.admit_device_recovery() {
+
+        // A callback that was current during the initial preflight must still
+        // name the shared adapter registration immediately before staging.
+        // Earlier stale callbacks remain inert and do not enter Closing.
+        if !self.device_loss_event_is_current(generation, &registration) {
             return;
         }
+
+        let Some(primary_ticket) = self.admit_native_lifecycle(Some(generation)) else {
+            self.admit_native_shutdown(event_loop, Some(cause));
+            return;
+        };
+        let mut auxiliary_tickets = Vec::with_capacity(self.auxiliary_windows.len());
+        for index in 0..self.auxiliary_windows.len() {
+            if !self.auxiliary_windows[index].is_admitted() {
+                continue;
+            }
+            let Some(ticket) =
+                self.auxiliary_windows[index].admit_native_lifecycle(Some(generation))
+            else {
+                self.fail_staged_native_lifecycle(
+                    event_loop,
+                    cause,
+                    Some(primary_ticket),
+                    auxiliary_tickets,
+                );
+                return;
+            };
+            auxiliary_tickets.push((index, ticket));
+        }
+
+        // Revalidate the complete staged set synchronously.  No lifecycle or
+        // controller phase has changed yet, and no scheduler yield is allowed
+        // between this check and the transition hooks below.
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let staged_current = self.device_loss_event_is_current(generation, &registration)
+            && self.can_prepare_device_recovery(generation)
+            && self.native_lifecycle_ticket_is_current(&primary_ticket, current_generation)
+            && auxiliary_tickets.iter().all(|(index, ticket)| {
+                self.auxiliary_windows[*index]
+                    .native_lifecycle_ticket_is_current(ticket, current_generation)
+            });
+        if !staged_current {
+            self.fail_staged_native_lifecycle(
+                event_loop,
+                cause,
+                Some(primary_ticket),
+                auxiliary_tickets,
+            );
+            return;
+        }
+
+        // Only after every window's exact Lifecycle ticket is staged and
+        // current may the existing native/controller recovery hooks mutate
+        // phases and install their presentation/resource fences.
+        if !self.admit_device_recovery()
+            || auxiliary_tickets
+                .iter()
+                .any(|(index, _)| !self.auxiliary_windows[*index].admit_device_recovery())
+        {
+            self.fail_staged_native_lifecycle(
+                event_loop,
+                cause,
+                Some(primary_ticket),
+                auxiliary_tickets,
+            );
+            return;
+        }
+
         #[cfg(target_os = "macos")]
         self.close_native_semantic_accessibility();
-        self.recovery_cause = Some(cause);
-        if self
-            .auxiliary_windows
-            .iter_mut()
-            .any(|window| !window.admit_device_recovery())
+
+        let mut primary_ticket = Some(primary_ticket);
+        let mut completion_failed = false;
+        if let Some(ticket) = primary_ticket.take()
+            && (!self.native_lifecycle_stage_ticket_is_current(&ticket)
+                || !self.complete_native_lifecycle(ticket))
         {
-            self.admit_native_shutdown(event_loop, None);
+            completion_failed = true;
+        }
+        let mut remaining_auxiliary_tickets = Vec::new();
+        for (index, ticket) in auxiliary_tickets {
+            if completion_failed {
+                remaining_auxiliary_tickets.push((index, ticket));
+            } else if !self.auxiliary_windows[index]
+                .native_lifecycle_stage_ticket_is_current(&ticket)
+            {
+                completion_failed = true;
+                remaining_auxiliary_tickets.push((index, ticket));
+            } else if !self.auxiliary_windows[index].complete_native_lifecycle(ticket) {
+                // The exact ticket has been consumed by the failed
+                // completion attempt.  Keep the owner fenced and converge to
+                // Closing below; there is deliberately no replay ticket.
+                completion_failed = true;
+            }
+        }
+        if completion_failed {
+            self.fail_staged_native_lifecycle(
+                event_loop,
+                cause,
+                primary_ticket,
+                remaining_auxiliary_tickets,
+            );
             return;
         }
+
+        self.recovery_cause = Some(cause);
         let request = NativeRecoveryRequest {
             instance,
             surface,
@@ -3423,6 +3616,32 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn native_lifecycle_ticket_binds_shared_generation_and_exact_window_state() {
+        let mut runner = runner();
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        let ticket = runner
+            .admit_native_lifecycle(Some(generation))
+            .expect("primary lifecycle ticket");
+        let current_generation = runner
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        assert!(runner.native_lifecycle_ticket_is_current(&ticket, current_generation));
+        assert!(!runner.native_lifecycle_ticket_is_current(
+            &ticket,
+            Some(NativeAdapterGeneration::from_test_serial(2))
+        ));
+        assert!(runner.native_lifecycle_stage_ticket_is_current(&ticket));
+        assert!(runner.complete_native_lifecycle(ticket));
+        assert!(!runner.frame_stage_owner.has_in_flight());
     }
 
     #[test]

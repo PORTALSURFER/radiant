@@ -1,3 +1,4 @@
+use super::native_lifecycle_stage::NativeLifecycleStageTicket;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::renderer_recovery::NativeRendererRecoveryWindowKind;
 use super::runner_state::{NativeWindowDiagnosticIdentityAllocator, NativeWindowResourceBundle};
@@ -212,7 +213,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
     }
 
-    fn is_admitted(&self) -> bool {
+    pub(super) fn is_admitted(&self) -> bool {
         matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Admitted)
     }
 
@@ -247,6 +248,39 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         self.recovery_rebuild_pending = self.runner.window.window.is_some();
         true
+    }
+
+    pub(super) fn admit_native_lifecycle(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<NativeLifecycleStageTicket> {
+        self.is_admitted()
+            .then(|| self.runner.admit_native_lifecycle(adapter_generation))
+            .flatten()
+    }
+
+    pub(super) fn native_lifecycle_stage_ticket_is_current(
+        &self,
+        ticket: &NativeLifecycleStageTicket,
+    ) -> bool {
+        self.runner.native_lifecycle_stage_ticket_is_current(ticket)
+    }
+
+    pub(super) fn native_lifecycle_ticket_is_current(
+        &self,
+        ticket: &NativeLifecycleStageTicket,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> bool {
+        self.runner
+            .native_lifecycle_ticket_is_current(ticket, adapter_generation)
+    }
+
+    pub(super) fn complete_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
+        self.runner.complete_native_lifecycle(ticket)
+    }
+
+    pub(super) fn veto_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
+        self.runner.veto_native_lifecycle(ticket)
     }
 
     pub(super) fn quarantine_device_recovery_resources(&mut self) -> bool {

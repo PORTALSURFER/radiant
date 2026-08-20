@@ -362,6 +362,29 @@ struct InFlightMaintenance {
     binding: NativeResourceMaintenanceBinding,
 }
 
+/// A non-`Clone` witness for one lifecycle transition admission.
+///
+/// Lifecycle is the highest-priority stage.  Its admission retires every
+/// lower-stage owner state before installing this exact in-flight identity, so
+/// an accepted transition cannot race a stale visual or maintenance ticket.
+#[derive(Debug)]
+pub(super) struct LifecycleStageTicket {
+    identity: FrameStageIdentity,
+    owner_token: usize,
+}
+
+impl LifecycleStageTicket {
+    #[cfg(test)]
+    pub(super) fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+}
+
+#[derive(Debug)]
+struct InFlightLifecycle {
+    identity: FrameStageIdentity,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -395,12 +418,14 @@ pub(super) struct WindowStageOwner {
     paint_plan_in_flight: Option<InFlightPaintPlan>,
     encode_present_in_flight: Option<InFlightEncodePresent>,
     maintenance_in_flight: Option<InFlightMaintenance>,
+    lifecycle_in_flight: Option<InFlightLifecycle>,
     last_completion: Option<FrameStageCompletionEvidence>,
     last_projection_completion: Option<FrameStageIdentity>,
     last_layout_completion: Option<FrameStageIdentity>,
     last_paint_plan_completion: Option<FrameStageIdentity>,
     last_encode_present_completion: Option<FrameStageIdentity>,
     last_maintenance_completion: Option<FrameStageIdentity>,
+    last_lifecycle_completion: Option<FrameStageIdentity>,
 }
 
 impl WindowStageOwner {
@@ -419,12 +444,14 @@ impl WindowStageOwner {
             paint_plan_in_flight: None,
             encode_present_in_flight: None,
             maintenance_in_flight: None,
+            lifecycle_in_flight: None,
             last_completion: None,
             last_projection_completion: None,
             last_layout_completion: None,
             last_paint_plan_completion: None,
             last_encode_present_completion: None,
             last_maintenance_completion: None,
+            last_lifecycle_completion: None,
         }
     }
 
@@ -452,6 +479,7 @@ impl WindowStageOwner {
             || self.paint_plan_in_flight.is_some()
             || self.encode_present_in_flight.is_some()
             || self.maintenance_in_flight.is_some()
+            || self.lifecycle_in_flight.is_some()
     }
 
     pub(super) fn next_revision(&mut self) -> Option<u64> {
@@ -481,6 +509,7 @@ impl WindowStageOwner {
         if self.generation_exhausted
             || !adapter_generation.is_known()
             || !target_generation.is_known()
+            || stage == SchedulerStage::Lifecycle
             || !stage_can_be_admitted(stage)
         {
             return false;
@@ -503,6 +532,7 @@ impl WindowStageOwner {
                 || self.paint_plan_in_flight.is_some()
                 || self.encode_present_in_flight.is_some()
                 || self.maintenance_in_flight.is_some()
+                || self.lifecycle_in_flight.is_some()
             {
                 return false;
             }
@@ -562,6 +592,96 @@ impl WindowStageOwner {
             identity: identity.clone(),
         });
         Some(ProjectionStageTicket { identity })
+    }
+
+    /// Admit one exact lifecycle transition without requiring a usable
+    /// post-transition target.  The supplied adapter generation is the
+    /// accepted shared-owner witness; the target generation may intentionally
+    /// be unknown because recovery itself is the target transition boundary.
+    ///
+    /// Lower-stage pending, in-flight, and completion state is retired as one
+    /// operation and the owner generation advances before the Lifecycle
+    /// identity is installed.  This makes every older lower-stage ticket
+    /// stale, including tickets whose successful completion was already
+    /// recorded.
+    pub(super) fn admit_lifecycle(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> Option<LifecycleStageTicket> {
+        if self.generation_exhausted
+            || self.revision_exhausted
+            || !adapter_generation.is_known()
+            || self.lifecycle_in_flight.is_some()
+        {
+            return None;
+        }
+        let Some(next_owner_generation) = self.owner_generation.checked_add(1) else {
+            self.generation_exhausted = true;
+            return None;
+        };
+        let revision = self.next_revision()?;
+
+        self.owner_generation = next_owner_generation;
+        self.pending = None;
+        self.in_flight = None;
+        self.projection_in_flight = None;
+        self.layout_in_flight = None;
+        self.paint_plan_in_flight = None;
+        self.encode_present_in_flight = None;
+        self.maintenance_in_flight = None;
+        self.last_completion = None;
+        self.last_projection_completion = None;
+        self.last_layout_completion = None;
+        self.last_paint_plan_completion = None;
+        self.last_encode_present_completion = None;
+        self.last_maintenance_completion = None;
+        self.last_lifecycle_completion = None;
+
+        let identity = FrameStageIdentity::new(
+            self.key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::Lifecycle,
+            self.owner_generation,
+            revision,
+        );
+        self.fence = Some(identity.fence());
+        self.lifecycle_in_flight = Some(InFlightLifecycle {
+            identity: identity.clone(),
+        });
+        Some(LifecycleStageTicket {
+            identity,
+            owner_token: self as *const Self as usize,
+        })
+    }
+
+    pub(super) fn lifecycle_ticket_is_current(&self, ticket: &LifecycleStageTicket) -> bool {
+        self.lifecycle_in_flight.as_ref().is_some_and(|in_flight| {
+            in_flight.identity == ticket.identity
+                && ticket.owner_token == self as *const Self as usize
+        })
+    }
+
+    /// Complete only the exact admitted lifecycle transition.  A wrong ticket
+    /// preserves the real owner in flight.
+    pub(super) fn complete_lifecycle(&mut self, ticket: LifecycleStageTicket) -> bool {
+        if !self.lifecycle_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.lifecycle_in_flight = None;
+        self.last_lifecycle_completion = Some(ticket.identity);
+        true
+    }
+
+    /// Veto the exact lifecycle transition while retaining its advanced fence.
+    /// A wrong ticket cannot clear the real owner or authorize another stage.
+    pub(super) fn veto_lifecycle(&mut self, ticket: LifecycleStageTicket) -> bool {
+        if !self.lifecycle_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.lifecycle_in_flight = None;
+        true
     }
 
     pub(super) fn projection_ticket_is_current(&self, ticket: &ProjectionStageTicket) -> bool {
@@ -1107,6 +1227,12 @@ impl WindowStageOwner {
         {
             return true;
         }
+        if self.lifecycle_in_flight.as_ref().is_some_and(|in_flight| {
+            in_flight.identity.same_fence(identity)
+                && identity.revision < in_flight.identity.revision
+        }) {
+            return true;
+        }
         if self
             .last_encode_present_completion
             .as_ref()
@@ -1152,6 +1278,15 @@ impl WindowStageOwner {
         {
             return true;
         }
+        if self
+            .last_lifecycle_completion
+            .as_ref()
+            .is_some_and(|completion| {
+                completion.same_fence(identity) && identity.revision <= completion.revision
+            })
+        {
+            return true;
+        }
         self.pending.as_ref().is_some_and(|pending| {
             pending.identity.same_fence(identity) && identity.revision < pending.identity.revision
         })
@@ -1167,12 +1302,14 @@ impl WindowStageOwner {
             && self.paint_plan_in_flight.is_none()
             && self.encode_present_in_flight.is_none()
             && self.maintenance_in_flight.is_none()
+            && self.lifecycle_in_flight.is_none()
             && self.last_completion.is_none()
             && self.last_projection_completion.is_none()
             && self.last_layout_completion.is_none()
             && self.last_paint_plan_completion.is_none()
             && self.last_encode_present_completion.is_none()
             && self.last_maintenance_completion.is_none()
+            && self.last_lifecycle_completion.is_none()
         {
             return;
         }
@@ -1183,12 +1320,14 @@ impl WindowStageOwner {
         self.paint_plan_in_flight = None;
         self.encode_present_in_flight = None;
         self.maintenance_in_flight = None;
+        self.lifecycle_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
         self.last_paint_plan_completion = None;
         self.last_encode_present_completion = None;
         self.last_maintenance_completion = None;
+        self.last_lifecycle_completion = None;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -1205,9 +1344,13 @@ impl WindowStageOwner {
     }
 
     fn accepts_identity(&self, identity: &FrameStageIdentity) -> bool {
+        let generations_are_valid = if identity.stage == SchedulerStage::Lifecycle {
+            identity.adapter_generation.is_known()
+        } else {
+            identity.adapter_generation.is_known() && identity.target_generation.is_known()
+        };
         identity.key == self.key
-            && identity.adapter_generation.is_known()
-            && identity.target_generation.is_known()
+            && generations_are_valid
             && stage_can_be_admitted(identity.stage)
             && identity.owner_generation == self.owner_generation
             && !self.generation_exhausted
@@ -1223,7 +1366,8 @@ impl WindowStageOwner {
 const fn stage_can_be_admitted(stage: SchedulerStage) -> bool {
     matches!(
         stage,
-        SchedulerStage::Deadline
+        SchedulerStage::Lifecycle
+            | SchedulerStage::Deadline
             | SchedulerStage::Projection
             | SchedulerStage::Layout
             | SchedulerStage::PaintPlan
@@ -1894,6 +2038,168 @@ mod tests {
         }
         assert_eq!(NextReadyStage::default(), NextReadyStage::None);
         assert_eq!(NextReadyStage::Deadline, NextReadyStage::Deadline);
+    }
+
+    #[test]
+    fn lifecycle_admission_atomically_retires_every_lower_stage_state() {
+        let now = Instant::now();
+        let assert_retired = |mut owner: WindowStageOwner, lower: FrameStageIdentity| {
+            let old_owner_generation = owner.owner_generation();
+            let lifecycle = owner
+                .admit_lifecycle(adapter(9), NativeTargetGeneration::unknown())
+                .expect("lifecycle admission");
+            assert!(owner.owner_generation() > old_owner_generation);
+            assert!(owner.stale(&lower));
+            assert!(owner.lifecycle_ticket_is_current(&lifecycle));
+            assert!(owner.has_in_flight());
+            assert!(owner.admit_projection(adapter(9), target(1)).is_none());
+            assert!(owner.complete_lifecycle(lifecycle));
+            assert!(!owner.has_in_flight());
+        };
+
+        for deferred in [false, true] {
+            let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+            assert!(owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+            let revision = owner.next_revision().expect("deadline revision");
+            let lower = identity(
+                &owner,
+                FrameScheduleKey::Primary,
+                adapter(1),
+                target(1),
+                SchedulerStage::Deadline,
+                revision,
+            );
+            let bundle = frame_with_timed_repaint(now, true);
+            assert!(owner.queue(lower.clone(), bundle));
+            assert_eq!(owner.begin(&lower, now), Some(bundle));
+            if deferred {
+                assert!(owner.defer_timed_frame_drain(&lower));
+            }
+            assert_retired(owner, lower);
+        }
+
+        let mut pending_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(pending_owner.prepare_fence(adapter(1), target(1), SchedulerStage::Deadline));
+        let pending_revision = pending_owner.next_revision().expect("pending revision");
+        let pending = identity(
+            &pending_owner,
+            FrameScheduleKey::Primary,
+            adapter(1),
+            target(1),
+            SchedulerStage::Deadline,
+            pending_revision,
+        );
+        assert!(pending_owner.queue(pending.clone(), frame(now, false)));
+        assert_retired(pending_owner, pending);
+
+        let mut projection_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let projection = projection_owner
+            .admit_projection(adapter(1), target(1))
+            .expect("projection ticket");
+        let projection_identity = projection.identity().clone();
+        assert_retired(projection_owner, projection_identity);
+
+        let mut layout_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let projection = layout_owner
+            .admit_projection(adapter(1), target(1))
+            .expect("projection ticket");
+        assert!(layout_owner.complete_projection(projection));
+        let layout = layout_owner
+            .admit_layout(adapter(1), target(1))
+            .expect("layout ticket");
+        let layout_identity = layout.identity().clone();
+        assert_retired(layout_owner, layout_identity);
+
+        let mut paint_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let projection = paint_owner
+            .admit_projection(adapter(1), target(1))
+            .expect("projection ticket");
+        assert!(paint_owner.complete_projection(projection));
+        let layout = paint_owner
+            .admit_layout(adapter(1), target(1))
+            .expect("layout ticket");
+        assert!(paint_owner.complete_layout(layout));
+        let paint = paint_owner
+            .admit_paint_plan(adapter(1), target(1))
+            .expect("paint-plan ticket");
+        let paint_identity = paint.identity().clone();
+        assert_retired(paint_owner, paint_identity);
+
+        let mut encode_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let encode = encode_owner
+            .admit_encode_present(adapter(1), target(1))
+            .expect("encode-present ticket");
+        let encode_identity = encode.identity().clone();
+        assert_retired(encode_owner, encode_identity);
+
+        let mut maintenance_owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let binding = NativeResourceMaintenanceBinding::new(
+            NativeResourceMaintenanceSlot::Quarantine(0),
+            adapter(1),
+            NativeSubmissionCompletionIdentity::never_submitted(adapter(1)),
+        );
+        let maintenance = maintenance_owner
+            .admit_maintenance(adapter(1), target(1), binding)
+            .expect("maintenance ticket");
+        let maintenance_identity = maintenance.identity().clone();
+        assert_retired(maintenance_owner, maintenance_identity);
+    }
+
+    #[test]
+    fn lifecycle_veto_preserves_advanced_fence_and_exact_completion_is_one_shot() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let ticket = owner
+            .admit_lifecycle(adapter(1), NativeTargetGeneration::unknown())
+            .expect("lifecycle ticket");
+        let identity = ticket.identity().clone();
+        let fence = owner.fence;
+        assert!(owner.veto_lifecycle(ticket));
+        assert_eq!(owner.fence, fence);
+        assert!(!owner.has_in_flight());
+        assert!(!owner.stale(&identity));
+
+        let ticket = owner
+            .admit_lifecycle(adapter(1), NativeTargetGeneration::unknown())
+            .expect("next lifecycle ticket");
+        assert!(owner.complete_lifecycle(ticket));
+        assert!(!owner.has_in_flight());
+    }
+
+    #[test]
+    fn lifecycle_admission_rejects_unknown_or_exhausted_evidence_and_duplicates() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(
+            owner
+                .admit_lifecycle(NativeAdapterGeneration::unknown(), target(1))
+                .is_none()
+        );
+        let ticket = owner
+            .admit_lifecycle(adapter(1), NativeTargetGeneration::unknown())
+            .expect("first lifecycle ticket");
+        assert!(
+            owner
+                .admit_lifecycle(adapter(1), NativeTargetGeneration::unknown())
+                .is_none()
+        );
+        assert!(owner.veto_lifecycle(ticket));
+
+        let mut revision_exhausted = WindowStageOwner::new(FrameScheduleKey::Primary);
+        revision_exhausted.next_revision = u64::MAX;
+        assert!(
+            revision_exhausted
+                .admit_lifecycle(adapter(1), NativeTargetGeneration::unknown())
+                .is_none()
+        );
+        assert!(revision_exhausted.revision_exhausted);
+
+        let mut generation_exhausted = WindowStageOwner::new(FrameScheduleKey::Primary);
+        generation_exhausted.owner_generation = u64::MAX;
+        assert!(
+            generation_exhausted
+                .admit_lifecycle(adapter(1), NativeTargetGeneration::unknown())
+                .is_none()
+        );
+        assert!(generation_exhausted.generation_exhausted);
     }
 
     #[test]

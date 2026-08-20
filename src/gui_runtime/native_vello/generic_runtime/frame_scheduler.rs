@@ -704,6 +704,43 @@ where
         admission
     }
 
+    /// Finish the exact deferred Deadline operation before a native
+    /// DiscreteInput admission. The caller owns any route-outcome publication;
+    /// this helper only consumes the retained deadline ticket once and never
+    /// supplies a replay or fallback payload.
+    pub(super) fn admit_deferred_timed_frame_before_discrete_input(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> FrameScheduleAdmission {
+        if !self.frame_stage_owner.has_deferred_timed_frame() {
+            return FrameScheduleAdmission::default();
+        }
+        let key = self.frame_stage_owner.schedule_key().clone();
+        let Some(payload) = self.frame_stage_owner.resume_deferred_timed_frame(
+            &key,
+            adapter_generation,
+            target_generation,
+        ) else {
+            return FrameScheduleAdmission {
+                did_work: true,
+                ..FrameScheduleAdmission::default()
+            };
+        };
+        let admission = self.execute_timed_frame_drain(payload);
+        if !self
+            .frame_stage_owner
+            .complete_deferred_timed_frame(Instant::now())
+        {
+            // The retained drain already ran. A completion mismatch must not
+            // replay it or invoke any fallback path.
+            return admission;
+        }
+        let mut admission = admission;
+        admission.visual_deadline_completed = true;
+        admission
+    }
+
     fn admit_timed_frame_deadline(
         &mut self,
         now: Instant,
@@ -890,6 +927,7 @@ fn deadline_payload(demand: &FrameScheduleDemand, work: FrameScheduleWork) -> Op
 mod tests {
     use super::super::{
         DeviceLossRegistration, GenericNativeAdapterOwner, NativeAdapterGeneration,
+        native_discrete_input_stage::NativeDiscreteInputKind,
     };
     use super::*;
     use crate::{
@@ -1841,6 +1879,64 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn discrete_input_boundary_finishes_one_exact_deferred_deadline_without_replay() {
+        let repaint_advance_calls = Rc::new(Cell::new(0));
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            DelayedRepaintBridge::new(Rc::clone(&repaint_advance_calls)),
+            Vector2::new(320.0, 40.0),
+        );
+        let due_at = arm_delayed_repaint(&mut runner);
+        let now = due_at;
+        runner.window.target_generation.advance();
+        runner.timing.redraw_requested = true;
+        runner.timing.redraw_requested_at = Some(now);
+        let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            adapter_generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+        let demand = mixed_live_demand(FrameScheduleKey::Primary, due_at);
+
+        let deferred = runner.admit_frame_schedule_work(now, &demand);
+        assert!(deferred.did_work);
+        assert!(runner.frame_stage_owner.has_deferred_timed_frame());
+
+        let finished = runner.admit_deferred_timed_frame_before_discrete_input(
+            adapter_generation,
+            runner.window.target_generation,
+        );
+        assert!(finished.did_work);
+        assert!(finished.visual_deadline_completed);
+        assert!(!runner.frame_stage_owner.has_deferred_timed_frame());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+
+        // The scheduler fixture intentionally has no materialized native
+        // window/resource bundle.  The exact Deadline owner is still drained
+        // before the input admission attempt, but the primary input must stay
+        // inert at that native eligibility boundary.
+        let input_timestamp = crate::gui::input::InputTimestamp::capture();
+        assert!(
+            runner
+                .admit_native_discrete_input_with_generation(
+                    NativeDiscreteInputKind::MouseInput,
+                    input_timestamp,
+                    adapter_generation,
+                    true,
+                )
+                .is_none()
+        );
+        assert!(!runner.frame_stage_owner.has_in_flight());
+
+        let replay = runner.admit_deferred_timed_frame_before_discrete_input(
+            adapter_generation,
+            runner.window.target_generation,
+        );
+        assert_eq!(replay, FrameScheduleAdmission::default());
+        assert_eq!(repaint_advance_calls.get(), 1);
     }
 
     #[test]

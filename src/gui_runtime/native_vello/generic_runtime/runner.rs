@@ -1,6 +1,12 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::frame_stage_admission::WindowStageOwner;
+use super::native_discrete_input_stage::{
+    NativeDiscreteInputKind, NativeDiscreteInputStageEvidence, NativeDiscreteInputStageTicket,
+    admit_native_discrete_input as admit_native_discrete_input_stage,
+    complete_native_discrete_input as complete_native_discrete_input_stage,
+    veto_native_discrete_input as veto_native_discrete_input_stage,
+};
 use super::native_encode_present::{
     NativeEncodePresentAdmission, NativeEncodePresentCurrentEvidence, NativeEncodePresentPath,
     NativeEncodePresentTicket, NativeFrameSnapshotRevision, complete_native_encode_present,
@@ -57,6 +63,7 @@ use super::{
     },
     scene_texture::NativeFrameRenderFailure,
 };
+use crate::gui::input::InputTimestamp;
 use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::NativeTextRenderer,
@@ -764,6 +771,134 @@ where
 
     pub(super) fn veto_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
         veto_native_lifecycle_stage(&mut self.frame_stage_owner, ticket)
+    }
+
+    fn native_discrete_input_stage_evidence(
+        &self,
+        kind: NativeDiscreteInputKind,
+        timestamp: InputTimestamp,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> NativeDiscreteInputStageEvidence {
+        NativeDiscreteInputStageEvidence {
+            key: self.frame_stage_owner.schedule_key().clone(),
+            kind,
+            timestamp,
+            window_id: self.window.id,
+            adapter_generation,
+            active_resource_generation: self
+                .window
+                .native_resources
+                .as_ref()
+                .map(|resources| resources.generation),
+            target_generation: self.window.target_generation,
+            native_surface_target_fenced: self.window.native_surface_target_fenced,
+            lifecycle: self.native_lifecycle,
+            native_window_eligible: self
+                .native_discrete_input_native_window_is_eligible(adapter_generation),
+            wrapper_eligible,
+        }
+    }
+
+    fn native_discrete_input_native_window_is_eligible(
+        &self,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_running()
+            && !self.has_terminal_cause()
+            && self.window.id.is_some()
+            && self.window.window.is_some()
+            && self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| resources.generation == adapter_generation)
+            && self.window.target_generation.is_known()
+            && !self.window.native_surface_target_fenced
+    }
+
+    /// Stage one exact native DiscreteInput event for an auxiliary runner that
+    /// borrows the parent adapter at its event boundary.
+    pub(super) fn admit_native_discrete_input_with_generation(
+        &mut self,
+        kind: NativeDiscreteInputKind,
+        timestamp: InputTimestamp,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> Option<NativeDiscreteInputStageTicket> {
+        let evidence = self.native_discrete_input_stage_evidence(
+            kind,
+            timestamp,
+            adapter_generation,
+            wrapper_eligible,
+        );
+        admit_native_discrete_input_stage(&mut self.frame_stage_owner, evidence)
+    }
+
+    /// Capture the exact safe-boundary admission for one native input event.
+    /// Deferred Deadline work is completed first, after the caller has already
+    /// captured `timestamp`; a failed pre-route currentness check is inert.
+    pub(super) fn begin_native_discrete_input_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        kind: NativeDiscreteInputKind,
+        timestamp: InputTimestamp,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> Option<NativeDiscreteInputStageTicket> {
+        if !wrapper_eligible
+            || !self.native_discrete_input_native_window_is_eligible(adapter_generation)
+        {
+            return None;
+        }
+        if !self.resume_deferred_deadline_before_discrete_input(event_loop, adapter_generation) {
+            return None;
+        }
+        let ticket = self.admit_native_discrete_input_with_generation(
+            kind,
+            timestamp,
+            adapter_generation,
+            wrapper_eligible,
+        )?;
+        if !self.native_discrete_input_ticket_is_current(
+            &ticket,
+            adapter_generation,
+            wrapper_eligible,
+        ) {
+            let _ = self.veto_native_discrete_input(ticket);
+            return None;
+        }
+        Some(ticket)
+    }
+
+    pub(super) fn native_discrete_input_ticket_is_current(
+        &self,
+        ticket: &NativeDiscreteInputStageTicket,
+        adapter_generation: NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> bool {
+        let captured = ticket.evidence();
+        let evidence = self.native_discrete_input_stage_evidence(
+            captured.kind,
+            captured.timestamp,
+            adapter_generation,
+            wrapper_eligible,
+        );
+        ticket.is_current(&self.frame_stage_owner, evidence)
+    }
+
+    pub(super) fn complete_native_discrete_input(
+        &mut self,
+        ticket: NativeDiscreteInputStageTicket,
+    ) -> bool {
+        complete_native_discrete_input_stage(&mut self.frame_stage_owner, ticket)
+    }
+
+    pub(super) fn veto_native_discrete_input(
+        &mut self,
+        ticket: NativeDiscreteInputStageTicket,
+    ) -> bool {
+        veto_native_discrete_input_stage(&mut self.frame_stage_owner, ticket)
     }
 
     pub(super) fn admit_device_recovery(&mut self) -> bool {
@@ -2599,6 +2734,27 @@ where
         self.is_running()
     }
 
+    /// Finish an exact deferred Deadline operation before a discrete native
+    /// input event is admitted. The caller captures the input timestamp before
+    /// entering this boundary so synchronous drainage cannot change it.
+    pub(super) fn resume_deferred_deadline_before_discrete_input(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        if !self.is_running() || !self.frame_stage_owner.has_deferred_timed_frame() {
+            return self.is_running();
+        }
+        let admission = self.admit_deferred_timed_frame_before_discrete_input(
+            adapter_generation,
+            self.window.target_generation,
+        );
+        if admission.route_outcome {
+            self.handle_route_outcome_deferred_publication(event_loop, admission.outcome);
+        }
+        self.is_running()
+    }
+
     pub(super) fn merge_due_timed_frame_for_route(&mut self, outcome: &mut GenericRouteOutcome) {
         if !self.is_running() {
             return;
@@ -3335,6 +3491,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::native_discrete_input_stage::NativeDiscreteInputKind;
     use super::super::native_visual_packet::{
         NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestEnqueue,
     };
@@ -3351,7 +3508,7 @@ mod tests {
     };
     use crate::{
         application::empty,
-        gui::types::Vector2,
+        gui::{input::InputTimestamp, types::Vector2},
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
@@ -4035,6 +4192,34 @@ mod tests {
         assert!(!runner.should_initialize_runtime());
         assert!(!runner.should_admit_auxiliary_sync());
         assert!(runner.native_shutdown_requested());
+    }
+
+    #[test]
+    fn primary_discrete_input_requires_live_materialized_native_window() {
+        let mut runner = runner();
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        runner.adapter = Some(GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        ));
+
+        assert!(!runner.native_discrete_input_native_window_is_eligible(generation));
+        let owner_generation = runner.frame_stage_owner.owner_generation();
+        assert!(
+            runner
+                .admit_native_discrete_input_with_generation(
+                    NativeDiscreteInputKind::MouseInput,
+                    InputTimestamp::capture(),
+                    generation,
+                    true,
+                )
+                .is_none()
+        );
+        assert_eq!(
+            runner.frame_stage_owner.owner_generation(),
+            owner_generation
+        );
+        assert!(!runner.frame_stage_owner.has_in_flight());
     }
 
     #[test]

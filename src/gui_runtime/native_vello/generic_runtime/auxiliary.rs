@@ -1,3 +1,4 @@
+use super::native_discrete_input_stage::NativeDiscreteInputKind;
 #[cfg(test)]
 use super::native_lifecycle_stage::NativeLifecycleStageEvidence;
 use super::native_lifecycle_stage::NativeLifecycleStageTicket;
@@ -13,6 +14,7 @@ use super::{
     NativeAdapterGeneration, NativeGenericRunError, NativeResourceMaintenanceTurn,
     RuntimeUserEvent, SceneRebuildMode, initial_viewport, owner_window_handle,
 };
+use crate::gui::input::InputTimestamp;
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 #[cfg(test)]
 use crate::runtime::{
@@ -669,6 +671,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
     }
 
+    fn native_discrete_input_wrapper_is_eligible(
+        &self,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> bool {
+        self.frame_schedule_eligibility(Some(adapter_generation))
+            .is_eligible()
+    }
+
     pub(super) fn observe_frame_schedule(
         &mut self,
         now: Instant,
@@ -1015,13 +1025,34 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
-                let route = self.runner.route_native_mouse_input(button, state);
-                self.runner.handle_route_outcome_with_adapter(
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_discrete_input_event(
                     event_loop,
-                    route.outcome,
-                    adapter,
-                    observation.as_deref_mut(),
+                    NativeDiscreteInputKind::MouseInput,
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let route = self.runner.route_native_mouse_input_with_timestamp(
+                    button,
+                    state,
+                    Some(timestamp),
                 );
+                if self.runner.complete_native_discrete_input(ticket) {
+                    self.runner.handle_route_outcome_with_adapter(
+                        event_loop,
+                        route.outcome,
+                        adapter,
+                        observation.as_deref_mut(),
+                    );
+                }
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 let route = self
@@ -1035,32 +1066,71 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 );
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                let wrapper_eligible = adapter.capture_generation().is_some_and(|generation| {
+                    self.native_discrete_input_wrapper_is_eligible(generation)
+                });
                 self.runner.handle_keyboard_event_with_adapter(
                     event_loop,
                     event,
                     adapter,
                     observation.as_deref_mut(),
+                    wrapper_eligible,
                 )
             }
             WindowEvent::ModifiersChanged(modifiers) => {
-                let routed = self
-                    .runner
-                    .route_native_modifiers_changed(modifiers.state());
-                self.runner.handle_route_outcome_with_adapter(
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_discrete_input_event(
                     event_loop,
-                    routed,
-                    adapter,
-                    observation,
+                    NativeDiscreteInputKind::ModifiersChanged,
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let routed = self.runner.route_native_modifiers_changed_with_timestamp(
+                    modifiers.state(),
+                    Some(timestamp),
                 );
+                if self.runner.complete_native_discrete_input(ticket) {
+                    self.runner.handle_route_outcome_with_adapter(
+                        event_loop,
+                        routed,
+                        adapter,
+                        observation,
+                    );
+                }
             }
             WindowEvent::Ime(ime) => {
-                let routed = self.runner.route_native_ime_event(ime);
-                self.runner.handle_route_outcome_with_adapter(
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = adapter.capture_generation() else {
+                    return self.event_result(None, false);
+                };
+                let wrapper_eligible =
+                    self.native_discrete_input_wrapper_is_eligible(adapter_generation);
+                let Some(ticket) = self.runner.begin_native_discrete_input_event(
                     event_loop,
-                    routed,
-                    adapter,
-                    observation,
-                );
+                    NativeDiscreteInputKind::Ime,
+                    timestamp,
+                    adapter_generation,
+                    wrapper_eligible,
+                ) else {
+                    return self.event_result(None, false);
+                };
+                let routed = self.runner.route_native_ime_event(ime);
+                if self.runner.complete_native_discrete_input(ticket) {
+                    self.runner.handle_route_outcome_with_adapter(
+                        event_loop,
+                        routed,
+                        adapter,
+                        observation,
+                    );
+                }
             }
             WindowEvent::RedrawRequested => {
                 if !self.active || !self.is_admitted() {
@@ -1822,6 +1892,22 @@ mod tests {
         assert!(inactive.active);
         assert!(!inactive.runner.window.native_visual_requests.is_suspended());
         assert!(!inactive.runner.window.native_visual_requests.has_work());
+    }
+
+    #[test]
+    fn auxiliary_discrete_input_requires_active_admitted_materialized_wrapper() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut window = auxiliary_window(false);
+
+        assert!(!window.native_discrete_input_wrapper_is_eligible(generation));
+        window.hide();
+        assert!(!window.native_discrete_input_wrapper_is_eligible(generation));
+        window.show();
+        assert!(!window.native_discrete_input_wrapper_is_eligible(generation));
+
+        window.begin_retiring();
+        assert!(!window.native_discrete_input_wrapper_is_eligible(generation));
+        assert!(!window.runner.frame_stage_owner.has_in_flight());
     }
 
     #[test]

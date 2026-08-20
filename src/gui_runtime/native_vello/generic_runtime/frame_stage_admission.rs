@@ -385,6 +385,29 @@ struct InFlightLifecycle {
     identity: FrameStageIdentity,
 }
 
+/// A non-`Clone` witness for one exact synchronous DiscreteInput attempt.
+///
+/// Input remains admitted until its native route and synchronous message
+/// reduction have completed. The runner must complete or veto this ticket
+/// before applying any lower-stage route outcome work.
+#[derive(Debug)]
+pub(super) struct DiscreteInputStageTicket {
+    identity: FrameStageIdentity,
+    owner_token: usize,
+}
+
+impl DiscreteInputStageTicket {
+    #[cfg(test)]
+    pub(super) fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+}
+
+#[derive(Debug)]
+struct InFlightDiscreteInput {
+    identity: FrameStageIdentity,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FrameStageBudgetStatus {
     NotBudgeted,
@@ -419,6 +442,7 @@ pub(super) struct WindowStageOwner {
     encode_present_in_flight: Option<InFlightEncodePresent>,
     maintenance_in_flight: Option<InFlightMaintenance>,
     lifecycle_in_flight: Option<InFlightLifecycle>,
+    discrete_input_in_flight: Option<InFlightDiscreteInput>,
     last_completion: Option<FrameStageCompletionEvidence>,
     last_projection_completion: Option<FrameStageIdentity>,
     last_layout_completion: Option<FrameStageIdentity>,
@@ -426,6 +450,7 @@ pub(super) struct WindowStageOwner {
     last_encode_present_completion: Option<FrameStageIdentity>,
     last_maintenance_completion: Option<FrameStageIdentity>,
     last_lifecycle_completion: Option<FrameStageIdentity>,
+    last_discrete_input_completion: Option<FrameStageIdentity>,
 }
 
 impl WindowStageOwner {
@@ -445,6 +470,7 @@ impl WindowStageOwner {
             encode_present_in_flight: None,
             maintenance_in_flight: None,
             lifecycle_in_flight: None,
+            discrete_input_in_flight: None,
             last_completion: None,
             last_projection_completion: None,
             last_layout_completion: None,
@@ -452,6 +478,7 @@ impl WindowStageOwner {
             last_encode_present_completion: None,
             last_maintenance_completion: None,
             last_lifecycle_completion: None,
+            last_discrete_input_completion: None,
         }
     }
 
@@ -480,6 +507,7 @@ impl WindowStageOwner {
             || self.encode_present_in_flight.is_some()
             || self.maintenance_in_flight.is_some()
             || self.lifecycle_in_flight.is_some()
+            || self.discrete_input_in_flight.is_some()
     }
 
     pub(super) fn next_revision(&mut self) -> Option<u64> {
@@ -533,6 +561,7 @@ impl WindowStageOwner {
                 || self.encode_present_in_flight.is_some()
                 || self.maintenance_in_flight.is_some()
                 || self.lifecycle_in_flight.is_some()
+                || self.discrete_input_in_flight.is_some()
             {
                 return false;
             }
@@ -657,6 +686,7 @@ impl WindowStageOwner {
         self.paint_plan_in_flight = None;
         self.encode_present_in_flight = None;
         self.maintenance_in_flight = None;
+        self.discrete_input_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
@@ -664,6 +694,7 @@ impl WindowStageOwner {
         self.last_encode_present_completion = None;
         self.last_maintenance_completion = None;
         self.last_lifecycle_completion = None;
+        self.last_discrete_input_completion = None;
 
         let identity = FrameStageIdentity::new(
             self.key.clone(),
@@ -708,6 +739,78 @@ impl WindowStageOwner {
             return false;
         }
         self.lifecycle_in_flight = None;
+        true
+    }
+
+    /// Admit one exact synchronous native DiscreteInput attempt. A pending
+    /// lower-stage payload may be invalidated at this safe boundary; callers
+    /// must drain a deferred Deadline execution before invoking this method.
+    pub(super) fn admit_discrete_input(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+    ) -> Option<DiscreteInputStageTicket> {
+        if self.has_in_flight()
+            || !self.prepare_fence(
+                adapter_generation,
+                target_generation,
+                SchedulerStage::DiscreteInput,
+            )
+        {
+            return None;
+        }
+        let revision = self.next_revision()?;
+        let identity = FrameStageIdentity::new(
+            self.key.clone(),
+            adapter_generation,
+            target_generation,
+            SchedulerStage::DiscreteInput,
+            self.owner_generation,
+            revision,
+        );
+        if self.stale(&identity) {
+            return None;
+        }
+        self.discrete_input_in_flight = Some(InFlightDiscreteInput {
+            identity: identity.clone(),
+        });
+        Some(DiscreteInputStageTicket {
+            identity,
+            owner_token: self as *const Self as usize,
+        })
+    }
+
+    pub(super) fn discrete_input_ticket_is_current(
+        &self,
+        ticket: &DiscreteInputStageTicket,
+    ) -> bool {
+        self.discrete_input_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity == ticket.identity
+                    && ticket.owner_token == self as *const Self as usize
+            })
+    }
+
+    /// Complete only the exact admitted DiscreteInput attempt. A mismatch
+    /// leaves the real owner in flight so callers cannot route again or fall
+    /// through to lower-stage work.
+    pub(super) fn complete_discrete_input(&mut self, ticket: DiscreteInputStageTicket) -> bool {
+        if !self.discrete_input_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.discrete_input_in_flight = None;
+        self.last_discrete_input_completion = Some(ticket.identity);
+        true
+    }
+
+    /// Veto the exact DiscreteInput attempt before routing. A wrong ticket
+    /// cannot clear the real owner or authorize another route.
+    pub(super) fn veto_discrete_input(&mut self, ticket: DiscreteInputStageTicket) -> bool {
+        if !self.discrete_input_ticket_is_current(&ticket) {
+            return false;
+        }
+        self.discrete_input_in_flight = None;
         true
     }
 
@@ -1261,6 +1364,16 @@ impl WindowStageOwner {
             return true;
         }
         if self
+            .discrete_input_in_flight
+            .as_ref()
+            .is_some_and(|in_flight| {
+                in_flight.identity.same_fence(identity)
+                    && identity.revision < in_flight.identity.revision
+            })
+        {
+            return true;
+        }
+        if self
             .last_encode_present_completion
             .as_ref()
             .is_some_and(|completion| {
@@ -1314,6 +1427,15 @@ impl WindowStageOwner {
         {
             return true;
         }
+        if self
+            .last_discrete_input_completion
+            .as_ref()
+            .is_some_and(|completion| {
+                completion.same_fence(identity) && identity.revision <= completion.revision
+            })
+        {
+            return true;
+        }
         self.pending.as_ref().is_some_and(|pending| {
             pending.identity.same_fence(identity) && identity.revision < pending.identity.revision
         })
@@ -1330,6 +1452,7 @@ impl WindowStageOwner {
             && self.encode_present_in_flight.is_none()
             && self.maintenance_in_flight.is_none()
             && self.lifecycle_in_flight.is_none()
+            && self.discrete_input_in_flight.is_none()
             && self.last_completion.is_none()
             && self.last_projection_completion.is_none()
             && self.last_layout_completion.is_none()
@@ -1337,6 +1460,7 @@ impl WindowStageOwner {
             && self.last_encode_present_completion.is_none()
             && self.last_maintenance_completion.is_none()
             && self.last_lifecycle_completion.is_none()
+            && self.last_discrete_input_completion.is_none()
         {
             return;
         }
@@ -1348,6 +1472,7 @@ impl WindowStageOwner {
         self.encode_present_in_flight = None;
         self.maintenance_in_flight = None;
         self.lifecycle_in_flight = None;
+        self.discrete_input_in_flight = None;
         self.last_completion = None;
         self.last_projection_completion = None;
         self.last_layout_completion = None;
@@ -1355,6 +1480,7 @@ impl WindowStageOwner {
         self.last_encode_present_completion = None;
         self.last_maintenance_completion = None;
         self.last_lifecycle_completion = None;
+        self.last_discrete_input_completion = None;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -1403,6 +1529,7 @@ const fn stage_can_be_admitted(stage: SchedulerStage) -> bool {
             | SchedulerStage::PaintPlan
             | SchedulerStage::EncodePresent
             | SchedulerStage::Maintenance
+            | SchedulerStage::DiscreteInput
     )
 }
 
@@ -2057,7 +2184,8 @@ mod tests {
                 owner.prepare_fence(adapter(1), target(1), stage),
                 matches!(
                     stage,
-                    SchedulerStage::Deadline
+                    SchedulerStage::DiscreteInput
+                        | SchedulerStage::Deadline
                         | SchedulerStage::Projection
                         | SchedulerStage::Layout
                         | SchedulerStage::PaintPlan

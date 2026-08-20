@@ -5274,6 +5274,39 @@ recovery/closing maintenance retains its existing bounded authority. This is
 crate-private and does not add a public API, schema, queue, worker, or event
 loop.
 
+The terminal-only `BeginClosing` admission uses the same private lifecycle
+stage owner for whole-run shutdown. The primary and every resident auxiliary
+child whose native phase is `Running` or `Recovering` are staged in stable
+primary-then-resident-vector order, including active, cached, unmaterialized,
+and recovery-pending children whose wrapper is `Admitted` or `Retiring`.
+Children already in native `Closing` or `Stopped` are skipped, and a repeated
+primary `Closing` or `Stopped` request is inert. Each exact non-`Clone` ticket
+binds the stable key, source phase, optional Winit identity, optional adapter
+generation, optional active-resource generation, exact target generation
+(including unknown), and target-fenced state. Absent adapter evidence is
+represented by `None`; `Some(unknown)` is invalid. The terminal owner admission
+encodes absent adapter evidence as an unknown lifecycle identity while
+retiring all lower-stage state and advancing the owner once; existing recovery
+admissions still require a known adapter, and lower-stage admissions retain
+their known adapter and target requirements.
+
+The complete ticket set is revalidated without a yield before any native,
+controller, presentation, wrapper, cause, recovery, mailbox, or resource
+mutation. After validation, existing per-window Closing preparation applies:
+recovery-cause precedence and the first terminal cause are preserved,
+recovery is cancelled, native and controller phases enter `Closing`, native
+accessibility closes, presentation and mailboxes are fenced, fairness,
+reopen, and wake state is cleared, and auxiliary wrappers retire without
+dispatching close messages. Each exact ticket completes only after its
+window's Closing fences. Only then does unchanged bounded resource retirement,
+scheduling, and event-loop exit run. Any staging/currentness fault vetoes its
+staged tickets once; any post-terminal-intent owner or completion fault
+converges one-way through bounded Closing without ticket retry/replay, redraw,
+visibility restore, or lower-stage execution, preserving the original cause.
+That fallback first invalidates each resident stage owner once, clearing any
+surviving lower or lifecycle work and making its tickets stale before bounded
+Closing continues.
+
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and
 target transition are published, the primary and every admitted auxiliary that

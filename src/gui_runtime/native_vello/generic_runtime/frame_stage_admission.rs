@@ -609,9 +609,36 @@ impl WindowStageOwner {
         adapter_generation: NativeAdapterGeneration,
         target_generation: NativeTargetGeneration,
     ) -> Option<LifecycleStageTicket> {
+        self.admit_lifecycle_with_adapter(adapter_generation, target_generation, false)
+    }
+
+    /// Admit the terminal whole-run Closing transition.  Unlike recovery,
+    /// Closing may be admitted after the shared adapter has already gone
+    /// away; `NativeAdapterGeneration::unknown()` is the exact identity for
+    /// that absence.  The terminal lifecycle stage is the only owner stage
+    /// that can use this identity.
+    pub(super) fn admit_terminal_lifecycle(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+        target_generation: NativeTargetGeneration,
+    ) -> Option<LifecycleStageTicket> {
+        if adapter_generation.is_some_and(|generation| !generation.is_known()) {
+            return None;
+        }
+        let adapter_generation =
+            adapter_generation.unwrap_or_else(NativeAdapterGeneration::unknown);
+        self.admit_lifecycle_with_adapter(adapter_generation, target_generation, true)
+    }
+
+    fn admit_lifecycle_with_adapter(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+        allow_unknown_adapter: bool,
+    ) -> Option<LifecycleStageTicket> {
         if self.generation_exhausted
             || self.revision_exhausted
-            || !adapter_generation.is_known()
+            || (!adapter_generation.is_known() && !allow_unknown_adapter)
             || self.lifecycle_in_flight.is_some()
         {
             return None;
@@ -1345,7 +1372,10 @@ impl WindowStageOwner {
 
     fn accepts_identity(&self, identity: &FrameStageIdentity) -> bool {
         let generations_are_valid = if identity.stage == SchedulerStage::Lifecycle {
-            identity.adapter_generation.is_known()
+            // Recovery admission still requires a known adapter at its
+            // evidence boundary.  A terminal lifecycle identity may encode
+            // the exact absence of that adapter as `unknown`.
+            true
         } else {
             identity.adapter_generation.is_known() && identity.target_generation.is_known()
         };
@@ -2200,6 +2230,51 @@ mod tests {
                 .is_none()
         );
         assert!(generation_exhausted.generation_exhausted);
+    }
+
+    #[test]
+    fn terminal_lifecycle_admission_encodes_absent_adapter_and_retires_lower_stages() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let projection = owner
+            .admit_projection(adapter(1), target(1))
+            .expect("projection ticket");
+        let lower = projection.identity().clone();
+        let old_owner_generation = owner.owner_generation();
+
+        let terminal = owner
+            .admit_terminal_lifecycle(None, NativeTargetGeneration::unknown())
+            .expect("terminal lifecycle ticket");
+
+        assert_eq!(
+            terminal.identity().adapter_generation(),
+            NativeAdapterGeneration::unknown()
+        );
+        assert_eq!(
+            terminal.identity().target_generation(),
+            NativeTargetGeneration::unknown()
+        );
+        assert!(owner.owner_generation() > old_owner_generation);
+        assert!(owner.stale(&lower));
+        assert!(owner.lifecycle_ticket_is_current(&terminal));
+        assert!(owner.complete_lifecycle(terminal));
+        assert!(!owner.has_in_flight());
+    }
+
+    #[test]
+    fn terminal_lifecycle_rejects_explicit_unknown_adapter_but_accepts_known() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        assert!(
+            owner
+                .admit_terminal_lifecycle(
+                    Some(NativeAdapterGeneration::unknown()),
+                    NativeTargetGeneration::unknown(),
+                )
+                .is_none()
+        );
+        let ticket = owner
+            .admit_terminal_lifecycle(Some(adapter(1)), NativeTargetGeneration::unknown())
+            .expect("known terminal adapter");
+        assert!(owner.veto_lifecycle(ticket));
     }
 
     #[test]

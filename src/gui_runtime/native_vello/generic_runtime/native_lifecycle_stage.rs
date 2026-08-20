@@ -20,6 +20,7 @@ use winit::window::WindowId;
 pub(super) enum NativeLifecycleTransitionKind {
     BeginDeviceRecovery,
     FinishDeviceRecovery,
+    BeginClosing,
 }
 
 /// Complete native evidence captured when one lifecycle transition is staged.
@@ -37,17 +38,19 @@ pub(super) struct NativeLifecycleStageEvidence {
 
 impl NativeLifecycleStageEvidence {
     fn is_admissible(&self) -> bool {
-        let Some(adapter_generation) = self
-            .adapter_generation
-            .filter(|generation| generation.is_known())
-        else {
-            return false;
-        };
         match self.transition {
             NativeLifecycleTransitionKind::BeginDeviceRecovery => {
-                self.source_phase == NativeLifecycle::Running
+                self.adapter_generation
+                    .is_some_and(|generation| generation.is_known())
+                    && self.source_phase == NativeLifecycle::Running
             }
             NativeLifecycleTransitionKind::FinishDeviceRecovery => {
+                let Some(adapter_generation) = self
+                    .adapter_generation
+                    .filter(|generation| generation.is_known())
+                else {
+                    return false;
+                };
                 if !self.source_phase.is_recovering() {
                     return false;
                 }
@@ -60,6 +63,14 @@ impl NativeLifecycleStageEvidence {
                     && self.active_resource_generation.is_none()
                     && self.target_fenced;
                 materialized || unmaterialized
+            }
+            NativeLifecycleTransitionKind::BeginClosing => {
+                // Closing accepts a missing adapter as exact terminal
+                // evidence.  An explicitly supplied unknown generation is
+                // different evidence and remains invalid.
+                self.adapter_generation
+                    .is_none_or(|generation| generation.is_known())
+                    && (self.source_phase.is_running() || self.source_phase.is_recovering())
             }
         }
     }
@@ -118,8 +129,14 @@ pub(super) fn admit_native_lifecycle(
     if !owner.owns_key(&evidence.key) || !evidence.is_admissible() {
         return None;
     }
-    let adapter_generation = evidence.adapter_generation?;
-    let stage_ticket = owner.admit_lifecycle(adapter_generation, evidence.target_generation)?;
+    let stage_ticket = match evidence.transition {
+        NativeLifecycleTransitionKind::BeginClosing => owner
+            .admit_terminal_lifecycle(evidence.adapter_generation, evidence.target_generation)?,
+        NativeLifecycleTransitionKind::BeginDeviceRecovery
+        | NativeLifecycleTransitionKind::FinishDeviceRecovery => {
+            owner.admit_lifecycle(evidence.adapter_generation?, evidence.target_generation)?
+        }
+    };
     Some(NativeLifecycleStageTicket::new(stage_ticket, evidence))
 }
 
@@ -160,6 +177,7 @@ mod tests {
                     assert!(phase.admit_recovery());
                     phase
                 }
+                NativeLifecycleTransitionKind::BeginClosing => NativeLifecycle::Running,
             },
             window_id: Some(WindowId::dummy()),
             adapter_generation: Some(NativeAdapterGeneration::from_test_serial(3)),
@@ -168,6 +186,7 @@ mod tests {
                 NativeLifecycleTransitionKind::FinishDeviceRecovery => {
                     Some(NativeAdapterGeneration::from_test_serial(3))
                 }
+                NativeLifecycleTransitionKind::BeginClosing => None,
             },
             target_generation: match transition {
                 NativeLifecycleTransitionKind::BeginDeviceRecovery => {
@@ -176,8 +195,13 @@ mod tests {
                 NativeLifecycleTransitionKind::FinishDeviceRecovery => {
                     NativeTargetGeneration::from_test_serial(4)
                 }
+                NativeLifecycleTransitionKind::BeginClosing => NativeTargetGeneration::unknown(),
             },
-            target_fenced: transition == NativeLifecycleTransitionKind::BeginDeviceRecovery,
+            target_fenced: matches!(
+                transition,
+                NativeLifecycleTransitionKind::BeginDeviceRecovery
+                    | NativeLifecycleTransitionKind::BeginClosing
+            ),
         }
     }
 
@@ -200,6 +224,64 @@ mod tests {
             ticket.stage_ticket.identity().stage(),
             SchedulerStage::Lifecycle
         );
+    }
+
+    #[test]
+    fn closing_ticket_accepts_absent_adapter_and_unknown_target_exactly() {
+        let key = FrameScheduleKey::Primary;
+        let mut owner = WindowStageOwner::new(key.clone());
+        let mut captured = evidence(key, NativeLifecycleTransitionKind::BeginClosing);
+        captured.adapter_generation = None;
+        let ticket = admit_native_lifecycle(&mut owner, captured.clone())
+            .expect("closing ticket with absent adapter");
+
+        assert!(ticket.is_current(&owner, &captured));
+        assert_eq!(ticket.evidence().adapter_generation, None);
+        assert_eq!(
+            ticket.evidence().target_generation,
+            NativeTargetGeneration::unknown()
+        );
+        assert!(ticket.evidence().target_fenced);
+        assert!(complete_native_lifecycle(&mut owner, ticket));
+    }
+
+    #[test]
+    fn closing_ticket_accepts_recovering_and_known_adapter_but_rejects_unknown_some() {
+        let key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let mut recovering = evidence(key.clone(), NativeLifecycleTransitionKind::BeginClosing);
+        recovering.source_phase = {
+            let mut phase = NativeLifecycle::default();
+            assert!(phase.admit_recovery());
+            phase
+        };
+        recovering.adapter_generation = Some(NativeAdapterGeneration::from_test_serial(3));
+        let mut owner = WindowStageOwner::new(key.clone());
+        let ticket = admit_native_lifecycle(&mut owner, recovering.clone())
+            .expect("recovering closing ticket");
+        assert!(ticket.is_current(&owner, &recovering));
+        assert!(veto_native_lifecycle(&mut owner, ticket));
+
+        let mut unknown_some = recovering;
+        unknown_some.adapter_generation = Some(NativeAdapterGeneration::unknown());
+        assert!(admit_native_lifecycle(&mut owner, unknown_some).is_none());
+    }
+
+    #[test]
+    fn recovery_transitions_still_require_known_adapter() {
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let mut begin = evidence(
+            FrameScheduleKey::Primary,
+            NativeLifecycleTransitionKind::BeginDeviceRecovery,
+        );
+        begin.adapter_generation = None;
+        assert!(admit_native_lifecycle(&mut owner, begin).is_none());
+
+        let mut finish = evidence(
+            FrameScheduleKey::Primary,
+            NativeLifecycleTransitionKind::FinishDeviceRecovery,
+        );
+        finish.adapter_generation = Some(NativeAdapterGeneration::unknown());
+        assert!(admit_native_lifecycle(&mut owner, finish).is_none());
     }
 
     #[test]

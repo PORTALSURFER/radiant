@@ -273,6 +273,22 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .flatten()
     }
 
+    pub(super) fn should_stage_native_closing(&self) -> bool {
+        matches!(
+            self.lifecycle,
+            AuxiliaryNativeWindowLifecycle::Admitted | AuxiliaryNativeWindowLifecycle::Retiring
+        ) && (self.runner.is_running() || self.runner.is_recovering())
+    }
+
+    pub(super) fn admit_native_closing(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<NativeLifecycleStageTicket> {
+        self.should_stage_native_closing()
+            .then(|| self.runner.admit_native_closing(adapter_generation))
+            .flatten()
+    }
+
     #[cfg(test)]
     pub(super) fn admit_native_lifecycle_finish_with_evidence(
         &mut self,
@@ -318,6 +334,22 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn veto_native_lifecycle(&mut self, ticket: NativeLifecycleStageTicket) -> bool {
         self.runner.veto_native_lifecycle(ticket)
+    }
+
+    pub(super) fn prepare_whole_run_closing(&mut self) -> bool {
+        if !matches!(
+            self.lifecycle,
+            AuxiliaryNativeWindowLifecycle::Admitted | AuxiliaryNativeWindowLifecycle::Retiring
+        ) {
+            return true;
+        }
+        self.runner.is_closing()
+            || self.runner.is_stopped()
+            || self.runner.prepare_native_shutdown(None).is_some()
+    }
+
+    pub(super) fn invalidate_terminal_convergence_stage_owner(&mut self) {
+        self.runner.frame_stage_owner.invalidate();
     }
 
     #[cfg(test)]
@@ -788,7 +820,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn begin_whole_run_retiring(&mut self, event_loop: &ActiveEventLoop) {
         self.begin_retiring();
-        self.runner.admit_native_shutdown(event_loop, None);
+        let _ = event_loop;
     }
 
     fn handle_close_requested(&mut self) -> AuxiliaryWindowEventResult<Message> {
@@ -1591,6 +1623,46 @@ mod tests {
                 .admit_native_lifecycle_finish(Some(NativeAdapterGeneration::from_test_serial(1)))
                 .is_none()
         );
+    }
+
+    #[test]
+    fn terminal_closing_includes_retiring_child_and_skips_closing_child() {
+        let mut retiring = auxiliary_window(false);
+        retiring.begin_retiring();
+        assert!(retiring.is_retiring());
+        assert!(retiring.should_stage_native_closing());
+        let ticket = retiring
+            .admit_native_closing(None)
+            .expect("retiring child closing ticket");
+        assert!(retiring.veto_native_lifecycle(ticket));
+
+        let mut closing = auxiliary_window(false);
+        assert!(closing.runner.prepare_native_shutdown(None).is_some());
+        assert!(!closing.should_stage_native_closing());
+        assert!(closing.admit_native_closing(None).is_none());
+    }
+
+    #[test]
+    fn terminal_convergence_invalidates_auxiliary_lifecycle_owner() {
+        let mut auxiliary = auxiliary_window(false);
+        let ticket = auxiliary
+            .admit_native_closing(None)
+            .expect("auxiliary terminal lifecycle ticket");
+        let identity = ticket.stage_ticket().identity().clone();
+        let owner_generation = auxiliary.runner.frame_stage_owner.owner_generation();
+        assert!(auxiliary.runner.frame_stage_owner.has_in_flight());
+
+        auxiliary.invalidate_terminal_convergence_stage_owner();
+
+        assert!(!auxiliary.runner.frame_stage_owner.has_in_flight());
+        assert!(auxiliary.runner.frame_stage_owner.owner_generation() > owner_generation);
+        assert!(auxiliary.runner.frame_stage_owner.stale(&identity));
+        assert!(
+            !auxiliary
+                .runner
+                .native_lifecycle_stage_ticket_is_current(&ticket)
+        );
+        assert!(!auxiliary.veto_native_lifecycle(ticket));
     }
 
     #[test]

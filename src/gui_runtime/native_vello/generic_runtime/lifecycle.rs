@@ -1,11 +1,11 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
 use super::{
-    AuxiliaryWindowEventResult, CpuFrameObservationOwner, FrameScheduleDeadlines,
-    FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane, FrameScheduleRedrawEvidence,
-    FrameWork, GenericNativeAdapterOwner, GenericNativeVelloRunner, NativeGenericRunError,
-    NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence, animation_frame_interval,
-    assess_cpu_frame_fairness, should_start_native_window_drag,
+    AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
+    FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane,
+    FrameScheduleRedrawEvidence, FrameWork, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence,
+    animation_frame_interval, assess_cpu_frame_fairness, should_start_native_window_drag,
     should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
 };
@@ -142,6 +142,7 @@ where
             let AuxiliaryWindowEventResult {
                 messages,
                 message_origin,
+                close_admission,
                 terminal_cause,
                 shutdown_requested,
                 visual_deadline_completed: _,
@@ -150,12 +151,17 @@ where
                 let capture = self.auxiliary_windows[index].take_cpu_frame_observation_capture();
                 self.finish_cpu_frame_observation_with_capture(Some(admission), capture, false);
             }
+            let close_was_attempted = close_admission.is_some();
+            let accepted_close_messages = close_admission
+                .and_then(|admission| self.accept_auxiliary_destructive_close(index, admission));
             let became_retiring = self.auxiliary_windows[index].is_retiring();
             if became_retiring {
                 self.remove_cpu_frame_observation(&auxiliary_key);
-                self.core
-                    .runtime
-                    .retire_auxiliary_effect_owner(&auxiliary_owner);
+                if !close_was_attempted {
+                    self.core
+                        .runtime
+                        .retire_auxiliary_effect_owner(&auxiliary_owner);
+                }
             }
             let frame_diagnostics =
                 if shutdown_requested || terminal_cause.is_some() || became_retiring {
@@ -173,7 +179,22 @@ where
                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                 return;
             }
-            if !messages.is_empty() {
+            if close_was_attempted && became_retiring {
+                // Every accepted destructive close, including one with no
+                // app-owned message or a post-terminal local fault, still
+                // needs its bounded resource retirement opportunity. The
+                // next independent sync may recreate a same-key projection
+                // after this retirement-removal turn has completed.
+                self.defer_auxiliary_window_sync();
+                if let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy() {
+                    let _ = self.sync_auxiliary_windows(event_loop, event_proxy);
+                }
+            }
+            if let Some(messages) = accepted_close_messages {
+                if !messages.is_empty() {
+                    self.dispatch_auxiliary_messages(event_loop, None, messages);
+                }
+            } else if !messages.is_empty() {
                 self.dispatch_auxiliary_messages(event_loop, message_origin, messages);
             }
             return;
@@ -346,8 +367,14 @@ where
                 } else if self.is_recovering() {
                     let _ = self.begin_native_resource_maintenance();
                 } else if self.is_running() {
-                    // Completion callbacks are wake-only.  Normal Running
-                    // maintenance is admitted by the parent scheduler below.
+                    if self.timing.deferred_auxiliary_window_sync
+                        && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()
+                    {
+                        let _ = self.sync_auxiliary_windows(event_loop, event_proxy);
+                    }
+                    // Normal Running maintenance remains admitted by the
+                    // parent scheduler below; retiring children use the
+                    // deferred sync boundary above.
                     self.wake_normal_native_resource_maintenance();
                     if let Some(generation) = self
                         .adapter
@@ -647,10 +674,12 @@ where
                             let super::AuxiliaryWindowEventResult {
                                 messages,
                                 message_origin,
+                                close_admission,
                                 terminal_cause,
                                 shutdown_requested,
                                 visual_deadline_completed,
                             } = result;
+                            debug_assert!(close_admission.is_none());
                             let frame_diagnostics =
                                 if !shutdown_requested && terminal_cause.is_none() {
                                     self.record_frame_schedule_admission_with_lane(
@@ -766,6 +795,59 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    fn accept_auxiliary_destructive_close(
+        &mut self,
+        index: usize,
+        admission: AuxiliaryWindowCloseAdmission,
+    ) -> Option<Vec<Message>> {
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let owner_is_active = self
+            .core
+            .runtime
+            .auxiliary_effect_owner_is_active(&admission.owner);
+        let window = self.auxiliary_windows.get(index)?;
+        let owner_current =
+            window.effect_owner().is_same_generation(&admission.owner) && owner_is_active;
+        if !owner_current {
+            if let Some(window) = self.auxiliary_windows.get_mut(index) {
+                let _ = window.veto_native_lifecycle(admission.ticket);
+            }
+            return None;
+        }
+        let window = self.auxiliary_windows.get_mut(index)?;
+        if !window.native_lifecycle_ticket_is_current(&admission.ticket, current_generation) {
+            let _ = window.veto_native_lifecycle(admission.ticket);
+            return None;
+        }
+        if !window.prepare_destructive_close(&admission.ticket) {
+            let _ = window.veto_native_lifecycle(admission.ticket);
+            return None;
+        }
+        if !self
+            .core
+            .runtime
+            .retire_auxiliary_effect_owner(&admission.owner)
+        {
+            window.invalidate_terminal_convergence_stage_owner();
+            // The child has already crossed its terminal boundary. Preserve
+            // the committed app-owned close message and emit it exactly once
+            // after local convergence, even when owner retirement reports a
+            // post-terminal fault.
+            return Some(window.take_close_message().into_iter().collect());
+        }
+        if !window.complete_native_lifecycle(admission.ticket) {
+            window.invalidate_terminal_convergence_stage_owner();
+            // Completion faults are likewise post-terminal: converge only
+            // this child, then retain the already-committed message's
+            // exactly-once dispatch obligation.
+            return Some(window.take_close_message().into_iter().collect());
+        }
+        Some(window.take_close_message().into_iter().collect())
+    }
+
     #[cfg(target_os = "macos")]
     pub(super) fn queue_accessibility_display_snapshot(
         &mut self,
@@ -823,13 +905,15 @@ mod tests {
         assess_cpu_frame_fairness, timed_frame_cadence, timed_frame_target_fps,
     };
     use crate::runtime::{
-        Command, FrameProfile, NativeCpuFrameFairnessDiagnostics,
+        AuxiliaryWindow, Command, FrameProfile, NativeCpuFrameFairnessDiagnostics,
         NativeCpuFrameFairnessDisposition, NativeCpuFrameObservationDiagnostics,
         NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, ProfilingOptions,
         RuntimeAnimationActivity, RuntimeBridge, RuntimeFrameDiagnosticsHost,
         RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
     };
-    use crate::{application::empty, prelude::IntoView};
+    use crate::{
+        application::empty, gui::types::Vector2, gui_runtime::NativeRunOptions, prelude::IntoView,
+    };
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
     use winit::{
@@ -986,6 +1070,118 @@ mod tests {
             .lock()
             .expect("profile test event log should not be poisoned")
             .clone()
+    }
+
+    fn parent_with_destructive_auxiliary_close() -> (
+        GenericNativeVelloRunner<OrderedAuxiliaryBridge, u8>,
+        crate::runtime::AuxiliaryWindowOwner,
+    ) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let options = NativeRunOptions::default();
+        let mut parent = GenericNativeVelloRunner::new(
+            options.clone(),
+            OrderedAuxiliaryBridge { events },
+            Vector2::new(320.0, 240.0),
+        );
+        let owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("settings");
+        let surface = crate::runtime::test_arc_surface(empty::<u8>().into_surface());
+        parent
+            .auxiliary_windows
+            .push(AuxiliaryNativeWindow::new_with_owner(
+                AuxiliaryWindow::new("settings", options, surface).on_close(7),
+                &NativeRunOptions::default(),
+                None,
+                false,
+                false,
+                owner.clone(),
+            ));
+        (parent, owner)
+    }
+
+    #[test]
+    fn destructive_auxiliary_close_preflights_owner_retires_before_message_and_completes() {
+        let (mut parent, owner) = parent_with_destructive_auxiliary_close();
+        let close = parent.auxiliary_windows[0].stage_destructive_close_for_test();
+        let admission = close.close_admission.expect("close admission");
+
+        let messages = parent
+            .accept_auxiliary_destructive_close(0, admission)
+            .expect("accepted close");
+        assert_eq!(messages, [7]);
+        assert!(parent.auxiliary_windows[0].is_retiring());
+        assert!(!owner.is_open());
+        assert!(!parent.core.runtime.auxiliary_effect_owner_is_active(&owner));
+        assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+    }
+
+    #[test]
+    fn destructive_auxiliary_close_owner_veto_is_inert_and_retains_message() {
+        let (mut parent, owner) = parent_with_destructive_auxiliary_close();
+        let close = parent.auxiliary_windows[0].stage_destructive_close_for_test();
+        let admission = close.close_admission.expect("close admission");
+        assert!(parent.core.runtime.retire_auxiliary_effect_owner(&owner));
+
+        assert!(
+            parent
+                .accept_auxiliary_destructive_close(0, admission)
+                .is_none()
+        );
+        assert!(parent.auxiliary_windows[0].is_admitted());
+        assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+        assert!(parent.auxiliary_windows[0].has_close_message_for_test());
+    }
+
+    #[test]
+    fn destructive_auxiliary_close_currentness_veto_is_inert_and_retains_message() {
+        let (mut parent, _owner) = parent_with_destructive_auxiliary_close();
+        let close = parent.auxiliary_windows[0].stage_destructive_close_for_test();
+        let admission = close.close_admission.expect("close admission");
+        parent.auxiliary_windows[0].invalidate_terminal_convergence_stage_owner();
+
+        assert!(
+            parent
+                .accept_auxiliary_destructive_close(0, admission)
+                .is_none()
+        );
+        assert!(parent.is_running());
+        assert!(parent.auxiliary_windows[0].is_admitted());
+        assert!(!parent.auxiliary_windows[0].is_retiring());
+        assert!(parent.auxiliary_windows[0].has_close_message_for_test());
+    }
+
+    #[test]
+    fn destructive_auxiliary_close_does_not_mutate_sibling_or_parent_lifecycle() {
+        let (mut parent, owner) = parent_with_destructive_auxiliary_close();
+        let sibling_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("inspector");
+        let sibling_surface = crate::runtime::test_arc_surface(empty::<u8>().into_surface());
+        parent
+            .auxiliary_windows
+            .push(AuxiliaryNativeWindow::new_with_owner(
+                AuxiliaryWindow::new("inspector", NativeRunOptions::default(), sibling_surface),
+                &NativeRunOptions::default(),
+                None,
+                false,
+                false,
+                sibling_owner.clone(),
+            ));
+
+        let close = parent.auxiliary_windows[0].stage_destructive_close_for_test();
+        let messages = parent
+            .accept_auxiliary_destructive_close(0, close.close_admission.expect("close admission"))
+            .expect("accepted close");
+
+        assert_eq!(messages, [7]);
+        assert!(parent.is_running());
+        assert!(!owner.is_open());
+        assert!(sibling_owner.is_open());
+        assert!(parent.auxiliary_windows[1].is_admitted());
+        assert!(!parent.auxiliary_windows[1].is_retiring());
     }
 
     #[test]

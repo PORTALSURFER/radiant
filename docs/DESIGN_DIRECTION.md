@@ -5316,6 +5316,34 @@ That fallback first invalidates each resident stage owner once, clearing any
 surviving lower or lifecycle work and making its tickets stale before bounded
 Closing continues.
 
+An independently requested destructive close of a non-cached auxiliary is a
+separate child-local `BeginClosing` transaction. Cached `CloseRequested` remains
+a hide/reuse path and consumes no lifecycle ticket. For a non-cached admitted
+child, the event boundary stages exactly one non-`Clone` ticket carrying the
+child key, source phase (`Running` or `Recovering`), optional Winit identity,
+optional adapter and active-resource generations, exact target generation
+(including unknown), and target-fenced state. The ticket and exact live
+`AuxiliaryWindowOwner` are carried to the parent lifecycle route; the parent
+revalidates both without a yield before any child, owner, message, wrapper,
+recovery, presentation, mailbox, lower-stage, or resource mutation.
+
+Only after that preflight does the child cancel its own recovery while
+preserving the original child recovery cause, enter native and controller
+`Closing`, fence accessibility, presentation, mailboxes, fairness, wake, and
+lower-stage work, and transition its wrapper to `Retiring`. The parent retires
+that exact owner generation before dispatching the app-owned close message,
+then completes the exact child ticket after all local fences. A missing close
+message follows the same accepted path and still receives bounded resource
+retirement. A pre-terminal admission, evidence, owner, currentness, or
+preparation failure vetoes the staged ticket once, retains the message, and is
+inert; a post-terminal owner or completion fault invalidates only the child
+stage owner, converges locally, and emits the already-committed close message
+exactly once without replay, parent or sibling mutation, or whole-run
+shutdown. Retiring removal suppresses same-key recreation through that sync
+turn; a later independent sync may recreate the projection. This private
+transaction does not widen the whole-run, `DiscreteInput`, or
+`ImmediateTransient` contracts and adds no public API.
+
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and
 target transition are published, the primary and every admitted auxiliary that

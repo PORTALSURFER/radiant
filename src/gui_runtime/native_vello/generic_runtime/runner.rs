@@ -705,9 +705,10 @@ where
         admit_native_lifecycle_stage(&mut self.frame_stage_owner, evidence)
     }
 
-    /// Stage the terminal whole-run Closing transition.  `None` is preserved
-    /// as exact absent-adapter evidence; recovery admission above continues to
-    /// require a known shared generation.
+    /// Stage one exact terminal Closing transition for whole-run shutdown or
+    /// an independent child-local close. `None` is preserved as exact
+    /// absent-adapter evidence; recovery admission above continues to require
+    /// a known shared generation.
     pub(super) fn admit_native_closing(
         &mut self,
         adapter_generation: Option<NativeAdapterGeneration>,
@@ -1291,7 +1292,15 @@ where
             !window.is_retiring() || !window.maintain_native_resources_with_turn(turn)
         });
         let removed_auxiliary = self.auxiliary_windows.len() != auxiliary_count;
-        if removed_auxiliary {
+        if removed_auxiliary
+            || self
+                .auxiliary_windows
+                .iter()
+                .any(AuxiliaryNativeWindow::is_retiring)
+        {
+            // Keep the deferred sync boundary armed while a retiring child
+            // still owns a completion witness. Completion callbacks wake the
+            // parent, which then advances this same bounded cleanup path.
             self.timing.deferred_auxiliary_window_sync = true;
         }
         removed_auxiliary

@@ -109,6 +109,7 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    #[cfg(test)]
     pub(super) fn route_native_mouse_input(
         &mut self,
         button: MouseButton,
@@ -116,6 +117,15 @@ where
     ) -> NativeMouseInputRoute {
         let timestamp = (state == ElementState::Pressed || state == ElementState::Released)
             .then(InputTimestamp::capture);
+        self.route_native_mouse_input_with_timestamp(button, state, timestamp)
+    }
+
+    pub(super) fn route_native_mouse_input_with_timestamp(
+        &mut self,
+        button: MouseButton,
+        state: ElementState,
+        timestamp: Option<InputTimestamp>,
+    ) -> NativeMouseInputRoute {
         let kind = match state {
             ElementState::Pressed => NativePointerEventKind::MousePress,
             ElementState::Released => NativePointerEventKind::MouseRelease,
@@ -356,11 +366,20 @@ where
         self.flush_pending_scroll_container_wheel(&mut profile);
     }
 
+    #[cfg(test)]
     pub(super) fn route_native_modifiers_changed(
         &mut self,
         modifiers: ModifiersState,
     ) -> GenericRouteOutcome {
         let timestamp = Some(InputTimestamp::capture());
+        self.route_native_modifiers_changed_with_timestamp(modifiers, timestamp)
+    }
+
+    pub(super) fn route_native_modifiers_changed_with_timestamp(
+        &mut self,
+        modifiers: ModifiersState,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
         self.input.modifiers = modifiers;
         let consume_control = self
             .input

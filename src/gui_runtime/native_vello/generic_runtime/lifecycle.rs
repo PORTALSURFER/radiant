@@ -1,5 +1,6 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
+use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL;
 use super::{
     AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
@@ -10,6 +11,7 @@ use super::{
     should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
     timed_frame_target_fps,
 };
+use crate::gui::input::InputTimestamp;
 use crate::runtime::{
     FrameProfile, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
     RuntimeAnimationActivity, RuntimeBridge,
@@ -247,7 +249,30 @@ where
             WindowEvent::DroppedFile(path) => self.handle_native_file_drop(event_loop, path),
             WindowEvent::CursorLeft { .. } => self.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
-                let route = self.route_native_mouse_input(button, state);
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_discrete_input_event(
+                    event_loop,
+                    NativeDiscreteInputKind::MouseInput,
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let route =
+                    self.route_native_mouse_input_with_timestamp(button, state, Some(timestamp));
+                if !self.complete_native_discrete_input(ticket) {
+                    // The route already ran. Never replay it or apply a
+                    // lower-stage fallback after a completion mismatch.
+                    return;
+                }
                 if route.is_pressed()
                     && let (Some(position), Some(button)) = (route.position, route.button)
                     && should_toggle_native_window_maximized(
@@ -290,18 +315,55 @@ where
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();
-                if self.should_launch_external_drag_before_app_switch(state) {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_discrete_input_event(
+                    event_loop,
+                    NativeDiscreteInputKind::ModifiersChanged,
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let routed = if self.should_launch_external_drag_before_app_switch(state) {
                     self.input.modifiers = state;
-                    let outcome = self.launch_external_drag_if_armed();
-                    self.handle_route_outcome(event_loop, outcome);
+                    self.launch_external_drag_if_armed()
                 } else {
-                    let routed = self.route_native_modifiers_changed(state);
+                    self.route_native_modifiers_changed_with_timestamp(state, Some(timestamp))
+                };
+                if self.complete_native_discrete_input(ticket) {
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
             WindowEvent::Ime(ime) => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_discrete_input_event(
+                    event_loop,
+                    NativeDiscreteInputKind::Ime,
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
                 let routed = self.route_native_ime_event(ime);
-                self.handle_route_outcome(event_loop, routed);
+                if self.complete_native_discrete_input(ticket) {
+                    self.handle_route_outcome(event_loop, routed);
+                }
             }
             WindowEvent::RedrawRequested => {
                 self.redraw_and_exit_on_error(event_loop);

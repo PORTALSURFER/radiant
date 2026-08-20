@@ -50,6 +50,7 @@ mod keyboard;
 mod lifecycle;
 mod lifecycle_pointer;
 mod native_cursor;
+mod native_discrete_input_stage;
 mod native_encode_present;
 mod native_file_drop;
 mod native_file_open;

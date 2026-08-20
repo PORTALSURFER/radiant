@@ -1,3 +1,4 @@
+use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::{
     CpuFrameObservationOwner, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     GenericRouteOutcome, key_code_from_winit, keyboard_modifiers_from_winit, keypress_from_input,
@@ -21,7 +22,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn handle_keyboard_event(&mut self, event_loop: &ActiveEventLoop, event: KeyEvent) {
-        self.handle_keyboard_event_inner(event_loop, event, None, None);
+        self.handle_keyboard_event_inner(event_loop, event, None, None, true);
     }
 
     pub(super) fn handle_keyboard_event_with_adapter(
@@ -30,25 +31,68 @@ where
         event: KeyEvent,
         adapter: &mut GenericNativeAdapterOwner,
         observation: Option<&mut CpuFrameObservationOwner<'_>>,
+        wrapper_eligible: bool,
     ) {
-        self.handle_keyboard_event_inner(event_loop, event, Some(adapter), observation);
+        self.handle_keyboard_event_inner(
+            event_loop,
+            event,
+            Some(adapter),
+            observation,
+            wrapper_eligible,
+        );
     }
 
     fn handle_keyboard_event_inner(
         &mut self,
         event_loop: &ActiveEventLoop,
         event: KeyEvent,
-        mut adapter: Option<&mut GenericNativeAdapterOwner>,
-        mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
+        adapter: Option<&mut GenericNativeAdapterOwner>,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
+        wrapper_eligible: bool,
     ) {
-        if event.state == ElementState::Released {
-            if let Some(outcome) = self.route_native_key_release(event.physical_key) {
-                self.route_keyboard_outcome(event_loop, outcome, adapter, observation);
-            }
+        let timestamp = InputTimestamp::capture();
+        let Some(adapter_generation) = adapter
+            .as_deref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+            .or_else(|| {
+                self.adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+            })
+        else {
+            return;
+        };
+        let Some(ticket) = self.begin_native_discrete_input_event(
+            event_loop,
+            NativeDiscreteInputKind::KeyboardInput,
+            timestamp,
+            adapter_generation,
+            wrapper_eligible,
+        ) else {
+            return;
+        };
+        let outcome = self.route_native_keyboard_event_inner(event, timestamp);
+        if !self.complete_native_discrete_input(ticket) {
+            // The route already ran. A completion mismatch must not replay it
+            // or apply a lower-stage fallback.
             return;
         }
+        if let Some(outcome) = outcome {
+            self.route_keyboard_outcome(event_loop, outcome, adapter, observation);
+        }
+    }
+
+    fn route_native_keyboard_event_inner(
+        &mut self,
+        event: KeyEvent,
+        timestamp: InputTimestamp,
+    ) -> Option<GenericRouteOutcome> {
+        if event.state == ElementState::Released {
+            return self
+                .route_native_key_release_with_timestamp(event.physical_key, Some(timestamp));
+        }
         if event.state != ElementState::Pressed {
-            return;
+            return None;
         }
         self.sync_runtime_pointer_from_native_cursor();
         let repeat = event.repeat;
@@ -59,7 +103,7 @@ where
             PhysicalKey::Code(code) => key_code_from_winit(code),
             PhysicalKey::Unidentified(_) => None,
         };
-        let timestamp = Some(InputTimestamp::capture());
+        let timestamp = Some(timestamp);
         let widget_modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
         if let Some(outcome) = self.core.route_metadata_key_press_with_timestamp(
             physical_key.map(|key| keypress_from_input(key, self.input.modifiers)),
@@ -68,13 +112,7 @@ where
             timestamp,
             repeat,
         ) {
-            self.route_keyboard_outcome(
-                event_loop,
-                outcome,
-                adapter.as_deref_mut(),
-                observation.as_deref_mut(),
-            );
-            return;
+            return Some(outcome);
         }
         if let Some(key) = physical_key {
             let allow_text_deletion_repeat = repeat
@@ -88,7 +126,7 @@ where
                 &mut self.input.last_navigation_key_repeat,
                 Instant::now(),
             ) {
-                return;
+                return None;
             }
             repeat_accepted = true;
             Some(key)
@@ -96,26 +134,14 @@ where
             None
         };
         if !repeat_accepted {
-            return;
+            return None;
         }
         if let Some(key) = physical_key {
             if self.route_text_input_shortcut(key, timestamp, &mut route_outcome) {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
+                return Some(route_outcome);
             }
             if self.route_text_navigation_key(key, timestamp, &mut route_outcome) {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
+                return Some(route_outcome);
             }
             if self.route_focused_widget_preempting_shortcut_key(
                 key,
@@ -123,22 +149,10 @@ where
                 repeat,
                 &mut route_outcome,
             ) {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
+                return Some(route_outcome);
             }
             if self.route_space_text_input(key, timestamp, &mut route_outcome) {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
+                return Some(route_outcome);
             }
             if self.route_focused_text_input_before_shortcuts(
                 key,
@@ -147,13 +161,7 @@ where
                 repeat,
                 &mut route_outcome,
             ) {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
+                return Some(route_outcome);
             }
             let outcome = self.core.route_key_press_with_timestamp(
                 keypress_from_input(key, self.input.modifiers),
@@ -177,13 +185,7 @@ where
             );
             route_outcome.merge(outcome);
             if route_outcome.routed {
-                self.route_keyboard_outcome(
-                    event_loop,
-                    route_outcome,
-                    adapter.as_deref_mut(),
-                    observation.as_deref_mut(),
-                );
-                return;
+                return Some(route_outcome);
             }
         }
         if let Some(text) = event.text.as_ref() {
@@ -215,12 +217,21 @@ where
             );
             route_outcome.merge(outcome);
         }
-        self.route_keyboard_outcome(event_loop, route_outcome, adapter, observation);
+        Some(route_outcome)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_native_key_release(
         &mut self,
         physical_key: PhysicalKey,
+    ) -> Option<GenericRouteOutcome> {
+        self.route_native_key_release_with_timestamp(physical_key, Some(InputTimestamp::capture()))
+    }
+
+    fn route_native_key_release_with_timestamp(
+        &mut self,
+        physical_key: PhysicalKey,
+        timestamp: Option<InputTimestamp>,
     ) -> Option<GenericRouteOutcome> {
         let PhysicalKey::Code(code) = physical_key else {
             return None;
@@ -228,7 +239,6 @@ where
         let modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
         let key = key_code_from_winit(code);
         let widget_key = key.and_then(WidgetKey::from_key_code);
-        let timestamp = Some(InputTimestamp::capture());
         match widget_key {
             Some(widget_key) => Some(
                 self.core

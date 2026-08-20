@@ -1201,6 +1201,36 @@ authorities; a return to `Running` arms due-now cleanup when a retiring child
 remains, while `Stopped` clears the deadline. A removal marks deferred sync,
 and same-key recreation waits for a later independent sync boundary.
 
+### Native DiscreteInput stage contract
+
+The native event-loop owner admits exactly one non-`Clone` `DiscreteInput`
+ticket for each `MouseInput`, `KeyboardInput`, `ModifiersChanged`, or `Ime`
+event. Primary and auxiliary windows use the same private stage owner and the
+same route boundary. The input timestamp is captured at event arrival before
+any forced exact deferred-`Deadline` terminal drainage. If a deferred
+`Deadline` ticket is present, that exact owner is drained and completed before
+input admission; input is never bypassed, coalesced, replayed, or queued as an
+alternative.
+
+Admission binds the stable window key, live native `WindowId`, active native
+resource generation matching the adapter, known unfenced target, running
+nonterminal native-window eligibility, event kind, and captured timestamp.
+Auxiliary admission also binds caller-supplied active, admitted, materialized
+wrapper eligibility; inactive, cached, retiring, or unmaterialized children
+remain inert. Exact owner and native evidence currentness are revalidated
+immediately before routing; a pre-route veto is inert and does not route or
+apply lower-stage work. The ticket remains live through synchronous native
+routing and message reduction, and completes before lower-stage route-outcome
+work such as timed drainage, refresh, redraw, auxiliary synchronization, or
+wakeup. A post-route completion mismatch never reroutes, replays, or applies a
+lower-stage fallback. A Lifecycle admission may stale the input ticket; the
+stale route remains terminal and is not applied.
+
+This slice covers only `MouseInput`, `KeyboardInput`, `ModifiersChanged`, and
+`Ime`. Cursor, wheel, focus and cursor-boundary, file/platform/lifecycle,
+resize, redraw, and `ImmediateTransient` behavior remain outside this
+contract.
+
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and
 target transition are published, the primary and every admitted auxiliary that

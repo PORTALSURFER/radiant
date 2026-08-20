@@ -121,6 +121,10 @@ pub(super) struct AppliedRouteOutcome {
     pub(super) sync_auxiliary_windows_now: bool,
 }
 
+type NativeClosingAuxiliaryTickets = Vec<(usize, NativeLifecycleStageTicket)>;
+type NativeClosingStageSet = (NativeLifecycleStageTicket, NativeClosingAuxiliaryTickets);
+type NativeClosingAdmission = (NativeClosingStageSet, Instant);
+
 const fn recovery_completion_is_admissible(recovery_expired: bool) -> bool {
     !recovery_expired
 }
@@ -701,6 +705,20 @@ where
         admit_native_lifecycle_stage(&mut self.frame_stage_owner, evidence)
     }
 
+    /// Stage the terminal whole-run Closing transition.  `None` is preserved
+    /// as exact absent-adapter evidence; recovery admission above continues to
+    /// require a known shared generation.
+    pub(super) fn admit_native_closing(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<NativeLifecycleStageTicket> {
+        let evidence = self.native_lifecycle_stage_evidence(
+            NativeLifecycleTransitionKind::BeginClosing,
+            adapter_generation,
+        );
+        admit_native_lifecycle_stage(&mut self.frame_stage_owner, evidence)
+    }
+
     #[cfg(test)]
     pub(super) fn admit_native_lifecycle_finish_with_evidence(
         &mut self,
@@ -815,9 +833,26 @@ where
         event_loop: &ActiveEventLoop,
         cause: Option<NativeGenericRunError>,
     ) {
-        let Some(now) = self.prepare_native_shutdown(cause) else {
+        // Repeated primary Closing/Stopped notifications are deliberately
+        // inert.  A first terminal intent owns the only staging attempt.
+        if self.is_closing() || self.native_lifecycle.is_stopped() {
+            return;
+        }
+
+        let Some(((primary_ticket, auxiliary_tickets), now)) =
+            self.admit_native_shutdown_preterminal(cause)
+        else {
             return;
         };
+        let mut auxiliary_preparation_failed = false;
+        for window in &mut self.auxiliary_windows {
+            let prepared = window.prepare_whole_run_closing();
+            if !prepared {
+                auxiliary_preparation_failed = true;
+            } else {
+                window.begin_whole_run_retiring(event_loop);
+            }
+        }
         let retiring_auxiliary_keys = self
             .auxiliary_windows
             .iter()
@@ -826,8 +861,155 @@ where
         for key in retiring_auxiliary_keys {
             self.remove_cpu_frame_observation(&key);
         }
+        if auxiliary_preparation_failed {
+            self.converge_post_terminal_native_shutdown(event_loop);
+            return;
+        }
+
+        // Complete each exact ticket after its window's Closing fences.  A
+        // completion fault consumes no replacement ticket; the remaining
+        // witnesses are vetoed once and the bounded Closing authority takes
+        // over without replay or redraw.
+        let mut completion_failed = false;
+        if !self.native_lifecycle_stage_ticket_is_current(&primary_ticket) {
+            let _ = self.veto_native_lifecycle(primary_ticket);
+            completion_failed = true;
+        } else if !self.complete_native_lifecycle(primary_ticket) {
+            completion_failed = true;
+        }
+        for (index, ticket) in auxiliary_tickets {
+            if completion_failed {
+                let _ = self.auxiliary_windows[index].veto_native_lifecycle(ticket);
+            } else if !self.auxiliary_windows[index]
+                .native_lifecycle_stage_ticket_is_current(&ticket)
+            {
+                let _ = self.auxiliary_windows[index].veto_native_lifecycle(ticket);
+                completion_failed = true;
+            } else if !self.auxiliary_windows[index].complete_native_lifecycle(ticket) {
+                completion_failed = true;
+            }
+        }
+        if completion_failed {
+            self.converge_post_terminal_native_shutdown(event_loop);
+            return;
+        }
+
+        self.finish_native_shutdown(event_loop, now);
+    }
+
+    fn admit_native_shutdown_preterminal(
+        &mut self,
+        cause: Option<NativeGenericRunError>,
+    ) -> Option<NativeClosingAdmission> {
+        let adapter_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let (primary_ticket, auxiliary_tickets) =
+            self.stage_native_closing_set(adapter_generation)?;
+
+        // Revalidate the complete no-yield set before any native, controller,
+        // presentation, wrapper, cause, recovery, mailbox, or resource state
+        // is changed.  Each ticket rechecks its full captured evidence.
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        if !self.native_closing_stage_set_is_current(
+            &primary_ticket,
+            &auxiliary_tickets,
+            current_generation,
+        ) {
+            self.veto_staged_native_lifecycle(Some(primary_ticket), auxiliary_tickets);
+            return None;
+        }
+
+        // Reuse the existing per-window Closing preparation only after the
+        // complete staged set is current.  The primary owns recovery-cause
+        // precedence and the first terminal cause; children retain the same
+        // bounded preparation but never dispatch their close messages.
+        let Some(now) = self.prepare_native_shutdown(cause) else {
+            self.veto_staged_native_lifecycle(Some(primary_ticket), auxiliary_tickets);
+            return None;
+        };
+        Some(((primary_ticket, auxiliary_tickets), now))
+    }
+
+    fn stage_native_closing_set(
+        &mut self,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> Option<NativeClosingStageSet> {
+        let primary_ticket = self.admit_native_closing(adapter_generation)?;
+
+        // The vector order is the resident auxiliary order and is therefore
+        // the stable ticket order for this whole-run transition.  Retiring
+        // wrappers remain eligible: their child runner can still be Running
+        // or Recovering even though the wrapper no longer accepts messages.
+        let mut auxiliary_tickets = Vec::with_capacity(self.auxiliary_windows.len());
+        for index in 0..self.auxiliary_windows.len() {
+            if !self.auxiliary_windows[index].should_stage_native_closing() {
+                continue;
+            }
+            let Some(ticket) =
+                self.auxiliary_windows[index].admit_native_closing(adapter_generation)
+            else {
+                self.veto_staged_native_lifecycle(Some(primary_ticket), auxiliary_tickets);
+                return None;
+            };
+            auxiliary_tickets.push((index, ticket));
+        }
+        Some((primary_ticket, auxiliary_tickets))
+    }
+
+    fn native_closing_stage_set_is_current(
+        &self,
+        primary_ticket: &NativeLifecycleStageTicket,
+        auxiliary_tickets: &NativeClosingAuxiliaryTickets,
+        adapter_generation: Option<NativeAdapterGeneration>,
+    ) -> bool {
+        let mut staged_current =
+            self.native_lifecycle_ticket_is_current(primary_ticket, adapter_generation);
+        for (index, ticket) in auxiliary_tickets {
+            if !self.auxiliary_windows[*index]
+                .native_lifecycle_ticket_is_current(ticket, adapter_generation)
+            {
+                staged_current = false;
+            }
+        }
+        staged_current
+    }
+
+    fn converge_post_terminal_native_shutdown(&mut self, event_loop: &ActiveEventLoop) {
+        // This path is intentionally ticket-free.  It is the one-way bounded
+        // Closing fallback after primary terminal intent.  It never retries
+        // or replays a lifecycle witness and cannot admit primary Closing.
+        if !self.is_closing() {
+            return;
+        }
+        self.invalidate_terminal_convergence_stage_owners();
         for window in &mut self.auxiliary_windows {
-            window.begin_whole_run_retiring(event_loop);
+            if window.prepare_whole_run_closing() {
+                window.begin_whole_run_retiring(event_loop);
+            }
+        }
+        self.finish_native_shutdown(event_loop, Instant::now());
+    }
+
+    fn invalidate_terminal_convergence_stage_owners(&mut self) {
+        self.frame_stage_owner.invalidate();
+        for window in &mut self.auxiliary_windows {
+            window.invalidate_terminal_convergence_stage_owner();
+        }
+    }
+
+    fn finish_native_shutdown(&mut self, event_loop: &ActiveEventLoop, now: Instant) {
+        let retiring_auxiliary_keys = self
+            .auxiliary_windows
+            .iter()
+            .map(|window| FrameScheduleKey::Auxiliary(window.key().to_owned()))
+            .collect::<Vec<_>>();
+        for key in retiring_auxiliary_keys {
+            self.remove_cpu_frame_observation(&key);
         }
         if self.native_resource_ownership_is_empty() {
             self.stop_native_event_loop(event_loop);
@@ -836,11 +1018,19 @@ where
         }
     }
 
-    fn prepare_native_shutdown(&mut self, cause: Option<NativeGenericRunError>) -> Option<Instant> {
+    pub(super) fn prepare_native_shutdown(
+        &mut self,
+        cause: Option<NativeGenericRunError>,
+    ) -> Option<Instant> {
         if self.is_closing() || self.native_lifecycle.is_stopped() {
             return None;
         }
-        let cause = if self.is_recovering() {
+        let was_recovering = self.is_recovering();
+        let now = Instant::now();
+        if !self.native_lifecycle.admit_closing(now) {
+            return None;
+        }
+        let cause = if was_recovering {
             self.recovery_cause.take().or(cause)
         } else {
             self.recovery_cause.take();
@@ -849,10 +1039,6 @@ where
         };
         self.recovery.cancel();
         self.recovery_auxiliary_followup_pending = false;
-        let now = Instant::now();
-        if !self.native_lifecycle.admit_closing(now) {
-            return None;
-        }
         if let Some(cause) = cause
             && self.record_terminal_cause(cause.clone())
         {
@@ -3110,9 +3296,9 @@ mod tests {
     use super::{
         AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
         FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-        NativeAdapterGeneration, NativeLifecycle, NativeLifecycleStageEvidence,
-        NativeLifecycleTransitionKind, NativeTargetGeneration, TimedFrameCadence,
-        recovery_completion_is_admissible,
+        NativeAdapterGeneration, NativeGenericRunError, NativeLifecycle,
+        NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeTargetGeneration,
+        TimedFrameCadence, recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -3842,6 +4028,307 @@ mod tests {
         ));
         assert!(runner.native_lifecycle_stage_ticket_is_current(&ticket));
         assert!(runner.complete_native_lifecycle(ticket));
+        assert!(!runner.frame_stage_owner.has_in_flight());
+    }
+
+    #[test]
+    fn native_closing_ticket_binds_absent_adapter_and_unknown_target() {
+        let mut runner = runner();
+        runner.window.native_surface_target_fenced = true;
+
+        let ticket = runner
+            .admit_native_closing(None)
+            .expect("terminal closing ticket");
+        let evidence = ticket.evidence();
+        assert_eq!(evidence.key, FrameScheduleKey::Primary);
+        assert_eq!(evidence.source_phase, NativeLifecycle::Running);
+        assert_eq!(evidence.window_id, None);
+        assert_eq!(evidence.adapter_generation, None);
+        assert_eq!(evidence.active_resource_generation, None);
+        assert_eq!(
+            evidence.target_generation,
+            NativeTargetGeneration::unknown()
+        );
+        assert!(evidence.target_fenced);
+        assert!(runner.native_lifecycle_ticket_is_current(&ticket, None));
+        assert!(runner.complete_native_lifecycle(ticket));
+        assert!(!runner.frame_stage_owner.has_in_flight());
+
+        let unknown = runner.admit_native_closing(Some(NativeAdapterGeneration::unknown()));
+        assert!(unknown.is_none());
+    }
+
+    #[test]
+    fn native_closing_ticket_accepts_recovering_without_requiring_adapter_or_target() {
+        let mut runner = runner();
+        assert!(runner.admit_device_recovery());
+
+        let ticket = runner
+            .admit_native_closing(None)
+            .expect("recovering terminal closing ticket");
+        assert!(ticket.evidence().source_phase.is_recovering());
+        assert!(runner.native_lifecycle_ticket_is_current(&ticket, None));
+        assert!(runner.veto_native_lifecycle(ticket));
+        assert!(runner.is_recovering());
+    }
+
+    #[test]
+    fn terminal_convergence_invalidates_primary_lifecycle_owner() {
+        let mut runner = runner();
+        let ticket = runner
+            .admit_native_closing(None)
+            .expect("primary terminal lifecycle ticket");
+        let identity = ticket.stage_ticket().identity().clone();
+        let owner_generation = runner.frame_stage_owner.owner_generation();
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert!(runner.prepare_native_shutdown(None).is_some());
+        assert!(runner.is_closing());
+
+        runner.invalidate_terminal_convergence_stage_owners();
+
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert!(runner.frame_stage_owner.owner_generation() > owner_generation);
+        assert!(runner.frame_stage_owner.stale(&identity));
+        assert!(!runner.native_lifecycle_stage_ticket_is_current(&ticket));
+        assert!(!runner.veto_native_lifecycle(ticket));
+    }
+
+    #[test]
+    fn preterminal_primary_admission_failure_is_inert_without_retry() {
+        let mut runner = runner();
+        let blocker = runner
+            .admit_native_closing(None)
+            .expect("blocking lifecycle ticket");
+        let owner_generation = runner.frame_stage_owner.owner_generation();
+        let cause = NativeGenericRunError::FrameRender(String::from("must remain pending"));
+
+        assert!(
+            runner
+                .admit_native_shutdown_preterminal(Some(cause))
+                .is_none()
+        );
+        assert!(runner.is_running());
+        assert!(!runner.has_terminal_cause());
+        assert!(runner.recovery_cause.is_none());
+        assert_eq!(
+            runner.frame_stage_owner.owner_generation(),
+            owner_generation
+        );
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert!(runner.native_lifecycle_stage_ticket_is_current(&blocker));
+
+        assert!(runner.veto_native_lifecycle(blocker));
+        assert!(runner.admit_native_closing(None).is_some());
+    }
+
+    #[test]
+    fn preterminal_recovery_veto_preserves_cause_for_fresh_admission() {
+        let mut runner = runner();
+        let original = NativeGenericRunError::RenderDeviceLost(String::from("original loss"));
+        let secondary = NativeGenericRunError::FrameRender(String::from("secondary failure"));
+
+        assert!(runner.admit_device_recovery());
+        runner.recovery_cause = Some(original.clone());
+        let blocker = runner
+            .admit_native_closing(None)
+            .expect("blocking recovering lifecycle ticket");
+
+        assert!(
+            runner
+                .admit_native_shutdown_preterminal(Some(secondary))
+                .is_none()
+        );
+        assert!(runner.is_recovering());
+        assert_eq!(runner.recovery_cause, Some(original));
+        assert!(!runner.has_terminal_cause());
+        assert!(runner.native_lifecycle_stage_ticket_is_current(&blocker));
+
+        assert!(runner.veto_native_lifecycle(blocker));
+        let fresh = runner
+            .admit_native_closing(None)
+            .expect("fresh independent recovering admission");
+        assert!(runner.veto_native_lifecycle(fresh));
+        assert!(runner.is_recovering());
+    }
+
+    #[test]
+    fn preterminal_auxiliary_admission_failure_vetoes_primary_and_stays_inert() {
+        let surface = crate::runtime::test_arc_surface(empty::<()>().into_surface());
+        let projection = AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface);
+        let auxiliary = AuxiliaryNativeWindow::new(
+            projection,
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+        let mut runner = runner();
+        runner.auxiliary_windows.push(auxiliary);
+        let blocker = runner.auxiliary_windows[0]
+            .admit_native_closing(None)
+            .expect("blocking auxiliary lifecycle ticket");
+        let primary_generation = runner.frame_stage_owner.owner_generation();
+        let cause = NativeGenericRunError::FrameRender(String::from("must remain pending"));
+
+        assert!(
+            runner
+                .admit_native_shutdown_preterminal(Some(cause))
+                .is_none()
+        );
+        assert!(runner.is_running());
+        assert!(!runner.has_terminal_cause());
+        assert!(runner.recovery_cause.is_none());
+        assert!(runner.frame_stage_owner.owner_generation() > primary_generation);
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert!(runner.auxiliary_windows[0].is_admitted());
+        assert!(runner.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+
+        assert!(runner.auxiliary_windows[0].veto_native_lifecycle(blocker));
+        assert!(runner.admit_native_closing(None).is_some());
+    }
+
+    #[test]
+    fn preterminal_complete_set_currentness_vetoes_without_terminal_mutation() {
+        let surface = crate::runtime::test_arc_surface(empty::<()>().into_surface());
+        let projection = AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface);
+        let auxiliary = AuxiliaryNativeWindow::new(
+            projection,
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+        let mut runner = runner();
+        runner.auxiliary_windows.push(auxiliary);
+        let (primary_ticket, auxiliary_tickets) = runner
+            .stage_native_closing_set(None)
+            .expect("complete staged closing set");
+        runner.window.native_surface_target_fenced = !primary_ticket.evidence().target_fenced;
+
+        assert!(!runner.native_closing_stage_set_is_current(
+            &primary_ticket,
+            &auxiliary_tickets,
+            None,
+        ));
+        assert!(runner.is_running());
+        assert!(!runner.has_terminal_cause());
+        assert!(runner.frame_stage_owner.has_in_flight());
+        assert!(runner.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+        assert!(
+            runner.auxiliary_windows[0]
+                .native_lifecycle_stage_ticket_is_current(&auxiliary_tickets[0].1)
+        );
+
+        runner.veto_staged_native_lifecycle(Some(primary_ticket), auxiliary_tickets);
+        assert!(!runner.frame_stage_owner.has_in_flight());
+        assert!(!runner.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+    }
+
+    #[test]
+    fn preterminal_prepare_rejection_vetoes_staged_attempt_without_mutation() {
+        let mut runner = runner();
+        let (primary_ticket, auxiliary_tickets) = runner
+            .stage_native_closing_set(None)
+            .expect("staged primary closing attempt");
+        runner.native_lifecycle = NativeLifecycle::Stopped;
+        let cause = NativeGenericRunError::FrameRender(String::from("must remain pending"));
+
+        assert!(runner.prepare_native_shutdown(Some(cause)).is_none());
+        runner.veto_staged_native_lifecycle(Some(primary_ticket), auxiliary_tickets);
+
+        assert!(runner.native_lifecycle.is_stopped());
+        assert!(!runner.has_terminal_cause());
+        assert!(runner.recovery_cause.is_none());
+        assert!(!runner.frame_stage_owner.has_in_flight());
+    }
+
+    #[test]
+    fn running_shutdown_records_supplied_failure_cause_once() {
+        let mut runner = runner();
+        let cause = NativeGenericRunError::FrameRender(String::from("primary failure"));
+
+        assert!(
+            runner
+                .prepare_native_shutdown(Some(cause.clone()))
+                .is_some()
+        );
+        assert!(runner.is_closing());
+        assert_eq!(runner.terminal_cause, Some(cause));
+    }
+
+    #[test]
+    fn recovering_shutdown_preserves_original_render_device_loss_cause() {
+        let mut runner = runner();
+        let original = NativeGenericRunError::RenderDeviceLost(String::from("device lost"));
+        let secondary = NativeGenericRunError::FrameRender(String::from("secondary failure"));
+
+        assert!(runner.admit_device_recovery());
+        runner.recovery_cause = Some(original.clone());
+        assert!(runner.prepare_native_shutdown(Some(secondary)).is_some());
+
+        assert!(runner.is_closing());
+        assert_eq!(runner.terminal_cause, Some(original));
+        assert!(runner.recovery_cause.is_none());
+    }
+
+    #[test]
+    fn repeated_closing_preparation_is_inert_for_owner_budget_and_cause() {
+        let mut runner = runner();
+        let first = NativeGenericRunError::FrameRender(String::from("first failure"));
+        let second = NativeGenericRunError::RenderDeviceLost(String::from("second failure"));
+
+        assert!(
+            runner
+                .prepare_native_shutdown(Some(first.clone()))
+                .is_some()
+        );
+        let owner_generation = runner.frame_stage_owner.owner_generation();
+        assert!(runner.prepare_native_shutdown(Some(second)).is_none());
+
+        assert_eq!(
+            runner.frame_stage_owner.owner_generation(),
+            owner_generation
+        );
+        assert_eq!(runner.terminal_cause, Some(first));
+        assert!(runner.is_closing());
+    }
+
+    #[test]
+    fn closing_set_is_staged_before_any_window_phase_or_wrapper_mutation() {
+        let surface = crate::runtime::test_arc_surface(empty::<()>().into_surface());
+        let auxiliary_projection =
+            AuxiliaryWindow::new("settings", NativeRunOptions::default(), surface);
+        let auxiliary = AuxiliaryNativeWindow::new(
+            auxiliary_projection,
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+        let mut runner = runner();
+        runner.auxiliary_windows.push(auxiliary);
+
+        let primary_ticket = runner
+            .admit_native_closing(None)
+            .expect("primary closing ticket");
+        let auxiliary_ticket = runner.auxiliary_windows[0]
+            .admit_native_closing(None)
+            .expect("auxiliary closing ticket");
+
+        assert!(runner.is_running());
+        assert!(runner.auxiliary_windows[0].is_admitted());
+        assert!(runner.native_lifecycle_ticket_is_current(&primary_ticket, None));
+        assert!(
+            runner.auxiliary_windows[0]
+                .native_lifecycle_ticket_is_current(&auxiliary_ticket, None,)
+        );
+
+        assert!(runner.prepare_native_shutdown(None).is_some());
+        assert!(runner.auxiliary_windows[0].prepare_whole_run_closing());
+        assert!(runner.is_closing());
+
+        assert!(runner.complete_native_lifecycle(primary_ticket));
+        assert!(runner.auxiliary_windows[0].complete_native_lifecycle(auxiliary_ticket));
         assert!(!runner.frame_stage_owner.has_in_flight());
     }
 

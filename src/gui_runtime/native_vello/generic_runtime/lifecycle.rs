@@ -1,5 +1,6 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
+use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::native_immediate_transient_stage::NativeImmediateTransientKind;
 use super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL;
@@ -247,12 +248,14 @@ where
                     return;
                 };
                 self.window.native_window_focused = false;
-                let mut routed = self.handle_focus_lost_before_external_drag();
-                if self.core.runtime.external_drag_armed() {
-                    let outcome = self.launch_external_drag_if_armed();
-                    routed.merge(outcome);
-                }
-                if self.complete_native_immediate_transient(ticket) {
+                let routed = self.handle_focus_lost_before_external_drag();
+                let launch_external_drag = self.core.runtime.external_drag_armed();
+                if let Some(routed) = finalize_native_immediate_transient_route(
+                    self.complete_native_immediate_transient(ticket),
+                    routed,
+                    launch_external_drag,
+                    || self.launch_external_drag_if_armed(),
+                ) {
                     self.handle_route_outcome(event_loop, routed);
                     #[cfg(target_os = "macos")]
                     self.republish_native_semantic_accessibility_passively();
@@ -369,8 +372,13 @@ where
                 else {
                     return;
                 };
-                let routed = self.route_cursor_left();
-                if self.complete_native_immediate_transient(ticket) {
+                let route = self.route_cursor_left();
+                if let Some(routed) = finalize_native_immediate_transient_route(
+                    self.complete_native_immediate_transient(ticket),
+                    route.outcome,
+                    route.launch_external_drag,
+                    || self.launch_external_drag_if_armed(),
+                ) {
                     self.handle_route_outcome(event_loop, routed);
                 }
             }

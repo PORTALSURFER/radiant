@@ -19,6 +19,31 @@ pub(super) struct NativeCursorMovedRoute {
     pub(super) redraw_work: Option<FrameWork>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(super) struct NativeCursorLeftRoute {
+    pub(super) outcome: GenericRouteOutcome,
+    pub(super) launch_external_drag: bool,
+}
+
+/// Publish the route accumulated while an ImmediateTransient ticket was live
+/// only after its exact completion. The launch closure is deliberately called
+/// here, after completion, so platform drag startup cannot precede the owner
+/// fence or run after a completion mismatch.
+pub(super) fn finalize_native_immediate_transient_route(
+    completion_succeeded: bool,
+    mut routed: GenericRouteOutcome,
+    launch_external_drag: bool,
+    launch: impl FnOnce() -> GenericRouteOutcome,
+) -> Option<GenericRouteOutcome> {
+    if !completion_succeeded {
+        return None;
+    }
+    if launch_external_drag {
+        routed.merge(launch());
+    }
+    Some(routed)
+}
+
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -142,8 +167,9 @@ where
         }
     }
 
-    pub(super) fn route_cursor_left(&mut self) -> GenericRouteOutcome {
-        if self.core.runtime.external_drag_armed() {
+    pub(super) fn route_cursor_left(&mut self) -> NativeCursorLeftRoute {
+        let external_drag_armed_before_clear = self.core.runtime.external_drag_armed();
+        if external_drag_armed_before_clear {
             debug!(
                 target: "radiant::external_drag",
                 event = "external_drag.pointer_exited",
@@ -153,19 +179,17 @@ where
         let pointer_cleared = self.clear_native_pointer_presence();
         let mut outcome = pointer_cleared;
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
-        if preview_hidden {
-            if self.core.runtime.external_drag_armed() {
-                outcome.merge(self.launch_external_drag_if_armed());
-            } else {
-                outcome.request_frame_work(FrameWork::RebuildScene {
-                    reason: FrameWorkReason::ExternalDragPreview,
-                    mode: SceneRebuildMode::Immediate,
-                });
-            }
-            return outcome;
+        let launch_external_drag = self.core.runtime.external_drag_armed();
+        if preview_hidden && !launch_external_drag {
+            outcome.request_frame_work(FrameWork::RebuildScene {
+                reason: FrameWorkReason::ExternalDragPreview,
+                mode: SceneRebuildMode::Immediate,
+            });
         }
-        outcome.merge(self.launch_external_drag_if_armed());
-        outcome
+        NativeCursorLeftRoute {
+            outcome,
+            launch_external_drag,
+        }
     }
 
     pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {

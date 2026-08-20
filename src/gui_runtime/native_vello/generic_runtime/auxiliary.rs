@@ -1,3 +1,4 @@
+use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::native_immediate_transient_stage::NativeImmediateTransientKind;
 #[cfg(test)]
@@ -1018,12 +1019,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 ) else {
                     return self.event_result(None, false);
                 };
-                let mut routed = self.runner.handle_focus_lost_before_external_drag();
-                if self.runner.core.runtime.external_drag_armed() {
-                    let outcome = self.runner.launch_external_drag_if_armed();
-                    routed.merge(outcome);
-                }
-                if self.runner.complete_native_immediate_transient(ticket) {
+                let routed = self.runner.handle_focus_lost_before_external_drag();
+                let launch_external_drag = self.runner.core.runtime.external_drag_armed();
+                if let Some(routed) = finalize_native_immediate_transient_route(
+                    self.runner.complete_native_immediate_transient(ticket),
+                    routed,
+                    launch_external_drag,
+                    || self.runner.launch_external_drag_if_armed(),
+                ) {
                     self.runner.handle_route_outcome_with_adapter(
                         event_loop,
                         routed,
@@ -1144,8 +1147,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 ) else {
                     return self.event_result(None, false);
                 };
-                let routed = self.runner.route_cursor_left();
-                if self.runner.complete_native_immediate_transient(ticket) {
+                let route = self.runner.route_cursor_left();
+                if let Some(routed) = finalize_native_immediate_transient_route(
+                    self.runner.complete_native_immediate_transient(ticket),
+                    route.outcome,
+                    route.launch_external_drag,
+                    || self.runner.launch_external_drag_if_armed(),
+                ) {
                     self.runner.handle_route_outcome_with_adapter(
                         event_loop,
                         routed,

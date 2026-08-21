@@ -2099,7 +2099,10 @@ projects a finite logical caret area from exactly one focused `PaintTextInput`
 and publishes it through the actual per-window Winit cursor-area call, with
 conservative invalid/ambiguous evidence and repeat suppression fenced by
 `WindowId`, `NativeTargetGeneration`, and the actual native `DpiScale`.
-Native Japanese/Chinese IME acceptance remains unperformed. Matching-key
+Native Japanese/Chinese IME acceptance remains unperformed. The checked
+`macos_text_input_ime_acceptance` target provides the primary-window live
+procedure and production-projection tests for that boundary, but no live
+Japanese IME or AppKit candidate-panel run is evidence here. Matching-key
 suppression, candidate behavior beyond this bounded
 caret-area publication, multiline editing, product integration, and other
 platform adapters remain separate boundaries.
@@ -6127,6 +6130,32 @@ remain unchanged and no estimate credit, including Platform credit, is awarded.
 Current Linux/Windows validation remains limited to portable build, compile,
 and test evidence.
 
+### macOS live Japanese IME acceptance
+
+`macos_text_input_ime_acceptance` is the checked public-API harness for the
+already-shipped single-line `TextInput` path in the primary window. The
+non-macOS checked target returns an explicit unsupported error; it does not
+claim native IME acceptance on other platforms.
+
+Build and run the checked example directly on macOS with:
+
+```bash
+cargo build --example macos_text_input_ime_acceptance
+cargo run --example macos_text_input_ime_acceptance
+```
+
+Keep the primary window focused, select the Japanese Hiragana IME, type romaji,
+and observe the underlined preedit, candidate panel, and caret. Choose a
+candidate or press Return to commit and confirm one committed application-state
+change. Start another composition and press Escape to cancel; then repeat a
+composition and switch focus to another application or window to confirm the
+committed value is restored without a change. The status in the harness is
+application-owned and counts changed messages. The automated tests inspect only
+the production runtime projection, including the focused caret-area source used
+by the existing native Winit publication path; they do not claim live AppKit or
+candidate-panel evidence. Native Japanese IME acceptance remains unperformed
+until these live steps are actually run.
+
 ## Examples And Sandboxes
 
 Radiant examples are maintained API and sandbox contracts. They should compile
@@ -6149,8 +6178,8 @@ manual validation:
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `render_canvas`, `custom_shader_surface`, `render_canvas_stack_overlay`, `waveform_view`, `spectrogram` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
-| Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance` |
-| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance`, `macos_external_drag_acceptance`, `macos_numeric_accessibility_acceptance` |
+| Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance`, `macos_text_input_ime_acceptance` |
+| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance`, `macos_external_drag_acceptance`, `macos_numeric_accessibility_acceptance`, `macos_text_input_ime_acceptance` |
 
 Run `cargo run --example logical_provider_attachment` to inspect the portable
 declarative provider attachment shape; the qualified custom-coordinate resolver

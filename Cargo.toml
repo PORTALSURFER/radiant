@@ -285,6 +285,10 @@ path = "examples/render_canvas_stack_overlay.rs"
 name = "macos_numeric_accessibility_acceptance"
 path = "examples/macos_numeric_accessibility_acceptance.rs"
 
+[[example]]
+name = "macos_text_input_ime_acceptance"
+path = "examples/macos_text_input_ime_acceptance.rs"
+
 [[bench]]
 name = "perf_harness"
 path = "benches/perf_harness.rs"

@@ -7,6 +7,7 @@ const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "examples/macos_external_drag_acceptance.rs",
     "examples/macos_frame_profile_acceptance.rs",
     "examples/macos_numeric_accessibility_acceptance.rs",
+    "examples/macos_text_input_ime_acceptance.rs",
     "examples/popup_window/host/child.rs",
     "examples/popup_window/host/prewarm.rs",
     "examples/popup_window/host/process.rs",

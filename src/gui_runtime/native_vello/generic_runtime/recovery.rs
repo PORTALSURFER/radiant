@@ -478,7 +478,7 @@ mod tests {
     fn future_driver_returns_cancellation_before_polling_or_parking() {
         let cancellation = Arc::new(RecoveryWorkerWake::new());
         cancellation.cancel();
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
 
         let result = drive_wgpu_future(&instance, ready(()), &cancellation);
 
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn future_driver_returns_cancellation_after_pending_progress() {
         let cancellation = Arc::new(RecoveryWorkerWake::new());
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
 
         let result = drive_wgpu_future(
             &instance,

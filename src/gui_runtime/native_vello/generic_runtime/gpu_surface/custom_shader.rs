@@ -41,7 +41,10 @@ impl GpuSurfaceRenderer {
             .filter(|bytes| !bytes.is_empty())
             .map(|_| {
                 self.presentation_staging_belt.get_or_insert_with(|| {
-                    vello::wgpu::util::StagingBelt::new(PRESENTATION_STAGING_BELT_CHUNK_SIZE)
+                    vello::wgpu::util::StagingBelt::new(
+                        target.device.clone(),
+                        PRESENTATION_STAGING_BELT_CHUNK_SIZE,
+                    )
                 })
             });
         {

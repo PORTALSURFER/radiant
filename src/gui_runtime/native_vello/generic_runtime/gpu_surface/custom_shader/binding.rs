@@ -52,10 +52,10 @@ impl GpuSurfaceRenderer {
             return;
         }
         stats.custom_shader.binding_rebuilds += 1;
-        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let buffers = custom_shader_binding_buffers(device, request.descriptor);
         let bind_group = custom_shader_bind_group(device, &pipeline.bind_group_layout, &buffers);
-        if let Some(error) = custom_shader_validation_error(device) {
+        if let Some(error) = custom_shader_validation_error(error_scope) {
             stats.custom_shader.failures.binding_failures += 1;
             warn!(
                 surface_key = request.surface_key,

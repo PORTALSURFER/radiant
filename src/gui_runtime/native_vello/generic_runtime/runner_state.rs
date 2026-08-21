@@ -39,24 +39,32 @@ pub(super) enum SurfaceAcquirePolicy {
     ReconfigureAndRetry,
     Defer,
     Timeout,
-    Terminal,
     ConservativeFence,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NativeSurfaceAcquireFailure {
+    Lost,
+    Outdated,
+    Timeout,
+    Other,
+}
+
 pub(super) const fn surface_acquire_policy(
-    error: wgpu::SurfaceError,
+    error: NativeSurfaceAcquireFailure,
     size: PhysicalSize<u32>,
 ) -> SurfaceAcquirePolicy {
     match error {
-        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated
+        NativeSurfaceAcquireFailure::Lost | NativeSurfaceAcquireFailure::Outdated
             if size.width > 0 && size.height > 0 =>
         {
             SurfaceAcquirePolicy::ReconfigureAndRetry
         }
-        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => SurfaceAcquirePolicy::Defer,
-        wgpu::SurfaceError::Timeout => SurfaceAcquirePolicy::Timeout,
-        wgpu::SurfaceError::OutOfMemory => SurfaceAcquirePolicy::Terminal,
-        wgpu::SurfaceError::Other => SurfaceAcquirePolicy::ConservativeFence,
+        NativeSurfaceAcquireFailure::Lost | NativeSurfaceAcquireFailure::Outdated => {
+            SurfaceAcquirePolicy::Defer
+        }
+        NativeSurfaceAcquireFailure::Timeout => SurfaceAcquirePolicy::Timeout,
+        NativeSurfaceAcquireFailure::Other => SurfaceAcquirePolicy::ConservativeFence,
     }
 }
 
@@ -92,21 +100,20 @@ impl Default for NativeSurfaceRecoveryState {
 }
 
 impl NativeSurfaceRecoveryState {
-    pub(super) fn observe_acquire_error(&mut self, error: &wgpu::SurfaceError) {
+    pub(super) fn observe_acquire_error(&mut self, error: &NativeSurfaceAcquireFailure) {
         match error {
-            wgpu::SurfaceError::Lost => {
+            NativeSurfaceAcquireFailure::Lost => {
                 self.lost = self.lost.saturating_add(1);
             }
-            wgpu::SurfaceError::Outdated => {
+            NativeSurfaceAcquireFailure::Outdated => {
                 self.outdated = self.outdated.saturating_add(1);
             }
-            wgpu::SurfaceError::Timeout => {
+            NativeSurfaceAcquireFailure::Timeout => {
                 self.timeouts = self.timeouts.saturating_add(1);
             }
-            wgpu::SurfaceError::Other => {
+            NativeSurfaceAcquireFailure::Other => {
                 self.others = self.others.saturating_add(1);
             }
-            _ => {}
         }
     }
 
@@ -1585,16 +1592,16 @@ mod tests {
         let zero = PhysicalSize::new(0, 480);
 
         assert_eq!(
-            super::surface_acquire_policy(vello::wgpu::SurfaceError::Lost, zero),
+            super::surface_acquire_policy(super::NativeSurfaceAcquireFailure::Lost, zero),
             super::SurfaceAcquirePolicy::Defer
         );
         assert_eq!(
-            super::surface_acquire_policy(vello::wgpu::SurfaceError::Outdated, zero),
+            super::surface_acquire_policy(super::NativeSurfaceAcquireFailure::Outdated, zero),
             super::SurfaceAcquirePolicy::Defer
         );
         assert_eq!(
             super::surface_acquire_policy(
-                vello::wgpu::SurfaceError::Lost,
+                super::NativeSurfaceAcquireFailure::Lost,
                 PhysicalSize::new(640, 480)
             ),
             super::SurfaceAcquirePolicy::ReconfigureAndRetry
@@ -1604,10 +1611,10 @@ mod tests {
     #[test]
     fn surface_recovery_counters_saturate_and_convert() {
         let mut state = NativeSurfaceRecoveryState::default();
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Lost);
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Outdated);
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Lost);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Outdated);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Timeout);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Other);
         state.record_completed_reconfigure();
         state.record_zero_size_deferral();
         state.record_retry_request();
@@ -1637,10 +1644,10 @@ mod tests {
         state.retry_requests = u64::MAX;
         state.timeout_retry_requests = u64::MAX;
         state.other_retry_requests = u64::MAX;
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Lost);
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Outdated);
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Lost);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Outdated);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Timeout);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Other);
         state.record_completed_reconfigure();
         state.record_zero_size_deferral();
         state.record_retry_request();
@@ -1671,33 +1678,33 @@ mod tests {
     fn consecutive_timeout_retry_is_one_shot_until_success_or_target_transition() {
         let mut state = NativeSurfaceRecoveryState::default();
 
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Timeout);
         assert!(state.record_timeout_retry_request(true));
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Other);
         assert!(!state.record_other_retry_request(true));
 
         // A successful acquisition rearms the next consecutive sequence.
         state.rearm_transient_retry();
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Other);
         assert!(state.record_other_retry_request(true));
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Timeout);
         assert!(!state.record_timeout_retry_request(true));
 
         // Rearming is idempotent, so an authoritative transition grants only
         // one later retry even if another transition notification is repeated.
         state.rearm_transient_retry();
         state.rearm_transient_retry();
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Timeout);
         assert!(state.record_timeout_retry_request(true));
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Other);
         assert!(!state.record_other_retry_request(true));
 
         // A minimized window consumes the sequence permit without scheduling
         // a retry; only a later success or target transition can rearm it.
         state.rearm_transient_retry();
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Other);
         assert!(!state.record_other_retry_request(false));
-        state.observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Timeout);
         assert!(!state.record_timeout_retry_request(true));
 
         let diagnostics = state.diagnostics();

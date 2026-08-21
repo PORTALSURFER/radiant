@@ -19,7 +19,7 @@ impl PostGpuOverlayPipeline {
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("radiant_post_gpu_overlay_pipeline_layout"),
             bind_group_layouts: &[],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("radiant_post_gpu_overlay_pipeline"),
@@ -53,7 +53,7 @@ impl PostGpuOverlayPipeline {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
         Self {
@@ -93,6 +93,7 @@ impl PostGpuOverlayPipeline {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
         pass.set_pipeline(&self.pipeline);
         pass.set_vertex_buffer(0, vertex_buffer.slice(..));

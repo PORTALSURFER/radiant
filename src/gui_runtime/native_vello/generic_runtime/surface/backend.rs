@@ -3,11 +3,12 @@ use vello::wgpu;
 
 pub(super) fn instance_for_options(options: &NativeRunOptions) -> wgpu::Instance {
     let backends = wgpu_backends(options.gpu.backend).unwrap_or_default();
-    wgpu::Instance::new(&wgpu::InstanceDescriptor {
+    wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends,
         flags: wgpu::InstanceFlags::from_build_config().with_env(),
         memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
         backend_options: wgpu::BackendOptions::from_env_or_default(),
+        display: None,
     })
 }
 

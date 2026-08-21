@@ -2,8 +2,8 @@
 
 use super::native_visual_packet::NativeVisualRequestDisposition;
 use super::runner_state::{
-    NativeResourceMaintenanceTurn, NativeWindowResourceBundle, SurfaceAcquirePolicy,
-    surface_acquire_policy,
+    NativeResourceMaintenanceTurn, NativeSurfaceAcquireFailure, NativeWindowResourceBundle,
+    SurfaceAcquirePolicy, surface_acquire_policy,
 };
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
@@ -25,7 +25,7 @@ use crate::{
     theme::DpiScale,
 };
 use std::{sync::Arc, time::Instant};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use vello::{Renderer, wgpu};
 use winit::{
     dpi::PhysicalSize,
@@ -40,7 +40,7 @@ use viewport::{logical_viewport_for_size, surface_size_changed};
 #[derive(Debug)]
 pub(super) enum NativeSurfaceAcquireError {
     MissingResources,
-    Surface(wgpu::SurfaceError),
+    Surface(NativeSurfaceAcquireFailure),
 }
 
 pub(super) fn instance_for_options(options: &NativeRunOptions) -> wgpu::Instance {
@@ -434,10 +434,10 @@ where
     ) {
         self.window
             .surface_recovery
-            .observe_acquire_error(&wgpu::SurfaceError::Other);
+            .observe_acquire_error(&NativeSurfaceAcquireFailure::Other);
         self.fence_native_surface_target();
         if matches!(
-            surface_acquire_policy(wgpu::SurfaceError::Other, size),
+            surface_acquire_policy(NativeSurfaceAcquireFailure::Other, size),
             SurfaceAcquirePolicy::ConservativeFence
         ) && self
             .window
@@ -543,12 +543,27 @@ where
             };
             resources.render_surface.surface.get_current_texture()
         };
-        texture.map_err(NativeSurfaceAcquireError::Surface)
+        match texture {
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => Ok(texture),
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => Err(
+                NativeSurfaceAcquireError::Surface(NativeSurfaceAcquireFailure::Timeout),
+            ),
+            wgpu::CurrentSurfaceTexture::Outdated => Err(NativeSurfaceAcquireError::Surface(
+                NativeSurfaceAcquireFailure::Outdated,
+            )),
+            wgpu::CurrentSurfaceTexture::Lost => Err(NativeSurfaceAcquireError::Surface(
+                NativeSurfaceAcquireFailure::Lost,
+            )),
+            wgpu::CurrentSurfaceTexture::Validation => Err(NativeSurfaceAcquireError::Surface(
+                NativeSurfaceAcquireFailure::Other,
+            )),
+        }
     }
 
     pub(super) fn handle_present_surface_acquire_error(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        _event_loop: &ActiveEventLoop,
         adapter: &GenericNativeAdapterOwner,
         requested_packet: bool,
         error: NativeSurfaceAcquireError,
@@ -558,7 +573,7 @@ where
             return NativeVisualRequestDisposition::DropPacket;
         };
         match error {
-            error @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+            error @ (NativeSurfaceAcquireFailure::Lost | NativeSurfaceAcquireFailure::Outdated) => {
                 self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
                 let Some(size) = self
@@ -586,7 +601,7 @@ where
                 }
                 NativeVisualRequestDisposition::DropPacket
             }
-            error @ wgpu::SurfaceError::Timeout => {
+            error @ NativeSurfaceAcquireFailure::Timeout => {
                 self.mark_cpu_frame_observation_recovery();
                 self.window.surface_recovery.observe_acquire_error(&error);
                 let size = self
@@ -606,7 +621,7 @@ where
                 }
                 NativeVisualRequestDisposition::DropPacket
             }
-            wgpu::SurfaceError::Other => {
+            NativeSurfaceAcquireFailure::Other => {
                 self.mark_cpu_frame_observation_recovery();
                 let size = self
                     .window
@@ -616,15 +631,6 @@ where
                 self.handle_other_surface_acquire_failure_for_packet(size, requested_packet);
                 warn!(
                     "radiant generic native vello: conservatively fenced surface after other acquire error"
-                );
-                NativeVisualRequestDisposition::DropPacket
-            }
-            wgpu::SurfaceError::OutOfMemory => {
-                self.mark_cpu_frame_observation_recovery();
-                error!("radiant generic native vello: out of memory acquiring surface");
-                self.admit_native_shutdown(
-                    event_loop,
-                    Some(NativeGenericRunError::SurfaceAcquireOutOfMemory),
                 );
                 NativeVisualRequestDisposition::DropPacket
             }

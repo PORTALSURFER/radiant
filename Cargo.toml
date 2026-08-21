@@ -19,15 +19,15 @@ arboard = "3.6.1"
 winit = "0.30.12"
 raw-window-handle = "0.6"
 pollster = "0.4.0"
-vello = "0.7.0"
+vello = "0.9.0"
 kurbo = "0.13.0"
 lyon_tessellation = "1.0"
-skrifa = "0.40.0"
+skrifa = "0.42.1"
 tracing = "0.1.41"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 roxmltree = "0.21.1"
-vello_svg = { version = "0.9.0", default-features = false }
+vello_svg = { version = "0.10.0", default-features = false }
 rfd = "0.16.0"
 open = "5.3.3"
 

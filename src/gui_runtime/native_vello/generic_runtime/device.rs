@@ -82,6 +82,7 @@ fn render_device_error_event(
     error: wgpu::Error,
 ) -> RuntimeUserEvent {
     let (kind, message) = classify_uncaptured_error(error);
+    registration.observe_uncaptured_error(kind);
     RuntimeUserEvent::RenderDeviceError {
         registration,
         generation,
@@ -319,5 +320,38 @@ mod tests {
         );
 
         assert!(!sent);
+    }
+
+    #[test]
+    fn surface_acquire_correlation_is_active_only_for_the_current_call() {
+        let registration = Arc::new(DeviceLossRegistration::new());
+
+        registration.observe_uncaptured_error(NativeRenderDeviceErrorKind::OutOfMemory);
+        registration.begin_surface_acquire();
+        assert_eq!(registration.finish_surface_acquire(), None);
+
+        registration.begin_surface_acquire();
+        let _ = render_device_error_event(
+            Arc::clone(&registration),
+            NativeAdapterGeneration::from_test_serial(1),
+            wgpu::Error::OutOfMemory {
+                source: backend_error_source(),
+            },
+        );
+        assert_eq!(
+            registration.finish_surface_acquire(),
+            Some(NativeRenderDeviceErrorKind::OutOfMemory)
+        );
+
+        registration.begin_surface_acquire();
+        let _ = render_device_error_event(
+            Arc::clone(&registration),
+            NativeAdapterGeneration::from_test_serial(1),
+            validation_error("surface validation"),
+        );
+        assert_eq!(
+            registration.finish_surface_acquire(),
+            Some(NativeRenderDeviceErrorKind::Validation)
+        );
     }
 }

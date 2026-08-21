@@ -1246,6 +1246,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             }
             WindowEvent::Moved(_) => self.runner.observe_monitor_move(),
             WindowEvent::ThemeChanged(theme) => self.runner.observe_theme_change(Some(theme)),
+            WindowEvent::Occluded(occluded) => self.runner.handle_surface_occlusion(occluded),
             WindowEvent::Focused(false) => {
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = adapter.capture_generation() else {

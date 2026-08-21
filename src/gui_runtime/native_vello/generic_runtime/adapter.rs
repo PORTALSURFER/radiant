@@ -338,6 +338,12 @@ impl GenericNativeAdapterOwner {
         generation.is_known().then_some(generation)
     }
 
+    pub(super) fn capture_device_loss_registration(&self) -> Option<Arc<DeviceLossRegistration>> {
+        self.selected
+            .as_ref()
+            .map(|selected| Arc::clone(&selected.device_loss_registration))
+    }
+
     /// Admit a window resource bundle only when it still names the exact
     /// current known generation owned by this adapter.
     pub(super) fn admit_generation(&self, generation: NativeAdapterGeneration) -> bool {

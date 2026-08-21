@@ -149,7 +149,7 @@ where
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         let mut ticket = Some(ticket);
-        let surface_texture = match self.acquire_present_surface_texture() {
+        let surface_texture = match self.acquire_present_surface_texture(adapter) {
             Ok(surface_texture) => {
                 self.prepare_successful_surface_acquisition();
                 surface_texture

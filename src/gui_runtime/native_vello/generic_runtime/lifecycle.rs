@@ -280,6 +280,7 @@ where
                 self.invalidate_native_semantic_accessibility_geometry();
             }
             WindowEvent::ThemeChanged(theme) => self.observe_theme_change(Some(theme)),
+            WindowEvent::Occluded(occluded) => self.handle_surface_occlusion(occluded),
             WindowEvent::Focused(false) => {
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = self
@@ -1578,6 +1579,7 @@ mod tests {
             WindowEvent::CloseRequested,
             WindowEvent::Resized(PhysicalSize::new(320, 240)),
             WindowEvent::Moved(PhysicalPosition::new(10, 20)),
+            WindowEvent::Occluded(false),
             WindowEvent::DroppedFile(std::path::PathBuf::from("sample.wav")),
             WindowEvent::HoveredFileCancelled,
             WindowEvent::RedrawRequested,

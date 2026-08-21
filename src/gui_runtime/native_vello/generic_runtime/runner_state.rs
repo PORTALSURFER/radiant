@@ -38,7 +38,9 @@ use winit::{
 pub(super) enum SurfaceAcquirePolicy {
     ReconfigureAndRetry,
     Defer,
+    Occluded,
     Timeout,
+    Terminal,
     ConservativeFence,
 }
 
@@ -46,7 +48,9 @@ pub(super) enum SurfaceAcquirePolicy {
 pub(super) enum NativeSurfaceAcquireFailure {
     Lost,
     Outdated,
+    Occluded,
     Timeout,
+    OutOfMemory,
     Other,
 }
 
@@ -63,7 +67,9 @@ pub(super) const fn surface_acquire_policy(
         NativeSurfaceAcquireFailure::Lost | NativeSurfaceAcquireFailure::Outdated => {
             SurfaceAcquirePolicy::Defer
         }
+        NativeSurfaceAcquireFailure::Occluded => SurfaceAcquirePolicy::Occluded,
         NativeSurfaceAcquireFailure::Timeout => SurfaceAcquirePolicy::Timeout,
+        NativeSurfaceAcquireFailure::OutOfMemory => SurfaceAcquirePolicy::Terminal,
         NativeSurfaceAcquireFailure::Other => SurfaceAcquirePolicy::ConservativeFence,
     }
 }
@@ -114,6 +120,7 @@ impl NativeSurfaceRecoveryState {
             NativeSurfaceAcquireFailure::Other => {
                 self.others = self.others.saturating_add(1);
             }
+            NativeSurfaceAcquireFailure::Occluded | NativeSurfaceAcquireFailure::OutOfMemory => {}
         }
     }
 
@@ -624,6 +631,7 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) environment: crate::runtime::WindowEnvironment,
     pub(super) target_generation: NativeTargetGeneration,
     pub(super) native_surface_target_fenced: bool,
+    pub(super) surface_occluded: bool,
     pub(super) surface_recovery: NativeSurfaceRecoveryState,
     pub(super) ime_cursor_area_cache: NativeImeCursorAreaCache,
     pub(super) native_visual_requests: NativeVisualRequestMailbox,
@@ -1606,6 +1614,30 @@ mod tests {
             ),
             super::SurfaceAcquirePolicy::ReconfigureAndRetry
         );
+        assert_eq!(
+            super::surface_acquire_policy(
+                super::NativeSurfaceAcquireFailure::Occluded,
+                PhysicalSize::new(640, 480)
+            ),
+            super::SurfaceAcquirePolicy::Occluded
+        );
+        assert_eq!(
+            super::surface_acquire_policy(
+                super::NativeSurfaceAcquireFailure::OutOfMemory,
+                PhysicalSize::new(640, 480)
+            ),
+            super::SurfaceAcquirePolicy::Terminal
+        );
+    }
+
+    #[test]
+    fn occluded_surface_does_not_consume_timeout_retry_permission() {
+        let mut state = NativeSurfaceRecoveryState::default();
+
+        state.observe_acquire_error(&super::NativeSurfaceAcquireFailure::Occluded);
+        assert!(state.record_timeout_retry_request(true));
+        assert_eq!(state.diagnostics().timeouts, 0);
+        assert_eq!(state.diagnostics().timeout_retry_requests, 1);
     }
 
     #[test]

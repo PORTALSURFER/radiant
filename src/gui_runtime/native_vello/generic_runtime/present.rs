@@ -405,11 +405,11 @@ where
     }
 
     pub(super) fn should_render_resize_frame_directly(&self) -> bool {
-        self.timing.surface_resize_applied_this_frame
-            && self.frame.scene_texture_dirty
-            && self.frame.transient_overlay_primitives.is_empty()
-            && self.frame.last_scene_stats.gpu_surface_count == 0
-            && !self.frame.has_post_gpu_overlay_work()
+        // A native window resize presents a wgpu SurfaceTexture whose usage is
+        // limited to render attachment.  Vello's storage-backed render target
+        // is the Radiant-owned scene texture, which is then composed into the
+        // acquired surface by `present_base_frame`.
+        false
     }
 
     fn finish_direct_resize_present(

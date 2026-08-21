@@ -297,7 +297,7 @@ fn window_resize_events_coalesce_until_redraw_boundary() {
 }
 
 #[test]
-fn simple_dirty_resize_frame_can_render_directly_to_surface() {
+fn dirty_resize_frame_uses_composited_present_path() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         NoTransientOverlayBridge::default(),
@@ -307,7 +307,7 @@ fn simple_dirty_resize_frame_can_render_directly_to_surface() {
     runner.timing.surface_resize_applied_this_frame = true;
     runner.frame.scene_texture_dirty = true;
 
-    assert!(runner.should_render_resize_frame_directly());
+    assert!(!runner.should_render_resize_frame_directly());
 
     runner
         .frame

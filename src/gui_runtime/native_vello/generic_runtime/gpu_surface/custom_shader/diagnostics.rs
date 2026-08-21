@@ -2,8 +2,10 @@ use super::super::stats::GpuSurfaceRenderStats;
 use crate::runtime::GpuShaderSurfaceDescriptor;
 use vello::wgpu;
 
-pub(super) fn custom_shader_validation_error(device: &wgpu::Device) -> Option<wgpu::Error> {
-    pollster::block_on(device.pop_error_scope())
+pub(super) fn custom_shader_validation_error(
+    error_scope: wgpu::ErrorScopeGuard,
+) -> Option<wgpu::Error> {
+    pollster::block_on(error_scope.pop())
 }
 
 pub(super) fn record_unsupported_custom_shader(

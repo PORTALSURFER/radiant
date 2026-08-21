@@ -151,7 +151,7 @@ fn native_visual_packets_have_one_bounded_redraw_authority() {
         "deferred Deadline route dispatch must follow exact resume and complete before redraw continuation"
     );
     let acquire_start = redraw
-        .find("let surface_texture = match self.acquire_present_surface_texture()")
+        .find("let surface_texture = match self.acquire_present_surface_texture(adapter)")
         .expect("redraw should use the raw acquisition seam");
     let acquire = &redraw[acquire_start..];
     let acquire_veto = acquire

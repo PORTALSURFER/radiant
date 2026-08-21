@@ -2436,6 +2436,35 @@ where
         self.window.native_visual_requests.resume()
     }
 
+    pub(super) fn handle_surface_occlusion(&mut self, occluded: bool) {
+        self.window.surface_occluded = occluded;
+        if !occluded {
+            self.request_redraw_after_surface_unoccluded();
+        }
+    }
+
+    fn request_redraw_after_surface_unoccluded(&mut self) {
+        let Some(window) = self.window.window.as_ref().cloned() else {
+            return;
+        };
+        let Some(window_id) = self.window.id else {
+            return;
+        };
+        if self.window.native_visual_requests.has_requested()
+            && NativeVisualRequestAdapter::reissue(
+                &mut self.window.native_visual_requests,
+                &window,
+                window_id,
+            )
+        {
+            let now = Instant::now();
+            self.timing.redraw_requested = true;
+            self.timing.redraw_requested_at = Some(now);
+            return;
+        }
+        self.request_redraw_for_frame_work(FrameWork::None);
+    }
+
     /// Veto the callback boundary when the primary adapter owner is absent or
     /// cannot provide a current generation. This is a packet-ownership
     /// transition, not a terminal lifecycle failure: any requested/pending
@@ -2503,20 +2532,30 @@ where
             return;
         };
         let now = Instant::now();
-        let stale_before_offer =
-            self.timing.redraw_requested && self.pending_redraw_request_is_stale(now);
+        let stale_before_offer = !self.window.surface_occluded
+            && self.timing.redraw_requested
+            && self.pending_redraw_request_is_stale(now);
         // Allocate and enqueue the newest offer before reissuing a stale wake.
         // Otherwise a stale wake can win the race and the newer work is never
         // represented by a packet revision.
-        let enqueue = NativeVisualRequestAdapter::enqueue(
-            &mut self.window.native_visual_requests,
-            &window,
-            frame_work,
-        );
+        let enqueue = if self.window.surface_occluded {
+            NativeVisualRequestAdapter::enqueue_without_wakeup(
+                &mut self.window.native_visual_requests,
+                frame_work,
+            )
+        } else {
+            NativeVisualRequestAdapter::enqueue(
+                &mut self.window.native_visual_requests,
+                &window,
+                frame_work,
+            )
+        };
         match enqueue {
             NativeVisualRequestEnqueue::Issued => {
-                self.timing.redraw_requested = true;
-                self.timing.redraw_requested_at = Some(now);
+                if !self.window.surface_occluded {
+                    self.timing.redraw_requested = true;
+                    self.timing.redraw_requested_at = Some(now);
+                }
             }
             NativeVisualRequestEnqueue::Replaced if stale_before_offer => {
                 if NativeVisualRequestAdapter::reissue(
@@ -2585,19 +2624,22 @@ where
     }
 
     pub(super) fn native_visual_request_schedule_is_eligible(&self) -> bool {
-        self.native_visual_request_scheduler_adapter_is_current()
+        !self.window.surface_occluded
+            && self.native_visual_request_scheduler_adapter_is_current()
             && (self.native_visual_request_offer_is_eligible()
                 || (self.window.native_visual_requests.has_requested()
                     && self.native_visual_request_recovery_offer_is_eligible()))
     }
 
     pub(super) fn native_visual_request_schedule_is_ordinary(&self) -> bool {
-        self.native_visual_request_scheduler_adapter_is_current()
+        !self.window.surface_occluded
+            && self.native_visual_request_scheduler_adapter_is_current()
             && self.native_visual_request_offer_is_eligible()
     }
 
     pub(super) fn native_visual_request_recovery_schedule_is_eligible(&self) -> bool {
-        self.native_visual_request_scheduler_adapter_is_current()
+        !self.window.surface_occluded
+            && self.native_visual_request_scheduler_adapter_is_current()
             && self.window.native_visual_requests.has_requested()
             && self.native_visual_request_recovery_offer_is_eligible()
     }
@@ -2820,7 +2862,9 @@ where
             let now = Instant::now();
             self.timing.redraw_requested = true;
             self.timing.redraw_requested_at = Some(now);
-        } else if !self.window.native_visual_requests.has_requested() {
+        } else if matches!(result, NativeVisualRequestFinish::Retained)
+            || !self.window.native_visual_requests.has_requested()
+        {
             self.clear_native_visual_request_wake_timing();
         }
         result

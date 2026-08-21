@@ -75,7 +75,7 @@ fn create_custom_shader_module(
     request: &CustomShaderPipelineRequest<'_>,
     stats: &mut GpuSurfaceRenderStats,
 ) -> Option<wgpu::ShaderModule> {
-    request
+    let error_scope = request
         .device
         .push_error_scope(wgpu::ErrorFilter::Validation);
     let shader = request
@@ -84,7 +84,7 @@ fn create_custom_shader_module(
             label: Some("radiant_custom_shader_surface_shader"),
             source: wgpu::ShaderSource::Wgsl(request.key.wgsl_source.as_ref().into()),
         });
-    if let Some(error) = custom_shader_validation_error(request.device) {
+    if let Some(error) = custom_shader_validation_error(error_scope) {
         stats.custom_shader.failures.shader_module_failures += 1;
         warn!(
             surface_key = request.surface_key,
@@ -102,13 +102,13 @@ fn create_custom_shader_pipeline(
     shader: &wgpu::ShaderModule,
     stats: &mut GpuSurfaceRenderStats,
 ) -> Option<CreatedCustomShaderPipeline> {
-    request
+    let error_scope = request
         .device
         .push_error_scope(wgpu::ErrorFilter::Validation);
     let bind_group_layout = create_custom_shader_bind_group_layout(request);
     let layout = create_custom_shader_pipeline_layout(request.device, &bind_group_layout);
     let pipeline = create_custom_shader_render_pipeline(request, shader, &layout);
-    if let Some(error) = custom_shader_validation_error(request.device) {
+    if let Some(error) = custom_shader_validation_error(error_scope) {
         stats.custom_shader.failures.pipeline_failures += 1;
         warn!(
             surface_key = request.surface_key,
@@ -158,7 +158,7 @@ fn create_custom_shader_render_pipeline(
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         })
 }

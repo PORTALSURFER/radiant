@@ -1,6 +1,7 @@
-use super::super::super::runner_state::{SurfaceAcquirePolicy, surface_acquire_policy};
+use super::super::super::runner_state::{
+    NativeSurfaceAcquireFailure, SurfaceAcquirePolicy, surface_acquire_policy,
+};
 use super::{fixtures::*, shared::*};
-use vello::wgpu;
 
 #[test]
 fn deferred_surface_resize_keeps_latest_nonzero_size() {
@@ -29,35 +30,37 @@ fn surface_acquire_policy_distinguishes_recovery_and_fence_states() {
     let nonzero = PhysicalSize::new(640, 360);
 
     assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::Lost, nonzero),
+        surface_acquire_policy(NativeSurfaceAcquireFailure::Lost, nonzero),
         SurfaceAcquirePolicy::ReconfigureAndRetry
     );
     assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::Outdated, nonzero),
+        surface_acquire_policy(NativeSurfaceAcquireFailure::Outdated, nonzero),
         SurfaceAcquirePolicy::ReconfigureAndRetry
     );
     assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::Lost, PhysicalSize::new(0, 360)),
+        surface_acquire_policy(NativeSurfaceAcquireFailure::Lost, PhysicalSize::new(0, 360),),
         SurfaceAcquirePolicy::Defer
     );
     assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::Outdated, PhysicalSize::new(640, 0)),
+        surface_acquire_policy(
+            NativeSurfaceAcquireFailure::Outdated,
+            PhysicalSize::new(640, 0),
+        ),
         SurfaceAcquirePolicy::Defer
     );
     assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::OutOfMemory, nonzero),
-        SurfaceAcquirePolicy::Terminal
-    );
-    assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::Timeout, nonzero),
+        surface_acquire_policy(NativeSurfaceAcquireFailure::Timeout, nonzero),
         SurfaceAcquirePolicy::Timeout
     );
     assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::Other, nonzero),
+        surface_acquire_policy(NativeSurfaceAcquireFailure::Other, nonzero),
         SurfaceAcquirePolicy::ConservativeFence
     );
     assert_eq!(
-        surface_acquire_policy(wgpu::SurfaceError::Other, PhysicalSize::new(0, 360)),
+        surface_acquire_policy(
+            NativeSurfaceAcquireFailure::Other,
+            PhysicalSize::new(0, 360),
+        ),
         SurfaceAcquirePolicy::ConservativeFence
     );
 }

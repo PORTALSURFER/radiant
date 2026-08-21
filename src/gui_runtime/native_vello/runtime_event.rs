@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use winit::window::WindowId;
 
 use super::generic_runtime::{
@@ -12,11 +12,60 @@ use super::generic_runtime::{
 /// An event carrying an old witness therefore cannot be admitted after its
 /// owner has been replaced, removed, or recreated.
 #[derive(Debug)]
-pub(in crate::gui_runtime::native_vello) struct DeviceLossRegistration;
+struct SurfaceAcquireCorrelation {
+    active: bool,
+    uncaptured_error: Option<NativeRenderDeviceErrorKind>,
+}
+
+#[derive(Debug)]
+pub(in crate::gui_runtime::native_vello) struct DeviceLossRegistration {
+    surface_acquire: Mutex<SurfaceAcquireCorrelation>,
+}
 
 impl DeviceLossRegistration {
-    pub(in crate::gui_runtime::native_vello) const fn new() -> Self {
-        Self
+    pub(in crate::gui_runtime::native_vello) fn new() -> Self {
+        Self {
+            surface_acquire: Mutex::new(SurfaceAcquireCorrelation {
+                active: false,
+                uncaptured_error: None,
+            }),
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn begin_surface_acquire(&self) {
+        let mut correlation = self
+            .surface_acquire
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        correlation.active = true;
+        correlation.uncaptured_error = None;
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn finish_surface_acquire(
+        &self,
+    ) -> Option<NativeRenderDeviceErrorKind> {
+        let mut correlation = self
+            .surface_acquire
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        correlation.active = false;
+        correlation.uncaptured_error.take()
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn observe_uncaptured_error(
+        &self,
+        kind: NativeRenderDeviceErrorKind,
+    ) {
+        let mut correlation = self
+            .surface_acquire
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if correlation.active
+            && (correlation.uncaptured_error.is_none()
+                || matches!(kind, NativeRenderDeviceErrorKind::OutOfMemory))
+        {
+            correlation.uncaptured_error = Some(kind);
+        }
     }
 }
 

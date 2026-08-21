@@ -31,6 +31,7 @@ pub(super) fn gpu_surface_render_pass<'a>(
         depth_stencil_attachment: None,
         timestamp_writes: None,
         occlusion_query_set: None,
+        multiview_mask: None,
     })
 }
 
@@ -52,6 +53,7 @@ pub(super) fn signal_body_render_pass<'a>(
         depth_stencil_attachment: None,
         timestamp_writes: None,
         occlusion_query_set: None,
+        multiview_mask: None,
     })
 }
 

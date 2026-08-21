@@ -1,3 +1,4 @@
+use super::super::runner_state::NativeSurfaceAcquireFailure;
 use super::{GenericNativeVelloRunner, NativeRunOptions, Vector2, demo_bridge};
 use crate::runtime::{RepaintScope, WindowEnvironmentChange};
 
@@ -49,7 +50,7 @@ fn dpi_target_transition_rearms_timeout_retry_between_timeout_attempts() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Timeout);
     assert!(
         runner
             .window
@@ -60,7 +61,7 @@ fn dpi_target_transition_rearms_timeout_retry_between_timeout_attempts() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Timeout);
     assert!(
         !runner
             .window
@@ -73,7 +74,7 @@ fn dpi_target_transition_rearms_timeout_retry_between_timeout_attempts() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Timeout);
     assert!(
         runner
             .window
@@ -102,7 +103,7 @@ fn dpi_target_transition_rearms_other_retry_between_other_attempts() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Other);
     assert!(
         runner
             .window
@@ -113,7 +114,7 @@ fn dpi_target_transition_rearms_other_retry_between_other_attempts() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Other);
     assert!(
         runner
             .window

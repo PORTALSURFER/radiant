@@ -193,6 +193,7 @@ impl From<bool> for NativeVisualRequestEligibility {
 pub(super) enum NativeVisualRequestFinish {
     Completed,
     Reissued,
+    Retained,
     WrongWindow,
     Stale,
 }
@@ -206,6 +207,10 @@ pub(super) enum NativeVisualRequestDisposition {
     /// packet when no newer pending offer exists; otherwise latest-wins
     /// promotes that successor.
     RetrySamePacket,
+    /// Retain the consuming packet and any newer pending work without issuing
+    /// another Winit wakeup.  The window will reissue the retained request
+    /// when its surface becomes visible again.
+    RetainUntilUnoccluded,
     /// Drop the consuming packet while retaining any newer pending request.
     DropPacket,
 }
@@ -437,13 +442,27 @@ impl NativeVisualRequestMailbox {
             // promoted before the failed consuming packet can be retried.
             self.requested = Some(pending);
             self.assert_bounded();
-            NativeVisualRequestFinish::Reissued
+            if matches!(
+                disposition,
+                NativeVisualRequestDisposition::RetainUntilUnoccluded
+            ) {
+                NativeVisualRequestFinish::Retained
+            } else {
+                NativeVisualRequestFinish::Reissued
+            }
         } else if matches!(disposition, NativeVisualRequestDisposition::RetrySamePacket) {
             // With no successor, retry the exact packet without allocating a
             // replacement identity.
             self.requested = Some(packet);
             self.assert_bounded();
             NativeVisualRequestFinish::Reissued
+        } else if matches!(
+            disposition,
+            NativeVisualRequestDisposition::RetainUntilUnoccluded
+        ) {
+            self.requested = Some(packet);
+            self.assert_bounded();
+            NativeVisualRequestFinish::Retained
         } else {
             self.assert_bounded();
             NativeVisualRequestFinish::Completed
@@ -558,6 +577,13 @@ impl NativeVisualRequestAdapter {
             Self::issue(window);
         }
         result
+    }
+
+    pub(super) fn enqueue_without_wakeup(
+        mailbox: &mut NativeVisualRequestMailbox,
+        frame_work: FrameWork,
+    ) -> NativeVisualRequestEnqueue {
+        mailbox.enqueue(frame_work)
     }
 
     pub(super) fn reissue(
@@ -788,6 +814,48 @@ mod tests {
         );
         assert_eq!(mailbox.requested_revision(), Some(1));
         assert_eq!(mailbox.pending_revision(), None);
+    }
+
+    #[test]
+    fn occluded_finish_retains_and_coalesces_until_explicit_reissue() {
+        let (mut mailbox, window_id) = mailbox();
+        assert_eq!(
+            mailbox.enqueue(FrameWork::PaintOnly {
+                reason: super::super::FrameWorkReason::RuntimePaintOnly,
+            }),
+            NativeVisualRequestEnqueue::Issued
+        );
+        let packet = match mailbox.begin(window_id, true) {
+            NativeVisualRequestBegin::Requested(packet) => packet,
+            other => panic!("unexpected begin result: {other:?}"),
+        };
+        assert_eq!(
+            mailbox.enqueue(FrameWork::RefreshSurface {
+                reason: super::super::FrameWorkReason::RuntimeSurfaceRefresh,
+            }),
+            NativeVisualRequestEnqueue::Queued
+        );
+        assert_eq!(
+            mailbox.finish(
+                window_id,
+                packet,
+                NativeVisualRequestDisposition::RetainUntilUnoccluded,
+            ),
+            NativeVisualRequestFinish::Retained
+        );
+        assert_eq!(mailbox.requested_revision(), Some(2));
+        assert_eq!(mailbox.pending_revision(), None);
+
+        assert_eq!(
+            mailbox.enqueue(FrameWork::RebuildScene {
+                reason: super::super::FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: super::super::SceneRebuildMode::Immediate,
+            }),
+            NativeVisualRequestEnqueue::Replaced
+        );
+        assert_eq!(mailbox.requested_revision(), Some(3));
+        assert!(mailbox.has_requested());
+        assert!(mailbox.reissue_requested(window_id));
     }
 
     #[test]

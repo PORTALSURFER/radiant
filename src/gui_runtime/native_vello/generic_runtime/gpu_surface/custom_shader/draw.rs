@@ -97,7 +97,6 @@ pub(super) fn upload_custom_shader_buffers(
                 request.target.encoder,
                 buffer,
                 bytes,
-                request.target.device,
             )
         {
             request.binding.write_state.cache_presentation_revision(
@@ -129,7 +128,6 @@ pub(super) fn upload_custom_shader_buffers(
                 request.target.encoder,
                 buffer,
                 update.bytes(),
-                request.target.device,
             )
         {
             request
@@ -147,7 +145,6 @@ fn write_presentation_uniform(
     encoder: &mut wgpu::CommandEncoder,
     buffer: &wgpu::Buffer,
     bytes: &[u8],
-    device: &wgpu::Device,
 ) -> bool {
     let Some(staging_belt) = staging_belt else {
         return false;
@@ -155,7 +152,7 @@ fn write_presentation_uniform(
     let Some(size) = wgpu::BufferSize::new(bytes.len() as wgpu::BufferAddress) else {
         return false;
     };
-    let mut staging = staging_belt.write_buffer(encoder, buffer, 0, size, device);
+    let mut staging = staging_belt.write_buffer(encoder, buffer, 0, size);
     staging.copy_from_slice(bytes);
     true
 }

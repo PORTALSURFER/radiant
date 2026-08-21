@@ -174,7 +174,7 @@ impl EmbeddedVelloRenderer {
             render_context
                 .instance
                 .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-                    raw_display_handle: handle.display,
+                    raw_display_handle: Some(handle.display),
                     raw_window_handle: handle.window,
                 })
         }
@@ -307,18 +307,20 @@ impl EmbeddedVelloRenderer {
 
     fn acquire_surface_texture(&mut self) -> Result<wgpu::SurfaceTexture, EmbeddedVelloError> {
         match self.render_surface.surface.get_current_texture() {
-            Ok(texture) => Ok(texture),
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => Ok(texture),
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
                 let width = self.render_surface.config.width;
                 let height = self.render_surface.config.height;
                 self.render_context
                     .resize_surface(&mut self.render_surface, width, height);
-                self.render_surface
-                    .surface
-                    .get_current_texture()
-                    .map_err(|error| EmbeddedVelloError::AcquireSurface(error.to_string()))
+                match self.render_surface.surface.get_current_texture() {
+                    wgpu::CurrentSurfaceTexture::Success(texture)
+                    | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => Ok(texture),
+                    error => Err(EmbeddedVelloError::AcquireSurface(format!("{error:?}"))),
+                }
             }
-            Err(error) => Err(EmbeddedVelloError::AcquireSurface(error.to_string())),
+            error => Err(EmbeddedVelloError::AcquireSurface(format!("{error:?}"))),
         }
     }
 }

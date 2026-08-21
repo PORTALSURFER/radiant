@@ -1,4 +1,5 @@
 use super::super::super::frame_scheduler_policy::NativeInputStageDisposition;
+use super::super::super::runner_state::NativeSurfaceAcquireFailure;
 use super::{fixtures::*, shared::*};
 
 fn over_budget(outcome: GenericRouteOutcome) -> GenericRouteOutcome {
@@ -404,7 +405,7 @@ fn timeout_and_other_retries_share_one_transient_permit() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Timeout);
     assert!(
         runner
             .window
@@ -414,7 +415,7 @@ fn timeout_and_other_retries_share_one_transient_permit() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Other);
     assert!(
         !runner
             .window
@@ -426,7 +427,7 @@ fn timeout_and_other_retries_share_one_transient_permit() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Other);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Other);
     assert!(
         runner
             .window
@@ -436,7 +437,7 @@ fn timeout_and_other_retries_share_one_transient_permit() {
     runner
         .window
         .surface_recovery
-        .observe_acquire_error(&vello::wgpu::SurfaceError::Timeout);
+        .observe_acquire_error(&NativeSurfaceAcquireFailure::Timeout);
     assert!(
         !runner
             .window

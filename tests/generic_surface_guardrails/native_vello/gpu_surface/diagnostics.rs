@@ -154,7 +154,7 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
         custom_shader_diagnostics.contains("fn custom_shader_validation_error")
             && custom_shader_diagnostics.contains("fn record_unsupported_custom_shader")
             && custom_shader_diagnostics.contains("custom_shader.failures.surfaces_failed += 1")
-            && custom_shader_diagnostics.contains("device.pop_error_scope()")
+            && custom_shader_diagnostics.contains("error_scope.pop()")
             && custom_shader_diagnostics.contains("custom_shader.unsupported.surfaces += 1")
             && custom_shader_diagnostics.contains("custom_shader.unsupported.vertices")
             && custom_shader_diagnostics.contains("custom_shader.unsupported.source_bytes")

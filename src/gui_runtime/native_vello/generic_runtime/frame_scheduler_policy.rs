@@ -467,6 +467,18 @@ mod tests {
     }
 
     #[test]
+    fn soft_budget_input_normalizes_effective_fps_before_binding() {
+        assert_eq!(
+            SchedulerSoftBudgets::for_effective_fps(0),
+            SchedulerSoftBudgets::for_effective_fps(1)
+        );
+        assert_eq!(
+            SchedulerSoftBudgets::for_effective_fps(120).input_transient,
+            Duration::from_secs_f64(1.0 / 120.0 / 8.0)
+        );
+    }
+
+    #[test]
     fn continuous_work_does_not_block_fairness_eligibility() {
         let mut eligibility = eligible();
         eligibility.continuous_coalescible_work = true;

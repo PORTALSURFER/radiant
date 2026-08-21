@@ -6,7 +6,9 @@
 //! coalescing policy.
 
 use super::frame_scheduler::FrameScheduleKey;
-use super::frame_stage_admission::{ImmediateTransientStageTicket, WindowStageOwner};
+use super::frame_stage_admission::{
+    FrameStageBudgetBinding, ImmediateTransientStageTicket, WindowStageOwner,
+};
 use super::runner_state::NativeTargetGeneration;
 use super::{NativeAdapterGeneration, NativeLifecycle};
 use crate::gui::input::InputTimestamp;
@@ -94,15 +96,34 @@ impl NativeImmediateTransientStageTicket {
 }
 
 /// Admit one exact native transient event under the shared per-window owner.
+#[cfg(test)]
 pub(super) fn admit_native_immediate_transient(
     owner: &mut WindowStageOwner,
     evidence: NativeImmediateTransientStageEvidence,
 ) -> Option<NativeImmediateTransientStageTicket> {
+    admit_native_immediate_transient_with_budget(
+        owner,
+        evidence,
+        FrameStageBudgetBinding::not_budgeted(),
+    )
+}
+
+/// Admit one exact native transient event with an admission-bound
+/// observational budget. The owner captures a live start instant only after
+/// admission fences succeed.
+pub(super) fn admit_native_immediate_transient_with_budget(
+    owner: &mut WindowStageOwner,
+    evidence: NativeImmediateTransientStageEvidence,
+    budget: FrameStageBudgetBinding,
+) -> Option<NativeImmediateTransientStageTicket> {
     if !owner.owns_key(&evidence.key) || !evidence.is_admissible() {
         return None;
     }
-    let stage_ticket =
-        owner.admit_immediate_transient(evidence.adapter_generation, evidence.target_generation)?;
+    let stage_ticket = owner.admit_immediate_transient_with_budget(
+        evidence.adapter_generation,
+        evidence.target_generation,
+        budget,
+    )?;
     Some(NativeImmediateTransientStageTicket::new(
         stage_ticket,
         evidence,
@@ -116,6 +137,16 @@ pub(super) fn complete_native_immediate_transient(
     ticket: NativeImmediateTransientStageTicket,
 ) -> bool {
     owner.complete_immediate_transient(ticket.into_stage_ticket())
+}
+
+/// Complete with an injected instant for deterministic timing tests.
+#[cfg(test)]
+pub(super) fn complete_native_immediate_transient_at(
+    owner: &mut WindowStageOwner,
+    ticket: NativeImmediateTransientStageTicket,
+    completed_at: Option<std::time::Instant>,
+) -> bool {
+    owner.complete_immediate_transient_at(ticket.into_stage_ticket(), completed_at)
 }
 
 /// Veto the exact staged native transient event before routing.  A mismatched
@@ -174,7 +205,9 @@ mod tests {
                 ticket.stage_ticket().identity().stage(),
                 SchedulerStage::ImmediateTransient
             );
-            assert!(complete_native_immediate_transient(&mut owner, ticket));
+            assert!(complete_native_immediate_transient_at(
+                &mut owner, ticket, None
+            ));
             assert!(!owner.has_in_flight());
         }
     }

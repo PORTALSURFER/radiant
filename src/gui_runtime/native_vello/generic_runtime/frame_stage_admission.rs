@@ -393,6 +393,7 @@ struct InFlightLifecycle {
 #[derive(Debug)]
 pub(super) struct DiscreteInputStageTicket {
     identity: FrameStageIdentity,
+    budget: FrameStageBudgetBinding,
     owner_token: usize,
 }
 
@@ -401,11 +402,17 @@ impl DiscreteInputStageTicket {
     pub(super) fn identity(&self) -> &FrameStageIdentity {
         &self.identity
     }
+
+    #[cfg(test)]
+    pub(super) const fn budget(&self) -> FrameStageBudgetBinding {
+        self.budget
+    }
 }
 
 #[derive(Debug)]
 struct InFlightDiscreteInput {
     identity: FrameStageIdentity,
+    budget: FrameStageBudgetBinding,
 }
 
 /// A non-`Clone` witness for one exact synchronous ImmediateTransient attempt.
@@ -416,6 +423,7 @@ struct InFlightDiscreteInput {
 #[derive(Debug)]
 pub(super) struct ImmediateTransientStageTicket {
     identity: FrameStageIdentity,
+    budget: FrameStageBudgetBinding,
     owner_token: usize,
 }
 
@@ -424,16 +432,152 @@ impl ImmediateTransientStageTicket {
     pub(super) fn identity(&self) -> &FrameStageIdentity {
         &self.identity
     }
+
+    #[cfg(test)]
+    pub(super) const fn budget(&self) -> FrameStageBudgetBinding {
+        self.budget
+    }
 }
 
 #[derive(Debug)]
 struct InFlightImmediateTransient {
     identity: FrameStageIdentity,
+    budget: FrameStageBudgetBinding,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum FrameStageBudgetStatus {
+pub(super) enum FrameStageBudgetStatus {
     NotBudgeted,
+    Within,
+    Exceeded,
+}
+
+/// Admission-bound timing configuration for one observational stage attempt.
+///
+/// `capture_start` is consumed only after all admission fences succeed. This
+/// keeps a rejected attempt from reading the clock while still allowing
+/// deterministic tests to inject an exact start instant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct FrameStageBudgetBinding {
+    budget: Option<Duration>,
+    started_at: Option<Instant>,
+    capture_start: bool,
+}
+
+impl FrameStageBudgetBinding {
+    pub(super) const fn not_budgeted() -> Self {
+        Self {
+            budget: None,
+            started_at: None,
+            capture_start: false,
+        }
+    }
+
+    pub(super) const fn input_transient(budget: Duration) -> Self {
+        Self {
+            budget: Some(budget),
+            started_at: None,
+            capture_start: true,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) const fn input_transient_at(budget: Duration, started_at: Instant) -> Self {
+        Self {
+            budget: Some(budget),
+            started_at: Some(started_at),
+            capture_start: false,
+        }
+    }
+
+    fn bind_at_successful_admission(self) -> Self {
+        if self.capture_start {
+            Self {
+                budget: self.budget,
+                started_at: Some(Instant::now()),
+                capture_start: false,
+            }
+        } else {
+            Self {
+                capture_start: false,
+                ..self
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) const fn budget(self) -> Option<Duration> {
+        self.budget
+    }
+
+    #[cfg(test)]
+    pub(super) const fn started_at(self) -> Option<Instant> {
+        self.started_at
+    }
+
+    const fn should_measure(self) -> bool {
+        self.budget.is_some() && self.started_at.is_some()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FrameStageBudgetEvidence {
+    identity: FrameStageIdentity,
+    elapsed: Duration,
+    budget: Option<Duration>,
+    status: FrameStageBudgetStatus,
+}
+
+impl FrameStageBudgetEvidence {
+    fn new(
+        identity: FrameStageIdentity,
+        binding: FrameStageBudgetBinding,
+        completed_at: Option<Instant>,
+    ) -> Self {
+        let elapsed = match (binding.started_at, completed_at) {
+            (Some(started_at), Some(completed_at)) => {
+                completed_at.saturating_duration_since(started_at)
+            }
+            _ => Duration::ZERO,
+        };
+        let status = match (binding.budget, binding.started_at, completed_at) {
+            (Some(budget), Some(_), Some(_)) if elapsed > budget => {
+                FrameStageBudgetStatus::Exceeded
+            }
+            (Some(_), Some(_), Some(_)) => FrameStageBudgetStatus::Within,
+            _ => FrameStageBudgetStatus::NotBudgeted,
+        };
+        Self {
+            identity,
+            elapsed,
+            budget: binding.budget,
+            status,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) const fn identity(&self) -> &FrameStageIdentity {
+        &self.identity
+    }
+
+    #[cfg(test)]
+    pub(super) const fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    #[cfg(test)]
+    pub(super) const fn budget(&self) -> Option<Duration> {
+        self.budget
+    }
+
+    #[cfg(test)]
+    pub(super) const fn status(&self) -> FrameStageBudgetStatus {
+        self.status
+    }
+
+    const fn is_exceeded(&self) -> bool {
+        matches!(self.status, FrameStageBudgetStatus::Exceeded)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -476,6 +620,10 @@ pub(super) struct WindowStageOwner {
     last_lifecycle_completion: Option<FrameStageIdentity>,
     last_discrete_input_completion: Option<FrameStageIdentity>,
     last_immediate_transient_completion: Option<FrameStageIdentity>,
+    last_discrete_input_budget_evidence: Option<FrameStageBudgetEvidence>,
+    last_immediate_transient_budget_evidence: Option<FrameStageBudgetEvidence>,
+    discrete_input_budget_breach_count: u64,
+    immediate_transient_budget_breach_count: u64,
 }
 
 impl WindowStageOwner {
@@ -506,6 +654,10 @@ impl WindowStageOwner {
             last_lifecycle_completion: None,
             last_discrete_input_completion: None,
             last_immediate_transient_completion: None,
+            last_discrete_input_budget_evidence: None,
+            last_immediate_transient_budget_evidence: None,
+            discrete_input_budget_breach_count: 0,
+            immediate_transient_budget_breach_count: 0,
         }
     }
 
@@ -726,6 +878,10 @@ impl WindowStageOwner {
         self.last_lifecycle_completion = None;
         self.last_discrete_input_completion = None;
         self.last_immediate_transient_completion = None;
+        self.last_discrete_input_budget_evidence = None;
+        self.last_immediate_transient_budget_evidence = None;
+        self.discrete_input_budget_breach_count = 0;
+        self.immediate_transient_budget_breach_count = 0;
 
         let identity = FrameStageIdentity::new(
             self.key.clone(),
@@ -776,10 +932,26 @@ impl WindowStageOwner {
     /// Admit one exact synchronous native DiscreteInput attempt. A pending
     /// lower-stage payload may be invalidated at this safe boundary; callers
     /// must drain a deferred Deadline execution before invoking this method.
+    #[cfg(test)]
     pub(super) fn admit_discrete_input(
         &mut self,
         adapter_generation: NativeAdapterGeneration,
         target_generation: NativeTargetGeneration,
+    ) -> Option<DiscreteInputStageTicket> {
+        self.admit_discrete_input_with_budget(
+            adapter_generation,
+            target_generation,
+            FrameStageBudgetBinding::not_budgeted(),
+        )
+    }
+
+    /// Admit one exact input attempt with its admission-bound observational
+    /// budget. The optional clock capture occurs only after all fences pass.
+    pub(super) fn admit_discrete_input_with_budget(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+        budget: FrameStageBudgetBinding,
     ) -> Option<DiscreteInputStageTicket> {
         if self.has_in_flight()
             || !self.prepare_fence(
@@ -802,11 +974,14 @@ impl WindowStageOwner {
         if self.stale(&identity) {
             return None;
         }
+        let budget = budget.bind_at_successful_admission();
         self.discrete_input_in_flight = Some(InFlightDiscreteInput {
             identity: identity.clone(),
+            budget,
         });
         Some(DiscreteInputStageTicket {
             identity,
+            budget,
             owner_token: self as *const Self as usize,
         })
     }
@@ -819,6 +994,7 @@ impl WindowStageOwner {
             .as_ref()
             .is_some_and(|in_flight| {
                 in_flight.identity == ticket.identity
+                    && in_flight.budget == ticket.budget
                     && ticket.owner_token == self as *const Self as usize
             })
     }
@@ -830,7 +1006,36 @@ impl WindowStageOwner {
         if !self.discrete_input_ticket_is_current(&ticket) {
             return false;
         }
+        let completed_at = ticket.budget.should_measure().then(Instant::now);
+        self.finish_discrete_input(ticket, completed_at)
+    }
+
+    /// Complete with an injected completion instant for deterministic tests.
+    #[cfg(test)]
+    pub(super) fn complete_discrete_input_at(
+        &mut self,
+        ticket: DiscreteInputStageTicket,
+        completed_at: Option<Instant>,
+    ) -> bool {
+        self.finish_discrete_input(ticket, completed_at)
+    }
+
+    fn finish_discrete_input(
+        &mut self,
+        ticket: DiscreteInputStageTicket,
+        completed_at: Option<Instant>,
+    ) -> bool {
+        if !self.discrete_input_ticket_is_current(&ticket) {
+            return false;
+        }
         self.discrete_input_in_flight = None;
+        let evidence =
+            FrameStageBudgetEvidence::new(ticket.identity.clone(), ticket.budget, completed_at);
+        if evidence.is_exceeded() {
+            self.discrete_input_budget_breach_count =
+                self.discrete_input_budget_breach_count.saturating_add(1);
+        }
+        self.last_discrete_input_budget_evidence = Some(evidence);
         self.last_discrete_input_completion = Some(ticket.identity);
         true
     }
@@ -848,10 +1053,27 @@ impl WindowStageOwner {
     /// Admit one exact synchronous native ImmediateTransient attempt. A
     /// currently admitted DiscreteInput owner is never drained or replaced;
     /// the transient attempt fails inertly until that owner completes.
+    #[cfg(test)]
     pub(super) fn admit_immediate_transient(
         &mut self,
         adapter_generation: NativeAdapterGeneration,
         target_generation: NativeTargetGeneration,
+    ) -> Option<ImmediateTransientStageTicket> {
+        self.admit_immediate_transient_with_budget(
+            adapter_generation,
+            target_generation,
+            FrameStageBudgetBinding::not_budgeted(),
+        )
+    }
+
+    /// Admit one exact transient attempt with its admission-bound
+    /// observational budget. The optional clock capture occurs only after all
+    /// fences pass.
+    pub(super) fn admit_immediate_transient_with_budget(
+        &mut self,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+        budget: FrameStageBudgetBinding,
     ) -> Option<ImmediateTransientStageTicket> {
         if self.has_in_flight()
             || !self.prepare_fence(
@@ -874,11 +1096,14 @@ impl WindowStageOwner {
         if self.stale(&identity) {
             return None;
         }
+        let budget = budget.bind_at_successful_admission();
         self.immediate_transient_in_flight = Some(InFlightImmediateTransient {
             identity: identity.clone(),
+            budget,
         });
         Some(ImmediateTransientStageTicket {
             identity,
+            budget,
             owner_token: self as *const Self as usize,
         })
     }
@@ -891,6 +1116,7 @@ impl WindowStageOwner {
             .as_ref()
             .is_some_and(|in_flight| {
                 in_flight.identity == ticket.identity
+                    && in_flight.budget == ticket.budget
                     && ticket.owner_token == self as *const Self as usize
             })
     }
@@ -904,7 +1130,37 @@ impl WindowStageOwner {
         if !self.immediate_transient_ticket_is_current(&ticket) {
             return false;
         }
+        let completed_at = ticket.budget.should_measure().then(Instant::now);
+        self.finish_immediate_transient(ticket, completed_at)
+    }
+
+    /// Complete with an injected completion instant for deterministic tests.
+    #[cfg(test)]
+    pub(super) fn complete_immediate_transient_at(
+        &mut self,
+        ticket: ImmediateTransientStageTicket,
+        completed_at: Option<Instant>,
+    ) -> bool {
+        self.finish_immediate_transient(ticket, completed_at)
+    }
+
+    fn finish_immediate_transient(
+        &mut self,
+        ticket: ImmediateTransientStageTicket,
+        completed_at: Option<Instant>,
+    ) -> bool {
+        if !self.immediate_transient_ticket_is_current(&ticket) {
+            return false;
+        }
         self.immediate_transient_in_flight = None;
+        let evidence =
+            FrameStageBudgetEvidence::new(ticket.identity.clone(), ticket.budget, completed_at);
+        if evidence.is_exceeded() {
+            self.immediate_transient_budget_breach_count = self
+                .immediate_transient_budget_breach_count
+                .saturating_add(1);
+        }
+        self.last_immediate_transient_budget_evidence = Some(evidence);
         self.last_immediate_transient_completion = Some(ticket.identity);
         true
     }
@@ -1590,6 +1846,10 @@ impl WindowStageOwner {
             && self.last_lifecycle_completion.is_none()
             && self.last_discrete_input_completion.is_none()
             && self.last_immediate_transient_completion.is_none()
+            && self.last_discrete_input_budget_evidence.is_none()
+            && self.last_immediate_transient_budget_evidence.is_none()
+            && self.discrete_input_budget_breach_count == 0
+            && self.immediate_transient_budget_breach_count == 0
         {
             return;
         }
@@ -1612,6 +1872,10 @@ impl WindowStageOwner {
         self.last_lifecycle_completion = None;
         self.last_discrete_input_completion = None;
         self.last_immediate_transient_completion = None;
+        self.last_discrete_input_budget_evidence = None;
+        self.last_immediate_transient_budget_evidence = None;
+        self.discrete_input_budget_breach_count = 0;
+        self.immediate_transient_budget_breach_count = 0;
         self.fence = None;
         let Some(next_generation) = self.owner_generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -1625,6 +1889,26 @@ impl WindowStageOwner {
         self.last_completion
             .as_ref()
             .map(|completion| completion.frame)
+    }
+
+    #[cfg(test)]
+    pub(super) fn discrete_input_budget_evidence(&self) -> Option<&FrameStageBudgetEvidence> {
+        self.last_discrete_input_budget_evidence.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(super) fn immediate_transient_budget_evidence(&self) -> Option<&FrameStageBudgetEvidence> {
+        self.last_immediate_transient_budget_evidence.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(super) const fn discrete_input_budget_breach_count(&self) -> u64 {
+        self.discrete_input_budget_breach_count
+    }
+
+    #[cfg(test)]
+    pub(super) const fn immediate_transient_budget_breach_count(&self) -> u64 {
+        self.immediate_transient_budget_breach_count
     }
 
     fn accepts_identity(&self, identity: &FrameStageIdentity) -> bool {
@@ -1880,6 +2164,303 @@ mod tests {
         assert!(!evidence.frame.advance_timed_repaint());
         assert_eq!(evidence.elapsed, Duration::from_millis(3));
         assert_eq!(evidence.budget_status, FrameStageBudgetStatus::NotBudgeted);
+    }
+
+    #[test]
+    fn input_budget_classifies_within_equality_and_over_without_vetoing_completion() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(2);
+        for (elapsed, expected) in [
+            (Duration::from_millis(1), FrameStageBudgetStatus::Within),
+            (budget, FrameStageBudgetStatus::Within),
+            (Duration::from_millis(3), FrameStageBudgetStatus::Exceeded),
+        ] {
+            let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+            let ticket = owner
+                .admit_discrete_input_with_budget(
+                    adapter(1),
+                    target(1),
+                    FrameStageBudgetBinding::input_transient_at(budget, now),
+                )
+                .expect("input admission");
+            assert_eq!(ticket.budget().budget(), Some(budget));
+            assert_eq!(ticket.budget().started_at(), Some(now));
+            assert!(owner.complete_discrete_input_at(ticket, Some(now + elapsed)));
+
+            let evidence = owner
+                .discrete_input_budget_evidence()
+                .expect("input evidence");
+            assert_eq!(evidence.identity().stage(), SchedulerStage::DiscreteInput);
+            assert_eq!(evidence.elapsed(), elapsed);
+            assert_eq!(evidence.budget(), Some(budget));
+            assert_eq!(evidence.status(), expected);
+            assert_eq!(
+                owner.discrete_input_budget_breach_count(),
+                u64::from(expected == FrameStageBudgetStatus::Exceeded)
+            );
+        }
+    }
+
+    #[test]
+    fn transient_budget_evidence_is_latest_bounded_and_owner_local() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(2);
+        let mut primary = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let primary_ticket = primary
+            .admit_immediate_transient_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("primary transient admission");
+        assert_eq!(primary_ticket.budget().budget(), Some(budget));
+        assert!(
+            primary.complete_immediate_transient_at(
+                primary_ticket,
+                Some(now + Duration::from_millis(3))
+            )
+        );
+
+        let auxiliary_key = FrameScheduleKey::Auxiliary(String::from("settings"));
+        let mut auxiliary = WindowStageOwner::new(auxiliary_key.clone());
+        let auxiliary_ticket = auxiliary
+            .admit_immediate_transient_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("auxiliary transient admission");
+        assert!(auxiliary.complete_immediate_transient_at(auxiliary_ticket, Some(now + budget)));
+
+        assert_eq!(
+            primary
+                .immediate_transient_budget_evidence()
+                .expect("primary evidence")
+                .status(),
+            FrameStageBudgetStatus::Exceeded
+        );
+        assert_eq!(
+            auxiliary
+                .immediate_transient_budget_evidence()
+                .expect("auxiliary evidence")
+                .identity()
+                .key(),
+            &auxiliary_key
+        );
+        assert_eq!(
+            auxiliary
+                .immediate_transient_budget_evidence()
+                .expect("auxiliary evidence")
+                .status(),
+            FrameStageBudgetStatus::Within
+        );
+        assert_eq!(primary.immediate_transient_budget_breach_count(), 1);
+        assert_eq!(auxiliary.immediate_transient_budget_breach_count(), 0);
+    }
+
+    #[test]
+    fn input_and_transient_breach_counts_are_isolated_on_one_owner() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(1);
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        owner.immediate_transient_budget_breach_count = u64::MAX;
+
+        let input = owner
+            .admit_discrete_input_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("input admission");
+        assert!(owner.complete_discrete_input_at(input, Some(now + budget + budget)));
+        assert_eq!(owner.discrete_input_budget_breach_count(), 1);
+        assert_eq!(owner.immediate_transient_budget_breach_count(), u64::MAX);
+
+        owner.invalidate();
+        let transient = owner
+            .admit_immediate_transient_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("transient admission");
+        assert!(owner.complete_immediate_transient_at(transient, Some(now + budget + budget)));
+        assert_eq!(owner.discrete_input_budget_breach_count(), 0);
+        assert_eq!(owner.immediate_transient_budget_breach_count(), 1);
+    }
+
+    #[test]
+    fn wrong_budget_ticket_preserves_evidence_and_breach_count() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(1);
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let first = owner
+            .admit_discrete_input_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("first input admission");
+        assert!(owner.complete_discrete_input_at(first, Some(now + budget + budget)));
+        let prior_evidence = owner
+            .discrete_input_budget_evidence()
+            .cloned()
+            .expect("prior evidence");
+        assert_eq!(owner.discrete_input_budget_breach_count(), 1);
+
+        let current = owner
+            .admit_discrete_input_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("second input admission");
+        let wrong = DiscreteInputStageTicket {
+            identity: FrameStageIdentity::new(
+                FrameScheduleKey::Primary,
+                adapter(1),
+                target(1),
+                SchedulerStage::DiscreteInput,
+                current.identity().owner_generation(),
+                current.identity().revision() + 1,
+            ),
+            budget: current.budget,
+            owner_token: current.owner_token,
+        };
+        assert!(!owner.complete_discrete_input_at(wrong, Some(now + budget + budget)));
+        assert!(owner.discrete_input_ticket_is_current(&current));
+        assert_eq!(
+            owner.discrete_input_budget_evidence(),
+            Some(&prior_evidence)
+        );
+        assert_eq!(owner.discrete_input_budget_breach_count(), 1);
+        assert!(owner.complete_discrete_input_at(current, Some(now + budget)));
+        assert_eq!(owner.discrete_input_budget_breach_count(), 1);
+    }
+
+    #[test]
+    fn unavailable_timing_is_not_budgeted_and_earlier_completion_saturates_elapsed() {
+        let now = Instant::now();
+        let mut no_budget = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let no_budget_ticket = no_budget
+            .admit_discrete_input(adapter(1), target(1))
+            .expect("unbudgeted input admission");
+        assert!(no_budget.complete_discrete_input_at(no_budget_ticket, None));
+        assert_eq!(
+            no_budget
+                .discrete_input_budget_evidence()
+                .expect("unbudgeted evidence")
+                .status(),
+            FrameStageBudgetStatus::NotBudgeted
+        );
+
+        let mut timing_unavailable = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let budget = Duration::from_millis(2);
+        let ticket = timing_unavailable
+            .admit_discrete_input_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::not_budgeted(),
+            )
+            .expect("unbudgeted input admission");
+        assert!(timing_unavailable.complete_discrete_input_at(ticket, None));
+        let evidence = timing_unavailable
+            .discrete_input_budget_evidence()
+            .expect("unbudgeted evidence");
+        assert_eq!(evidence.budget(), None);
+        assert_eq!(evidence.elapsed(), Duration::ZERO);
+        assert_eq!(evidence.status(), FrameStageBudgetStatus::NotBudgeted);
+        assert_eq!(timing_unavailable.discrete_input_budget_breach_count(), 0);
+
+        let mut unbudgeted_transient = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let transient_ticket = unbudgeted_transient
+            .admit_immediate_transient(adapter(1), target(1))
+            .expect("unbudgeted transient admission");
+        assert!(unbudgeted_transient.complete_immediate_transient_at(transient_ticket, None));
+        assert_eq!(
+            unbudgeted_transient
+                .immediate_transient_budget_evidence()
+                .expect("unbudgeted transient evidence")
+                .status(),
+            FrameStageBudgetStatus::NotBudgeted
+        );
+
+        let mut earlier = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let ticket = earlier
+            .admit_immediate_transient_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("transient admission");
+        assert!(
+            earlier.complete_immediate_transient_at(ticket, Some(now - Duration::from_millis(1)))
+        );
+        let evidence = earlier
+            .immediate_transient_budget_evidence()
+            .expect("transient evidence");
+        assert_eq!(evidence.elapsed(), Duration::ZERO);
+        assert_eq!(evidence.status(), FrameStageBudgetStatus::Within);
+    }
+
+    #[test]
+    fn repeated_input_breaches_increment_only_the_discrete_count() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(1);
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        for _ in 0..2 {
+            let ticket = owner
+                .admit_discrete_input_with_budget(
+                    adapter(1),
+                    target(1),
+                    FrameStageBudgetBinding::input_transient_at(budget, now),
+                )
+                .expect("input admission");
+            assert!(owner.complete_discrete_input_at(ticket, Some(now + budget + budget)));
+        }
+        assert_eq!(owner.discrete_input_budget_breach_count(), 2);
+        assert_eq!(owner.immediate_transient_budget_breach_count(), 0);
+    }
+
+    #[test]
+    fn input_budget_breach_counter_saturates_without_vetoing_or_replaying() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(1);
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        owner.discrete_input_budget_breach_count = u64::MAX;
+        let ticket = owner
+            .admit_discrete_input_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("input admission");
+        assert!(owner.complete_discrete_input_at(ticket, Some(now + Duration::from_millis(2))));
+        assert_eq!(owner.discrete_input_budget_breach_count(), u64::MAX);
+        assert!(!owner.has_in_flight());
+    }
+
+    #[test]
+    fn lifecycle_invalidation_discards_input_budget_evidence_and_count() {
+        let now = Instant::now();
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let ticket = owner
+            .admit_discrete_input_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(Duration::from_millis(1), now),
+            )
+            .expect("input admission");
+        assert!(owner.complete_discrete_input_at(ticket, Some(now + Duration::from_millis(2))));
+        assert_eq!(owner.discrete_input_budget_breach_count(), 1);
+        let lifecycle = owner
+            .admit_lifecycle(adapter(2), NativeTargetGeneration::unknown())
+            .expect("lifecycle admission");
+        assert_eq!(owner.discrete_input_budget_evidence(), None);
+        assert_eq!(owner.immediate_transient_budget_evidence(), None);
+        assert_eq!(owner.discrete_input_budget_breach_count(), 0);
+        assert_eq!(owner.immediate_transient_budget_breach_count(), 0);
+        assert!(owner.complete_lifecycle(lifecycle));
     }
 
     #[test]

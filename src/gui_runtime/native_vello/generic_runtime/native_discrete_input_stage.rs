@@ -6,7 +6,9 @@
 //! event kinds implemented by this slice.
 
 use super::frame_scheduler::FrameScheduleKey;
-use super::frame_stage_admission::{DiscreteInputStageTicket, WindowStageOwner};
+use super::frame_stage_admission::{
+    DiscreteInputStageTicket, FrameStageBudgetBinding, WindowStageOwner,
+};
 use super::runner_state::NativeTargetGeneration;
 use super::{NativeAdapterGeneration, NativeLifecycle};
 use crate::gui::input::InputTimestamp;
@@ -92,15 +94,34 @@ impl NativeDiscreteInputStageTicket {
 }
 
 /// Admit one exact native input event under the shared per-window owner.
+#[cfg(test)]
 pub(super) fn admit_native_discrete_input(
     owner: &mut WindowStageOwner,
     evidence: NativeDiscreteInputStageEvidence,
 ) -> Option<NativeDiscreteInputStageTicket> {
+    admit_native_discrete_input_with_budget(
+        owner,
+        evidence,
+        FrameStageBudgetBinding::not_budgeted(),
+    )
+}
+
+/// Admit one exact native input event with an admission-bound observational
+/// budget. The owner captures a live start instant only after admission fences
+/// succeed.
+pub(super) fn admit_native_discrete_input_with_budget(
+    owner: &mut WindowStageOwner,
+    evidence: NativeDiscreteInputStageEvidence,
+    budget: FrameStageBudgetBinding,
+) -> Option<NativeDiscreteInputStageTicket> {
     if !owner.owns_key(&evidence.key) || !evidence.is_admissible() {
         return None;
     }
-    let stage_ticket =
-        owner.admit_discrete_input(evidence.adapter_generation, evidence.target_generation)?;
+    let stage_ticket = owner.admit_discrete_input_with_budget(
+        evidence.adapter_generation,
+        evidence.target_generation,
+        budget,
+    )?;
     Some(NativeDiscreteInputStageTicket::new(stage_ticket, evidence))
 }
 
@@ -111,6 +132,16 @@ pub(super) fn complete_native_discrete_input(
     ticket: NativeDiscreteInputStageTicket,
 ) -> bool {
     owner.complete_discrete_input(ticket.into_stage_ticket())
+}
+
+/// Complete with an injected instant for deterministic timing tests.
+#[cfg(test)]
+pub(super) fn complete_native_discrete_input_at(
+    owner: &mut WindowStageOwner,
+    ticket: NativeDiscreteInputStageTicket,
+    completed_at: Option<std::time::Instant>,
+) -> bool {
+    owner.complete_discrete_input_at(ticket.into_stage_ticket(), completed_at)
 }
 
 /// Veto the exact staged native input event before routing. A mismatched ticket
@@ -156,7 +187,7 @@ mod tests {
             SchedulerStage::DiscreteInput
         );
         assert!(admit_native_discrete_input(&mut owner, captured).is_none());
-        assert!(complete_native_discrete_input(&mut owner, ticket));
+        assert!(complete_native_discrete_input_at(&mut owner, ticket, None));
         assert!(!owner.has_in_flight());
     }
 

@@ -1,7 +1,9 @@
-use super::native_discrete_input_stage::NativeDiscreteInputKind;
+use super::frame_scheduler_policy::discrete_input_completion_disposition;
+use super::native_discrete_input_stage::{NativeDiscreteInputKind, NativeDiscreteInputStageTicket};
 use super::{
     CpuFrameObservationOwner, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    GenericRouteOutcome, key_code_from_winit, keyboard_modifiers_from_winit, keypress_from_input,
+    GenericRouteOutcome, NativeAdapterGeneration, key_code_from_winit,
+    keyboard_modifiers_from_winit, keypress_from_input,
 };
 use crate::gui::input::{InputTimestamp, KeyCode, KeyPress};
 use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
@@ -22,64 +24,63 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn handle_keyboard_event(&mut self, event_loop: &ActiveEventLoop, event: KeyEvent) {
-        self.handle_keyboard_event_inner(event_loop, event, None, None, true);
+        let Some(adapter_generation) = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+        else {
+            return;
+        };
+        let Some((ticket, outcome)) =
+            self.route_keyboard_event_inner(event_loop, event, adapter_generation, true)
+        else {
+            return;
+        };
+        let Some(disposition) =
+            discrete_input_completion_disposition(self.complete_native_discrete_input(ticket))
+        else {
+            // The route already ran. A completion mismatch must not replay it
+            // or apply a lower-stage fallback.
+            return;
+        };
+        if let Some(outcome) = outcome {
+            self.handle_route_outcome(
+                event_loop,
+                outcome.with_native_input_stage_disposition(disposition),
+            );
+        }
     }
 
-    pub(super) fn handle_keyboard_event_with_adapter(
+    pub(super) fn route_keyboard_event_with_adapter(
         &mut self,
         event_loop: &ActiveEventLoop,
         event: KeyEvent,
         adapter: &mut GenericNativeAdapterOwner,
         observation: Option<&mut CpuFrameObservationOwner<'_>>,
         wrapper_eligible: bool,
-    ) {
-        self.handle_keyboard_event_inner(
-            event_loop,
-            event,
-            Some(adapter),
-            observation,
-            wrapper_eligible,
-        );
+    ) -> Option<(NativeDiscreteInputStageTicket, Option<GenericRouteOutcome>)> {
+        let _ = observation;
+        let adapter_generation = adapter.capture_generation()?;
+        self.route_keyboard_event_inner(event_loop, event, adapter_generation, wrapper_eligible)
     }
 
-    fn handle_keyboard_event_inner(
+    fn route_keyboard_event_inner(
         &mut self,
         event_loop: &ActiveEventLoop,
         event: KeyEvent,
-        adapter: Option<&mut GenericNativeAdapterOwner>,
-        observation: Option<&mut CpuFrameObservationOwner<'_>>,
+        adapter_generation: NativeAdapterGeneration,
         wrapper_eligible: bool,
-    ) {
+    ) -> Option<(NativeDiscreteInputStageTicket, Option<GenericRouteOutcome>)> {
         let timestamp = InputTimestamp::capture();
-        let Some(adapter_generation) = adapter
-            .as_deref()
-            .and_then(GenericNativeAdapterOwner::capture_generation)
-            .or_else(|| {
-                self.adapter
-                    .as_ref()
-                    .and_then(GenericNativeAdapterOwner::capture_generation)
-            })
-        else {
-            return;
-        };
-        let Some(ticket) = self.begin_native_discrete_input_event(
+        let ticket = self.begin_native_discrete_input_event(
             event_loop,
             NativeDiscreteInputKind::KeyboardInput,
             timestamp,
             adapter_generation,
             wrapper_eligible,
-        ) else {
-            return;
-        };
+        )?;
         let outcome = self.route_native_keyboard_event_inner(event, timestamp);
-        if !self.complete_native_discrete_input(ticket) {
-            // The route already ran. A completion mismatch must not replay it
-            // or apply a lower-stage fallback.
-            return;
-        }
-        if let Some(outcome) = outcome {
-            self.route_keyboard_outcome(event_loop, outcome, adapter, observation);
-        }
+        Some((ticket, outcome))
     }
 
     fn route_native_keyboard_event_inner(
@@ -247,20 +248,6 @@ where
             None => self
                 .core
                 .route_metadata_key_release_with_metadata(None, modifiers, timestamp),
-        }
-    }
-
-    fn route_keyboard_outcome(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        outcome: GenericRouteOutcome,
-        adapter: Option<&mut GenericNativeAdapterOwner>,
-        observation: Option<&mut CpuFrameObservationOwner<'_>>,
-    ) {
-        if let Some(adapter) = adapter {
-            self.handle_route_outcome_with_adapter(event_loop, outcome, adapter, observation);
-        } else {
-            self.handle_route_outcome(event_loop, outcome);
         }
     }
 

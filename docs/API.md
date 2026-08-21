@@ -7365,25 +7365,31 @@ delta, newest metadata, sequence range, axis-change flush, focus-loss clearing,
 and admitted queued-sample completion behavior. This private slice adds no
 pointer-motion coalescer, fairness consumer, or public API.
 
-For private observation, a successful exact `DiscreteInput` or
-`ImmediateTransient` admission binds the `input_transient` budget returned by
-`SchedulerSoftBudgets::for_effective_fps` and captures its start instant only
-when private frame observation is enabled. When frame observation is disabled,
-admission binds no budget and reads no additional budget-timing clock;
-successful completion therefore records `NotBudgeted` with an absent budget
-and zero elapsed time. Completion through synchronous route/message reduction
-retains one bounded latest per-window stage sample and a saturating per-stage
-breach count. A timed sample uses saturating elapsed time and is `Exceeded`
-only when elapsed is strictly greater than its bound budget; equality is
-`Within`. Vetoed, stale, lifecycle-invalidated, wrong, or repeated tickets
-publish no new evidence, and an over-budget completion remains successful.
+In this private implementation phase, exact native `DiscreteInput` completion
+is the first authoritative native soft-budget consumer. Every successful exact
+`DiscreteInput` admission binds the current effective-FPS `input_transient`
+budget returned by `SchedulerSoftBudgets::for_effective_fps` and captures
+admission and completion clocks independently of diagnostics, profiling, or
+frame observation. `ImmediateTransient` retains its observation-only behavior:
+it may bind the same budget only when private frame observation is enabled and
+otherwise binds no budget or additional budget-timing clock. The typed exact
+completion result is either `Completed` with `NotBudgeted`, `Within`, or
+`Exceeded`, or `Mismatch`; rejected, stale, vetoed, lifecycle-invalidated,
+wrong, and repeated tickets produce no policy result or lower-stage fallback.
+A timed sample uses saturating elapsed time and is `Exceeded` only when elapsed
+is strictly greater than its bound budget; equality is `Within`. `NotBudgeted`
+and `Within` map to `ContinueNow`, while exact `Exceeded` maps to
+`DeferLowerPriority`; every exact completion remains successful.
 
-For this private observational implementation phase, the evidence is
-non-authoritative: it does not itself trigger deferral or any other
-scheduler-policy change. The target scheduler policy remains that an
-over-budget stage completes and a future policy consumer defers only
-lower-priority work at the next safe boundary. `Deadline` and `Lifecycle`
-remain unbudgeted, and this slice adds no public diagnostics/API.
+An exact exceeded `DiscreteInput` route defers only that event's lower-priority
+due `Deadline` and visual follow-up through the existing bounded state at the
+next safe native boundary. It does not defer `Exit` or terminal intent, replay
+or roll back semantic input, add an event/message queue, or change fairness,
+promotion, cadence, visual-packet, coalescing, resize, refresh/rebuild, repaint,
+auxiliary-synchronization, or route-outcome policy. `FrameWork::None` does not
+synthesize redraw or wake. No policy budget is consumed for `ImmediateTransient`,
+`Projection`, `Layout`, `PaintPlan`, `EncodePresent`, `Maintenance`, `Deadline`,
+or `Lifecycle` in this phase, and this slice adds no public diagnostics/API.
 
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and

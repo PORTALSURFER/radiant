@@ -524,10 +524,9 @@ fn fixed_alternating_transient_burst_keeps_owner_and_coalescers_bounded() {
             newest_wheel_modifiers = Some(modifiers);
         }
 
-        assert!(complete_native_immediate_transient(
-            &mut runner.frame_stage_owner,
-            ticket
-        ));
+        assert!(
+            complete_native_immediate_transient(&mut runner.frame_stage_owner, ticket).is_success()
+        );
         assert!(
             !runner.frame_stage_owner.has_in_flight(),
             "transient owner must be empty after every fixed-burst completion"

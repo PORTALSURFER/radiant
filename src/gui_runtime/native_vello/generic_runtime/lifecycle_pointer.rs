@@ -1,5 +1,6 @@
 //! Pointer lifecycle helpers for the generic native Vello runner.
 
+use super::frame_scheduler_policy::ImmediateTransientCompletion;
 use super::{
     FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
     logical_point_from_winit, maybe_log_route_profile,
@@ -30,12 +31,12 @@ pub(super) struct NativeCursorLeftRoute {
 /// here, after completion, so platform drag startup cannot precede the owner
 /// fence or run after a completion mismatch.
 pub(super) fn finalize_native_immediate_transient_route(
-    completion_succeeded: bool,
+    completion: ImmediateTransientCompletion,
     mut routed: GenericRouteOutcome,
     launch_external_drag: bool,
     launch: impl FnOnce() -> GenericRouteOutcome,
 ) -> Option<GenericRouteOutcome> {
-    if !completion_succeeded {
+    if !completion.is_success() {
         return None;
     }
     if launch_external_drag {

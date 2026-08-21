@@ -1965,10 +1965,10 @@ mod tests {
             admit_native_immediate_transient(&mut runner.frame_stage_owner, transient_evidence)
                 .expect("captured transient should admit after the Deadline bridge");
         assert_eq!(transient.evidence().timestamp, input_timestamp);
-        assert!(complete_native_immediate_transient(
-            &mut runner.frame_stage_owner,
-            transient
-        ));
+        assert!(
+            complete_native_immediate_transient(&mut runner.frame_stage_owner, transient)
+                .is_success()
+        );
 
         let replay = runner.admit_deferred_timed_frame_before_native_input(
             adapter_generation,

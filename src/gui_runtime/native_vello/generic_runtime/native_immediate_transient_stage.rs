@@ -6,6 +6,7 @@
 //! coalescing policy.
 
 use super::frame_scheduler::FrameScheduleKey;
+use super::frame_scheduler_policy::ImmediateTransientCompletion;
 use super::frame_stage_admission::{
     FrameStageBudgetBinding, ImmediateTransientStageTicket, WindowStageOwner,
 };
@@ -135,7 +136,7 @@ pub(super) fn admit_native_immediate_transient_with_budget(
 pub(super) fn complete_native_immediate_transient(
     owner: &mut WindowStageOwner,
     ticket: NativeImmediateTransientStageTicket,
-) -> bool {
+) -> ImmediateTransientCompletion {
     owner.complete_immediate_transient(ticket.into_stage_ticket())
 }
 
@@ -145,7 +146,7 @@ pub(super) fn complete_native_immediate_transient_at(
     owner: &mut WindowStageOwner,
     ticket: NativeImmediateTransientStageTicket,
     completed_at: Option<std::time::Instant>,
-) -> bool {
+) -> ImmediateTransientCompletion {
     owner.complete_immediate_transient_at(ticket.into_stage_ticket(), completed_at)
 }
 
@@ -160,7 +161,9 @@ pub(super) fn veto_native_immediate_transient(
 
 #[cfg(test)]
 mod tests {
-    use super::super::frame_scheduler_policy::SchedulerStage;
+    use super::super::frame_scheduler_policy::{
+        FrameStageBudgetStatus, ImmediateTransientCompletion, SchedulerStage,
+    };
     use super::super::native_lifecycle_stage::{
         NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, admit_native_lifecycle,
         complete_native_lifecycle,
@@ -205,10 +208,37 @@ mod tests {
                 ticket.stage_ticket().identity().stage(),
                 SchedulerStage::ImmediateTransient
             );
-            assert!(complete_native_immediate_transient_at(
-                &mut owner, ticket, None
-            ));
+            assert!(complete_native_immediate_transient_at(&mut owner, ticket, None).is_success());
             assert!(!owner.has_in_flight());
+        }
+    }
+
+    #[test]
+    fn completion_wrapper_preserves_exact_budget_status() {
+        let now = Instant::now();
+        let budget = std::time::Duration::from_millis(2);
+        for (elapsed, expected) in [
+            (
+                std::time::Duration::from_millis(1),
+                FrameStageBudgetStatus::Within,
+            ),
+            (budget, FrameStageBudgetStatus::Within),
+            (
+                std::time::Duration::from_millis(3),
+                FrameStageBudgetStatus::Exceeded,
+            ),
+        ] {
+            let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+            let ticket = admit_native_immediate_transient_with_budget(
+                &mut owner,
+                evidence(NativeImmediateTransientKind::CursorMoved),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("transient event should admit");
+            assert_eq!(
+                complete_native_immediate_transient_at(&mut owner, ticket, Some(now + elapsed)),
+                ImmediateTransientCompletion::Completed(expected)
+            );
         }
     }
 
@@ -256,10 +286,9 @@ mod tests {
         assert!(!primary_ticket.is_current(&auxiliary_owner, auxiliary_evidence.clone()));
         assert!(admit_native_immediate_transient(&mut primary_owner, auxiliary_evidence).is_none());
         assert!(primary_ticket.is_current(&primary_owner, primary_evidence));
-        assert!(complete_native_immediate_transient(
-            &mut primary_owner,
-            primary_ticket
-        ));
+        assert!(
+            complete_native_immediate_transient(&mut primary_owner, primary_ticket).is_success()
+        );
 
         let auxiliary_evidence = NativeImmediateTransientStageEvidence {
             key: auxiliary_owner.schedule_key().clone(),
@@ -268,10 +297,10 @@ mod tests {
         let auxiliary_ticket =
             admit_native_immediate_transient(&mut auxiliary_owner, auxiliary_evidence)
                 .expect("auxiliary ticket");
-        assert!(complete_native_immediate_transient(
-            &mut auxiliary_owner,
-            auxiliary_ticket
-        ));
+        assert!(
+            complete_native_immediate_transient(&mut auxiliary_owner, auxiliary_ticket)
+                .is_success()
+        );
     }
 
     #[test]
@@ -296,7 +325,10 @@ mod tests {
         let lifecycle = admit_native_lifecycle(&mut owner, lifecycle_evidence.clone())
             .expect("lifecycle admission should retire the transient owner");
 
-        assert!(!complete_native_immediate_transient(&mut owner, transient));
+        assert_eq!(
+            complete_native_immediate_transient(&mut owner, transient),
+            ImmediateTransientCompletion::Mismatch
+        );
         assert!(lifecycle.is_current(&owner, &lifecycle_evidence));
         assert!(complete_native_lifecycle(&mut owner, lifecycle));
         assert!(!owner.has_in_flight());
@@ -394,7 +426,7 @@ mod tests {
         .expect("replacement ticket");
         assert!(!veto_native_immediate_transient(&mut owner, stale));
         assert!(owner.immediate_transient_ticket_is_current(current.stage_ticket()));
-        assert!(complete_native_immediate_transient(&mut owner, current));
+        assert!(complete_native_immediate_transient(&mut owner, current).is_success());
     }
 
     #[test]
@@ -411,9 +443,12 @@ mod tests {
             evidence(NativeImmediateTransientKind::MouseWheel(TouchPhase::Moved)),
         )
         .expect("replacement ticket");
-        assert!(!complete_native_immediate_transient(&mut owner, stale));
+        assert_eq!(
+            complete_native_immediate_transient(&mut owner, stale),
+            ImmediateTransientCompletion::Mismatch
+        );
         assert!(owner.immediate_transient_ticket_is_current(current.stage_ticket()));
-        assert!(complete_native_immediate_transient(&mut owner, current));
+        assert!(complete_native_immediate_transient(&mut owner, current).is_success());
     }
 
     #[test]
@@ -437,7 +472,7 @@ mod tests {
                 let revision = ticket.stage_ticket().identity().revision();
                 assert!(revision > previous_revision);
                 previous_revision = revision;
-                assert!(complete_native_immediate_transient(&mut owner, ticket));
+                assert!(complete_native_immediate_transient(&mut owner, ticket).is_success());
                 assert!(!owner.has_in_flight());
             }
         }

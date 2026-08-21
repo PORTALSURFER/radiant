@@ -1150,7 +1150,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     return self.event_result(None, false);
                 };
                 let routed = self.runner.handle_focus_regained_after_native_modal_loop();
-                if self.runner.complete_native_immediate_transient(ticket) {
+                if self
+                    .runner
+                    .complete_native_immediate_transient(ticket)
+                    .is_success()
+                {
                     self.runner.handle_route_outcome_with_adapter(
                         event_loop,
                         routed,
@@ -1211,7 +1215,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 let route = self
                     .runner
                     .route_cursor_moved_with_timestamp(position, timestamp);
-                if self.runner.complete_native_immediate_transient(ticket) {
+                if self
+                    .runner
+                    .complete_native_immediate_transient(ticket)
+                    .is_success()
+                {
                     self.runner.apply_cursor_moved_route(route);
                 }
             }
@@ -1305,7 +1313,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 let route = self
                     .runner
                     .route_native_mouse_wheel_with_phase_and_timestamp(delta, phase, timestamp);
-                if self.runner.complete_native_immediate_transient(ticket) {
+                if self
+                    .runner
+                    .complete_native_immediate_transient(ticket)
+                    .is_success()
+                {
                     self.runner
                         .apply_deferred_wheel_route_effects(route.deferred_wheel_effects);
                     if route.redraw_requested {

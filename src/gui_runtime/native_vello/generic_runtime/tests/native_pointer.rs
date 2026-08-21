@@ -1,3 +1,4 @@
+use super::super::frame_scheduler_policy::{FrameStageBudgetStatus, ImmediateTransientCompletion};
 use super::super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::*;
 use crate::application::IntoView;
@@ -1816,7 +1817,7 @@ fn external_drag_finalize_waits_for_transient_completion() {
 
     let launch_calls = Cell::new(0);
     let rejected = finalize_native_immediate_transient_route(
-        false,
+        ImmediateTransientCompletion::Mismatch,
         route.outcome,
         route.launch_external_drag,
         || {
@@ -1830,10 +1831,15 @@ fn external_drag_finalize_waits_for_transient_completion() {
 
     let mut local_route = GenericRouteOutcome::default();
     local_route.request_scene_rebuild(FrameWorkReason::ExternalDragPreview);
-    let accepted = finalize_native_immediate_transient_route(true, local_route, true, || {
-        launch_calls.set(launch_calls.get() + 1);
-        GenericRouteOutcome::default()
-    })
+    let accepted = finalize_native_immediate_transient_route(
+        ImmediateTransientCompletion::Completed(FrameStageBudgetStatus::Exceeded),
+        local_route,
+        true,
+        || {
+            launch_calls.set(launch_calls.get() + 1);
+            GenericRouteOutcome::default()
+        },
+    )
     .expect("completed transient should publish its retained route");
     assert_eq!(launch_calls.get(), 1);
     assert_eq!(accepted.frame_work(), local_route.frame_work());

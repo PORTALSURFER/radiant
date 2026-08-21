@@ -43,19 +43,18 @@ pub(super) enum NativeSurfaceAcquireError {
     Surface(NativeSurfaceAcquireFailure),
 }
 
-fn map_current_surface_texture_error(
-    texture: &wgpu::CurrentSurfaceTexture,
+fn map_current_surface_texture(
+    texture: wgpu::CurrentSurfaceTexture,
     uncaptured_error: Option<NativeRenderDeviceErrorKind>,
-) -> Option<NativeSurfaceAcquireFailure> {
+) -> Result<wgpu::SurfaceTexture, NativeSurfaceAcquireFailure> {
     match texture {
-        wgpu::CurrentSurfaceTexture::Success(_) | wgpu::CurrentSurfaceTexture::Suboptimal(_) => {
-            None
-        }
-        wgpu::CurrentSurfaceTexture::Timeout => Some(NativeSurfaceAcquireFailure::Timeout),
-        wgpu::CurrentSurfaceTexture::Occluded => Some(NativeSurfaceAcquireFailure::Occluded),
-        wgpu::CurrentSurfaceTexture::Outdated => Some(NativeSurfaceAcquireFailure::Outdated),
-        wgpu::CurrentSurfaceTexture::Lost => Some(NativeSurfaceAcquireFailure::Lost),
-        wgpu::CurrentSurfaceTexture::Validation => Some(
+        wgpu::CurrentSurfaceTexture::Success(texture)
+        | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => Ok(texture),
+        wgpu::CurrentSurfaceTexture::Timeout => Err(NativeSurfaceAcquireFailure::Timeout),
+        wgpu::CurrentSurfaceTexture::Occluded => Err(NativeSurfaceAcquireFailure::Occluded),
+        wgpu::CurrentSurfaceTexture::Outdated => Err(NativeSurfaceAcquireFailure::Outdated),
+        wgpu::CurrentSurfaceTexture::Lost => Err(NativeSurfaceAcquireFailure::Lost),
+        wgpu::CurrentSurfaceTexture::Validation => Err(
             if matches!(
                 uncaptured_error,
                 Some(NativeRenderDeviceErrorKind::OutOfMemory)
@@ -578,14 +577,8 @@ where
         };
         let uncaptured_error =
             registration.and_then(|registration| registration.finish_surface_acquire());
-        match texture {
-            wgpu::CurrentSurfaceTexture::Success(texture)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => Ok(texture),
-            texture => Err(NativeSurfaceAcquireError::Surface(
-                map_current_surface_texture_error(&texture, uncaptured_error)
-                    .expect("non-success current surface texture must map to an acquisition error"),
-            )),
-        }
+        map_current_surface_texture(texture, uncaptured_error)
+            .map_err(NativeSurfaceAcquireError::Surface)
     }
 
     pub(super) fn handle_present_surface_acquire_error(
@@ -748,7 +741,7 @@ where
 mod tests {
     use super::{
         NativeGenericRunError, NativeInitializationStage, NativeRenderDeviceErrorKind,
-        map_current_surface_texture_error, native_initialization_error,
+        map_current_surface_texture, native_initialization_error,
     };
 
     #[test]
@@ -779,26 +772,25 @@ mod tests {
     #[test]
     fn current_surface_texture_mapping_keeps_occlusion_and_correlates_only_oom_validation() {
         assert_eq!(
-            map_current_surface_texture_error(&vello::wgpu::CurrentSurfaceTexture::Occluded, None),
+            map_current_surface_texture(vello::wgpu::CurrentSurfaceTexture::Occluded, None).err(),
             Some(super::super::runner_state::NativeSurfaceAcquireFailure::Occluded)
         );
         assert_eq!(
-            map_current_surface_texture_error(&vello::wgpu::CurrentSurfaceTexture::Timeout, None),
+            map_current_surface_texture(vello::wgpu::CurrentSurfaceTexture::Timeout, None).err(),
             Some(super::super::runner_state::NativeSurfaceAcquireFailure::Timeout)
         );
         assert_eq!(
-            map_current_surface_texture_error(
-                &vello::wgpu::CurrentSurfaceTexture::Validation,
+            map_current_surface_texture(
+                vello::wgpu::CurrentSurfaceTexture::Validation,
                 Some(NativeRenderDeviceErrorKind::OutOfMemory),
-            ),
+            )
+            .err(),
             Some(super::super::runner_state::NativeSurfaceAcquireFailure::OutOfMemory)
         );
         for kind in [None, Some(NativeRenderDeviceErrorKind::Validation)] {
             assert_eq!(
-                map_current_surface_texture_error(
-                    &vello::wgpu::CurrentSurfaceTexture::Validation,
-                    kind,
-                ),
+                map_current_surface_texture(vello::wgpu::CurrentSurfaceTexture::Validation, kind)
+                    .err(),
                 Some(super::super::runner_state::NativeSurfaceAcquireFailure::Other)
             );
         }

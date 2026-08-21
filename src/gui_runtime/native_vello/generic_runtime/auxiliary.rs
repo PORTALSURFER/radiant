@@ -1,5 +1,10 @@
+use super::frame_scheduler_policy::{
+    DiscreteInputCompletion, NativeInputStageDisposition, discrete_input_completion_disposition,
+};
 use super::lifecycle_pointer::finalize_native_immediate_transient_route;
-use super::native_discrete_input_stage::NativeDiscreteInputKind;
+#[cfg(test)]
+use super::native_discrete_input_stage::complete_native_discrete_input_at;
+use super::native_discrete_input_stage::{NativeDiscreteInputKind, NativeDiscreteInputStageTicket};
 use super::native_immediate_transient_stage::NativeImmediateTransientKind;
 #[cfg(test)]
 use super::native_lifecycle_stage::NativeLifecycleStageEvidence;
@@ -46,6 +51,16 @@ mod placement;
 enum AuxiliaryNativeWindowLifecycle {
     Admitted,
     Retiring,
+}
+
+pub(super) struct AuxiliaryNativeDiscreteInputRoute {
+    pub(super) ticket: NativeDiscreteInputStageTicket,
+    pub(super) outcome: Option<GenericRouteOutcome>,
+}
+
+pub(super) struct AuxiliaryNativeDiscreteInputResolution {
+    disposition: NativeInputStageDisposition,
+    child_outcome: Option<GenericRouteOutcome>,
 }
 
 #[cfg(test)]
@@ -221,6 +236,19 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         terminal_cause: Option<NativeGenericRunError>,
         visual_deadline_completed: bool,
     ) -> AuxiliaryWindowEventResult<Message> {
+        self.event_result_with_native_discrete_input(
+            terminal_cause,
+            visual_deadline_completed,
+            None,
+        )
+    }
+
+    fn event_result_with_native_discrete_input(
+        &mut self,
+        terminal_cause: Option<NativeGenericRunError>,
+        visual_deadline_completed: bool,
+        native_discrete_input_route: Option<AuxiliaryNativeDiscreteInputRoute>,
+    ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
             messages: self.take_messages(),
             message_origin: Some(self.owner.clone()),
@@ -228,7 +256,66 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             terminal_cause,
             shutdown_requested: self.runner.native_shutdown_requested(),
             visual_deadline_completed,
+            native_discrete_input_route,
         }
+    }
+
+    pub(super) fn resolve_native_discrete_input_route(
+        &mut self,
+        pending: AuxiliaryNativeDiscreteInputRoute,
+    ) -> Option<AuxiliaryNativeDiscreteInputResolution> {
+        let AuxiliaryNativeDiscreteInputRoute { ticket, outcome } = pending;
+        Self::resolve_native_discrete_input_outcome(
+            outcome,
+            self.runner.complete_native_discrete_input(ticket),
+        )
+    }
+
+    fn resolve_native_discrete_input_outcome(
+        outcome: Option<GenericRouteOutcome>,
+        completion: DiscreteInputCompletion,
+    ) -> Option<AuxiliaryNativeDiscreteInputResolution> {
+        let disposition = discrete_input_completion_disposition(completion)?;
+        let child_outcome =
+            outcome.map(|outcome| outcome.with_native_input_stage_disposition(disposition));
+        Some(AuxiliaryNativeDiscreteInputResolution {
+            disposition,
+            child_outcome,
+        })
+    }
+
+    #[cfg(test)]
+    pub(super) fn resolve_native_discrete_input_route_at(
+        &mut self,
+        pending: AuxiliaryNativeDiscreteInputRoute,
+        completed_at: Option<Instant>,
+    ) -> Option<AuxiliaryNativeDiscreteInputResolution> {
+        let AuxiliaryNativeDiscreteInputRoute { ticket, outcome } = pending;
+        Self::resolve_native_discrete_input_outcome(
+            outcome,
+            complete_native_discrete_input_at(
+                &mut self.runner.frame_stage_owner,
+                ticket,
+                completed_at,
+            ),
+        )
+    }
+
+    pub(super) fn cancel_native_discrete_input_route(
+        &mut self,
+        pending: AuxiliaryNativeDiscreteInputRoute,
+    ) -> bool {
+        self.runner.veto_native_discrete_input(pending.ticket)
+    }
+
+    pub(super) fn apply_native_discrete_input_route_with_adapter(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        outcome: GenericRouteOutcome,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        self.runner
+            .handle_route_outcome_with_adapter(event_loop, outcome, adapter, None);
     }
 
     pub(super) fn is_admitted(&self) -> bool {
@@ -950,6 +1037,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             terminal_cause: None,
             shutdown_requested: false,
             visual_deadline_completed: false,
+            native_discrete_input_route: None,
         }
     }
 
@@ -971,6 +1059,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             terminal_cause: None,
             shutdown_requested: false,
             visual_deadline_completed: false,
+            native_discrete_input_route: None,
         }
     }
 
@@ -979,13 +1068,15 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         event_loop: &ActiveEventLoop,
         event: WindowEvent,
         adapter: &mut GenericNativeAdapterOwner,
-        mut observation: Option<&mut CpuFrameObservationOwner<'_>>,
+        observation: Option<&mut CpuFrameObservationOwner<'_>>,
     ) -> AuxiliaryWindowEventResult<Message> {
+        let mut observation = observation;
         if self.is_retiring() {
             self.discard_frame_diagnostics();
             return AuxiliaryWindowEventResult::ignored();
         }
         let mut terminal_cause = None;
+        let mut native_discrete_input_route = None;
         match event {
             WindowEvent::CloseRequested => {
                 return self.handle_close_requested(adapter.capture_generation());
@@ -1183,14 +1274,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     state,
                     Some(timestamp),
                 );
-                if self.runner.complete_native_discrete_input(ticket) {
-                    self.runner.handle_route_outcome_with_adapter(
-                        event_loop,
-                        route.outcome,
-                        adapter,
-                        observation.as_deref_mut(),
-                    );
-                }
+                native_discrete_input_route = Some(AuxiliaryNativeDiscreteInputRoute {
+                    ticket,
+                    outcome: Some(route.outcome),
+                });
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 let timestamp = InputTimestamp::capture();
@@ -1243,13 +1330,16 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 let wrapper_eligible = adapter.capture_generation().is_some_and(|generation| {
                     self.native_discrete_input_wrapper_is_eligible(generation)
                 });
-                self.runner.handle_keyboard_event_with_adapter(
-                    event_loop,
-                    event,
-                    adapter,
-                    observation.as_deref_mut(),
-                    wrapper_eligible,
-                )
+                native_discrete_input_route = self
+                    .runner
+                    .route_keyboard_event_with_adapter(
+                        event_loop,
+                        event,
+                        adapter,
+                        observation.as_deref_mut(),
+                        wrapper_eligible,
+                    )
+                    .map(|(ticket, outcome)| AuxiliaryNativeDiscreteInputRoute { ticket, outcome });
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let timestamp = InputTimestamp::capture();
@@ -1271,14 +1361,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     modifiers.state(),
                     Some(timestamp),
                 );
-                if self.runner.complete_native_discrete_input(ticket) {
-                    self.runner.handle_route_outcome_with_adapter(
-                        event_loop,
-                        routed,
-                        adapter,
-                        observation,
-                    );
-                }
+                native_discrete_input_route = Some(AuxiliaryNativeDiscreteInputRoute {
+                    ticket,
+                    outcome: Some(routed),
+                });
             }
             WindowEvent::Ime(ime) => {
                 let timestamp = InputTimestamp::capture();
@@ -1297,14 +1383,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     return self.event_result(None, false);
                 };
                 let routed = self.runner.route_native_ime_event(ime);
-                if self.runner.complete_native_discrete_input(ticket) {
-                    self.runner.handle_route_outcome_with_adapter(
-                        event_loop,
-                        routed,
-                        adapter,
-                        observation,
-                    );
-                }
+                native_discrete_input_route = Some(AuxiliaryNativeDiscreteInputRoute {
+                    ticket,
+                    outcome: Some(routed),
+                });
             }
             WindowEvent::RedrawRequested => {
                 if !self.active || !self.is_admitted() {
@@ -1361,7 +1443,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             _ => {}
         }
         let terminal_cause = terminal_cause.or_else(|| self.runner.take_terminal_cause());
-        self.event_result(terminal_cause, false)
+        self.event_result_with_native_discrete_input(
+            terminal_cause,
+            false,
+            native_discrete_input_route,
+        )
     }
 
     fn take_messages(&mut self) -> Vec<Message> {
@@ -1385,6 +1471,7 @@ pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) terminal_cause: Option<NativeGenericRunError>,
     pub(super) shutdown_requested: bool,
     pub(super) visual_deadline_completed: bool,
+    pub(super) native_discrete_input_route: Option<AuxiliaryNativeDiscreteInputRoute>,
 }
 
 pub(super) struct AuxiliaryWindowCloseAdmission {
@@ -1401,6 +1488,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
             terminal_cause: None,
             shutdown_requested: false,
             visual_deadline_completed: false,
+            native_discrete_input_route: None,
         }
     }
 }
@@ -1409,44 +1497,23 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn dispatch_auxiliary_messages(
+    pub(super) fn cancel_auxiliary_native_discrete_input_route(
         &mut self,
-        event_loop: &ActiveEventLoop,
-        message_origin: Option<AuxiliaryWindowOwner>,
-        messages: Vec<Message>,
+        index: usize,
+        pending: Option<AuxiliaryNativeDiscreteInputRoute>,
     ) {
-        self.dispatch_auxiliary_messages_with_timed_frame(
-            event_loop,
-            message_origin,
-            messages,
-            true,
-        );
-    }
-
-    pub(super) fn dispatch_auxiliary_messages_without_timed_frame(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        message_origin: Option<AuxiliaryWindowOwner>,
-        messages: Vec<Message>,
-    ) {
-        self.dispatch_auxiliary_messages_with_timed_frame(
-            event_loop,
-            message_origin,
-            messages,
-            false,
-        );
-    }
-
-    fn dispatch_auxiliary_messages_with_timed_frame(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        message_origin: Option<AuxiliaryWindowOwner>,
-        messages: Vec<Message>,
-        merge_due_timed_frame: bool,
-    ) {
-        if !self.should_admit_auxiliary_sync() {
-            return;
+        if let Some(pending) = pending
+            && let Some(window) = self.auxiliary_windows.get_mut(index)
+        {
+            let _ = window.cancel_native_discrete_input_route(pending);
         }
+    }
+
+    fn reduce_auxiliary_messages(
+        &mut self,
+        message_origin: Option<AuxiliaryWindowOwner>,
+        messages: Vec<Message>,
+    ) -> GenericRouteOutcome {
         let mut outcome = GenericRouteOutcome::default();
         for message in messages {
             let command_outcome = match message_origin.as_ref() {
@@ -1457,6 +1524,114 @@ where
                 None => self.core.runtime.dispatch_message(message),
             };
             outcome.merge(self.core.route_command_outcome(command_outcome));
+        }
+        outcome
+    }
+
+    fn apply_auxiliary_native_discrete_input_resolution(
+        &mut self,
+        outcome: GenericRouteOutcome,
+        disposition: NativeInputStageDisposition,
+        child_outcome: Option<GenericRouteOutcome>,
+    ) -> GenericRouteOutcome {
+        let exits =
+            outcome.exit_requested || child_outcome.is_some_and(|outcome| outcome.exit_requested);
+        if disposition == NativeInputStageDisposition::DeferLowerPriority && !exits {
+            // This is the parent-owned boundary for an auxiliary input. Arm
+            // it even when neither side returned visual work; the later
+            // presentation boundary is the only consumer.
+            self.defer_auxiliary_window_sync();
+        }
+        outcome.with_native_input_stage_disposition(disposition)
+    }
+
+    pub(super) fn dispatch_auxiliary_messages(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        message_origin: Option<AuxiliaryWindowOwner>,
+        messages: Vec<Message>,
+        native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
+    ) {
+        self.dispatch_auxiliary_messages_with_timed_frame(
+            event_loop,
+            message_origin,
+            messages,
+            native_discrete_input_route,
+            true,
+        );
+    }
+
+    pub(super) fn dispatch_auxiliary_messages_without_timed_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        message_origin: Option<AuxiliaryWindowOwner>,
+        messages: Vec<Message>,
+        native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
+    ) {
+        self.dispatch_auxiliary_messages_with_timed_frame(
+            event_loop,
+            message_origin,
+            messages,
+            native_discrete_input_route,
+            false,
+        );
+    }
+
+    fn dispatch_auxiliary_messages_with_timed_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        message_origin: Option<AuxiliaryWindowOwner>,
+        messages: Vec<Message>,
+        native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
+        merge_due_timed_frame: bool,
+    ) {
+        if !self.should_admit_auxiliary_sync() {
+            if let Some((index, pending)) = native_discrete_input_route {
+                self.cancel_auxiliary_native_discrete_input_route(index, Some(pending));
+            }
+            return;
+        }
+        let mut outcome = self.reduce_auxiliary_messages(message_origin, messages);
+
+        if let Some((index, pending)) = native_discrete_input_route {
+            let Some(resolution) =
+                self.auxiliary_windows[index].resolve_native_discrete_input_route(pending)
+            else {
+                // The semantic route and parent message reduction already ran,
+                // but an exact completion mismatch cannot authorize any
+                // lower-stage child or parent work.
+                return;
+            };
+            let AuxiliaryNativeDiscreteInputResolution {
+                disposition,
+                child_outcome,
+            } = resolution;
+            outcome = self.apply_auxiliary_native_discrete_input_resolution(
+                outcome,
+                disposition,
+                child_outcome,
+            );
+            let Some(adapter) = self.adapter.as_mut() else {
+                // The ticket is settled above. Without an adapter, suppress
+                // both lower-stage outcomes rather than applying one side or
+                // falling back to a replay.
+                return;
+            };
+            if let Some(child_outcome) = child_outcome {
+                self.auxiliary_windows[index].apply_native_discrete_input_route_with_adapter(
+                    event_loop,
+                    child_outcome,
+                    adapter,
+                );
+            }
+            if disposition == NativeInputStageDisposition::DeferLowerPriority {
+                if merge_due_timed_frame {
+                    self.handle_route_outcome(event_loop, outcome);
+                } else {
+                    self.handle_route_outcome_without_timed_frame(event_loop, outcome);
+                }
+                return;
+            }
         }
         if merge_due_timed_frame {
             self.handle_route_outcome(event_loop, outcome);
@@ -1476,7 +1651,7 @@ where
         event_loop: &ActiveEventLoop,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<(), NativeGenericRunError> {
-        if !self.should_admit_auxiliary_sync() {
+        if !self.should_admit_auxiliary_sync() || self.timing.deferred_auxiliary_window_sync {
             return Ok(());
         }
         let mut maintenance = NativeResourceMaintenanceTurn::new();
@@ -1502,7 +1677,7 @@ where
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
         adapter: &mut GenericNativeAdapterOwner,
     ) -> Result<(), NativeGenericRunError> {
-        if !self.should_admit_auxiliary_sync() {
+        if !self.should_admit_auxiliary_sync() || self.timing.deferred_auxiliary_window_sync {
             return Ok(());
         }
         let mut maintenance = NativeResourceMaintenanceTurn::new();
@@ -1522,7 +1697,6 @@ where
         _maintenance: &mut NativeResourceMaintenanceTurn,
     ) -> Result<(), NativeGenericRunError> {
         let recovery_followup_pending = self.recovery_auxiliary_followup_pending;
-        self.timing.deferred_auxiliary_window_sync = false;
         if !self.should_admit_auxiliary_sync() {
             return Ok(());
         }
@@ -1641,6 +1815,7 @@ where
             && self.should_admit_auxiliary_sync()
             && let Some(event_proxy) = self.runtime_wakeup.event_loop_proxy()
         {
+            self.timing.deferred_auxiliary_window_sync = false;
             let _ = self.sync_auxiliary_windows_with_adapter(event_loop, event_proxy, adapter);
         }
     }
@@ -1727,18 +1902,25 @@ impl AuxiliaryRecoveryOpportunity {
 
 #[cfg(test)]
 mod tests {
+    use super::super::frame_scheduler_policy::NativeInputStageDisposition;
+    use super::super::frame_stage_admission::FrameStageBudgetBinding;
+    use super::super::native_discrete_input_stage::{
+        NativeDiscreteInputKind, NativeDiscreteInputStageEvidence,
+        admit_native_discrete_input_with_budget,
+    };
     use super::super::runner_state::NativeTargetGeneration;
     use super::super::{NativeLifecycle, native_lifecycle_stage};
     use super::{
-        AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity, AuxiliarySurfaceBridge,
-        AuxiliaryWindowEventResult, FrameScheduleKey, FrameWork, FrameWorkReason,
-        GenericNativeVelloRunner, NativeAdapterGeneration, NativeFrameRenderFailure,
-        NativeResourceMaintenanceTurn, SceneRebuildMode, append_initialized_auxiliary_window,
-        auxiliary_key_is_retiring, auxiliary_key_is_suppressed_for_sync,
-        auxiliary_keys_removed_during_sync, auxiliary_projection_contains_key,
-        auxiliary_redraw_terminal_cause, take_deferred_auxiliary_recovery_failure_cause,
+        AuxiliaryNativeDiscreteInputRoute, AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity,
+        AuxiliarySurfaceBridge, AuxiliaryWindowEventResult, FrameScheduleKey, FrameWork,
+        FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, NativeAdapterGeneration,
+        NativeFrameRenderFailure, NativeResourceMaintenanceTurn, SceneRebuildMode,
+        append_initialized_auxiliary_window, auxiliary_key_is_retiring,
+        auxiliary_key_is_suppressed_for_sync, auxiliary_keys_removed_during_sync,
+        auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
+        take_deferred_auxiliary_recovery_failure_cause,
     };
-    use crate::gui::types::Vector2;
+    use crate::gui::{input::InputTimestamp, types::Vector2};
     use crate::{
         application::empty,
         gui_runtime::NativeRunOptions,
@@ -1749,8 +1931,53 @@ mod tests {
         },
     };
     use native_lifecycle_stage::{NativeLifecycleStageEvidence, NativeLifecycleTransitionKind};
-    use std::sync::Arc;
+    use std::{
+        sync::Arc,
+        time::{Duration, Instant},
+    };
     use winit::window::WindowId;
+
+    fn auxiliary_input_route(
+        window: &mut AuxiliaryNativeWindow<i32>,
+        kind: NativeDiscreteInputKind,
+        outcome: Option<GenericRouteOutcome>,
+    ) -> AuxiliaryNativeDiscreteInputRoute {
+        auxiliary_input_route_with_budget(
+            window,
+            kind,
+            outcome,
+            FrameStageBudgetBinding::not_budgeted(),
+        )
+    }
+
+    fn auxiliary_input_route_with_budget(
+        window: &mut AuxiliaryNativeWindow<i32>,
+        kind: NativeDiscreteInputKind,
+        outcome: Option<GenericRouteOutcome>,
+        budget: FrameStageBudgetBinding,
+    ) -> AuxiliaryNativeDiscreteInputRoute {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let key = FrameScheduleKey::Auxiliary(window.key.clone());
+        let ticket = admit_native_discrete_input_with_budget(
+            &mut window.runner.frame_stage_owner,
+            NativeDiscreteInputStageEvidence {
+                key,
+                kind,
+                timestamp: InputTimestamp::capture(),
+                window_id: Some(WindowId::dummy()),
+                adapter_generation: generation,
+                active_resource_generation: Some(generation),
+                target_generation: NativeTargetGeneration::from_test_serial(1),
+                native_surface_target_fenced: false,
+                lifecycle: NativeLifecycle::default(),
+                native_window_eligible: true,
+                wrapper_eligible: true,
+            },
+            budget,
+        )
+        .expect("auxiliary input ticket");
+        AuxiliaryNativeDiscreteInputRoute { ticket, outcome }
+    }
 
     fn auxiliary_window_with_diagnostics(
         cache_on_close: bool,
@@ -1775,6 +2002,289 @@ mod tests {
 
     fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
         auxiliary_window_with_diagnostics(cache_on_close, false)
+    }
+
+    #[test]
+    fn auxiliary_input_ticket_stays_live_through_parent_reduction() {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(surface, false, false),
+            Vector2::new(1280.0, 720.0),
+        );
+        parent.auxiliary_windows.push(auxiliary_window(false));
+
+        let pending = auxiliary_input_route(
+            &mut parent.auxiliary_windows[0],
+            NativeDiscreteInputKind::KeyboardInput,
+            None,
+        );
+        assert!(parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+
+        let reduced = parent.reduce_auxiliary_messages(None, Vec::new());
+        assert_eq!(reduced, GenericRouteOutcome::default());
+        assert!(parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+
+        let resolution = parent.auxiliary_windows[0]
+            .resolve_native_discrete_input_route(pending)
+            .expect("exact auxiliary input completion");
+        assert_eq!(
+            resolution.disposition,
+            NativeInputStageDisposition::ContinueNow
+        );
+        assert!(resolution.child_outcome.is_none());
+        assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+    }
+
+    #[test]
+    fn all_auxiliary_input_kinds_and_keyboard_none_outcome_settle_exactly() {
+        for kind in [
+            NativeDiscreteInputKind::MouseInput,
+            NativeDiscreteInputKind::KeyboardInput,
+            NativeDiscreteInputKind::ModifiersChanged,
+            NativeDiscreteInputKind::Ime,
+        ] {
+            let mut window = auxiliary_window(false);
+            let pending = auxiliary_input_route(&mut window, kind, None);
+            assert!(window.frame_stage_owner_has_in_flight());
+
+            let resolution = window
+                .resolve_native_discrete_input_route(pending)
+                .expect("covered auxiliary input kind should settle");
+            assert_eq!(
+                resolution.disposition,
+                NativeInputStageDisposition::ContinueNow
+            );
+            assert!(resolution.child_outcome.is_none());
+            assert!(!window.frame_stage_owner_has_in_flight());
+        }
+    }
+
+    #[test]
+    fn auxiliary_completion_maps_identical_child_and_parent_dispositions() {
+        let now = Instant::now();
+        let cases = [
+            (
+                FrameStageBudgetBinding::not_budgeted(),
+                None,
+                NativeInputStageDisposition::ContinueNow,
+            ),
+            (
+                FrameStageBudgetBinding::input_transient_at(Duration::from_millis(1), now),
+                Some(now + Duration::from_micros(500)),
+                NativeInputStageDisposition::ContinueNow,
+            ),
+            (
+                FrameStageBudgetBinding::input_transient_at(Duration::from_millis(1), now),
+                Some(now + Duration::from_millis(2)),
+                NativeInputStageDisposition::DeferLowerPriority,
+            ),
+        ];
+
+        for (budget, completed_at, expected) in cases {
+            let mut child = auxiliary_window(false);
+            let mut child_work = GenericRouteOutcome::default();
+            child_work.request_scene_rebuild(FrameWorkReason::RoutedInput);
+            let pending = auxiliary_input_route_with_budget(
+                &mut child,
+                NativeDiscreteInputKind::MouseInput,
+                Some(child_work),
+                budget,
+            );
+            let resolution = child
+                .resolve_native_discrete_input_route_at(pending, completed_at)
+                .expect("exact auxiliary input completion");
+            assert_eq!(resolution.disposition, expected);
+            let child_outcome = resolution
+                .child_outcome
+                .expect("routed child outcome should be retained");
+
+            let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+            let mut parent = GenericNativeVelloRunner::new(
+                NativeRunOptions::default(),
+                AuxiliarySurfaceBridge::new(surface, false, false),
+                Vector2::new(1280.0, 720.0),
+            );
+            let parent_outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+                GenericRouteOutcome::default(),
+                resolution.disposition,
+                Some(child_outcome),
+            );
+
+            assert_eq!(
+                child_outcome.native_input_stage_disposition(),
+                Some(expected)
+            );
+            assert_eq!(
+                parent_outcome.native_input_stage_disposition(),
+                Some(expected)
+            );
+            assert_eq!(
+                child_outcome.native_input_stage_disposition(),
+                parent_outcome.native_input_stage_disposition()
+            );
+        }
+    }
+
+    #[test]
+    fn auxiliary_completion_mismatch_suppresses_child_and_parent_lower_stage_work() {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(surface, false, false),
+            Vector2::new(1280.0, 720.0),
+        );
+        parent.auxiliary_windows.push(auxiliary_window(false));
+        let mut child_work = GenericRouteOutcome::default();
+        child_work.request_scene_rebuild(FrameWorkReason::RoutedInput);
+        let pending = auxiliary_input_route(
+            &mut parent.auxiliary_windows[0],
+            NativeDiscreteInputKind::MouseInput,
+            Some(child_work),
+        );
+        parent.auxiliary_windows[0].invalidate_terminal_convergence_stage_owner();
+
+        let reduced_parent = parent.reduce_auxiliary_messages(None, Vec::new());
+        assert!(
+            parent.auxiliary_windows[0]
+                .resolve_native_discrete_input_route(pending)
+                .is_none()
+        );
+        assert_eq!(
+            reduced_parent.native_input_stage_disposition(),
+            None,
+            "a mismatch must not authorize parent lower-stage work"
+        );
+        assert!(!parent.timing.deferred_auxiliary_window_sync);
+    }
+
+    #[test]
+    fn abandoned_auxiliary_input_route_is_vetoed_without_replay() {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(surface, false, false),
+            Vector2::new(1280.0, 720.0),
+        );
+        parent.auxiliary_windows.push(auxiliary_window(false));
+        let pending = auxiliary_input_route(
+            &mut parent.auxiliary_windows[0],
+            NativeDiscreteInputKind::MouseInput,
+            Some(GenericRouteOutcome::default()),
+        );
+
+        parent.cancel_auxiliary_native_discrete_input_route(0, Some(pending));
+
+        assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+    }
+
+    #[test]
+    fn exceeded_auxiliary_resolution_arms_parent_without_parent_redraw_or_wakeup() {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(surface, false, false),
+            Vector2::new(1280.0, 720.0),
+        );
+
+        let no_work = parent.apply_auxiliary_native_discrete_input_resolution(
+            GenericRouteOutcome::default(),
+            NativeInputStageDisposition::DeferLowerPriority,
+            None,
+        );
+        assert_eq!(
+            no_work.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        );
+        assert!(parent.timing.deferred_auxiliary_window_sync);
+        assert!(!parent.timing.redraw_requested);
+        assert!(!parent.runtime_wakeup.is_pending());
+
+        parent.timing.deferred_auxiliary_window_sync = false;
+        let mut child_work = GenericRouteOutcome::default();
+        child_work.request_scene_rebuild(FrameWorkReason::RoutedInput);
+        let child_only = parent.apply_auxiliary_native_discrete_input_resolution(
+            GenericRouteOutcome::default(),
+            NativeInputStageDisposition::DeferLowerPriority,
+            Some(child_work),
+        );
+        assert_eq!(
+            child_only.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        );
+        assert!(parent.timing.deferred_auxiliary_window_sync);
+        assert!(!parent.timing.redraw_requested);
+        assert!(!parent.runtime_wakeup.is_pending());
+
+        parent
+            .auxiliary_windows
+            .push(auxiliary_window_with_diagnostics(false, true));
+        child_work.runtime_work_remaining = true;
+        let frame_work = child_work.frame_work();
+        parent.auxiliary_windows[0]
+            .runner
+            .apply_route_outcome_with_timed_frame(
+                child_work.with_native_input_stage_disposition(
+                    NativeInputStageDisposition::DeferLowerPriority,
+                ),
+                false,
+            );
+
+        assert!(!parent.auxiliary_windows[0].runner.timing.redraw_requested);
+        assert!(
+            !parent.auxiliary_windows[0]
+                .runner
+                .runtime_wakeup
+                .is_pending()
+        );
+        assert_eq!(
+            parent.auxiliary_windows[0].runner.timing.pending_frame_work,
+            frame_work
+        );
+        assert!(
+            parent.auxiliary_windows[0]
+                .runner
+                .timing
+                .deferred_scene_rebuild
+        );
+        assert!(parent.timing.deferred_auxiliary_window_sync);
+
+        let mut profile = super::super::RenderFrameProfile::default();
+        assert!(
+            parent.auxiliary_windows[0]
+                .runner
+                .rebuild_deferred_scene_if_needed(&mut profile)
+        );
+        assert_eq!(
+            parent.auxiliary_windows[0].runner.take_pending_frame_work(),
+            frame_work
+        );
+        assert_eq!(
+            parent.auxiliary_windows[0].runner.take_pending_frame_work(),
+            FrameWork::None
+        );
+    }
+
+    #[test]
+    fn continue_now_does_not_arm_parent_deferred_auxiliary_sync() {
+        let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(surface, false, false),
+            Vector2::new(1280.0, 720.0),
+        );
+
+        let outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+            GenericRouteOutcome::default(),
+            NativeInputStageDisposition::ContinueNow,
+            Some(GenericRouteOutcome::default()),
+        );
+
+        assert_eq!(
+            outcome.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::ContinueNow)
+        );
+        assert!(!parent.timing.deferred_auxiliary_window_sync);
     }
 
     #[test]

@@ -1,4 +1,9 @@
+use super::super::super::frame_scheduler_policy::NativeInputStageDisposition;
 use super::{fixtures::*, shared::*};
+
+fn over_budget(outcome: GenericRouteOutcome) -> GenericRouteOutcome {
+    outcome.with_native_input_stage_disposition(NativeInputStageDisposition::DeferLowerPriority)
+}
 
 #[test]
 fn hover_redraws_do_not_reset_timed_animation_deadline() {
@@ -70,6 +75,196 @@ fn due_frame_animation_waits_behind_fresh_pending_redraw() {
         GenericRouteOutcome::default(),
         "fresh pending redraws already have a visible frame in flight"
     );
+}
+
+#[test]
+fn exceeded_input_defers_all_visual_route_work_but_not_exit_or_noop() {
+    let mut cases = Vec::new();
+
+    cases.push(GenericRouteOutcome::default());
+
+    let mut paint_only = GenericRouteOutcome::default();
+    paint_only.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+    cases.push(paint_only);
+
+    cases.push(GenericRouteOutcome {
+        frame_work: FrameWork::ResizeSurface {
+            reason: FrameWorkReason::NativeResize,
+        },
+        ..GenericRouteOutcome::default()
+    });
+
+    let mut refresh = GenericRouteOutcome::default();
+    refresh.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+    cases.push(refresh);
+
+    let mut resize_and_rebuild = GenericRouteOutcome::default();
+    resize_and_rebuild.request_resize_and_rebuild(FrameWorkReason::NativeResize);
+    cases.push(resize_and_rebuild);
+
+    for mode in [
+        SceneRebuildMode::Immediate,
+        SceneRebuildMode::ImmediateWithSurfaceRefresh,
+        SceneRebuildMode::Interactive,
+        SceneRebuildMode::InteractiveWithSurfaceRefresh,
+    ] {
+        cases.push(GenericRouteOutcome {
+            frame_work: FrameWork::RebuildScene {
+                reason: FrameWorkReason::RoutedInput,
+                mode,
+            },
+            ..GenericRouteOutcome::default()
+        });
+    }
+
+    let mut exit = GenericRouteOutcome::default();
+    exit.request_exit();
+    cases.push(exit);
+
+    for outcome in cases {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            TestFrameMessageBridge::default(),
+            Vector2::new(320.0, 40.0),
+        );
+        let counters_before = runner.core.runtime.refresh_counters();
+        let frame_work = outcome.frame_work();
+        let applied = runner.apply_route_outcome_with_timed_frame(over_budget(outcome), false);
+
+        assert_eq!(runner.core.runtime.refresh_counters(), counters_before);
+        if matches!(frame_work, FrameWork::Exit { .. }) {
+            assert!(applied.exit_requested);
+            assert!(!runner.timing.deferred_surface_refresh);
+            assert!(!runner.timing.deferred_scene_rebuild);
+            assert_eq!(runner.timing.pending_frame_work, FrameWork::None);
+        } else if matches!(frame_work, FrameWork::None) {
+            assert!(!applied.exit_requested);
+            assert!(!runner.timing.deferred_surface_refresh);
+            assert!(!runner.timing.deferred_scene_rebuild);
+            assert_eq!(runner.timing.pending_frame_work, FrameWork::None);
+            assert!(!runner.timing.redraw_requested);
+        } else {
+            assert!(!applied.exit_requested);
+            assert_eq!(runner.timing.pending_frame_work, frame_work);
+            if matches!(
+                frame_work,
+                FrameWork::RefreshSurface { .. }
+                    | FrameWork::RebuildScene {
+                        mode: SceneRebuildMode::ImmediateWithSurfaceRefresh
+                            | SceneRebuildMode::InteractiveWithSurfaceRefresh,
+                        ..
+                    }
+            ) {
+                assert!(runner.timing.deferred_surface_refresh);
+            }
+            if matches!(
+                frame_work,
+                FrameWork::ResizeAndRebuild { .. } | FrameWork::RebuildScene { .. }
+            ) {
+                assert!(runner.timing.deferred_scene_rebuild);
+                assert!(runner.timing.deferred_auxiliary_window_sync);
+            }
+        }
+    }
+}
+
+#[test]
+fn exceeded_input_leaves_due_deadline_for_the_later_native_boundary() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(60);
+    let last_drain = Instant::now() - interval;
+    runner.timing.last_timed_frame_drain = last_drain;
+
+    runner.apply_route_outcome_with_timed_frame(over_budget(GenericRouteOutcome::default()), true);
+
+    assert_eq!(runner.timing.last_timed_frame_drain, last_drain);
+
+    runner.apply_route_outcome_with_timed_frame(GenericRouteOutcome::default(), true);
+
+    assert!(runner.timing.last_timed_frame_drain > last_drain);
+}
+
+#[test]
+fn two_exceeded_inputs_keep_both_completions_in_one_bounded_visual_state() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let counters_before = runner.core.runtime.refresh_counters();
+
+    for reason in [
+        FrameWorkReason::RoutedInput,
+        FrameWorkReason::RuntimeSurfaceRepaint,
+    ] {
+        let mut outcome = GenericRouteOutcome::default();
+        outcome.request_scene_rebuild(reason);
+        runner.apply_route_outcome_with_timed_frame(over_budget(outcome), false);
+    }
+
+    assert!(runner.timing.deferred_scene_rebuild);
+    assert!(runner.timing.deferred_auxiliary_window_sync);
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        }
+    );
+    assert_eq!(runner.core.runtime.refresh_counters(), counters_before);
+}
+
+#[test]
+fn deferred_exceeded_rebuild_is_consumed_once_at_the_later_boundary() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let mut outcome = GenericRouteOutcome::default();
+    outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
+    runner.apply_route_outcome_with_timed_frame(over_budget(outcome), false);
+    assert!(runner.timing.deferred_scene_rebuild);
+
+    let mut first_profile = RenderFrameProfile::default();
+    assert!(runner.rebuild_deferred_scene_if_needed(&mut first_profile));
+    assert!(!runner.timing.deferred_scene_rebuild);
+    let counters_after_first = runner.core.runtime.refresh_counters();
+
+    let mut second_profile = RenderFrameProfile::default();
+    assert!(!runner.rebuild_deferred_scene_if_needed(&mut second_profile));
+    assert_eq!(runner.core.runtime.refresh_counters(), counters_after_first);
+}
+
+#[test]
+fn exceeded_visual_primary_waits_for_presentation_before_native_requests() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let mut outcome = GenericRouteOutcome::default();
+    outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
+    outcome.runtime_work_remaining = true;
+    let frame_work = outcome.frame_work();
+
+    runner.apply_route_outcome_with_timed_frame(over_budget(outcome), false);
+
+    assert!(!runner.timing.redraw_requested);
+    assert!(!runner.runtime_wakeup.is_pending());
+    assert_eq!(runner.timing.pending_frame_work, frame_work);
+    assert!(runner.timing.deferred_scene_rebuild);
+    assert!(runner.timing.deferred_auxiliary_window_sync);
+
+    let mut profile = RenderFrameProfile::default();
+    assert!(runner.rebuild_deferred_scene_if_needed(&mut profile));
+    assert_eq!(runner.take_pending_frame_work(), frame_work);
+    assert_eq!(runner.take_pending_frame_work(), FrameWork::None);
+    assert!(!runner.timing.deferred_scene_rebuild);
 }
 
 #[test]
@@ -631,4 +826,26 @@ fn route_time_redraw_flush_waits_for_stale_request() {
         ),
         "stale redraw requests should be flushed even when the last present was recent"
     );
+}
+
+#[test]
+fn exceeded_route_does_not_reissue_a_stale_pending_redraw() {
+    let runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let mut outcome = GenericRouteOutcome::default();
+    outcome.request_paint_only(FrameWorkReason::RoutedInput);
+
+    assert!(!runner.should_flush_pending_redraw_for_route_outcome(
+        over_budget(outcome),
+        Duration::from_millis(17),
+        Duration::from_millis(1),
+    ));
+    assert!(runner.should_flush_pending_redraw_for_route_outcome(
+        outcome,
+        Duration::from_millis(17),
+        Duration::from_millis(1),
+    ));
 }

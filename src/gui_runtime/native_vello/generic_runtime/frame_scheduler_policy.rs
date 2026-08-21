@@ -12,6 +12,52 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// The result of completing one exact native DiscreteInput ticket.
+///
+/// A mismatch is deliberately distinct from a successful completion so route
+/// code cannot recover policy from the owner's latest mutable evidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DiscreteInputCompletion {
+    Completed(FrameStageBudgetStatus),
+    Mismatch,
+}
+
+impl DiscreteInputCompletion {
+    pub(super) const fn is_success(self) -> bool {
+        matches!(self, Self::Completed(_))
+    }
+}
+
+/// The only native-input policy dispositions produced by this slice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NativeInputStageDisposition {
+    ContinueNow,
+    DeferLowerPriority,
+}
+
+/// Private policy mapping for an exact DiscreteInput completion.
+pub(super) const fn discrete_input_completion_disposition(
+    completion: DiscreteInputCompletion,
+) -> Option<NativeInputStageDisposition> {
+    let DiscreteInputCompletion::Completed(status) = completion else {
+        return None;
+    };
+    Some(match status {
+        FrameStageBudgetStatus::Exceeded => NativeInputStageDisposition::DeferLowerPriority,
+        FrameStageBudgetStatus::Within | FrameStageBudgetStatus::NotBudgeted => {
+            NativeInputStageDisposition::ContinueNow
+        }
+    })
+}
+
+/// Completion timing classification for one admitted stage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FrameStageBudgetStatus {
+    NotBudgeted,
+    Within,
+    Exceeded,
+}
+
 /// The safe-boundary order for one non-preemptive stage bundle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SchedulerStage {
@@ -475,6 +521,29 @@ mod tests {
         assert_eq!(
             SchedulerSoftBudgets::for_effective_fps(120).input_transient,
             Duration::from_secs_f64(1.0 / 120.0 / 8.0)
+        );
+    }
+
+    #[test]
+    fn exact_discrete_input_completion_maps_only_exceeded_to_deferral() {
+        assert_eq!(
+            discrete_input_completion_disposition(DiscreteInputCompletion::Completed(
+                FrameStageBudgetStatus::Exceeded,
+            )),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        );
+        for status in [
+            FrameStageBudgetStatus::Within,
+            FrameStageBudgetStatus::NotBudgeted,
+        ] {
+            assert_eq!(
+                discrete_input_completion_disposition(DiscreteInputCompletion::Completed(status)),
+                Some(NativeInputStageDisposition::ContinueNow)
+            );
+        }
+        assert_eq!(
+            discrete_input_completion_disposition(DiscreteInputCompletion::Mismatch),
+            None
         );
     }
 

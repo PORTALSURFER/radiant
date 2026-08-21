@@ -1,6 +1,9 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
-use super::frame_scheduler_policy::SchedulerSoftBudgets;
+use super::frame_scheduler_policy::{
+    DiscreteInputCompletion, NativeInputStageDisposition, SchedulerSoftBudgets,
+    discrete_input_completion_disposition,
+};
 use super::frame_stage_admission::{FrameStageBudgetBinding, WindowStageOwner};
 use super::native_discrete_input_stage::{
     NativeDiscreteInputKind, NativeDiscreteInputStageEvidence, NativeDiscreteInputStageTicket,
@@ -781,13 +784,10 @@ where
         veto_native_lifecycle_stage(&mut self.frame_stage_owner, ticket)
     }
 
-    /// Bind the private input/transient soft budget once, after any deferred
-    /// Deadline drainage and immediately before exact stage admission. The
-    /// binding is observational only; no scheduler decision consumes it.
-    fn input_transient_budget_binding(&mut self) -> FrameStageBudgetBinding {
-        if !self.frame_observation_enabled {
-            return FrameStageBudgetBinding::not_budgeted();
-        }
+    /// Bind the current input/transient soft budget for an exact DiscreteInput
+    /// attempt. This path is authoritative for its private policy consumer,
+    /// so it does not depend on diagnostics or frame observation being enabled.
+    fn discrete_input_budget_binding(&mut self) -> FrameStageBudgetBinding {
         let effective_fps = timed_frame_target_fps(
             self.options.normalized_target_fps(),
             self.core.animation_activity(),
@@ -795,6 +795,15 @@ where
         );
         let budget = SchedulerSoftBudgets::for_effective_fps(effective_fps).input_transient;
         FrameStageBudgetBinding::input_transient(budget)
+    }
+
+    /// ImmediateTransient keeps its existing observation-only budget binding;
+    /// no policy consumer is added for that stage in this slice.
+    fn immediate_transient_budget_binding(&mut self) -> FrameStageBudgetBinding {
+        if !self.frame_observation_enabled {
+            return FrameStageBudgetBinding::not_budgeted();
+        }
+        self.discrete_input_budget_binding()
     }
 
     fn native_discrete_input_stage_evidence(
@@ -856,7 +865,7 @@ where
             adapter_generation,
             wrapper_eligible,
         );
-        let budget = self.input_transient_budget_binding();
+        let budget = self.discrete_input_budget_binding();
         admit_native_discrete_input_stage_with_budget(&mut self.frame_stage_owner, evidence, budget)
     }
 
@@ -915,8 +924,21 @@ where
     pub(super) fn complete_native_discrete_input(
         &mut self,
         ticket: NativeDiscreteInputStageTicket,
-    ) -> bool {
+    ) -> DiscreteInputCompletion {
         complete_native_discrete_input_stage(&mut self.frame_stage_owner, ticket)
+    }
+
+    /// Attach the exact completion's policy disposition to its already-routed
+    /// outcome. A mismatch is terminal for the route and cannot authorize a
+    /// fallback or recover policy from mutable owner evidence.
+    pub(super) fn complete_native_discrete_input_route(
+        &mut self,
+        ticket: NativeDiscreteInputStageTicket,
+        outcome: GenericRouteOutcome,
+    ) -> Option<GenericRouteOutcome> {
+        let disposition =
+            discrete_input_completion_disposition(self.complete_native_discrete_input(ticket))?;
+        Some(outcome.with_native_input_stage_disposition(disposition))
     }
 
     pub(super) fn veto_native_discrete_input(
@@ -997,7 +1019,7 @@ where
             adapter_generation,
             wrapper_eligible,
         );
-        let budget = self.input_transient_budget_binding();
+        let budget = self.immediate_transient_budget_binding();
         let ticket = admit_native_immediate_transient_stage_with_budget(
             &mut self.frame_stage_owner,
             evidence,
@@ -2848,6 +2870,18 @@ where
         pending >= Self::REDRAW_REISSUE_AFTER
     }
 
+    pub(super) fn should_flush_pending_redraw_for_route_outcome(
+        &self,
+        outcome: GenericRouteOutcome,
+        pending: Duration,
+        since_last_present: Duration,
+    ) -> bool {
+        !matches!(
+            outcome.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        ) && self.should_flush_pending_redraw_after_route(pending, since_last_present)
+    }
+
     fn should_log_pending_redraw_route_flush(
         &self,
         pending: Duration,
@@ -3569,7 +3603,11 @@ where
             && let Some(pending) = self.pending_redraw_elapsed(route_end_now)
         {
             let since_last_present = route_end_now.duration_since(self.timing.last_redraw);
-            if self.should_flush_pending_redraw_after_route(pending, since_last_present) {
+            if self.should_flush_pending_redraw_for_route_outcome(
+                outcome,
+                pending,
+                since_last_present,
+            ) {
                 if self.should_log_pending_redraw_route_flush(pending, since_last_present) {
                     warn!(
                         target: "radiant::debug::frame_profile",
@@ -3612,7 +3650,11 @@ where
                 sync_auxiliary_windows_now: false,
             };
         }
-        if merge_due_timed_frame {
+        let defer_lower_priority = matches!(
+            outcome.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        );
+        if merge_due_timed_frame && !defer_lower_priority {
             self.merge_due_timed_frame_for_route(&mut outcome);
         }
         if let Some(scale) = outcome.dpi_scale_override {
@@ -3620,6 +3662,9 @@ where
         }
         if let Some(size) = outcome.window_logical_size {
             self.set_window_logical_size(size);
+        }
+        if defer_lower_priority {
+            return self.defer_lower_priority_route_outcome(outcome);
         }
         let mut sync_auxiliary_windows_now = false;
         match outcome.frame_work() {
@@ -3672,10 +3717,64 @@ where
             sync_auxiliary_windows_now,
         }
     }
+
+    /// Defer only the lower-priority work attached to an exact over-budget
+    /// input route. Semantic input has already completed; the existing bounded
+    /// deferred flags and visual mailbox retain the latest safe visual state.
+    fn defer_lower_priority_route_outcome(
+        &mut self,
+        outcome: GenericRouteOutcome,
+    ) -> AppliedRouteOutcome {
+        let frame_work = outcome.frame_work();
+        self.record_frame_work(frame_work);
+        match frame_work {
+            FrameWork::None | FrameWork::PaintOnly { .. } | FrameWork::ResizeSurface { .. } => {}
+            FrameWork::RefreshSurface { .. } => {
+                self.defer_surface_refresh_with_scope(outcome.surface_refresh_scope_or_surface());
+            }
+            FrameWork::ResizeAndRebuild { .. } => {
+                self.defer_scene_rebuild();
+                self.defer_auxiliary_window_sync();
+            }
+            FrameWork::RebuildScene { mode, .. } => match mode {
+                SceneRebuildMode::InteractiveWithSurfaceRefresh => {
+                    self.defer_interactive_scene_rebuild_with_scope(
+                        outcome.surface_refresh_scope_or_surface(),
+                    );
+                    self.defer_auxiliary_window_sync();
+                }
+                SceneRebuildMode::ImmediateWithSurfaceRefresh => {
+                    self.defer_surface_refresh_with_scope(
+                        outcome.surface_refresh_scope_or_surface(),
+                    );
+                    self.defer_scene_rebuild();
+                    self.defer_auxiliary_window_sync();
+                }
+                SceneRebuildMode::Interactive => {
+                    self.defer_interactive_scene_rebuild();
+                    self.defer_auxiliary_window_sync();
+                }
+                SceneRebuildMode::Immediate => {
+                    self.defer_scene_rebuild();
+                    self.defer_auxiliary_window_sync();
+                }
+            },
+            FrameWork::Exit { .. } => {
+                // Exit is handled before this helper and is never deferred.
+            }
+        }
+        AppliedRouteOutcome {
+            exit_requested: false,
+            sync_auxiliary_windows_now: false,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::frame_scheduler_policy::{
+        DiscreteInputCompletion, NativeInputStageDisposition, discrete_input_completion_disposition,
+    };
     use super::super::frame_stage_admission::FrameStageBudgetStatus;
     use super::super::native_discrete_input_stage::NativeDiscreteInputKind;
     use super::super::native_visual_packet::{
@@ -3915,7 +4014,7 @@ mod tests {
     }
 
     #[test]
-    fn disabled_input_budget_binding_skips_animation_poll_and_records_unbudgeted() {
+    fn disabled_input_binds_current_input_budget_and_records_missing_completion_clock() {
         let mut runner = GenericNativeVelloRunner::new(
             NativeRunOptions::default(),
             CountingAnimationActivityBridge::default(),
@@ -3924,12 +4023,12 @@ mod tests {
 
         assert!(!runner.frame_observation_enabled);
         assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 0);
-        let first_binding = runner.input_transient_budget_binding();
-        let second_binding = runner.input_transient_budget_binding();
-        assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 0);
-        assert_eq!(first_binding.budget(), None);
+        let first_binding = runner.discrete_input_budget_binding();
+        let second_binding = runner.discrete_input_budget_binding();
+        assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 2);
+        assert!(first_binding.budget().is_some());
         assert_eq!(first_binding.started_at(), None);
-        assert_eq!(second_binding.budget(), None);
+        assert!(second_binding.budget().is_some());
         assert_eq!(second_binding.started_at(), None);
 
         let ticket = runner
@@ -3944,12 +4043,13 @@ mod tests {
             runner
                 .frame_stage_owner
                 .complete_discrete_input_at(ticket, None)
+                .is_success()
         );
         let evidence = runner
             .frame_stage_owner
             .discrete_input_budget_evidence()
             .expect("unbudgeted completion evidence");
-        assert_eq!(evidence.budget(), None);
+        assert!(evidence.budget().is_some());
         assert_eq!(evidence.elapsed(), Duration::ZERO);
         assert_eq!(evidence.status(), FrameStageBudgetStatus::NotBudgeted);
         assert_eq!(
@@ -3957,6 +4057,79 @@ mod tests {
                 .frame_stage_owner
                 .discrete_input_budget_breach_count(),
             0
+        );
+    }
+
+    #[test]
+    fn disabled_immediate_transient_budget_remains_observation_only() {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            CountingAnimationActivityBridge::default(),
+            Vector2::new(320.0, 240.0),
+        );
+
+        let binding = runner.immediate_transient_budget_binding();
+
+        assert_eq!(binding.budget(), None);
+        assert_eq!(binding.started_at(), None);
+        assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 0);
+    }
+
+    #[test]
+    fn diagnostics_and_profiling_do_not_change_input_policy_mapping() {
+        let mut diagnostics_off = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            EmptyBridge,
+            Vector2::new(320.0, 240.0),
+        );
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let mut diagnostics_on = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            RecordingFrameDiagnosticsBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+        let profile_published = Arc::new(Mutex::new(Vec::new()));
+        let mut profiling_on = GenericNativeVelloRunner::new(
+            {
+                let mut options = NativeRunOptions::default();
+                options.frame.profiling = ProfilingOptions::frame();
+                options
+            },
+            RecordingFrameProfileBridge {
+                published: profile_published,
+            },
+            Vector2::new(320.0, 240.0),
+        );
+
+        assert!(!diagnostics_off.frame_observation_enabled);
+        assert!(diagnostics_on.frame_observation_enabled);
+        assert!(profiling_on.frame_observation_enabled);
+        assert_eq!(
+            diagnostics_off.discrete_input_budget_binding().budget(),
+            diagnostics_on.discrete_input_budget_binding().budget()
+        );
+        assert_eq!(
+            diagnostics_off.discrete_input_budget_binding().budget(),
+            profiling_on.discrete_input_budget_binding().budget()
+        );
+
+        for status in [
+            FrameStageBudgetStatus::Within,
+            FrameStageBudgetStatus::Exceeded,
+        ] {
+            let off =
+                discrete_input_completion_disposition(DiscreteInputCompletion::Completed(status));
+            let on =
+                discrete_input_completion_disposition(DiscreteInputCompletion::Completed(status));
+            assert_eq!(off, on);
+        }
+        assert_eq!(
+            discrete_input_completion_disposition(DiscreteInputCompletion::Completed(
+                FrameStageBudgetStatus::Exceeded,
+            )),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
         );
     }
 

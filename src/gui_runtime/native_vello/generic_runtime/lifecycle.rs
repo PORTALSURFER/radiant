@@ -1,5 +1,6 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
+use super::frame_scheduler_policy::NativeInputStageDisposition;
 use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::native_immediate_transient_stage::NativeImmediateTransientKind;
@@ -8,10 +9,10 @@ use super::{
     AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
     FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane,
     FrameScheduleRedrawEvidence, FrameWork, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent, TimedFrameCadence,
-    animation_frame_interval, assess_cpu_frame_fairness, should_start_native_window_drag,
-    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    GenericRouteOutcome, NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent,
+    TimedFrameCadence, animation_frame_interval, assess_cpu_frame_fairness,
+    should_start_native_window_drag, should_toggle_native_window_maximized,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::gui::input::InputTimestamp;
 use crate::runtime::{
@@ -29,6 +30,13 @@ use winit::{
 
 const LATE_TIMED_FRAME_LOG_THRESHOLD: Duration = Duration::from_millis(24);
 const LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP: Duration = Duration::from_secs(1);
+
+fn should_request_native_maximize_redraw(outcome: GenericRouteOutcome) -> bool {
+    !matches!(
+        outcome.native_input_stage_disposition(),
+        Some(NativeInputStageDisposition::DeferLowerPriority)
+    )
+}
 
 fn is_native_interactive_window_event(event: &WindowEvent) -> bool {
     matches!(
@@ -150,7 +158,9 @@ where
                 terminal_cause,
                 shutdown_requested,
                 visual_deadline_completed: _,
+                native_discrete_input_route: pending_native_discrete_input_route,
             } = route_result;
+            let mut pending_native_discrete_input_route = pending_native_discrete_input_route;
             if let Some(Some(admission)) = admission {
                 let capture = self.auxiliary_windows[index].take_cpu_frame_observation_capture();
                 self.finish_cpu_frame_observation_with_capture(Some(admission), capture, false);
@@ -176,10 +186,18 @@ where
                 };
             forward_auxiliary_frame_diagnostics(self, &auxiliary_key, frame_diagnostics);
             if shutdown_requested {
+                self.cancel_auxiliary_native_discrete_input_route(
+                    index,
+                    pending_native_discrete_input_route.take(),
+                );
                 self.admit_native_shutdown(event_loop, terminal_cause);
                 return;
             }
             if let Some(error) = terminal_cause {
+                self.cancel_auxiliary_native_discrete_input_route(
+                    index,
+                    pending_native_discrete_input_route.take(),
+                );
                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                 return;
             }
@@ -191,12 +209,27 @@ where
                 // after this retirement-removal turn has completed.
                 self.arm_retiring_auxiliary_maintenance_due_now();
             }
+            if became_retiring {
+                self.cancel_auxiliary_native_discrete_input_route(
+                    index,
+                    pending_native_discrete_input_route.take(),
+                );
+            }
             if let Some(messages) = accepted_close_messages {
+                self.cancel_auxiliary_native_discrete_input_route(
+                    index,
+                    pending_native_discrete_input_route.take(),
+                );
                 if !messages.is_empty() {
-                    self.dispatch_auxiliary_messages(event_loop, None, messages);
+                    self.dispatch_auxiliary_messages(event_loop, None, messages, None);
                 }
-            } else if !messages.is_empty() {
-                self.dispatch_auxiliary_messages(event_loop, message_origin, messages);
+            } else if !messages.is_empty() || pending_native_discrete_input_route.is_some() {
+                self.dispatch_auxiliary_messages(
+                    event_loop,
+                    message_origin,
+                    messages,
+                    pending_native_discrete_input_route.map(|route| (index, route)),
+                );
             }
             return;
         }
@@ -402,11 +435,13 @@ where
                 };
                 let route =
                     self.route_native_mouse_input_with_timestamp(button, state, Some(timestamp));
-                if !self.complete_native_discrete_input(ticket) {
+                let Some(route_outcome) =
+                    self.complete_native_discrete_input_route(ticket, route.outcome)
+                else {
                     // The route already ran. Never replay it or apply a
                     // lower-stage fallback after a completion mismatch.
                     return;
-                }
+                };
                 if route.is_pressed()
                     && let (Some(position), Some(button)) = (route.position, route.button)
                     && should_toggle_native_window_maximized(
@@ -424,7 +459,9 @@ where
                     // retained and composited layers cannot remain at the old
                     // viewport while the new surface is already visible.
                     self.defer_interactive_scene_rebuild();
-                    self.request_redraw_for_frame_work(FrameWork::None);
+                    if should_request_native_maximize_redraw(route_outcome) {
+                        self.request_redraw_for_frame_work(FrameWork::None);
+                    }
                 } else if route.is_pressed()
                     && let (Some(position), Some(button)) = (route.position, route.button)
                     && should_start_native_window_drag(
@@ -438,7 +475,7 @@ where
                 {
                     warn!("radiant generic native vello: app-owned window drag failed: {err}");
                 }
-                self.handle_route_outcome(event_loop, route.outcome);
+                self.handle_route_outcome(event_loop, route_outcome);
             }
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 let timestamp = InputTimestamp::capture();
@@ -504,7 +541,7 @@ where
                 } else {
                     self.route_native_modifiers_changed_with_timestamp(state, Some(timestamp))
                 };
-                if self.complete_native_discrete_input(ticket) {
+                if let Some(routed) = self.complete_native_discrete_input_route(ticket, routed) {
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
@@ -527,7 +564,7 @@ where
                     return;
                 };
                 let routed = self.route_native_ime_event(ime);
-                if self.complete_native_discrete_input(ticket) {
+                if let Some(routed) = self.complete_native_discrete_input_route(ticket, routed) {
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
@@ -915,8 +952,10 @@ where
                                 terminal_cause,
                                 shutdown_requested,
                                 visual_deadline_completed,
+                                native_discrete_input_route,
                             } = result;
                             debug_assert!(close_admission.is_none());
+                            debug_assert!(native_discrete_input_route.is_none());
                             let frame_diagnostics =
                                 if !shutdown_requested && terminal_cause.is_none() {
                                     self.record_frame_schedule_admission_with_lane(
@@ -958,6 +997,7 @@ where
                                     event_loop,
                                     message_origin,
                                     messages,
+                                    None,
                                 );
                             }
                         }
@@ -1142,6 +1182,7 @@ mod tests {
         CpuFrameCadencePressure, CpuFrameCadenceRate,
     };
     use crate::gui_runtime::native_vello::generic_runtime::cpu_frame_observation::CpuFrameObservationCapture;
+    use crate::gui_runtime::native_vello::generic_runtime::frame_scheduler_policy::NativeInputStageDisposition;
     use crate::gui_runtime::native_vello::generic_runtime::{
         CpuFramePendingRedrawAge, FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey,
         FrameScheduleRedrawEvidence, FrameWork, FrameWorkReason, animation_frame_interval,
@@ -1514,6 +1555,20 @@ mod tests {
                 .iter()
                 .all(|event| !super::is_native_interactive_window_event(event))
         );
+    }
+
+    #[test]
+    fn exceeded_titlebar_maximize_suppresses_only_native_redraw_request() {
+        let deferred = super::GenericRouteOutcome::default()
+            .with_native_input_stage_disposition(NativeInputStageDisposition::DeferLowerPriority);
+        let continued = super::GenericRouteOutcome::default()
+            .with_native_input_stage_disposition(NativeInputStageDisposition::ContinueNow);
+
+        assert!(!super::should_request_native_maximize_redraw(deferred));
+        assert!(super::should_request_native_maximize_redraw(continued));
+        assert!(super::should_request_native_maximize_redraw(
+            super::GenericRouteOutcome::default()
+        ));
     }
 
     #[test]

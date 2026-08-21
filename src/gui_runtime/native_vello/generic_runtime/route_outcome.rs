@@ -1,5 +1,7 @@
 use crate::runtime::RepaintScope;
 
+use super::frame_scheduler_policy::NativeInputStageDisposition;
+
 /// Routing result consumed by redraw, scene refresh, and runtime wakeup policy.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
@@ -10,6 +12,7 @@ pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) runtime_work_remaining: bool,
     pub(in crate::gui_runtime::native_vello) dpi_scale_override: Option<crate::theme::DpiScale>,
     pub(in crate::gui_runtime::native_vello) window_logical_size: Option<crate::layout::Vector2>,
+    pub(super) native_input_stage_disposition: Option<NativeInputStageDisposition>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -70,6 +73,20 @@ pub(in crate::gui_runtime::native_vello) enum FrameWorkReason {
 impl GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) fn frame_work(self) -> FrameWork {
         self.frame_work
+    }
+
+    pub(super) fn with_native_input_stage_disposition(
+        mut self,
+        disposition: NativeInputStageDisposition,
+    ) -> Self {
+        self.native_input_stage_disposition = Some(disposition);
+        self
+    }
+
+    pub(super) const fn native_input_stage_disposition(
+        self,
+    ) -> Option<NativeInputStageDisposition> {
+        self.native_input_stage_disposition
     }
 
     pub(in crate::gui_runtime::native_vello) fn frame_work_kind(self) -> &'static str {
@@ -237,6 +254,27 @@ impl GenericRouteOutcome {
         self.runtime_work_remaining |= other.runtime_work_remaining;
         self.dpi_scale_override = other.dpi_scale_override.or(self.dpi_scale_override);
         self.window_logical_size = other.window_logical_size.or(self.window_logical_size);
+        self.native_input_stage_disposition = merge_native_input_stage_disposition(
+            self.native_input_stage_disposition,
+            other.native_input_stage_disposition,
+        );
+    }
+}
+
+fn merge_native_input_stage_disposition(
+    current: Option<NativeInputStageDisposition>,
+    other: Option<NativeInputStageDisposition>,
+) -> Option<NativeInputStageDisposition> {
+    match (current, other) {
+        (Some(NativeInputStageDisposition::DeferLowerPriority), _)
+        | (_, Some(NativeInputStageDisposition::DeferLowerPriority)) => {
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        }
+        (Some(NativeInputStageDisposition::ContinueNow), _)
+        | (_, Some(NativeInputStageDisposition::ContinueNow)) => {
+            Some(NativeInputStageDisposition::ContinueNow)
+        }
+        (None, None) => None,
     }
 }
 
@@ -412,6 +450,7 @@ impl FrameWorkReason {
 
 #[cfg(test)]
 mod tests {
+    use super::super::frame_scheduler_policy::NativeInputStageDisposition;
     use super::{FrameWork, FrameWorkReason, GenericRouteOutcome, SceneRebuildMode};
     use crate::runtime::RepaintScope;
 
@@ -515,6 +554,21 @@ mod tests {
                 reason: FrameWorkReason::RuntimeSurfaceRepaint,
                 mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
             }
+        );
+    }
+
+    #[test]
+    fn route_outcome_merge_preserves_the_strongest_input_disposition() {
+        let mut outcome = GenericRouteOutcome::default()
+            .with_native_input_stage_disposition(NativeInputStageDisposition::ContinueNow);
+        let defer = GenericRouteOutcome::default()
+            .with_native_input_stage_disposition(NativeInputStageDisposition::DeferLowerPriority);
+
+        outcome.merge(defer);
+
+        assert_eq!(
+            outcome.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
         );
     }
 

@@ -6,13 +6,16 @@
 //! payload.
 
 use super::{
-    adapter::NativeAdapterGeneration, frame_scheduler::FrameScheduleKey,
-    frame_scheduler_policy::SchedulerStage,
+    adapter::NativeAdapterGeneration,
+    frame_scheduler::FrameScheduleKey,
+    frame_scheduler_policy::{DiscreteInputCompletion, SchedulerStage},
     native_resource_maintenance::NativeResourceMaintenanceBinding,
     runner_state::NativeTargetGeneration,
 };
 use crate::runtime::RuntimeAnimationActivity;
 use std::time::{Duration, Instant};
+
+pub(super) use super::frame_scheduler_policy::FrameStageBudgetStatus;
 
 /// Exact identity for one admitted scheduler stage.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -443,13 +446,6 @@ impl ImmediateTransientStageTicket {
 struct InFlightImmediateTransient {
     identity: FrameStageIdentity,
     budget: FrameStageBudgetBinding,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum FrameStageBudgetStatus {
-    NotBudgeted,
-    Within,
-    Exceeded,
 }
 
 /// Admission-bound timing configuration for one observational stage attempt.
@@ -1002,9 +998,12 @@ impl WindowStageOwner {
     /// Complete only the exact admitted DiscreteInput attempt. A mismatch
     /// leaves the real owner in flight so callers cannot route again or fall
     /// through to lower-stage work.
-    pub(super) fn complete_discrete_input(&mut self, ticket: DiscreteInputStageTicket) -> bool {
+    pub(super) fn complete_discrete_input(
+        &mut self,
+        ticket: DiscreteInputStageTicket,
+    ) -> DiscreteInputCompletion {
         if !self.discrete_input_ticket_is_current(&ticket) {
-            return false;
+            return DiscreteInputCompletion::Mismatch;
         }
         let completed_at = ticket.budget.should_measure().then(Instant::now);
         self.finish_discrete_input(ticket, completed_at)
@@ -1016,7 +1015,7 @@ impl WindowStageOwner {
         &mut self,
         ticket: DiscreteInputStageTicket,
         completed_at: Option<Instant>,
-    ) -> bool {
+    ) -> DiscreteInputCompletion {
         self.finish_discrete_input(ticket, completed_at)
     }
 
@@ -1024,20 +1023,21 @@ impl WindowStageOwner {
         &mut self,
         ticket: DiscreteInputStageTicket,
         completed_at: Option<Instant>,
-    ) -> bool {
+    ) -> DiscreteInputCompletion {
         if !self.discrete_input_ticket_is_current(&ticket) {
-            return false;
+            return DiscreteInputCompletion::Mismatch;
         }
         self.discrete_input_in_flight = None;
         let evidence =
             FrameStageBudgetEvidence::new(ticket.identity.clone(), ticket.budget, completed_at);
+        let status = evidence.status;
         if evidence.is_exceeded() {
             self.discrete_input_budget_breach_count =
                 self.discrete_input_budget_breach_count.saturating_add(1);
         }
         self.last_discrete_input_budget_evidence = Some(evidence);
         self.last_discrete_input_completion = Some(ticket.identity);
-        true
+        DiscreteInputCompletion::Completed(status)
     }
 
     /// Veto the exact DiscreteInput attempt before routing. A wrong ticket
@@ -2185,7 +2185,10 @@ mod tests {
                 .expect("input admission");
             assert_eq!(ticket.budget().budget(), Some(budget));
             assert_eq!(ticket.budget().started_at(), Some(now));
-            assert!(owner.complete_discrete_input_at(ticket, Some(now + elapsed)));
+            assert_eq!(
+                owner.complete_discrete_input_at(ticket, Some(now + elapsed)),
+                DiscreteInputCompletion::Completed(expected)
+            );
 
             let evidence = owner
                 .discrete_input_budget_evidence()
@@ -2272,7 +2275,11 @@ mod tests {
                 FrameStageBudgetBinding::input_transient_at(budget, now),
             )
             .expect("input admission");
-        assert!(owner.complete_discrete_input_at(input, Some(now + budget + budget)));
+        assert!(
+            owner
+                .complete_discrete_input_at(input, Some(now + budget + budget))
+                .is_success()
+        );
         assert_eq!(owner.discrete_input_budget_breach_count(), 1);
         assert_eq!(owner.immediate_transient_budget_breach_count(), u64::MAX);
 
@@ -2301,7 +2308,11 @@ mod tests {
                 FrameStageBudgetBinding::input_transient_at(budget, now),
             )
             .expect("first input admission");
-        assert!(owner.complete_discrete_input_at(first, Some(now + budget + budget)));
+        assert!(
+            owner
+                .complete_discrete_input_at(first, Some(now + budget + budget))
+                .is_success()
+        );
         let prior_evidence = owner
             .discrete_input_budget_evidence()
             .cloned()
@@ -2327,15 +2338,56 @@ mod tests {
             budget: current.budget,
             owner_token: current.owner_token,
         };
-        assert!(!owner.complete_discrete_input_at(wrong, Some(now + budget + budget)));
+        assert_eq!(
+            owner.complete_discrete_input_at(wrong, Some(now + budget + budget)),
+            DiscreteInputCompletion::Mismatch
+        );
         assert!(owner.discrete_input_ticket_is_current(&current));
         assert_eq!(
             owner.discrete_input_budget_evidence(),
             Some(&prior_evidence)
         );
         assert_eq!(owner.discrete_input_budget_breach_count(), 1);
-        assert!(owner.complete_discrete_input_at(current, Some(now + budget)));
+        assert!(
+            owner
+                .complete_discrete_input_at(current, Some(now + budget))
+                .is_success()
+        );
         assert_eq!(owner.discrete_input_budget_breach_count(), 1);
+    }
+
+    #[test]
+    fn repeated_input_completion_is_a_mismatch_without_new_evidence() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(1);
+        let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
+        let ticket = owner
+            .admit_discrete_input_with_budget(
+                adapter(1),
+                target(1),
+                FrameStageBudgetBinding::input_transient_at(budget, now),
+            )
+            .expect("input admission");
+        let repeated = DiscreteInputStageTicket {
+            identity: ticket.identity.clone(),
+            budget: ticket.budget,
+            owner_token: ticket.owner_token,
+        };
+
+        assert_eq!(
+            owner.complete_discrete_input_at(ticket, Some(now + budget)),
+            DiscreteInputCompletion::Completed(FrameStageBudgetStatus::Within)
+        );
+        let evidence = owner
+            .discrete_input_budget_evidence()
+            .cloned()
+            .expect("first completion evidence");
+        assert_eq!(
+            owner.complete_discrete_input_at(repeated, Some(now + budget + budget)),
+            DiscreteInputCompletion::Mismatch
+        );
+        assert_eq!(owner.discrete_input_budget_evidence(), Some(&evidence));
+        assert_eq!(owner.discrete_input_budget_breach_count(), 0);
     }
 
     #[test]
@@ -2345,7 +2397,11 @@ mod tests {
         let no_budget_ticket = no_budget
             .admit_discrete_input(adapter(1), target(1))
             .expect("unbudgeted input admission");
-        assert!(no_budget.complete_discrete_input_at(no_budget_ticket, None));
+        assert!(
+            no_budget
+                .complete_discrete_input_at(no_budget_ticket, None)
+                .is_success()
+        );
         assert_eq!(
             no_budget
                 .discrete_input_budget_evidence()
@@ -2363,7 +2419,11 @@ mod tests {
                 FrameStageBudgetBinding::not_budgeted(),
             )
             .expect("unbudgeted input admission");
-        assert!(timing_unavailable.complete_discrete_input_at(ticket, None));
+        assert!(
+            timing_unavailable
+                .complete_discrete_input_at(ticket, None)
+                .is_success()
+        );
         let evidence = timing_unavailable
             .discrete_input_budget_evidence()
             .expect("unbudgeted evidence");
@@ -2416,7 +2476,11 @@ mod tests {
                     FrameStageBudgetBinding::input_transient_at(budget, now),
                 )
                 .expect("input admission");
-            assert!(owner.complete_discrete_input_at(ticket, Some(now + budget + budget)));
+            assert!(
+                owner
+                    .complete_discrete_input_at(ticket, Some(now + budget + budget))
+                    .is_success()
+            );
         }
         assert_eq!(owner.discrete_input_budget_breach_count(), 2);
         assert_eq!(owner.immediate_transient_budget_breach_count(), 0);
@@ -2435,7 +2499,11 @@ mod tests {
                 FrameStageBudgetBinding::input_transient_at(budget, now),
             )
             .expect("input admission");
-        assert!(owner.complete_discrete_input_at(ticket, Some(now + Duration::from_millis(2))));
+        assert!(
+            owner
+                .complete_discrete_input_at(ticket, Some(now + Duration::from_millis(2)))
+                .is_success()
+        );
         assert_eq!(owner.discrete_input_budget_breach_count(), u64::MAX);
         assert!(!owner.has_in_flight());
     }
@@ -2451,7 +2519,11 @@ mod tests {
                 FrameStageBudgetBinding::input_transient_at(Duration::from_millis(1), now),
             )
             .expect("input admission");
-        assert!(owner.complete_discrete_input_at(ticket, Some(now + Duration::from_millis(2))));
+        assert!(
+            owner
+                .complete_discrete_input_at(ticket, Some(now + Duration::from_millis(2)))
+                .is_success()
+        );
         assert_eq!(owner.discrete_input_budget_breach_count(), 1);
         let lifecycle = owner
             .admit_lifecycle(adapter(2), NativeTargetGeneration::unknown())

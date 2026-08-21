@@ -6,6 +6,7 @@
 //! event kinds implemented by this slice.
 
 use super::frame_scheduler::FrameScheduleKey;
+use super::frame_scheduler_policy::DiscreteInputCompletion;
 use super::frame_stage_admission::{
     DiscreteInputStageTicket, FrameStageBudgetBinding, WindowStageOwner,
 };
@@ -130,7 +131,7 @@ pub(super) fn admit_native_discrete_input_with_budget(
 pub(super) fn complete_native_discrete_input(
     owner: &mut WindowStageOwner,
     ticket: NativeDiscreteInputStageTicket,
-) -> bool {
+) -> DiscreteInputCompletion {
     owner.complete_discrete_input(ticket.into_stage_ticket())
 }
 
@@ -140,7 +141,7 @@ pub(super) fn complete_native_discrete_input_at(
     owner: &mut WindowStageOwner,
     ticket: NativeDiscreteInputStageTicket,
     completed_at: Option<std::time::Instant>,
-) -> bool {
+) -> DiscreteInputCompletion {
     owner.complete_discrete_input_at(ticket.into_stage_ticket(), completed_at)
 }
 
@@ -155,7 +156,9 @@ pub(super) fn veto_native_discrete_input(
 
 #[cfg(test)]
 mod tests {
-    use super::super::frame_scheduler_policy::SchedulerStage;
+    use super::super::frame_scheduler_policy::{
+        DiscreteInputCompletion, FrameStageBudgetStatus, SchedulerStage,
+    };
     use super::*;
 
     fn evidence(kind: NativeDiscreteInputKind) -> NativeDiscreteInputStageEvidence {
@@ -187,7 +190,7 @@ mod tests {
             SchedulerStage::DiscreteInput
         );
         assert!(admit_native_discrete_input(&mut owner, captured).is_none());
-        assert!(complete_native_discrete_input_at(&mut owner, ticket, None));
+        assert!(complete_native_discrete_input_at(&mut owner, ticket, None).is_success());
         assert!(!owner.has_in_flight());
     }
 
@@ -205,7 +208,7 @@ mod tests {
                 .expect("covered native input kind should admit");
             assert_eq!(ticket.evidence().kind, kind);
             assert!(ticket.is_current(&owner, captured));
-            assert!(complete_native_discrete_input(&mut owner, ticket));
+            assert!(complete_native_discrete_input(&mut owner, ticket).is_success());
         }
     }
 
@@ -226,14 +229,14 @@ mod tests {
 
         assert!(!primary_ticket.is_current(&auxiliary_owner, auxiliary_evidence.clone()));
         assert!(primary_ticket.is_current(&primary_owner, primary));
-        assert!(complete_native_discrete_input(
-            &mut auxiliary_owner,
-            auxiliary_ticket,
-        ));
-        assert!(complete_native_discrete_input(
-            &mut primary_owner,
-            primary_ticket
-        ));
+        assert_eq!(
+            complete_native_discrete_input(&mut auxiliary_owner, auxiliary_ticket),
+            DiscreteInputCompletion::Completed(FrameStageBudgetStatus::NotBudgeted)
+        );
+        assert_eq!(
+            complete_native_discrete_input(&mut primary_owner, primary_ticket),
+            DiscreteInputCompletion::Completed(FrameStageBudgetStatus::NotBudgeted)
+        );
     }
 
     #[test]
@@ -360,7 +363,10 @@ mod tests {
             )
             .expect("lifecycle ticket");
         assert!(!owner.discrete_input_ticket_is_current(ticket.stage_ticket()));
-        assert!(!complete_native_discrete_input(&mut owner, ticket));
+        assert_eq!(
+            complete_native_discrete_input(&mut owner, ticket),
+            DiscreteInputCompletion::Mismatch
+        );
         assert!(owner.complete_lifecycle(lifecycle));
     }
 
@@ -370,7 +376,7 @@ mod tests {
         let captured = evidence(NativeDiscreteInputKind::MouseInput);
         let ticket = admit_native_discrete_input(&mut owner, captured).expect("input ticket");
         let identity = ticket.stage_ticket().identity().clone();
-        assert!(complete_native_discrete_input(&mut owner, ticket));
+        assert!(complete_native_discrete_input(&mut owner, ticket).is_success());
 
         let previous_owner_generation = owner.owner_generation();
         owner.invalidate();

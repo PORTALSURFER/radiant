@@ -40,6 +40,11 @@ impl RuntimeWakeup {
         self.pending.store(false, Ordering::Release);
     }
 
+    #[cfg(test)]
+    pub(super) fn is_pending(&self) -> bool {
+        self.pending.load(Ordering::Acquire)
+    }
+
     pub(super) fn request_if(&self, should_request: bool) {
         if !should_request || !try_mark_repaint_pending(self.pending.as_ref()) {
             return;

@@ -282,15 +282,8 @@ where
     pub(super) fn apply_native_mouse_wheel_route(&mut self, route: NativeWheelRoute) {
         let disposition = route.outcome.native_input_stage_disposition();
         self.apply_deferred_wheel_route_effects(route.deferred_wheel_effects, disposition);
-        if route.redraw_requested
-            && !matches!(
-                disposition,
-                Some(
-                    super::frame_scheduler_policy::NativeInputStageDisposition::DeferLowerPriority
-                )
-            )
-        {
-            self.request_redraw_for_frame_work(super::FrameWork::None);
+        if route.redraw_requested {
+            self.request_redraw_for_pending_coalesced_input();
         }
         if let Some(position) = route.position {
             self.handle_gpu_surface_route_outcome(route.outcome, position, route.delta);

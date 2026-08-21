@@ -2458,6 +2458,34 @@ where
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
+    fn redraw_marker_is_available(&self) -> bool {
+        !self.timing.redraw_requested && !self.window.native_visual_requests.has_work()
+    }
+
+    fn pending_coalesced_input_needs_redraw_marker(&self) -> bool {
+        (self.input.pending_gpu_surface_wheel.is_some()
+            || self.input.pending_scroll_container_wheel.is_some()
+            || self.input.pending_scrollbar_drag.is_some())
+            && self.redraw_marker_is_available()
+    }
+
+    pub(super) fn request_redraw_for_pending_coalesced_input(&mut self) {
+        if self.pending_coalesced_input_needs_redraw_marker() {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+    }
+
+    fn deferred_frame_work_needs_redraw_marker(&self, frame_work: FrameWork) -> bool {
+        matches!(frame_work, FrameWork::None | FrameWork::PaintOnly { .. })
+            && self.redraw_marker_is_available()
+    }
+
+    pub(super) fn request_redraw_for_deferred_frame_work(&mut self, frame_work: FrameWork) {
+        if self.deferred_frame_work_needs_redraw_marker(frame_work) {
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+    }
+
     pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {
         if !self.is_running() {
             return;
@@ -3776,6 +3804,9 @@ where
                 // Exit is handled before this helper and is never deferred.
             }
         }
+        if !outcome.exit_requested {
+            self.request_redraw_for_pending_coalesced_input();
+        }
         AppliedRouteOutcome {
             exit_requested: false,
             sync_auxiliary_windows_now: false,
@@ -3800,14 +3831,17 @@ mod tests {
     };
     use super::{
         AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
-        FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+        FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome,
         NativeAdapterGeneration, NativeGenericRunError, NativeLifecycle,
         NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
         NativeTargetGeneration, TimedFrameCadence, recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
-        gui::{input::InputTimestamp, types::Vector2},
+        gui::{
+            input::InputTimestamp,
+            types::{Point, Vector2},
+        },
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
@@ -3818,6 +3852,7 @@ mod tests {
             RuntimeAnimationHost, RuntimeBridge, RuntimeFrameDiagnosticsHost,
             RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
         },
+        widgets::PointerModifiers,
     };
     use std::{
         sync::{Arc, Mutex},
@@ -4292,6 +4327,50 @@ mod tests {
             EmptyBridge,
             Vector2::new(320.0, 240.0),
         )
+    }
+
+    #[test]
+    fn deferred_redraw_markers_respect_existing_redraw_ownership() {
+        let mut runner = runner();
+        assert!(
+            runner.deferred_frame_work_needs_redraw_marker(FrameWork::PaintOnly {
+                reason: FrameWorkReason::PointerHover,
+            })
+        );
+
+        runner.queue_scroll_container_wheel_with_metadata_for_immediate_transient(
+            Point::new(8.0, 8.0),
+            Vector2::new(0.0, -4.0),
+            PointerModifiers::default(),
+            None,
+            None,
+        );
+        runner.defer_lower_priority_route_outcome(
+            GenericRouteOutcome::default().with_native_input_stage_disposition(
+                NativeInputStageDisposition::DeferLowerPriority,
+            ),
+        );
+
+        assert!(runner.pending_coalesced_input_needs_redraw_marker());
+
+        runner.timing.redraw_requested = true;
+        assert!(!runner.pending_coalesced_input_needs_redraw_marker());
+
+        runner.timing.redraw_requested = false;
+        assert!(
+            runner
+                .window
+                .native_visual_requests
+                .bind_window(WindowId::from(19))
+        );
+        assert_eq!(
+            runner
+                .window
+                .native_visual_requests
+                .enqueue_for_test(FrameWork::None),
+            NativeVisualRequestEnqueue::Issued
+        );
+        assert!(!runner.pending_coalesced_input_needs_redraw_marker());
     }
 
     fn retiring_auxiliary_window_with_key(key: &str) -> AuxiliaryNativeWindow<()> {

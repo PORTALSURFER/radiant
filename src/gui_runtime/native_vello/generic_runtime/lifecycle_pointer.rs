@@ -168,6 +168,7 @@ where
                 let mut deferred = GenericRouteOutcome::default();
                 deferred.request_frame_work(work);
                 self.defer_lower_priority_route_outcome(deferred);
+                self.request_redraw_for_deferred_frame_work(work);
             } else {
                 self.request_redraw_for_frame_work(work);
             }

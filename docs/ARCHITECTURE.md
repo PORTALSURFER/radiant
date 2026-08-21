@@ -1400,6 +1400,12 @@ Current target-specific seams are intentionally narrow:
   decrement actions through the public application builder. Its non-macOS
   fallback and tests remain buildable without claiming live AppKit or VoiceOver
   evidence.
+- `examples/macos_text_input_ime_acceptance.rs` is a macOS-only native
+  acceptance harness for the shipped primary-window single-line TextInput IME
+  path. Its live instructions require actual Japanese IME preedit,
+  candidate-panel, caret, commit, cancel, and focus-loss observation; its
+  deterministic tests inspect only the production runtime projection and do
+  not claim live AppKit evidence.
 - `src/gui_runtime/native_vello/generic_runtime/input/platform.rs` owns the
   small target-specific modifier and control-click projection differences used
   by native pointer and keyboard mapping.

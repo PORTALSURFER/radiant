@@ -22,6 +22,13 @@ where
         position: Point,
         delta: Vector2,
     ) {
+        if matches!(
+            outcome.native_input_stage_disposition(),
+            Some(super::frame_scheduler_policy::NativeInputStageDisposition::DeferLowerPriority,)
+        ) {
+            self.defer_lower_priority_route_outcome(outcome);
+            return;
+        }
         self.merge_due_timed_frame_for_route(&mut outcome);
         if !outcome.needs_redraw() {
             return;
@@ -75,6 +82,13 @@ where
         previous: Option<Point>,
         position: Point,
     ) {
+        if matches!(
+            outcome.native_input_stage_disposition(),
+            Some(super::frame_scheduler_policy::NativeInputStageDisposition::DeferLowerPriority,)
+        ) {
+            self.defer_lower_priority_route_outcome(outcome);
+            return;
+        }
         self.merge_due_timed_frame_for_route(&mut outcome);
         if !outcome.needs_redraw() {
             return;

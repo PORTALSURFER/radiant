@@ -66,6 +66,21 @@ pub(super) const fn discrete_input_completion_disposition(
     })
 }
 
+/// Private policy mapping for an exact ImmediateTransient completion.
+pub(super) const fn immediate_transient_completion_disposition(
+    completion: ImmediateTransientCompletion,
+) -> Option<NativeInputStageDisposition> {
+    let ImmediateTransientCompletion::Completed(status) = completion else {
+        return None;
+    };
+    Some(match status {
+        FrameStageBudgetStatus::Exceeded => NativeInputStageDisposition::DeferLowerPriority,
+        FrameStageBudgetStatus::Within | FrameStageBudgetStatus::NotBudgeted => {
+            NativeInputStageDisposition::ContinueNow
+        }
+    })
+}
+
 /// Completion timing classification for one admitted stage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum FrameStageBudgetStatus {
@@ -573,6 +588,31 @@ mod tests {
             assert!(ImmediateTransientCompletion::Completed(status).is_success());
         }
         assert!(!ImmediateTransientCompletion::Mismatch.is_success());
+    }
+
+    #[test]
+    fn exact_immediate_transient_completion_maps_only_exceeded_to_deferral() {
+        assert_eq!(
+            immediate_transient_completion_disposition(ImmediateTransientCompletion::Completed(
+                FrameStageBudgetStatus::Exceeded,
+            )),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        );
+        for status in [
+            FrameStageBudgetStatus::Within,
+            FrameStageBudgetStatus::NotBudgeted,
+        ] {
+            assert_eq!(
+                immediate_transient_completion_disposition(
+                    ImmediateTransientCompletion::Completed(status),
+                ),
+                Some(NativeInputStageDisposition::ContinueNow)
+            );
+        }
+        assert_eq!(
+            immediate_transient_completion_disposition(ImmediateTransientCompletion::Mismatch),
+            None
+        );
     }
 
     #[test]

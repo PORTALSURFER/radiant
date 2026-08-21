@@ -463,6 +463,7 @@ pub(super) struct FrameStageBudgetBinding {
 }
 
 impl FrameStageBudgetBinding {
+    #[cfg(test)]
     pub(super) const fn not_budgeted() -> Self {
         Self {
             budget: None,

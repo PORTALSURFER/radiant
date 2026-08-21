@@ -1,14 +1,20 @@
 use super::frame_scheduler_policy::{
-    DiscreteInputCompletion, NativeInputStageDisposition, discrete_input_completion_disposition,
+    DiscreteInputCompletion, ImmediateTransientCompletion, NativeInputStageDisposition,
+    discrete_input_completion_disposition, immediate_transient_completion_disposition,
 };
-use super::lifecycle_pointer::finalize_native_immediate_transient_route;
+use super::lifecycle_pointer::{
+    NativeCursorLeftRoute, NativeCursorMovedRoute, finalize_native_immediate_transient_route,
+};
 #[cfg(test)]
 use super::native_discrete_input_stage::complete_native_discrete_input_at;
 use super::native_discrete_input_stage::{NativeDiscreteInputKind, NativeDiscreteInputStageTicket};
-use super::native_immediate_transient_stage::NativeImmediateTransientKind;
+use super::native_immediate_transient_stage::{
+    NativeImmediateTransientKind, NativeImmediateTransientStageTicket,
+};
 #[cfg(test)]
 use super::native_lifecycle_stage::NativeLifecycleStageEvidence;
 use super::native_lifecycle_stage::NativeLifecycleStageTicket;
+use super::native_pointer::NativeWheelRoute;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::renderer_recovery::NativeRendererRecoveryWindowKind;
 use super::runner_state::{NativeWindowDiagnosticIdentityAllocator, NativeWindowResourceBundle};
@@ -61,6 +67,34 @@ pub(super) struct AuxiliaryNativeDiscreteInputRoute {
 pub(super) struct AuxiliaryNativeDiscreteInputResolution {
     disposition: NativeInputStageDisposition,
     child_outcome: Option<GenericRouteOutcome>,
+}
+
+pub(super) struct AuxiliaryNativeImmediateTransientRoute {
+    pub(super) ticket: NativeImmediateTransientStageTicket,
+    pub(super) kind: AuxiliaryNativeImmediateTransientRouteKind,
+}
+
+pub(super) enum AuxiliaryNativeImmediateTransientRouteKind {
+    Focused {
+        outcome: GenericRouteOutcome,
+        launch_external_drag: bool,
+    },
+    CursorEntered,
+    CursorMoved(NativeCursorMovedRoute),
+    CursorLeft(NativeCursorLeftRoute),
+    MouseWheel(NativeWheelRoute),
+}
+
+pub(super) struct AuxiliaryNativeImmediateTransientResolution {
+    disposition: NativeInputStageDisposition,
+    child_route: AuxiliaryNativeImmediateTransientResolvedRoute,
+}
+
+pub(super) enum AuxiliaryNativeImmediateTransientResolvedRoute {
+    None,
+    Outcome(GenericRouteOutcome),
+    CursorMoved(NativeCursorMovedRoute),
+    MouseWheel(NativeWheelRoute),
 }
 
 #[cfg(test)]
@@ -249,6 +283,21 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         visual_deadline_completed: bool,
         native_discrete_input_route: Option<AuxiliaryNativeDiscreteInputRoute>,
     ) -> AuxiliaryWindowEventResult<Message> {
+        self.event_result_with_native_routes(
+            terminal_cause,
+            visual_deadline_completed,
+            native_discrete_input_route,
+            None,
+        )
+    }
+
+    fn event_result_with_native_routes(
+        &mut self,
+        terminal_cause: Option<NativeGenericRunError>,
+        visual_deadline_completed: bool,
+        native_discrete_input_route: Option<AuxiliaryNativeDiscreteInputRoute>,
+        native_immediate_transient_route: Option<AuxiliaryNativeImmediateTransientRoute>,
+    ) -> AuxiliaryWindowEventResult<Message> {
         AuxiliaryWindowEventResult {
             messages: self.take_messages(),
             message_origin: Some(self.owner.clone()),
@@ -257,6 +306,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             shutdown_requested: self.runner.native_shutdown_requested(),
             visual_deadline_completed,
             native_discrete_input_route,
+            native_immediate_transient_route,
         }
     }
 
@@ -269,6 +319,81 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             outcome,
             self.runner.complete_native_discrete_input(ticket),
         )
+    }
+
+    pub(super) fn resolve_native_immediate_transient_route(
+        &mut self,
+        pending: AuxiliaryNativeImmediateTransientRoute,
+    ) -> Option<AuxiliaryNativeImmediateTransientResolution> {
+        let AuxiliaryNativeImmediateTransientRoute { ticket, kind } = pending;
+        let completion = self.runner.complete_native_immediate_transient(ticket);
+        self.resolve_native_immediate_transient_route_with_completion(kind, completion)
+    }
+
+    fn resolve_native_immediate_transient_route_with_completion(
+        &mut self,
+        kind: AuxiliaryNativeImmediateTransientRouteKind,
+        completion: ImmediateTransientCompletion,
+    ) -> Option<AuxiliaryNativeImmediateTransientResolution> {
+        let disposition = immediate_transient_completion_disposition(completion)?;
+        let child_route = match kind {
+            AuxiliaryNativeImmediateTransientRouteKind::Focused {
+                outcome,
+                launch_external_drag,
+            } => AuxiliaryNativeImmediateTransientResolvedRoute::Outcome(
+                finalize_native_immediate_transient_route(
+                    completion,
+                    outcome,
+                    launch_external_drag,
+                    || self.runner.launch_external_drag_if_armed(),
+                )?,
+            ),
+            AuxiliaryNativeImmediateTransientRouteKind::CursorEntered => {
+                AuxiliaryNativeImmediateTransientResolvedRoute::None
+            }
+            AuxiliaryNativeImmediateTransientRouteKind::CursorMoved(mut route) => {
+                route.outcome = route
+                    .outcome
+                    .with_native_input_stage_disposition(disposition);
+                AuxiliaryNativeImmediateTransientResolvedRoute::CursorMoved(route)
+            }
+            AuxiliaryNativeImmediateTransientRouteKind::CursorLeft(route) => {
+                AuxiliaryNativeImmediateTransientResolvedRoute::Outcome(
+                    finalize_native_immediate_transient_route(
+                        completion,
+                        route.outcome,
+                        route.launch_external_drag,
+                        || self.runner.launch_external_drag_if_armed(),
+                    )?,
+                )
+            }
+            AuxiliaryNativeImmediateTransientRouteKind::MouseWheel(mut route) => {
+                route.outcome = route
+                    .outcome
+                    .with_native_input_stage_disposition(disposition);
+                AuxiliaryNativeImmediateTransientResolvedRoute::MouseWheel(route)
+            }
+        };
+        Some(AuxiliaryNativeImmediateTransientResolution {
+            disposition,
+            child_route,
+        })
+    }
+
+    #[cfg(test)]
+    pub(super) fn resolve_native_immediate_transient_route_at(
+        &mut self,
+        pending: AuxiliaryNativeImmediateTransientRoute,
+        completed_at: Option<Instant>,
+    ) -> Option<AuxiliaryNativeImmediateTransientResolution> {
+        let AuxiliaryNativeImmediateTransientRoute { ticket, kind } = pending;
+        let completion =
+            super::native_immediate_transient_stage::complete_native_immediate_transient_at(
+                &mut self.runner.frame_stage_owner,
+                ticket,
+                completed_at,
+            );
+        self.resolve_native_immediate_transient_route_with_completion(kind, completion)
     }
 
     fn resolve_native_discrete_input_outcome(
@@ -308,6 +433,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.veto_native_discrete_input(pending.ticket)
     }
 
+    pub(super) fn cancel_native_immediate_transient_route(
+        &mut self,
+        pending: AuxiliaryNativeImmediateTransientRoute,
+    ) -> bool {
+        self.runner.veto_native_immediate_transient(pending.ticket)
+    }
+
     pub(super) fn apply_native_discrete_input_route_with_adapter(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -316,6 +448,30 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) {
         self.runner
             .handle_route_outcome_with_adapter(event_loop, outcome, adapter, None);
+    }
+
+    pub(super) fn apply_native_immediate_transient_route_with_adapter(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        resolution: AuxiliaryNativeImmediateTransientResolution,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        match resolution.child_route {
+            AuxiliaryNativeImmediateTransientResolvedRoute::None => {}
+            AuxiliaryNativeImmediateTransientResolvedRoute::Outcome(outcome) => {
+                self.runner
+                    .handle_route_outcome_with_adapter(event_loop, outcome, adapter, None);
+            }
+            AuxiliaryNativeImmediateTransientResolvedRoute::CursorMoved(route) => {
+                self.runner.apply_cursor_moved_route(route);
+            }
+            AuxiliaryNativeImmediateTransientResolvedRoute::MouseWheel(route) => {
+                let outcome = route.outcome;
+                self.runner.apply_native_mouse_wheel_route(route);
+                self.runner
+                    .handle_route_outcome_with_adapter(event_loop, outcome, adapter, None);
+            }
+        }
     }
 
     pub(super) fn is_admitted(&self) -> bool {
@@ -1038,6 +1194,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             shutdown_requested: false,
             visual_deadline_completed: false,
             native_discrete_input_route: None,
+            native_immediate_transient_route: None,
         }
     }
 
@@ -1060,6 +1217,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             shutdown_requested: false,
             visual_deadline_completed: false,
             native_discrete_input_route: None,
+            native_immediate_transient_route: None,
         }
     }
 
@@ -1077,6 +1235,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         let mut terminal_cause = None;
         let mut native_discrete_input_route = None;
+        let mut native_immediate_transient_route = None;
         match event {
             WindowEvent::CloseRequested => {
                 return self.handle_close_requested(adapter.capture_generation());
@@ -1112,19 +1271,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 };
                 let routed = self.runner.handle_focus_lost_before_external_drag();
                 let launch_external_drag = self.runner.core.runtime.external_drag_armed();
-                if let Some(routed) = finalize_native_immediate_transient_route(
-                    self.runner.complete_native_immediate_transient(ticket),
-                    routed,
-                    launch_external_drag,
-                    || self.runner.launch_external_drag_if_armed(),
-                ) {
-                    self.runner.handle_route_outcome_with_adapter(
-                        event_loop,
-                        routed,
-                        adapter,
-                        observation.as_deref_mut(),
-                    );
-                }
+                native_immediate_transient_route = Some(AuxiliaryNativeImmediateTransientRoute {
+                    ticket,
+                    kind: AuxiliaryNativeImmediateTransientRouteKind::Focused {
+                        outcome: routed,
+                        launch_external_drag,
+                    },
+                });
             }
             WindowEvent::Focused(true) => {
                 let timestamp = InputTimestamp::capture();
@@ -1150,18 +1303,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     return self.event_result(None, false);
                 };
                 let routed = self.runner.handle_focus_regained_after_native_modal_loop();
-                if self
-                    .runner
-                    .complete_native_immediate_transient(ticket)
-                    .is_success()
-                {
-                    self.runner.handle_route_outcome_with_adapter(
-                        event_loop,
-                        routed,
-                        adapter,
-                        observation,
-                    );
-                }
+                native_immediate_transient_route = Some(AuxiliaryNativeImmediateTransientRoute {
+                    ticket,
+                    kind: AuxiliaryNativeImmediateTransientRouteKind::Focused {
+                        outcome: routed,
+                        launch_external_drag: false,
+                    },
+                });
             }
             WindowEvent::CursorEntered { .. } => {
                 let timestamp = InputTimestamp::capture();
@@ -1187,7 +1335,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     return self.event_result(None, false);
                 };
                 self.runner.handle_cursor_entered();
-                let _ = self.runner.complete_native_immediate_transient(ticket);
+                native_immediate_transient_route = Some(AuxiliaryNativeImmediateTransientRoute {
+                    ticket,
+                    kind: AuxiliaryNativeImmediateTransientRouteKind::CursorEntered,
+                });
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let timestamp = InputTimestamp::capture();
@@ -1215,13 +1366,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 let route = self
                     .runner
                     .route_cursor_moved_with_timestamp(position, timestamp);
-                if self
-                    .runner
-                    .complete_native_immediate_transient(ticket)
-                    .is_success()
-                {
-                    self.runner.apply_cursor_moved_route(route);
-                }
+                native_immediate_transient_route = Some(AuxiliaryNativeImmediateTransientRoute {
+                    ticket,
+                    kind: AuxiliaryNativeImmediateTransientRouteKind::CursorMoved(route),
+                });
             }
             WindowEvent::CursorLeft { .. } => {
                 let timestamp = InputTimestamp::capture();
@@ -1247,19 +1395,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     return self.event_result(None, false);
                 };
                 let route = self.runner.route_cursor_left();
-                if let Some(routed) = finalize_native_immediate_transient_route(
-                    self.runner.complete_native_immediate_transient(ticket),
-                    route.outcome,
-                    route.launch_external_drag,
-                    || self.runner.launch_external_drag_if_armed(),
-                ) {
-                    self.runner.handle_route_outcome_with_adapter(
-                        event_loop,
-                        routed,
-                        adapter,
-                        observation.as_deref_mut(),
-                    );
-                }
+                native_immediate_transient_route = Some(AuxiliaryNativeImmediateTransientRoute {
+                    ticket,
+                    kind: AuxiliaryNativeImmediateTransientRouteKind::CursorLeft(route),
+                });
             }
             WindowEvent::MouseInput { button, state, .. } => {
                 let timestamp = InputTimestamp::capture();
@@ -1313,30 +1452,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 let route = self
                     .runner
                     .route_native_mouse_wheel_with_phase_and_timestamp(delta, phase, timestamp);
-                if self
-                    .runner
-                    .complete_native_immediate_transient(ticket)
-                    .is_success()
-                {
-                    self.runner
-                        .apply_deferred_wheel_route_effects(route.deferred_wheel_effects);
-                    if route.redraw_requested {
-                        self.runner.request_redraw_for_frame_work(FrameWork::None);
-                    }
-                    if let Some(position) = route.position {
-                        self.runner.handle_gpu_surface_route_outcome(
-                            route.outcome,
-                            position,
-                            route.delta,
-                        );
-                    }
-                    self.runner.handle_route_outcome_with_adapter(
-                        event_loop,
-                        route.outcome,
-                        adapter,
-                        observation.as_deref_mut(),
-                    );
-                }
+                native_immediate_transient_route = Some(AuxiliaryNativeImmediateTransientRoute {
+                    ticket,
+                    kind: AuxiliaryNativeImmediateTransientRouteKind::MouseWheel(route),
+                });
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let wrapper_eligible = adapter.capture_generation().is_some_and(|generation| {
@@ -1455,10 +1574,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             _ => {}
         }
         let terminal_cause = terminal_cause.or_else(|| self.runner.take_terminal_cause());
-        self.event_result_with_native_discrete_input(
+        self.event_result_with_native_routes(
             terminal_cause,
             false,
             native_discrete_input_route,
+            native_immediate_transient_route,
         )
     }
 
@@ -1484,6 +1604,7 @@ pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) shutdown_requested: bool,
     pub(super) visual_deadline_completed: bool,
     pub(super) native_discrete_input_route: Option<AuxiliaryNativeDiscreteInputRoute>,
+    pub(super) native_immediate_transient_route: Option<AuxiliaryNativeImmediateTransientRoute>,
 }
 
 pub(super) struct AuxiliaryWindowCloseAdmission {
@@ -1501,6 +1622,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
             shutdown_requested: false,
             visual_deadline_completed: false,
             native_discrete_input_route: None,
+            native_immediate_transient_route: None,
         }
     }
 }
@@ -1518,6 +1640,18 @@ where
             && let Some(window) = self.auxiliary_windows.get_mut(index)
         {
             let _ = window.cancel_native_discrete_input_route(pending);
+        }
+    }
+
+    pub(super) fn cancel_auxiliary_native_immediate_transient_route(
+        &mut self,
+        index: usize,
+        pending: Option<AuxiliaryNativeImmediateTransientRoute>,
+    ) {
+        if let Some(pending) = pending
+            && let Some(window) = self.auxiliary_windows.get_mut(index)
+        {
+            let _ = window.cancel_native_immediate_transient_route(pending);
         }
     }
 
@@ -1563,12 +1697,14 @@ where
         message_origin: Option<AuxiliaryWindowOwner>,
         messages: Vec<Message>,
         native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
+        native_immediate_transient_route: Option<(usize, AuxiliaryNativeImmediateTransientRoute)>,
     ) {
         self.dispatch_auxiliary_messages_with_timed_frame(
             event_loop,
             message_origin,
             messages,
             native_discrete_input_route,
+            native_immediate_transient_route,
             true,
         );
     }
@@ -1579,12 +1715,14 @@ where
         message_origin: Option<AuxiliaryWindowOwner>,
         messages: Vec<Message>,
         native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
+        native_immediate_transient_route: Option<(usize, AuxiliaryNativeImmediateTransientRoute)>,
     ) {
         self.dispatch_auxiliary_messages_with_timed_frame(
             event_loop,
             message_origin,
             messages,
             native_discrete_input_route,
+            native_immediate_transient_route,
             false,
         );
     }
@@ -1595,11 +1733,15 @@ where
         message_origin: Option<AuxiliaryWindowOwner>,
         messages: Vec<Message>,
         native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
+        native_immediate_transient_route: Option<(usize, AuxiliaryNativeImmediateTransientRoute)>,
         merge_due_timed_frame: bool,
     ) {
         if !self.should_admit_auxiliary_sync() {
             if let Some((index, pending)) = native_discrete_input_route {
                 self.cancel_auxiliary_native_discrete_input_route(index, Some(pending));
+            }
+            if let Some((index, pending)) = native_immediate_transient_route {
+                self.cancel_auxiliary_native_immediate_transient_route(index, Some(pending));
             }
             return;
         }
@@ -1636,6 +1778,49 @@ where
                     adapter,
                 );
             }
+            if disposition == NativeInputStageDisposition::DeferLowerPriority {
+                if merge_due_timed_frame {
+                    self.handle_route_outcome(event_loop, outcome);
+                } else {
+                    self.handle_route_outcome_without_timed_frame(event_loop, outcome);
+                }
+                return;
+            }
+        }
+        if let Some((index, pending)) = native_immediate_transient_route {
+            let Some(resolution) =
+                self.auxiliary_windows[index].resolve_native_immediate_transient_route(pending)
+            else {
+                // The semantic route and parent message reduction already
+                // ran, but an exact completion mismatch cannot authorize any
+                // lower-stage child or parent work.
+                return;
+            };
+            let disposition = resolution.disposition;
+            let child_outcome = match &resolution.child_route {
+                AuxiliaryNativeImmediateTransientResolvedRoute::None => None,
+                AuxiliaryNativeImmediateTransientResolvedRoute::Outcome(outcome) => Some(*outcome),
+                AuxiliaryNativeImmediateTransientResolvedRoute::CursorMoved(route) => {
+                    Some(route.outcome)
+                }
+                AuxiliaryNativeImmediateTransientResolvedRoute::MouseWheel(route) => {
+                    Some(route.outcome)
+                }
+            };
+            outcome = self.apply_auxiliary_native_discrete_input_resolution(
+                outcome,
+                disposition,
+                child_outcome,
+            );
+            let Some(adapter) = self.adapter.as_mut() else {
+                // The ticket is settled above. Without an adapter, suppress
+                // both lower-stage outcomes rather than applying one side or
+                // falling back to a replay.
+                return;
+            };
+            self.auxiliary_windows[index].apply_native_immediate_transient_route_with_adapter(
+                event_loop, resolution, adapter,
+            );
             if disposition == NativeInputStageDisposition::DeferLowerPriority {
                 if merge_due_timed_frame {
                     self.handle_route_outcome(event_loop, outcome);
@@ -1920,6 +2105,10 @@ mod tests {
         NativeDiscreteInputKind, NativeDiscreteInputStageEvidence,
         admit_native_discrete_input_with_budget,
     };
+    use super::super::native_immediate_transient_stage::{
+        NativeImmediateTransientKind, NativeImmediateTransientStageEvidence,
+        admit_native_immediate_transient_with_budget,
+    };
     use super::super::runner_state::NativeTargetGeneration;
     use super::super::{NativeLifecycle, native_lifecycle_stage};
     use super::{
@@ -1989,6 +2178,41 @@ mod tests {
         )
         .expect("auxiliary input ticket");
         AuxiliaryNativeDiscreteInputRoute { ticket, outcome }
+    }
+
+    fn auxiliary_transient_route_with_budget(
+        window: &mut AuxiliaryNativeWindow<i32>,
+        kind: NativeImmediateTransientKind,
+        outcome: GenericRouteOutcome,
+        budget: FrameStageBudgetBinding,
+    ) -> super::AuxiliaryNativeImmediateTransientRoute {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let key = FrameScheduleKey::Auxiliary(window.key.clone());
+        let ticket = admit_native_immediate_transient_with_budget(
+            &mut window.runner.frame_stage_owner,
+            NativeImmediateTransientStageEvidence {
+                key,
+                kind,
+                timestamp: InputTimestamp::capture(),
+                window_id: Some(WindowId::dummy()),
+                adapter_generation: generation,
+                active_resource_generation: Some(generation),
+                target_generation: NativeTargetGeneration::from_test_serial(1),
+                native_surface_target_fenced: false,
+                lifecycle: NativeLifecycle::default(),
+                native_window_eligible: true,
+                wrapper_eligible: true,
+            },
+            budget,
+        )
+        .expect("auxiliary transient ticket");
+        super::AuxiliaryNativeImmediateTransientRoute {
+            ticket,
+            kind: super::AuxiliaryNativeImmediateTransientRouteKind::Focused {
+                outcome,
+                launch_external_drag: false,
+            },
+        }
     }
 
     fn auxiliary_window_with_diagnostics(
@@ -2168,6 +2392,162 @@ mod tests {
             "a mismatch must not authorize parent lower-stage work"
         );
         assert!(!parent.timing.deferred_auxiliary_window_sync);
+    }
+
+    #[test]
+    fn auxiliary_immediate_transient_settles_after_parent_reduction_once() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(1);
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(
+                crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+                false,
+                false,
+            ),
+            Vector2::new(1280.0, 720.0),
+        );
+        parent.auxiliary_windows.push(auxiliary_window(false));
+        let mut child_work = GenericRouteOutcome::default();
+        child_work.request_scene_rebuild(FrameWorkReason::RoutedInput);
+        let pending = auxiliary_transient_route_with_budget(
+            &mut parent.auxiliary_windows[0],
+            NativeImmediateTransientKind::Focused(false),
+            child_work,
+            FrameStageBudgetBinding::input_transient_at(budget, now),
+        );
+
+        let reduced_parent = parent.reduce_auxiliary_messages(None, Vec::new());
+        assert!(parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+        let resolution = parent.auxiliary_windows[0]
+            .resolve_native_immediate_transient_route_at(pending, Some(now + budget))
+            .expect("exact transient completion");
+        let child_outcome = match resolution.child_route {
+            super::AuxiliaryNativeImmediateTransientResolvedRoute::Outcome(outcome) => outcome,
+            _ => panic!("focused transient should retain its child outcome"),
+        };
+        let parent_outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+            reduced_parent,
+            resolution.disposition,
+            Some(child_outcome),
+        );
+
+        assert_eq!(
+            resolution.disposition,
+            NativeInputStageDisposition::ContinueNow
+        );
+        assert_eq!(
+            child_outcome.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::ContinueNow)
+        );
+        assert_eq!(
+            parent_outcome.native_input_stage_disposition(),
+            child_outcome.native_input_stage_disposition()
+        );
+        assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+        assert_eq!(
+            parent.auxiliary_windows[0]
+                .runner
+                .frame_stage_owner
+                .immediate_transient_budget_breach_count(),
+            0
+        );
+    }
+
+    #[test]
+    fn auxiliary_immediate_transient_exceeded_matches_parent_and_defers_sibling_sync() {
+        let now = Instant::now();
+        let budget = Duration::from_millis(1);
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(
+                crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+                false,
+                false,
+            ),
+            Vector2::new(1280.0, 720.0),
+        );
+        parent.auxiliary_windows.push(auxiliary_window(false));
+        let mut child_work = GenericRouteOutcome::default();
+        child_work.request_scene_rebuild(FrameWorkReason::RoutedInput);
+        let pending = auxiliary_transient_route_with_budget(
+            &mut parent.auxiliary_windows[0],
+            NativeImmediateTransientKind::CursorMoved,
+            child_work,
+            FrameStageBudgetBinding::input_transient_at(budget, now),
+        );
+        let resolution = parent.auxiliary_windows[0]
+            .resolve_native_immediate_transient_route_at(
+                pending,
+                Some(now + budget + Duration::from_micros(1)),
+            )
+            .expect("exceeded transient completion");
+        let child_outcome = match resolution.child_route {
+            super::AuxiliaryNativeImmediateTransientResolvedRoute::Outcome(outcome) => outcome,
+            _ => panic!("cursor move fixture should retain its child outcome"),
+        };
+        let parent_outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+            GenericRouteOutcome::default(),
+            resolution.disposition,
+            Some(child_outcome),
+        );
+
+        assert_eq!(
+            resolution.disposition,
+            NativeInputStageDisposition::DeferLowerPriority
+        );
+        assert_eq!(
+            child_outcome.native_input_stage_disposition(),
+            Some(NativeInputStageDisposition::DeferLowerPriority)
+        );
+        assert_eq!(
+            parent_outcome.native_input_stage_disposition(),
+            child_outcome.native_input_stage_disposition()
+        );
+        assert!(parent.timing.deferred_auxiliary_window_sync);
+        assert!(!parent.timing.redraw_requested);
+        assert!(!parent.runtime_wakeup.is_pending());
+        assert_eq!(
+            parent.auxiliary_windows[0]
+                .runner
+                .frame_stage_owner
+                .immediate_transient_budget_breach_count(),
+            1
+        );
+    }
+
+    #[test]
+    fn auxiliary_immediate_transient_mismatch_is_stale_without_policy_or_replay() {
+        let now = Instant::now();
+        let mut parent = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            AuxiliarySurfaceBridge::new(
+                crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+                false,
+                false,
+            ),
+            Vector2::new(1280.0, 720.0),
+        );
+        parent.auxiliary_windows.push(auxiliary_window(false));
+        let mut child_work = GenericRouteOutcome::default();
+        child_work.request_scene_rebuild(FrameWorkReason::RoutedInput);
+        let pending = auxiliary_transient_route_with_budget(
+            &mut parent.auxiliary_windows[0],
+            NativeImmediateTransientKind::CursorLeft,
+            child_work,
+            FrameStageBudgetBinding::input_transient_at(Duration::from_millis(1), now),
+        );
+        parent.auxiliary_windows[0].invalidate_terminal_convergence_stage_owner();
+
+        let reduced_parent = parent.reduce_auxiliary_messages(None, Vec::new());
+        assert!(
+            parent.auxiliary_windows[0]
+                .resolve_native_immediate_transient_route(pending)
+                .is_none()
+        );
+        assert_eq!(reduced_parent.native_input_stage_disposition(), None);
+        assert!(!parent.timing.deferred_auxiliary_window_sync);
+        assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
     }
 
     #[test]

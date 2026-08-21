@@ -425,11 +425,18 @@ where
     pub(super) fn apply_deferred_wheel_route_effects(
         &mut self,
         effects: DeferredWheelRouteEffects,
+        disposition: Option<super::frame_scheduler_policy::NativeInputStageDisposition>,
     ) {
         if let Some(outcome) = effects.gpu_surface {
+            let outcome = disposition.map_or(outcome, |disposition| {
+                outcome.with_native_input_stage_disposition(disposition)
+            });
             self.apply_flushed_gpu_surface_wheel_outcome(outcome);
         }
         if let Some(outcome) = effects.scroll_container {
+            let outcome = disposition.map_or(outcome, |disposition| {
+                outcome.with_native_input_stage_disposition(disposition)
+            });
             self.apply_flushed_scroll_container_wheel_outcome(outcome);
         }
     }
@@ -453,6 +460,13 @@ where
     }
 
     fn apply_flushed_gpu_surface_wheel_outcome(&mut self, outcome: super::GenericRouteOutcome) {
+        if matches!(
+            outcome.native_input_stage_disposition(),
+            Some(super::frame_scheduler_policy::NativeInputStageDisposition::DeferLowerPriority,)
+        ) {
+            self.defer_lower_priority_route_outcome(outcome);
+            return;
+        }
         self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
@@ -510,6 +524,13 @@ where
         &mut self,
         outcome: super::GenericRouteOutcome,
     ) {
+        if matches!(
+            outcome.native_input_stage_disposition(),
+            Some(super::frame_scheduler_policy::NativeInputStageDisposition::DeferLowerPriority,)
+        ) {
+            self.defer_lower_priority_route_outcome(outcome);
+            return;
+        }
         self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(

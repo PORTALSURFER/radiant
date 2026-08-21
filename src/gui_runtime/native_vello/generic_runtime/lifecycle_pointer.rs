@@ -1,6 +1,8 @@
 //! Pointer lifecycle helpers for the generic native Vello runner.
 
-use super::frame_scheduler_policy::ImmediateTransientCompletion;
+use super::frame_scheduler_policy::{
+    ImmediateTransientCompletion, immediate_transient_completion_disposition,
+};
 use super::{
     FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
     logical_point_from_winit, maybe_log_route_profile,
@@ -36,13 +38,11 @@ pub(super) fn finalize_native_immediate_transient_route(
     launch_external_drag: bool,
     launch: impl FnOnce() -> GenericRouteOutcome,
 ) -> Option<GenericRouteOutcome> {
-    if !completion.is_success() {
-        return None;
-    }
+    let disposition = immediate_transient_completion_disposition(completion)?;
     if launch_external_drag {
         routed.merge(launch());
     }
-    Some(routed)
+    Some(routed.with_native_input_stage_disposition(disposition))
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -159,7 +159,18 @@ where
 
     pub(super) fn apply_cursor_moved_route(&mut self, route: NativeCursorMovedRoute) {
         if let Some(work) = route.redraw_work {
-            self.request_redraw_for_frame_work(work);
+            if matches!(
+                route.outcome.native_input_stage_disposition(),
+                Some(
+                    super::frame_scheduler_policy::NativeInputStageDisposition::DeferLowerPriority
+                )
+            ) {
+                let mut deferred = GenericRouteOutcome::default();
+                deferred.request_frame_work(work);
+                self.defer_lower_priority_route_outcome(deferred);
+            } else {
+                self.request_redraw_for_frame_work(work);
+            }
         }
         if route.apply_pointer_move_outcome
             && let Some(position) = route.position

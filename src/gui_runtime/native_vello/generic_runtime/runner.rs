@@ -3,6 +3,7 @@
 use super::frame_scheduler_policy::{
     DiscreteInputCompletion, ImmediateTransientCompletion, NativeInputStageDisposition,
     SchedulerSoftBudgets, discrete_input_completion_disposition,
+    immediate_transient_completion_disposition,
 };
 use super::frame_stage_admission::{FrameStageBudgetBinding, WindowStageOwner};
 use super::native_discrete_input_stage::{
@@ -797,12 +798,10 @@ where
         FrameStageBudgetBinding::input_transient(budget)
     }
 
-    /// ImmediateTransient keeps its existing observation-only budget binding;
-    /// no policy consumer is added for that stage in this slice.
+    /// Bind the current input/transient soft budget for every exact
+    /// ImmediateTransient attempt. The budget is authoritative and therefore
+    /// independent of diagnostics and frame observation availability.
     fn immediate_transient_budget_binding(&mut self) -> FrameStageBudgetBinding {
-        if !self.frame_observation_enabled {
-            return FrameStageBudgetBinding::not_budgeted();
-        }
         self.discrete_input_budget_binding()
     }
 
@@ -1078,6 +1077,20 @@ where
         ticket: NativeImmediateTransientStageTicket,
     ) -> ImmediateTransientCompletion {
         complete_native_immediate_transient_stage(&mut self.frame_stage_owner, ticket)
+    }
+
+    /// Attach the exact completion's policy disposition to its already-routed
+    /// outcome. A mismatch is terminal for the route and cannot authorize a
+    /// fallback or recover policy from mutable owner evidence.
+    pub(super) fn complete_native_immediate_transient_route(
+        &mut self,
+        ticket: NativeImmediateTransientStageTicket,
+        outcome: GenericRouteOutcome,
+    ) -> Option<GenericRouteOutcome> {
+        let disposition = immediate_transient_completion_disposition(
+            self.complete_native_immediate_transient(ticket),
+        )?;
+        Some(outcome.with_native_input_stage_disposition(disposition))
     }
 
     pub(super) fn veto_native_immediate_transient(
@@ -3721,7 +3734,7 @@ where
     /// Defer only the lower-priority work attached to an exact over-budget
     /// input route. Semantic input has already completed; the existing bounded
     /// deferred flags and visual mailbox retain the latest safe visual state.
-    fn defer_lower_priority_route_outcome(
+    pub(super) fn defer_lower_priority_route_outcome(
         &mut self,
         outcome: GenericRouteOutcome,
     ) -> AppliedRouteOutcome {
@@ -3773,7 +3786,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::super::frame_scheduler_policy::{
-        DiscreteInputCompletion, NativeInputStageDisposition, discrete_input_completion_disposition,
+        DiscreteInputCompletion, ImmediateTransientCompletion, NativeInputStageDisposition,
+        discrete_input_completion_disposition,
     };
     use super::super::frame_stage_admission::FrameStageBudgetStatus;
     use super::super::native_discrete_input_stage::NativeDiscreteInputKind;
@@ -4061,7 +4075,7 @@ mod tests {
     }
 
     #[test]
-    fn disabled_immediate_transient_budget_remains_observation_only() {
+    fn disabled_immediate_transient_budget_binds_authoritative_input_budget() {
         let mut runner = GenericNativeVelloRunner::new(
             NativeRunOptions::default(),
             CountingAnimationActivityBridge::default(),
@@ -4070,9 +4084,24 @@ mod tests {
 
         let binding = runner.immediate_transient_budget_binding();
 
-        assert_eq!(binding.budget(), None);
+        assert!(binding.budget().is_some());
         assert_eq!(binding.started_at(), None);
-        assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 0);
+        assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 1);
+        let ticket = runner
+            .frame_stage_owner
+            .admit_immediate_transient_with_budget(
+                NativeAdapterGeneration::from_test_serial(1),
+                NativeTargetGeneration::from_test_serial(1),
+                binding,
+            )
+            .expect("disabled observation should still admit transient input");
+        assert!(ticket.budget().budget().is_some());
+        assert_eq!(
+            runner
+                .frame_stage_owner
+                .complete_immediate_transient_at(ticket, None),
+            ImmediateTransientCompletion::Completed(FrameStageBudgetStatus::NotBudgeted)
+        );
     }
 
     #[test]

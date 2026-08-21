@@ -159,8 +159,11 @@ where
                 shutdown_requested,
                 visual_deadline_completed: _,
                 native_discrete_input_route: pending_native_discrete_input_route,
+                native_immediate_transient_route: pending_native_immediate_transient_route,
             } = route_result;
             let mut pending_native_discrete_input_route = pending_native_discrete_input_route;
+            let mut pending_native_immediate_transient_route =
+                pending_native_immediate_transient_route;
             if let Some(Some(admission)) = admission {
                 let capture = self.auxiliary_windows[index].take_cpu_frame_observation_capture();
                 self.finish_cpu_frame_observation_with_capture(Some(admission), capture, false);
@@ -190,6 +193,10 @@ where
                     index,
                     pending_native_discrete_input_route.take(),
                 );
+                self.cancel_auxiliary_native_immediate_transient_route(
+                    index,
+                    pending_native_immediate_transient_route.take(),
+                );
                 self.admit_native_shutdown(event_loop, terminal_cause);
                 return;
             }
@@ -197,6 +204,10 @@ where
                 self.cancel_auxiliary_native_discrete_input_route(
                     index,
                     pending_native_discrete_input_route.take(),
+                );
+                self.cancel_auxiliary_native_immediate_transient_route(
+                    index,
+                    pending_native_immediate_transient_route.take(),
                 );
                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                 return;
@@ -214,21 +225,33 @@ where
                     index,
                     pending_native_discrete_input_route.take(),
                 );
+                self.cancel_auxiliary_native_immediate_transient_route(
+                    index,
+                    pending_native_immediate_transient_route.take(),
+                );
             }
             if let Some(messages) = accepted_close_messages {
                 self.cancel_auxiliary_native_discrete_input_route(
                     index,
                     pending_native_discrete_input_route.take(),
                 );
+                self.cancel_auxiliary_native_immediate_transient_route(
+                    index,
+                    pending_native_immediate_transient_route.take(),
+                );
                 if !messages.is_empty() {
-                    self.dispatch_auxiliary_messages(event_loop, None, messages, None);
+                    self.dispatch_auxiliary_messages(event_loop, None, messages, None, None);
                 }
-            } else if !messages.is_empty() || pending_native_discrete_input_route.is_some() {
+            } else if !messages.is_empty()
+                || pending_native_discrete_input_route.is_some()
+                || pending_native_immediate_transient_route.is_some()
+            {
                 self.dispatch_auxiliary_messages(
                     event_loop,
                     message_origin,
                     messages,
                     pending_native_discrete_input_route.map(|route| (index, route)),
+                    pending_native_immediate_transient_route.map(|route| (index, route)),
                 );
             }
             return;
@@ -319,9 +342,7 @@ where
                 };
                 self.window.native_window_focused = true;
                 let routed = self.handle_focus_regained_after_native_modal_loop();
-                if self
-                    .complete_native_immediate_transient(ticket)
-                    .is_success()
+                if let Some(routed) = self.complete_native_immediate_transient_route(ticket, routed)
                 {
                     self.handle_route_outcome(event_loop, routed);
                     #[cfg(target_os = "macos")]
@@ -352,7 +373,12 @@ where
                     return;
                 };
                 self.handle_cursor_entered();
-                let _ = self.complete_native_immediate_transient(ticket);
+                if let Some(routed) = self.complete_native_immediate_transient_route(
+                    ticket,
+                    GenericRouteOutcome::default(),
+                ) {
+                    self.handle_route_outcome(event_loop, routed);
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let timestamp = InputTimestamp::capture();
@@ -377,11 +403,11 @@ where
                 else {
                     return;
                 };
-                let route = self.route_cursor_moved_with_timestamp(position, timestamp);
-                if self
-                    .complete_native_immediate_transient(ticket)
-                    .is_success()
+                let mut route = self.route_cursor_moved_with_timestamp(position, timestamp);
+                if let Some(outcome) =
+                    self.complete_native_immediate_transient_route(ticket, route.outcome)
                 {
+                    route.outcome = outcome;
                     self.apply_cursor_moved_route(route);
                 }
             }
@@ -506,20 +532,14 @@ where
                 else {
                     return;
                 };
-                let route =
+                let mut route =
                     self.route_native_mouse_wheel_with_phase_and_timestamp(delta, phase, timestamp);
-                if self
-                    .complete_native_immediate_transient(ticket)
-                    .is_success()
+                if let Some(outcome) =
+                    self.complete_native_immediate_transient_route(ticket, route.outcome)
                 {
-                    self.apply_deferred_wheel_route_effects(route.deferred_wheel_effects);
-                    if route.redraw_requested {
-                        self.request_redraw_for_frame_work(FrameWork::None);
-                    }
-                    if let Some(position) = route.position {
-                        self.handle_gpu_surface_route_outcome(route.outcome, position, route.delta);
-                    }
-                    self.handle_route_outcome(event_loop, route.outcome);
+                    route.outcome = outcome;
+                    self.apply_native_mouse_wheel_route(route);
+                    self.handle_route_outcome(event_loop, outcome);
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
@@ -962,9 +982,11 @@ where
                                 shutdown_requested,
                                 visual_deadline_completed,
                                 native_discrete_input_route,
+                                native_immediate_transient_route,
                             } = result;
                             debug_assert!(close_admission.is_none());
                             debug_assert!(native_discrete_input_route.is_none());
+                            debug_assert!(native_immediate_transient_route.is_none());
                             let frame_diagnostics =
                                 if !shutdown_requested && terminal_cause.is_none() {
                                     self.record_frame_schedule_admission_with_lane(
@@ -1006,6 +1028,7 @@ where
                                     event_loop,
                                     message_origin,
                                     messages,
+                                    None,
                                     None,
                                 );
                             }

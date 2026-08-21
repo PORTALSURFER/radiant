@@ -275,6 +275,28 @@ where
         self.route_native_mouse_wheel_internal(raw_delta, Some(phase), Some(timestamp), false)
     }
 
+    /// Apply the lower-stage portion of one exact ImmediateTransient wheel
+    /// route after its completion. Semantic routing and coalescer mutations
+    /// already happened while the ticket was live; only the disposition-gated
+    /// visual follow-up is handled here.
+    pub(super) fn apply_native_mouse_wheel_route(&mut self, route: NativeWheelRoute) {
+        let disposition = route.outcome.native_input_stage_disposition();
+        self.apply_deferred_wheel_route_effects(route.deferred_wheel_effects, disposition);
+        if route.redraw_requested
+            && !matches!(
+                disposition,
+                Some(
+                    super::frame_scheduler_policy::NativeInputStageDisposition::DeferLowerPriority
+                )
+            )
+        {
+            self.request_redraw_for_frame_work(super::FrameWork::None);
+        }
+        if let Some(position) = route.position {
+            self.handle_gpu_surface_route_outcome(route.outcome, position, route.delta);
+        }
+    }
+
     fn route_native_mouse_wheel_internal(
         &mut self,
         raw_delta: MouseScrollDelta,

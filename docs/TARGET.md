@@ -1071,31 +1071,30 @@ delta, newest metadata, sequence range, axis-change flush, focus-loss clearing,
 and admitted queued-sample completion behavior. This private slice adds no
 pointer-motion coalescer, fairness consumer, or public API.
 
-In this private implementation phase, exact native `DiscreteInput` completion
-is the first authoritative native soft-budget consumer. Every successful exact
-`DiscreteInput` admission binds the current effective-FPS `input_transient`
-budget returned by `SchedulerSoftBudgets::for_effective_fps` and captures
-admission and completion clocks independently of diagnostics, profiling, or
-frame observation. `ImmediateTransient` retains its observation-only behavior:
-it may bind the same budget only when private frame observation is enabled and
-otherwise binds no budget or additional budget-timing clock. The typed exact
+`DiscreteInput` and `ImmediateTransient` are authoritative native
+`input_transient` soft-budget consumers. Every admitted `DiscreteInput` and
+`ImmediateTransient` kind binds the current effective-FPS `input_transient`
+budget independently of diagnostics and frame observation. This includes every
+`ImmediateTransient` kind: `Focused`, `CursorEntered`, `CursorMoved`,
+`CursorLeft`, and `MouseWheel`, including every wheel phase. The typed exact
 completion result is either `Completed` with `NotBudgeted`, `Within`, or
-`Exceeded`, or `Mismatch`; rejected, stale, vetoed, lifecycle-invalidated,
-wrong, and repeated tickets produce no policy result or lower-stage fallback.
-A timed sample uses saturating elapsed time and is `Exceeded` only when elapsed
-is strictly greater than its bound budget; equality is `Within`. `NotBudgeted`
-and `Within` map to `ContinueNow`, while exact `Exceeded` maps to
-`DeferLowerPriority`; every exact completion remains successful.
+`Exceeded`, or `Mismatch`. `Completed(NotBudgeted)` and `Completed(Within)` map
+to `ContinueNow`; `Completed(Exceeded)` maps to `DeferLowerPriority`.
+`Mismatch` authorizes no policy, fallback, publication, or replay. Stale,
+wrong, repeated, vetoed, or lifecycle-invalidated tickets publish nothing and
+never clear the real owner.
 
-An exact exceeded `DiscreteInput` route defers only that event's lower-priority
-due `Deadline` and visual follow-up through the existing bounded state at the
-next safe native boundary. It does not defer `Exit` or terminal intent, replay
-or roll back semantic input, add an event/message queue, or change fairness,
-promotion, cadence, visual-packet, coalescing, resize, refresh/rebuild, repaint,
-auxiliary-synchronization, or route-outcome policy. `FrameWork::None` does not
-synthesize redraw or wake. No policy budget is consumed for `ImmediateTransient`,
-`Projection`, `Layout`, `PaintPlan`, `EncodePresent`, `Maintenance`, `Deadline`,
-or `Lifecycle` in this phase, and this slice adds no public diagnostics/API.
+`Exceeded` completes runtime-local state, semantic routing, coalescer updates,
+and message reduction exactly once, then defers only due `Deadline` and
+lower-priority visual/publication work through the existing bounded state.
+`CursorMoved` and wheel `Moved` remain latest/coalesced; focus and cursor
+boundaries, plus wheel `Started`, `Ended`, and `Cancelled`, remain
+non-coalesced. Primary and auxiliary routes share the same disposition;
+`Exceeded` on an auxiliary route defers sibling synchronization. External-drag
+launch occurs only after exact successful completion: `Exceeded` still launches
+immediately, and only its visual follow-up defers; `Mismatch` never launches.
+`Exit`, lifecycle/terminal intent, discrete input, semantic effects, external
+launch, and the event itself are never deferred, replayed, or rolled back.
 
 Every successful native `Recovering`-to-`Running` transition consumes an exact
 `FinishDeviceRecovery` Lifecycle ticket. After the fresh primary bundle and

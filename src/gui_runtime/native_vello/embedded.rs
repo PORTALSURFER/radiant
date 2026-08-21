@@ -1299,11 +1299,7 @@ mod tests {
                 .capture(&plan)
                 .expect("simple vector plan should capture");
             assert_eq!(pixels.len(), expected_size.0 * expected_size.1 * 4);
-            assert!(
-                pixels
-                    .chunks_exact(4)
-                    .any(|pixel| pixel == [255, 0, 0, 255])
-            );
+            assert!(pixels.as_chunks::<4>().0.contains(&[255, 0, 0, 255]));
         }
     }
 

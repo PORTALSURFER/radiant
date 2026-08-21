@@ -60,8 +60,10 @@ mod tests {
 
         let bytes = summary_bucket_bytes(&buckets);
         let values = bytes
-            .chunks_exact(std::mem::size_of::<f32>())
-            .map(|chunk| f32::from_ne_bytes(chunk.try_into().expect("f32 byte chunk")))
+            .as_chunks::<{ std::mem::size_of::<f32>() }>()
+            .0
+            .iter()
+            .map(|chunk| f32::from_ne_bytes(*chunk))
             .collect::<Vec<_>>();
 
         assert_eq!(values, vec![-0.25, 0.75, -1.0, 1.0]);

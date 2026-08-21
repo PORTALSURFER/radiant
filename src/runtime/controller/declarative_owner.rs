@@ -850,6 +850,10 @@ impl DeclarativeOwnerLedger {
     /// The controller consumes this handoff immediately after installing an
     /// accepted projection, before any later registry mapping or reduction.
     /// The backing allocation remains reusable across refreshes.
+    #[allow(
+        clippy::drain_collect,
+        reason = "draining in place preserves the retired-token backing allocation for refresh reuse"
+    )]
     pub(super) fn drain_retired_tokens(&mut self) -> Vec<DeclarativeOwnerToken> {
         self.retired_tokens.drain(..).collect()
     }
@@ -1758,7 +1762,10 @@ mod tests {
         assert!(!old.is_live());
         assert!(!ledger.is_live(&old));
         assert!(ledger.live_records().is_empty());
+        let retired_capacity = ledger.retired_tokens.capacity();
+        assert!(retired_capacity > 0);
         assert_eq!(ledger.drain_retired_tokens(), vec![old.clone()]);
+        assert_eq!(ledger.retired_tokens.capacity(), retired_capacity);
         assert!(ledger.drain_retired_tokens().is_empty());
 
         projection.install_from_source(&source_from_surface(keyed_surface()));

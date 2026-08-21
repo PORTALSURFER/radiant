@@ -28,6 +28,22 @@ impl DiscreteInputCompletion {
     }
 }
 
+/// The result of completing one exact native ImmediateTransient ticket.
+///
+/// A mismatch is deliberately distinct from a successful completion so route
+/// code cannot recover policy from the owner's latest mutable evidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ImmediateTransientCompletion {
+    Completed(FrameStageBudgetStatus),
+    Mismatch,
+}
+
+impl ImmediateTransientCompletion {
+    pub(super) const fn is_success(self) -> bool {
+        matches!(self, Self::Completed(_))
+    }
+}
+
 /// The only native-input policy dispositions produced by this slice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NativeInputStageDisposition {
@@ -545,6 +561,18 @@ mod tests {
             discrete_input_completion_disposition(DiscreteInputCompletion::Mismatch),
             None
         );
+    }
+
+    #[test]
+    fn exact_immediate_transient_completion_is_successful_only_when_completed() {
+        for status in [
+            FrameStageBudgetStatus::NotBudgeted,
+            FrameStageBudgetStatus::Within,
+            FrameStageBudgetStatus::Exceeded,
+        ] {
+            assert!(ImmediateTransientCompletion::Completed(status).is_success());
+        }
+        assert!(!ImmediateTransientCompletion::Mismatch.is_success());
     }
 
     #[test]

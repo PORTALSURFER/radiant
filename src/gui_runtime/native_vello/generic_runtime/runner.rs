@@ -1,8 +1,8 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::frame_scheduler_policy::{
-    DiscreteInputCompletion, NativeInputStageDisposition, SchedulerSoftBudgets,
-    discrete_input_completion_disposition,
+    DiscreteInputCompletion, ImmediateTransientCompletion, NativeInputStageDisposition,
+    SchedulerSoftBudgets, discrete_input_completion_disposition,
 };
 use super::frame_stage_admission::{FrameStageBudgetBinding, WindowStageOwner};
 use super::native_discrete_input_stage::{
@@ -1076,7 +1076,7 @@ where
     pub(super) fn complete_native_immediate_transient(
         &mut self,
         ticket: NativeImmediateTransientStageTicket,
-    ) -> bool {
+    ) -> ImmediateTransientCompletion {
         complete_native_immediate_transient_stage(&mut self.frame_stage_owner, ticket)
     }
 

@@ -319,7 +319,10 @@ where
                 };
                 self.window.native_window_focused = true;
                 let routed = self.handle_focus_regained_after_native_modal_loop();
-                if self.complete_native_immediate_transient(ticket) {
+                if self
+                    .complete_native_immediate_transient(ticket)
+                    .is_success()
+                {
                     self.handle_route_outcome(event_loop, routed);
                     #[cfg(target_os = "macos")]
                     self.republish_native_semantic_accessibility_passively();
@@ -375,7 +378,10 @@ where
                     return;
                 };
                 let route = self.route_cursor_moved_with_timestamp(position, timestamp);
-                if self.complete_native_immediate_transient(ticket) {
+                if self
+                    .complete_native_immediate_transient(ticket)
+                    .is_success()
+                {
                     self.apply_cursor_moved_route(route);
                 }
             }
@@ -502,7 +508,10 @@ where
                 };
                 let route =
                     self.route_native_mouse_wheel_with_phase_and_timestamp(delta, phase, timestamp);
-                if self.complete_native_immediate_transient(ticket) {
+                if self
+                    .complete_native_immediate_transient(ticket)
+                    .is_success()
+                {
                     self.apply_deferred_wheel_route_effects(route.deferred_wheel_effects);
                     if route.redraw_requested {
                         self.request_redraw_for_frame_work(FrameWork::None);

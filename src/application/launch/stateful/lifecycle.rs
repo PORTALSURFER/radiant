@@ -144,8 +144,9 @@ where
     /// successful native frame presentation.
     ///
     /// The public callback boundary is established independently of
-    /// [`Self::on_frame_profile`]. Native GPU sample production is a subsequent
-    /// backend slice and is not emitted by the current implementation.
+    /// [`Self::on_frame_profile`]. The generic native primary runner emits
+    /// samples only when frame profiling is enabled; auxiliary forwarding is
+    /// outside this slice.
     pub fn on_frame_gpu_timing(
         mut self,
         timing: impl FnMut(&mut State, crate::runtime::FrameGpuTimingSample) + 'static,

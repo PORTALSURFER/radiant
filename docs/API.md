@@ -5907,11 +5907,12 @@ routed `Focused`, `CursorEntered`, `CursorMoved`, `CursorLeft`, `MouseInput`,
 `MouseWheel`, `KeyboardInput`, and `ModifiersChanged` window events only.
 Auxiliary windows own their value and forward it through the existing parent
 diagnostics boundary without changing publication order.
-`NativeFrameTimingDiagnostics::gpu_timing_status` currently reports
-`NativeGpuTimingStatus::CpuEnvelopeOnly`, which makes the boundary explicit:
-these timing buckets are CPU-side encode/submit/present envelopes, not backend
-GPU timestamp query durations. Future timestamp-query support should extend this
-status instead of silently changing the meaning of existing timing fields.
+`NativeFrameTimingDiagnostics::gpu_timing_status` continues to report
+`NativeGpuTimingStatus::CpuEnvelopeOnly`, which keeps the existing diagnostics
+fields as CPU-side encode/submit/present envelopes. The primary native GPU
+timestamp producer uses the separate correlated callback below and does not
+change the meaning of these existing fields; they remain not backend GPU
+timestamp query durations.
 Frame timings are grouped into `frame_work`, `composited_base`, and
 `transient_overlay` buckets so hosts can inspect related work without treating
 the diagnostics payload as one flat timing bag.
@@ -5993,14 +5994,14 @@ The sample's aggregate interval starts at the first frame-owned GPU command and
 ends after final composition; CPU present and display/scanout are excluded.
 `FrameGpuTimingOutcome` is either an available duration or an explicit
 `Unavailable` reason (`NoWork`, `Unsupported`, `CapacityRefused`,
-`MappingFailed`, or `ConversionFailed`). The callback is independent of the
-single successful-present `FrameProfile` callback, whose existing profiling
-option and delivery semantics remain unchanged. This public contract slice
-adds the model and opt-in plumbing only: no production GPU sample is emitted
-until the subsequent native backend slice. Production WGPU timestamp
-acquisition/readback, the bounded pending-sample state machine, device-loss and
-recovery handling, shutdown draining/cancellation, and auxiliary-window
-forwarding are that next dependent backend slice; none is implemented here.
+`MappingFailed`, or `ConversionFailed`). The generic native primary runner emits
+the supported, unsupported, capacity-refused, mapping-failed, and
+conversion-failed terminal outcomes through this callback when frame profiling
+and the observer are both enabled. Delivery is independent of the single
+successful-present `FrameProfile` callback, whose existing profiling option and
+delivery semantics remain unchanged. Auxiliary-window forwarding is not part of
+this slice; device-loss/recovery and shutdown retain bounded conservative
+cancellation rather than comprehensive timing draining.
 
 This surface intentionally does not provide `Detailed(ProfileSelection)`, runtime
 mode switching, a debug inspector, or backend GPU timestamp queries. Renderer-

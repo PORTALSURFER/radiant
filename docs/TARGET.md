@@ -1626,13 +1626,14 @@ The target GPU-timing contract is a separate correlated callback carrying
 `FrameGpuTimingSample`. Its aggregate interval begins with the first
 frame-owned GPU command and ends after final composition; CPU present and
 display/scanout are excluded. It does not replace the one successful-present
-`FrameProfile` callback, whose existing semantics remain unchanged. The current
-implementation has only the public model and opt-in callback plumbing; no
-production GPU sample is emitted until the subsequent native backend slice.
-Production WGPU timestamp acquisition/readback, the bounded pending-sample
-state machine, device-loss and recovery handling, shutdown
-draining/cancellation, and auxiliary-window forwarding are the next dependent
-backend slice; none is implemented here.
+`FrameProfile` callback, whose existing semantics remain unchanged. The generic
+native primary runner now produces these samples with paired encoder timestamps,
+asynchronous resolve/readback, and a fixed four-slot pending pool, enabled only
+for frame profiling with an opted-in GPU-timing observer. Unsupported devices,
+capacity refusal, mapping failure, and conversion failure are explicit terminal
+outcomes. Auxiliary-window forwarding remains outside this slice, and device
+loss/recovery and shutdown use existing bounded conservative cancellation rather
+than comprehensive timing draining.
 
 Debug assertions and tracing should improve development without hurting release performance.
 

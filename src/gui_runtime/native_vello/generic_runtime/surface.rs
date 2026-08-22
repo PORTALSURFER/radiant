@@ -242,6 +242,7 @@ where
             &dev_handle.device,
             &dev_handle.queue,
             event_proxy,
+            self.frame_gpu_timing_enabled,
         )
         .ok_or_else(|| {
             native_initialization_error(

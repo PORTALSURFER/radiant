@@ -23,8 +23,8 @@ pub trait RuntimeFrameProfileHost {
 
 /// Optional host capability for correlated asynchronous aggregate GPU timing.
 ///
-/// Hosts can opt in to this boundary before a native backend producer is
-/// available; the current native runtime emits no production samples.
+/// The generic native primary runner emits terminal samples only when frame
+/// profiling is enabled; auxiliary runners remain outside this producer.
 pub trait RuntimeFrameGpuTimingHost {
     /// Observe one terminal GPU timing result for a successfully presented
     /// frame.

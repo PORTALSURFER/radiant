@@ -19,7 +19,13 @@ impl DeviceFeatureSelection {
     pub(super) fn for_adapter(advertised: wgpu::Features) -> Self {
         let baseline =
             advertised & (wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE);
-        let initial_request = baseline | (advertised & wgpu::Features::TIMESTAMP_QUERY);
+        let timing_features =
+            wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+        let initial_request = if advertised.contains(timing_features) {
+            baseline | timing_features
+        } else {
+            baseline
+        };
         Self {
             baseline,
             initial_request,
@@ -211,12 +217,15 @@ mod tests {
         let baseline = wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE;
         let advertised = baseline
             | wgpu::Features::TIMESTAMP_QUERY
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
             | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
         let selection = DeviceFeatureSelection::for_adapter(advertised);
 
         assert_eq!(
             selection.initial_request(),
-            baseline | wgpu::Features::TIMESTAMP_QUERY
+            baseline
+                | wgpu::Features::TIMESTAMP_QUERY
+                | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
         );
         assert!(
             !selection
@@ -230,7 +239,8 @@ mod tests {
     fn fallback_baseline_request_uses_fallback_advertisement() {
         let initial_advertised = wgpu::Features::CLEAR_TEXTURE
             | wgpu::Features::PIPELINE_CACHE
-            | wgpu::Features::TIMESTAMP_QUERY;
+            | wgpu::Features::TIMESTAMP_QUERY
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
         let fallback_advertised = wgpu::Features::CLEAR_TEXTURE;
         let initial_selection = DeviceFeatureSelection::for_adapter(initial_advertised);
         let fallback_selection = DeviceFeatureSelection::for_adapter(fallback_advertised);
@@ -256,6 +266,36 @@ mod tests {
         let selection = DeviceFeatureSelection::for_adapter(advertised);
 
         assert_eq!(selection.initial_request(), wgpu::Features::empty());
+        assert_eq!(selection.retry_after_failure(), None);
+    }
+
+    #[test]
+    fn timestamp_only_advertisement_stays_on_the_baseline_request() {
+        let baseline = wgpu::Features::CLEAR_TEXTURE;
+        let selection =
+            DeviceFeatureSelection::for_adapter(baseline | wgpu::Features::TIMESTAMP_QUERY);
+
+        assert_eq!(selection.initial_request(), baseline);
+        assert_eq!(selection.retry_after_failure(), None);
+    }
+
+    #[test]
+    fn inside_encoder_only_advertisement_stays_on_the_baseline_request() {
+        let baseline = wgpu::Features::PIPELINE_CACHE;
+        let selection = DeviceFeatureSelection::for_adapter(
+            baseline | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
+        );
+
+        assert_eq!(selection.initial_request(), baseline);
+        assert_eq!(selection.retry_after_failure(), None);
+    }
+
+    #[test]
+    fn neither_timestamp_feature_stays_on_the_baseline_request() {
+        let baseline = wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE;
+        let selection = DeviceFeatureSelection::for_adapter(baseline);
+
+        assert_eq!(selection.initial_request(), baseline);
         assert_eq!(selection.retry_after_failure(), None);
     }
 

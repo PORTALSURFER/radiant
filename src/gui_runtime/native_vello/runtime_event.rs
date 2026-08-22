@@ -120,6 +120,14 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         result: Result<crate::runtime::ExternalDragOutcome, String>,
     },
     NativeResourceMaintenanceRequested,
+    /// Wake-only completion for one exact-generation frame GPU timing slot.
+    /// Conversion, delivery, unmapping, and recycling remain event-loop work.
+    NativeGpuTimingReady {
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    },
     #[cfg(target_os = "macos")]
     AccessibilityDisplayChanged,
     #[cfg(target_os = "macos")]

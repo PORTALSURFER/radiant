@@ -675,6 +675,21 @@ where
                     }
                 }
             }
+            RuntimeUserEvent::NativeGpuTimingReady {
+                generation,
+                resource_identity,
+                slot,
+                token,
+            } => {
+                if self.is_running() {
+                    self.process_native_gpu_timing_ready(
+                        generation,
+                        resource_identity,
+                        slot,
+                        token,
+                    );
+                }
+            }
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 if self.is_running() {

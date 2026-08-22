@@ -203,8 +203,9 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
 
     /// Enable the correlated asynchronous aggregate GPU timing boundary.
     ///
-    /// This capability registration does not itself produce samples; native
-    /// sample production belongs to the subsequent backend implementation.
+    /// The generic native primary runner produces samples when frame profiling
+    /// is enabled; registration remains opt-in and auxiliary windows are not
+    /// forwarded by this capability.
     pub fn with_frame_gpu_timing(mut self) -> Self
     where
         Bridge: RuntimeFrameGpuTimingHost,

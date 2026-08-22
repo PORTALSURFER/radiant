@@ -148,8 +148,9 @@ fn retained_window_gpu_state_is_generation_owned_and_admitted() {
         "gpu_surface_renderer: GpuSurfaceRenderer",
         "post_gpu_overlay_renderer: PostGpuOverlayRenderer",
         "composited_base_frame: Option<CompositedBaseFrame>",
+        "gpu_timing: NativeGpuTimingResources",
         "gpu_resources: NativeWindowGpuResources",
-        "gpu_resources: NativeWindowGpuResources::new()",
+        "NativeWindowGpuResources::new_with_timing(",
     ] {
         assert!(
             runner_state.contains(required),

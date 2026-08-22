@@ -219,6 +219,10 @@ where
         self.runtime.has_frame_profile_host()
     }
 
+    pub(super) fn has_frame_gpu_timing_observer(&self) -> bool {
+        self.runtime.has_frame_gpu_timing_host()
+    }
+
     pub(super) fn refresh_surface(&mut self) {
         self.runtime.refresh();
     }

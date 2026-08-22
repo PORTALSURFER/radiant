@@ -3,6 +3,9 @@
 use super::NativeAdapterGeneration;
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
+use super::gpu_timing::{
+    GpuTimingAdmission, GpuTimingReservation, NativeGpuTimingDelivery, NativeGpuTimingResources,
+};
 use super::input::NativePointerGestureLatch;
 use super::native_resource_maintenance::{
     NativeResourceMaintenanceBinding, NativeResourceMaintenanceKernel,
@@ -261,6 +264,7 @@ pub(super) struct NativeWindowGpuResources {
     pub(super) gpu_surface_renderer: GpuSurfaceRenderer,
     pub(super) post_gpu_overlay_renderer: PostGpuOverlayRenderer,
     pub(super) composited_base_frame: Option<CompositedBaseFrame>,
+    pub(super) gpu_timing: NativeGpuTimingResources,
 }
 
 impl NativeWindowGpuResources {
@@ -269,7 +273,21 @@ impl NativeWindowGpuResources {
             gpu_surface_renderer: GpuSurfaceRenderer::default(),
             post_gpu_overlay_renderer: PostGpuOverlayRenderer::default(),
             composited_base_frame: None,
+            gpu_timing: NativeGpuTimingResources::disabled(),
         }
+    }
+
+    pub(super) fn new_with_timing(
+        generation: NativeAdapterGeneration,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        enabled: bool,
+    ) -> Self {
+        let mut resources = Self::new();
+        resources.gpu_timing =
+            NativeGpuTimingResources::new(enabled, generation, device, queue, event_proxy);
+        resources
     }
 }
 
@@ -294,10 +312,12 @@ impl NativeWindowResourceBundle {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        gpu_timing_enabled: bool,
     ) -> Option<Self> {
         if !generation.is_known() {
             return None;
         }
+        let timing_event_proxy = event_proxy.clone();
         let completion_witness =
             NativeSubmissionCompletionWitness::new(generation, device, queue, event_proxy);
         if completion_witness.generation() != generation {
@@ -307,9 +327,64 @@ impl NativeWindowResourceBundle {
             generation,
             render_surface,
             renderer,
-            gpu_resources: NativeWindowGpuResources::new(),
+            gpu_resources: NativeWindowGpuResources::new_with_timing(
+                generation,
+                device,
+                queue,
+                timing_event_proxy,
+                gpu_timing_enabled,
+            ),
             completion_witness,
         })
+    }
+
+    pub(super) fn reserve_gpu_timing(&mut self) -> GpuTimingAdmission {
+        self.gpu_resources.gpu_timing.reserve()
+    }
+
+    pub(super) fn submit_gpu_timing_start(&mut self, reservation: GpuTimingReservation) -> bool {
+        self.gpu_resources.gpu_timing.submit_start(reservation)
+    }
+
+    pub(super) fn encode_gpu_timing_end(
+        &mut self,
+        reservation: GpuTimingReservation,
+        encoder: &mut wgpu::CommandEncoder,
+    ) -> bool {
+        self.gpu_resources
+            .gpu_timing
+            .encode_end(reservation, encoder)
+    }
+
+    pub(super) fn submit_gpu_timing_readback(&mut self, reservation: GpuTimingReservation) -> bool {
+        self.gpu_resources.gpu_timing.submit_readback(reservation)
+    }
+
+    pub(super) fn cancel_gpu_timing(&mut self, reservation: GpuTimingReservation) -> bool {
+        self.gpu_resources.gpu_timing.cancel(reservation)
+    }
+
+    pub(super) fn bind_gpu_timing(
+        &mut self,
+        reservation: GpuTimingReservation,
+        window_identity: u64,
+        frame_sequence: u64,
+    ) -> bool {
+        self.gpu_resources
+            .gpu_timing
+            .bind_success(reservation, window_identity, frame_sequence)
+    }
+
+    pub(super) fn prepare_gpu_timing_delivery(
+        &mut self,
+        slot: u8,
+        token: u64,
+    ) -> Option<NativeGpuTimingDelivery> {
+        self.gpu_resources.gpu_timing.prepare_delivery(slot, token)
+    }
+
+    pub(super) fn finish_gpu_timing_delivery(&mut self, delivery: NativeGpuTimingDelivery) -> bool {
+        self.gpu_resources.gpu_timing.finish_delivery(delivery)
     }
 
     pub(super) fn record_successful_native_submission(&mut self) {
@@ -317,7 +392,9 @@ impl NativeWindowResourceBundle {
     }
 
     pub(super) fn maintain_completion(&mut self) -> bool {
-        self.completion_witness.maintain()
+        let completion_pending = self.completion_witness.maintain();
+        let timing_pending = self.gpu_resources.gpu_timing.maintain();
+        completion_pending || timing_pending
     }
 
     pub(super) fn maintenance_binding(
@@ -333,14 +410,18 @@ impl NativeWindowResourceBundle {
 
     pub(super) fn maintenance_pending(&self) -> bool {
         self.completion_witness.maintenance_pending()
+            || self.gpu_resources.gpu_timing.maintenance_pending()
     }
 
     pub(super) fn maintain_completion_once(&mut self) -> bool {
-        self.completion_witness.maintain_once()
+        let completion_pending = self.completion_witness.maintain_once();
+        let timing_pending = self.gpu_resources.gpu_timing.maintain();
+        completion_pending || timing_pending
     }
 
-    pub(super) const fn retirement_eligible(&self) -> bool {
+    pub(super) fn retirement_eligible(&self) -> bool {
         self.completion_witness.retirement_eligible()
+            && self.gpu_resources.gpu_timing.retirement_eligible()
     }
 }
 
@@ -638,6 +719,60 @@ pub(super) struct NativeRunnerWindowState {
 }
 
 impl NativeRunnerWindowState {
+    pub(super) fn prepare_native_gpu_timing_delivery(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) -> Option<NativeGpuTimingDelivery> {
+        if let Some(resources) = self.native_resources.as_mut()
+            && resources.generation == generation
+            && resources
+                .gpu_resources
+                .gpu_timing
+                .resource_identity_matches(resource_identity)
+        {
+            return resources.prepare_gpu_timing_delivery(slot, token);
+        }
+        self.quarantined_native_resources
+            .entries
+            .iter_mut()
+            .find(|resources| {
+                resources.generation == generation
+                    && resources
+                        .gpu_resources
+                        .gpu_timing
+                        .resource_identity_matches(resource_identity)
+            })
+            .and_then(|resources| resources.prepare_gpu_timing_delivery(slot, token))
+    }
+
+    pub(super) fn finish_native_gpu_timing_delivery(
+        &mut self,
+        delivery: NativeGpuTimingDelivery,
+    ) -> bool {
+        let resource_identity = delivery.resource_identity;
+        if let Some(resources) = self.native_resources.as_mut()
+            && resources
+                .gpu_resources
+                .gpu_timing
+                .resource_identity_matches(resource_identity)
+        {
+            return resources.finish_gpu_timing_delivery(delivery);
+        }
+        self.quarantined_native_resources
+            .entries
+            .iter_mut()
+            .find(|resources| {
+                resources
+                    .gpu_resources
+                    .gpu_timing
+                    .resource_identity_matches(resource_identity)
+            })
+            .is_some_and(|resources| resources.finish_gpu_timing_delivery(delivery))
+    }
+
     pub(super) fn can_publish_native_resources(&self) -> bool {
         self.native_resources.is_none() || !self.quarantined_native_resources.is_full()
     }

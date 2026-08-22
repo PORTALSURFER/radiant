@@ -6271,12 +6271,14 @@ fabricated as CPU time. The public target boundary is a separate
 interval starts at the first frame-owned GPU command and ends after final
 composition, excluding CPU present and display/scanout. `FrameProfile` retains
 one callback per successful present with its existing semantics unchanged. The
-current implementation establishes this model and opt-in capability only; no
-production GPU sample is emitted until the subsequent native backend slice.
-Production WGPU timestamp acquisition/readback, the bounded pending-sample
-state machine, device-loss and recovery handling, shutdown
-draining/cancellation, and auxiliary-window forwarding are the next dependent
-backend slice; none is implemented here.
+generic native primary runner now acquires paired WGPU timestamps, resolves and
+maps them asynchronously through a fixed four-slot pending pool, and delivers
+one terminal sample only when `ProfilingOptions::frame()` and the GPU-timing
+observer are both enabled. Unsupported devices, full capacity, mapping errors,
+and conversion failures remain explicit unavailable outcomes. The timing
+producer is primary-window-only: auxiliary-window forwarding is not included;
+device-loss/recovery and shutdown retain the existing bounded conservative
+cancellation behavior rather than comprehensive timing draining.
 
 ### Profile output
 

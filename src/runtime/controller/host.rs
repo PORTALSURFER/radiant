@@ -7,10 +7,10 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        AuxiliaryWindow, Command, FrameProfile, NativeFileDrop, NativeFileOpen,
-        NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformRequest,
-        PlatformResultDelivery, PlatformServiceFallback, RuntimeAnimationActivity, RuntimeBridge,
-        RuntimeDiagnostics, RuntimeHostCapabilities, RuntimePlatformResultSink,
+        AuxiliaryWindow, Command, FrameGpuTimingSample, FrameProfile, NativeFileDrop,
+        NativeFileOpen, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion,
+        PlatformRequest, PlatformResultDelivery, PlatformServiceFallback, RuntimeAnimationActivity,
+        RuntimeBridge, RuntimeDiagnostics, RuntimeHostCapabilities, RuntimePlatformResultSink,
         RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority, TransientOverlayContext,
     },
 };
@@ -234,6 +234,16 @@ where
     pub(crate) fn host_observe_frame_profile(&mut self, profile: FrameProfile) {
         if let Some(capability) = self.host_capabilities.frame_profile.as_ref() {
             (capability.observe_frame_profile)(&mut self.bridge, profile);
+        }
+    }
+
+    pub(crate) fn has_frame_gpu_timing_host(&self) -> bool {
+        self.host_capabilities.has_frame_gpu_timing()
+    }
+
+    pub(crate) fn host_observe_frame_gpu_timing(&mut self, sample: FrameGpuTimingSample) {
+        if let Some(capability) = self.host_capabilities.frame_gpu_timing.as_ref() {
+            (capability.observe_frame_gpu_timing)(&mut self.bridge, sample);
         }
     }
 

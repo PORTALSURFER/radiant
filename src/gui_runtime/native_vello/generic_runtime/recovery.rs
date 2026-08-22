@@ -47,6 +47,7 @@ pub(super) struct NativeRecoveryRequest {
     pub(super) generation: NativeAdapterGeneration,
     pub(super) previous_device_identity: usize,
     pub(super) event_proxy: EventLoopProxy<RuntimeUserEvent>,
+    pub(super) gpu_timing_enabled: bool,
 }
 
 pub(super) struct NativeRecoveryCandidate {
@@ -171,6 +172,7 @@ fn prepare_recovery_candidate(
         generation,
         previous_device_identity,
         event_proxy,
+        gpu_timing_enabled,
     } = request;
     if cancellation.is_cancelled() {
         return Err(String::from(RECOVERY_CANCELLED_ERROR));
@@ -226,6 +228,7 @@ fn prepare_recovery_candidate(
         &device_handle.device,
         &device_handle.queue,
         event_proxy,
+        gpu_timing_enabled,
     )
     .ok_or_else(|| String::from("fresh recovery primary bundle was not generation-bound"))?;
     let adapter = GenericNativeAdapterOwner::from_fresh_recovery_context(

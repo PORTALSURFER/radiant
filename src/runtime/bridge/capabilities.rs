@@ -13,7 +13,8 @@ mod tasks;
 pub use animation::RuntimeAnimationHost;
 pub use auxiliary::RuntimeWindowHost;
 pub use diagnostics::{
-    RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeFrameProfileHost,
+    RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost,
+    RuntimeFrameProfileHost,
 };
 pub use input::RuntimeInputHost;
 pub use lifecycle::RuntimeLifecycleHost;
@@ -28,14 +29,15 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        FrameProfile, NativeFrameDiagnostics, PaintPrimitive, RuntimeAnimationActivity,
-        TransientOverlayContext,
+        FrameGpuTimingSample, FrameProfile, NativeFrameDiagnostics, PaintPrimitive,
+        RuntimeAnimationActivity, TransientOverlayContext,
     },
 };
 pub(crate) use animation::RuntimeAnimationCapability;
 pub(crate) use auxiliary::RuntimeWindowCapability;
 pub(crate) use diagnostics::{
-    RuntimeDiagnosticsCapability, RuntimeFrameDiagnosticsCapability, RuntimeFrameProfileCapability,
+    RuntimeDiagnosticsCapability, RuntimeFrameDiagnosticsCapability,
+    RuntimeFrameGpuTimingCapability, RuntimeFrameProfileCapability,
 };
 pub(crate) use input::RuntimeInputCapability;
 pub(crate) use lifecycle::RuntimeLifecycleCapability;
@@ -65,6 +67,7 @@ pub struct RuntimeHostCapabilities<Bridge, Message> {
     pub(crate) runtime_diagnostics: Option<RuntimeDiagnosticsCapability<Bridge>>,
     pub(crate) frame_diagnostics: Option<RuntimeFrameDiagnosticsCapability<Bridge>>,
     pub(crate) frame_profile: Option<RuntimeFrameProfileCapability<Bridge>>,
+    pub(crate) frame_gpu_timing: Option<RuntimeFrameGpuTimingCapability<Bridge>>,
     pub(crate) lifecycle: Option<RuntimeLifecycleCapability<Bridge>>,
 }
 
@@ -84,6 +87,7 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
             runtime_diagnostics: None,
             frame_diagnostics: None,
             frame_profile: None,
+            frame_gpu_timing: None,
             lifecycle: None,
         }
     }
@@ -197,6 +201,18 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
         self
     }
 
+    /// Enable the correlated asynchronous aggregate GPU timing boundary.
+    ///
+    /// This capability registration does not itself produce samples; native
+    /// sample production belongs to the subsequent backend implementation.
+    pub fn with_frame_gpu_timing(mut self) -> Self
+    where
+        Bridge: RuntimeFrameGpuTimingHost,
+    {
+        self.frame_gpu_timing = Some(RuntimeFrameGpuTimingCapability::new());
+        self
+    }
+
     /// Enable runtime-exit and close-request lifecycle hooks.
     pub fn with_lifecycle(mut self) -> Self
     where
@@ -219,6 +235,11 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
     /// Return whether backend-neutral frame profile delivery was enabled.
     pub const fn has_frame_profile(&self) -> bool {
         self.frame_profile.is_some()
+    }
+
+    /// Return whether correlated aggregate GPU timing delivery was enabled.
+    pub const fn has_frame_gpu_timing(&self) -> bool {
+        self.frame_gpu_timing.is_some()
     }
 
     /// Poll explicitly enabled host animation activity.
@@ -297,6 +318,19 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
         true
     }
 
+    /// Deliver one correlated aggregate GPU timing sample when enabled.
+    pub fn observe_frame_gpu_timing(
+        &self,
+        bridge: &mut Bridge,
+        sample: FrameGpuTimingSample,
+    ) -> bool {
+        let Some(capability) = self.frame_gpu_timing.as_ref() else {
+            return false;
+        };
+        (capability.observe_frame_gpu_timing)(bridge, sample);
+        true
+    }
+
     /// Run the optional runtime-exit hook.
     pub fn on_runtime_exit(&self, bridge: &mut Bridge) -> Option<serde_json::Value> {
         let capability = self.lifecycle.as_ref()?;
@@ -307,5 +341,44 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
 impl<Bridge, Message> Default for RuntimeHostCapabilities<Bridge, Message> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RuntimeHostCapabilities;
+    use crate::runtime::{FrameGpuTimingOutcome, FrameGpuTimingSample, RuntimeFrameGpuTimingHost};
+    use std::time::Duration;
+
+    #[derive(Default)]
+    struct RecordingGpuTimingHost {
+        samples: Vec<FrameGpuTimingSample>,
+    }
+
+    impl RuntimeFrameGpuTimingHost for RecordingGpuTimingHost {
+        fn observe_frame_gpu_timing(&mut self, sample: FrameGpuTimingSample) {
+            self.samples.push(sample);
+        }
+    }
+
+    #[test]
+    fn frame_gpu_timing_is_opt_in_and_delivered_through_its_own_capability() {
+        let sample = FrameGpuTimingSample::new(
+            7,
+            11,
+            FrameGpuTimingOutcome::available(Duration::from_micros(13)),
+        );
+        let mut host = RecordingGpuTimingHost::default();
+        let disabled = RuntimeHostCapabilities::<RecordingGpuTimingHost, ()>::new();
+
+        assert!(!disabled.has_frame_gpu_timing());
+        assert!(!disabled.observe_frame_gpu_timing(&mut host, sample));
+        assert!(host.samples.is_empty());
+
+        let enabled =
+            RuntimeHostCapabilities::<RecordingGpuTimingHost, ()>::new().with_frame_gpu_timing();
+        assert!(enabled.has_frame_gpu_timing());
+        assert!(enabled.observe_frame_gpu_timing(&mut host, sample));
+        assert_eq!(host.samples, vec![sample]);
     }
 }

@@ -3,9 +3,9 @@ use super::timer::TimerRegistry;
 use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
     AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppNativeFocusRegained,
-    AppNativeFrameDiagnostics, AppNativeFrameProfile, AppRuntime, AppScroll, AppShortcuts,
-    AppShutdown, AppStartup, AppSubscriptions, RetainedPainter, TransientOverlayActivity,
-    TransientOverlayBinding, TransientOverlayPainter, UiUpdateContext,
+    AppNativeFrameDiagnostics, AppNativeFrameGpuTiming, AppNativeFrameProfile, AppRuntime,
+    AppScroll, AppShortcuts, AppShutdown, AppStartup, AppSubscriptions, RetainedPainter,
+    TransientOverlayActivity, TransientOverlayBinding, TransientOverlayPainter, UiUpdateContext,
 };
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::{
@@ -108,6 +108,8 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) native_frame_diagnostics: Option<AppNativeFrameDiagnostics<State>>,
     /// Native frame profile observer.
     pub(in crate::application) native_frame_profile: Option<AppNativeFrameProfile<State>>,
+    /// Native aggregate GPU timing observer.
+    pub(in crate::application) native_frame_gpu_timing: Option<AppNativeFrameGpuTiming<State>>,
     /// Startup hook.
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     /// Shutdown artifact hook.
@@ -148,6 +150,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             native_focus_regained: None,
             native_frame_diagnostics: None,
             native_frame_profile: None,
+            native_frame_gpu_timing: None,
             startup: None,
             shutdown: None,
             close_requested: None,

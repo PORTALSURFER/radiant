@@ -72,6 +72,9 @@ where
         if self.lifecycle.native_frame_profile.is_some() {
             capabilities = capabilities.with_frame_profile();
         }
+        if self.lifecycle.native_frame_gpu_timing.is_some() {
+            capabilities = capabilities.with_frame_gpu_timing();
+        }
         capabilities
     }
 }

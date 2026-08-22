@@ -6266,7 +6266,17 @@ boundaries. GPU timing uses timestamp queries when supported by the selected
 adapter. GPU results are resolved asynchronously and attached to the matching
 frame after they become available; the profiler never blocks presentation to
 wait for them. Unsupported GPU timestamps are reported as unavailable, not
-fabricated as CPU time.
+fabricated as CPU time. The public target boundary is a separate
+`on_frame_gpu_timing` callback carrying `FrameGpuTimingSample`: its aggregate
+interval starts at the first frame-owned GPU command and ends after final
+composition, excluding CPU present and display/scanout. `FrameProfile` retains
+one callback per successful present with its existing semantics unchanged. The
+current implementation establishes this model and opt-in capability only; no
+production GPU sample is emitted until the subsequent native backend slice.
+Production WGPU timestamp acquisition/readback, the bounded pending-sample
+state machine, device-loss and recovery handling, shutdown
+draining/cancellation, and auxiliary-window forwarding are the next dependent
+backend slice; none is implemented here.
 
 ### Profile output
 

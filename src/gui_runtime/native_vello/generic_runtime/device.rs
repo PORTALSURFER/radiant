@@ -9,6 +9,43 @@ pub(super) const DEVICE_LOSS_MESSAGE_FALLBACK: &str = "WGPU device lost without 
 pub(super) const RENDER_DEVICE_ERROR_MESSAGE_FALLBACK: &str =
     "WGPU render device error without backend details";
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct DeviceFeatureSelection {
+    baseline: wgpu::Features,
+    initial_request: wgpu::Features,
+}
+
+impl DeviceFeatureSelection {
+    pub(super) fn for_adapter(advertised: wgpu::Features) -> Self {
+        let baseline =
+            advertised & (wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE);
+        let initial_request = baseline | (advertised & wgpu::Features::TIMESTAMP_QUERY);
+        Self {
+            baseline,
+            initial_request,
+        }
+    }
+
+    pub(super) const fn initial_request(self) -> wgpu::Features {
+        self.initial_request
+    }
+
+    pub(super) const fn baseline_request(self) -> wgpu::Features {
+        self.baseline
+    }
+
+    /// Return the one permitted fallback after a timestamp-enabled request
+    /// fails. A baseline request never retries, so device creation cannot
+    /// become an unbounded feature negotiation loop.
+    pub(super) fn retry_after_failure(self) -> Option<wgpu::Features> {
+        if self.initial_request != self.baseline {
+            Some(self.baseline)
+        } else {
+            None
+        }
+    }
+}
+
 pub(super) fn classify_device_lost(
     reason: wgpu::DeviceLostReason,
     message: String,
@@ -159,6 +196,68 @@ fn target_key_matches(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsupported_timestamps_use_vello_baseline_without_retry() {
+        let advertised = wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE;
+        let selection = DeviceFeatureSelection::for_adapter(advertised);
+
+        assert_eq!(selection.initial_request(), advertised);
+        assert_eq!(selection.retry_after_failure(), None);
+    }
+
+    #[test]
+    fn timestamp_request_has_exactly_one_baseline_retry() {
+        let baseline = wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE;
+        let advertised = baseline
+            | wgpu::Features::TIMESTAMP_QUERY
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
+        let selection = DeviceFeatureSelection::for_adapter(advertised);
+
+        assert_eq!(
+            selection.initial_request(),
+            baseline | wgpu::Features::TIMESTAMP_QUERY
+        );
+        assert!(
+            !selection
+                .initial_request()
+                .contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES)
+        );
+        assert_eq!(selection.retry_after_failure(), Some(baseline));
+    }
+
+    #[test]
+    fn fallback_baseline_request_uses_fallback_advertisement() {
+        let initial_advertised = wgpu::Features::CLEAR_TEXTURE
+            | wgpu::Features::PIPELINE_CACHE
+            | wgpu::Features::TIMESTAMP_QUERY;
+        let fallback_advertised = wgpu::Features::CLEAR_TEXTURE;
+        let initial_selection = DeviceFeatureSelection::for_adapter(initial_advertised);
+        let fallback_selection = DeviceFeatureSelection::for_adapter(fallback_advertised);
+
+        assert_eq!(
+            initial_selection.retry_after_failure(),
+            Some(wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE)
+        );
+        assert_eq!(
+            fallback_selection.baseline_request(),
+            wgpu::Features::CLEAR_TEXTURE
+        );
+        assert_ne!(
+            initial_selection.retry_after_failure(),
+            Some(fallback_selection.baseline_request())
+        );
+    }
+
+    #[test]
+    fn feature_selection_never_requests_unrelated_advertised_features() {
+        let advertised = wgpu::Features::TEXTURE_COMPRESSION_BC
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+        let selection = DeviceFeatureSelection::for_adapter(advertised);
+
+        assert_eq!(selection.initial_request(), wgpu::Features::empty());
+        assert_eq!(selection.retry_after_failure(), None);
+    }
 
     #[test]
     fn target_key_tracks_device_and_format() {

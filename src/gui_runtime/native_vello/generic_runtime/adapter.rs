@@ -227,7 +227,7 @@ async fn request_device_with_fallback(
             queue,
         }),
         Err(_) => {
-            let fallback_features = selection.retry_after_failure()?;
+            selection.retry_after_failure()?;
             // WGPU permits only one request_device call per adapter. Drop the
             // failed adapter before selecting the one permitted fallback.
             drop(adapter);
@@ -235,6 +235,8 @@ async fn request_device_with_fallback(
                 wgpu::util::initialize_adapter_from_env_or_default(instance, compatible_surface)
                     .await
                     .ok()?;
+            let fallback_features =
+                DeviceFeatureSelection::for_adapter(fallback_adapter.features()).baseline_request();
             let (device, queue) = fallback_adapter
                 .request_device(&device_descriptor(fallback_features))
                 .await

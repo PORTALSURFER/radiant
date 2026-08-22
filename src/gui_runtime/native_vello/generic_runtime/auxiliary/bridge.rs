@@ -1,9 +1,35 @@
 use super::super::NativeFrameDiagnosticsPublication;
 use crate::runtime::{
-    Command, NativeFrameDiagnostics, RuntimeBridge, RuntimeFrameDiagnosticsHost,
-    RuntimeHostCapabilities, UiSurface,
+    Command, FrameGpuTimingSample, NativeFrameDiagnostics, RuntimeBridge,
+    RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost, RuntimeHostCapabilities, UiSurface,
 };
 use std::sync::Arc;
+
+#[derive(Default)]
+struct AuxiliaryFrameGpuTimingPublication {
+    pending: Option<FrameGpuTimingSample>,
+}
+
+impl AuxiliaryFrameGpuTimingPublication {
+    fn stage(&mut self, sample: FrameGpuTimingSample) {
+        if self.pending.is_some() {
+            debug_assert!(
+                false,
+                "auxiliary frame GPU timing staged more than once before take"
+            );
+            return;
+        }
+        self.pending = Some(sample);
+    }
+
+    fn take(&mut self) -> Option<FrameGpuTimingSample> {
+        self.pending.take()
+    }
+
+    fn discard(&mut self) {
+        self.pending = None;
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime) struct AuxiliaryFrameDiagnostics {
@@ -16,21 +42,40 @@ pub(super) struct AuxiliarySurfaceBridge<Message> {
     outbox: Vec<Message>,
     frame_observation_enabled: bool,
     frame_profile_enabled: bool,
+    frame_gpu_timing_enabled: bool,
     frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
+    frame_gpu_timing_publication: AuxiliaryFrameGpuTimingPublication,
 }
 
 impl<Message> AuxiliarySurfaceBridge<Message> {
+    #[cfg(test)]
     pub(super) fn new(
         surface: Arc<UiSurface<Message>>,
         frame_diagnostics_enabled: bool,
         frame_profile_enabled: bool,
+    ) -> Self {
+        Self::new_with_gpu_timing(
+            surface,
+            frame_diagnostics_enabled,
+            frame_profile_enabled,
+            false,
+        )
+    }
+
+    pub(super) fn new_with_gpu_timing(
+        surface: Arc<UiSurface<Message>>,
+        frame_diagnostics_enabled: bool,
+        frame_profile_enabled: bool,
+        frame_gpu_timing_enabled: bool,
     ) -> Self {
         Self {
             surface,
             outbox: Vec::new(),
             frame_observation_enabled: frame_diagnostics_enabled || frame_profile_enabled,
             frame_profile_enabled,
+            frame_gpu_timing_enabled,
             frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
+            frame_gpu_timing_publication: AuxiliaryFrameGpuTimingPublication::default(),
         }
     }
 
@@ -80,6 +125,14 @@ impl<Message> AuxiliarySurfaceBridge<Message> {
     pub(super) fn discard_frame_diagnostics(&mut self) {
         self.frame_diagnostics_publication.discard();
     }
+
+    pub(super) fn take_ready_frame_gpu_timing(&mut self) -> Option<FrameGpuTimingSample> {
+        self.frame_gpu_timing_publication.take()
+    }
+
+    pub(super) fn discard_frame_gpu_timing(&mut self) {
+        self.frame_gpu_timing_publication.discard();
+    }
 }
 
 impl<Message> RuntimeBridge<Message> for AuxiliarySurfaceBridge<Message> {
@@ -93,11 +146,14 @@ impl<Message> RuntimeBridge<Message> for AuxiliarySurfaceBridge<Message> {
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
+        let mut capabilities = RuntimeHostCapabilities::new();
         if self.frame_observation_enabled {
-            RuntimeHostCapabilities::new().with_frame_diagnostics()
-        } else {
-            RuntimeHostCapabilities::new()
+            capabilities = capabilities.with_frame_diagnostics();
         }
+        if self.frame_gpu_timing_enabled {
+            capabilities = capabilities.with_frame_gpu_timing();
+        }
+        capabilities
     }
 }
 
@@ -110,6 +166,16 @@ impl<Message> RuntimeFrameDiagnosticsHost for AuxiliarySurfaceBridge<Message> {
         // One auxiliary redraw event invokes one child presentation path. Keep
         // the handoff bounded to that event and drain it at the parent boundary.
         self.frame_diagnostics_publication.stage(diagnostics);
+    }
+}
+
+impl<Message> RuntimeFrameGpuTimingHost for AuxiliarySurfaceBridge<Message> {
+    fn observe_frame_gpu_timing(&mut self, sample: FrameGpuTimingSample) {
+        if self.frame_gpu_timing_enabled {
+            // The parent event boundary drains this handoff and invokes the
+            // application's observer; the child never publishes directly.
+            self.frame_gpu_timing_publication.stage(sample);
+        }
     }
 }
 
@@ -222,5 +288,21 @@ mod tests {
                 profile_enabled: true,
             })
         );
+    }
+
+    #[test]
+    fn auxiliary_bridge_hands_off_gpu_timing_once_through_parent_boundary() {
+        let mut bridge =
+            AuxiliarySurfaceBridge::<()>::new_with_gpu_timing(empty_surface(), false, false, true);
+        let sample = FrameGpuTimingSample::new(
+            9,
+            41,
+            crate::runtime::FrameGpuTimingOutcome::available(std::time::Duration::from_nanos(13)),
+        );
+
+        assert!(bridge.host_capabilities().has_frame_gpu_timing());
+        bridge.observe_frame_gpu_timing(sample);
+        assert_eq!(bridge.take_ready_frame_gpu_timing(), Some(sample));
+        assert_eq!(bridge.take_ready_frame_gpu_timing(), None);
     }
 }

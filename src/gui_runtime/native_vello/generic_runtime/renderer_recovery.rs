@@ -1,9 +1,11 @@
 //! Bounded per-window recovery for a failed native Vello renderer call.
 
 use super::{
-    NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent,
+    NativeGenericRunError, NativeGpuTimingRoute, NativeInitializationStage, RuntimeUserEvent,
     adapter::{GenericNativeAdapterOwner, NativeAdapterGeneration},
-    runner_state::{NativeTargetGeneration, NativeWindowResourceBundle},
+    runner_state::{
+        NativeTargetGeneration, NativeWindowGpuTimingConfig, NativeWindowResourceBundle,
+    },
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
@@ -165,6 +167,7 @@ pub(super) fn construct_renderer_recovery_candidate(
     admission: &NativeRendererRecoveryAdmission,
     event_proxy: EventLoopProxy<RuntimeUserEvent>,
     kind: NativeRendererRecoveryWindowKind,
+    gpu_timing_route: NativeGpuTimingRoute,
     gpu_timing_enabled: bool,
 ) -> Result<NativeRendererRecoveryCandidate, NativeGenericRunError> {
     let window = Arc::clone(&admission.window);
@@ -229,7 +232,10 @@ pub(super) fn construct_renderer_recovery_candidate(
         &device.device,
         &device.queue,
         event_proxy,
-        gpu_timing_enabled,
+        NativeWindowGpuTimingConfig {
+            route: gpu_timing_route,
+            enabled: gpu_timing_enabled,
+        },
     )
     .ok_or_else(|| {
         renderer_recovery_error(

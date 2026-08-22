@@ -144,9 +144,10 @@ where
     /// successful native frame presentation.
     ///
     /// The public callback boundary is established independently of
-    /// [`Self::on_frame_profile`]. The generic native primary runner emits
-    /// samples only when frame profiling is enabled; auxiliary forwarding is
-    /// outside this slice.
+    /// [`Self::on_frame_profile`]. The generic native primary and auxiliary
+    /// runners can emit per-window samples when that window's frame profiling
+    /// and this observer are enabled. Auxiliary samples use the existing parent
+    /// handoff, with lifecycle fencing discarding stale or invalid completions.
     pub fn on_frame_gpu_timing(
         mut self,
         timing: impl FnMut(&mut State, crate::runtime::FrameGpuTimingSample) + 'static,

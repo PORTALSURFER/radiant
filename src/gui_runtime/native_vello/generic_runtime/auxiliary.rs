@@ -17,7 +17,10 @@ use super::native_lifecycle_stage::NativeLifecycleStageTicket;
 use super::native_pointer::NativeWheelRoute;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::renderer_recovery::NativeRendererRecoveryWindowKind;
-use super::runner_state::{NativeWindowDiagnosticIdentityAllocator, NativeWindowResourceBundle};
+use super::runner_state::{
+    NativeWindowDiagnosticIdentityAllocator, NativeWindowGpuTimingConfig,
+    NativeWindowResourceBundle,
+};
 #[cfg(test)]
 use super::scene_texture::NativeFrameRenderFailure;
 use super::{
@@ -38,7 +41,7 @@ use crate::runtime::{
 use crate::runtime::{
     AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
 };
-use crate::runtime::{AuxiliaryWindowOwner, RuntimeAnimationActivity};
+use crate::runtime::{AuxiliaryWindowOwner, FrameGpuTimingSample, RuntimeAnimationActivity};
 use crate::runtime::{ExternalDragIdentity, ExternalDragOutcome};
 pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
@@ -133,6 +136,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             native_window_diagnostic_identity,
             frame_diagnostics_enabled,
             frame_profile_host_enabled,
+            false,
             owner,
         )
     }
@@ -143,6 +147,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         native_window_diagnostic_identity: Option<NativeWindowDiagnosticIdentity>,
         frame_diagnostics_enabled: bool,
         frame_profile_host_enabled: bool,
+        frame_gpu_timing_host_enabled: bool,
         owner: AuxiliaryWindowOwner,
     ) -> Self {
         let viewport = initial_viewport(&projection.options);
@@ -154,10 +159,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         let frame_profile_enabled =
             options.frame.profiling.is_frame() && frame_profile_host_enabled;
-        let bridge = AuxiliarySurfaceBridge::new(
+        let bridge = AuxiliarySurfaceBridge::new_with_gpu_timing(
             projection.surface,
             frame_diagnostics_enabled,
             frame_profile_enabled,
+            frame_gpu_timing_host_enabled,
         );
         let runner = GenericNativeVelloRunner::new_auxiliary_with_diagnostic_identity(
             options,
@@ -259,6 +265,50 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .runtime
             .bridge_mut()
             .discard_frame_diagnostics();
+    }
+
+    pub(super) fn take_ready_frame_gpu_timing(&mut self) -> Option<FrameGpuTimingSample> {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .take_ready_frame_gpu_timing()
+    }
+
+    pub(super) fn discard_frame_gpu_timing(&mut self) {
+        self.runner
+            .core
+            .runtime
+            .bridge_mut()
+            .discard_frame_gpu_timing();
+    }
+
+    pub(super) fn process_native_gpu_timing_ready(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) -> Option<FrameGpuTimingSample> {
+        if !self.is_admitted() || !self.runner.is_running() {
+            self.discard_native_gpu_timing_ready(generation, resource_identity, slot, token);
+            return None;
+        }
+        self.runner
+            .process_native_gpu_timing_ready(generation, resource_identity, slot, token);
+        self.take_ready_frame_gpu_timing()
+    }
+
+    pub(super) fn discard_native_gpu_timing_ready(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) {
+        self.runner
+            .discard_native_gpu_timing_ready(generation, resource_identity, slot, token);
+        self.discard_frame_gpu_timing();
     }
 
     pub(super) fn record_native_interactive_arrival(&mut self, arrived_at: Instant) {
@@ -753,7 +803,10 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             &device.device,
             &device.queue,
             event_proxy,
-            false,
+            NativeWindowGpuTimingConfig {
+                route: self.runner.gpu_timing_route.clone(),
+                enabled: self.runner.frame_gpu_timing_enabled,
+            },
         )
         .ok_or_else(|| NativeGenericRunError::NativeInitialization {
             stage: super::NativeInitializationStage::DeviceAcquisition,
@@ -1974,6 +2027,7 @@ where
                         native_window_diagnostic_identity,
                         self.frame_diagnostics_enabled,
                         self.core.has_frame_profile_observer(),
+                        self.core.has_frame_gpu_timing_observer(),
                         owner.clone(),
                     );
                     window
@@ -3161,6 +3215,7 @@ mod tests {
                 AuxiliaryWindow::new("settings", NativeRunOptions::default(), child_surface),
                 &NativeRunOptions::default(),
                 None,
+                false,
                 false,
                 false,
                 owner.clone(),

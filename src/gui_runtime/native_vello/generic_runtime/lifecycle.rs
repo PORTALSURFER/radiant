@@ -9,15 +9,16 @@ use super::{
     AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
     FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane,
     FrameScheduleRedrawEvidence, FrameWork, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    GenericRouteOutcome, NativeGenericRunError, NativeInitializationStage, NativeLifecycle,
-    RuntimeUserEvent, TimedFrameCadence, animation_frame_interval, assess_cpu_frame_fairness,
-    should_start_native_window_drag, should_toggle_native_window_maximized,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    GenericRouteOutcome, NativeGenericRunError, NativeGpuTimingRoute, NativeInitializationStage,
+    NativeLifecycle, RuntimeUserEvent, TimedFrameCadence, animation_frame_interval,
+    assess_cpu_frame_fairness, should_start_native_window_drag,
+    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::gui::input::InputTimestamp;
 use crate::runtime::{
-    FrameProfile, NativeCpuFrameFairnessDiagnostics, NativeCpuFrameObservationDiagnostics,
-    RuntimeAnimationActivity, RuntimeBridge,
+    FrameGpuTimingSample, FrameProfile, NativeCpuFrameFairnessDiagnostics,
+    NativeCpuFrameObservationDiagnostics, RuntimeAnimationActivity, RuntimeBridge,
 };
 use std::time::{Duration, Instant};
 use tracing::warn;
@@ -203,7 +204,15 @@ where
                 } else {
                     self.auxiliary_windows[index].finalize_parent_frame_observation(false)
                 };
+            let frame_gpu_timing =
+                if shutdown_requested || terminal_cause.is_some() || became_retiring {
+                    self.auxiliary_windows[index].discard_frame_gpu_timing();
+                    None
+                } else {
+                    self.auxiliary_windows[index].take_ready_frame_gpu_timing()
+                };
             forward_auxiliary_frame_diagnostics(self, &auxiliary_key, frame_diagnostics);
+            forward_auxiliary_frame_gpu_timing(self, frame_gpu_timing);
             if shutdown_requested {
                 self.cancel_auxiliary_native_discrete_input_route(
                     index,
@@ -692,28 +701,18 @@ where
                 }
             }
             RuntimeUserEvent::NativeGpuTimingReady {
+                route,
                 generation,
                 resource_identity,
                 slot,
                 token,
-            } => match native_gpu_timing_ready_handling(self.native_lifecycle_snapshot()) {
-                NativeGpuTimingReadyHandling::Deliver => {
-                    self.process_native_gpu_timing_ready(
-                        generation,
-                        resource_identity,
-                        slot,
-                        token,
-                    );
-                }
-                NativeGpuTimingReadyHandling::Discard => {
-                    self.discard_native_gpu_timing_ready(
-                        generation,
-                        resource_identity,
-                        slot,
-                        token,
-                    );
-                }
-            },
+            } => self.handle_native_gpu_timing_ready(
+                route,
+                generation,
+                resource_identity,
+                slot,
+                token,
+            ),
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 if self.is_running() {
@@ -1054,7 +1053,24 @@ where
                                     }
                                     None
                                 };
+                            let frame_gpu_timing =
+                                if !shutdown_requested && terminal_cause.is_none() {
+                                    self.auxiliary_windows
+                                        .iter_mut()
+                                        .find(|window| window.key() == key)
+                                        .and_then(|window| window.take_ready_frame_gpu_timing())
+                                } else {
+                                    if let Some(window) = self
+                                        .auxiliary_windows
+                                        .iter_mut()
+                                        .find(|window| window.key() == key)
+                                    {
+                                        window.discard_frame_gpu_timing();
+                                    }
+                                    None
+                                };
                             forward_auxiliary_frame_diagnostics(self, &selected, frame_diagnostics);
+                            forward_auxiliary_frame_gpu_timing(self, frame_gpu_timing);
                             if shutdown_requested {
                                 self.admit_native_shutdown(event_loop, terminal_cause);
                                 return;
@@ -1140,10 +1156,79 @@ fn forward_auxiliary_frame_diagnostics<Bridge, Message>(
     }
 }
 
+fn forward_auxiliary_frame_gpu_timing<Bridge, Message>(
+    runner: &mut GenericNativeVelloRunner<Bridge, Message>,
+    handoff: Option<FrameGpuTimingSample>,
+) where
+    Bridge: RuntimeBridge<Message>,
+{
+    if let Some(sample) = handoff {
+        runner.core.runtime.host_observe_frame_gpu_timing(sample);
+    }
+}
+
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    fn handle_native_gpu_timing_ready(
+        &mut self,
+        route: NativeGpuTimingRoute,
+        generation: super::NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) {
+        match route {
+            NativeGpuTimingRoute::Primary => {
+                match native_gpu_timing_ready_handling(self.native_lifecycle_snapshot()) {
+                    NativeGpuTimingReadyHandling::Deliver => {
+                        self.process_native_gpu_timing_ready(
+                            generation,
+                            resource_identity,
+                            slot,
+                            token,
+                        );
+                    }
+                    NativeGpuTimingReadyHandling::Discard => {
+                        self.discard_native_gpu_timing_ready(
+                            generation,
+                            resource_identity,
+                            slot,
+                            token,
+                        );
+                    }
+                }
+            }
+            NativeGpuTimingRoute::Auxiliary(key) => {
+                let parent_is_running = self.native_lifecycle_snapshot().is_running();
+                let sample = self
+                    .auxiliary_windows
+                    .iter_mut()
+                    .find(|window| window.key() == key)
+                    .and_then(|window| {
+                        if parent_is_running {
+                            window.process_native_gpu_timing_ready(
+                                generation,
+                                resource_identity,
+                                slot,
+                                token,
+                            )
+                        } else {
+                            window.discard_native_gpu_timing_ready(
+                                generation,
+                                resource_identity,
+                                slot,
+                                token,
+                            );
+                            None
+                        }
+                    });
+                forward_auxiliary_frame_gpu_timing(self, sample);
+            }
+        }
+    }
+
     fn accept_auxiliary_destructive_close(
         &mut self,
         index: usize,
@@ -1453,6 +1538,7 @@ mod tests {
                 None,
                 false,
                 false,
+                false,
                 owner.clone(),
             ));
         (parent, owner)
@@ -1524,6 +1610,7 @@ mod tests {
                 AuxiliaryWindow::new("inspector", NativeRunOptions::default(), sibling_surface),
                 &NativeRunOptions::default(),
                 None,
+                false,
                 false,
                 false,
                 sibling_owner.clone(),

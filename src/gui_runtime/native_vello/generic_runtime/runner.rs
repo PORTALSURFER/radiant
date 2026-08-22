@@ -55,13 +55,13 @@ use super::{
     GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
     NativeAdapterGeneration, NativeAutomationTargetExporter, NativeClosingProgress,
     NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
-    NativeLifecycle, NativeRenderDeviceErrorKind, NativeResourceMaintenanceTurn,
-    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-    NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup, SceneRebuildMode,
-    SceneTextRunBuffer, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    animation_frame_interval_for_normalized_fps, encode_native_paint_segment_payloads,
-    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
+    NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
+    NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
+    SceneRebuildMode, SceneTextRunBuffer, SurfaceSceneEncodeContext, TimedFrameCadence,
+    animation_frame_interval, animation_frame_interval_for_normalized_fps,
+    encode_native_paint_segment_payloads, encode_surface_paint_plan_to_scene,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use super::{
     frame_state::{
@@ -123,6 +123,7 @@ where
     pub(super) frame_diagnostics_enabled: bool,
     pub(super) frame_profile_enabled: bool,
     pub(super) frame_gpu_timing_enabled: bool,
+    pub(super) gpu_timing_route: NativeGpuTimingRoute,
     pub(super) frame_observation_enabled: bool,
     pub(super) frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
     pub(super) automation_targets: NativeAutomationTargetExporter,
@@ -309,9 +310,12 @@ where
         let frame_diagnostics_enabled = core.has_frame_diagnostics_observer();
         let frame_profile_enabled =
             options.frame.profiling.is_frame() && core.has_frame_profile_observer();
-        let frame_gpu_timing_enabled = !auxiliary_owner
-            && options.frame.profiling.is_frame()
-            && core.has_frame_gpu_timing_observer();
+        let frame_gpu_timing_enabled =
+            options.frame.profiling.is_frame() && core.has_frame_gpu_timing_observer();
+        let gpu_timing_route = match &frame_schedule_key {
+            FrameScheduleKey::Primary => NativeGpuTimingRoute::Primary,
+            FrameScheduleKey::Auxiliary(key) => NativeGpuTimingRoute::Auxiliary(key.clone()),
+        };
         let frame_observation_enabled = frame_diagnostics_enabled || frame_profile_enabled;
         Self {
             options,
@@ -339,6 +343,7 @@ where
             frame_diagnostics_enabled,
             frame_profile_enabled,
             frame_gpu_timing_enabled,
+            gpu_timing_route,
             frame_observation_enabled,
             frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
             automation_targets: NativeAutomationTargetExporter::from_env(),
@@ -1734,6 +1739,12 @@ where
             slot,
             token,
         ) else {
+            let _ = self.window.discard_native_gpu_timing_delivery(
+                generation,
+                resource_identity,
+                slot,
+                token,
+            );
             return;
         };
         self.core
@@ -1749,15 +1760,12 @@ where
         slot: u8,
         token: u64,
     ) {
-        let Some(delivery) = self.window.prepare_native_gpu_timing_delivery(
+        let _ = self.window.discard_native_gpu_timing_delivery(
             generation,
             resource_identity,
             slot,
             token,
-        ) else {
-            return;
-        };
-        let _ = self.window.finish_native_gpu_timing_delivery(delivery);
+        );
     }
 
     pub(super) fn start_native_gpu_timing(&mut self, admission: &mut Option<GpuTimingAdmission>) {
@@ -1907,8 +1915,8 @@ where
             &admission,
             event_proxy,
             kind,
-            self.frame_gpu_timing_enabled
-                && matches!(kind, NativeRendererRecoveryWindowKind::Primary),
+            self.gpu_timing_route.clone(),
+            self.frame_gpu_timing_enabled,
         )
         .map_err(|error| error.to_string())?;
 
@@ -2307,6 +2315,7 @@ where
             generation: next_generation,
             previous_device_identity,
             event_proxy,
+            gpu_timing_route: self.gpu_timing_route.clone(),
             gpu_timing_enabled: self.frame_gpu_timing_enabled,
         };
         if let Err(error) = self.recovery.start(request) {
@@ -4395,7 +4404,7 @@ mod tests {
     }
 
     #[test]
-    fn primary_gpu_timing_is_opt_in_to_frame_profiling_and_not_auxiliary() {
+    fn gpu_timing_is_opt_in_to_frame_profiling_and_observer_for_primary_and_auxiliary() {
         let published = Arc::new(Mutex::new(Vec::new()));
         let mut off_options = NativeRunOptions::default();
         off_options.frame.profiling = ProfilingOptions::off();
@@ -4419,13 +4428,21 @@ mod tests {
         );
         assert!(primary.frame_gpu_timing_enabled);
 
+        let auxiliary_without_observer = GenericNativeVelloRunner::new_auxiliary(
+            frame_options.clone(),
+            EmptyBridge,
+            Vector2::new(320.0, 240.0),
+            String::from("inspector"),
+        );
+        assert!(!auxiliary_without_observer.frame_gpu_timing_enabled);
+
         let auxiliary = GenericNativeVelloRunner::new_auxiliary(
             frame_options,
             RecordingFrameGpuTimingBridge { published },
             Vector2::new(320.0, 240.0),
             String::from("settings"),
         );
-        assert!(!auxiliary.frame_gpu_timing_enabled);
+        assert!(auxiliary.frame_gpu_timing_enabled);
     }
 
     #[test]

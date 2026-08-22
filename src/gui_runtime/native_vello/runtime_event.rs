@@ -123,6 +123,7 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     /// Wake-only completion for one exact-generation frame GPU timing slot.
     /// Conversion, delivery, unmapping, and recycling remain event-loop work.
     NativeGpuTimingReady {
+        route: NativeGpuTimingRoute,
         generation: NativeAdapterGeneration,
         resource_identity: u64,
         slot: u8,
@@ -144,6 +145,16 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
         target: Box<crate::gui::automation::AutomationTarget>,
         action: NativeNumericAccessibilityAction,
     },
+}
+
+/// Exact private route for one native window's asynchronous GPU timing pool.
+///
+/// The auxiliary key is stable across the window's resource reconstruction, so
+/// a completion cannot be redirected to the primary or to a sibling child.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) enum NativeGpuTimingRoute {
+    Primary,
+    Auxiliary(String),
 }
 
 impl PartialEq for RuntimeUserEvent {
@@ -194,6 +205,28 @@ impl PartialEq for RuntimeUserEvent {
                     && left_generation == right_generation
                     && left_kind == right_kind
                     && left_message == right_message
+            }
+            (
+                Self::NativeGpuTimingReady {
+                    route: left_route,
+                    generation: left_generation,
+                    resource_identity: left_resource_identity,
+                    slot: left_slot,
+                    token: left_token,
+                },
+                Self::NativeGpuTimingReady {
+                    route: right_route,
+                    generation: right_generation,
+                    resource_identity: right_resource_identity,
+                    slot: right_slot,
+                    token: right_token,
+                },
+            ) => {
+                left_route == right_route
+                    && left_generation == right_generation
+                    && left_resource_identity == right_resource_identity
+                    && left_slot == right_slot
+                    && left_token == right_token
             }
             (
                 Self::ExternalDragCompleted {

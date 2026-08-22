@@ -1627,13 +1627,16 @@ The target GPU-timing contract is a separate correlated callback carrying
 frame-owned GPU command and ends after final composition; CPU present and
 display/scanout are excluded. It does not replace the one successful-present
 `FrameProfile` callback, whose existing semantics remain unchanged. The generic
-native primary runner now produces these samples with paired encoder timestamps,
-asynchronous resolve/readback, and a fixed four-slot pending pool, enabled only
-for frame profiling with an opted-in GPU-timing observer. Unsupported devices,
-capacity refusal, mapping failure, and conversion failure are explicit terminal
-outcomes. Auxiliary-window forwarding remains outside this slice, and device
-loss/recovery and shutdown use existing bounded conservative cancellation rather
-than comprehensive timing draining.
+native primary and auxiliary runners now produce these samples with paired encoder
+timestamps, asynchronous resolve/readback, and an independent fixed four-slot
+pending pool per window, enabled only for that window's frame profiling with an
+opted-in GPU-timing observer. Unsupported devices, capacity refusal, mapping
+failure, and conversion failure are explicit terminal outcomes. Auxiliary
+forwarding preserves the exact window identity and successful-present frame
+sequence through the existing parent handoff and ordering boundary; stale or
+lifecycle-invalid completions publish nothing. Device loss/recovery and shutdown
+use existing bounded conservative cancellation rather than comprehensive timing
+draining.
 
 Debug assertions and tracing should improve development without hurting release performance.
 

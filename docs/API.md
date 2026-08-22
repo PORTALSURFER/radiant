@@ -5994,14 +5994,17 @@ The sample's aggregate interval starts at the first frame-owned GPU command and
 ends after final composition; CPU present and display/scanout are excluded.
 `FrameGpuTimingOutcome` is either an available duration or an explicit
 `Unavailable` reason (`NoWork`, `Unsupported`, `CapacityRefused`,
-`MappingFailed`, or `ConversionFailed`). The generic native primary runner emits
-the supported, unsupported, capacity-refused, mapping-failed, and
-conversion-failed terminal outcomes through this callback when frame profiling
-and the observer are both enabled. Delivery is independent of the single
-successful-present `FrameProfile` callback, whose existing profiling option and
-delivery semantics remain unchanged. Auxiliary-window forwarding is not part of
-this slice; device-loss/recovery and shutdown retain bounded conservative
-cancellation rather than comprehensive timing draining.
+`MappingFailed`, or `ConversionFailed`). The generic native primary and
+auxiliary runners emit the supported, unsupported, capacity-refused,
+mapping-failed, and conversion-failed terminal outcomes through this callback
+when that window's frame profiling and the observer are both enabled. Auxiliary
+samples retain their exact window identity and successful-present frame sequence
+when forwarded through the existing parent handoff and ordering boundary.
+Delivery is independent of the single successful-present `FrameProfile` callback,
+whose existing profiling option and delivery semantics remain unchanged. Stale
+or lifecycle-invalid completions publish nothing; device-loss/recovery and
+shutdown retain bounded conservative cancellation rather than comprehensive
+timing draining.
 
 This surface intentionally does not provide `Detailed(ProfileSelection)`, runtime
 mode switching, a debug inspector, or backend GPU timestamp queries. Renderer-

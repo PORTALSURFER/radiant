@@ -1,6 +1,6 @@
 //! Generic `RuntimeBridge` native Vello runner.
 
-use super::{DeviceLossRegistration, NativeRunOptions, RuntimeUserEvent};
+use super::{DeviceLossRegistration, NativeGpuTimingRoute, NativeRunOptions, RuntimeUserEvent};
 use crate::{
     gui::{repaint::RepaintSignal, types::Vector2},
     runtime::RuntimeBridge,

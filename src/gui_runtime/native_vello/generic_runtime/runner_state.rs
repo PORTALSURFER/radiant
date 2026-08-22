@@ -15,8 +15,8 @@ use super::native_visual_packet::NativeVisualRequestMailbox;
 use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
 use super::{
-    CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceRenderer, PostGpuOverlayRenderer,
-    RuntimeUserEvent,
+    CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceRenderer, NativeGpuTimingRoute,
+    PostGpuOverlayRenderer, RuntimeUserEvent,
 };
 use crate::gui::input::{InputSequence, InputSequenceRange};
 use crate::gui::types::Vector2;
@@ -282,11 +282,18 @@ impl NativeWindowGpuResources {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
+        gpu_timing_route: NativeGpuTimingRoute,
         enabled: bool,
     ) -> Self {
         let mut resources = Self::new();
-        resources.gpu_timing =
-            NativeGpuTimingResources::new(enabled, generation, device, queue, event_proxy);
+        resources.gpu_timing = NativeGpuTimingResources::new(
+            enabled,
+            gpu_timing_route,
+            generation,
+            device,
+            queue,
+            event_proxy,
+        );
         resources
     }
 }
@@ -296,6 +303,11 @@ impl NativeWindowGpuResources {
 /// The bundle is published only after both WGPU surface setup and Vello
 /// renderer construction succeed. Its generation is owner-provided evidence,
 /// never a device or handle identity substitute.
+pub(super) struct NativeWindowGpuTimingConfig {
+    pub(super) route: NativeGpuTimingRoute,
+    pub(super) enabled: bool,
+}
+
 pub(super) struct NativeWindowResourceBundle {
     pub(super) generation: NativeAdapterGeneration,
     pub(super) render_surface: RenderSurface<'static>,
@@ -312,7 +324,7 @@ impl NativeWindowResourceBundle {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
-        gpu_timing_enabled: bool,
+        gpu_timing: NativeWindowGpuTimingConfig,
     ) -> Option<Self> {
         if !generation.is_known() {
             return None;
@@ -332,7 +344,8 @@ impl NativeWindowResourceBundle {
                 device,
                 queue,
                 timing_event_proxy,
-                gpu_timing_enabled,
+                gpu_timing.route,
+                gpu_timing.enabled,
             ),
             completion_witness,
         })
@@ -726,19 +739,9 @@ impl NativeRunnerWindowState {
         slot: u8,
         token: u64,
     ) -> Option<NativeGpuTimingDelivery> {
-        if let Some(resources) = self.native_resources.as_mut()
-            && resources.generation == generation
-            && resources
-                .gpu_resources
-                .gpu_timing
-                .resource_identity_matches(resource_identity)
-        {
-            return resources.prepare_gpu_timing_delivery(slot, token);
-        }
-        self.quarantined_native_resources
-            .entries
-            .iter_mut()
-            .find(|resources| {
+        self.native_resources
+            .as_mut()
+            .filter(|resources| {
                 resources.generation == generation
                     && resources
                         .gpu_resources
@@ -746,6 +749,40 @@ impl NativeRunnerWindowState {
                         .resource_identity_matches(resource_identity)
             })
             .and_then(|resources| resources.prepare_gpu_timing_delivery(slot, token))
+    }
+
+    pub(super) fn discard_native_gpu_timing_delivery(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) -> bool {
+        let delivery = self
+            .native_resources
+            .as_mut()
+            .filter(|resources| {
+                resources.generation == generation
+                    && resources
+                        .gpu_resources
+                        .gpu_timing
+                        .resource_identity_matches(resource_identity)
+            })
+            .and_then(|resources| resources.prepare_gpu_timing_delivery(slot, token))
+            .or_else(|| {
+                self.quarantined_native_resources
+                    .entries
+                    .iter_mut()
+                    .find(|resources| {
+                        resources.generation == generation
+                            && resources
+                                .gpu_resources
+                                .gpu_timing
+                                .resource_identity_matches(resource_identity)
+                    })
+                    .and_then(|resources| resources.prepare_gpu_timing_delivery(slot, token))
+            });
+        delivery.is_some_and(|delivery| self.finish_native_gpu_timing_delivery(delivery))
     }
 
     pub(super) fn finish_native_gpu_timing_delivery(

@@ -21,7 +21,7 @@ pub(in crate::gui_runtime::native_vello) use runtime_config::{
     select_present_mode, startup_renderer_options,
 };
 pub(in crate::gui_runtime::native_vello) use runtime_event::{
-    DeviceLossRegistration, RuntimeUserEvent,
+    DeviceLossRegistration, NativeGpuTimingRoute, RuntimeUserEvent,
 };
 
 pub use self::{

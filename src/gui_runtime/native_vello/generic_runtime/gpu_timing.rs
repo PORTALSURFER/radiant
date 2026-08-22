@@ -1,4 +1,4 @@
-//! Private, bounded WGPU timestamp acquisition for the primary native frame.
+//! Private, bounded WGPU timestamp acquisition for one native window frame.
 //!
 //! The public runtime exposes only the backend-neutral sample.  This module
 //! owns all WGPU query, resolve, mapping, and callback state so no WGPU type
@@ -15,7 +15,7 @@ use std::time::Duration;
 use vello::wgpu;
 use winit::event_loop::EventLoopProxy;
 
-use super::{NativeAdapterGeneration, RuntimeUserEvent};
+use super::{NativeAdapterGeneration, NativeGpuTimingRoute, RuntimeUserEvent};
 
 const TIMING_SLOT_COUNT: usize = 4;
 const TIMING_QUERIES_PER_SLOT: u32 = 2;
@@ -393,6 +393,7 @@ fn convert_timestamp_difference(
 
 struct TimingCallbackSignal {
     result: AtomicU8,
+    route: NativeGpuTimingRoute,
     generation: NativeAdapterGeneration,
     resource_identity: u64,
     slot: u8,
@@ -402,6 +403,7 @@ struct TimingCallbackSignal {
 
 impl TimingCallbackSignal {
     fn new(
+        route: NativeGpuTimingRoute,
         generation: NativeAdapterGeneration,
         resource_identity: u64,
         slot: u8,
@@ -410,6 +412,7 @@ impl TimingCallbackSignal {
     ) -> Arc<Self> {
         Arc::new(Self {
             result: AtomicU8::new(CALLBACK_PENDING),
+            route,
             generation,
             resource_identity,
             slot,
@@ -432,6 +435,7 @@ impl TimingCallbackSignal {
             let _ = self
                 .proxy
                 .send_event(RuntimeUserEvent::NativeGpuTimingReady {
+                    route: self.route.clone(),
                     generation: self.generation,
                     resource_identity: self.resource_identity,
                     slot: self.slot,
@@ -465,6 +469,7 @@ struct NativeGpuTimingPool {
     device: wgpu::Device,
     queue: wgpu::Queue,
     timestamp_period: f32,
+    route: NativeGpuTimingRoute,
     generation: NativeAdapterGeneration,
     proxy: EventLoopProxy<RuntimeUserEvent>,
     resource_identity: u64,
@@ -472,6 +477,7 @@ struct NativeGpuTimingPool {
 
 impl NativeGpuTimingPool {
     fn new(
+        route: NativeGpuTimingRoute,
         generation: NativeAdapterGeneration,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -510,6 +516,7 @@ impl NativeGpuTimingPool {
             device: device.clone(),
             queue: queue.clone(),
             timestamp_period: queue.get_timestamp_period(),
+            route,
             generation,
             proxy,
             resource_identity,
@@ -579,6 +586,7 @@ impl NativeGpuTimingPool {
             return false;
         }
         let callback = TimingCallbackSignal::new(
+            self.route.clone(),
             self.generation,
             self.resource_identity(),
             reservation.slot,
@@ -613,6 +621,7 @@ impl NativeGpuTimingPool {
                     && self.slots[index].callback.is_none();
                 if needs_queue_callback {
                     let callback = TimingCallbackSignal::new(
+                        self.route.clone(),
                         self.generation,
                         self.resource_identity(),
                         reservation.slot,
@@ -765,6 +774,7 @@ impl NativeGpuTimingResources {
 
     pub(super) fn new(
         enabled: bool,
+        route: NativeGpuTimingRoute,
         generation: NativeAdapterGeneration,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -773,7 +783,7 @@ impl NativeGpuTimingResources {
         if !enabled {
             return Self::disabled();
         }
-        let Some(pool) = NativeGpuTimingPool::new(generation, device, queue, proxy) else {
+        let Some(pool) = NativeGpuTimingPool::new(route, generation, device, queue, proxy) else {
             return Self {
                 support: NativeGpuTimingSupport::Unsupported,
                 pool: None,
@@ -900,6 +910,16 @@ mod tests {
         reservation
     }
 
+    fn make_readback_pending_without_correlation(
+        state: &mut GpuTimingPoolState,
+    ) -> GpuTimingReservation {
+        let reservation = reserved(state);
+        assert!(state.submit_start(reservation));
+        assert!(state.encode_end(reservation));
+        assert!(state.submit_readback(reservation));
+        reservation
+    }
+
     #[test]
     fn disabled_and_unsupported_never_reserve_or_do_work() {
         assert_eq!(
@@ -994,6 +1014,23 @@ mod tests {
             terminal.outcome,
             FrameGpuTimingOutcome::unavailable(FrameGpuTimingUnavailableReason::ConversionFailed)
         );
+    }
+
+    #[test]
+    fn missing_correlation_recycles_without_publishing() {
+        let mut state = supported_state();
+        let reservation = make_readback_pending_without_correlation(&mut state);
+
+        assert_eq!(
+            state.complete_callback(
+                reservation,
+                GpuTimingMapping::Values { start: 1, end: 2 },
+                1.0,
+            ),
+            GpuTimingCallbackDisposition::Recycled
+        );
+        assert!(state.prepare_delivery(reservation).is_none());
+        assert!(matches!(state.reserve(), GpuTimingAdmission::Reserved(_)));
     }
 
     #[test]

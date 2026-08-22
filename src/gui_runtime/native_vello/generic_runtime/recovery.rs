@@ -1,10 +1,10 @@
 //! Bounded, private WGPU device-loss recovery coordination.
 
 use super::{
-    RuntimeUserEvent,
+    NativeGpuTimingRoute, RuntimeUserEvent,
     adapter::{GenericNativeAdapterOwner, NativeAdapterGeneration, RadiantWgpuContext},
     device::install_device_loss_callback,
-    runner_state::NativeWindowResourceBundle,
+    runner_state::{NativeWindowGpuTimingConfig, NativeWindowResourceBundle},
 };
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
 use std::{
@@ -47,6 +47,7 @@ pub(super) struct NativeRecoveryRequest {
     pub(super) generation: NativeAdapterGeneration,
     pub(super) previous_device_identity: usize,
     pub(super) event_proxy: EventLoopProxy<RuntimeUserEvent>,
+    pub(super) gpu_timing_route: NativeGpuTimingRoute,
     pub(super) gpu_timing_enabled: bool,
 }
 
@@ -172,6 +173,7 @@ fn prepare_recovery_candidate(
         generation,
         previous_device_identity,
         event_proxy,
+        gpu_timing_route,
         gpu_timing_enabled,
     } = request;
     if cancellation.is_cancelled() {
@@ -228,7 +230,10 @@ fn prepare_recovery_candidate(
         &device_handle.device,
         &device_handle.queue,
         event_proxy,
-        gpu_timing_enabled,
+        NativeWindowGpuTimingConfig {
+            route: gpu_timing_route,
+            enabled: gpu_timing_enabled,
+        },
     )
     .ok_or_else(|| String::from("fresh recovery primary bundle was not generation-bound"))?;
     let adapter = GenericNativeAdapterOwner::from_fresh_recovery_context(

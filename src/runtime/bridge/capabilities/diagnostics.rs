@@ -23,8 +23,10 @@ pub trait RuntimeFrameProfileHost {
 
 /// Optional host capability for correlated asynchronous aggregate GPU timing.
 ///
-/// The generic native primary runner emits terminal samples only when frame
-/// profiling is enabled; auxiliary runners remain outside this producer.
+/// The generic native primary and auxiliary runners can emit per-window
+/// terminal samples when that window's frame profiling and the observer are
+/// enabled. Auxiliary samples use the existing parent handoff, and lifecycle
+/// fencing prevents stale or invalid completions from being delivered.
 pub trait RuntimeFrameGpuTimingHost {
     /// Observe one terminal GPU timing result for a successfully presented
     /// frame.

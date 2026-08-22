@@ -2,8 +2,8 @@
 
 use super::native_visual_packet::NativeVisualRequestDisposition;
 use super::runner_state::{
-    NativeResourceMaintenanceTurn, NativeSurfaceAcquireFailure, NativeWindowResourceBundle,
-    SurfaceAcquirePolicy, surface_acquire_policy,
+    NativeResourceMaintenanceTurn, NativeSurfaceAcquireFailure, NativeWindowGpuTimingConfig,
+    NativeWindowResourceBundle, SurfaceAcquirePolicy, surface_acquire_policy,
 };
 use super::{
     FrameWork, FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner,
@@ -242,7 +242,10 @@ where
             &dev_handle.device,
             &dev_handle.queue,
             event_proxy,
-            self.frame_gpu_timing_enabled,
+            NativeWindowGpuTimingConfig {
+                route: self.gpu_timing_route.clone(),
+                enabled: self.frame_gpu_timing_enabled,
+            },
         )
         .ok_or_else(|| {
             native_initialization_error(

@@ -788,13 +788,18 @@ public `on_frame_gpu_timing` callback carries a correlated
 frame-owned GPU command through final composition, excluding CPU present and
 display/scanout. The existing `FrameProfile` callback remains one delivery per
 successful present, with its existing semantics unchanged. The generic native
-primary runner implements the producer privately: it negotiates the paired
-timestamp features, submits a standalone start marker before frame-owned GPU
-work, resolves/copies the end marker asynchronously, and harvests a fixed
-four-slot pool on the event loop before capability delivery. This path is
-enabled only by frame profiling plus the opted-in observer. Auxiliary forwarding
-is not implemented, and device-loss/recovery or shutdown may conservatively
-cancel pending timing under the existing bounded lifecycle behavior.
+native runner implements the producer privately per native window: it negotiates
+the paired timestamp features, submits a standalone start marker before
+frame-owned GPU work, resolves/copies the end marker asynchronously, and harvests
+an independent fixed four-slot pool on the event loop before capability delivery.
+This path is enabled only by that window's frame profiling plus the opted-in
+observer. Auxiliary completion routes carry the exact window key/identity,
+adapter generation, resource identity, slot, and token fences; callbacks remain
+wake-only, while the parent event loop performs delivery and recycling through the
+existing auxiliary diagnostics/profile handoff and ordering boundary. Mismatched,
+stale, duplicate, or lifecycle-invalid completions publish nothing. Device-loss/
+recovery or shutdown may conservatively cancel pending timing under the existing
+bounded lifecycle behavior.
 
 The generic native Vello runtime has one event-loop-confined adapter owner per
 application run. The primary window selects the shared WGPU context, device,

@@ -43,6 +43,7 @@ mod gpu_surface;
 mod gpu_surface_cursor;
 mod gpu_surface_interaction;
 mod gpu_surface_wheel;
+mod gpu_timing;
 mod gpu_upload_bytes;
 mod ime;
 mod input;

@@ -58,9 +58,9 @@ pub enum FrameGpuTimingUnavailableReason {
 /// command through final composition. CPU-side present and display/scanout
 /// are excluded. Delivery is asynchronous and independent of
 /// [`FrameProfile`](crate::runtime::diagnostics::FrameProfile)
-/// delivery. The current public-contract slice exposes the model and callback
-/// boundary only; native backends do not emit production samples until the
-/// subsequent backend implementation slice.
+/// delivery. The generic native primary runner is the current producer when
+/// frame profiling and this capability are both enabled; auxiliary-window
+/// forwarding remains outside this slice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FrameGpuTimingSample {
     /// Stable native-window identity for the presenting runner.

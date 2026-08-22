@@ -6,6 +6,7 @@ use super::frame_scheduler_policy::{
     immediate_transient_completion_disposition,
 };
 use super::frame_stage_admission::{FrameStageBudgetBinding, WindowStageOwner};
+use super::gpu_timing::GpuTimingAdmission;
 use super::native_discrete_input_stage::{
     NativeDiscreteInputKind, NativeDiscreteInputStageEvidence, NativeDiscreteInputStageTicket,
     admit_native_discrete_input_with_budget as admit_native_discrete_input_stage_with_budget,
@@ -121,6 +122,7 @@ where
     pub(super) cpu_frame_observation_capture: CpuFrameObservationCapture,
     pub(super) frame_diagnostics_enabled: bool,
     pub(super) frame_profile_enabled: bool,
+    pub(super) frame_gpu_timing_enabled: bool,
     pub(super) frame_observation_enabled: bool,
     pub(super) frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
     pub(super) automation_targets: NativeAutomationTargetExporter,
@@ -307,6 +309,9 @@ where
         let frame_diagnostics_enabled = core.has_frame_diagnostics_observer();
         let frame_profile_enabled =
             options.frame.profiling.is_frame() && core.has_frame_profile_observer();
+        let frame_gpu_timing_enabled = !auxiliary_owner
+            && options.frame.profiling.is_frame()
+            && core.has_frame_gpu_timing_observer();
         let frame_observation_enabled = frame_diagnostics_enabled || frame_profile_enabled;
         Self {
             options,
@@ -333,6 +338,7 @@ where
             cpu_frame_observation_capture: CpuFrameObservationCapture::default(),
             frame_diagnostics_enabled,
             frame_profile_enabled,
+            frame_gpu_timing_enabled,
             frame_observation_enabled,
             frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
             automation_targets: NativeAutomationTargetExporter::from_env(),
@@ -1715,6 +1721,126 @@ where
         }
     }
 
+    pub(super) fn process_native_gpu_timing_ready(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) {
+        let Some(delivery) = self.window.prepare_native_gpu_timing_delivery(
+            generation,
+            resource_identity,
+            slot,
+            token,
+        ) else {
+            return;
+        };
+        self.core
+            .runtime
+            .host_observe_frame_gpu_timing(delivery.sample);
+        let _ = self.window.finish_native_gpu_timing_delivery(delivery);
+    }
+
+    pub(super) fn discard_native_gpu_timing_ready(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) {
+        let Some(delivery) = self.window.prepare_native_gpu_timing_delivery(
+            generation,
+            resource_identity,
+            slot,
+            token,
+        ) else {
+            return;
+        };
+        let _ = self.window.finish_native_gpu_timing_delivery(delivery);
+    }
+
+    pub(super) fn start_native_gpu_timing(&mut self, admission: &mut Option<GpuTimingAdmission>) {
+        let Some(GpuTimingAdmission::Reserved(reservation)) = *admission else {
+            return;
+        };
+        let started = self
+            .window
+            .native_resources
+            .as_mut()
+            .is_some_and(|resources| resources.submit_gpu_timing_start(reservation));
+        if !started {
+            self.cancel_native_gpu_timing(admission);
+        }
+    }
+
+    pub(super) fn cancel_native_gpu_timing(&mut self, admission: &mut Option<GpuTimingAdmission>) {
+        let Some(GpuTimingAdmission::Reserved(reservation)) = admission.take() else {
+            return;
+        };
+        if let Some(resources) = self.window.native_resources.as_mut() {
+            let _ = resources.cancel_gpu_timing(reservation);
+        }
+    }
+
+    pub(super) fn finalize_native_gpu_timing(
+        &mut self,
+        admission: Option<GpuTimingAdmission>,
+        frame_sequence: Option<u64>,
+    ) {
+        let Some(admission) = admission else {
+            return;
+        };
+        let Some(frame_sequence) = frame_sequence else {
+            let mut admission = Some(admission);
+            self.cancel_native_gpu_timing(&mut admission);
+            return;
+        };
+        let Some(window_identity) = self.timing.native_window_diagnostic_identity else {
+            let mut admission = Some(admission);
+            self.cancel_native_gpu_timing(&mut admission);
+            return;
+        };
+        match admission {
+            GpuTimingAdmission::Disabled => {}
+            GpuTimingAdmission::Unsupported | GpuTimingAdmission::CapacityRefused => {
+                let reason = match admission {
+                    GpuTimingAdmission::Unsupported => {
+                        crate::runtime::FrameGpuTimingUnavailableReason::Unsupported
+                    }
+                    GpuTimingAdmission::CapacityRefused => {
+                        crate::runtime::FrameGpuTimingUnavailableReason::CapacityRefused
+                    }
+                    GpuTimingAdmission::Disabled | GpuTimingAdmission::Reserved(_) => return,
+                };
+                self.core.runtime.host_observe_frame_gpu_timing(
+                    crate::runtime::FrameGpuTimingSample::new(
+                        window_identity.get(),
+                        frame_sequence,
+                        crate::runtime::FrameGpuTimingOutcome::unavailable(reason),
+                    ),
+                );
+            }
+            GpuTimingAdmission::Reserved(reservation) => {
+                let bound = self
+                    .window
+                    .native_resources
+                    .as_mut()
+                    .is_some_and(|resources| {
+                        resources.bind_gpu_timing(
+                            reservation,
+                            window_identity.get(),
+                            frame_sequence,
+                        )
+                    });
+                if !bound {
+                    let mut admission = Some(GpuTimingAdmission::Reserved(reservation));
+                    self.cancel_native_gpu_timing(&mut admission);
+                }
+            }
+        }
+    }
+
     /// Recover one eligible FrameRender failure after the failed redraw has
     /// returned and dropped its acquired SurfaceTexture. A veto or candidate
     /// failure converges on the existing bounded whole-run Closing policy with
@@ -1781,6 +1907,8 @@ where
             &admission,
             event_proxy,
             kind,
+            self.frame_gpu_timing_enabled
+                && matches!(kind, NativeRendererRecoveryWindowKind::Primary),
         )
         .map_err(|error| error.to_string())?;
 
@@ -2179,6 +2307,7 @@ where
             generation: next_generation,
             previous_device_identity,
             event_proxy,
+            gpu_timing_enabled: self.frame_gpu_timing_enabled,
         };
         if let Err(error) = self.recovery.start(request) {
             warn!(error = %error, "radiant generic native vello: recovery candidate could not start");
@@ -3889,12 +4018,12 @@ mod tests {
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
-            AuxiliaryWindow, FrameProfile, NativeCpuFrameCompletionOutcome,
+            AuxiliaryWindow, FrameGpuTimingSample, FrameProfile, NativeCpuFrameCompletionOutcome,
             NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
             NativeCpuFrameObservationDiagnostics, NativeFrameDiagnostics,
             NativeWindowDiagnosticIdentity, ProfilingOptions, RuntimeAnimationActivity,
             RuntimeAnimationHost, RuntimeBridge, RuntimeFrameDiagnosticsHost,
-            RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
+            RuntimeFrameGpuTimingHost, RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
         },
         widgets::PointerModifiers,
     };
@@ -3981,6 +4110,30 @@ mod tests {
                 .lock()
                 .expect("profile publication test events should not be poisoned")
                 .push(profile);
+        }
+    }
+
+    #[derive(Clone)]
+    struct RecordingFrameGpuTimingBridge {
+        published: Arc<Mutex<Vec<FrameGpuTimingSample>>>,
+    }
+
+    impl RuntimeBridge<()> for RecordingFrameGpuTimingBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_frame_gpu_timing()
+        }
+    }
+
+    impl RuntimeFrameGpuTimingHost for RecordingFrameGpuTimingBridge {
+        fn observe_frame_gpu_timing(&mut self, sample: FrameGpuTimingSample) {
+            self.published
+                .lock()
+                .expect("GPU timing publication test events should not be poisoned")
+                .push(sample);
         }
     }
 
@@ -4239,6 +4392,40 @@ mod tests {
             )),
             Some(NativeInputStageDisposition::DeferLowerPriority)
         );
+    }
+
+    #[test]
+    fn primary_gpu_timing_is_opt_in_to_frame_profiling_and_not_auxiliary() {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let mut off_options = NativeRunOptions::default();
+        off_options.frame.profiling = ProfilingOptions::off();
+        let off = GenericNativeVelloRunner::new(
+            off_options,
+            RecordingFrameGpuTimingBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+        assert!(!off.frame_gpu_timing_enabled);
+
+        let mut frame_options = NativeRunOptions::default();
+        frame_options.frame.profiling = ProfilingOptions::frame();
+        let primary = GenericNativeVelloRunner::new(
+            frame_options.clone(),
+            RecordingFrameGpuTimingBridge {
+                published: Arc::clone(&published),
+            },
+            Vector2::new(320.0, 240.0),
+        );
+        assert!(primary.frame_gpu_timing_enabled);
+
+        let auxiliary = GenericNativeVelloRunner::new_auxiliary(
+            frame_options,
+            RecordingFrameGpuTimingBridge { published },
+            Vector2::new(320.0, 240.0),
+            String::from("settings"),
+        );
+        assert!(!auxiliary.frame_gpu_timing_enabled);
     }
 
     #[test]

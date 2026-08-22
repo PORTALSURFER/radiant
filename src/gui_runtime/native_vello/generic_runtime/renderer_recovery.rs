@@ -165,6 +165,7 @@ pub(super) fn construct_renderer_recovery_candidate(
     admission: &NativeRendererRecoveryAdmission,
     event_proxy: EventLoopProxy<RuntimeUserEvent>,
     kind: NativeRendererRecoveryWindowKind,
+    gpu_timing_enabled: bool,
 ) -> Result<NativeRendererRecoveryCandidate, NativeGenericRunError> {
     let window = Arc::clone(&admission.window);
     let instance = adapter.instance().ok_or_else(|| {
@@ -228,6 +229,7 @@ pub(super) fn construct_renderer_recovery_candidate(
         &device.device,
         &device.queue,
         event_proxy,
+        gpu_timing_enabled,
     )
     .ok_or_else(|| {
         renderer_recovery_error(

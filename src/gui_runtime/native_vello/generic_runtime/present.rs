@@ -1,3 +1,4 @@
+use super::gpu_timing::GpuTimingAdmission;
 use super::native_encode_present::NativeEncodePresentPath;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::{
@@ -186,6 +187,16 @@ where
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
+        let mut gpu_timing_admission =
+            if render_resize_frame_directly || !self.frame_gpu_timing_enabled {
+                None
+            } else {
+                self.window
+                    .native_resources
+                    .as_mut()
+                    .map(|resources| resources.reserve_gpu_timing())
+            };
+        self.start_native_gpu_timing(&mut gpu_timing_admission);
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -193,6 +204,7 @@ where
             render_resize_frame_directly || self.frame.scene_texture_dirty;
         let render_to_texture_elapsed = {
             let Some(resources) = self.window.native_resources.as_mut() else {
+                self.cancel_native_gpu_timing(&mut gpu_timing_admission);
                 if let Some(ticket) = ticket.take() {
                     let _ = self.veto_native_encode_present(ticket);
                 }
@@ -201,6 +213,7 @@ where
             };
             let surface = &mut resources.render_surface;
             let Some(dev_handle) = adapter.device_handle_for_surface(surface) else {
+                self.cancel_native_gpu_timing(&mut gpu_timing_admission);
                 if let Some(ticket) = ticket.take() {
                     let _ = self.veto_native_encode_present(ticket);
                 }
@@ -235,6 +248,7 @@ where
         let render_to_texture_elapsed = match render_to_texture_elapsed {
             Ok(elapsed) => elapsed,
             Err(failure) => {
+                self.cancel_native_gpu_timing(&mut gpu_timing_admission);
                 if let Some(ticket) = ticket.take() {
                     let _ = self.veto_native_encode_present(ticket);
                 }
@@ -290,11 +304,13 @@ where
             return Ok(NativeVisualRequestDisposition::Presented);
         }
         let Some(ticket_ref) = ticket.as_ref() else {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         if !self.native_encode_present_ticket_is_current(ticket_ref, packet_identity, adapter, path)
         {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             if let Some(ticket) = ticket.take() {
                 let _ = self.veto_native_encode_present(ticket);
             }
@@ -307,6 +323,7 @@ where
             .as_ref()
             .and_then(|resources| adapter.device_handle_for_surface(&resources.render_surface))
         else {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             if let Some(ticket) = ticket.take() {
                 let _ = self.veto_native_encode_present(ticket);
             }
@@ -323,6 +340,7 @@ where
         let started = profile.record_timings.then(Instant::now);
         let gpu_surface_stats = {
             let Some(resources) = self.window.native_resources.as_mut() else {
+                self.cancel_native_gpu_timing(&mut gpu_timing_admission);
                 if let Some(ticket) = ticket.take() {
                     let _ = self.veto_native_encode_present(ticket);
                 }
@@ -389,16 +407,32 @@ where
             profile.full_screen_blit,
         );
         let Some(ticket_ref) = ticket.as_ref() else {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         if !self.native_encode_present_ticket_is_current(ticket_ref, packet_identity, adapter, path)
         {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             if let Some(ticket) = ticket.take() {
                 let _ = self.veto_native_encode_present(ticket);
             }
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
+        }
+        if let Some(GpuTimingAdmission::Reserved(reservation)) = gpu_timing_admission {
+            let encoded = self
+                .window
+                .native_resources
+                .as_mut()
+                .is_some_and(|resources| {
+                    resources.encode_gpu_timing_end(reservation, &mut encoder)
+                });
+            if !encoded {
+                self.cancel_native_gpu_timing(&mut gpu_timing_admission);
+                self.core.runtime.abort_gpu_shader_presentation_updates();
+                return Ok(NativeVisualRequestDisposition::DropPacket);
+            }
         }
         let (_, elapsed) = profile.measure(|| {
             dev_handle.queue.submit(std::iter::once(encoder.finish()));
@@ -412,16 +446,31 @@ where
             surface_texture.present();
         });
         let Some(ticket) = ticket.take() else {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         if !self.complete_native_encode_present(ticket) {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         self.core.runtime.commit_gpu_shader_presentation_updates();
+        let timing_readback_submitted =
+            if let Some(GpuTimingAdmission::Reserved(reservation)) = gpu_timing_admission {
+                self.window
+                    .native_resources
+                    .as_mut()
+                    .is_some_and(|resources| resources.submit_gpu_timing_readback(reservation))
+            } else {
+                true
+            };
+        if !timing_readback_submitted {
+            self.cancel_native_gpu_timing(&mut gpu_timing_admission);
+        }
         profile.submit_present = elapsed;
         profile.frame_sequence = self.timing.allocate_frame_sequence();
+        self.finalize_native_gpu_timing(gpu_timing_admission.take(), profile.frame_sequence);
         let now = Instant::now();
         let input_to_present_latency_us = self.timing.take_input_to_present_latency_us(now);
         self.cpu_frame_observation_capture.record_profile_stage(

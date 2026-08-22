@@ -753,6 +753,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             &device.device,
             &device.queue,
             event_proxy,
+            false,
         )
         .ok_or_else(|| NativeGenericRunError::NativeInitialization {
             stage: super::NativeInitializationStage::DeviceAcquisition,

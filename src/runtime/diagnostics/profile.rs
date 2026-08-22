@@ -75,9 +75,9 @@ impl ProfilingOptions {
 
 /// GPU timestamp data exposed by a frame profile.
 ///
-/// The current native runtime has no backend GPU timestamp query path. It
-/// therefore reports [`Self::Unavailable`] instead of presenting a CPU
-/// duration as GPU work.
+/// `FrameProfile` deliberately keeps this field unavailable; the native GPU
+/// timestamp producer delivers true GPU intervals through the separate
+/// correlated frame-GPU-timing callback instead of changing profile semantics.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum FrameProfileGpuTimingStatus {
     /// The selected backend did not provide a GPU timestamp for this frame.

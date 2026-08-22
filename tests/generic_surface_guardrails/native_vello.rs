@@ -10,6 +10,8 @@ mod activation;
 mod generation_binding;
 #[path = "native_vello/gpu_surface.rs"]
 mod gpu_surface;
+#[path = "native_vello/gpu_timing.rs"]
+mod gpu_timing;
 #[path = "native_vello/native_semantic_accessibility.rs"]
 mod native_semantic_accessibility;
 #[path = "native_vello/native_visual_packet.rs"]

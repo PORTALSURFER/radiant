@@ -5972,6 +5972,36 @@ An exhausted frame sequence is represented as `None` rather than suppressing a
 profile. `FrameProfileGpuTimingStatus::Unavailable` is explicit: current native
 timing fields are CPU-side envelopes and are never relabeled as GPU timestamps.
 
+`FrameGpuTimingSample` is the separate correlated GPU-timing callback contract:
+
+```rust
+app.profiling(ProfilingOptions::frame())
+    .on_frame_profile(|state, profile| {
+        let _ = (state, profile);
+    })
+    .on_frame_gpu_timing(|state, sample| {
+        let _ = (state, sample);
+    });
+```
+
+Stateful applications register this callback with
+`StatefulAppWithView::on_frame_gpu_timing(...)`; lower-level hosts implement
+`RuntimeFrameGpuTimingHost` and opt in with
+`RuntimeHostCapabilities::with_frame_gpu_timing()`.
+
+The sample's aggregate interval starts at the first frame-owned GPU command and
+ends after final composition; CPU present and display/scanout are excluded.
+`FrameGpuTimingOutcome` is either an available duration or an explicit
+`Unavailable` reason (`NoWork`, `Unsupported`, `CapacityRefused`,
+`MappingFailed`, or `ConversionFailed`). The callback is independent of the
+single successful-present `FrameProfile` callback, whose existing profiling
+option and delivery semantics remain unchanged. This public contract slice
+adds the model and opt-in plumbing only: no production GPU sample is emitted
+until the subsequent native backend slice. Production WGPU timestamp
+acquisition/readback, the bounded pending-sample state machine, device-loss and
+recovery handling, shutdown draining/cancellation, and auxiliary-window
+forwarding are that next dependent backend slice; none is implemented here.
+
 This surface intentionally does not provide `Detailed(ProfileSelection)`, runtime
 mode switching, a debug inspector, or backend GPU timestamp queries. Renderer-
 owned resource lifetime/budgeting and live native-window acceptance remain

@@ -2,8 +2,9 @@ use super::super::super::AppBridge;
 use crate::{
     application::{IntoView, UiUpdateContext},
     runtime::{
-        FrameProfile, RuntimeDiagnostics, RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost,
-        RuntimeFrameProfileHost, RuntimeLifecycleHost,
+        FrameGpuTimingSample, FrameProfile, RuntimeDiagnostics, RuntimeDiagnosticsHost,
+        RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost, RuntimeFrameProfileHost,
+        RuntimeLifecycleHost,
     },
 };
 
@@ -35,6 +36,22 @@ where
     fn observe_frame_profile(&mut self, profile: FrameProfile) {
         if let Some(observer) = self.lifecycle.native_frame_profile.as_mut() {
             observer(&mut self.state, profile);
+        }
+    }
+}
+
+impl<State, Message, Project, Update, View> RuntimeFrameGpuTimingHost
+    for AppBridge<State, Message, Project, Update, View>
+where
+    Project: FnMut(&State) -> View + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
+    View: IntoView<Message> + 'static,
+    Message: 'static,
+    State: 'static,
+{
+    fn observe_frame_gpu_timing(&mut self, sample: FrameGpuTimingSample) {
+        if let Some(observer) = self.lifecycle.native_frame_gpu_timing.as_mut() {
+            observer(&mut self.state, sample);
         }
     }
 }

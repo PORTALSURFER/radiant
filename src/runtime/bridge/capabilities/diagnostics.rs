@@ -1,4 +1,6 @@
-use crate::runtime::{FrameProfile, NativeFrameDiagnostics, RuntimeDiagnostics};
+use crate::runtime::{
+    FrameGpuTimingSample, FrameProfile, NativeFrameDiagnostics, RuntimeDiagnostics,
+};
 
 /// Optional host capability for application-runtime diagnostics snapshots.
 pub trait RuntimeDiagnosticsHost {
@@ -17,6 +19,16 @@ pub trait RuntimeFrameDiagnosticsHost {
 pub trait RuntimeFrameProfileHost {
     /// Observe one profile for a successfully presented frame.
     fn observe_frame_profile(&mut self, profile: FrameProfile);
+}
+
+/// Optional host capability for correlated asynchronous aggregate GPU timing.
+///
+/// Hosts can opt in to this boundary before a native backend producer is
+/// available; the current native runtime emits no production samples.
+pub trait RuntimeFrameGpuTimingHost {
+    /// Observe one terminal GPU timing result for a successfully presented
+    /// frame.
+    fn observe_frame_gpu_timing(&mut self, sample: FrameGpuTimingSample);
 }
 
 pub(crate) struct RuntimeDiagnosticsCapability<Bridge> {
@@ -53,6 +65,10 @@ pub(crate) struct RuntimeFrameProfileCapability<Bridge> {
     pub observe_frame_profile: fn(&mut Bridge, FrameProfile),
 }
 
+pub(crate) struct RuntimeFrameGpuTimingCapability<Bridge> {
+    pub observe_frame_gpu_timing: fn(&mut Bridge, FrameGpuTimingSample),
+}
+
 impl<Bridge> RuntimeFrameProfileCapability<Bridge>
 where
     Bridge: RuntimeFrameProfileHost,
@@ -60,6 +76,17 @@ where
     pub const fn new() -> Self {
         Self {
             observe_frame_profile: Bridge::observe_frame_profile,
+        }
+    }
+}
+
+impl<Bridge> RuntimeFrameGpuTimingCapability<Bridge>
+where
+    Bridge: RuntimeFrameGpuTimingHost,
+{
+    pub const fn new() -> Self {
+        Self {
+            observe_frame_gpu_timing: Bridge::observe_frame_gpu_timing,
         }
     }
 }

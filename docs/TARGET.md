@@ -1622,6 +1622,18 @@ Development-only diagnostics may include:
 - GPU timing where practical
 - Resource/cache inspection where practical
 
+The target GPU-timing contract is a separate correlated callback carrying
+`FrameGpuTimingSample`. Its aggregate interval begins with the first
+frame-owned GPU command and ends after final composition; CPU present and
+display/scanout are excluded. It does not replace the one successful-present
+`FrameProfile` callback, whose existing semantics remain unchanged. The current
+implementation has only the public model and opt-in callback plumbing; no
+production GPU sample is emitted until the subsequent native backend slice.
+Production WGPU timestamp acquisition/readback, the bounded pending-sample
+state machine, device-loss and recovery handling, shutdown
+draining/cancellation, and auxiliary-window forwarding are the next dependent
+backend slice; none is implemented here.
+
 Debug assertions and tracing should improve development without hurting release performance.
 
 ## Tests

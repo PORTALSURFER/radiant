@@ -140,6 +140,20 @@ where
         self
     }
 
+    /// Opt in to correlated asynchronous aggregate GPU timing after a
+    /// successful native frame presentation.
+    ///
+    /// The public callback boundary is established independently of
+    /// [`Self::on_frame_profile`]. Native GPU sample production is a subsequent
+    /// backend slice and is not emitted by the current implementation.
+    pub fn on_frame_gpu_timing(
+        mut self,
+        timing: impl FnMut(&mut State, crate::runtime::FrameGpuTimingSample) + 'static,
+    ) -> Self {
+        self.lifecycle.native_frame_gpu_timing = Some(Box::new(timing));
+        self
+    }
+
     /// Register a startup hook.
     pub fn on_startup(
         mut self,

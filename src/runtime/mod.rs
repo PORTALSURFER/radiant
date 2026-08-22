@@ -91,13 +91,13 @@ pub use bridge::{
     DeclarativeOwnedCommandRuntimeBridgeParts, DeclarativeOwnedRuntimeBridge,
     DeclarativeOwnedRuntimeBridgeParts, DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts,
     RuntimeAnimationActivity, RuntimeAnimationDemand, RuntimeAnimationHost, RuntimeBridge,
-    RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeFrameProfileHost,
-    RuntimeHostCapabilities, RuntimeInputHost, RuntimeLifecycleHost, RuntimePlatformHost,
-    RuntimePlatformResultHost, RuntimeQueueDelivery, RuntimeQueueHost, RuntimeQueueItem,
-    RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner, RuntimeTimerWake,
-    RuntimeTransientOverlayHost, RuntimeWindowHost, declarative_command_runtime_bridge,
-    declarative_owned_command_runtime_bridge, declarative_owned_runtime_bridge,
-    declarative_runtime_bridge,
+    RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost,
+    RuntimeFrameProfileHost, RuntimeHostCapabilities, RuntimeInputHost, RuntimeLifecycleHost,
+    RuntimePlatformHost, RuntimePlatformResultHost, RuntimeQueueDelivery, RuntimeQueueHost,
+    RuntimeQueueItem, RuntimeRetainedSurfaceHost, RuntimeTaskHost, RuntimeTimerOwner,
+    RuntimeTimerWake, RuntimeTransientOverlayHost, RuntimeWindowHost,
+    declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
+    declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
 pub(crate) use command::WorkerStreamOptions;
@@ -129,7 +129,8 @@ pub use devtools::{
 };
 pub use diagnostics::{
     BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
-    DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, FrameProfile, FrameProfileCacheCounters,
+    DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, FrameGpuTimingOutcome, FrameGpuTimingSample,
+    FrameGpuTimingUnavailableReason, FrameProfile, FrameProfileCacheCounters,
     FrameProfileCompositedBaseTiming, FrameProfileCounters, FrameProfileCpuCompletionOutcome,
     FrameProfileCpuFairnessCounters, FrameProfileCpuFairnessDisposition,
     FrameProfileCpuObservationCounters, FrameProfileGpuSurfaceAtlasCounters,

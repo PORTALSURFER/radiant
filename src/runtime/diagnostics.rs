@@ -4,6 +4,7 @@ mod business;
 mod cache_policy;
 mod frame;
 mod gpu_surface;
+mod gpu_timing;
 mod lifecycle;
 mod profile;
 mod retained_surface;
@@ -32,6 +33,9 @@ pub use gpu_surface::{
     NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
+};
+pub use gpu_timing::{
+    FrameGpuTimingOutcome, FrameGpuTimingSample, FrameGpuTimingUnavailableReason,
 };
 pub(crate) use lifecycle::RuntimeLifecycleController;
 pub use lifecycle::{

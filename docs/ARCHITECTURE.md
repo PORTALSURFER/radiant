@@ -782,6 +782,19 @@ and frame presentation live under
 stay there or behind explicit GPU-surface contracts, not leak into normal
 application-builder code.
 
+Frame profiling and GPU timing remain separate observability contracts. The
+public `on_frame_gpu_timing` callback carries a correlated
+`FrameGpuTimingSample` whose target aggregate interval runs from the first
+frame-owned GPU command through final composition, excluding CPU present and
+display/scanout. The existing `FrameProfile` callback remains one delivery per
+successful present, with its existing semantics unchanged. The current
+implementation provides the public model and opt-in capability boundary only;
+native production samples are deferred to the subsequent backend slice.
+Production WGPU timestamp acquisition/readback, the bounded pending-sample
+state machine, device-loss and recovery handling, shutdown
+draining/cancellation, and auxiliary-window forwarding are the next dependent
+backend slice; none is implemented here.
+
 The generic native Vello runtime has one event-loop-confined adapter owner per
 application run. The primary window selects the shared WGPU context, device,
 queue, and device-loss callback witness; the owner publishes crate-private

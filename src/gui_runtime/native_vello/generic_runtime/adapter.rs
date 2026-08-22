@@ -1,12 +1,10 @@
 //! Event-loop-confined WGPU/Vello adapter ownership for one generic run.
 
+use super::device::DeviceFeatureSelection;
 use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};
 use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
 use std::{fmt, sync::Arc};
-use vello::{
-    util::{DeviceHandle, RenderContext, RenderSurface},
-    wgpu,
-};
+use vello::{util::RenderSurface, wgpu};
 use winit::event_loop::EventLoopProxy;
 
 use super::surface::instance_for_options;
@@ -86,6 +84,202 @@ impl Default for NativeAdapterGeneration {
     }
 }
 
+/// Private Radiant ownership of one WGPU context and its device candidates.
+/// Vello renderers and public render surfaces borrow these handles, but Vello
+/// does not own adapter selection or device lifetime for the generic runtime.
+pub(super) struct RadiantWgpuContext {
+    pub(super) instance: wgpu::Instance,
+    devices: Vec<RadiantWgpuDevice>,
+}
+
+/// Private Radiant ownership of one selected adapter, device, and queue.
+pub(super) struct RadiantWgpuDevice {
+    adapter: wgpu::Adapter,
+    pub(super) device: wgpu::Device,
+    pub(super) queue: wgpu::Queue,
+}
+
+impl RadiantWgpuContext {
+    pub(super) fn new(instance: wgpu::Instance) -> Self {
+        Self {
+            instance,
+            devices: Vec::new(),
+        }
+    }
+
+    pub(super) async fn device(
+        &mut self,
+        compatible_surface: Option<&wgpu::Surface<'_>>,
+    ) -> Option<usize> {
+        let compatible = match compatible_surface {
+            Some(surface) => self
+                .devices
+                .iter()
+                .enumerate()
+                .find(|(_, device)| device.adapter.is_surface_supported(surface))
+                .map(|(index, _)| index),
+            None => (!self.devices.is_empty()).then_some(0),
+        };
+        if compatible.is_none() {
+            return self.new_device(compatible_surface).await;
+        }
+        compatible
+    }
+
+    pub(super) fn device_handle(&self, device_id: usize) -> Option<&RadiantWgpuDevice> {
+        self.devices.get(device_id)
+    }
+
+    async fn new_device(
+        &mut self,
+        compatible_surface: Option<&wgpu::Surface<'_>>,
+    ) -> Option<usize> {
+        let adapter =
+            wgpu::util::initialize_adapter_from_env_or_default(&self.instance, compatible_surface)
+                .await
+                .ok()?;
+        let selection = DeviceFeatureSelection::for_adapter(adapter.features());
+        let device =
+            request_device_with_fallback(&self.instance, compatible_surface, adapter, selection)
+                .await?;
+        self.devices.push(device);
+        Some(self.devices.len() - 1)
+    }
+
+    pub(super) fn create_render_surface<'surface>(
+        &self,
+        surface: wgpu::Surface<'surface>,
+        width: u32,
+        height: u32,
+        present_mode: wgpu::PresentMode,
+        device_id: usize,
+    ) -> Result<RenderSurface<'surface>, &'static str> {
+        let Some(device) = self.devices.get(device_id) else {
+            return Err("selected device handle is unavailable");
+        };
+        let capabilities = surface.get_capabilities(&device.adapter);
+        let format = capabilities
+            .formats
+            .into_iter()
+            .find(|format| {
+                matches!(
+                    format,
+                    wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm
+                )
+            })
+            .ok_or("selected surface has no supported texture format")?;
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format,
+            width,
+            height,
+            present_mode,
+            desired_maximum_frame_latency: 2,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: Vec::new(),
+        };
+        let (target_texture, target_view) = create_targets(width, height, &device.device);
+        surface.configure(&device.device, &config);
+        Ok(RenderSurface {
+            surface,
+            config,
+            dev_id: device_id,
+            format,
+            target_texture,
+            target_view,
+            blitter: wgpu::util::TextureBlitter::new(&device.device, format),
+        })
+    }
+
+    fn resize_surface(&self, surface: &mut RenderSurface<'_>, width: u32, height: u32) -> bool {
+        let Some(device) = self.devices.get(surface.dev_id) else {
+            return false;
+        };
+        let (target_texture, target_view) = create_targets(width, height, &device.device);
+        surface.target_texture = target_texture;
+        surface.target_view = target_view;
+        surface.config.width = width;
+        surface.config.height = height;
+        surface.surface.configure(&device.device, &surface.config);
+        true
+    }
+}
+
+impl RadiantWgpuDevice {
+    pub(super) fn adapter(&self) -> &wgpu::Adapter {
+        &self.adapter
+    }
+}
+
+async fn request_device_with_fallback(
+    instance: &wgpu::Instance,
+    compatible_surface: Option<&wgpu::Surface<'_>>,
+    adapter: wgpu::Adapter,
+    selection: DeviceFeatureSelection,
+) -> Option<RadiantWgpuDevice> {
+    match adapter
+        .request_device(&device_descriptor(selection.initial_request()))
+        .await
+    {
+        Ok((device, queue)) => Some(RadiantWgpuDevice {
+            adapter,
+            device,
+            queue,
+        }),
+        Err(_) => {
+            let fallback_features = selection.retry_after_failure()?;
+            // WGPU permits only one request_device call per adapter. Drop the
+            // failed adapter before selecting the one permitted fallback.
+            drop(adapter);
+            let fallback_adapter =
+                wgpu::util::initialize_adapter_from_env_or_default(instance, compatible_surface)
+                    .await
+                    .ok()?;
+            let (device, queue) = fallback_adapter
+                .request_device(&device_descriptor(fallback_features))
+                .await
+                .ok()?;
+            Some(RadiantWgpuDevice {
+                adapter: fallback_adapter,
+                device,
+                queue,
+            })
+        }
+    }
+}
+
+fn device_descriptor(required_features: wgpu::Features) -> wgpu::DeviceDescriptor<'static> {
+    wgpu::DeviceDescriptor {
+        label: None,
+        required_features,
+        required_limits: wgpu::Limits::default(),
+        ..Default::default()
+    }
+}
+
+fn create_targets(
+    width: u32,
+    height: u32,
+    device: &wgpu::Device,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let target_texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: None,
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        view_formats: &[],
+    });
+    let target_view = target_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    (target_texture, target_view)
+}
+
 /// Complete selection state published by the shared adapter owner.
 ///
 /// The record is constructed locally and assigned to the owner only after
@@ -105,7 +299,7 @@ struct SelectedNativeAdapter {
 /// resize, and presentation work; they never construct another context or
 /// device callback pair.
 pub(super) struct GenericNativeAdapterOwner {
-    render_context: Option<RenderContext>,
+    render_context: Option<RadiantWgpuContext>,
     selected: Option<SelectedNativeAdapter>,
 }
 
@@ -154,10 +348,7 @@ impl fmt::Display for AuxiliaryAdapterCompatibilityError {
 impl GenericNativeAdapterOwner {
     pub(super) fn new(options: &NativeRunOptions) -> Self {
         Self {
-            render_context: Some(RenderContext {
-                instance: instance_for_options(options),
-                devices: Vec::new(),
-            }),
+            render_context: Some(RadiantWgpuContext::new(instance_for_options(options))),
             selected: None,
         }
     }
@@ -184,7 +375,7 @@ impl GenericNativeAdapterOwner {
             let Some(device_id) = pollster::block_on(context.device(Some(surface))) else {
                 return Err("no compatible render device found");
             };
-            let Some(device_handle) = context.devices.get(device_id) else {
+            let Some(device_handle) = context.device_handle(device_id) else {
                 return Err("native adapter selected device handle is unavailable");
             };
             let backend = device_handle.adapter().get_info().backend;
@@ -238,9 +429,9 @@ impl GenericNativeAdapterOwner {
         let Some(context) = self.render_context.as_mut() else {
             return Err(AdapterSurfaceError::NoSelectedDevice);
         };
-        let render_surface =
-            pollster::block_on(context.create_render_surface(surface, width, height, present_mode))
-                .map_err(render_surface_creation_error)?;
+        let render_surface = context
+            .create_render_surface(surface, width, height, present_mode, selected_device_id)
+            .map_err(render_surface_creation_error)?;
         if render_surface.dev_id != selected_device_id {
             return Err(AdapterSurfaceError::DeviceMismatch);
         }
@@ -265,65 +456,15 @@ impl GenericNativeAdapterOwner {
         let Some(context) = self.render_context.as_ref() else {
             return Err(AdapterSurfaceError::NoSelectedDevice);
         };
-        let Some(device_handle) = context.devices.get(selected.device_id) else {
-            return Err(AdapterSurfaceError::NoSelectedDevice);
-        };
-        let capabilities = surface.get_capabilities(device_handle.adapter());
-        let format = capabilities
-            .formats
-            .into_iter()
-            .find(|format| {
-                matches!(
-                    format,
-                    wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm
-                )
-            })
-            .ok_or_else(|| {
-                render_surface_creation_error("selected surface has no supported texture format")
-            })?;
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            width,
-            height,
-            present_mode,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: Vec::new(),
-        };
-        let target_texture = device_handle
-            .device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: None,
-                size: wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                view_formats: &[],
-            });
-        let target_view = target_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        surface.configure(&device_handle.device, &config);
-        Ok(RenderSurface {
-            surface,
-            config,
-            dev_id: selected.device_id,
-            format,
-            target_texture,
-            target_view,
-            blitter: wgpu::util::TextureBlitter::new(&device_handle.device, format),
-        })
+        context
+            .create_render_surface(surface, width, height, present_mode, selected.device_id)
+            .map_err(render_surface_creation_error)
     }
 
-    pub(super) fn selected_device_handle(&self) -> Option<&DeviceHandle> {
+    pub(super) fn selected_device_handle(&self) -> Option<&RadiantWgpuDevice> {
         let context = self.render_context.as_ref()?;
         let device_id = self.selected.as_ref()?.device_id;
-        context.devices.get(device_id)
+        context.device_handle(device_id)
     }
 
     pub(super) fn selected_device_identity(&self) -> Option<usize> {
@@ -353,7 +494,7 @@ impl GenericNativeAdapterOwner {
     pub(super) fn device_handle_for_surface(
         &self,
         surface: &RenderSurface<'_>,
-    ) -> Option<&DeviceHandle> {
+    ) -> Option<&RadiantWgpuDevice> {
         let device_id = self.selected.as_ref()?.device_id;
         (surface.dev_id == device_id)
             .then(|| self.selected_device_handle())
@@ -375,8 +516,7 @@ impl GenericNativeAdapterOwner {
         let Some(context) = self.render_context.as_ref() else {
             return false;
         };
-        context.resize_surface(surface, width, height);
-        true
+        context.resize_surface(surface, width, height)
     }
 
     pub(super) fn accepts_device_loss(
@@ -399,15 +539,14 @@ impl GenericNativeAdapterOwner {
     }
 
     pub(super) fn from_fresh_recovery_context(
-        render_context: RenderContext,
+        render_context: RadiantWgpuContext,
         device_id: usize,
         generation: NativeAdapterGeneration,
         device_loss_registration: Arc<DeviceLossRegistration>,
     ) -> Result<Self, &'static str> {
         let Some(backend) = render_context
-            .devices
-            .get(device_id)
-            .map(|device_handle| device_handle.adapter().get_info().backend)
+            .device_handle(device_id)
+            .map(|device| device.adapter().get_info().backend)
         else {
             return Err("fresh recovery context did not retain its selected device");
         };
@@ -455,7 +594,8 @@ impl GenericNativeAdapterOwner {
     }
 
     fn selected_adapter(&self) -> Option<&wgpu::Adapter> {
-        self.selected_device_handle().map(DeviceHandle::adapter)
+        self.selected_device_handle()
+            .map(RadiantWgpuDevice::adapter)
     }
 }
 

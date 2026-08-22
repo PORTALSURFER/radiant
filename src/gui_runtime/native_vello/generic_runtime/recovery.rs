@@ -2,7 +2,7 @@
 
 use super::{
     RuntimeUserEvent,
-    adapter::{GenericNativeAdapterOwner, NativeAdapterGeneration},
+    adapter::{GenericNativeAdapterOwner, NativeAdapterGeneration, RadiantWgpuContext},
     device::install_device_loss_callback,
     runner_state::NativeWindowResourceBundle,
 };
@@ -18,7 +18,7 @@ use std::{
     task::{Context, Wake, Waker},
     thread,
 };
-use vello::{Renderer, util::RenderContext, wgpu};
+use vello::{Renderer, wgpu};
 use winit::event_loop::EventLoopProxy;
 
 /// Opaque identity for one accepted recovery episode.
@@ -175,10 +175,7 @@ fn prepare_recovery_candidate(
     if cancellation.is_cancelled() {
         return Err(String::from(RECOVERY_CANCELLED_ERROR));
     }
-    let mut context = RenderContext {
-        instance,
-        devices: Vec::new(),
-    };
+    let mut context = RadiantWgpuContext::new(instance);
     let polling_instance = context.instance.clone();
     let device_id = drive_wgpu_future(
         &polling_instance,
@@ -192,8 +189,7 @@ fn prepare_recovery_candidate(
     }
     let present_mode = {
         let device_handle = context
-            .devices
-            .get(device_id)
+            .device_handle(device_id)
             .ok_or_else(|| String::from("fresh context did not retain its selected device"))?;
         let capabilities = surface.get_capabilities(device_handle.adapter());
         select_present_mode(target_fps, &capabilities.present_modes)
@@ -201,19 +197,14 @@ fn prepare_recovery_candidate(
     if cancellation.is_cancelled() {
         return Err(String::from(RECOVERY_CANCELLED_ERROR));
     }
-    let render_surface = drive_wgpu_future(
-        &polling_instance,
-        context.create_render_surface(surface, width, height, present_mode),
-        cancellation,
-    )
-    .map_err(|RecoveryFutureError::Cancelled| String::from(RECOVERY_CANCELLED_ERROR))?
-    .map_err(|error| error.to_string())?;
+    let render_surface = context
+        .create_render_surface(surface, width, height, present_mode, device_id)
+        .map_err(|error| error.to_owned())?;
     if cancellation.is_cancelled() {
         return Err(String::from(RECOVERY_CANCELLED_ERROR));
     }
     let device_handle = context
-        .devices
-        .get(device_id)
+        .device_handle(device_id)
         .ok_or_else(|| String::from("fresh context did not retain its selected device"))?;
     let candidate_device_identity = super::device::wgpu_device_id(&device_handle.device);
     if candidate_device_identity == previous_device_identity {

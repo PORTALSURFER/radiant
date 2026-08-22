@@ -623,6 +623,10 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/adapter.rs"),
     )
     .expect("generic adapter source should be readable");
+    let device = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/device.rs"),
+    )
+    .expect("generic device source should be readable");
     let auxiliary = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs"),
     )
@@ -636,8 +640,7 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
         "NativeRecoveryEpisodeToken",
         "sync_channel(1)",
         "try_recv()",
-        "RenderContext",
-        "devices: Vec::new()",
+        "RadiantWgpuContext",
         "previous_device_identity",
         "candidate_starts",
         "candidate_completions",
@@ -651,6 +654,47 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
         assert!(
             recovery.contains(required),
             "recovery should retain bounded async evidence `{required}`"
+        );
+    }
+    for required in [
+        "RadiantWgpuContext",
+        "RadiantWgpuDevice",
+        "devices: Vec::new()",
+        "DeviceFeatureSelection::for_adapter",
+    ] {
+        assert!(
+            adapter.contains(required),
+            "adapter should retain private Radiant device ownership and feature selection `{required}`"
+        );
+    }
+    assert!(
+        device.contains("TIMESTAMP_QUERY")
+            && device.contains("CLEAR_TEXTURE")
+            && device.contains("PIPELINE_CACHE"),
+        "device policy should own timestamp and Vello optional feature selection"
+    );
+    let request_policy = adapter
+        .split("async fn request_device_with_fallback")
+        .nth(1)
+        .and_then(|source| source.split("fn device_descriptor").next())
+        .expect("adapter should retain one centralized device request policy");
+    assert!(
+        request_policy.contains("drop(adapter)")
+            && request_policy.contains("initialize_adapter_from_env_or_default")
+            && request_policy.contains("compatible_surface")
+            && request_policy.contains("fallback_adapter")
+            && request_policy.contains("adapter: fallback_adapter"),
+        "timestamp fallback should select and retain a fresh adapter using the same instance and surface policy"
+    );
+    assert_eq!(
+        request_policy.matches(".request_device(").count(),
+        2,
+        "the initial request and one fresh-adapter baseline retry are the only device requests"
+    );
+    for forbidden in ["RenderContext", "DeviceHandle", "wgpu-profiler"] {
+        assert!(
+            !adapter.contains(forbidden) && !recovery.contains(forbidden),
+            "generic adapter/recovery must not retain Vello convenience ownership or profiling dependency `{forbidden}`"
         );
     }
     for forbidden in [

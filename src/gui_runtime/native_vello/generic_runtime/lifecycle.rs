@@ -9,8 +9,8 @@ use super::{
     AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
     FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane,
     FrameScheduleRedrawEvidence, FrameWork, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    GenericRouteOutcome, NativeGenericRunError, NativeInitializationStage, RuntimeUserEvent,
-    TimedFrameCadence, animation_frame_interval, assess_cpu_frame_fairness,
+    GenericRouteOutcome, NativeGenericRunError, NativeInitializationStage, NativeLifecycle,
+    RuntimeUserEvent, TimedFrameCadence, animation_frame_interval, assess_cpu_frame_fairness,
     should_start_native_window_drag, should_toggle_native_window_maximized,
     slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
@@ -30,6 +30,22 @@ use winit::{
 
 const LATE_TIMED_FRAME_LOG_THRESHOLD: Duration = Duration::from_millis(24);
 const LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP: Duration = Duration::from_secs(1);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeGpuTimingReadyHandling {
+    Deliver,
+    Discard,
+}
+
+const fn native_gpu_timing_ready_handling(
+    lifecycle: NativeLifecycle,
+) -> NativeGpuTimingReadyHandling {
+    if lifecycle.is_running() {
+        NativeGpuTimingReadyHandling::Deliver
+    } else {
+        NativeGpuTimingReadyHandling::Discard
+    }
+}
 
 fn should_request_native_maximize_redraw(outcome: GenericRouteOutcome) -> bool {
     !matches!(
@@ -680,8 +696,8 @@ where
                 resource_identity,
                 slot,
                 token,
-            } => {
-                if self.is_running() {
+            } => match native_gpu_timing_ready_handling(self.native_lifecycle_snapshot()) {
+                NativeGpuTimingReadyHandling::Deliver => {
                     self.process_native_gpu_timing_ready(
                         generation,
                         resource_identity,
@@ -689,7 +705,15 @@ where
                         token,
                     );
                 }
-            }
+                NativeGpuTimingReadyHandling::Discard => {
+                    self.discard_native_gpu_timing_ready(
+                        generation,
+                        resource_identity,
+                        slot,
+                        token,
+                    );
+                }
+            },
             #[cfg(target_os = "macos")]
             RuntimeUserEvent::AccessibilityDisplayChanged => {
                 if self.is_running() {
@@ -1224,7 +1248,8 @@ mod tests {
     use super::super::AuxiliaryNativeWindow;
     use super::{
         GenericNativeVelloRunner, NATIVE_RESOURCE_MAINTENANCE_INTERVAL,
-        forward_auxiliary_frame_diagnostics, native_resource_maintenance_deadline,
+        NativeGpuTimingReadyHandling, NativeLifecycle, forward_auxiliary_frame_diagnostics,
+        native_gpu_timing_ready_handling, native_resource_maintenance_deadline,
     };
     use crate::gui_runtime::native_vello::generic_runtime::cpu_frame_fairness::{
         CpuFrameCadencePressure, CpuFrameCadenceRate,
@@ -1908,6 +1933,33 @@ mod tests {
                 },
                 OrderedAuxiliaryEvent::Message(2),
             ]
+        );
+    }
+
+    #[test]
+    fn gpu_timing_completion_is_delivered_only_while_running() {
+        assert_eq!(
+            native_gpu_timing_ready_handling(NativeLifecycle::default()),
+            NativeGpuTimingReadyHandling::Deliver
+        );
+
+        let mut recovering = NativeLifecycle::default();
+        assert!(recovering.admit_recovery());
+        assert_eq!(
+            native_gpu_timing_ready_handling(recovering),
+            NativeGpuTimingReadyHandling::Discard
+        );
+
+        let mut closing = NativeLifecycle::default();
+        assert!(closing.admit_closing(Instant::now()));
+        assert_eq!(
+            native_gpu_timing_ready_handling(closing),
+            NativeGpuTimingReadyHandling::Discard
+        );
+
+        assert_eq!(
+            native_gpu_timing_ready_handling(NativeLifecycle::Stopped),
+            NativeGpuTimingReadyHandling::Discard
         );
     }
 }

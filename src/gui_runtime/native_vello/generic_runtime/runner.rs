@@ -1742,6 +1742,24 @@ where
         let _ = self.window.finish_native_gpu_timing_delivery(delivery);
     }
 
+    pub(super) fn discard_native_gpu_timing_ready(
+        &mut self,
+        generation: NativeAdapterGeneration,
+        resource_identity: u64,
+        slot: u8,
+        token: u64,
+    ) {
+        let Some(delivery) = self.window.prepare_native_gpu_timing_delivery(
+            generation,
+            resource_identity,
+            slot,
+            token,
+        ) else {
+            return;
+        };
+        let _ = self.window.finish_native_gpu_timing_delivery(delivery);
+    }
+
     pub(super) fn start_native_gpu_timing(&mut self, admission: &mut Option<GpuTimingAdmission>) {
         let Some(GpuTimingAdmission::Reserved(reservation)) = *admission else {
             return;

@@ -9,6 +9,33 @@ use std::{sync::Arc, time::Instant};
 use tracing::{info, warn};
 use winit::event_loop::EventLoop;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct GpuSurfaceAtlasResidencySnapshot {
+    generation: adapter::NativeAdapterGeneration,
+    pub(super) resident_count: usize,
+    pub(super) logical_rgba_texel_bytes: Option<u64>,
+}
+
+impl GpuSurfaceAtlasResidencySnapshot {
+    pub(super) fn with_generation(mut self, generation: adapter::NativeAdapterGeneration) -> Self {
+        self.generation = generation;
+        self
+    }
+
+    pub(super) const fn generation_known(self) -> bool {
+        self.generation.is_known()
+    }
+
+    pub(super) const fn generation_serial(self) -> Option<u64> {
+        self.generation.known_serial()
+    }
+
+    #[cfg(test)]
+    pub(super) fn generation(self) -> adapter::NativeAdapterGeneration {
+        self.generation
+    }
+}
+
 #[cfg(test)]
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8},
@@ -140,8 +167,8 @@ use prepared_surface_refresh::{
 };
 pub(in crate::gui_runtime::native_vello) use recovery::NativeRecoveryEpisodeToken;
 use render_profile::{
-    RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile,
-    slow_render_profile_enabled,
+    NativeRenderProfileGpuSurface, RenderFrameProfile, maybe_log_render_profile,
+    maybe_log_slow_render_profile, slow_render_profile_enabled,
 };
 use renderer_recovery::NativeRendererRecoveryWindowKind;
 pub(in crate::gui_runtime::native_vello) use route_outcome::{

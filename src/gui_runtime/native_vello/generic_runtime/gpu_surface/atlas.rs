@@ -140,9 +140,13 @@ impl GpuSurfaceRenderer {
         let Some(binding) = self.resources.composite_bindings.get(&surface.key) else {
             return;
         };
+        let uniform_bytes = uniforms_as_bytes(&uniforms);
         target
             .queue
-            .write_buffer(&binding.uniform_buffer, 0, uniforms_as_bytes(&uniforms));
+            .write_buffer(&binding.uniform_buffer, 0, uniform_bytes);
+        stats
+            .render_canvas_uploads
+            .record_renderer_parameter(uniform_bytes.len());
         let started = Instant::now();
         let mut pass = gpu_surface_render_pass(target.encoder, target.target_view);
         pass.set_pipeline(&pipeline.pipeline);

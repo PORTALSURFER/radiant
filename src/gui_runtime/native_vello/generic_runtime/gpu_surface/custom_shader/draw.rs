@@ -49,31 +49,37 @@ pub(super) fn upload_custom_shader_buffers(
         ],
         ..GpuSurfaceUniforms::default()
     };
+    let surface_uniform_bytes = uniforms_as_bytes(&uniforms);
     request.target.queue.write_buffer(
         &request.binding.surface_uniform_buffer,
         0,
-        uniforms_as_bytes(&uniforms),
+        surface_uniform_bytes,
     );
+    stats
+        .render_canvas_uploads
+        .record_renderer_parameter(surface_uniform_bytes.len());
     if request
         .binding
         .write_state
         .static_payload_needs_write(static_payload)
     {
         if let Some(buffer) = &request.binding.app_uniform_buffer {
-            request
-                .target
-                .queue
-                .write_buffer(buffer, 0, &request.descriptor.uniform_bytes);
+            let uniform_bytes = request.descriptor.uniform_bytes.as_ref();
+            request.target.queue.write_buffer(buffer, 0, uniform_bytes);
             stats.custom_shader.static_writes += 1;
-            stats.custom_shader.static_write_bytes += request.descriptor.uniform_bytes.len();
+            stats.custom_shader.static_write_bytes += uniform_bytes.len();
+            stats
+                .render_canvas_uploads
+                .record_immutable_payload(uniform_bytes.len());
         }
         if let Some(buffer) = &request.binding.storage_buffer {
-            request
-                .target
-                .queue
-                .write_buffer(buffer, 0, &request.descriptor.storage_bytes);
+            let storage_bytes = request.descriptor.storage_bytes.as_ref();
+            request.target.queue.write_buffer(buffer, 0, storage_bytes);
             stats.custom_shader.static_writes += 1;
-            stats.custom_shader.static_write_bytes += request.descriptor.storage_bytes.len();
+            stats.custom_shader.static_write_bytes += storage_bytes.len();
+            stats
+                .render_canvas_uploads
+                .record_immutable_payload(storage_bytes.len());
         }
         request
             .binding
@@ -108,6 +114,9 @@ pub(super) fn upload_custom_shader_buffers(
             );
             stats.custom_shader.presentation_writes += 1;
             stats.custom_shader.presentation_write_bytes += bytes.len();
+            stats
+                .render_canvas_uploads
+                .record_volatile_payload(bytes.len());
         }
         if let Some(update) = request.presentation_update
             && request
@@ -136,6 +145,9 @@ pub(super) fn upload_custom_shader_buffers(
                 .cache_presentation_revision(static_payload, update.presentation_revision);
             stats.custom_shader.presentation_writes += 1;
             stats.custom_shader.presentation_write_bytes += update.byte_len();
+            stats
+                .render_canvas_uploads
+                .record_volatile_payload(update.byte_len());
         }
     }
 }

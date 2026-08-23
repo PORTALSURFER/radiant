@@ -194,3 +194,82 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
         "GPU surface render stats should keep skipped custom-shader draw and payload counters"
     );
 }
+
+#[test]
+fn render_canvas_upload_evidence_stays_private_and_follows_actual_write_sites() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let stats = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/stats.rs"),
+    )
+    .expect("GPU surface stats module should be readable");
+    let atlas_resources = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/atlas.rs"),
+    )
+    .expect("GPU surface atlas resources should be readable");
+    let signal_resources = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal.rs"),
+    )
+    .expect("GPU surface signal resources should be readable");
+    let atlas = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/atlas.rs"),
+    )
+    .expect("GPU surface atlas renderer should be readable");
+    let custom_shader_draw = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/draw.rs"),
+    )
+    .expect("GPU surface custom shader draw should be readable");
+    let render_profile = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/render_profile.rs"),
+    )
+    .expect("native render profile should be readable");
+
+    assert!(
+        stats.contains("pub(crate) render_canvas_uploads")
+            && stats.contains("struct GpuSurfaceRenderCanvasUploadStats")
+            && stats.contains("operations: Option<usize>")
+            && stats.contains("logical_bytes: Option<u64>")
+            && stats.contains("operations.checked_add(1)")
+            && stats.contains("logical_bytes.checked_add(byte_len)")
+            && stats.contains("fn mark_unavailable"),
+        "render-canvas upload evidence should be fixed-size, private, and checked"
+    );
+    assert!(
+        atlas_resources.find("queue.write_texture").unwrap()
+            < atlas_resources.find("record_immutable_payload").unwrap()
+            && signal_resources.matches("record_immutable_payload").count() == 1
+            && signal_resources
+                .matches("record_renderer_parameter")
+                .count()
+                == 2
+            && atlas.matches("record_renderer_parameter").count() == 1
+            && custom_shader_draw
+                .matches("record_renderer_parameter")
+                .count()
+                == 1
+            && custom_shader_draw
+                .matches("record_immutable_payload")
+                .count()
+                == 2
+            && custom_shader_draw
+                .matches("record_volatile_payload")
+                .count()
+                == 2,
+        "each scoped native transfer family should record only after its existing write path"
+    );
+    for required in [
+        "gpu_surface_render_canvas_upload_immutable_payload_operations",
+        "gpu_surface_render_canvas_upload_immutable_payload_bytes",
+        "gpu_surface_render_canvas_upload_volatile_payload_operations",
+        "gpu_surface_render_canvas_upload_volatile_payload_bytes",
+        "gpu_surface_render_canvas_upload_renderer_parameter_operations",
+        "gpu_surface_render_canvas_upload_renderer_parameter_bytes",
+    ] {
+        assert!(
+            render_profile.contains(required),
+            "private render profile should expose upload evidence field `{required}`"
+        );
+    }
+}

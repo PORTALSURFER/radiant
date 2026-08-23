@@ -54,6 +54,7 @@ impl GpuSurfaceRenderer {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
+        let pixels = atlas.pixels();
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -61,7 +62,7 @@ impl GpuSurfaceRenderer {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            atlas.pixels(),
+            pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(extent.bytes_per_row),
@@ -73,6 +74,9 @@ impl GpuSurfaceRenderer {
                 depth_or_array_layers: 1,
             },
         );
+        stats
+            .render_canvas_uploads
+            .record_immutable_payload(pixels.len());
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         self.resources.textures.insert(
             surface.key,

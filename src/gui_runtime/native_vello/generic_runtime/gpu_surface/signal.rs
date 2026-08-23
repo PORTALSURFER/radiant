@@ -71,6 +71,7 @@ impl GpuSurfaceRenderer {
         self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
             device: target.device,
             queue: target.queue,
+            stats,
             key: surface.key,
             cache_key: SignalBufferCacheKey::new(
                 surface.revision,

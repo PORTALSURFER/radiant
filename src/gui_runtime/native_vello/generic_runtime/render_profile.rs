@@ -95,6 +95,7 @@ pub(super) fn maybe_log_render_profile(
     let active_atlas = project_atlas_residency(atlas_residency.active);
     let quarantine_0_atlas = project_atlas_residency(atlas_residency.quarantine_0);
     let quarantine_1_atlas = project_atlas_residency(atlas_residency.quarantine_1);
+    let render_canvas_uploads = gpu_surface_stats.render_canvas_uploads;
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
     info!(
         reason,
@@ -155,6 +156,18 @@ pub(super) fn maybe_log_render_profile(
             application_atlas_residency.quarantined_resident_count,
         gpu_surface_atlas_application_quarantined_logical_rgba_bytes =
             application_atlas_residency.quarantined_logical_rgba_texel_bytes,
+        gpu_surface_render_canvas_upload_immutable_payload_operations =
+            render_canvas_uploads.immutable_payload.operations,
+        gpu_surface_render_canvas_upload_immutable_payload_bytes =
+            render_canvas_uploads.immutable_payload.logical_bytes,
+        gpu_surface_render_canvas_upload_volatile_payload_operations =
+            render_canvas_uploads.volatile_payload.operations,
+        gpu_surface_render_canvas_upload_volatile_payload_bytes =
+            render_canvas_uploads.volatile_payload.logical_bytes,
+        gpu_surface_render_canvas_upload_renderer_parameter_operations =
+            render_canvas_uploads.renderer_parameter.operations,
+        gpu_surface_render_canvas_upload_renderer_parameter_bytes =
+            render_canvas_uploads.renderer_parameter.logical_bytes,
         gpu_signal_summary_builds = gpu_surface_stats.signal.summary_builds,
         gpu_signal_summary_cache_hits = gpu_surface_stats.signal.summary_cache_hits,
         refresh_surface_us = frame.refresh_surface.as_micros(),
@@ -228,6 +241,7 @@ pub(super) fn maybe_log_slow_render_profile(
         return;
     }
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
+    let render_canvas_uploads = gpu_surface_stats.render_canvas_uploads;
     let slow_phase_total = [
         frame.coalesced_wheel_route,
         frame.refresh_surface,
@@ -269,6 +283,24 @@ pub(super) fn maybe_log_slow_render_profile(
         gpu_signal_body_renders = gpu_surface_stats.signal.body_renders,
         gpu_signal_body_cache_hits = gpu_surface_stats.signal.body_cache_hits,
         gpu_signal_body_encode_us = gpu_surface_stats.signal.body_encode_elapsed.as_micros(),
+        gpu_surface_render_canvas_upload_immutable_payload_operations = render_canvas_uploads
+            .immutable_payload
+            .operations,
+        gpu_surface_render_canvas_upload_immutable_payload_bytes = render_canvas_uploads
+            .immutable_payload
+            .logical_bytes,
+        gpu_surface_render_canvas_upload_volatile_payload_operations = render_canvas_uploads
+            .volatile_payload
+            .operations,
+        gpu_surface_render_canvas_upload_volatile_payload_bytes = render_canvas_uploads
+            .volatile_payload
+            .logical_bytes,
+        gpu_surface_render_canvas_upload_renderer_parameter_operations = render_canvas_uploads
+            .renderer_parameter
+            .operations,
+        gpu_surface_render_canvas_upload_renderer_parameter_bytes = render_canvas_uploads
+            .renderer_parameter
+            .logical_bytes,
         gpu_surface_composite_binding_rebuilds = gpu_surface_stats.composite.binding_rebuilds,
         gpu_surface_composite_binding_cache_hits = gpu_surface_stats.composite.binding_cache_hits,
         gpu_surface_composite_encode_us = gpu_surface_stats.composite.encode_elapsed.as_micros(),

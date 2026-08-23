@@ -6,6 +6,7 @@ pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) signal: GpuSurfaceSignalRenderStats,
     pub(crate) composite: GpuSurfaceCompositeRenderStats,
     pub(crate) custom_shader: GpuSurfaceCustomShaderRenderStats,
+    pub(crate) render_canvas_uploads: GpuSurfaceRenderCanvasUploadStats,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -71,6 +72,68 @@ pub(crate) struct GpuSurfaceUnsupportedCustomShaderStats {
     pub(crate) storage_bytes: usize,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct GpuSurfaceRenderCanvasUploadStats {
+    pub(crate) immutable_payload: GpuSurfaceRenderCanvasUploadEvidence,
+    pub(crate) volatile_payload: GpuSurfaceRenderCanvasUploadEvidence,
+    pub(crate) renderer_parameter: GpuSurfaceRenderCanvasUploadEvidence,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GpuSurfaceRenderCanvasUploadEvidence {
+    pub(crate) operations: Option<usize>,
+    pub(crate) logical_bytes: Option<u64>,
+}
+
+impl Default for GpuSurfaceRenderCanvasUploadEvidence {
+    fn default() -> Self {
+        Self {
+            operations: Some(0),
+            logical_bytes: Some(0),
+        }
+    }
+}
+
+impl GpuSurfaceRenderCanvasUploadStats {
+    pub(crate) fn record_immutable_payload(&mut self, byte_len: usize) {
+        self.immutable_payload.record(byte_len);
+    }
+
+    pub(crate) fn record_volatile_payload(&mut self, byte_len: usize) {
+        self.volatile_payload.record(byte_len);
+    }
+
+    pub(crate) fn record_renderer_parameter(&mut self, byte_len: usize) {
+        self.renderer_parameter.record(byte_len);
+    }
+}
+
+impl GpuSurfaceRenderCanvasUploadEvidence {
+    fn record(&mut self, byte_len: usize) {
+        let (Some(operations), Some(logical_bytes)) = (self.operations, self.logical_bytes) else {
+            return;
+        };
+        let Some(byte_len) = u64::try_from(byte_len).ok() else {
+            self.mark_unavailable();
+            return;
+        };
+        let (Some(operations), Some(logical_bytes)) = (
+            operations.checked_add(1),
+            logical_bytes.checked_add(byte_len),
+        ) else {
+            self.mark_unavailable();
+            return;
+        };
+        self.operations = Some(operations);
+        self.logical_bytes = Some(logical_bytes);
+    }
+
+    fn mark_unavailable(&mut self) {
+        self.operations = None;
+        self.logical_bytes = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,6 +161,10 @@ mod tests {
         assert_eq!(stats.custom_shader.unsupported.source_bytes, 0);
         assert_eq!(stats.custom_shader.unsupported.uniform_bytes, 0);
         assert_eq!(stats.custom_shader.unsupported.storage_bytes, 0);
+        assert_eq!(
+            stats.render_canvas_uploads,
+            GpuSurfaceRenderCanvasUploadStats::default()
+        );
     }
 
     #[test]
@@ -106,5 +173,67 @@ mod tests {
 
         assert_eq!(stats.atlas.texture_uploads, 0);
         assert_eq!(stats.atlas.texture_cache_hits, 0);
+    }
+
+    #[test]
+    fn render_canvas_upload_evidence_records_classified_operations_deterministically() {
+        let mut first = GpuSurfaceRenderCanvasUploadStats::default();
+        first.record_immutable_payload(16);
+        first.record_immutable_payload(8);
+        first.record_volatile_payload(12);
+        first.record_renderer_parameter(240);
+        first.record_renderer_parameter(144);
+
+        let mut second = GpuSurfaceRenderCanvasUploadStats::default();
+        second.record_immutable_payload(16);
+        second.record_immutable_payload(8);
+        second.record_volatile_payload(12);
+        second.record_renderer_parameter(240);
+        second.record_renderer_parameter(144);
+
+        assert_eq!(first, second);
+        assert_eq!(
+            first.immutable_payload,
+            GpuSurfaceRenderCanvasUploadEvidence {
+                operations: Some(2),
+                logical_bytes: Some(24),
+            }
+        );
+        assert_eq!(
+            first.volatile_payload,
+            GpuSurfaceRenderCanvasUploadEvidence {
+                operations: Some(1),
+                logical_bytes: Some(12),
+            }
+        );
+        assert_eq!(
+            first.renderer_parameter,
+            GpuSurfaceRenderCanvasUploadEvidence {
+                operations: Some(2),
+                logical_bytes: Some(384),
+            }
+        );
+    }
+
+    #[test]
+    fn render_canvas_upload_evidence_overflow_is_sticky_unavailable() {
+        let mut operation_overflow = GpuSurfaceRenderCanvasUploadEvidence {
+            operations: Some(usize::MAX),
+            logical_bytes: Some(4),
+        };
+        operation_overflow.record(8);
+        assert_eq!(operation_overflow.operations, None);
+        assert_eq!(operation_overflow.logical_bytes, None);
+        operation_overflow.record(8);
+        assert_eq!(operation_overflow.operations, None);
+        assert_eq!(operation_overflow.logical_bytes, None);
+
+        let mut byte_overflow = GpuSurfaceRenderCanvasUploadEvidence {
+            operations: Some(1),
+            logical_bytes: Some(u64::MAX),
+        };
+        byte_overflow.record(1);
+        assert_eq!(byte_overflow.operations, None);
+        assert_eq!(byte_overflow.logical_bytes, None);
     }
 }

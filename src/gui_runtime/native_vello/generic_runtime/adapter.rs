@@ -327,6 +327,8 @@ struct NativeAdapterAtlasResidencyAccount {
 pub(super) struct NativeAdapterAtlasResidencyLedger {
     accounts: HashMap<NativeAtlasResidencyWindowIdentity, NativeAdapterAtlasResidencyAccount>,
     next_account_generation: Option<u64>,
+    /// Generations retained only while they are current or represented by a
+    /// live account/incarnation or one of its physical snapshots.
     known_adapter_generations: Vec<NativeAdapterGeneration>,
     current_adapter_generation: NativeAdapterGeneration,
     aggregate: NativeAdapterAtlasResidencyAggregate,
@@ -362,6 +364,17 @@ impl NativeAdapterAtlasResidencyLedger {
         }
         self.current_adapter_generation = generation;
         self.recompute_aggregate();
+    }
+
+    fn prune_known_adapter_generations(&mut self) {
+        let current_adapter_generation = self.current_adapter_generation;
+        let accounts = &self.accounts;
+        self.known_adapter_generations.retain(|generation| {
+            *generation == current_adapter_generation
+                || accounts
+                    .values()
+                    .any(|account| account_references_adapter_generation(account, *generation))
+        });
     }
 
     fn register(
@@ -473,6 +486,7 @@ impl NativeAdapterAtlasResidencyLedger {
     }
 
     fn recompute_aggregate(&mut self) {
+        self.prune_known_adapter_generations();
         let mut aggregate = NativeAdapterAtlasResidencyAggregate {
             active_resident_count: Some(0),
             active_logical_rgba_texel_bytes: Some(0),
@@ -503,6 +517,25 @@ impl NativeAdapterAtlasResidencyLedger {
     fn account_count(&self) -> usize {
         self.accounts.len()
     }
+}
+
+fn account_references_adapter_generation(
+    account: &NativeAdapterAtlasResidencyAccount,
+    generation: NativeAdapterGeneration,
+) -> bool {
+    account.adapter_generation == generation
+        || account
+            .snapshots
+            .active
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_0
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_1
+            .is_some_and(|snapshot| snapshot.generation == generation)
 }
 
 fn accumulate_active(
@@ -1115,13 +1148,78 @@ mod tests {
     }
 
     #[test]
+    fn atlas_ledger_prunes_recovery_history_but_keeps_live_quarantine_generation() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterAtlasResidencyLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let mut token = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                first_generation,
+                snapshots(
+                    Some(atlas_snapshot(first_generation, 1, Some(4))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("primary account should register");
+
+        for serial in 2..=32 {
+            let generation = NativeAdapterGeneration::from_test_serial(serial);
+            ledger.record_adapter_generation(generation);
+            token = ledger
+                .rebind(
+                    &token,
+                    generation,
+                    snapshots(
+                        Some(atlas_snapshot(generation, 1, Some(4))),
+                        Some(atlas_snapshot(first_generation, 2, Some(8))),
+                        None,
+                    ),
+                )
+                .expect("current account should rebind");
+        }
+
+        let current_generation = NativeAdapterGeneration::from_test_serial(32);
+        assert_eq!(ledger.known_adapter_generations.len(), 2);
+        assert!(ledger.known_adapter_generations.contains(&first_generation));
+        assert!(
+            ledger
+                .known_adapter_generations
+                .contains(&current_generation)
+        );
+        assert_eq!(ledger.profile().active_resident_count, Some(1));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(2));
+        assert_eq!(
+            ledger.profile().quarantined_logical_rgba_texel_bytes,
+            Some(8)
+        );
+
+        assert!(ledger.update(
+            &token,
+            snapshots(
+                Some(atlas_snapshot(current_generation, 1, Some(4))),
+                None,
+                None,
+            ),
+        ));
+        assert_eq!(ledger.known_adapter_generations.len(), 1);
+        assert!(!ledger.known_adapter_generations.contains(&first_generation));
+        assert_eq!(ledger.profile().active_resident_count, Some(1));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(0));
+        assert_eq!(
+            ledger.profile().quarantined_logical_rgba_texel_bytes,
+            Some(0)
+        );
+    }
+
+    #[test]
     fn atlas_ledger_fences_wrong_generation_and_same_key_incarnations() {
         let first_generation = NativeAdapterGeneration::from_test_serial(1);
         let second_generation = NativeAdapterGeneration::from_test_serial(2);
         let identity = NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("same-key"));
         let mut ledger = NativeAdapterAtlasResidencyLedger::default();
         ledger.record_adapter_generation(first_generation);
-        ledger.record_adapter_generation(second_generation);
         let first = ledger
             .register(
                 identity.clone(),
@@ -1133,6 +1231,7 @@ mod tests {
                 ),
             )
             .expect("first incarnation should register");
+        ledger.record_adapter_generation(second_generation);
         let wrong_generation = NativeAdapterAtlasResidencyAccountToken {
             adapter_generation: second_generation,
             ..first.clone()

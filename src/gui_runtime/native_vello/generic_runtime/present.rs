@@ -294,6 +294,8 @@ where
             profile.frame_sequence = self.timing.allocate_frame_sequence();
             let input_to_present_latency_us =
                 self.timing.take_input_to_present_latency_us(Instant::now());
+            let application_atlas_residency =
+                self.capture_atlas_residency_profile(adapter, profile_enabled);
             self.finish_direct_resize_present(
                 render_to_texture_elapsed,
                 profile,
@@ -301,11 +303,7 @@ where
                 diagnostics_requested,
                 frame_work,
                 input_to_present_latency_us,
-                if profile_enabled {
-                    adapter.capture_atlas_residency_profile()
-                } else {
-                    NativeAdapterAtlasResidencyProfile::default()
-                },
+                application_atlas_residency,
             );
             return Ok(NativeVisualRequestDisposition::Presented);
         }
@@ -451,6 +449,8 @@ where
             self.record_successful_native_submission();
             surface_texture.present();
         });
+        let application_atlas_residency =
+            self.capture_atlas_residency_profile(adapter, profile_enabled);
         let Some(ticket) = ticket.take() else {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
@@ -503,7 +503,7 @@ where
                 NativeRenderProfileGpuSurface {
                     stats: gpu_surface_stats,
                     atlas_residency: self.window.atlas_residency_snapshots(),
-                    application_atlas_residency: adapter.capture_atlas_residency_profile(),
+                    application_atlas_residency,
                 },
                 since_last_present,
             );

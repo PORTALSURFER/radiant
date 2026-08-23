@@ -53,10 +53,10 @@ use super::{
     CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFramePendingRedrawAge,
     DeviceLossRegistration, FrameScheduleKey, FrameScheduleLane, FrameWork, FrameWorkReason,
     GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
-    NativeAdapterAtlasResidencyAccountToken, NativeAdapterGeneration,
-    NativeAtlasResidencyWindowIdentity, NativeAutomationTargetExporter, NativeClosingProgress,
-    NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
-    NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
+    NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyProfile,
+    NativeAdapterGeneration, NativeAtlasResidencyWindowIdentity, NativeAutomationTargetExporter,
+    NativeClosingProgress, NativeFrameDiagnosticsPublication, NativeFrameScheduler,
+    NativeGenericRunError, NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
     NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
     NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
     SceneRebuildMode, SceneTextRunBuffer, SurfaceSceneEncodeContext, TimedFrameCadence,
@@ -373,9 +373,10 @@ where
     }
 
     /// Synchronize the adapter-owned application account with the physical
-    /// active/quarantine bundles currently retained by this runner. This is
-    /// called only at resource lifecycle boundaries, never as a profiling
-    /// traversal on the frame path.
+    /// active/quarantine bundles currently retained by this runner. The
+    /// snapshot is fixed active/Q0/Q1 bookkeeping rather than a resource-map
+    /// traversal. Profile-enabled presentation calls this after cache
+    /// mutations; lifecycle transitions call it unconditionally.
     pub(super) fn refresh_atlas_residency_account(
         &mut self,
         adapter: &mut GenericNativeAdapterOwner,
@@ -397,6 +398,18 @@ where
         let snapshots: NativeWindowAtlasResidencySnapshots =
             self.window.atlas_residency_snapshots();
         self.synchronize_atlas_residency_account(adapter, adapter_generation, snapshots);
+    }
+
+    pub(super) fn capture_atlas_residency_profile(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        profile_enabled: bool,
+    ) -> NativeAdapterAtlasResidencyProfile {
+        if !profile_enabled {
+            return NativeAdapterAtlasResidencyProfile::default();
+        }
+        self.refresh_atlas_residency_account(adapter);
+        adapter.capture_atlas_residency_profile()
     }
 
     fn synchronize_atlas_residency_account(
@@ -4152,10 +4165,11 @@ mod tests {
     use super::{
         AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
         FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome,
-        NativeAdapterGeneration, NativeAtlasResidencyWindowIdentity, NativeGenericRunError,
-        NativeLifecycle, NativeLifecycleStageEvidence, NativeLifecycleTransitionKind,
-        NativeResourceMaintenanceTurn, NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
-        TimedFrameCadence, recovery_completion_is_admissible,
+        NativeAdapterAtlasResidencyProfile, NativeAdapterGeneration,
+        NativeAtlasResidencyWindowIdentity, NativeGenericRunError, NativeLifecycle,
+        NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
+        NativeTargetGeneration, NativeWindowAtlasResidencySnapshots, TimedFrameCadence,
+        recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -4716,6 +4730,17 @@ mod tests {
         )
     }
 
+    fn atlas_snapshot(
+        generation: NativeAdapterGeneration,
+        resident_count: usize,
+        logical_rgba_texel_bytes: Option<u64>,
+    ) -> GpuSurfaceAtlasResidencySnapshot {
+        let mut snapshot = GpuSurfaceAtlasResidencySnapshot::default().with_generation(generation);
+        snapshot.resident_count = resident_count;
+        snapshot.logical_rgba_texel_bytes = logical_rgba_texel_bytes;
+        snapshot
+    }
+
     #[test]
     fn atlas_residency_refresh_reregisters_a_rejected_live_token() {
         let generation = NativeAdapterGeneration::from_test_serial(1);
@@ -4759,6 +4784,66 @@ mod tests {
         let profile = adapter.capture_atlas_residency_profile();
         assert_eq!(profile.active_resident_count, Some(3));
         assert_eq!(profile.active_logical_rgba_texel_bytes, Some(12));
+    }
+
+    #[test]
+    fn atlas_ledger_syncs_post_cache_mutation_and_clear_at_profile_boundary() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut adapter = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        );
+        let mut runner = runner();
+        let empty_snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(GpuSurfaceAtlasResidencySnapshot::default().with_generation(generation)),
+            ..NativeWindowAtlasResidencySnapshots::default()
+        };
+
+        // This is the publication-time account state before the first atlas
+        // upload. The test calls the same private synchronization boundary
+        // used immediately after present_base_frame's cache mutation; the
+        // unit harness has no live RenderSurface/device for a WGPU present.
+        runner.synchronize_atlas_residency_account(&mut adapter, generation, empty_snapshots);
+        assert_eq!(
+            adapter
+                .capture_atlas_residency_profile()
+                .active_resident_count,
+            Some(0)
+        );
+
+        let uploaded_snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(atlas_snapshot(generation, 3, Some(12))),
+            quarantine_0: Some(atlas_snapshot(generation, 2, Some(8))),
+            ..NativeWindowAtlasResidencySnapshots::default()
+        };
+        runner.synchronize_atlas_residency_account(&mut adapter, generation, uploaded_snapshots);
+        let profile = adapter.capture_atlas_residency_profile();
+        assert_eq!(profile.active_resident_count, Some(3));
+        assert_eq!(profile.active_logical_rgba_texel_bytes, Some(12));
+        assert_eq!(profile.quarantined_resident_count, Some(2));
+        assert_eq!(profile.quarantined_logical_rgba_texel_bytes, Some(8));
+
+        assert_eq!(
+            runner.capture_atlas_residency_profile(&mut adapter, false),
+            NativeAdapterAtlasResidencyProfile::default()
+        );
+        assert_eq!(
+            adapter
+                .capture_atlas_residency_profile()
+                .active_resident_count,
+            Some(3)
+        );
+
+        let cleared_snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(atlas_snapshot(generation, 0, Some(0))),
+            ..NativeWindowAtlasResidencySnapshots::default()
+        };
+        runner.synchronize_atlas_residency_account(&mut adapter, generation, cleared_snapshots);
+        let profile = adapter.capture_atlas_residency_profile();
+        assert_eq!(profile.active_resident_count, Some(0));
+        assert_eq!(profile.active_logical_rgba_texel_bytes, Some(0));
+        assert_eq!(profile.quarantined_resident_count, Some(0));
+        assert_eq!(profile.quarantined_logical_rgba_texel_bytes, Some(0));
     }
 
     #[test]

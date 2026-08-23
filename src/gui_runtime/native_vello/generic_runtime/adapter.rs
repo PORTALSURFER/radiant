@@ -1,11 +1,13 @@
 //! Event-loop-confined WGPU/Vello adapter ownership for one generic run.
 
 use super::device::DeviceFeatureSelection;
+use super::gpu_surface::GpuSurfaceRenderCanvasUploadStats;
 use super::runner_state::NativeWindowAtlasResidencySnapshots;
 use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};
 use super::{
     GpuSurfaceAtlasResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
-    NativeAdapterAtlasResidencyProfile, NativeAtlasResidencyWindowIdentity,
+    NativeAdapterAtlasResidencyProfile, NativeAdapterRenderCanvasUploadAccountToken,
+    NativeAdapterRenderCanvasUploadProfile, NativeAtlasResidencyWindowIdentity,
 };
 use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -592,6 +594,14 @@ fn add_count(total: &mut Option<usize>, contribution: usize) {
     *total = total_value.checked_add(contribution);
 }
 
+fn add_optional_count(total: &mut Option<usize>, contribution: Option<usize>) {
+    let Some(contribution) = contribution else {
+        *total = None;
+        return;
+    };
+    add_count(total, contribution);
+}
+
 fn add_bytes(total: &mut Option<u64>, contribution: Option<u64>) {
     let Some(total_value) = *total else {
         return;
@@ -601,6 +611,296 @@ fn add_bytes(total: &mut Option<u64>, contribution: Option<u64>) {
         return;
     };
     *total = total_value.checked_add(contribution);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct NativeAdapterRenderCanvasUploadAggregate {
+    immutable_payload_operations: Option<usize>,
+    immutable_payload_logical_bytes: Option<u64>,
+    volatile_payload_operations: Option<usize>,
+    volatile_payload_logical_bytes: Option<u64>,
+    renderer_parameter_operations: Option<usize>,
+    renderer_parameter_logical_bytes: Option<u64>,
+}
+
+impl Default for NativeAdapterRenderCanvasUploadAggregate {
+    fn default() -> Self {
+        Self {
+            immutable_payload_operations: Some(0),
+            immutable_payload_logical_bytes: Some(0),
+            volatile_payload_operations: Some(0),
+            volatile_payload_logical_bytes: Some(0),
+            renderer_parameter_operations: Some(0),
+            renderer_parameter_logical_bytes: Some(0),
+        }
+    }
+}
+
+struct NativeAdapterRenderCanvasUploadAccount {
+    account_generation: u64,
+    adapter_generation: NativeAdapterGeneration,
+    totals: NativeAdapterRenderCanvasUploadAggregate,
+    last_contributed_frame_sequence: Option<u64>,
+}
+
+/// Application-scope, crate-private render-canvas upload evidence owned by the
+/// selected adapter. Window runners contribute only after a successful native
+/// present ticket; lifecycle boundaries own account registration and fencing.
+pub(super) struct NativeAdapterRenderCanvasUploadLedger {
+    accounts: HashMap<NativeAtlasResidencyWindowIdentity, NativeAdapterRenderCanvasUploadAccount>,
+    next_account_generation: Option<u64>,
+    current_adapter_generation: NativeAdapterGeneration,
+    aggregate: NativeAdapterRenderCanvasUploadAggregate,
+}
+
+impl Default for NativeAdapterRenderCanvasUploadLedger {
+    fn default() -> Self {
+        Self {
+            accounts: HashMap::new(),
+            next_account_generation: Some(1),
+            current_adapter_generation: NativeAdapterGeneration::default(),
+            aggregate: NativeAdapterRenderCanvasUploadAggregate {
+                immutable_payload_operations: Some(0),
+                immutable_payload_logical_bytes: Some(0),
+                volatile_payload_operations: Some(0),
+                volatile_payload_logical_bytes: Some(0),
+                renderer_parameter_operations: Some(0),
+                renderer_parameter_logical_bytes: Some(0),
+            },
+        }
+    }
+}
+
+impl NativeAdapterRenderCanvasUploadLedger {
+    fn allocate_account_generation(&mut self) -> Option<u64> {
+        let generation = self.next_account_generation?;
+        self.next_account_generation = generation.checked_add(1);
+        Some(generation)
+    }
+
+    fn record_adapter_generation(&mut self, generation: NativeAdapterGeneration) {
+        self.current_adapter_generation = generation;
+        self.recompute_aggregate();
+    }
+
+    fn register(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> Option<NativeAdapterRenderCanvasUploadAccountToken> {
+        if !self.is_current_known_adapter_generation(adapter_generation)
+            || self.accounts.contains_key(&window_identity)
+        {
+            return None;
+        }
+        let account_generation = self.allocate_account_generation()?;
+        let token = NativeAdapterRenderCanvasUploadAccountToken {
+            window_identity: window_identity.clone(),
+            account_generation,
+            adapter_generation,
+        };
+        self.accounts.insert(
+            window_identity,
+            NativeAdapterRenderCanvasUploadAccount {
+                account_generation,
+                adapter_generation,
+                totals: NativeAdapterRenderCanvasUploadAggregate::default(),
+                last_contributed_frame_sequence: None,
+            },
+        );
+        Some(token)
+    }
+
+    fn update(&self, token: &NativeAdapterRenderCanvasUploadAccountToken) -> bool {
+        let Some(account) = self.accounts.get(&token.window_identity) else {
+            return false;
+        };
+        self.account_is_current(account, token)
+    }
+
+    fn rebind(
+        &mut self,
+        token: &NativeAdapterRenderCanvasUploadAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> Option<NativeAdapterRenderCanvasUploadAccountToken> {
+        if !self.is_current_known_adapter_generation(adapter_generation) {
+            return None;
+        }
+        let account = self.accounts.get_mut(&token.window_identity)?;
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return None;
+        }
+        account.adapter_generation = adapter_generation;
+        account.totals = NativeAdapterRenderCanvasUploadAggregate::default();
+        account.last_contributed_frame_sequence = None;
+        let next = NativeAdapterRenderCanvasUploadAccountToken {
+            window_identity: token.window_identity.clone(),
+            account_generation: token.account_generation,
+            adapter_generation,
+        };
+        self.recompute_aggregate();
+        Some(next)
+    }
+
+    fn remove(&mut self, token: &NativeAdapterRenderCanvasUploadAccountToken) -> bool {
+        let Some(account) = self.accounts.get(&token.window_identity) else {
+            return false;
+        };
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return false;
+        }
+        let removed = self.accounts.remove(&token.window_identity).is_some();
+        if removed {
+            self.recompute_aggregate();
+        }
+        removed
+    }
+
+    fn contribute(
+        &mut self,
+        token: &NativeAdapterRenderCanvasUploadAccountToken,
+        frame_sequence: u64,
+        stats: GpuSurfaceRenderCanvasUploadStats,
+    ) -> bool {
+        let current_adapter_generation = self.current_adapter_generation;
+        {
+            let Some(account) = self.accounts.get_mut(&token.window_identity) else {
+                return false;
+            };
+            if account.account_generation != token.account_generation
+                || account.adapter_generation != token.adapter_generation
+                || !current_adapter_generation.is_known()
+                || token.adapter_generation != current_adapter_generation
+                || account
+                    .last_contributed_frame_sequence
+                    .is_some_and(|last| frame_sequence <= last)
+            {
+                return false;
+            }
+
+            account.last_contributed_frame_sequence = Some(frame_sequence);
+            accumulate_render_canvas_uploads(&mut account.totals, stats);
+        }
+        accumulate_render_canvas_uploads(&mut self.aggregate, stats);
+        true
+    }
+
+    fn is_current_known_adapter_generation(&self, generation: NativeAdapterGeneration) -> bool {
+        generation.is_known() && generation == self.current_adapter_generation
+    }
+
+    fn account_is_current(
+        &self,
+        account: &NativeAdapterRenderCanvasUploadAccount,
+        token: &NativeAdapterRenderCanvasUploadAccountToken,
+    ) -> bool {
+        account.account_generation == token.account_generation
+            && account.adapter_generation == token.adapter_generation
+            && self.is_current_known_adapter_generation(token.adapter_generation)
+    }
+
+    fn profile(&self) -> NativeAdapterRenderCanvasUploadProfile {
+        NativeAdapterRenderCanvasUploadProfile {
+            adapter_generation: self
+                .current_adapter_generation
+                .is_known()
+                .then_some(self.current_adapter_generation),
+            immutable_payload_operations: self.aggregate.immutable_payload_operations,
+            immutable_payload_logical_bytes: self.aggregate.immutable_payload_logical_bytes,
+            volatile_payload_operations: self.aggregate.volatile_payload_operations,
+            volatile_payload_logical_bytes: self.aggregate.volatile_payload_logical_bytes,
+            renderer_parameter_operations: self.aggregate.renderer_parameter_operations,
+            renderer_parameter_logical_bytes: self.aggregate.renderer_parameter_logical_bytes,
+        }
+    }
+
+    fn recompute_aggregate(&mut self) {
+        let mut aggregate = NativeAdapterRenderCanvasUploadAggregate {
+            immutable_payload_operations: Some(0),
+            immutable_payload_logical_bytes: Some(0),
+            volatile_payload_operations: Some(0),
+            volatile_payload_logical_bytes: Some(0),
+            renderer_parameter_operations: Some(0),
+            renderer_parameter_logical_bytes: Some(0),
+        };
+        if self.current_adapter_generation.is_known() {
+            for account in self.accounts.values() {
+                if account.adapter_generation == self.current_adapter_generation {
+                    accumulate_render_canvas_upload_aggregate(&mut aggregate, account.totals);
+                }
+            }
+        }
+        self.aggregate = aggregate;
+    }
+
+    #[cfg(test)]
+    fn account_count(&self) -> usize {
+        self.accounts.len()
+    }
+}
+
+fn accumulate_render_canvas_uploads(
+    total: &mut NativeAdapterRenderCanvasUploadAggregate,
+    contribution: GpuSurfaceRenderCanvasUploadStats,
+) {
+    add_optional_count(
+        &mut total.immutable_payload_operations,
+        contribution.immutable_payload.operations,
+    );
+    add_bytes(
+        &mut total.immutable_payload_logical_bytes,
+        contribution.immutable_payload.logical_bytes,
+    );
+    add_optional_count(
+        &mut total.volatile_payload_operations,
+        contribution.volatile_payload.operations,
+    );
+    add_bytes(
+        &mut total.volatile_payload_logical_bytes,
+        contribution.volatile_payload.logical_bytes,
+    );
+    add_optional_count(
+        &mut total.renderer_parameter_operations,
+        contribution.renderer_parameter.operations,
+    );
+    add_bytes(
+        &mut total.renderer_parameter_logical_bytes,
+        contribution.renderer_parameter.logical_bytes,
+    );
+}
+
+fn accumulate_render_canvas_upload_aggregate(
+    total: &mut NativeAdapterRenderCanvasUploadAggregate,
+    contribution: NativeAdapterRenderCanvasUploadAggregate,
+) {
+    add_optional_count(
+        &mut total.immutable_payload_operations,
+        contribution.immutable_payload_operations,
+    );
+    add_bytes(
+        &mut total.immutable_payload_logical_bytes,
+        contribution.immutable_payload_logical_bytes,
+    );
+    add_optional_count(
+        &mut total.volatile_payload_operations,
+        contribution.volatile_payload_operations,
+    );
+    add_bytes(
+        &mut total.volatile_payload_logical_bytes,
+        contribution.volatile_payload_logical_bytes,
+    );
+    add_optional_count(
+        &mut total.renderer_parameter_operations,
+        contribution.renderer_parameter_operations,
+    );
+    add_bytes(
+        &mut total.renderer_parameter_logical_bytes,
+        contribution.renderer_parameter_logical_bytes,
+    );
 }
 
 /// The one native adapter owner for a generic-native application run.
@@ -614,6 +914,7 @@ pub(super) struct GenericNativeAdapterOwner {
     render_context: Option<RadiantWgpuContext>,
     selected: Option<SelectedNativeAdapter>,
     atlas_residency: NativeAdapterAtlasResidencyLedger,
+    render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -664,6 +965,7 @@ impl GenericNativeAdapterOwner {
             render_context: Some(RadiantWgpuContext::new(instance_for_options(options))),
             selected: None,
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         }
     }
 
@@ -704,6 +1006,8 @@ impl GenericNativeAdapterOwner {
         };
         self.selected = Some(selected);
         self.atlas_residency.record_adapter_generation(generation);
+        self.render_canvas_upload_ledger
+            .record_adapter_generation(generation);
         Ok(())
     }
 
@@ -845,6 +1149,54 @@ impl GenericNativeAdapterOwner {
         self.atlas_residency.profile()
     }
 
+    pub(super) fn register_render_canvas_upload_account(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> Option<NativeAdapterRenderCanvasUploadAccountToken> {
+        self.render_canvas_upload_ledger
+            .register(window_identity, adapter_generation)
+    }
+
+    pub(super) fn update_render_canvas_upload_account(
+        &self,
+        token: &NativeAdapterRenderCanvasUploadAccountToken,
+    ) -> bool {
+        self.render_canvas_upload_ledger.update(token)
+    }
+
+    pub(super) fn rebind_render_canvas_upload_account(
+        &mut self,
+        token: &NativeAdapterRenderCanvasUploadAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+    ) -> Option<NativeAdapterRenderCanvasUploadAccountToken> {
+        self.render_canvas_upload_ledger
+            .rebind(token, adapter_generation)
+    }
+
+    pub(super) fn remove_render_canvas_upload_account(
+        &mut self,
+        token: &NativeAdapterRenderCanvasUploadAccountToken,
+    ) -> bool {
+        self.render_canvas_upload_ledger.remove(token)
+    }
+
+    pub(super) fn contribute_render_canvas_uploads(
+        &mut self,
+        token: &NativeAdapterRenderCanvasUploadAccountToken,
+        frame_sequence: u64,
+        stats: GpuSurfaceRenderCanvasUploadStats,
+    ) -> bool {
+        self.render_canvas_upload_ledger
+            .contribute(token, frame_sequence, stats)
+    }
+
+    pub(super) fn capture_render_canvas_upload_profile(
+        &self,
+    ) -> NativeAdapterRenderCanvasUploadProfile {
+        self.render_canvas_upload_ledger.profile()
+    }
+
     pub(super) fn adopt_atlas_residency_ledger(
         &mut self,
         previous: &mut GenericNativeAdapterOwner,
@@ -853,6 +1205,19 @@ impl GenericNativeAdapterOwner {
         self.atlas_residency = std::mem::take(&mut previous.atlas_residency);
         if let Some(next_generation) = next_generation {
             self.atlas_residency
+                .record_adapter_generation(next_generation);
+        }
+    }
+
+    pub(super) fn adopt_render_canvas_upload_ledger(
+        &mut self,
+        previous: &mut GenericNativeAdapterOwner,
+    ) {
+        let next_generation = self.capture_generation();
+        self.render_canvas_upload_ledger =
+            std::mem::take(&mut previous.render_canvas_upload_ledger);
+        if let Some(next_generation) = next_generation {
+            self.render_canvas_upload_ledger
                 .record_adapter_generation(next_generation);
         }
     }
@@ -928,8 +1293,12 @@ impl GenericNativeAdapterOwner {
                 device_loss_registration,
             }),
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
         owner.atlas_residency.record_adapter_generation(generation);
+        owner
+            .render_canvas_upload_ledger
+            .record_adapter_generation(generation);
         Ok(owner)
     }
 
@@ -947,8 +1316,12 @@ impl GenericNativeAdapterOwner {
                 device_loss_registration: registration,
             }),
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
         owner.atlas_residency.record_adapter_generation(generation);
+        owner
+            .render_canvas_upload_ledger
+            .record_adapter_generation(generation);
         owner
     }
 
@@ -1007,8 +1380,9 @@ pub(super) fn device_loss_registration_matches(
 mod tests {
     use super::{
         AdapterSurfaceError, DeviceLossRegistration, GenericNativeAdapterOwner,
-        GpuSurfaceAtlasResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
-        NativeAdapterAtlasResidencyLedger, NativeAdapterGeneration,
+        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceRenderCanvasUploadStats,
+        NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyLedger,
+        NativeAdapterGeneration, NativeAdapterRenderCanvasUploadLedger,
         NativeAtlasResidencyWindowIdentity, NativeWindowAtlasResidencySnapshots,
         auxiliary_backend_policy_is_compatible, device_loss_registration_matches,
         render_surface_creation_error,
@@ -1039,6 +1413,162 @@ mod tests {
             quarantine_0,
             quarantine_1,
         }
+    }
+
+    fn upload_stats(
+        immutable_payload: (Option<usize>, Option<u64>),
+        volatile_payload: (Option<usize>, Option<u64>),
+        renderer_parameter: (Option<usize>, Option<u64>),
+    ) -> GpuSurfaceRenderCanvasUploadStats {
+        let mut stats = GpuSurfaceRenderCanvasUploadStats::default();
+        stats.immutable_payload.operations = immutable_payload.0;
+        stats.immutable_payload.logical_bytes = immutable_payload.1;
+        stats.volatile_payload.operations = volatile_payload.0;
+        stats.volatile_payload.logical_bytes = volatile_payload.1;
+        stats.renderer_parameter.operations = renderer_parameter.0;
+        stats.renderer_parameter.logical_bytes = renderer_parameter.1;
+        stats
+    }
+
+    #[test]
+    fn render_canvas_upload_ledger_sums_primary_and_auxiliary_frames_once() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(generation);
+        let primary = ledger
+            .register(NativeAtlasResidencyWindowIdentity::Primary, generation)
+            .expect("primary upload account should register");
+        let auxiliary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("inspector")),
+                generation,
+            )
+            .expect("auxiliary upload account should register");
+
+        assert!(ledger.update(&primary));
+        assert!(ledger.contribute(
+            &primary,
+            1,
+            upload_stats(
+                (Some(2), Some(24)),
+                (Some(1), Some(12)),
+                (Some(3), Some(48))
+            ),
+        ));
+        assert!(ledger.contribute(
+            &auxiliary,
+            1,
+            upload_stats((Some(1), Some(8)), (Some(2), Some(16)), (Some(1), Some(32))),
+        ));
+        assert!(!ledger.contribute(
+            &primary,
+            1,
+            upload_stats((Some(9), Some(9)), (Some(9), Some(9)), (Some(9), Some(9))),
+        ));
+        assert!(!ledger.contribute(&primary, 0, GpuSurfaceRenderCanvasUploadStats::default(),));
+        assert!(ledger.contribute(
+            &primary,
+            2,
+            upload_stats((Some(1), Some(4)), (Some(0), Some(0)), (Some(1), Some(16))),
+        ));
+
+        let profile = ledger.profile();
+        assert_eq!(profile.adapter_generation, Some(generation));
+        assert_eq!(profile.immutable_payload_operations, Some(4));
+        assert_eq!(profile.immutable_payload_logical_bytes, Some(36));
+        assert_eq!(profile.volatile_payload_operations, Some(3));
+        assert_eq!(profile.volatile_payload_logical_bytes, Some(28));
+        assert_eq!(profile.renderer_parameter_operations, Some(5));
+        assert_eq!(profile.renderer_parameter_logical_bytes, Some(96));
+    }
+
+    #[test]
+    fn render_canvas_upload_ledger_rebind_resets_generation_and_fences_replacements() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let second_generation = NativeAdapterGeneration::from_test_serial(2);
+        let identity = NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("same-key"));
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let first = ledger
+            .register(identity.clone(), first_generation)
+            .expect("first upload account should register");
+        assert!(ledger.contribute(
+            &first,
+            1,
+            upload_stats((Some(2), Some(8)), (Some(1), Some(4)), (Some(1), Some(16))),
+        ));
+
+        ledger.record_adapter_generation(second_generation);
+        assert_eq!(ledger.profile().immutable_payload_operations, Some(0));
+        assert!(!ledger.update(&first));
+        assert!(!ledger.contribute(&first, 2, GpuSurfaceRenderCanvasUploadStats::default(),));
+
+        let rebound = ledger
+            .rebind(&first, second_generation)
+            .expect("current account should rebind");
+        assert_eq!(ledger.profile().immutable_payload_operations, Some(0));
+        assert!(ledger.contribute(
+            &rebound,
+            1,
+            upload_stats((Some(1), Some(3)), (Some(0), Some(0)), (Some(0), Some(0))),
+        ));
+        assert!(!ledger.remove(&first));
+        assert!(ledger.remove(&rebound));
+        assert_eq!(ledger.account_count(), 0);
+
+        let replacement = ledger
+            .register(identity, second_generation)
+            .expect("replacement upload account should register");
+        assert_ne!(first.account_generation, replacement.account_generation);
+        assert!(!ledger.contribute(&first, 3, GpuSurfaceRenderCanvasUploadStats::default(),));
+        assert!(ledger.update(&replacement));
+    }
+
+    #[test]
+    fn render_canvas_upload_ledger_propagates_unavailable_and_checked_overflow() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(generation);
+        let unavailable = ledger
+            .register(NativeAtlasResidencyWindowIdentity::Primary, generation)
+            .expect("unavailable upload account should register");
+        assert!(ledger.contribute(
+            &unavailable,
+            1,
+            upload_stats((None, Some(7)), (Some(1), None), (Some(2), Some(9))),
+        ));
+        let profile = ledger.profile();
+        assert_eq!(profile.immutable_payload_operations, None);
+        assert_eq!(profile.immutable_payload_logical_bytes, Some(7));
+        assert_eq!(profile.volatile_payload_operations, Some(1));
+        assert_eq!(profile.volatile_payload_logical_bytes, None);
+        assert_eq!(profile.renderer_parameter_operations, Some(2));
+        assert_eq!(profile.renderer_parameter_logical_bytes, Some(9));
+
+        let overflow = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("overflow")),
+                generation,
+            )
+            .expect("overflow upload account should register");
+        assert!(ledger.contribute(
+            &overflow,
+            1,
+            upload_stats(
+                (Some(usize::MAX), Some(u64::MAX)),
+                (Some(0), Some(0)),
+                (Some(0), Some(0)),
+            ),
+        ));
+        assert!(ledger.contribute(
+            &overflow,
+            2,
+            upload_stats((Some(1), Some(1)), (Some(0), Some(0)), (Some(0), Some(0)),),
+        ));
+        assert_eq!(ledger.profile().immutable_payload_operations, None);
+        assert_eq!(ledger.profile().immutable_payload_logical_bytes, None);
+        assert!(ledger.remove(&overflow));
+        assert_eq!(ledger.profile().immutable_payload_logical_bytes, Some(7));
     }
 
     #[test]
@@ -1419,6 +1949,7 @@ mod tests {
             render_context: None,
             selected: None,
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
 
         assert_eq!(owner.capture_generation(), None);

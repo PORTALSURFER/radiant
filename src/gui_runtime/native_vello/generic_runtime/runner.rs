@@ -53,10 +53,12 @@ use super::{
     CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFramePendingRedrawAge,
     DeviceLossRegistration, FrameScheduleKey, FrameScheduleLane, FrameWork, FrameWorkReason,
     GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
-    NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyProfile,
-    NativeAdapterGeneration, NativeAtlasResidencyWindowIdentity, NativeAutomationTargetExporter,
-    NativeClosingProgress, NativeFrameDiagnosticsPublication, NativeFrameScheduler,
-    NativeGenericRunError, NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
+    GpuSurfaceRenderCanvasUploadStats, NativeAdapterAtlasResidencyAccountToken,
+    NativeAdapterAtlasResidencyProfile, NativeAdapterGeneration,
+    NativeAdapterRenderCanvasUploadAccountToken, NativeAdapterRenderCanvasUploadProfile,
+    NativeAtlasResidencyWindowIdentity, NativeAutomationTargetExporter, NativeClosingProgress,
+    NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
+    NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
     NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
     NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
     SceneRebuildMode, SceneTextRunBuffer, SurfaceSceneEncodeContext, TimedFrameCadence,
@@ -113,6 +115,7 @@ where
     /// generic-native windows. Auxiliary runners borrow it at event boundaries.
     pub(super) adapter: Option<GenericNativeAdapterOwner>,
     pub(super) atlas_residency_account: Option<NativeAdapterAtlasResidencyAccountToken>,
+    pub(super) render_canvas_upload_account: Option<NativeAdapterRenderCanvasUploadAccountToken>,
     atlas_residency_window_identity: NativeAtlasResidencyWindowIdentity,
     #[cfg(target_os = "macos")]
     pub(super) native_semantic_accessibility: Option<NativeSemanticAccessibilityAdapter>,
@@ -338,6 +341,7 @@ where
             application_reopen_events: None,
             adapter: None,
             atlas_residency_account: None,
+            render_canvas_upload_account: None,
             atlas_residency_window_identity,
             #[cfg(target_os = "macos")]
             native_semantic_accessibility: None,
@@ -372,8 +376,8 @@ where
         }
     }
 
-    /// Synchronize the adapter-owned application account with the physical
-    /// active/quarantine bundles currently retained by this runner. The
+    /// Synchronize the adapter-owned atlas-residency account with the physical
+    /// active/quarantine bundles currently retained by this runner. The atlas
     /// snapshot is fixed active/Q0/Q1 bookkeeping rather than a resource-map
     /// traversal. Profile-enabled presentation calls this after cache
     /// mutations; lifecycle transitions call it unconditionally.
@@ -400,6 +404,30 @@ where
         self.synchronize_atlas_residency_account(adapter, adapter_generation, snapshots);
     }
 
+    /// Synchronize the adapter-owned render-canvas upload account at resource
+    /// and lifecycle boundaries. Successful presentation only contributes to
+    /// the already-bound account.
+    pub(super) fn refresh_render_canvas_upload_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        let resources_empty = self.window.native_resources.is_none()
+            && self.window.quarantined_native_resources.is_empty();
+        if resources_empty {
+            if let Some(token) = self.render_canvas_upload_account.as_ref()
+                && adapter.remove_render_canvas_upload_account(token)
+            {
+                self.render_canvas_upload_account = None;
+            }
+            return;
+        }
+
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return;
+        };
+        self.synchronize_render_canvas_upload_account(adapter, adapter_generation);
+    }
+
     pub(super) fn capture_atlas_residency_profile(
         &mut self,
         adapter: &mut GenericNativeAdapterOwner,
@@ -410,6 +438,32 @@ where
         }
         self.refresh_atlas_residency_account(adapter);
         adapter.capture_atlas_residency_profile()
+    }
+
+    pub(super) fn capture_render_canvas_upload_profile(
+        &self,
+        adapter: &GenericNativeAdapterOwner,
+        profile_enabled: bool,
+    ) -> NativeAdapterRenderCanvasUploadProfile {
+        if !profile_enabled {
+            return NativeAdapterRenderCanvasUploadProfile::default();
+        }
+        adapter.capture_render_canvas_upload_profile()
+    }
+
+    pub(super) fn contribute_render_canvas_uploads(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        frame_sequence: Option<u64>,
+        stats: GpuSurfaceRenderCanvasUploadStats,
+    ) -> bool {
+        let Some(frame_sequence) = frame_sequence else {
+            return false;
+        };
+        let Some(token) = self.render_canvas_upload_account.as_ref() else {
+            return false;
+        };
+        adapter.contribute_render_canvas_uploads(token, frame_sequence, stats)
     }
 
     fn synchronize_atlas_residency_account(
@@ -447,6 +501,38 @@ where
             snapshots,
         ) {
             self.atlas_residency_account = Some(token);
+        }
+    }
+
+    fn synchronize_render_canvas_upload_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        adapter_generation: NativeAdapterGeneration,
+    ) {
+        if let Some(token) = self.render_canvas_upload_account.as_mut() {
+            let accepted = if token.adapter_generation == adapter_generation {
+                adapter.update_render_canvas_upload_account(token)
+            } else if let Some(next) =
+                adapter.rebind_render_canvas_upload_account(token, adapter_generation)
+            {
+                *token = next;
+                true
+            } else {
+                false
+            };
+            if !accepted
+                && let Some(next) = adapter.register_render_canvas_upload_account(
+                    token.window_identity.clone(),
+                    adapter_generation,
+                )
+            {
+                *token = next;
+            }
+        } else if let Some(token) = adapter.register_render_canvas_upload_account(
+            self.atlas_residency_window_identity.clone(),
+            adapter_generation,
+        ) {
+            self.render_canvas_upload_account = Some(token);
         }
     }
 
@@ -1716,6 +1802,7 @@ where
         let mut adapter = self.adapter.take();
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_render_canvas_upload_account(adapter);
         }
         self.adapter = adapter;
         if !self.frame_stage_owner.complete_maintenance(ticket) {
@@ -1748,6 +1835,7 @@ where
         self.window.maintain_native_resources(turn);
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
             .auxiliary_windows
@@ -1832,6 +1920,7 @@ where
         let primary_empty = self.retire_native_resources_with_turn(turn);
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
             .auxiliary_windows
@@ -2086,6 +2175,7 @@ where
         };
         publication.publish(candidate.bundle);
         self.refresh_atlas_residency_account(adapter);
+        self.refresh_render_canvas_upload_account(adapter);
         self.window.target_generation = admission.next_target_generation;
         self.window.native_surface_target_fenced = false;
         self.frame.invalidate_native_resources_for_recovery();
@@ -2558,7 +2648,9 @@ where
         };
         publication.publish(primary);
         self.refresh_atlas_residency_account(&mut previous_adapter);
+        self.refresh_render_canvas_upload_account(&mut previous_adapter);
         adapter.adopt_atlas_residency_ledger(&mut previous_adapter);
+        adapter.adopt_render_canvas_upload_ledger(&mut previous_adapter);
         self.adapter = Some(adapter);
         let Some(mut adapter) = self.adapter.take() else {
             return Err(String::from(
@@ -2566,6 +2658,7 @@ where
             ));
         };
         self.refresh_atlas_residency_account(&mut adapter);
+        self.refresh_render_canvas_upload_account(&mut adapter);
         self.adapter = Some(adapter);
         self.complete_native_recovery_target_transition();
         self.frame.invalidate_native_resources_for_recovery();

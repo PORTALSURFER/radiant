@@ -328,6 +328,63 @@ fn native_present_carries_input_latency_after_each_successful_present() {
 }
 
 #[test]
+fn native_present_contributes_uploads_only_after_successful_ticket_completion() {
+    let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
+    let redraw_start = present
+        .find("pub(super) fn redraw(")
+        .expect("present driver should define redraw");
+    let redraw_end = present
+        .find("pub(super) fn redraw_and_exit_on_error")
+        .expect("present driver should define redraw error handoff");
+    let redraw = &present[redraw_start..redraw_end];
+    let completions: Vec<_> = redraw
+        .match_indices("self.complete_native_encode_present(ticket)")
+        .map(|(offset, _)| offset)
+        .collect();
+    let contributions: Vec<_> = redraw
+        .match_indices("self.contribute_render_canvas_uploads(")
+        .map(|(offset, _)| offset)
+        .collect();
+
+    assert_eq!(completions.len(), 2);
+    assert_eq!(contributions.len(), 2);
+    assert!(
+        completions
+            .iter()
+            .zip(contributions.iter())
+            .all(|(completion, contribution)| completion < contribution),
+        "upload totals must be committed only after the matching present ticket completes"
+    );
+    for forbidden in [
+        "self.refresh_atlas_residency_account(adapter);",
+        "refresh_render_canvas_upload_account(",
+        "synchronize_render_canvas_upload_account(",
+        "register_render_canvas_upload_account(",
+        "update_render_canvas_upload_account(",
+        "rebind_render_canvas_upload_account(",
+        "remove_render_canvas_upload_account(",
+        "recompute_aggregate(",
+    ] {
+        assert!(
+            !redraw.contains(forbidden),
+            "redraw must not perform render-upload lifecycle synchronization or aggregate recomputation: {forbidden}"
+        );
+    }
+
+    let direct = &redraw[contributions[0]..contributions[1]];
+    let composited = &redraw[contributions[1]..];
+    assert!(
+        direct.contains("Default::default()"),
+        "direct resize presentation should contribute zero upload evidence"
+    );
+    assert!(
+        composited.contains("gpu_surface_stats")
+            && composited.contains("capture_render_canvas_upload_profile"),
+        "composited presentation should contribute its render stats before private profile capture"
+    );
+}
+
+#[test]
 fn native_renderer_recovery_order_keeps_failure_fence_and_publication_atomic() {
     let scene_texture =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs");

@@ -273,3 +273,41 @@ fn render_canvas_upload_evidence_stays_private_and_follows_actual_write_sites() 
         );
     }
 }
+
+#[test]
+fn application_render_canvas_upload_aggregate_stays_private_to_native_profiling() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("generic native runtime module should be readable");
+    let adapter = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/adapter.rs"),
+    )
+    .expect("native adapter module should be readable");
+    let public_diagnostics =
+        fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/gpu_surface.rs"))
+            .expect("public GPU surface diagnostics should be readable");
+
+    assert!(
+        module.contains("struct NativeAdapterRenderCanvasUploadAccountToken")
+            && module.contains("struct NativeAdapterRenderCanvasUploadProfile")
+            && adapter.contains("pub(super) struct NativeAdapterRenderCanvasUploadLedger")
+            && adapter.contains("render_canvas_upload_ledger")
+            && !adapter.contains("pub struct NativeAdapterRenderCanvasUploadLedger")
+            && !public_diagnostics.contains("RenderCanvasUpload"),
+        "application upload aggregation should remain crate-private and outside public diagnostics"
+    );
+    for field in [
+        "pub(super) immutable_payload_operations",
+        "pub(super) immutable_payload_logical_bytes",
+        "pub(super) volatile_payload_operations",
+        "pub(super) volatile_payload_logical_bytes",
+        "pub(super) renderer_parameter_operations",
+        "pub(super) renderer_parameter_logical_bytes",
+    ] {
+        assert!(
+            module.contains(field),
+            "private aggregate profile should retain `{field}`"
+        );
+    }
+}

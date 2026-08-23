@@ -367,7 +367,9 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
     assert!(
         runner.contains("self.window.maintain_native_resources(turn)")
             && runner.contains("retain_mut(|window|")
-            && runner.contains("window.maintain_native_resources_with_turn(turn)")
+            && runner.contains(
+                "!window.maintain_native_resources_with_turn(turn, adapter.as_deref_mut())",
+            )
             && runner.contains("pub(super) fn retire_native_resources_with_turn("),
         "primary and auxiliary bundles should share one maintenance turn and retire children only after GPU ownership is empty"
     );
@@ -562,7 +564,9 @@ fn native_whole_run_closing_is_central_bounded_and_nonblocking() {
         runner.contains("NativeResourceMaintenanceTurn::new()")
             && runner.contains("retire_all_native_resources_with_turn")
             && runner
-                .contains("retain_mut(|window| !window.maintain_native_resources_with_turn(turn))")
+                .contains(
+                    "retain_mut(|window| {\n            !window.maintain_native_resources_with_turn(turn, adapter.as_mut())",
+                )
             && runner.contains("self.auxiliary_windows.is_empty()"),
         "primary and auxiliary retirement should share one turn and retain unresolved ownership"
     );

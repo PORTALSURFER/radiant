@@ -53,9 +53,10 @@ use super::{
     CpuFrameObservationLedger, CpuFrameObservationOwner, CpuFramePendingRedrawAge,
     DeviceLossRegistration, FrameScheduleKey, FrameScheduleLane, FrameWork, FrameWorkReason,
     GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
-    NativeAdapterGeneration, NativeAutomationTargetExporter, NativeClosingProgress,
-    NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
-    NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
+    NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyProfile,
+    NativeAdapterGeneration, NativeAtlasResidencyWindowIdentity, NativeAutomationTargetExporter,
+    NativeClosingProgress, NativeFrameDiagnosticsPublication, NativeFrameScheduler,
+    NativeGenericRunError, NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
     NativeResourceMaintenanceTurn, NativeRunnerInputState, NativeRunnerTimingState,
     NativeRunnerWindowState, NativeVelloFrameState, PaintPlanCacheDecision, RuntimeWakeup,
     SceneRebuildMode, SceneTextRunBuffer, SurfaceSceneEncodeContext, TimedFrameCadence,
@@ -69,7 +70,10 @@ use super::{
         NativeSceneValidityFingerprint,
     },
     retained_paint_segments::NativePaintSegmentEligibilityPlan,
-    runner_state::{NativeTargetGeneration, NativeWindowDiagnosticIdentityAllocator},
+    runner_state::{
+        NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
+        NativeWindowDiagnosticIdentityAllocator,
+    },
     scene::{
         ArtifactFeasibilityObservation, NativePaintSegmentPayload,
         materialize_native_paint_segment_artifacts,
@@ -108,6 +112,8 @@ where
     /// One application-level adapter shared by the primary and auxiliary
     /// generic-native windows. Auxiliary runners borrow it at event boundaries.
     pub(super) adapter: Option<GenericNativeAdapterOwner>,
+    pub(super) atlas_residency_account: Option<NativeAdapterAtlasResidencyAccountToken>,
+    atlas_residency_window_identity: NativeAtlasResidencyWindowIdentity,
     #[cfg(target_os = "macos")]
     pub(super) native_semantic_accessibility: Option<NativeSemanticAccessibilityAdapter>,
     pub(super) window: NativeRunnerWindowState,
@@ -297,6 +303,12 @@ where
         auxiliary_owner: bool,
     ) -> Self {
         let activation_reveal = ActivationRevealController::new(&options);
+        let atlas_residency_window_identity = match &frame_schedule_key {
+            FrameScheduleKey::Primary => NativeAtlasResidencyWindowIdentity::Primary,
+            FrameScheduleKey::Auxiliary(key) => {
+                NativeAtlasResidencyWindowIdentity::Auxiliary(key.clone())
+            }
+        };
         let text_renderer = NativeTextRenderer::with_options(&options.text);
         let debug_layout = options.frame.debug_layout;
         let devtools_overlay = options.frame.devtools;
@@ -325,6 +337,8 @@ where
             application_reopen_proxy: None,
             application_reopen_events: None,
             adapter: None,
+            atlas_residency_account: None,
+            atlas_residency_window_identity,
             #[cfg(target_os = "macos")]
             native_semantic_accessibility: None,
             window: NativeRunnerWindowState::default(),
@@ -355,6 +369,84 @@ where
             renderer_recovery: NativeRendererRecoveryPolicy::default(),
             recovery_cause: None,
             recovery_auxiliary_followup_pending: false,
+        }
+    }
+
+    /// Synchronize the adapter-owned application account with the physical
+    /// active/quarantine bundles currently retained by this runner. The
+    /// snapshot is fixed active/Q0/Q1 bookkeeping rather than a resource-map
+    /// traversal. Profile-enabled presentation calls this after cache
+    /// mutations; lifecycle transitions call it unconditionally.
+    pub(super) fn refresh_atlas_residency_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        let resources_empty = self.window.native_resources.is_none()
+            && self.window.quarantined_native_resources.is_empty();
+        if resources_empty {
+            if let Some(token) = self.atlas_residency_account.as_ref()
+                && adapter.remove_atlas_residency_account(token)
+            {
+                self.atlas_residency_account = None;
+            }
+            return;
+        }
+
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return;
+        };
+        let snapshots: NativeWindowAtlasResidencySnapshots =
+            self.window.atlas_residency_snapshots();
+        self.synchronize_atlas_residency_account(adapter, adapter_generation, snapshots);
+    }
+
+    pub(super) fn capture_atlas_residency_profile(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        profile_enabled: bool,
+    ) -> NativeAdapterAtlasResidencyProfile {
+        if !profile_enabled {
+            return NativeAdapterAtlasResidencyProfile::default();
+        }
+        self.refresh_atlas_residency_account(adapter);
+        adapter.capture_atlas_residency_profile()
+    }
+
+    fn synchronize_atlas_residency_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowAtlasResidencySnapshots,
+    ) {
+        if let Some(token) = self.atlas_residency_account.as_mut() {
+            let accepted = if token.adapter_generation == adapter_generation {
+                adapter.update_atlas_residency_account(token, snapshots)
+            } else if let Some(next) =
+                adapter.rebind_atlas_residency_account(token, adapter_generation, snapshots)
+            {
+                *token = next;
+                true
+            } else {
+                false
+            };
+            if !accepted {
+                // A live token can outlast its ledger account. Re-register only
+                // after rejection; a refused same-key registration preserves
+                // the stale-token fence instead of overwriting its owner.
+                if let Some(next) = adapter.register_atlas_residency_account(
+                    token.window_identity.clone(),
+                    adapter_generation,
+                    snapshots,
+                ) {
+                    *token = next;
+                }
+            }
+        } else if let Some(token) = adapter.register_atlas_residency_account(
+            self.atlas_residency_window_identity.clone(),
+            adapter_generation,
+            snapshots,
+        ) {
+            self.atlas_residency_account = Some(token);
         }
     }
 
@@ -1490,7 +1582,9 @@ where
 
     pub(super) fn begin_native_resource_maintenance(&mut self) -> NativeResourceMaintenanceTurn {
         let mut turn = NativeResourceMaintenanceTurn::new();
-        self.maintain_native_resources_with_turn(&mut turn);
+        let mut adapter = self.adapter.take();
+        self.maintain_native_resources_with_turn_and_adapter(&mut turn, adapter.as_mut());
+        self.adapter = adapter;
         turn
     }
 
@@ -1619,6 +1713,11 @@ where
             self.defer_normal_native_resource_maintenance(now);
             return false;
         };
+        let mut adapter = self.adapter.take();
+        if let Some(adapter) = adapter.as_mut() {
+            self.refresh_atlas_residency_account(adapter);
+        }
+        self.adapter = adapter;
         if !self.frame_stage_owner.complete_maintenance(ticket) {
             // The bounded unit already ran.  Never retry it through a broad
             // maintenance fallback after a completion mismatch.
@@ -1635,7 +1734,21 @@ where
         &mut self,
         turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
+        let mut adapter = self.adapter.take();
+        let removed = self.maintain_native_resources_with_turn_and_adapter(turn, adapter.as_mut());
+        self.adapter = adapter;
+        removed
+    }
+
+    fn maintain_native_resources_with_turn_and_adapter(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+        mut adapter: Option<&mut GenericNativeAdapterOwner>,
+    ) -> bool {
         self.window.maintain_native_resources(turn);
+        if let Some(adapter) = adapter.as_mut() {
+            self.refresh_atlas_residency_account(adapter);
+        }
         let retiring_auxiliary_keys = self
             .auxiliary_windows
             .iter()
@@ -1646,8 +1759,9 @@ where
             self.remove_cpu_frame_observation(&key);
         }
         let auxiliary_count = self.auxiliary_windows.len();
-        self.auxiliary_windows
-            .retain_mut(|window| !window.maintain_native_resources_with_turn(turn));
+        self.auxiliary_windows.retain_mut(|window| {
+            !window.maintain_native_resources_with_turn(turn, adapter.as_deref_mut())
+        });
         let removed_auxiliary = self.auxiliary_windows.len() != auxiliary_count;
         if removed_auxiliary {
             self.timing.deferred_auxiliary_window_sync = true;
@@ -1662,6 +1776,18 @@ where
         &mut self,
         turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
+        let mut adapter = self.adapter.take();
+        let removed =
+            self.maintain_retiring_auxiliary_resources_with_adapter(turn, adapter.as_mut());
+        self.adapter = adapter;
+        removed
+    }
+
+    pub(super) fn maintain_retiring_auxiliary_resources_with_adapter(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+        mut adapter: Option<&mut GenericNativeAdapterOwner>,
+    ) -> bool {
         let retiring_auxiliary_keys = self
             .auxiliary_windows
             .iter()
@@ -1673,7 +1799,8 @@ where
         }
         let auxiliary_count = self.auxiliary_windows.len();
         self.auxiliary_windows.retain_mut(|window| {
-            !window.is_retiring() || !window.maintain_native_resources_with_turn(turn)
+            !window.is_retiring()
+                || !window.maintain_native_resources_with_turn(turn, adapter.as_deref_mut())
         });
         let removed_auxiliary = self.auxiliary_windows.len() != auxiliary_count;
         if removed_auxiliary
@@ -1701,7 +1828,11 @@ where
         &mut self,
         turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
+        let mut adapter = self.adapter.take();
         let primary_empty = self.retire_native_resources_with_turn(turn);
+        if let Some(adapter) = adapter.as_mut() {
+            self.refresh_atlas_residency_account(adapter);
+        }
         let retiring_auxiliary_keys = self
             .auxiliary_windows
             .iter()
@@ -1712,11 +1843,13 @@ where
             self.remove_cpu_frame_observation(&key);
         }
         let auxiliary_count = self.auxiliary_windows.len();
-        self.auxiliary_windows
-            .retain_mut(|window| !window.maintain_native_resources_with_turn(turn));
+        self.auxiliary_windows.retain_mut(|window| {
+            !window.maintain_native_resources_with_turn(turn, adapter.as_mut())
+        });
         if self.auxiliary_windows.len() != auxiliary_count {
             self.timing.deferred_auxiliary_window_sync = true;
         }
+        self.adapter = adapter;
         primary_empty && self.auxiliary_windows.is_empty()
     }
 
@@ -1856,7 +1989,7 @@ where
     pub(super) fn recover_frame_render_failure(
         &mut self,
         event_loop: &ActiveEventLoop,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
         failure: NativeFrameRenderFailure,
         kind: NativeRendererRecoveryWindowKind,
     ) -> Result<(), NativeGenericRunError> {
@@ -1876,7 +2009,7 @@ where
 
     fn try_recover_frame_render(
         &mut self,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
         kind: NativeRendererRecoveryWindowKind,
     ) -> Result<(), String> {
         let active_generation = self
@@ -1952,6 +2085,7 @@ where
             ));
         };
         publication.publish(candidate.bundle);
+        self.refresh_atlas_residency_account(adapter);
         self.window.target_generation = admission.next_target_generation;
         self.window.native_surface_target_fenced = false;
         self.frame.invalidate_native_resources_for_recovery();
@@ -2376,7 +2510,7 @@ where
             ));
         };
         let NativeRecoveryCandidate {
-            adapter,
+            mut adapter,
             mut primary,
         } = candidate;
         if !primary
@@ -2403,19 +2537,35 @@ where
         } else {
             return Err(String::from("native recovery primary window disappeared"));
         }
+        let Some(mut previous_adapter) = self.adapter.take() else {
+            return Err(String::from(
+                "native recovery previous adapter owner disappeared during commit",
+            ));
+        };
         for window in &mut self.auxiliary_windows {
-            if !window.quarantine_device_recovery_resources() {
+            if !window.quarantine_device_recovery_resources(&mut previous_adapter) {
+                self.adapter = Some(previous_adapter);
                 return Err(String::from(
                     "native recovery auxiliary quarantine capacity changed during commit",
                 ));
             }
         }
         let Some(publication) = self.window.reserve_native_resource_publication() else {
+            self.adapter = Some(previous_adapter);
             return Err(String::from(
                 "native recovery primary quarantine capacity changed during commit",
             ));
         };
         publication.publish(primary);
+        self.refresh_atlas_residency_account(&mut previous_adapter);
+        adapter.adopt_atlas_residency_ledger(&mut previous_adapter);
+        self.adapter = Some(adapter);
+        let Some(mut adapter) = self.adapter.take() else {
+            return Err(String::from(
+                "native recovery adapter owner disappeared after publication",
+            ));
+        };
+        self.refresh_atlas_residency_account(&mut adapter);
         self.adapter = Some(adapter);
         self.complete_native_recovery_target_transition();
         self.frame.invalidate_native_resources_for_recovery();
@@ -3998,6 +4148,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::GpuSurfaceAtlasResidencySnapshot;
     use super::super::frame_scheduler_policy::{
         DiscreteInputCompletion, ImmediateTransientCompletion, NativeInputStageDisposition,
         discrete_input_completion_disposition,
@@ -4014,9 +4165,11 @@ mod tests {
     use super::{
         AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
         FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome,
-        NativeAdapterGeneration, NativeGenericRunError, NativeLifecycle,
+        NativeAdapterAtlasResidencyProfile, NativeAdapterGeneration,
+        NativeAtlasResidencyWindowIdentity, NativeGenericRunError, NativeLifecycle,
         NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
-        NativeTargetGeneration, TimedFrameCadence, recovery_completion_is_admissible,
+        NativeTargetGeneration, NativeWindowAtlasResidencySnapshots, TimedFrameCadence,
+        recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -4575,6 +4728,122 @@ mod tests {
             EmptyBridge,
             Vector2::new(320.0, 240.0),
         )
+    }
+
+    fn atlas_snapshot(
+        generation: NativeAdapterGeneration,
+        resident_count: usize,
+        logical_rgba_texel_bytes: Option<u64>,
+    ) -> GpuSurfaceAtlasResidencySnapshot {
+        let mut snapshot = GpuSurfaceAtlasResidencySnapshot::default().with_generation(generation);
+        snapshot.resident_count = resident_count;
+        snapshot.logical_rgba_texel_bytes = logical_rgba_texel_bytes;
+        snapshot
+    }
+
+    #[test]
+    fn atlas_residency_refresh_reregisters_a_rejected_live_token() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut adapter = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        );
+        let mut runner = runner();
+        let mut old_active =
+            GpuSurfaceAtlasResidencySnapshot::default().with_generation(generation);
+        old_active.resident_count = 1;
+        old_active.logical_rgba_texel_bytes = Some(4);
+        let old_snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(old_active),
+            ..NativeWindowAtlasResidencySnapshots::default()
+        };
+        let token = adapter
+            .register_atlas_residency_account(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                old_snapshots,
+            )
+            .expect("the test account should register");
+        runner.atlas_residency_account = Some(token.clone());
+        assert!(adapter.remove_atlas_residency_account(&token));
+
+        let mut current_active =
+            GpuSurfaceAtlasResidencySnapshot::default().with_generation(generation);
+        current_active.resident_count = 3;
+        current_active.logical_rgba_texel_bytes = Some(12);
+        runner.synchronize_atlas_residency_account(
+            &mut adapter,
+            generation,
+            NativeWindowAtlasResidencySnapshots {
+                active: Some(current_active),
+                ..NativeWindowAtlasResidencySnapshots::default()
+            },
+        );
+
+        assert!(runner.atlas_residency_account.is_some());
+        let profile = adapter.capture_atlas_residency_profile();
+        assert_eq!(profile.active_resident_count, Some(3));
+        assert_eq!(profile.active_logical_rgba_texel_bytes, Some(12));
+    }
+
+    #[test]
+    fn atlas_ledger_syncs_post_cache_mutation_and_clear_at_profile_boundary() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut adapter = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        );
+        let mut runner = runner();
+        let empty_snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(GpuSurfaceAtlasResidencySnapshot::default().with_generation(generation)),
+            ..NativeWindowAtlasResidencySnapshots::default()
+        };
+
+        // This is the publication-time account state before the first atlas
+        // upload. The test calls the same private synchronization boundary
+        // used immediately after present_base_frame's cache mutation; the
+        // unit harness has no live RenderSurface/device for a WGPU present.
+        runner.synchronize_atlas_residency_account(&mut adapter, generation, empty_snapshots);
+        assert_eq!(
+            adapter
+                .capture_atlas_residency_profile()
+                .active_resident_count,
+            Some(0)
+        );
+
+        let uploaded_snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(atlas_snapshot(generation, 3, Some(12))),
+            quarantine_0: Some(atlas_snapshot(generation, 2, Some(8))),
+            ..NativeWindowAtlasResidencySnapshots::default()
+        };
+        runner.synchronize_atlas_residency_account(&mut adapter, generation, uploaded_snapshots);
+        let profile = adapter.capture_atlas_residency_profile();
+        assert_eq!(profile.active_resident_count, Some(3));
+        assert_eq!(profile.active_logical_rgba_texel_bytes, Some(12));
+        assert_eq!(profile.quarantined_resident_count, Some(2));
+        assert_eq!(profile.quarantined_logical_rgba_texel_bytes, Some(8));
+
+        assert_eq!(
+            runner.capture_atlas_residency_profile(&mut adapter, false),
+            NativeAdapterAtlasResidencyProfile::default()
+        );
+        assert_eq!(
+            adapter
+                .capture_atlas_residency_profile()
+                .active_resident_count,
+            Some(3)
+        );
+
+        let cleared_snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(atlas_snapshot(generation, 0, Some(0))),
+            ..NativeWindowAtlasResidencySnapshots::default()
+        };
+        runner.synchronize_atlas_residency_account(&mut adapter, generation, cleared_snapshots);
+        let profile = adapter.capture_atlas_residency_profile();
+        assert_eq!(profile.active_resident_count, Some(0));
+        assert_eq!(profile.active_logical_rgba_texel_bytes, Some(0));
+        assert_eq!(profile.quarantined_resident_count, Some(0));
+        assert_eq!(profile.quarantined_logical_rgba_texel_bytes, Some(0));
     }
 
     #[test]

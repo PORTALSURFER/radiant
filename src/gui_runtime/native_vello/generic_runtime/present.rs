@@ -3,10 +3,10 @@ use super::native_encode_present::NativeEncodePresentPath;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::{
     CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    NativeRenderProfileGpuSurface, RenderFrameProfile, RenderSurfacePixelSize,
-    hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
-    post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
-    slow_render_profile_enabled,
+    NativeAdapterAtlasResidencyProfile, NativeRenderProfileGpuSurface, RenderFrameProfile,
+    RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
+    maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
+    reveal_window_after_first_present, slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -294,6 +294,8 @@ where
             profile.frame_sequence = self.timing.allocate_frame_sequence();
             let input_to_present_latency_us =
                 self.timing.take_input_to_present_latency_us(Instant::now());
+            let application_atlas_residency =
+                self.capture_atlas_residency_profile(adapter, profile_enabled);
             self.finish_direct_resize_present(
                 render_to_texture_elapsed,
                 profile,
@@ -301,6 +303,7 @@ where
                 diagnostics_requested,
                 frame_work,
                 input_to_present_latency_us,
+                application_atlas_residency,
             );
             return Ok(NativeVisualRequestDisposition::Presented);
         }
@@ -446,6 +449,8 @@ where
             self.record_successful_native_submission();
             surface_texture.present();
         });
+        let application_atlas_residency =
+            self.capture_atlas_residency_profile(adapter, profile_enabled);
         let Some(ticket) = ticket.take() else {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
@@ -498,6 +503,7 @@ where
                 NativeRenderProfileGpuSurface {
                     stats: gpu_surface_stats,
                     atlas_residency: self.window.atlas_residency_snapshots(),
+                    application_atlas_residency,
                 },
                 since_last_present,
             );
@@ -584,7 +590,7 @@ where
                 self.mark_cpu_frame_observation_recovery();
                 let _ = self.recover_frame_render_failure(
                     event_loop,
-                    &adapter,
+                    &mut adapter,
                     failure,
                     super::NativeRendererRecoveryWindowKind::Primary,
                 );
@@ -604,6 +610,8 @@ where
         false
     }
 
+    // This private orchestration helper keeps the direct-resize present state explicit.
+    #[allow(clippy::too_many_arguments)]
     fn finish_direct_resize_present(
         &mut self,
         render_to_texture_elapsed: std::time::Duration,
@@ -612,6 +620,7 @@ where
         diagnostics_requested: bool,
         frame_work: super::FrameWork,
         input_to_present_latency_us: Option<u64>,
+        application_atlas_residency: NativeAdapterAtlasResidencyProfile,
     ) {
         let text_stats = if profile_enabled || diagnostics_requested {
             self.frame.text_renderer.take_layout_profile_counters()
@@ -631,6 +640,7 @@ where
                 NativeRenderProfileGpuSurface {
                     stats: gpu_surface_stats,
                     atlas_residency: self.window.atlas_residency_snapshots(),
+                    application_atlas_residency,
                 },
                 since_last_present,
             );

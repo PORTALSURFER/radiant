@@ -72,14 +72,14 @@ fn unbound_resources_preserve_pending_resize_without_native_work_or_retry() {
         TestFrameMessageBridge::default(),
         Vector2::new(320.0, 40.0),
     );
-    let adapter = GenericNativeAdapterOwner::with_test_registration(
+    let mut adapter = GenericNativeAdapterOwner::with_test_registration(
         NativeAdapterGeneration::from_test_serial(1),
         Arc::new(DeviceLossRegistration::new()),
     );
 
     runner.defer_surface_resize(PhysicalSize::new(640, 360));
     let initial_context_generation = runner.frame.native_scene_context_generation_for_test();
-    runner.apply_pending_surface_resize_if_needed(&adapter);
+    runner.apply_pending_surface_resize_if_needed(&mut adapter);
 
     assert_eq!(
         runner.timing.pending_surface_resize,
@@ -91,7 +91,7 @@ fn unbound_resources_preserve_pending_resize_without_native_work_or_retry() {
         runner.frame.native_scene_context_generation_for_test(),
         initial_context_generation + 1
     );
-    assert!(!runner.admit_native_resources(&adapter));
+    assert!(!runner.admit_native_resources(&mut adapter));
     assert_eq!(
         runner.frame.native_scene_context_generation_for_test(),
         initial_context_generation + 1
@@ -105,7 +105,7 @@ fn dpi_change_after_admission_veto_preserves_fenced_target_evidence() {
         TestFrameMessageBridge::default(),
         Vector2::new(320.0, 40.0),
     );
-    let adapter = GenericNativeAdapterOwner::with_test_registration(
+    let mut adapter = GenericNativeAdapterOwner::with_test_registration(
         NativeAdapterGeneration::from_test_serial(1),
         Arc::new(DeviceLossRegistration::new()),
     );
@@ -113,7 +113,7 @@ fn dpi_change_after_admission_veto_preserves_fenced_target_evidence() {
     runner.frame.scene_texture_dirty = false;
     runner.frame.composited_base_dirty = false;
 
-    assert!(!runner.admit_native_resources(&adapter));
+    assert!(!runner.admit_native_resources(&mut adapter));
     assert!(runner.window.native_resources.is_none());
     assert!(!runner.window.target_generation.is_known());
     assert!(runner.window.native_surface_target_fenced);
@@ -148,7 +148,7 @@ fn dpi_change_after_admission_veto_preserves_fenced_target_evidence() {
     );
     assert!(!runner.timing.redraw_requested);
 
-    assert!(!runner.admit_native_resources(&adapter));
+    assert!(!runner.admit_native_resources(&mut adapter));
     assert_eq!(
         runner.frame.native_scene_context_generation_for_test(),
         fenced_context_generation

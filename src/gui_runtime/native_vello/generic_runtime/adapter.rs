@@ -1,9 +1,14 @@
 //! Event-loop-confined WGPU/Vello adapter ownership for one generic run.
 
 use super::device::DeviceFeatureSelection;
+use super::runner_state::NativeWindowAtlasResidencySnapshots;
 use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};
+use super::{
+    GpuSurfaceAtlasResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
+    NativeAdapterAtlasResidencyProfile, NativeAtlasResidencyWindowIdentity,
+};
 use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
-use std::{fmt, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 use vello::{util::RenderSurface, wgpu};
 use winit::event_loop::EventLoopProxy;
 
@@ -301,6 +306,303 @@ struct SelectedNativeAdapter {
     device_loss_registration: Arc<DeviceLossRegistration>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeAdapterAtlasResidencyAggregate {
+    active_resident_count: Option<usize>,
+    active_logical_rgba_texel_bytes: Option<u64>,
+    quarantined_resident_count: Option<usize>,
+    quarantined_logical_rgba_texel_bytes: Option<u64>,
+}
+
+struct NativeAdapterAtlasResidencyAccount {
+    account_generation: u64,
+    adapter_generation: NativeAdapterGeneration,
+    snapshots: NativeWindowAtlasResidencySnapshots,
+}
+
+/// Application-scope, crate-private atlas residency evidence owned by the
+/// selected adapter. Resource lifecycle code updates it at publication,
+/// quarantine, rebind, and physical retirement boundaries; profile capture
+/// only copies the cached aggregate.
+pub(super) struct NativeAdapterAtlasResidencyLedger {
+    accounts: HashMap<NativeAtlasResidencyWindowIdentity, NativeAdapterAtlasResidencyAccount>,
+    next_account_generation: Option<u64>,
+    /// Generations retained only while they are current or represented by a
+    /// live account/incarnation or one of its physical snapshots.
+    known_adapter_generations: Vec<NativeAdapterGeneration>,
+    current_adapter_generation: NativeAdapterGeneration,
+    aggregate: NativeAdapterAtlasResidencyAggregate,
+}
+
+impl Default for NativeAdapterAtlasResidencyLedger {
+    fn default() -> Self {
+        Self {
+            accounts: HashMap::new(),
+            next_account_generation: Some(1),
+            known_adapter_generations: Vec::new(),
+            current_adapter_generation: NativeAdapterGeneration::default(),
+            aggregate: NativeAdapterAtlasResidencyAggregate {
+                active_resident_count: Some(0),
+                active_logical_rgba_texel_bytes: Some(0),
+                quarantined_resident_count: Some(0),
+                quarantined_logical_rgba_texel_bytes: Some(0),
+            },
+        }
+    }
+}
+
+impl NativeAdapterAtlasResidencyLedger {
+    fn allocate_account_generation(&mut self) -> Option<u64> {
+        let generation = self.next_account_generation?;
+        self.next_account_generation = generation.checked_add(1);
+        Some(generation)
+    }
+
+    fn record_adapter_generation(&mut self, generation: NativeAdapterGeneration) {
+        if generation.is_known() && !self.known_adapter_generations.contains(&generation) {
+            self.known_adapter_generations.push(generation);
+        }
+        self.current_adapter_generation = generation;
+        self.recompute_aggregate();
+    }
+
+    fn prune_known_adapter_generations(&mut self) {
+        let current_adapter_generation = self.current_adapter_generation;
+        let accounts = &self.accounts;
+        self.known_adapter_generations.retain(|generation| {
+            *generation == current_adapter_generation
+                || accounts
+                    .values()
+                    .any(|account| account_references_adapter_generation(account, *generation))
+        });
+    }
+
+    fn register(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowAtlasResidencySnapshots,
+    ) -> Option<NativeAdapterAtlasResidencyAccountToken> {
+        if !self.is_known_adapter_generation(adapter_generation)
+            || self.accounts.contains_key(&window_identity)
+        {
+            return None;
+        }
+        let account_generation = self.allocate_account_generation()?;
+        let token = NativeAdapterAtlasResidencyAccountToken {
+            window_identity: window_identity.clone(),
+            account_generation,
+            adapter_generation,
+        };
+        self.accounts.insert(
+            window_identity,
+            NativeAdapterAtlasResidencyAccount {
+                account_generation,
+                adapter_generation,
+                snapshots,
+            },
+        );
+        self.recompute_aggregate();
+        Some(token)
+    }
+
+    fn update(
+        &mut self,
+        token: &NativeAdapterAtlasResidencyAccountToken,
+        snapshots: NativeWindowAtlasResidencySnapshots,
+    ) -> bool {
+        let Some(account) = self.accounts.get_mut(&token.window_identity) else {
+            return false;
+        };
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return false;
+        }
+        account.snapshots = snapshots;
+        self.recompute_aggregate();
+        true
+    }
+
+    fn rebind(
+        &mut self,
+        token: &NativeAdapterAtlasResidencyAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowAtlasResidencySnapshots,
+    ) -> Option<NativeAdapterAtlasResidencyAccountToken> {
+        if !self.is_known_adapter_generation(adapter_generation) {
+            return None;
+        }
+        let account = self.accounts.get_mut(&token.window_identity)?;
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return None;
+        }
+        account.adapter_generation = adapter_generation;
+        account.snapshots = snapshots;
+        let next = NativeAdapterAtlasResidencyAccountToken {
+            window_identity: token.window_identity.clone(),
+            account_generation: token.account_generation,
+            adapter_generation,
+        };
+        self.recompute_aggregate();
+        Some(next)
+    }
+
+    fn remove(&mut self, token: &NativeAdapterAtlasResidencyAccountToken) -> bool {
+        let Some(account) = self.accounts.get(&token.window_identity) else {
+            return false;
+        };
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return false;
+        }
+        let removed = self.accounts.remove(&token.window_identity).is_some();
+        if removed {
+            self.recompute_aggregate();
+        }
+        removed
+    }
+
+    fn is_known_adapter_generation(&self, generation: NativeAdapterGeneration) -> bool {
+        generation.is_known() && self.known_adapter_generations.contains(&generation)
+    }
+
+    fn profile(&self) -> NativeAdapterAtlasResidencyProfile {
+        NativeAdapterAtlasResidencyProfile {
+            adapter_generation: self
+                .current_adapter_generation
+                .is_known()
+                .then_some(self.current_adapter_generation),
+            active_resident_count: self.aggregate.active_resident_count,
+            active_logical_rgba_texel_bytes: self.aggregate.active_logical_rgba_texel_bytes,
+            quarantined_resident_count: self.aggregate.quarantined_resident_count,
+            quarantined_logical_rgba_texel_bytes: self
+                .aggregate
+                .quarantined_logical_rgba_texel_bytes,
+        }
+    }
+
+    fn recompute_aggregate(&mut self) {
+        self.prune_known_adapter_generations();
+        let mut aggregate = NativeAdapterAtlasResidencyAggregate {
+            active_resident_count: Some(0),
+            active_logical_rgba_texel_bytes: Some(0),
+            quarantined_resident_count: Some(0),
+            quarantined_logical_rgba_texel_bytes: Some(0),
+        };
+        for account in self.accounts.values() {
+            accumulate_active(
+                &mut aggregate,
+                account.snapshots.active,
+                self.current_adapter_generation,
+            );
+            accumulate_quarantine(
+                &mut aggregate,
+                account.snapshots.quarantine_0,
+                &self.known_adapter_generations,
+            );
+            accumulate_quarantine(
+                &mut aggregate,
+                account.snapshots.quarantine_1,
+                &self.known_adapter_generations,
+            );
+        }
+        self.aggregate = aggregate;
+    }
+
+    #[cfg(test)]
+    fn account_count(&self) -> usize {
+        self.accounts.len()
+    }
+}
+
+fn account_references_adapter_generation(
+    account: &NativeAdapterAtlasResidencyAccount,
+    generation: NativeAdapterGeneration,
+) -> bool {
+    account.adapter_generation == generation
+        || account
+            .snapshots
+            .active
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_0
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_1
+            .is_some_and(|snapshot| snapshot.generation == generation)
+}
+
+fn accumulate_active(
+    aggregate: &mut NativeAdapterAtlasResidencyAggregate,
+    snapshot: Option<GpuSurfaceAtlasResidencySnapshot>,
+    current_adapter_generation: NativeAdapterGeneration,
+) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+    if snapshot.generation != current_adapter_generation || !current_adapter_generation.is_known() {
+        aggregate.active_resident_count = None;
+        aggregate.active_logical_rgba_texel_bytes = None;
+        return;
+    }
+    add_count(
+        &mut aggregate.active_resident_count,
+        snapshot.resident_count,
+    );
+    add_bytes(
+        &mut aggregate.active_logical_rgba_texel_bytes,
+        snapshot.logical_rgba_texel_bytes,
+    );
+}
+
+fn accumulate_quarantine(
+    aggregate: &mut NativeAdapterAtlasResidencyAggregate,
+    snapshot: Option<GpuSurfaceAtlasResidencySnapshot>,
+    known_adapter_generations: &[NativeAdapterGeneration],
+) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+    if !snapshot.generation.is_known() || !known_adapter_generations.contains(&snapshot.generation)
+    {
+        aggregate.quarantined_resident_count = None;
+        aggregate.quarantined_logical_rgba_texel_bytes = None;
+        return;
+    }
+    add_count(
+        &mut aggregate.quarantined_resident_count,
+        snapshot.resident_count,
+    );
+    add_bytes(
+        &mut aggregate.quarantined_logical_rgba_texel_bytes,
+        snapshot.logical_rgba_texel_bytes,
+    );
+}
+
+fn add_count(total: &mut Option<usize>, contribution: usize) {
+    let Some(total_value) = *total else {
+        return;
+    };
+    *total = total_value.checked_add(contribution);
+}
+
+fn add_bytes(total: &mut Option<u64>, contribution: Option<u64>) {
+    let Some(total_value) = *total else {
+        return;
+    };
+    let Some(contribution) = contribution else {
+        *total = None;
+        return;
+    };
+    *total = total_value.checked_add(contribution);
+}
+
 /// The one native adapter owner for a generic-native application run.
 ///
 /// The owner is created and used on the event-loop thread. It retains the
@@ -311,6 +613,7 @@ struct SelectedNativeAdapter {
 pub(super) struct GenericNativeAdapterOwner {
     render_context: Option<RadiantWgpuContext>,
     selected: Option<SelectedNativeAdapter>,
+    atlas_residency: NativeAdapterAtlasResidencyLedger,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -360,6 +663,7 @@ impl GenericNativeAdapterOwner {
         Self {
             render_context: Some(RadiantWgpuContext::new(instance_for_options(options))),
             selected: None,
+            atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
         }
     }
 
@@ -399,6 +703,7 @@ impl GenericNativeAdapterOwner {
             }
         };
         self.selected = Some(selected);
+        self.atlas_residency.record_adapter_generation(generation);
         Ok(())
     }
 
@@ -501,6 +806,57 @@ impl GenericNativeAdapterOwner {
         self.capture_generation() == Some(generation)
     }
 
+    pub(super) fn register_atlas_residency_account(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowAtlasResidencySnapshots,
+    ) -> Option<NativeAdapterAtlasResidencyAccountToken> {
+        self.atlas_residency
+            .register(window_identity, adapter_generation, snapshots)
+    }
+
+    pub(super) fn update_atlas_residency_account(
+        &mut self,
+        token: &NativeAdapterAtlasResidencyAccountToken,
+        snapshots: NativeWindowAtlasResidencySnapshots,
+    ) -> bool {
+        self.atlas_residency.update(token, snapshots)
+    }
+
+    pub(super) fn rebind_atlas_residency_account(
+        &mut self,
+        token: &NativeAdapterAtlasResidencyAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowAtlasResidencySnapshots,
+    ) -> Option<NativeAdapterAtlasResidencyAccountToken> {
+        self.atlas_residency
+            .rebind(token, adapter_generation, snapshots)
+    }
+
+    pub(super) fn remove_atlas_residency_account(
+        &mut self,
+        token: &NativeAdapterAtlasResidencyAccountToken,
+    ) -> bool {
+        self.atlas_residency.remove(token)
+    }
+
+    pub(super) fn capture_atlas_residency_profile(&self) -> NativeAdapterAtlasResidencyProfile {
+        self.atlas_residency.profile()
+    }
+
+    pub(super) fn adopt_atlas_residency_ledger(
+        &mut self,
+        previous: &mut GenericNativeAdapterOwner,
+    ) {
+        let next_generation = self.capture_generation();
+        self.atlas_residency = std::mem::take(&mut previous.atlas_residency);
+        if let Some(next_generation) = next_generation {
+            self.atlas_residency
+                .record_adapter_generation(next_generation);
+        }
+    }
+
     pub(super) fn device_handle_for_surface(
         &self,
         surface: &RenderSurface<'_>,
@@ -563,7 +919,7 @@ impl GenericNativeAdapterOwner {
         if !generation.is_known() {
             return Err("fresh recovery context requires a known generation");
         }
-        Ok(Self {
+        let mut owner = Self {
             render_context: Some(render_context),
             selected: Some(SelectedNativeAdapter {
                 device_id,
@@ -571,7 +927,10 @@ impl GenericNativeAdapterOwner {
                 generation,
                 device_loss_registration,
             }),
-        })
+            atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+        };
+        owner.atlas_residency.record_adapter_generation(generation);
+        Ok(owner)
     }
 
     #[cfg(test)]
@@ -579,7 +938,7 @@ impl GenericNativeAdapterOwner {
         generation: NativeAdapterGeneration,
         registration: Arc<DeviceLossRegistration>,
     ) -> Self {
-        Self {
+        let mut owner = Self {
             render_context: None,
             selected: Some(SelectedNativeAdapter {
                 device_id: 0,
@@ -587,7 +946,10 @@ impl GenericNativeAdapterOwner {
                 generation,
                 device_loss_registration: registration,
             }),
-        }
+            atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+        };
+        owner.atlas_residency.record_adapter_generation(generation);
+        owner
     }
 
     fn next_generation(&self) -> Result<NativeAdapterGeneration, &'static str> {
@@ -645,12 +1007,350 @@ pub(super) fn device_loss_registration_matches(
 mod tests {
     use super::{
         AdapterSurfaceError, DeviceLossRegistration, GenericNativeAdapterOwner,
-        NativeAdapterGeneration, auxiliary_backend_policy_is_compatible,
-        device_loss_registration_matches, render_surface_creation_error,
+        GpuSurfaceAtlasResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
+        NativeAdapterAtlasResidencyLedger, NativeAdapterGeneration,
+        NativeAtlasResidencyWindowIdentity, NativeWindowAtlasResidencySnapshots,
+        auxiliary_backend_policy_is_compatible, device_loss_registration_matches,
+        render_surface_creation_error,
     };
     use crate::gui_runtime::NativeGpuBackend;
     use std::sync::Arc;
     use vello::wgpu;
+
+    fn atlas_snapshot(
+        generation: NativeAdapterGeneration,
+        resident_count: usize,
+        logical_rgba_texel_bytes: Option<u64>,
+    ) -> GpuSurfaceAtlasResidencySnapshot {
+        GpuSurfaceAtlasResidencySnapshot {
+            generation,
+            resident_count,
+            logical_rgba_texel_bytes,
+        }
+    }
+
+    fn snapshots(
+        active: Option<GpuSurfaceAtlasResidencySnapshot>,
+        quarantine_0: Option<GpuSurfaceAtlasResidencySnapshot>,
+        quarantine_1: Option<GpuSurfaceAtlasResidencySnapshot>,
+    ) -> NativeWindowAtlasResidencySnapshots {
+        NativeWindowAtlasResidencySnapshots {
+            active,
+            quarantine_0,
+            quarantine_1,
+        }
+    }
+
+    #[test]
+    fn atlas_ledger_aggregates_primary_and_auxiliaries_once() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterAtlasResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+
+        let primary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                snapshots(Some(atlas_snapshot(generation, 3, Some(12))), None, None),
+            )
+            .expect("primary account should register");
+        let auxiliary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("inspector")),
+                generation,
+                snapshots(
+                    Some(atlas_snapshot(generation, 2, Some(8))),
+                    Some(atlas_snapshot(generation, 1, Some(4))),
+                    None,
+                ),
+            )
+            .expect("auxiliary account should register");
+
+        assert_eq!(ledger.account_count(), 2);
+        assert_eq!(ledger.profile().active_resident_count, Some(5));
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, Some(20));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(1));
+        assert_eq!(
+            ledger.profile().quarantined_logical_rgba_texel_bytes,
+            Some(4)
+        );
+
+        assert!(ledger.update(
+            &primary,
+            snapshots(Some(atlas_snapshot(generation, 4, Some(16))), None, None),
+        ));
+        assert_eq!(ledger.profile().active_resident_count, Some(6));
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, Some(24));
+        assert!(ledger.remove(&auxiliary));
+        assert_eq!(ledger.profile().active_resident_count, Some(4));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(0));
+        assert!(!ledger.remove(&auxiliary));
+    }
+
+    #[test]
+    fn atlas_ledger_keeps_physical_quarantine_across_recovery_and_rebinds_active() {
+        let old_generation = NativeAdapterGeneration::from_test_serial(1);
+        let new_generation = NativeAdapterGeneration::from_test_serial(2);
+        let mut ledger = NativeAdapterAtlasResidencyLedger::default();
+        ledger.record_adapter_generation(old_generation);
+        let token = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                old_generation,
+                snapshots(
+                    Some(atlas_snapshot(old_generation, 3, Some(12))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("primary account should register");
+
+        ledger.record_adapter_generation(new_generation);
+        assert_eq!(ledger.profile().active_resident_count, None);
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, None);
+
+        let rebound = ledger
+            .rebind(
+                &token,
+                new_generation,
+                snapshots(
+                    Some(atlas_snapshot(new_generation, 2, Some(8))),
+                    Some(atlas_snapshot(old_generation, 3, Some(12))),
+                    None,
+                ),
+            )
+            .expect("current account should rebind");
+        assert_eq!(ledger.profile().active_resident_count, Some(2));
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, Some(8));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(3));
+        assert_eq!(
+            ledger.profile().quarantined_logical_rgba_texel_bytes,
+            Some(12)
+        );
+        assert!(!ledger.update(
+            &token,
+            snapshots(
+                Some(atlas_snapshot(old_generation, 99, Some(396))),
+                None,
+                None
+            ),
+        ));
+        assert!(ledger.update(
+            &rebound,
+            snapshots(
+                Some(atlas_snapshot(new_generation, 4, Some(16))),
+                Some(atlas_snapshot(old_generation, 3, Some(12))),
+                None,
+            ),
+        ));
+        assert_eq!(ledger.profile().active_resident_count, Some(4));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(3));
+    }
+
+    #[test]
+    fn atlas_ledger_prunes_recovery_history_but_keeps_live_quarantine_generation() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterAtlasResidencyLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let mut token = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                first_generation,
+                snapshots(
+                    Some(atlas_snapshot(first_generation, 1, Some(4))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("primary account should register");
+
+        for serial in 2..=32 {
+            let generation = NativeAdapterGeneration::from_test_serial(serial);
+            ledger.record_adapter_generation(generation);
+            token = ledger
+                .rebind(
+                    &token,
+                    generation,
+                    snapshots(
+                        Some(atlas_snapshot(generation, 1, Some(4))),
+                        Some(atlas_snapshot(first_generation, 2, Some(8))),
+                        None,
+                    ),
+                )
+                .expect("current account should rebind");
+        }
+
+        let current_generation = NativeAdapterGeneration::from_test_serial(32);
+        assert_eq!(ledger.known_adapter_generations.len(), 2);
+        assert!(ledger.known_adapter_generations.contains(&first_generation));
+        assert!(
+            ledger
+                .known_adapter_generations
+                .contains(&current_generation)
+        );
+        assert_eq!(ledger.profile().active_resident_count, Some(1));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(2));
+        assert_eq!(
+            ledger.profile().quarantined_logical_rgba_texel_bytes,
+            Some(8)
+        );
+
+        assert!(ledger.update(
+            &token,
+            snapshots(
+                Some(atlas_snapshot(current_generation, 1, Some(4))),
+                None,
+                None,
+            ),
+        ));
+        assert_eq!(ledger.known_adapter_generations.len(), 1);
+        assert!(!ledger.known_adapter_generations.contains(&first_generation));
+        assert_eq!(ledger.profile().active_resident_count, Some(1));
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(0));
+        assert_eq!(
+            ledger.profile().quarantined_logical_rgba_texel_bytes,
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn atlas_ledger_fences_wrong_generation_and_same_key_incarnations() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let second_generation = NativeAdapterGeneration::from_test_serial(2);
+        let identity = NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("same-key"));
+        let mut ledger = NativeAdapterAtlasResidencyLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let first = ledger
+            .register(
+                identity.clone(),
+                first_generation,
+                snapshots(
+                    Some(atlas_snapshot(first_generation, 1, Some(4))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("first incarnation should register");
+        ledger.record_adapter_generation(second_generation);
+        let wrong_generation = NativeAdapterAtlasResidencyAccountToken {
+            adapter_generation: second_generation,
+            ..first.clone()
+        };
+        assert!(!ledger.update(
+            &wrong_generation,
+            snapshots(
+                Some(atlas_snapshot(first_generation, 7, Some(28))),
+                None,
+                None
+            ),
+        ));
+        assert!(ledger.remove(&first));
+        assert!(!ledger.remove(&first));
+
+        let second = ledger
+            .register(
+                identity,
+                second_generation,
+                snapshots(
+                    Some(atlas_snapshot(second_generation, 2, Some(8))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("replacement incarnation should register");
+        assert_ne!(first.account_generation, second.account_generation);
+        assert!(!ledger.update(
+            &first,
+            snapshots(
+                Some(atlas_snapshot(second_generation, 9, Some(36))),
+                None,
+                None
+            ),
+        ));
+        assert!(!ledger.remove(&first));
+        assert_eq!(ledger.profile().active_resident_count, Some(2));
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, Some(8));
+    }
+
+    #[test]
+    fn atlas_ledger_marks_unknown_generation_or_bytes_unavailable_and_recovers() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let unknown_generation = NativeAdapterGeneration::unknown();
+        let mut ledger = NativeAdapterAtlasResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+        let token = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                snapshots(
+                    Some(atlas_snapshot(unknown_generation, 2, Some(8))),
+                    Some(atlas_snapshot(unknown_generation, 1, Some(4))),
+                    None,
+                ),
+            )
+            .expect("account generation is known even when a slot is not");
+        assert_eq!(ledger.profile().active_resident_count, None);
+        assert_eq!(ledger.profile().quarantined_resident_count, None);
+
+        assert!(ledger.update(
+            &token,
+            snapshots(
+                Some(atlas_snapshot(generation, 2, None)),
+                Some(atlas_snapshot(generation, 1, Some(4))),
+                None,
+            ),
+        ));
+        assert_eq!(ledger.profile().active_resident_count, Some(2));
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, None);
+        assert_eq!(ledger.profile().quarantined_resident_count, Some(1));
+
+        assert!(ledger.update(
+            &token,
+            snapshots(
+                Some(atlas_snapshot(generation, 2, Some(8))),
+                Some(atlas_snapshot(generation, 1, Some(4))),
+                None,
+            ),
+        ));
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, Some(8));
+    }
+
+    #[test]
+    fn atlas_ledger_recovers_after_count_and_byte_overflow() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterAtlasResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+        let max = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                snapshots(
+                    Some(atlas_snapshot(generation, usize::MAX, Some(u64::MAX))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("maximum contribution should register");
+        let one = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("overflow")),
+                generation,
+                snapshots(Some(atlas_snapshot(generation, 1, Some(1))), None, None),
+            )
+            .expect("overflow contribution should register");
+
+        assert_eq!(ledger.profile().active_resident_count, None);
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, None);
+        assert!(ledger.remove(&one));
+        assert_eq!(ledger.profile().active_resident_count, Some(usize::MAX));
+        assert_eq!(
+            ledger.profile().active_logical_rgba_texel_bytes,
+            Some(u64::MAX)
+        );
+        assert!(ledger.remove(&max));
+        assert_eq!(ledger.profile().active_resident_count, Some(0));
+        assert_eq!(ledger.profile().active_logical_rgba_texel_bytes, Some(0));
+    }
 
     #[test]
     fn auxiliary_auto_inherits_every_selected_backend() {
@@ -718,6 +1418,7 @@ mod tests {
         let owner = GenericNativeAdapterOwner {
             render_context: None,
             selected: None,
+            atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
         };
 
         assert_eq!(owner.capture_generation(), None);

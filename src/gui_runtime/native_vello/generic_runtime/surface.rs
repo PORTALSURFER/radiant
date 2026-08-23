@@ -628,7 +628,10 @@ where
                 NativeVisualRequestDisposition::DropPacket
             }
             error @ NativeSurfaceAcquireFailure::Occluded => {
-                self.window.surface_occluded = true;
+                if !self.window.surface_occluded {
+                    self.window.surface_occluded = true;
+                    self.window.surface_occluded_by_acquire = true;
+                }
                 self.window.surface_recovery.observe_acquire_error(&error);
                 NativeVisualRequestDisposition::RetainUntilUnoccluded
             }

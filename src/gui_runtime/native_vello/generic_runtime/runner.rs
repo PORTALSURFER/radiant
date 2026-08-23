@@ -750,6 +750,10 @@ where
         self.native_lifecycle.is_running()
     }
 
+    pub(super) const fn is_auxiliary_owner(&self) -> bool {
+        self.auxiliary_owner
+    }
+
     pub(super) const fn is_closing(&self) -> bool {
         self.native_lifecycle.is_closing()
     }
@@ -2699,6 +2703,7 @@ where
         self.timing.deferred_auxiliary_window_sync = true;
         self.timing.last_redraw = Instant::now();
         self.apply_native_window_visibility(self.window.logical_window_visible);
+        self.apply_pending_normal_window_activation("recovery-complete");
         self.request_redraw_for_frame_work(FrameWork::RebuildScene {
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
@@ -2818,10 +2823,31 @@ where
     }
 
     pub(super) fn handle_surface_occlusion(&mut self, occluded: bool) {
-        self.window.surface_occluded = occluded;
-        if !occluded {
+        if occluded {
+            self.window.surface_occluded = true;
+            self.window.surface_occluded_by_acquire = false;
+        } else {
+            self.window.surface_occluded = false;
+            self.window.surface_occluded_by_acquire = false;
             self.request_redraw_after_surface_unoccluded();
         }
+    }
+
+    /// Recover only a stale occlusion latch produced by surface acquisition.
+    /// The caller must already hold the normal native visual fences; the
+    /// existing mailbox reissue path then supplies at most one bounded Winit
+    /// wake for retained work.
+    pub(super) fn clear_stale_acquisition_occlusion_for_activation(&mut self) -> bool {
+        if !self.window.surface_occluded
+            || !self.window.surface_occluded_by_acquire
+            || !self.native_visual_request_offer_is_eligible()
+        {
+            return false;
+        }
+        self.window.surface_occluded = false;
+        self.window.surface_occluded_by_acquire = false;
+        self.request_redraw_after_surface_unoccluded();
+        true
     }
 
     fn request_redraw_after_surface_unoccluded(&mut self) {
@@ -5337,6 +5363,30 @@ mod tests {
         assert!(!runner.should_initialize_runtime());
         assert!(!runner.should_admit_auxiliary_sync());
         assert!(runner.native_shutdown_requested());
+    }
+
+    #[test]
+    fn explicit_occlusion_overrides_acquisition_latch_for_activation() {
+        let mut runner = runner();
+        runner.window.surface_occluded = true;
+        runner.window.surface_occluded_by_acquire = true;
+
+        runner.handle_surface_occlusion(true);
+
+        assert!(runner.window.surface_occluded);
+        assert!(!runner.window.surface_occluded_by_acquire);
+    }
+
+    #[test]
+    fn activation_cannot_clear_acquisition_occlusion_during_recovery() {
+        let mut runner = runner();
+        runner.window.surface_occluded = true;
+        runner.window.surface_occluded_by_acquire = true;
+        assert!(runner.admit_device_recovery());
+
+        assert!(!runner.clear_stale_acquisition_occlusion_for_activation());
+        assert!(runner.window.surface_occluded);
+        assert!(runner.window.surface_occluded_by_acquire);
     }
 
     #[test]

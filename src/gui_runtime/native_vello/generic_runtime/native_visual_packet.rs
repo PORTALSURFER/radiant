@@ -817,7 +817,7 @@ mod tests {
     }
 
     #[test]
-    fn occluded_finish_retains_and_coalesces_until_explicit_reissue() {
+    fn occluded_finish_retains_and_coalesces_until_one_explicit_reissue() {
         let (mut mailbox, window_id) = mailbox();
         assert_eq!(
             mailbox.enqueue(FrameWork::PaintOnly {
@@ -856,6 +856,7 @@ mod tests {
         assert_eq!(mailbox.requested_revision(), Some(3));
         assert!(mailbox.has_requested());
         assert!(mailbox.reissue_requested(window_id));
+        assert_eq!(mailbox.requested_revision(), Some(3));
     }
 
     #[test]

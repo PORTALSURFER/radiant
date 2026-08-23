@@ -754,6 +754,10 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) target_generation: NativeTargetGeneration,
     pub(super) native_surface_target_fenced: bool,
     pub(super) surface_occluded: bool,
+    /// Distinguish a surface-acquire occlusion latch from an explicit native
+    /// occlusion event. Activation may recover only the former when it is
+    /// stale after a sleep/display transition.
+    pub(super) surface_occluded_by_acquire: bool,
     pub(super) surface_recovery: NativeSurfaceRecoveryState,
     pub(super) ime_cursor_area_cache: NativeImeCursorAreaCache,
     pub(super) native_visual_requests: NativeVisualRequestMailbox,

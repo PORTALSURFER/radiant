@@ -26,6 +26,13 @@ pub(super) struct NativeAdapterAtlasResidencyAccountToken {
     adapter_generation: adapter::NativeAdapterGeneration,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct NativeAdapterRenderCanvasUploadAccountToken {
+    window_identity: NativeAtlasResidencyWindowIdentity,
+    account_generation: u64,
+    adapter_generation: adapter::NativeAdapterGeneration,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct NativeAdapterAtlasResidencyProfile {
     pub(super) adapter_generation: Option<adapter::NativeAdapterGeneration>,
@@ -33,6 +40,17 @@ pub(super) struct NativeAdapterAtlasResidencyProfile {
     pub(super) active_logical_rgba_texel_bytes: Option<u64>,
     pub(super) quarantined_resident_count: Option<usize>,
     pub(super) quarantined_logical_rgba_texel_bytes: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeAdapterRenderCanvasUploadProfile {
+    pub(super) adapter_generation: Option<adapter::NativeAdapterGeneration>,
+    pub(super) immutable_payload_operations: Option<usize>,
+    pub(super) immutable_payload_logical_bytes: Option<u64>,
+    pub(super) volatile_payload_operations: Option<usize>,
+    pub(super) volatile_payload_logical_bytes: Option<u64>,
+    pub(super) renderer_parameter_operations: Option<usize>,
+    pub(super) renderer_parameter_logical_bytes: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -166,10 +184,10 @@ use frame_scheduler::{
     NativeFrameScheduler,
 };
 use frame_state::NativeVelloFrameState;
-use gpu_surface::GpuSurfaceRenderer;
 pub use gpu_surface::{
     GpuSurfaceOcclusionPlanningScratch, plan_gpu_surface_occlusion_for_diagnostics,
 };
+use gpu_surface::{GpuSurfaceRenderCanvasUploadStats, GpuSurfaceRenderer};
 pub(in crate::gui_runtime::native_vello) use gpu_surface::{
     SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing_in_viewport,
     surface_rect_has_visible_region_in_viewport,

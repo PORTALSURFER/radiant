@@ -16,5 +16,5 @@
 | Runtime, effects, and scheduling | 100% |
 | Rendering, invalidation, retained GPU surfaces | 77.5% |
 | Platform, windowing, and host boundaries | 66% |
-| Diagnostics, profiling, and performance validation | 83% |
+| Diagnostics, profiling, and performance validation | 84% |
 | Examples, documentation, and CI guardrails | 87.5% |

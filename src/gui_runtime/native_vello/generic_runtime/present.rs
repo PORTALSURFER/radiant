@@ -3,10 +3,11 @@ use super::native_encode_present::NativeEncodePresentPath;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::{
     CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner,
-    NativeAdapterAtlasResidencyProfile, NativeRenderProfileGpuSurface, RenderFrameProfile,
-    RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
-    maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
-    reveal_window_after_first_present, slow_render_profile_enabled,
+    NativeAdapterAtlasResidencyProfile, NativeAdapterRenderCanvasUploadProfile,
+    NativeRenderProfileGpuSurface, RenderFrameProfile, RenderSurfacePixelSize,
+    hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
+    post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
+    slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -292,10 +293,18 @@ where
             }
             self.core.runtime.commit_gpu_shader_presentation_updates();
             profile.frame_sequence = self.timing.allocate_frame_sequence();
+            self.refresh_atlas_residency_account(adapter);
+            self.contribute_render_canvas_uploads(
+                adapter,
+                profile.frame_sequence,
+                Default::default(),
+            );
             let input_to_present_latency_us =
                 self.timing.take_input_to_present_latency_us(Instant::now());
             let application_atlas_residency =
                 self.capture_atlas_residency_profile(adapter, profile_enabled);
+            let application_render_canvas_uploads =
+                self.capture_render_canvas_upload_profile(adapter, profile_enabled);
             self.finish_direct_resize_present(
                 render_to_texture_elapsed,
                 profile,
@@ -304,6 +313,7 @@ where
                 frame_work,
                 input_to_present_latency_us,
                 application_atlas_residency,
+                application_render_canvas_uploads,
             );
             return Ok(NativeVisualRequestDisposition::Presented);
         }
@@ -462,6 +472,16 @@ where
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         self.core.runtime.commit_gpu_shader_presentation_updates();
+        profile.submit_present = elapsed;
+        profile.frame_sequence = self.timing.allocate_frame_sequence();
+        self.refresh_atlas_residency_account(adapter);
+        self.contribute_render_canvas_uploads(
+            adapter,
+            profile.frame_sequence,
+            gpu_surface_stats.render_canvas_uploads,
+        );
+        let application_render_canvas_uploads =
+            self.capture_render_canvas_upload_profile(adapter, profile_enabled);
         let timing_readback_submitted =
             if let Some(GpuTimingAdmission::Reserved(reservation)) = gpu_timing_admission {
                 self.window
@@ -474,8 +494,6 @@ where
         if !timing_readback_submitted {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
         }
-        profile.submit_present = elapsed;
-        profile.frame_sequence = self.timing.allocate_frame_sequence();
         self.finalize_native_gpu_timing(gpu_timing_admission.take(), profile.frame_sequence);
         let now = Instant::now();
         let input_to_present_latency_us = self.timing.take_input_to_present_latency_us(now);
@@ -504,6 +522,7 @@ where
                     stats: gpu_surface_stats,
                     atlas_residency: self.window.atlas_residency_snapshots(),
                     application_atlas_residency,
+                    application_render_canvas_uploads,
                 },
                 since_last_present,
             );
@@ -514,6 +533,7 @@ where
             render_to_texture_elapsed,
             profile,
             gpu_surface_stats,
+            application_render_canvas_uploads,
             since_last_present,
         );
         let frame_refresh = self.core.runtime.take_frame_refresh_diagnostics();
@@ -621,6 +641,7 @@ where
         frame_work: super::FrameWork,
         input_to_present_latency_us: Option<u64>,
         application_atlas_residency: NativeAdapterAtlasResidencyProfile,
+        application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
     ) {
         let text_stats = if profile_enabled || diagnostics_requested {
             self.frame.text_renderer.take_layout_profile_counters()
@@ -641,6 +662,7 @@ where
                     stats: gpu_surface_stats,
                     atlas_residency: self.window.atlas_residency_snapshots(),
                     application_atlas_residency,
+                    application_render_canvas_uploads,
                 },
                 since_last_present,
             );
@@ -651,6 +673,7 @@ where
             render_to_texture_elapsed,
             profile,
             gpu_surface_stats,
+            application_render_canvas_uploads,
             since_last_present,
         );
         let frame_refresh = self.core.runtime.take_frame_refresh_diagnostics();

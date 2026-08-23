@@ -3,7 +3,8 @@
 use super::runner_state::NativeWindowAtlasResidencySnapshots;
 use super::{
     GpuSurfaceAtlasResidencySnapshot, NativeAdapterAtlasResidencyProfile,
-    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    NativeAdapterRenderCanvasUploadProfile, RetainedSurfaceEncodeStats,
+    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -54,6 +55,7 @@ pub(super) struct NativeRenderProfileGpuSurface {
     pub(super) stats: GpuSurfaceRenderStats,
     pub(super) atlas_residency: NativeWindowAtlasResidencySnapshots,
     pub(super) application_atlas_residency: NativeAdapterAtlasResidencyProfile,
+    pub(super) application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -91,6 +93,7 @@ pub(super) fn maybe_log_render_profile(
         stats: gpu_surface_stats,
         atlas_residency,
         application_atlas_residency,
+        application_render_canvas_uploads,
     } = gpu_surface;
     let active_atlas = project_atlas_residency(atlas_residency.active);
     let quarantine_0_atlas = project_atlas_residency(atlas_residency.quarantine_0);
@@ -156,6 +159,26 @@ pub(super) fn maybe_log_render_profile(
             application_atlas_residency.quarantined_resident_count,
         gpu_surface_atlas_application_quarantined_logical_rgba_bytes =
             application_atlas_residency.quarantined_logical_rgba_texel_bytes,
+        gpu_surface_render_canvas_upload_application_adapter_generation_known =
+            application_render_canvas_uploads
+                .adapter_generation
+                .map(|generation| generation.is_known()),
+        gpu_surface_render_canvas_upload_application_adapter_generation_serial =
+            application_render_canvas_uploads
+                .adapter_generation
+                .and_then(|generation| generation.known_serial()),
+        gpu_surface_render_canvas_upload_application_immutable_payload_operations =
+            application_render_canvas_uploads.immutable_payload_operations,
+        gpu_surface_render_canvas_upload_application_immutable_payload_bytes =
+            application_render_canvas_uploads.immutable_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_application_volatile_payload_operations =
+            application_render_canvas_uploads.volatile_payload_operations,
+        gpu_surface_render_canvas_upload_application_volatile_payload_bytes =
+            application_render_canvas_uploads.volatile_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_application_renderer_parameter_operations =
+            application_render_canvas_uploads.renderer_parameter_operations,
+        gpu_surface_render_canvas_upload_application_renderer_parameter_bytes =
+            application_render_canvas_uploads.renderer_parameter_logical_bytes,
         gpu_surface_render_canvas_upload_immutable_payload_operations =
             render_canvas_uploads.immutable_payload.operations,
         gpu_surface_render_canvas_upload_immutable_payload_bytes =
@@ -235,6 +258,7 @@ pub(super) fn maybe_log_slow_render_profile(
     render_to_texture_elapsed: Duration,
     frame: RenderFrameProfile,
     gpu_surface_stats: GpuSurfaceRenderStats,
+    application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
     since_last_present: Duration,
 ) {
     if !slow_render_profile_enabled() {
@@ -283,6 +307,26 @@ pub(super) fn maybe_log_slow_render_profile(
         gpu_signal_body_renders = gpu_surface_stats.signal.body_renders,
         gpu_signal_body_cache_hits = gpu_surface_stats.signal.body_cache_hits,
         gpu_signal_body_encode_us = gpu_surface_stats.signal.body_encode_elapsed.as_micros(),
+        gpu_surface_render_canvas_upload_application_adapter_generation_known =
+            application_render_canvas_uploads
+                .adapter_generation
+                .map(|generation| generation.is_known()),
+        gpu_surface_render_canvas_upload_application_adapter_generation_serial =
+            application_render_canvas_uploads
+                .adapter_generation
+                .and_then(|generation| generation.known_serial()),
+        gpu_surface_render_canvas_upload_application_immutable_payload_operations =
+            application_render_canvas_uploads.immutable_payload_operations,
+        gpu_surface_render_canvas_upload_application_immutable_payload_bytes =
+            application_render_canvas_uploads.immutable_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_application_volatile_payload_operations =
+            application_render_canvas_uploads.volatile_payload_operations,
+        gpu_surface_render_canvas_upload_application_volatile_payload_bytes =
+            application_render_canvas_uploads.volatile_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_application_renderer_parameter_operations =
+            application_render_canvas_uploads.renderer_parameter_operations,
+        gpu_surface_render_canvas_upload_application_renderer_parameter_bytes =
+            application_render_canvas_uploads.renderer_parameter_logical_bytes,
         gpu_surface_render_canvas_upload_immutable_payload_operations = render_canvas_uploads
             .immutable_payload
             .operations,

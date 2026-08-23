@@ -29,6 +29,7 @@ use gpu_surface_types::{GpuSurfacePipeline, SignalPipeline};
 use resources::GpuSurfaceResourceCache;
 #[cfg(test)]
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
+pub(super) use stats::GpuSurfaceRenderCanvasUploadStats;
 pub(super) use stats::GpuSurfaceRenderStats;
 pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
 pub use visibility::{

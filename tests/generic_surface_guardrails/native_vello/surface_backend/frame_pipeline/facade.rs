@@ -345,14 +345,9 @@ fn native_present_contributes_uploads_only_after_successful_ticket_completion() 
         .match_indices("self.contribute_render_canvas_uploads(")
         .map(|(offset, _)| offset)
         .collect();
-    let refreshes: Vec<_> = redraw
-        .match_indices("self.refresh_atlas_residency_account(adapter);")
-        .map(|(offset, _)| offset)
-        .collect();
 
     assert_eq!(completions.len(), 2);
     assert_eq!(contributions.len(), 2);
-    assert_eq!(refreshes.len(), 2);
     assert!(
         completions
             .iter()
@@ -360,16 +355,21 @@ fn native_present_contributes_uploads_only_after_successful_ticket_completion() 
             .all(|(completion, contribution)| completion < contribution),
         "upload totals must be committed only after the matching present ticket completes"
     );
-    assert!(
-        completions
-            .iter()
-            .zip(refreshes.iter())
-            .zip(contributions.iter())
-            .all(|((completion, refresh), contribution)| {
-                completion < refresh && refresh < contribution
-            }),
-        "upload accounts must synchronize after ticket completion and before contribution"
-    );
+    for forbidden in [
+        "self.refresh_atlas_residency_account(adapter);",
+        "refresh_render_canvas_upload_account(",
+        "synchronize_render_canvas_upload_account(",
+        "register_render_canvas_upload_account(",
+        "update_render_canvas_upload_account(",
+        "rebind_render_canvas_upload_account(",
+        "remove_render_canvas_upload_account(",
+        "recompute_aggregate(",
+    ] {
+        assert!(
+            !redraw.contains(forbidden),
+            "redraw must not perform render-upload lifecycle synchronization or aggregate recomputation: {forbidden}"
+        );
+    }
 
     let direct = &redraw[contributions[0]..contributions[1]];
     let composited = &redraw[contributions[1]..];

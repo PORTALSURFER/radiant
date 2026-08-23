@@ -726,6 +726,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             return false;
         }
         self.runner.refresh_atlas_residency_account(adapter);
+        self.runner.refresh_render_canvas_upload_account(adapter);
         true
     }
 
@@ -827,6 +828,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         };
         publication.publish(native_resources);
         self.runner.refresh_atlas_residency_account(adapter);
+        self.runner.refresh_render_canvas_upload_account(adapter);
         self.runner.complete_native_recovery_target_transition();
         self.runner.frame.invalidate_native_resources_for_recovery();
 
@@ -924,12 +926,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             let empty = self.runner.retire_native_resources_with_turn(turn);
             if let Some(adapter) = adapter {
                 self.runner.refresh_atlas_residency_account(adapter);
+                self.runner.refresh_render_canvas_upload_account(adapter);
             }
             return empty;
         }
         self.runner.maintain_native_resources_with_turn(turn);
         if let Some(adapter) = adapter {
             self.runner.refresh_atlas_residency_account(adapter);
+            self.runner.refresh_render_canvas_upload_account(adapter);
         }
         false
     }
@@ -1077,6 +1081,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         );
         if admitted {
             self.runner.refresh_atlas_residency_account(adapter);
+            self.runner.refresh_render_canvas_upload_account(adapter);
         }
         admitted
     }

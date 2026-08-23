@@ -649,7 +649,6 @@ struct NativeAdapterRenderCanvasUploadAccount {
 pub(super) struct NativeAdapterRenderCanvasUploadLedger {
     accounts: HashMap<NativeAtlasResidencyWindowIdentity, NativeAdapterRenderCanvasUploadAccount>,
     next_account_generation: Option<u64>,
-    known_adapter_generations: Vec<NativeAdapterGeneration>,
     current_adapter_generation: NativeAdapterGeneration,
     aggregate: NativeAdapterRenderCanvasUploadAggregate,
 }
@@ -659,7 +658,6 @@ impl Default for NativeAdapterRenderCanvasUploadLedger {
         Self {
             accounts: HashMap::new(),
             next_account_generation: Some(1),
-            known_adapter_generations: Vec::new(),
             current_adapter_generation: NativeAdapterGeneration::default(),
             aggregate: NativeAdapterRenderCanvasUploadAggregate {
                 immutable_payload_operations: Some(0),
@@ -681,22 +679,8 @@ impl NativeAdapterRenderCanvasUploadLedger {
     }
 
     fn record_adapter_generation(&mut self, generation: NativeAdapterGeneration) {
-        if generation.is_known() && !self.known_adapter_generations.contains(&generation) {
-            self.known_adapter_generations.push(generation);
-        }
         self.current_adapter_generation = generation;
         self.recompute_aggregate();
-    }
-
-    fn prune_known_adapter_generations(&mut self) {
-        let current_adapter_generation = self.current_adapter_generation;
-        let accounts = &self.accounts;
-        self.known_adapter_generations.retain(|generation| {
-            *generation == current_adapter_generation
-                || accounts
-                    .values()
-                    .any(|account| account.adapter_generation == *generation)
-        });
     }
 
     fn register(
@@ -724,19 +708,14 @@ impl NativeAdapterRenderCanvasUploadLedger {
                 last_contributed_frame_sequence: None,
             },
         );
-        self.recompute_aggregate();
         Some(token)
     }
 
-    fn update(&mut self, token: &NativeAdapterRenderCanvasUploadAccountToken) -> bool {
+    fn update(&self, token: &NativeAdapterRenderCanvasUploadAccountToken) -> bool {
         let Some(account) = self.accounts.get(&token.window_identity) else {
             return false;
         };
-        if !self.account_is_current(account, token) {
-            return false;
-        }
-        self.recompute_aggregate();
-        true
+        self.account_is_current(account, token)
     }
 
     fn rebind(
@@ -788,32 +767,30 @@ impl NativeAdapterRenderCanvasUploadLedger {
         stats: GpuSurfaceRenderCanvasUploadStats,
     ) -> bool {
         let current_adapter_generation = self.current_adapter_generation;
-        let current_generation_is_known = self
-            .known_adapter_generations
-            .contains(&current_adapter_generation);
-        let Some(account) = self.accounts.get_mut(&token.window_identity) else {
-            return false;
-        };
-        if account.account_generation != token.account_generation
-            || account.adapter_generation != token.adapter_generation
-            || !current_generation_is_known
-            || token.adapter_generation != current_adapter_generation
-            || account
-                .last_contributed_frame_sequence
-                .is_some_and(|last| frame_sequence <= last)
         {
-            return false;
+            let Some(account) = self.accounts.get_mut(&token.window_identity) else {
+                return false;
+            };
+            if account.account_generation != token.account_generation
+                || account.adapter_generation != token.adapter_generation
+                || !current_adapter_generation.is_known()
+                || token.adapter_generation != current_adapter_generation
+                || account
+                    .last_contributed_frame_sequence
+                    .is_some_and(|last| frame_sequence <= last)
+            {
+                return false;
+            }
+
+            account.last_contributed_frame_sequence = Some(frame_sequence);
+            accumulate_render_canvas_uploads(&mut account.totals, stats);
         }
-        account.last_contributed_frame_sequence = Some(frame_sequence);
-        accumulate_render_canvas_uploads(&mut account.totals, stats);
-        self.recompute_aggregate();
+        accumulate_render_canvas_uploads(&mut self.aggregate, stats);
         true
     }
 
     fn is_current_known_adapter_generation(&self, generation: NativeAdapterGeneration) -> bool {
-        generation.is_known()
-            && generation == self.current_adapter_generation
-            && self.known_adapter_generations.contains(&generation)
+        generation.is_known() && generation == self.current_adapter_generation
     }
 
     fn account_is_current(
@@ -842,7 +819,6 @@ impl NativeAdapterRenderCanvasUploadLedger {
     }
 
     fn recompute_aggregate(&mut self) {
-        self.prune_known_adapter_generations();
         let mut aggregate = NativeAdapterRenderCanvasUploadAggregate {
             immutable_payload_operations: Some(0),
             immutable_payload_logical_bytes: Some(0),
@@ -1183,7 +1159,7 @@ impl GenericNativeAdapterOwner {
     }
 
     pub(super) fn update_render_canvas_upload_account(
-        &mut self,
+        &self,
         token: &NativeAdapterRenderCanvasUploadAccountToken,
     ) -> bool {
         self.render_canvas_upload_ledger.update(token)

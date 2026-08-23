@@ -293,7 +293,6 @@ where
             }
             self.core.runtime.commit_gpu_shader_presentation_updates();
             profile.frame_sequence = self.timing.allocate_frame_sequence();
-            self.refresh_atlas_residency_account(adapter);
             self.contribute_render_canvas_uploads(
                 adapter,
                 profile.frame_sequence,
@@ -474,7 +473,6 @@ where
         self.core.runtime.commit_gpu_shader_presentation_updates();
         profile.submit_present = elapsed;
         profile.frame_sequence = self.timing.allocate_frame_sequence();
-        self.refresh_atlas_residency_account(adapter);
         self.contribute_render_canvas_uploads(
             adapter,
             profile.frame_sequence,

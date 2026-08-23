@@ -376,12 +376,11 @@ where
         }
     }
 
-    /// Synchronize the adapter-owned application accounts with the physical
+    /// Synchronize the adapter-owned atlas-residency account with the physical
     /// active/quarantine bundles currently retained by this runner. The atlas
     /// snapshot is fixed active/Q0/Q1 bookkeeping rather than a resource-map
     /// traversal. Profile-enabled presentation calls this after cache
-    /// mutations; successful presentation calls it before upload contribution;
-    /// lifecycle transitions call it unconditionally.
+    /// mutations; lifecycle transitions call it unconditionally.
     pub(super) fn refresh_atlas_residency_account(
         &mut self,
         adapter: &mut GenericNativeAdapterOwner,
@@ -394,6 +393,27 @@ where
             {
                 self.atlas_residency_account = None;
             }
+            return;
+        }
+
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return;
+        };
+        let snapshots: NativeWindowAtlasResidencySnapshots =
+            self.window.atlas_residency_snapshots();
+        self.synchronize_atlas_residency_account(adapter, adapter_generation, snapshots);
+    }
+
+    /// Synchronize the adapter-owned render-canvas upload account at resource
+    /// and lifecycle boundaries. Successful presentation only contributes to
+    /// the already-bound account.
+    pub(super) fn refresh_render_canvas_upload_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        let resources_empty = self.window.native_resources.is_none()
+            && self.window.quarantined_native_resources.is_empty();
+        if resources_empty {
             if let Some(token) = self.render_canvas_upload_account.as_ref()
                 && adapter.remove_render_canvas_upload_account(token)
             {
@@ -405,9 +425,6 @@ where
         let Some(adapter_generation) = adapter.capture_generation() else {
             return;
         };
-        let snapshots: NativeWindowAtlasResidencySnapshots =
-            self.window.atlas_residency_snapshots();
-        self.synchronize_atlas_residency_account(adapter, adapter_generation, snapshots);
         self.synchronize_render_canvas_upload_account(adapter, adapter_generation);
     }
 
@@ -1785,6 +1802,7 @@ where
         let mut adapter = self.adapter.take();
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_render_canvas_upload_account(adapter);
         }
         self.adapter = adapter;
         if !self.frame_stage_owner.complete_maintenance(ticket) {
@@ -1817,6 +1835,7 @@ where
         self.window.maintain_native_resources(turn);
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
             .auxiliary_windows
@@ -1901,6 +1920,7 @@ where
         let primary_empty = self.retire_native_resources_with_turn(turn);
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
             .auxiliary_windows
@@ -2155,6 +2175,7 @@ where
         };
         publication.publish(candidate.bundle);
         self.refresh_atlas_residency_account(adapter);
+        self.refresh_render_canvas_upload_account(adapter);
         self.window.target_generation = admission.next_target_generation;
         self.window.native_surface_target_fenced = false;
         self.frame.invalidate_native_resources_for_recovery();
@@ -2627,6 +2648,7 @@ where
         };
         publication.publish(primary);
         self.refresh_atlas_residency_account(&mut previous_adapter);
+        self.refresh_render_canvas_upload_account(&mut previous_adapter);
         adapter.adopt_atlas_residency_ledger(&mut previous_adapter);
         adapter.adopt_render_canvas_upload_ledger(&mut previous_adapter);
         self.adapter = Some(adapter);
@@ -2636,6 +2658,7 @@ where
             ));
         };
         self.refresh_atlas_residency_account(&mut adapter);
+        self.refresh_render_canvas_upload_account(&mut adapter);
         self.adapter = Some(adapter);
         self.complete_native_recovery_target_transition();
         self.frame.invalidate_native_resources_for_recovery();

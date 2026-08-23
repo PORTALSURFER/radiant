@@ -216,6 +216,10 @@ where
 
     pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) -> GenericRouteOutcome {
         self.clear_native_visual_request_wake_timing();
+        // Record normal-window activation before the exact transient ticket is
+        // completed. Native visibility and visual-mailbox work are applied by
+        // the lifecycle caller only after that completion fence holds.
+        self.record_normal_window_activation_intent("focus-regained");
         let mut outcome = GenericRouteOutcome::default();
         outcome.request_frame_work(FrameWork::PaintOnly {
             reason: FrameWorkReason::NativeFocusRegained,

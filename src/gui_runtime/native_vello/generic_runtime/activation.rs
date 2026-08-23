@@ -62,6 +62,13 @@ enum PendingReveal {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NormalWindowActivationObservation {
+    Ignored,
+    Pending,
+    Ready,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ApplicationActivationMethod {
     Modern,
     Compatibility,
@@ -83,6 +90,8 @@ pub(super) struct ActivationRevealController {
     launch_foreground_process: Option<i32>,
     application_process: Option<i32>,
     pending: PendingReveal,
+    initial_reveal_complete: bool,
+    normal_window_activation_pending: bool,
 }
 
 impl ActivationRevealController {
@@ -92,6 +101,8 @@ impl ActivationRevealController {
             launch_foreground_process: platform::frontmost_process_id(),
             application_process: i32::try_from(std::process::id()).ok(),
             pending: PendingReveal::None,
+            initial_reveal_complete: false,
+            normal_window_activation_pending: false,
         }
     }
 
@@ -105,7 +116,48 @@ impl ActivationRevealController {
             launch_foreground_process,
             application_process: Some(7),
             pending: PendingReveal::None,
+            initial_reveal_complete: false,
+            normal_window_activation_pending: false,
         }
+    }
+
+    pub(super) fn mark_initial_reveal_complete(&mut self) {
+        if self.policy == StartupActivationPolicy::DelayedNormalWindow {
+            self.initial_reveal_complete = true;
+            self.normal_window_activation_pending = false;
+        }
+    }
+
+    pub(super) const fn initial_reveal_complete(&self) -> bool {
+        self.initial_reveal_complete
+    }
+
+    pub(super) const fn is_normal_window_steady_state(&self) -> bool {
+        matches!(self.policy, StartupActivationPolicy::DelayedNormalWindow)
+            && self.initial_reveal_complete
+    }
+
+    pub(super) fn observe_normal_window_activation(
+        &mut self,
+        application_active: bool,
+    ) -> NormalWindowActivationObservation {
+        if !self.is_normal_window_steady_state() {
+            return NormalWindowActivationObservation::Ignored;
+        }
+        self.normal_window_activation_pending = true;
+        if application_active {
+            NormalWindowActivationObservation::Ready
+        } else {
+            NormalWindowActivationObservation::Pending
+        }
+    }
+
+    pub(super) const fn normal_window_activation_pending(&self) -> bool {
+        self.normal_window_activation_pending
+    }
+
+    pub(super) fn consume_normal_window_activation(&mut self) {
+        self.normal_window_activation_pending = false;
     }
 
     pub(super) fn surface_ready(
@@ -300,16 +352,33 @@ where
             self.record_application_active("activation-confirmed");
             self.reveal_prepared_window("activation-confirmed");
         }
+        self.apply_pending_normal_window_activation("activation-confirmed");
     }
 
     pub(super) fn handle_application_reopen_intent(&mut self) {
         let application_active = platform::application_is_active();
-        if self
-            .activation_reveal
-            .observe_user_reopen(application_active)
-        {
-            self.record_application_active("user-reopen");
-            self.reveal_prepared_window("user-reopen");
+        if !self.activation_reveal.initial_reveal_complete() {
+            if self
+                .activation_reveal
+                .observe_user_reopen(application_active && self.is_running())
+                && self.is_running()
+            {
+                self.record_application_active("user-reopen");
+                self.reveal_prepared_window("user-reopen");
+            } else {
+                info!(
+                    target: "radiant::native::activation",
+                    event = "radiant.window.activation.user-intent",
+                    application_active,
+                    "Radiant observed an explicit application reopen intent"
+                );
+            }
+            return;
+        }
+
+        if !self.is_auxiliary_owner() {
+            self.record_normal_window_activation_intent("user-reopen");
+            self.apply_pending_normal_window_activation("user-reopen");
         } else {
             info!(
                 target: "radiant::native::activation",
@@ -365,13 +434,53 @@ where
         );
     }
 
+    pub(super) fn record_normal_window_activation_intent(&mut self, source: &'static str) {
+        if self.is_auxiliary_owner()
+            || matches!(
+                self.activation_reveal
+                    .observe_normal_window_activation(platform::application_is_active()),
+                NormalWindowActivationObservation::Ignored
+            )
+        {
+            return;
+        }
+        info!(
+            target: "radiant::native::activation",
+            event = "radiant.window.activation.intent",
+            source,
+            "Radiant retained an explicit normal-window activation intent"
+        );
+    }
+
+    pub(super) fn apply_pending_normal_window_activation(&mut self, source: &'static str) {
+        if self.is_auxiliary_owner()
+            || !self.is_running()
+            || !self.activation_reveal.normal_window_activation_pending()
+            || !platform::application_is_active()
+            || !self.native_visual_request_offer_is_eligible()
+        {
+            return;
+        }
+        self.set_native_window_visibility(true);
+        self.clear_stale_acquisition_occlusion_for_activation();
+        self.request_redraw_for_frame_work(FrameWork::PaintOnly {
+            reason: FrameWorkReason::NativeFocusRegained,
+        });
+        self.activation_reveal.consume_normal_window_activation();
+        info!(
+            target: "radiant::native::activation",
+            event = "radiant.window.activation.applied",
+            source,
+            "Radiant applied a bounded normal-window activation wake"
+        );
+    }
+
     fn reveal_prepared_window(&mut self, reason: &'static str) {
         if self.window.window.is_none() {
             return;
         }
-        self.application_reopen_events.take();
-        self.application_reopen_proxy.take();
         self.set_native_window_visibility(true);
+        self.activation_reveal.mark_initial_reveal_complete();
         self.timing.startup_timing.mark_window_revealed();
         info!(
             target: "radiant::native::activation",

@@ -292,3 +292,48 @@ fn focused_popup_activation_is_explicit() {
     );
     assert!(policy.activate_ignoring_other_apps_at_launch());
 }
+
+#[test]
+fn normal_window_reopen_activation_is_steady_state_only_and_coalesces() {
+    let mut controller = activation::ActivationRevealController::with_launch_foreground_process(
+        activation::StartupActivationPolicy::DelayedNormalWindow,
+        Some(41),
+    );
+
+    assert_eq!(
+        controller.observe_normal_window_activation(true),
+        activation::NormalWindowActivationObservation::Ignored
+    );
+    controller.mark_initial_reveal_complete();
+    assert_eq!(
+        controller.observe_normal_window_activation(false),
+        activation::NormalWindowActivationObservation::Pending
+    );
+    assert_eq!(
+        controller.observe_normal_window_activation(true),
+        activation::NormalWindowActivationObservation::Ready
+    );
+    assert!(controller.normal_window_activation_pending());
+
+    controller.consume_normal_window_activation();
+    assert!(!controller.normal_window_activation_pending());
+}
+
+#[test]
+fn popup_and_passive_activation_never_enter_normal_window_steady_state() {
+    for policy in [
+        activation::StartupActivationPolicy::EagerFocusedPopup,
+        activation::StartupActivationPolicy::Passive,
+    ] {
+        let mut controller = activation::ActivationRevealController::with_launch_foreground_process(
+            policy,
+            Some(41),
+        );
+        controller.mark_initial_reveal_complete();
+        assert_eq!(
+            controller.observe_normal_window_activation(true),
+            activation::NormalWindowActivationObservation::Ignored
+        );
+        assert!(!controller.normal_window_activation_pending());
+    }
+}

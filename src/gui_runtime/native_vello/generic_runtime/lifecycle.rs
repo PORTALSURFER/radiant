@@ -109,6 +109,9 @@ where
         event: WindowEvent,
     ) {
         if !self.is_running() {
+            if Some(window_id) == self.window.id && matches!(&event, WindowEvent::Focused(true)) {
+                self.record_normal_window_activation_intent("focus-regained-during-lifecycle");
+            }
             return;
         }
         let native_interactive_arrival = (self.frame_diagnostics_enabled
@@ -370,6 +373,7 @@ where
                 let routed = self.handle_focus_regained_after_native_modal_loop();
                 if let Some(routed) = self.complete_native_immediate_transient_route(ticket, routed)
                 {
+                    self.apply_pending_normal_window_activation("focus-regained");
                     self.handle_route_outcome(event_loop, routed);
                     #[cfg(target_os = "macos")]
                     self.republish_native_semantic_accessibility_passively();
@@ -648,8 +652,8 @@ where
                 }
             }
             RuntimeUserEvent::ApplicationReopenRequested => {
+                self.handle_application_reopen_intent();
                 if self.is_running() {
-                    self.handle_application_reopen_intent();
                     self.observe_pending_window_activation();
                 }
             }

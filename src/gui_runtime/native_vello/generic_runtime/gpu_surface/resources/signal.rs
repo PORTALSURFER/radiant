@@ -19,6 +19,7 @@ pub(crate) use summary::CachedSignalSummaryRequest;
 pub(crate) struct EnsureSignalBufferRequest<'a> {
     pub(crate) device: &'a wgpu::Device,
     pub(crate) queue: &'a wgpu::Queue,
+    pub(crate) stats: &'a mut GpuSurfaceRenderStats,
     pub(crate) key: u64,
     pub(crate) cache_key: SignalBufferCacheKey,
     pub(crate) content_owner: RenderCanvasContentOwner,
@@ -105,6 +106,7 @@ impl GpuSurfaceRenderer {
         let EnsureSignalBufferRequest {
             device,
             queue,
+            stats,
             key,
             cache_key,
             content_owner,
@@ -117,26 +119,34 @@ impl GpuSurfaceRenderer {
                 && buffer.sample_count == sample_count
                 && buffer.pipeline_generation == self.signal_pipeline_generation
         }) {
-            queue.write_buffer(
-                &buffer.uniform_buffer,
-                0,
-                signal_uniforms_as_bytes(uniforms),
-            );
+            let uniform_bytes = signal_uniforms_as_bytes(uniforms);
+            queue.write_buffer(&buffer.uniform_buffer, 0, uniform_bytes);
+            stats
+                .render_canvas_uploads
+                .record_renderer_parameter(uniform_bytes.len());
             return;
         }
         let Some(pipeline) = self.signal_pipeline.as_ref() else {
             return;
         };
+        let bucket_bytes = summary_bucket_bytes(buckets);
         let sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_summary_buckets"),
-            contents: summary_bucket_bytes(buckets),
+            contents: bucket_bytes,
             usage: wgpu::BufferUsages::STORAGE,
         });
+        stats
+            .render_canvas_uploads
+            .record_immutable_payload(bucket_bytes.len());
+        let uniform_bytes = signal_uniforms_as_bytes(uniforms);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_uniforms"),
-            contents: signal_uniforms_as_bytes(uniforms),
+            contents: uniform_bytes,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+        stats
+            .render_canvas_uploads
+            .record_renderer_parameter(uniform_bytes.len());
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("radiant_gpu_signal_bind_group"),
             layout: &pipeline.bind_group_layout,

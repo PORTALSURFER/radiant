@@ -68,6 +68,19 @@ pub(super) enum NativeEncodePresentPath {
     Composited,
 }
 
+/// Copyable identity bound to the admitted encode/present operation. Private
+/// upload-plan evidence carries this value so it cannot be confused with work
+/// from another packet, target, lifecycle, or snapshot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativeEncodePresentPlanContext {
+    pub(super) packet: NativeVisualRequestIdentity,
+    pub(super) adapter_generation: NativeAdapterGeneration,
+    pub(super) target_generation: NativeTargetGeneration,
+    pub(super) lifecycle: NativeLifecycle,
+    pub(super) path: NativeEncodePresentPath,
+    pub(super) snapshot_revision: NonZeroU64,
+}
+
 /// Owned admission evidence captured immediately before ticket creation.
 pub(super) struct NativeEncodePresentAdmission {
     pub(super) packet: NativeVisualRequestIdentity,
@@ -144,6 +157,17 @@ impl NativeEncodePresentTicket {
 
     pub(super) fn snapshot_revision(&self) -> &NativeFrameSnapshotRevision {
         &self.snapshot_revision
+    }
+
+    pub(super) fn plan_context(&self) -> NativeEncodePresentPlanContext {
+        NativeEncodePresentPlanContext {
+            packet: self.packet,
+            adapter_generation: self.adapter_generation,
+            target_generation: self.target_generation,
+            lifecycle: self.lifecycle,
+            path: self.path,
+            snapshot_revision: self.snapshot_revision.0,
+        }
     }
 
     pub(super) fn into_stage_ticket(self) -> EncodePresentStageTicket {

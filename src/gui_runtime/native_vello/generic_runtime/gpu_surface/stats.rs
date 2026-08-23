@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use super::upload_plan::{
+    GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
+    GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+};
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) atlas: GpuSurfaceAtlasRenderStats,
@@ -7,6 +12,45 @@ pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) composite: GpuSurfaceCompositeRenderStats,
     pub(crate) custom_shader: GpuSurfaceCustomShaderRenderStats,
     pub(crate) render_canvas_uploads: GpuSurfaceRenderCanvasUploadStats,
+    pub(crate) render_canvas_upload_plan: Option<GpuSurfaceRenderCanvasUploadPlan>,
+}
+
+impl GpuSurfaceRenderStats {
+    pub(crate) fn with_upload_plan(
+        context: Option<GpuSurfaceRenderCanvasUploadPlanContext>,
+    ) -> Self {
+        Self {
+            render_canvas_upload_plan: context.map(GpuSurfaceRenderCanvasUploadPlan::new),
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn record_candidate_immutable_payload(&mut self, byte_len: usize) {
+        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
+            plan.record_immutable_payload(byte_len);
+        }
+    }
+
+    pub(crate) fn record_candidate_volatile_payload(&mut self, byte_len: usize) {
+        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
+            plan.record_volatile_payload(byte_len);
+        }
+    }
+
+    pub(crate) fn record_candidate_renderer_parameter(&mut self, byte_len: usize) {
+        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
+            plan.record_renderer_parameter(byte_len);
+        }
+    }
+
+    pub(crate) fn mark_candidate_unavailable(
+        &mut self,
+        reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+    ) {
+        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
+            plan.mark_unavailable(reason);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -173,6 +217,13 @@ mod tests {
 
         assert_eq!(stats.atlas.texture_uploads, 0);
         assert_eq!(stats.atlas.texture_cache_hits, 0);
+    }
+
+    #[test]
+    fn disabled_upload_plan_collection_keeps_candidate_absent() {
+        let stats = GpuSurfaceRenderStats::with_upload_plan(None);
+
+        assert!(stats.render_canvas_upload_plan.is_none());
     }
 
     #[test]

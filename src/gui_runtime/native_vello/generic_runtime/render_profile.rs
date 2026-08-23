@@ -99,6 +99,7 @@ pub(super) fn maybe_log_render_profile(
     let quarantine_0_atlas = project_atlas_residency(atlas_residency.quarantine_0);
     let quarantine_1_atlas = project_atlas_residency(atlas_residency.quarantine_1);
     let render_canvas_uploads = gpu_surface_stats.render_canvas_uploads;
+    let render_canvas_upload_plan = gpu_surface_stats.render_canvas_upload_plan;
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
     info!(
         reason,
@@ -191,6 +192,7 @@ pub(super) fn maybe_log_render_profile(
             render_canvas_uploads.renderer_parameter.operations,
         gpu_surface_render_canvas_upload_renderer_parameter_bytes =
             render_canvas_uploads.renderer_parameter.logical_bytes,
+        gpu_surface_render_canvas_upload_candidate_plan = ?render_canvas_upload_plan,
         gpu_signal_summary_builds = gpu_surface_stats.signal.summary_builds,
         gpu_signal_summary_cache_hits = gpu_surface_stats.signal.summary_cache_hits,
         refresh_surface_us = frame.refresh_surface.as_micros(),
@@ -266,6 +268,7 @@ pub(super) fn maybe_log_slow_render_profile(
     }
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
     let render_canvas_uploads = gpu_surface_stats.render_canvas_uploads;
+    let render_canvas_upload_plan = gpu_surface_stats.render_canvas_upload_plan;
     let slow_phase_total = [
         frame.coalesced_wheel_route,
         frame.refresh_surface,
@@ -345,6 +348,7 @@ pub(super) fn maybe_log_slow_render_profile(
         gpu_surface_render_canvas_upload_renderer_parameter_bytes = render_canvas_uploads
             .renderer_parameter
             .logical_bytes,
+        gpu_surface_render_canvas_upload_candidate_plan = ?render_canvas_upload_plan,
         gpu_surface_composite_binding_rebuilds = gpu_surface_stats.composite.binding_rebuilds,
         gpu_surface_composite_binding_cache_hits = gpu_surface_stats.composite.binding_cache_hits,
         gpu_surface_composite_encode_us = gpu_surface_stats.composite.encode_elapsed.as_micros(),

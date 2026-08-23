@@ -23,6 +23,7 @@ mod resources;
 mod signal;
 mod signal_pipeline;
 mod stats;
+mod upload_plan;
 mod visibility;
 use active_keys::ActiveGpuSurfaceKeys;
 use gpu_surface_types::{GpuSurfacePipeline, SignalPipeline};
@@ -31,6 +32,10 @@ use resources::GpuSurfaceResourceCache;
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderCanvasUploadStats;
 pub(super) use stats::GpuSurfaceRenderStats;
+use upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
+pub(super) use upload_plan::{
+    GpuSurfaceRenderCanvasUploadPlanContext, GpuSurfaceRenderCanvasUploadTarget,
+};
 pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
 pub use visibility::{
     GpuSurfaceOcclusionPlanningScratch, plan_gpu_surface_occlusion_for_diagnostics,
@@ -63,6 +68,7 @@ pub(super) struct GpuSurfaceRenderTarget<'a> {
     pub(super) format: wgpu::TextureFormat,
     pub(super) size: Vector2,
     pub(super) dpi_scale: crate::theme::DpiScale,
+    pub(super) upload_plan_context: Option<GpuSurfaceRenderCanvasUploadPlanContext>,
 }
 
 impl GpuSurfaceRenderer {
@@ -73,7 +79,7 @@ impl GpuSurfaceRenderer {
         occlusion_plan: &SurfaceOcclusionPlan,
         presentation_updates: &[GpuShaderPresentationUniformUpdate],
     ) -> GpuSurfaceRenderStats {
-        let mut stats = GpuSurfaceRenderStats::default();
+        let mut stats = GpuSurfaceRenderStats::with_upload_plan(target.upload_plan_context);
         let mut occlusion_regions = std::mem::take(&mut self.occlusion_regions);
         self.active_keys.begin_frame();
         for (index, primitive) in primitives.iter().enumerate() {
@@ -81,6 +87,9 @@ impl GpuSurfaceRenderer {
                 continue;
             };
             if !surface.rect.has_finite_positive_area() {
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid,
+                );
                 continue;
             }
             let signal_shape = match &surface.content {
@@ -88,12 +97,18 @@ impl GpuSurfaceRenderer {
                 | GpuSurfaceContent::SignalSummaryBands { .. } => {
                     let Some(shape) = self.validated_signal_render_shape(surface, &mut stats)
                     else {
+                        stats.mark_candidate_unavailable(
+                            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid,
+                        );
                         continue;
                     };
                     Some(shape)
                 }
                 GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
                     if !surface.content.is_renderable() {
+                        stats.mark_candidate_unavailable(
+                            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported,
+                        );
                         continue;
                     }
                     None

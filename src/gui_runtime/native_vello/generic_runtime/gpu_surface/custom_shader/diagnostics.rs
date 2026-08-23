@@ -1,4 +1,5 @@
 use super::super::stats::GpuSurfaceRenderStats;
+use super::super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
 use crate::runtime::GpuShaderSurfaceDescriptor;
 use vello::wgpu;
 
@@ -12,6 +13,8 @@ pub(super) fn record_unsupported_custom_shader(
     descriptor: &GpuShaderSurfaceDescriptor,
     stats: &mut GpuSurfaceRenderStats,
 ) {
+    stats
+        .mark_candidate_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported);
     stats.custom_shader.unsupported.surfaces += 1;
     stats.custom_shader.unsupported.vertices += descriptor.vertex_count as usize;
     stats.custom_shader.unsupported.source_bytes += descriptor
@@ -23,6 +26,7 @@ pub(super) fn record_unsupported_custom_shader(
 }
 
 pub(super) fn record_failed_custom_shader_surface(stats: &mut GpuSurfaceRenderStats) {
+    stats.mark_candidate_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
     stats.custom_shader.failures.surfaces_failed += 1;
 }
 

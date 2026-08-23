@@ -6,6 +6,7 @@ use super::gpu_surface_types::{
 use super::overlays::vertical_overlays;
 use super::passes::{gpu_surface_render_pass, set_surface_scissor, surface_dest};
 use super::stats::GpuSurfaceRenderStats;
+use super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
 use super::visibility::visible_surface_regions;
 use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
 use crate::gui::types::Rect as UiRect;
@@ -33,6 +34,9 @@ impl GpuSurfaceRenderer {
         self.ensure_texture(target.device, target.queue, surface, stats);
         self.ensure_pipeline(target.device, target.format);
         let Some(texture) = self.resources.textures.get(&surface.key) else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
             return;
         };
         let texture_identity = GpuSurfaceTextureIdentity::RgbaAtlas {
@@ -67,6 +71,9 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) {
         let Some(pipeline) = self.pipeline.as_ref() else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
             return;
         };
         let surface = request.surface;
@@ -138,9 +145,13 @@ impl GpuSurfaceRenderer {
             stats.composite.binding_cache_hits += 1;
         }
         let Some(binding) = self.resources.composite_bindings.get(&surface.key) else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
             return;
         };
         let uniform_bytes = uniforms_as_bytes(&uniforms);
+        stats.record_candidate_renderer_parameter(uniform_bytes.len());
         target
             .queue
             .write_buffer(&binding.uniform_buffer, 0, uniform_bytes);

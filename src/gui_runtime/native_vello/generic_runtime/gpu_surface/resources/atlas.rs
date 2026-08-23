@@ -86,6 +86,8 @@ impl GpuSurfaceRenderer {
                 _texture: texture,
                 view,
             },
+            atlas.width(),
+            atlas.height(),
         );
         stats.atlas.texture_uploads += 1;
     }

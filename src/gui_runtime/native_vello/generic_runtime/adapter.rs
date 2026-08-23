@@ -54,6 +54,14 @@ impl NativeAdapterGeneration {
         matches!(self.status, NativeAdapterGenerationStatus::Known)
     }
 
+    pub(super) const fn known_serial(self) -> Option<u64> {
+        if self.is_known() {
+            Some(self.serial)
+        } else {
+            None
+        }
+    }
+
     pub(super) const fn is_strictly_newer_than(self, previous: Self) -> bool {
         matches!(
             (self.status, previous.status),

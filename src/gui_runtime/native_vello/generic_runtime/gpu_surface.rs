@@ -1,5 +1,6 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
+use super::GpuSurfaceAtlasResidencySnapshot;
 use super::device::{wgpu_device_id, wgpu_target_matches};
 use super::runtime_helpers::{
     SurfaceOcclusionPlan, SurfaceOcclusionPolicy, SurfaceOcclusionQueryScratch,
@@ -184,6 +185,10 @@ impl GpuSurfaceRenderer {
 
     fn clear_resources(&mut self) {
         self.resources.clear();
+    }
+
+    pub(super) fn atlas_residency_snapshot(&self) -> GpuSurfaceAtlasResidencySnapshot {
+        self.resources.atlas_residency_snapshot()
     }
 
     #[cfg(test)]

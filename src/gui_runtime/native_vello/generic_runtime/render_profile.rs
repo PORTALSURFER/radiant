@@ -1,7 +1,9 @@
 //! Native render profiling diagnostics for the generic Vello runtime.
 
+use super::runner_state::NativeWindowAtlasResidencySnapshots;
 use super::{
-    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    GpuSurfaceAtlasResidencySnapshot, RetainedSurfaceEncodeStats,
+    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -47,18 +49,50 @@ impl RenderFrameProfile {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct NativeRenderProfileGpuSurface {
+    pub(super) stats: GpuSurfaceRenderStats,
+    pub(super) atlas_residency: NativeWindowAtlasResidencySnapshots,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeRenderProfileAtlasResidency {
+    generation_known: Option<bool>,
+    generation_serial: Option<u64>,
+    resident_count: Option<usize>,
+    logical_rgba_texel_bytes: Option<u64>,
+}
+
+fn project_atlas_residency(
+    snapshot: Option<GpuSurfaceAtlasResidencySnapshot>,
+) -> NativeRenderProfileAtlasResidency {
+    NativeRenderProfileAtlasResidency {
+        generation_known: snapshot.map(GpuSurfaceAtlasResidencySnapshot::generation_known),
+        generation_serial: snapshot.and_then(GpuSurfaceAtlasResidencySnapshot::generation_serial),
+        resident_count: snapshot.map(|snapshot| snapshot.resident_count),
+        logical_rgba_texel_bytes: snapshot.and_then(|snapshot| snapshot.logical_rgba_texel_bytes),
+    }
+}
+
 pub(super) fn maybe_log_render_profile(
     reason: &'static str,
     stats: RetainedSurfaceEncodeStats,
     text_stats: TextLayoutProfileCounters,
     render_to_texture_elapsed: Duration,
     frame: RenderFrameProfile,
-    gpu_surface_stats: GpuSurfaceRenderStats,
+    gpu_surface: NativeRenderProfileGpuSurface,
     since_last_present: Duration,
 ) {
     if !render_profile_enabled() {
         return;
     }
+    let NativeRenderProfileGpuSurface {
+        stats: gpu_surface_stats,
+        atlas_residency,
+    } = gpu_surface;
+    let active_atlas = project_atlas_residency(atlas_residency.active);
+    let quarantine_0_atlas = project_atlas_residency(atlas_residency.quarantine_0);
+    let quarantine_1_atlas = project_atlas_residency(atlas_residency.quarantine_1);
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
     info!(
         reason,
@@ -93,6 +127,18 @@ pub(super) fn maybe_log_render_profile(
         retained_frame_text_runs = stats.retained_frame_text_run_count,
         gpu_surface_atlas_texture_uploads = gpu_surface_stats.atlas.texture_uploads,
         gpu_surface_atlas_texture_cache_hits = gpu_surface_stats.atlas.texture_cache_hits,
+        gpu_surface_atlas_active_generation_known = active_atlas.generation_known,
+        gpu_surface_atlas_active_generation_serial = active_atlas.generation_serial,
+        gpu_surface_atlas_active_resident_count = active_atlas.resident_count,
+        gpu_surface_atlas_active_logical_rgba_bytes = active_atlas.logical_rgba_texel_bytes,
+        gpu_surface_atlas_q0_generation_known = quarantine_0_atlas.generation_known,
+        gpu_surface_atlas_q0_generation_serial = quarantine_0_atlas.generation_serial,
+        gpu_surface_atlas_q0_resident_count = quarantine_0_atlas.resident_count,
+        gpu_surface_atlas_q0_logical_rgba_bytes = quarantine_0_atlas.logical_rgba_texel_bytes,
+        gpu_surface_atlas_q1_generation_known = quarantine_1_atlas.generation_known,
+        gpu_surface_atlas_q1_generation_serial = quarantine_1_atlas.generation_serial,
+        gpu_surface_atlas_q1_resident_count = quarantine_1_atlas.resident_count,
+        gpu_surface_atlas_q1_logical_rgba_bytes = quarantine_1_atlas.logical_rgba_texel_bytes,
         gpu_signal_summary_builds = gpu_surface_stats.signal.summary_builds,
         gpu_signal_summary_cache_hits = gpu_surface_stats.signal.summary_cache_hits,
         refresh_surface_us = frame.refresh_surface.as_micros(),
@@ -256,5 +302,76 @@ fn text_quality_status(text_stats: TextLayoutProfileCounters) -> &'static str {
         (true, false) => "shaping_limited",
         (false, true) => "font_coverage_limited",
         (true, true) => "shaping_and_font_coverage_limited",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::{
+        GpuSurfaceAtlasResidencySnapshot, adapter::NativeAdapterGeneration,
+        runner_state::NativeWindowAtlasResidencySnapshots,
+    };
+    use super::{NativeRenderProfileAtlasResidency, project_atlas_residency};
+
+    #[test]
+    fn atlas_profile_projection_preserves_generation_attribution_and_absent_slots() {
+        let snapshots = NativeWindowAtlasResidencySnapshots {
+            active: Some(GpuSurfaceAtlasResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(11),
+                resident_count: 3,
+                logical_rgba_texel_bytes: Some(12),
+            }),
+            quarantine_0: Some(GpuSurfaceAtlasResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(12),
+                resident_count: 1,
+                logical_rgba_texel_bytes: Some(4),
+            }),
+            quarantine_1: None,
+        };
+
+        assert_eq!(
+            project_atlas_residency(snapshots.active),
+            NativeRenderProfileAtlasResidency {
+                generation_known: Some(true),
+                generation_serial: Some(11),
+                resident_count: Some(3),
+                logical_rgba_texel_bytes: Some(12),
+            }
+        );
+        assert_eq!(
+            project_atlas_residency(snapshots.quarantine_0),
+            NativeRenderProfileAtlasResidency {
+                generation_known: Some(true),
+                generation_serial: Some(12),
+                resident_count: Some(1),
+                logical_rgba_texel_bytes: Some(4),
+            }
+        );
+        assert_eq!(
+            project_atlas_residency(snapshots.quarantine_1),
+            NativeRenderProfileAtlasResidency::default()
+        );
+    }
+
+    #[test]
+    fn atlas_profile_projection_keeps_unknown_and_exhausted_serials_absent() {
+        let unknown = GpuSurfaceAtlasResidencySnapshot {
+            generation: NativeAdapterGeneration::default(),
+            resident_count: 1,
+            logical_rgba_texel_bytes: Some(4),
+        };
+        let mut exhausted_generation = NativeAdapterGeneration::from_test_serial(u64::MAX);
+        assert!(!exhausted_generation.advance());
+        let exhausted = GpuSurfaceAtlasResidencySnapshot {
+            generation: exhausted_generation,
+            resident_count: 2,
+            logical_rgba_texel_bytes: Some(8),
+        };
+
+        for snapshot in [unknown, exhausted] {
+            let projection = project_atlas_residency(Some(snapshot));
+            assert_eq!(projection.generation_known, Some(false));
+            assert_eq!(projection.generation_serial, None);
+        }
     }
 }

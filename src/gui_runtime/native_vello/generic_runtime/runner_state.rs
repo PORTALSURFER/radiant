@@ -15,8 +15,8 @@ use super::native_visual_packet::NativeVisualRequestMailbox;
 use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
 use super::{
-    CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceRenderer, NativeGpuTimingRoute,
-    PostGpuOverlayRenderer, RuntimeUserEvent,
+    CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceAtlasResidencySnapshot,
+    GpuSurfaceRenderer, NativeGpuTimingRoute, PostGpuOverlayRenderer, RuntimeUserEvent,
 };
 use crate::gui::input::{InputSequence, InputSequenceRange};
 use crate::gui::types::Vector2;
@@ -298,6 +298,27 @@ impl NativeWindowGpuResources {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeWindowAtlasResidencySnapshots {
+    pub(super) active: Option<GpuSurfaceAtlasResidencySnapshot>,
+    pub(super) quarantine_0: Option<GpuSurfaceAtlasResidencySnapshot>,
+    pub(super) quarantine_1: Option<GpuSurfaceAtlasResidencySnapshot>,
+}
+
+impl NativeWindowAtlasResidencySnapshots {
+    fn from_slots(
+        active: Option<GpuSurfaceAtlasResidencySnapshot>,
+        quarantine_0: Option<GpuSurfaceAtlasResidencySnapshot>,
+        quarantine_1: Option<GpuSurfaceAtlasResidencySnapshot>,
+    ) -> Self {
+        Self {
+            active,
+            quarantine_0,
+            quarantine_1,
+        }
+    }
+}
+
 /// The complete native surface/renderer binding for one window.
 ///
 /// The bundle is published only after both WGPU surface setup and Vello
@@ -375,6 +396,13 @@ impl NativeWindowResourceBundle {
 
     pub(super) fn cancel_gpu_timing(&mut self, reservation: GpuTimingReservation) -> bool {
         self.gpu_resources.gpu_timing.cancel(reservation)
+    }
+
+    pub(super) fn atlas_residency_snapshot(&self) -> GpuSurfaceAtlasResidencySnapshot {
+        self.gpu_resources
+            .gpu_surface_renderer
+            .atlas_residency_snapshot()
+            .with_generation(self.generation)
     }
 
     pub(super) fn bind_gpu_timing(
@@ -732,6 +760,22 @@ pub(super) struct NativeRunnerWindowState {
 }
 
 impl NativeRunnerWindowState {
+    pub(super) fn atlas_residency_snapshots(&self) -> NativeWindowAtlasResidencySnapshots {
+        let active = self
+            .native_resources
+            .as_ref()
+            .map(NativeWindowResourceBundle::atlas_residency_snapshot);
+        let mut quarantine = [None, None];
+        for (index, resources) in self.quarantined_native_resources.entries.iter().enumerate() {
+            match index {
+                0 => quarantine[0] = Some(resources.atlas_residency_snapshot()),
+                1 => quarantine[1] = Some(resources.atlas_residency_snapshot()),
+                _ => break,
+            }
+        }
+        NativeWindowAtlasResidencySnapshots::from_slots(active, quarantine[0], quarantine[1])
+    }
+
     pub(super) fn prepare_native_gpu_timing_delivery(
         &mut self,
         generation: NativeAdapterGeneration,
@@ -1182,13 +1226,71 @@ impl NativeRunnerTimingState {
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeImeCursorAreaCache, NativeInputSequenceAllocator, NativeResourceMaintenanceTurn,
-        NativeResourceQuarantine, NativeRunnerInputState, NativeRunnerTimingState,
-        NativeRunnerWindowState, NativeSurfaceRecoveryState, NativeTargetGeneration,
+        GpuSurfaceAtlasResidencySnapshot, NativeAdapterGeneration, NativeImeCursorAreaCache,
+        NativeInputSequenceAllocator, NativeResourceMaintenanceTurn, NativeResourceQuarantine,
+        NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
+        NativeSurfaceRecoveryState, NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
         NativeWindowDiagnosticIdentityAllocator, NativeWindowGpuResources,
     };
     use crate::gui::types::{Point, Rect};
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
+
+    #[test]
+    fn atlas_residency_projection_preserves_bundle_generations_and_absent_slots() {
+        let active_generation = NativeAdapterGeneration::from_test_serial(11);
+        let quarantine_generation = NativeAdapterGeneration::from_test_serial(12);
+        let snapshots = NativeWindowAtlasResidencySnapshots::from_slots(
+            Some(GpuSurfaceAtlasResidencySnapshot {
+                generation: active_generation,
+                resident_count: 3,
+                logical_rgba_texel_bytes: Some(12),
+            }),
+            Some(GpuSurfaceAtlasResidencySnapshot {
+                generation: quarantine_generation,
+                resident_count: 1,
+                logical_rgba_texel_bytes: Some(4),
+            }),
+            None,
+        );
+
+        assert_eq!(
+            snapshots
+                .active
+                .map(GpuSurfaceAtlasResidencySnapshot::generation),
+            Some(active_generation)
+        );
+        assert_eq!(
+            snapshots
+                .active
+                .map(GpuSurfaceAtlasResidencySnapshot::generation_known),
+            Some(true)
+        );
+        assert_eq!(
+            snapshots
+                .active
+                .and_then(GpuSurfaceAtlasResidencySnapshot::generation_serial),
+            Some(11)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_0
+                .map(GpuSurfaceAtlasResidencySnapshot::generation),
+            Some(quarantine_generation)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_0
+                .map(GpuSurfaceAtlasResidencySnapshot::generation_known),
+            Some(true)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_0
+                .and_then(GpuSurfaceAtlasResidencySnapshot::generation_serial),
+            Some(12)
+        );
+        assert!(snapshots.quarantine_1.is_none());
+    }
     use crate::theme::DpiScale;
     use std::sync::{
         Arc,

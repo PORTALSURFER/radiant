@@ -2,10 +2,11 @@ use super::gpu_timing::GpuTimingAdmission;
 use super::native_encode_present::NativeEncodePresentPath;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::{
-    CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner, RenderFrameProfile,
-    RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
-    maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
-    reveal_window_after_first_present, slow_render_profile_enabled,
+    CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner,
+    NativeRenderProfileGpuSurface, RenderFrameProfile, RenderSurfacePixelSize,
+    hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
+    post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
+    slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -494,7 +495,10 @@ where
                 text_stats,
                 render_to_texture_elapsed,
                 profile,
-                gpu_surface_stats,
+                NativeRenderProfileGpuSurface {
+                    stats: gpu_surface_stats,
+                    atlas_residency: self.window.atlas_residency_snapshots(),
+                },
                 since_last_present,
             );
         }
@@ -624,7 +628,10 @@ where
                 text_stats,
                 render_to_texture_elapsed,
                 profile,
-                gpu_surface_stats,
+                NativeRenderProfileGpuSurface {
+                    stats: gpu_surface_stats,
+                    atlas_residency: self.window.atlas_residency_snapshots(),
+                },
                 since_last_present,
             );
         }

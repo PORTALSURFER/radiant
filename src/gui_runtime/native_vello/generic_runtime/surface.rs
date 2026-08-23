@@ -254,6 +254,7 @@ where
             )
         })?;
         native_resource_publication.publish(native_resources);
+        self.refresh_atlas_residency_account(adapter);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
         if !self.window.native_visual_requests.bind_window(window.id()) {
@@ -322,7 +323,7 @@ where
 
     pub(super) fn apply_pending_surface_resize_if_needed(
         &mut self,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
     ) {
         if !self.admit_native_resources(adapter) {
             return;
@@ -347,7 +348,7 @@ where
         size: PhysicalSize<u32>,
         request_redraw: bool,
         reason: FrameWorkReason,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
     ) -> bool {
         if size.width == 0 || size.height == 0 {
             return false;
@@ -384,7 +385,7 @@ where
     fn resize_surface_now_for_recovery(
         &mut self,
         size: PhysicalSize<u32>,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
     ) -> bool {
         if size.width == 0 || size.height == 0 {
             return false;
@@ -588,7 +589,7 @@ where
     pub(super) fn handle_present_surface_acquire_error(
         &mut self,
         event_loop: &ActiveEventLoop,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
         requested_packet: bool,
         error: NativeSurfaceAcquireError,
     ) -> NativeVisualRequestDisposition {
@@ -693,7 +694,10 @@ where
     /// Admit the active window bundle against the owner's exact current
     /// generation. A mismatch is fenced once and moved out of the active
     /// path; no native work or redraw retry is requested.
-    pub(super) fn admit_native_resources(&mut self, adapter: &GenericNativeAdapterOwner) -> bool {
+    pub(super) fn admit_native_resources(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) -> bool {
         if !self.is_running() {
             return false;
         }
@@ -716,6 +720,7 @@ where
                 .discard_presentation_staging_belt();
         }
         let _ = self.window.isolate_native_resources();
+        self.refresh_atlas_residency_account(adapter);
         self.fence_native_surface_target();
         false
     }

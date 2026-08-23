@@ -9,6 +9,32 @@ use std::{sync::Arc, time::Instant};
 use tracing::{info, warn};
 use winit::event_loop::EventLoop;
 
+/// Stable application identity for one primary or auxiliary native runner.
+///
+/// A same-key auxiliary replacement keeps the logical identity but receives a
+/// fresh account generation in the adapter-owned residency ledger.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) enum NativeAtlasResidencyWindowIdentity {
+    Primary,
+    Auxiliary(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct NativeAdapterAtlasResidencyAccountToken {
+    window_identity: NativeAtlasResidencyWindowIdentity,
+    account_generation: u64,
+    adapter_generation: adapter::NativeAdapterGeneration,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeAdapterAtlasResidencyProfile {
+    pub(super) adapter_generation: Option<adapter::NativeAdapterGeneration>,
+    pub(super) active_resident_count: Option<usize>,
+    pub(super) active_logical_rgba_texel_bytes: Option<u64>,
+    pub(super) quarantined_resident_count: Option<usize>,
+    pub(super) quarantined_logical_rgba_texel_bytes: Option<u64>,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct GpuSurfaceAtlasResidencySnapshot {
     generation: adapter::NativeAdapterGeneration,

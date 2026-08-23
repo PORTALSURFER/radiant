@@ -976,7 +976,7 @@ where
                     let work = demand.work(now);
                     if selected_lane == FrameScheduleLane::Maintenance {
                         if !retiring_auxiliary_maintenance_due {
-                            let admitted = self.adapter.as_ref().is_some_and(|adapter| {
+                            let admitted = self.adapter.as_mut().is_some_and(|adapter| {
                                 self.auxiliary_windows
                                     .iter_mut()
                                     .find(|window| window.key() == key)

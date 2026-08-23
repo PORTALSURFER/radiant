@@ -715,11 +715,18 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.core.runtime.begin_closing()
     }
 
-    pub(super) fn quarantine_device_recovery_resources(&mut self) -> bool {
+    pub(super) fn quarantine_device_recovery_resources(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) -> bool {
         if !self.is_admitted() || !self.recovery_rebuild_pending {
             return true;
         }
-        self.runner.window.quarantine_active_native_resources()
+        if !self.runner.window.quarantine_active_native_resources() {
+            return false;
+        }
+        self.runner.refresh_atlas_residency_account(adapter);
+        true
     }
 
     pub(super) fn finish_device_recovery_if_no_rebuild(&mut self) -> bool {
@@ -731,7 +738,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn rebuild_after_device_recovery(
         &mut self,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
         event_proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> Result<bool, NativeGenericRunError> {
         if !self.recovery_rebuild_pending {
@@ -819,6 +826,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             });
         };
         publication.publish(native_resources);
+        self.runner.refresh_atlas_residency_account(adapter);
         self.runner.complete_native_recovery_target_transition();
         self.runner.frame.invalidate_native_resources_for_recovery();
 
@@ -891,6 +899,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     pub(super) fn maintain_native_resources_with_turn(
         &mut self,
         turn: &mut NativeResourceMaintenanceTurn,
+        adapter: Option<&mut GenericNativeAdapterOwner>,
     ) -> bool {
         if self.is_retiring() {
             #[cfg(test)]
@@ -912,9 +921,16 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     }
                 }
             }
-            return self.runner.retire_native_resources_with_turn(turn);
+            let empty = self.runner.retire_native_resources_with_turn(turn);
+            if let Some(adapter) = adapter {
+                self.runner.refresh_atlas_residency_account(adapter);
+            }
+            return empty;
         }
         self.runner.maintain_native_resources_with_turn(turn);
+        if let Some(adapter) = adapter {
+            self.runner.refresh_atlas_residency_account(adapter);
+        }
         false
     }
 
@@ -1041,7 +1057,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn admit_native_resource_maintenance(
         &mut self,
-        adapter: &GenericNativeAdapterOwner,
+        adapter: &mut GenericNativeAdapterOwner,
         now: Instant,
     ) -> bool {
         let Some(parent_generation) = adapter.capture_generation() else {
@@ -1054,11 +1070,15 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         {
             return false;
         }
-        self.runner.admit_native_resource_maintenance(
+        let admitted = self.runner.admit_native_resource_maintenance(
             now,
             &FrameScheduleKey::Auxiliary(self.key.clone()),
             parent_generation,
-        )
+        );
+        if admitted {
+            self.runner.refresh_atlas_residency_account(adapter);
+        }
+        admitted
     }
 
     pub(super) fn admit_frame_schedule_work(
@@ -1958,7 +1978,7 @@ where
             .filter(|window| window.is_retiring())
             .map(|window| window.key().to_owned())
             .collect::<Vec<_>>();
-        self.maintain_retiring_auxiliary_resources_with_turn(_maintenance);
+        self.maintain_retiring_auxiliary_resources_with_adapter(_maintenance, Some(adapter));
         self.rearm_retiring_auxiliary_maintenance(Instant::now());
         let retired_keys_removed_this_sync = auxiliary_keys_removed_during_sync(
             &retiring_keys_before_maintenance,

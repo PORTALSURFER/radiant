@@ -7,6 +7,7 @@ use super::super::gpu_surface_types::{
 use super::super::identity::RenderCanvasContentOwner;
 use super::super::passes::signal_body_render_pass;
 use super::super::stats::GpuSurfaceRenderStats;
+use super::super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use crate::runtime::GpuSignalSummaryBucket;
 use std::time::Instant;
@@ -120,6 +121,7 @@ impl GpuSurfaceRenderer {
                 && buffer.pipeline_generation == self.signal_pipeline_generation
         }) {
             let uniform_bytes = signal_uniforms_as_bytes(uniforms);
+            stats.record_candidate_renderer_parameter(uniform_bytes.len());
             queue.write_buffer(&buffer.uniform_buffer, 0, uniform_bytes);
             stats
                 .render_canvas_uploads
@@ -127,9 +129,13 @@ impl GpuSurfaceRenderer {
             return;
         }
         let Some(pipeline) = self.signal_pipeline.as_ref() else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
             return;
         };
         let bucket_bytes = summary_bucket_bytes(buckets);
+        stats.record_candidate_immutable_payload(bucket_bytes.len());
         let sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_summary_buckets"),
             contents: bucket_bytes,
@@ -139,6 +145,7 @@ impl GpuSurfaceRenderer {
             .render_canvas_uploads
             .record_immutable_payload(bucket_bytes.len());
         let uniform_bytes = signal_uniforms_as_bytes(uniforms);
+        stats.record_candidate_renderer_parameter(uniform_bytes.len());
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_uniforms"),
             contents: uniform_bytes,

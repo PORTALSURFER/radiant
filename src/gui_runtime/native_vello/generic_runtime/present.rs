@@ -1,3 +1,6 @@
+use super::gpu_surface::{
+    GpuSurfaceRenderCanvasUploadPlanContext, GpuSurfaceRenderCanvasUploadTarget,
+};
 use super::gpu_timing::GpuTimingAdmission;
 use super::native_encode_present::NativeEncodePresentPath;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
@@ -19,6 +22,7 @@ mod diagnostics;
 use super::composited_base::{
     BaseFramePresentRequest, BaseFramePresentState, BaseFramePresentTarget, present_base_frame,
 };
+use super::device::wgpu_device_id;
 use super::scene_texture::{
     NativeFrameRenderFailure, SceneTextureContext, render_scene_texture_if_needed,
     render_scene_to_surface_view,
@@ -343,6 +347,22 @@ where
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
+        let upload_plan_context = if profile_enabled {
+            self.window.native_resources.as_ref().and_then(|resources| {
+                GpuSurfaceRenderCanvasUploadPlanContext::new(
+                    ticket_ref.plan_context(),
+                    resources.generation,
+                    GpuSurfaceRenderCanvasUploadTarget::new(
+                        wgpu_device_id(&dev_handle.device),
+                        resources.render_surface.config.format,
+                        resources.render_surface.config.width,
+                        resources.render_surface.config.height,
+                    ),
+                )
+            })
+        } else {
+            None
+        };
         let mut encoder =
             dev_handle
                 .device
@@ -368,6 +388,8 @@ where
                 transient_overlay_primitives: &self.frame.transient_overlay_primitives,
                 has_gpu_surfaces: self.frame.last_scene_stats.gpu_surface_count > 0,
                 presentation_updates,
+                collect_upload_plan: profile_enabled,
+                upload_plan_context,
             };
             let gpu_surface_stats = present_base_frame(
                 &mut BaseFramePresentState {

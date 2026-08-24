@@ -5,6 +5,7 @@ use super::super::gpu_surface_types::{
 };
 use super::super::passes::{gpu_surface_render_pass, set_surface_scissor, surface_dest};
 use super::super::stats::GpuSurfaceRenderStats;
+use super::super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
 use super::super::visibility::visible_surface_regions;
 use crate::gui::types::Rect as UiRect;
 use crate::runtime::{
@@ -50,6 +51,7 @@ pub(super) fn upload_custom_shader_buffers(
         ..GpuSurfaceUniforms::default()
     };
     let surface_uniform_bytes = uniforms_as_bytes(&uniforms);
+    stats.record_candidate_renderer_parameter(surface_uniform_bytes.len());
     request.target.queue.write_buffer(
         &request.binding.surface_uniform_buffer,
         0,
@@ -65,6 +67,7 @@ pub(super) fn upload_custom_shader_buffers(
     {
         if let Some(buffer) = &request.binding.app_uniform_buffer {
             let uniform_bytes = request.descriptor.uniform_bytes.as_ref();
+            stats.record_candidate_immutable_payload(uniform_bytes.len());
             request.target.queue.write_buffer(buffer, 0, uniform_bytes);
             stats.custom_shader.static_writes += 1;
             stats.custom_shader.static_write_bytes += uniform_bytes.len();
@@ -74,6 +77,7 @@ pub(super) fn upload_custom_shader_buffers(
         }
         if let Some(buffer) = &request.binding.storage_buffer {
             let storage_bytes = request.descriptor.storage_bytes.as_ref();
+            stats.record_candidate_immutable_payload(storage_bytes.len());
             request.target.queue.write_buffer(buffer, 0, storage_bytes);
             stats.custom_shader.static_writes += 1;
             stats.custom_shader.static_write_bytes += storage_bytes.len();
@@ -97,26 +101,46 @@ pub(super) fn upload_custom_shader_buffers(
                     .presentation_uniform_revision
                     .unwrap_or_default(),
             )
-            && let Some(bytes) = request.descriptor.presentation_uniform_bytes.as_deref()
-            && write_presentation_uniform(
-                request.presentation_staging_belt.as_deref_mut(),
-                request.target.encoder,
-                buffer,
-                bytes,
-            )
         {
-            request.binding.write_state.cache_presentation_revision(
-                static_payload,
-                request
-                    .descriptor
-                    .presentation_uniform_revision
-                    .unwrap_or_default(),
-            );
-            stats.custom_shader.presentation_writes += 1;
-            stats.custom_shader.presentation_write_bytes += bytes.len();
-            stats
-                .render_canvas_uploads
-                .record_volatile_payload(bytes.len());
+            if let Some(bytes) = request.descriptor.presentation_uniform_bytes.as_deref() {
+                if !presentation_uniform_write_is_available(
+                    request.presentation_staging_belt.as_deref(),
+                    bytes,
+                ) {
+                    stats.mark_candidate_unavailable(
+                        GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    );
+                } else {
+                    stats.record_candidate_volatile_payload(bytes.len());
+                    if write_presentation_uniform(
+                        request.presentation_staging_belt.as_deref_mut(),
+                        request.target.encoder,
+                        buffer,
+                        bytes,
+                    ) {
+                        request.binding.write_state.cache_presentation_revision(
+                            static_payload,
+                            request
+                                .descriptor
+                                .presentation_uniform_revision
+                                .unwrap_or_default(),
+                        );
+                        stats.custom_shader.presentation_writes += 1;
+                        stats.custom_shader.presentation_write_bytes += bytes.len();
+                        stats
+                            .render_canvas_uploads
+                            .record_volatile_payload(bytes.len());
+                    } else {
+                        stats.mark_candidate_unavailable(
+                            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                        );
+                    }
+                }
+            } else {
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+            }
         }
         if let Some(update) = request.presentation_update
             && request
@@ -132,24 +156,46 @@ pub(super) fn upload_custom_shader_buffers(
                         .map_or(0, |bytes| bytes.len()),
                     update.byte_len(),
                 )
-            && write_presentation_uniform(
-                request.presentation_staging_belt.as_deref_mut(),
-                request.target.encoder,
-                buffer,
-                update.bytes(),
-            )
         {
-            request
-                .binding
-                .write_state
-                .cache_presentation_revision(static_payload, update.presentation_revision);
-            stats.custom_shader.presentation_writes += 1;
-            stats.custom_shader.presentation_write_bytes += update.byte_len();
-            stats
-                .render_canvas_uploads
-                .record_volatile_payload(update.byte_len());
+            if !presentation_uniform_write_is_available(
+                request.presentation_staging_belt.as_deref(),
+                update.bytes(),
+            ) {
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+            } else {
+                stats.record_candidate_volatile_payload(update.byte_len());
+                if write_presentation_uniform(
+                    request.presentation_staging_belt.as_deref_mut(),
+                    request.target.encoder,
+                    buffer,
+                    update.bytes(),
+                ) {
+                    request
+                        .binding
+                        .write_state
+                        .cache_presentation_revision(static_payload, update.presentation_revision);
+                    stats.custom_shader.presentation_writes += 1;
+                    stats.custom_shader.presentation_write_bytes += update.byte_len();
+                    stats
+                        .render_canvas_uploads
+                        .record_volatile_payload(update.byte_len());
+                } else {
+                    stats.mark_candidate_unavailable(
+                        GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    );
+                }
+            }
         }
     }
+}
+
+fn presentation_uniform_write_is_available(
+    staging_belt: Option<&wgpu::util::StagingBelt>,
+    bytes: &[u8],
+) -> bool {
+    staging_belt.is_some() && wgpu::BufferSize::new(bytes.len() as wgpu::BufferAddress).is_some()
 }
 
 fn write_presentation_uniform(

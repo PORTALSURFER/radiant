@@ -1,6 +1,7 @@
 use super::super::gpu_surface_types::GpuSurfaceTexture;
 use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
 use super::super::stats::GpuSurfaceRenderStats;
+use super::super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
 use vello::wgpu;
@@ -34,10 +35,16 @@ impl GpuSurfaceRenderer {
                 stats.atlas.texture_content_mismatches += 1;
             }
         }
-        let Some(extent) =
-            GpuAtlasTextureExtent::new(atlas.width(), atlas.height(), atlas.pixels().len())
-        else {
-            return;
+        let extent = match GpuAtlasTextureExtent::try_new(
+            atlas.width(),
+            atlas.height(),
+            atlas.pixels().len(),
+        ) {
+            Ok(extent) => extent,
+            Err(reason) => {
+                stats.mark_candidate_unavailable(reason);
+                return;
+            }
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -55,6 +62,7 @@ impl GpuSurfaceRenderer {
             view_formats: &[],
         });
         let pixels = atlas.pixels();
+        stats.record_candidate_immutable_payload(pixels.len());
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -105,18 +113,34 @@ struct GpuAtlasTextureExtent {
 }
 
 impl GpuAtlasTextureExtent {
+    #[cfg(test)]
     fn new(width: usize, height: usize, byte_len: usize) -> Option<Self> {
-        let expected_byte_len = width.checked_mul(height)?.checked_mul(4)?;
+        Self::try_new(width, height, byte_len).ok()
+    }
+
+    fn try_new(
+        width: usize,
+        height: usize,
+        byte_len: usize,
+    ) -> Result<Self, GpuSurfaceRenderCanvasUploadPlanUnavailableReason> {
+        let expected_byte_len = width
+            .checked_mul(height)
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Overflow)?;
         if byte_len != expected_byte_len {
-            return None;
+            return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
         }
-        let width = u32::try_from(width).ok()?;
-        let height = u32::try_from(height).ok()?;
+        let width = u32::try_from(width)
+            .map_err(|_| GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Overflow)?;
+        let height = u32::try_from(height)
+            .map_err(|_| GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Overflow)?;
         if width == 0 || height == 0 {
-            return None;
+            return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
         }
-        let bytes_per_row = width.checked_mul(4)?;
-        Some(Self {
+        let bytes_per_row = width
+            .checked_mul(4)
+            .ok_or(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Overflow)?;
+        Ok(Self {
             width,
             height,
             bytes_per_row,

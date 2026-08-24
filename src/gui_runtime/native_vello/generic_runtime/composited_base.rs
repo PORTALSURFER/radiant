@@ -37,6 +37,8 @@ pub(super) struct BaseFramePresentRequest<'a> {
     pub(super) transient_overlay_primitives: &'a [PaintPrimitive],
     pub(super) has_gpu_surfaces: bool,
     pub(super) presentation_updates: &'a [GpuShaderPresentationUniformUpdate],
+    pub(super) collect_upload_plan: bool,
+    pub(super) upload_plan_context: Option<gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext>,
 }
 
 pub(super) fn present_base_frame(
@@ -70,7 +72,7 @@ pub(super) fn present_base_frame(
         refresh_composited_base_frame(frame, refresh_state, surface, target, request)
     } else {
         state.profile.composited_base_cache_hit = true;
-        gpu_surface::GpuSurfaceRenderStats::default()
+        gpu_surface::GpuSurfaceRenderStats::with_upload_plan(upload_plan_context(request))
     };
     surface.blitter.copy(
         target.device,
@@ -94,7 +96,7 @@ fn present_live_base(
         target.surface_view,
     );
     if !should_render_gpu_surfaces(request.has_gpu_surfaces) {
-        return gpu_surface::GpuSurfaceRenderStats::default();
+        return gpu_surface::GpuSurfaceRenderStats::with_upload_plan(upload_plan_context(request));
     }
     let surface_size = RenderSurfacePixelSize::from_surface(surface);
     gpu_surface_renderer.render(
@@ -106,6 +108,7 @@ fn present_live_base(
             format: surface.config.format,
             size: surface_size.physical_size(),
             dpi_scale: target.dpi_scale,
+            upload_plan_context: upload_plan_context(request),
         },
         &request.paint_plan.primitives,
         request.occlusion_plan,
@@ -138,13 +141,14 @@ fn refresh_composited_base_frame(
                     format: surface.config.format,
                     size: surface_size.physical_size(),
                     dpi_scale: target.dpi_scale,
+                    upload_plan_context: upload_plan_context(request),
                 },
                 &request.paint_plan.primitives,
                 request.occlusion_plan,
                 request.presentation_updates,
             )
         } else {
-            gpu_surface::GpuSurfaceRenderStats::default()
+            gpu_surface::GpuSurfaceRenderStats::with_upload_plan(upload_plan_context(request))
         }
     });
     *state.base_dirty = false;
@@ -166,6 +170,15 @@ fn should_use_composited_base(transient_overlay_primitives: &[PaintPrimitive]) -
 
 fn should_render_gpu_surfaces(has_gpu_surfaces: bool) -> bool {
     has_gpu_surfaces
+}
+
+fn upload_plan_context(
+    request: &BaseFramePresentRequest<'_>,
+) -> Option<gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext> {
+    request
+        .collect_upload_plan
+        .then_some(request.upload_plan_context)
+        .flatten()
 }
 
 #[cfg(test)]

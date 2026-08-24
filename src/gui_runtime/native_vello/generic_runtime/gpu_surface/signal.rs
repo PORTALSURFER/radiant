@@ -7,6 +7,7 @@ use super::identity::RenderCanvasContentIdentity;
 use super::identity::RenderCanvasContentOwner;
 use super::passes::surface_pixel_extent;
 use super::stats::GpuSurfaceRenderStats;
+use super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
 use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
 #[path = "signal/uniforms.rs"]
 mod uniforms;
@@ -61,9 +62,15 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) {
         let Some(source) = self.signal_render_source(surface, shape, stats) else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
             return;
         };
         let Some(body) = signal_body_request(target, surface, &source) else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
             return;
         };
         self.ensure_pipeline(target.device, target.format);
@@ -91,6 +98,9 @@ impl GpuSurfaceRenderer {
             body.body_key,
             stats,
         ) else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
             return;
         };
         self.render_texture_view(

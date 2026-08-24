@@ -301,6 +301,8 @@ where
                 adapter,
                 profile.frame_sequence,
                 Default::default(),
+                None,
+                None,
             );
             let input_to_present_latency_us =
                 self.timing.take_input_to_present_latency_us(Instant::now());
@@ -347,10 +349,11 @@ where
             self.core.runtime.abort_gpu_shader_presentation_updates();
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
+        let encode_present_plan_context = ticket_ref.plan_context();
         let upload_plan_context = if profile_enabled {
             self.window.native_resources.as_ref().and_then(|resources| {
                 GpuSurfaceRenderCanvasUploadPlanContext::new(
-                    ticket_ref.plan_context(),
+                    encode_present_plan_context,
                     resources.generation,
                     GpuSurfaceRenderCanvasUploadTarget::new(
                         wgpu_device_id(&dev_handle.device),
@@ -495,10 +498,15 @@ where
         self.core.runtime.commit_gpu_shader_presentation_updates();
         profile.submit_present = elapsed;
         profile.frame_sequence = self.timing.allocate_frame_sequence();
+        let current_plan_context = gpu_surface_stats.render_canvas_upload_plan.and_then(|_| {
+            self.current_render_canvas_upload_plan_context(adapter, encode_present_plan_context)
+        });
         self.contribute_render_canvas_uploads(
             adapter,
             profile.frame_sequence,
             gpu_surface_stats.render_canvas_uploads,
+            gpu_surface_stats.render_canvas_upload_plan,
+            current_plan_context,
         );
         let application_render_canvas_uploads =
             self.capture_render_canvas_upload_profile(adapter, profile_enabled);

@@ -374,13 +374,27 @@ fn native_present_contributes_uploads_only_after_successful_ticket_completion() 
     let direct = &redraw[contributions[0]..contributions[1]];
     let composited = &redraw[contributions[1]..];
     assert!(
-        direct.contains("Default::default()"),
+        direct.contains("Default::default()")
+            && direct.contains("None,")
+            && direct.matches("None,").count() >= 2,
         "direct resize presentation should contribute zero upload evidence"
     );
     assert!(
         composited.contains("gpu_surface_stats")
+            && composited.contains("gpu_surface_stats.render_canvas_upload_plan")
+            && composited.contains("current_plan_context")
             && composited.contains("capture_render_canvas_upload_profile"),
         "composited presentation should contribute its render stats before private profile capture"
+    );
+    let candidate_plan = composited
+        .find("gpu_surface_stats.render_canvas_upload_plan")
+        .expect("composited presentation should pass the candidate plan");
+    let profile_capture = composited
+        .find("capture_render_canvas_upload_profile")
+        .expect("composited presentation should capture the private aggregate");
+    assert!(
+        candidate_plan < profile_capture,
+        "candidate-plan contribution data must precede private profile capture"
     );
 }
 

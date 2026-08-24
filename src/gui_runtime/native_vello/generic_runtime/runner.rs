@@ -1,11 +1,16 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
+use super::device::wgpu_device_id;
 use super::frame_scheduler_policy::{
     DiscreteInputCompletion, ImmediateTransientCompletion, NativeInputStageDisposition,
     SchedulerSoftBudgets, discrete_input_completion_disposition,
     immediate_transient_completion_disposition,
 };
 use super::frame_stage_admission::{FrameStageBudgetBinding, WindowStageOwner};
+use super::gpu_surface::{
+    GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
+    GpuSurfaceRenderCanvasUploadTarget,
+};
 use super::gpu_timing::GpuTimingAdmission;
 use super::native_discrete_input_stage::{
     NativeDiscreteInputKind, NativeDiscreteInputStageEvidence, NativeDiscreteInputStageTicket,
@@ -15,8 +20,8 @@ use super::native_discrete_input_stage::{
 };
 use super::native_encode_present::{
     NativeEncodePresentAdmission, NativeEncodePresentCurrentEvidence, NativeEncodePresentPath,
-    NativeEncodePresentTicket, NativeFrameSnapshotRevision, complete_native_encode_present,
-    veto_native_encode_present,
+    NativeEncodePresentPlanContext, NativeEncodePresentTicket, NativeFrameSnapshotRevision,
+    complete_native_encode_present, veto_native_encode_present,
 };
 use super::native_immediate_transient_stage::{
     NativeImmediateTransientKind, NativeImmediateTransientStageEvidence,
@@ -451,11 +456,32 @@ where
         adapter.capture_render_canvas_upload_profile()
     }
 
+    pub(super) fn current_render_canvas_upload_plan_context(
+        &self,
+        adapter: &GenericNativeAdapterOwner,
+        encode_present: NativeEncodePresentPlanContext,
+    ) -> Option<GpuSurfaceRenderCanvasUploadPlanContext> {
+        let resources = self.window.native_resources.as_ref()?;
+        let device = adapter.device_handle_for_surface(&resources.render_surface)?;
+        GpuSurfaceRenderCanvasUploadPlanContext::new(
+            encode_present,
+            resources.generation,
+            GpuSurfaceRenderCanvasUploadTarget::new(
+                wgpu_device_id(&device.device),
+                resources.render_surface.config.format,
+                resources.render_surface.config.width,
+                resources.render_surface.config.height,
+            ),
+        )
+    }
+
     pub(super) fn contribute_render_canvas_uploads(
         &mut self,
         adapter: &mut GenericNativeAdapterOwner,
         frame_sequence: Option<u64>,
         stats: GpuSurfaceRenderCanvasUploadStats,
+        candidate_plan: Option<GpuSurfaceRenderCanvasUploadPlan>,
+        current_plan_context: Option<GpuSurfaceRenderCanvasUploadPlanContext>,
     ) -> bool {
         let Some(frame_sequence) = frame_sequence else {
             return false;
@@ -463,7 +489,13 @@ where
         let Some(token) = self.render_canvas_upload_account.as_ref() else {
             return false;
         };
-        adapter.contribute_render_canvas_uploads(token, frame_sequence, stats)
+        adapter.contribute_render_canvas_uploads(
+            token,
+            frame_sequence,
+            stats,
+            candidate_plan,
+            current_plan_context,
+        )
     }
 
     fn synchronize_atlas_residency_account(

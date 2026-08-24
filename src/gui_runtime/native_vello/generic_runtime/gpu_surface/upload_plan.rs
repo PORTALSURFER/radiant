@@ -43,20 +43,29 @@ impl GpuSurfaceRenderCanvasUploadPlanContext {
         resource_generation: NativeAdapterGeneration,
         target: GpuSurfaceRenderCanvasUploadTarget,
     ) -> Option<Self> {
-        if !encode_present.lifecycle.is_running()
-            || !encode_present.adapter_generation.is_known()
-            || !encode_present.target_generation.is_known()
-            || resource_generation != encode_present.adapter_generation
-            || target.width == 0
-            || target.height == 0
-        {
-            return None;
-        }
-        Some(Self {
+        let context = Self {
             encode_present,
             resource_generation,
             target,
-        })
+        };
+        context.is_valid().then_some(context)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn is_valid(self) -> bool {
+        self.encode_present.lifecycle.is_running()
+            && self.encode_present.adapter_generation.is_known()
+            && self.encode_present.target_generation.is_known()
+            && self.resource_generation == self.encode_present.adapter_generation
+            && self.target.width > 0
+            && self.target.height > 0
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn accepts_candidate(self) -> bool {
+        self.is_valid()
+            && matches!(
+                self.encode_present.path,
+                super::super::native_encode_present::NativeEncodePresentPath::Composited
+            )
     }
 }
 
@@ -67,10 +76,32 @@ pub(super) struct GpuSurfaceRenderCanvasUploadPlanEvidence {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct GpuSurfaceRenderCanvasUploadPlanStats {
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct GpuSurfaceRenderCanvasUploadPlanStats
+{
     pub(super) immutable_payload: GpuSurfaceRenderCanvasUploadPlanEvidence,
     pub(super) volatile_payload: GpuSurfaceRenderCanvasUploadPlanEvidence,
     pub(super) renderer_parameter: GpuSurfaceRenderCanvasUploadPlanEvidence,
+}
+
+impl GpuSurfaceRenderCanvasUploadPlanStats {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) const fn values(
+        self,
+    ) -> [(usize, u64); 3] {
+        [
+            (
+                self.immutable_payload.operations,
+                self.immutable_payload.logical_bytes,
+            ),
+            (
+                self.volatile_payload.operations,
+                self.volatile_payload.logical_bytes,
+            ),
+            (
+                self.renderer_parameter.operations,
+                self.renderer_parameter.logical_bytes,
+            ),
+        ]
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,32 +136,66 @@ enum GpuSurfaceRenderCanvasUploadClass {
 }
 
 impl GpuSurfaceRenderCanvasUploadPlan {
-    pub(super) const fn new(context: GpuSurfaceRenderCanvasUploadPlanContext) -> Self {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn new(
+        context: GpuSurfaceRenderCanvasUploadPlanContext,
+    ) -> Self {
         Self {
             context,
             result: GpuSurfaceRenderCanvasUploadPlanResult::NoWork,
         }
     }
 
-    pub(super) fn record_immutable_payload(&mut self, byte_len: usize) {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn matches_context(
+        self,
+        current: GpuSurfaceRenderCanvasUploadPlanContext,
+    ) -> bool {
+        self.context.accepts_candidate() && current.accepts_candidate() && self.context == current
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) const fn observation(
+        self,
+    ) -> GpuSurfaceRenderCanvasUploadPlanObservation {
+        match self.result {
+            GpuSurfaceRenderCanvasUploadPlanResult::NoWork => {
+                GpuSurfaceRenderCanvasUploadPlanObservation::NoWork
+            }
+            GpuSurfaceRenderCanvasUploadPlanResult::Exact(stats) => {
+                GpuSurfaceRenderCanvasUploadPlanObservation::Exact(stats)
+            }
+            GpuSurfaceRenderCanvasUploadPlanResult::Unavailable(reason) => {
+                GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(reason)
+            }
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn record_immutable_payload(
+        &mut self,
+        byte_len: usize,
+    ) {
         self.record(
             GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
             byte_len,
         );
     }
 
-    pub(super) fn record_volatile_payload(&mut self, byte_len: usize) {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn record_volatile_payload(
+        &mut self,
+        byte_len: usize,
+    ) {
         self.record(GpuSurfaceRenderCanvasUploadClass::VolatilePayload, byte_len);
     }
 
-    pub(super) fn record_renderer_parameter(&mut self, byte_len: usize) {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn record_renderer_parameter(
+        &mut self,
+        byte_len: usize,
+    ) {
         self.record(
             GpuSurfaceRenderCanvasUploadClass::RendererParameter,
             byte_len,
         );
     }
 
-    pub(super) fn mark_unavailable(
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn mark_unavailable(
         &mut self,
         reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
     ) {
@@ -174,6 +239,14 @@ impl GpuSurfaceRenderCanvasUploadPlan {
             self.mark_unavailable(reason);
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) enum GpuSurfaceRenderCanvasUploadPlanObservation
+{
+    NoWork,
+    Exact(GpuSurfaceRenderCanvasUploadPlanStats),
+    Unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason),
 }
 
 fn update_evidence(

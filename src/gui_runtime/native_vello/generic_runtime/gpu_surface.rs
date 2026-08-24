@@ -32,9 +32,10 @@ use resources::GpuSurfaceResourceCache;
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderCanvasUploadStats;
 pub(super) use stats::GpuSurfaceRenderStats;
-use upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
+pub(super) use upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
 pub(super) use upload_plan::{
-    GpuSurfaceRenderCanvasUploadPlanContext, GpuSurfaceRenderCanvasUploadTarget,
+    GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
+    GpuSurfaceRenderCanvasUploadPlanObservation, GpuSurfaceRenderCanvasUploadTarget,
 };
 pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
 pub use visibility::{

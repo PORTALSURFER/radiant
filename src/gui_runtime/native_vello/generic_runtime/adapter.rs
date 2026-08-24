@@ -1,7 +1,10 @@
 //! Event-loop-confined WGPU/Vello adapter ownership for one generic run.
 
 use super::device::DeviceFeatureSelection;
-use super::gpu_surface::GpuSurfaceRenderCanvasUploadStats;
+use super::gpu_surface::{
+    GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
+    GpuSurfaceRenderCanvasUploadPlanObservation, GpuSurfaceRenderCanvasUploadStats,
+};
 use super::runner_state::NativeWindowAtlasResidencySnapshots;
 use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};
 use super::{
@@ -614,7 +617,47 @@ fn add_bytes(total: &mut Option<u64>, contribution: Option<u64>) {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct NativeAdapterRenderCanvasUploadCandidateAggregate {
+    observed_candidate_plan_count: Option<usize>,
+    observed_candidate_plan_window_count: Option<usize>,
+    observed_candidate_no_work_count: Option<usize>,
+    observed_candidate_exact_count: Option<usize>,
+    observed_candidate_invalid_count: Option<usize>,
+    observed_candidate_unsupported_count: Option<usize>,
+    observed_candidate_incomplete_count: Option<usize>,
+    observed_candidate_overflow_count: Option<usize>,
+    observed_candidate_exact_immutable_payload_operations: Option<usize>,
+    observed_candidate_exact_immutable_payload_logical_bytes: Option<u64>,
+    observed_candidate_exact_volatile_payload_operations: Option<usize>,
+    observed_candidate_exact_volatile_payload_logical_bytes: Option<u64>,
+    observed_candidate_exact_renderer_parameter_operations: Option<usize>,
+    observed_candidate_exact_renderer_parameter_logical_bytes: Option<u64>,
+}
+
+impl Default for NativeAdapterRenderCanvasUploadCandidateAggregate {
+    fn default() -> Self {
+        Self {
+            observed_candidate_plan_count: Some(0),
+            observed_candidate_plan_window_count: Some(0),
+            observed_candidate_no_work_count: Some(0),
+            observed_candidate_exact_count: Some(0),
+            observed_candidate_invalid_count: Some(0),
+            observed_candidate_unsupported_count: Some(0),
+            observed_candidate_incomplete_count: Some(0),
+            observed_candidate_overflow_count: Some(0),
+            observed_candidate_exact_immutable_payload_operations: Some(0),
+            observed_candidate_exact_immutable_payload_logical_bytes: Some(0),
+            observed_candidate_exact_volatile_payload_operations: Some(0),
+            observed_candidate_exact_volatile_payload_logical_bytes: Some(0),
+            observed_candidate_exact_renderer_parameter_operations: Some(0),
+            observed_candidate_exact_renderer_parameter_logical_bytes: Some(0),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct NativeAdapterRenderCanvasUploadAggregate {
+    candidate: NativeAdapterRenderCanvasUploadCandidateAggregate,
     immutable_payload_operations: Option<usize>,
     immutable_payload_logical_bytes: Option<u64>,
     volatile_payload_operations: Option<usize>,
@@ -626,6 +669,7 @@ struct NativeAdapterRenderCanvasUploadAggregate {
 impl Default for NativeAdapterRenderCanvasUploadAggregate {
     fn default() -> Self {
         Self {
+            candidate: NativeAdapterRenderCanvasUploadCandidateAggregate::default(),
             immutable_payload_operations: Some(0),
             immutable_payload_logical_bytes: Some(0),
             volatile_payload_operations: Some(0),
@@ -640,6 +684,7 @@ struct NativeAdapterRenderCanvasUploadAccount {
     account_generation: u64,
     adapter_generation: NativeAdapterGeneration,
     totals: NativeAdapterRenderCanvasUploadAggregate,
+    has_observed_candidate_plan: bool,
     last_contributed_frame_sequence: Option<u64>,
 }
 
@@ -659,14 +704,7 @@ impl Default for NativeAdapterRenderCanvasUploadLedger {
             accounts: HashMap::new(),
             next_account_generation: Some(1),
             current_adapter_generation: NativeAdapterGeneration::default(),
-            aggregate: NativeAdapterRenderCanvasUploadAggregate {
-                immutable_payload_operations: Some(0),
-                immutable_payload_logical_bytes: Some(0),
-                volatile_payload_operations: Some(0),
-                volatile_payload_logical_bytes: Some(0),
-                renderer_parameter_operations: Some(0),
-                renderer_parameter_logical_bytes: Some(0),
-            },
+            aggregate: NativeAdapterRenderCanvasUploadAggregate::default(),
         }
     }
 }
@@ -705,6 +743,7 @@ impl NativeAdapterRenderCanvasUploadLedger {
                 account_generation,
                 adapter_generation,
                 totals: NativeAdapterRenderCanvasUploadAggregate::default(),
+                has_observed_candidate_plan: false,
                 last_contributed_frame_sequence: None,
             },
         );
@@ -734,6 +773,7 @@ impl NativeAdapterRenderCanvasUploadLedger {
         }
         account.adapter_generation = adapter_generation;
         account.totals = NativeAdapterRenderCanvasUploadAggregate::default();
+        account.has_observed_candidate_plan = false;
         account.last_contributed_frame_sequence = None;
         let next = NativeAdapterRenderCanvasUploadAccountToken {
             window_identity: token.window_identity.clone(),
@@ -765,8 +805,15 @@ impl NativeAdapterRenderCanvasUploadLedger {
         token: &NativeAdapterRenderCanvasUploadAccountToken,
         frame_sequence: u64,
         stats: GpuSurfaceRenderCanvasUploadStats,
+        candidate_plan: Option<GpuSurfaceRenderCanvasUploadPlan>,
+        current_plan_context: Option<GpuSurfaceRenderCanvasUploadPlanContext>,
     ) -> bool {
         let current_adapter_generation = self.current_adapter_generation;
+        let candidate_observation = candidate_plan
+            .zip(current_plan_context)
+            .and_then(|(plan, current)| plan.matches_context(current).then_some(plan))
+            .map(GpuSurfaceRenderCanvasUploadPlan::observation);
+        let mut candidate_window_was_new = false;
         {
             let Some(account) = self.accounts.get_mut(&token.window_identity) else {
                 return false;
@@ -784,8 +831,40 @@ impl NativeAdapterRenderCanvasUploadLedger {
 
             account.last_contributed_frame_sequence = Some(frame_sequence);
             accumulate_render_canvas_uploads(&mut account.totals, stats);
+            if let Some(observation) = candidate_observation {
+                if !account.has_observed_candidate_plan {
+                    account.has_observed_candidate_plan = true;
+                    candidate_window_was_new = true;
+                    add_count(
+                        &mut account
+                            .totals
+                            .candidate
+                            .observed_candidate_plan_window_count,
+                        1,
+                    );
+                }
+                accumulate_render_canvas_upload_candidate_observation(
+                    &mut account.totals.candidate,
+                    observation,
+                );
+            }
         }
         accumulate_render_canvas_uploads(&mut self.aggregate, stats);
+        if let Some(observation) = candidate_observation {
+            if candidate_window_was_new {
+                add_count(
+                    &mut self
+                        .aggregate
+                        .candidate
+                        .observed_candidate_plan_window_count,
+                    1,
+                );
+            }
+            accumulate_render_canvas_upload_candidate_observation(
+                &mut self.aggregate.candidate,
+                observation,
+            );
+        }
         true
     }
 
@@ -804,11 +883,32 @@ impl NativeAdapterRenderCanvasUploadLedger {
     }
 
     fn profile(&self) -> NativeAdapterRenderCanvasUploadProfile {
+        let candidate = self.aggregate.candidate;
         NativeAdapterRenderCanvasUploadProfile {
             adapter_generation: self
                 .current_adapter_generation
                 .is_known()
                 .then_some(self.current_adapter_generation),
+            observed_candidate_plan_count: candidate.observed_candidate_plan_count,
+            observed_candidate_plan_window_count: candidate.observed_candidate_plan_window_count,
+            observed_candidate_no_work_count: candidate.observed_candidate_no_work_count,
+            observed_candidate_exact_count: candidate.observed_candidate_exact_count,
+            observed_candidate_invalid_count: candidate.observed_candidate_invalid_count,
+            observed_candidate_unsupported_count: candidate.observed_candidate_unsupported_count,
+            observed_candidate_incomplete_count: candidate.observed_candidate_incomplete_count,
+            observed_candidate_overflow_count: candidate.observed_candidate_overflow_count,
+            observed_candidate_exact_immutable_payload_operations: candidate
+                .observed_candidate_exact_immutable_payload_operations,
+            observed_candidate_exact_immutable_payload_logical_bytes: candidate
+                .observed_candidate_exact_immutable_payload_logical_bytes,
+            observed_candidate_exact_volatile_payload_operations: candidate
+                .observed_candidate_exact_volatile_payload_operations,
+            observed_candidate_exact_volatile_payload_logical_bytes: candidate
+                .observed_candidate_exact_volatile_payload_logical_bytes,
+            observed_candidate_exact_renderer_parameter_operations: candidate
+                .observed_candidate_exact_renderer_parameter_operations,
+            observed_candidate_exact_renderer_parameter_logical_bytes: candidate
+                .observed_candidate_exact_renderer_parameter_logical_bytes,
             immutable_payload_operations: self.aggregate.immutable_payload_operations,
             immutable_payload_logical_bytes: self.aggregate.immutable_payload_logical_bytes,
             volatile_payload_operations: self.aggregate.volatile_payload_operations,
@@ -819,14 +919,7 @@ impl NativeAdapterRenderCanvasUploadLedger {
     }
 
     fn recompute_aggregate(&mut self) {
-        let mut aggregate = NativeAdapterRenderCanvasUploadAggregate {
-            immutable_payload_operations: Some(0),
-            immutable_payload_logical_bytes: Some(0),
-            volatile_payload_operations: Some(0),
-            volatile_payload_logical_bytes: Some(0),
-            renderer_parameter_operations: Some(0),
-            renderer_parameter_logical_bytes: Some(0),
-        };
+        let mut aggregate = NativeAdapterRenderCanvasUploadAggregate::default();
         if self.current_adapter_generation.is_known() {
             for account in self.accounts.values() {
                 if account.adapter_generation == self.current_adapter_generation {
@@ -873,10 +966,134 @@ fn accumulate_render_canvas_uploads(
     );
 }
 
+fn accumulate_render_canvas_upload_candidate_observation(
+    total: &mut NativeAdapterRenderCanvasUploadCandidateAggregate,
+    contribution: GpuSurfaceRenderCanvasUploadPlanObservation,
+) {
+    add_count(&mut total.observed_candidate_plan_count, 1);
+    match contribution {
+        GpuSurfaceRenderCanvasUploadPlanObservation::NoWork => {
+            add_count(&mut total.observed_candidate_no_work_count, 1);
+        }
+        GpuSurfaceRenderCanvasUploadPlanObservation::Exact(stats) => {
+            add_count(&mut total.observed_candidate_exact_count, 1);
+            let [
+                (immutable_payload_operations, immutable_payload_logical_bytes),
+                (volatile_payload_operations, volatile_payload_logical_bytes),
+                (renderer_parameter_operations, renderer_parameter_logical_bytes),
+            ] = stats.values();
+            add_count(
+                &mut total.observed_candidate_exact_immutable_payload_operations,
+                immutable_payload_operations,
+            );
+            add_bytes(
+                &mut total.observed_candidate_exact_immutable_payload_logical_bytes,
+                Some(immutable_payload_logical_bytes),
+            );
+            add_count(
+                &mut total.observed_candidate_exact_volatile_payload_operations,
+                volatile_payload_operations,
+            );
+            add_bytes(
+                &mut total.observed_candidate_exact_volatile_payload_logical_bytes,
+                Some(volatile_payload_logical_bytes),
+            );
+            add_count(
+                &mut total.observed_candidate_exact_renderer_parameter_operations,
+                renderer_parameter_operations,
+            );
+            add_bytes(
+                &mut total.observed_candidate_exact_renderer_parameter_logical_bytes,
+                Some(renderer_parameter_logical_bytes),
+            );
+        }
+        GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(reason) => match reason {
+            super::gpu_surface::GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid => {
+                add_count(&mut total.observed_candidate_invalid_count, 1);
+            }
+            super::gpu_surface::GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported => {
+                add_count(&mut total.observed_candidate_unsupported_count, 1);
+            }
+            super::gpu_surface::GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete => {
+                add_count(&mut total.observed_candidate_incomplete_count, 1);
+            }
+            super::gpu_surface::GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Overflow => {
+                add_count(&mut total.observed_candidate_overflow_count, 1);
+            }
+        },
+    }
+}
+
+fn accumulate_render_canvas_upload_candidate_aggregate(
+    total: &mut NativeAdapterRenderCanvasUploadCandidateAggregate,
+    contribution: NativeAdapterRenderCanvasUploadCandidateAggregate,
+) {
+    add_optional_count(
+        &mut total.observed_candidate_plan_count,
+        contribution.observed_candidate_plan_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_plan_window_count,
+        contribution.observed_candidate_plan_window_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_no_work_count,
+        contribution.observed_candidate_no_work_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_exact_count,
+        contribution.observed_candidate_exact_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_invalid_count,
+        contribution.observed_candidate_invalid_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_unsupported_count,
+        contribution.observed_candidate_unsupported_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_incomplete_count,
+        contribution.observed_candidate_incomplete_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_overflow_count,
+        contribution.observed_candidate_overflow_count,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_exact_immutable_payload_operations,
+        contribution.observed_candidate_exact_immutable_payload_operations,
+    );
+    add_bytes(
+        &mut total.observed_candidate_exact_immutable_payload_logical_bytes,
+        contribution.observed_candidate_exact_immutable_payload_logical_bytes,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_exact_volatile_payload_operations,
+        contribution.observed_candidate_exact_volatile_payload_operations,
+    );
+    add_bytes(
+        &mut total.observed_candidate_exact_volatile_payload_logical_bytes,
+        contribution.observed_candidate_exact_volatile_payload_logical_bytes,
+    );
+    add_optional_count(
+        &mut total.observed_candidate_exact_renderer_parameter_operations,
+        contribution.observed_candidate_exact_renderer_parameter_operations,
+    );
+    add_bytes(
+        &mut total.observed_candidate_exact_renderer_parameter_logical_bytes,
+        contribution.observed_candidate_exact_renderer_parameter_logical_bytes,
+    );
+}
+
 fn accumulate_render_canvas_upload_aggregate(
     total: &mut NativeAdapterRenderCanvasUploadAggregate,
     contribution: NativeAdapterRenderCanvasUploadAggregate,
 ) {
+    accumulate_render_canvas_upload_candidate_aggregate(
+        &mut total.candidate,
+        contribution.candidate,
+    );
     add_optional_count(
         &mut total.immutable_payload_operations,
         contribution.immutable_payload_operations,
@@ -1186,9 +1403,16 @@ impl GenericNativeAdapterOwner {
         token: &NativeAdapterRenderCanvasUploadAccountToken,
         frame_sequence: u64,
         stats: GpuSurfaceRenderCanvasUploadStats,
+        candidate_plan: Option<GpuSurfaceRenderCanvasUploadPlan>,
+        current_plan_context: Option<GpuSurfaceRenderCanvasUploadPlanContext>,
     ) -> bool {
-        self.render_canvas_upload_ledger
-            .contribute(token, frame_sequence, stats)
+        self.render_canvas_upload_ledger.contribute(
+            token,
+            frame_sequence,
+            stats,
+            candidate_plan,
+            current_plan_context,
+        )
     }
 
     pub(super) fn capture_render_canvas_upload_profile(
@@ -1388,8 +1612,23 @@ mod tests {
         render_surface_creation_error,
     };
     use crate::gui_runtime::NativeGpuBackend;
-    use std::sync::Arc;
+    use crate::gui_runtime::native_vello::generic_runtime::closing::NativeLifecycle;
+    use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::{
+        GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
+        GpuSurfaceRenderCanvasUploadPlanUnavailableReason, GpuSurfaceRenderCanvasUploadTarget,
+    };
+    use crate::gui_runtime::native_vello::generic_runtime::native_encode_present::{
+        NativeEncodePresentPath, NativeEncodePresentPlanContext,
+    };
+    use crate::gui_runtime::native_vello::generic_runtime::native_visual_packet::{
+        NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestMailbox,
+    };
+    use crate::gui_runtime::native_vello::generic_runtime::{
+        FrameWork, runner_state::NativeTargetGeneration,
+    };
+    use std::{num::NonZeroU64, sync::Arc};
     use vello::wgpu;
+    use winit::window::WindowId;
 
     fn atlas_snapshot(
         generation: NativeAdapterGeneration,
@@ -1430,6 +1669,62 @@ mod tests {
         stats
     }
 
+    fn upload_plan_context(
+        generation: NativeAdapterGeneration,
+        path: NativeEncodePresentPath,
+        width: u32,
+        height: u32,
+    ) -> GpuSurfaceRenderCanvasUploadPlanContext {
+        let mut mailbox = NativeVisualRequestMailbox::new();
+        let window_id = WindowId::dummy();
+        assert!(mailbox.bind_window(window_id));
+        let _ = mailbox.enqueue_for_test(FrameWork::None);
+        let packet = match NativeVisualRequestAdapter::begin(&mut mailbox, window_id, true) {
+            NativeVisualRequestBegin::Requested(packet) => packet.identity(),
+            other => panic!("unexpected packet begin: {other:?}"),
+        };
+        GpuSurfaceRenderCanvasUploadPlanContext::new(
+            NativeEncodePresentPlanContext {
+                packet,
+                adapter_generation: generation,
+                target_generation: NativeTargetGeneration::from_test_serial(1),
+                lifecycle: NativeLifecycle::default(),
+                path,
+                snapshot_revision: NonZeroU64::MIN,
+            },
+            generation,
+            GpuSurfaceRenderCanvasUploadTarget::new(
+                1,
+                wgpu::TextureFormat::Rgba8Unorm,
+                width,
+                height,
+            ),
+        )
+        .expect("valid upload-plan context")
+    }
+
+    fn exact_upload_plan(
+        context: GpuSurfaceRenderCanvasUploadPlanContext,
+        immutable_payload: usize,
+        volatile_payload: usize,
+        renderer_parameter: usize,
+    ) -> GpuSurfaceRenderCanvasUploadPlan {
+        let mut plan = GpuSurfaceRenderCanvasUploadPlan::new(context);
+        plan.record_immutable_payload(immutable_payload);
+        plan.record_volatile_payload(volatile_payload);
+        plan.record_renderer_parameter(renderer_parameter);
+        plan
+    }
+
+    fn unavailable_upload_plan(
+        context: GpuSurfaceRenderCanvasUploadPlanContext,
+        reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+    ) -> GpuSurfaceRenderCanvasUploadPlan {
+        let mut plan = GpuSurfaceRenderCanvasUploadPlan::new(context);
+        plan.mark_unavailable(reason);
+        plan
+    }
+
     #[test]
     fn render_canvas_upload_ledger_sums_primary_and_auxiliary_frames_once() {
         let generation = NativeAdapterGeneration::from_test_serial(1);
@@ -1454,22 +1749,36 @@ mod tests {
                 (Some(1), Some(12)),
                 (Some(3), Some(48))
             ),
+            None,
+            None,
         ));
         assert!(ledger.contribute(
             &auxiliary,
             1,
             upload_stats((Some(1), Some(8)), (Some(2), Some(16)), (Some(1), Some(32))),
+            None,
+            None,
         ));
         assert!(!ledger.contribute(
             &primary,
             1,
             upload_stats((Some(9), Some(9)), (Some(9), Some(9)), (Some(9), Some(9))),
+            None,
+            None,
         ));
-        assert!(!ledger.contribute(&primary, 0, GpuSurfaceRenderCanvasUploadStats::default(),));
+        assert!(!ledger.contribute(
+            &primary,
+            0,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            None,
+            None,
+        ));
         assert!(ledger.contribute(
             &primary,
             2,
             upload_stats((Some(1), Some(4)), (Some(0), Some(0)), (Some(1), Some(16))),
+            None,
+            None,
         ));
 
         let profile = ledger.profile();
@@ -1496,12 +1805,20 @@ mod tests {
             &first,
             1,
             upload_stats((Some(2), Some(8)), (Some(1), Some(4)), (Some(1), Some(16))),
+            None,
+            None,
         ));
 
         ledger.record_adapter_generation(second_generation);
         assert_eq!(ledger.profile().immutable_payload_operations, Some(0));
         assert!(!ledger.update(&first));
-        assert!(!ledger.contribute(&first, 2, GpuSurfaceRenderCanvasUploadStats::default(),));
+        assert!(!ledger.contribute(
+            &first,
+            2,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            None,
+            None,
+        ));
 
         let rebound = ledger
             .rebind(&first, second_generation)
@@ -1511,6 +1828,8 @@ mod tests {
             &rebound,
             1,
             upload_stats((Some(1), Some(3)), (Some(0), Some(0)), (Some(0), Some(0))),
+            None,
+            None,
         ));
         assert!(!ledger.remove(&first));
         assert!(ledger.remove(&rebound));
@@ -1520,7 +1839,13 @@ mod tests {
             .register(identity, second_generation)
             .expect("replacement upload account should register");
         assert_ne!(first.account_generation, replacement.account_generation);
-        assert!(!ledger.contribute(&first, 3, GpuSurfaceRenderCanvasUploadStats::default(),));
+        assert!(!ledger.contribute(
+            &first,
+            3,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            None,
+            None,
+        ));
         assert!(ledger.update(&replacement));
     }
 
@@ -1536,6 +1861,8 @@ mod tests {
             &unavailable,
             1,
             upload_stats((None, Some(7)), (Some(1), None), (Some(2), Some(9))),
+            None,
+            None,
         ));
         let profile = ledger.profile();
         assert_eq!(profile.immutable_payload_operations, None);
@@ -1559,16 +1886,352 @@ mod tests {
                 (Some(0), Some(0)),
                 (Some(0), Some(0)),
             ),
+            None,
+            None,
         ));
         assert!(ledger.contribute(
             &overflow,
             2,
             upload_stats((Some(1), Some(1)), (Some(0), Some(0)), (Some(0), Some(0)),),
+            None,
+            None,
         ));
         assert_eq!(ledger.profile().immutable_payload_operations, None);
         assert_eq!(ledger.profile().immutable_payload_logical_bytes, None);
         assert!(ledger.remove(&overflow));
         assert_eq!(ledger.profile().immutable_payload_logical_bytes, Some(7));
+    }
+
+    #[test]
+    fn render_canvas_upload_candidate_plans_sum_primary_and_auxiliary_exact_frames_once() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let context = upload_plan_context(generation, NativeEncodePresentPath::Composited, 64, 32);
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(generation);
+        let primary = ledger
+            .register(NativeAtlasResidencyWindowIdentity::Primary, generation)
+            .expect("primary upload account should register");
+        let auxiliary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("inspector")),
+                generation,
+            )
+            .expect("auxiliary upload account should register");
+        let primary_plan = exact_upload_plan(context, 16, 8, 32);
+        let auxiliary_plan = exact_upload_plan(context, 4, 2, 8);
+
+        assert!(ledger.contribute(
+            &primary,
+            1,
+            upload_stats((Some(1), Some(16)), (Some(1), Some(8)), (Some(1), Some(32))),
+            Some(primary_plan),
+            Some(context),
+        ));
+        assert!(ledger.contribute(
+            &auxiliary,
+            1,
+            upload_stats((Some(1), Some(4)), (Some(1), Some(2)), (Some(1), Some(8))),
+            Some(auxiliary_plan),
+            Some(context),
+        ));
+        assert!(!ledger.contribute(
+            &primary,
+            1,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(primary_plan),
+            Some(context),
+        ));
+        assert!(!ledger.contribute(
+            &primary,
+            0,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(primary_plan),
+            Some(context),
+        ));
+
+        let profile = ledger.profile();
+        assert_eq!(profile.observed_candidate_plan_count, Some(2));
+        assert_eq!(profile.observed_candidate_plan_window_count, Some(2));
+        assert_eq!(profile.observed_candidate_no_work_count, Some(0));
+        assert_eq!(profile.observed_candidate_exact_count, Some(2));
+        assert_eq!(
+            profile.observed_candidate_exact_immutable_payload_operations,
+            Some(2)
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_immutable_payload_logical_bytes,
+            Some(20)
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_volatile_payload_operations,
+            Some(2)
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_volatile_payload_logical_bytes,
+            Some(10)
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_renderer_parameter_operations,
+            Some(2)
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_renderer_parameter_logical_bytes,
+            Some(40)
+        );
+        assert_eq!(profile.immutable_payload_operations, Some(2));
+        assert_eq!(profile.immutable_payload_logical_bytes, Some(20));
+    }
+
+    #[test]
+    fn render_canvas_upload_candidate_plans_keep_no_work_and_unavailable_buckets_separate() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let context = upload_plan_context(generation, NativeEncodePresentPath::Composited, 64, 32);
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(generation);
+        let token = ledger
+            .register(NativeAtlasResidencyWindowIdentity::Primary, generation)
+            .expect("upload account should register");
+
+        assert!(ledger.contribute(
+            &token,
+            1,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(GpuSurfaceRenderCanvasUploadPlan::new(context)),
+            Some(context),
+        ));
+        assert!(ledger.contribute(
+            &token,
+            2,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(exact_upload_plan(context, 10, 20, 30)),
+            Some(context),
+        ));
+        for (sequence, reason) in [
+            (
+                3,
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid,
+            ),
+            (
+                4,
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported,
+            ),
+            (
+                5,
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            ),
+            (
+                6,
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Overflow,
+            ),
+        ] {
+            assert!(ledger.contribute(
+                &token,
+                sequence,
+                GpuSurfaceRenderCanvasUploadStats::default(),
+                Some(unavailable_upload_plan(context, reason)),
+                Some(context),
+            ));
+        }
+
+        let profile = ledger.profile();
+        assert_eq!(profile.observed_candidate_plan_count, Some(6));
+        assert_eq!(profile.observed_candidate_plan_window_count, Some(1));
+        assert_eq!(profile.observed_candidate_no_work_count, Some(1));
+        assert_eq!(profile.observed_candidate_exact_count, Some(1));
+        assert_eq!(profile.observed_candidate_invalid_count, Some(1));
+        assert_eq!(profile.observed_candidate_unsupported_count, Some(1));
+        assert_eq!(profile.observed_candidate_incomplete_count, Some(1));
+        assert_eq!(profile.observed_candidate_overflow_count, Some(1));
+        assert_eq!(
+            profile.observed_candidate_exact_immutable_payload_logical_bytes,
+            Some(10)
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_volatile_payload_logical_bytes,
+            Some(20)
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_renderer_parameter_logical_bytes,
+            Some(30)
+        );
+    }
+
+    #[test]
+    fn render_canvas_upload_candidate_rejection_preserves_actual_stats_and_no_plan_is_inert() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let context = upload_plan_context(generation, NativeEncodePresentPath::Composited, 64, 32);
+        let mismatched_context =
+            upload_plan_context(generation, NativeEncodePresentPath::Composited, 128, 32);
+        let direct_context =
+            upload_plan_context(generation, NativeEncodePresentPath::DirectResize, 64, 32);
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(generation);
+        let token = ledger
+            .register(NativeAtlasResidencyWindowIdentity::Primary, generation)
+            .expect("upload account should register");
+        let actual = upload_stats((Some(1), Some(4)), (Some(1), Some(8)), (Some(1), Some(16)));
+
+        assert!(ledger.contribute(
+            &token,
+            1,
+            actual,
+            Some(exact_upload_plan(mismatched_context, 1, 2, 3)),
+            Some(context),
+        ));
+        assert!(ledger.contribute(
+            &token,
+            2,
+            actual,
+            Some(GpuSurfaceRenderCanvasUploadPlan::new(direct_context)),
+            Some(direct_context),
+        ));
+        assert!(ledger.contribute(
+            &token,
+            3,
+            actual,
+            Some(exact_upload_plan(context, 1, 2, 3)),
+            None,
+        ));
+        assert!(ledger.contribute(&token, 4, actual, None, None));
+
+        let profile = ledger.profile();
+        assert_eq!(profile.observed_candidate_plan_count, Some(0));
+        assert_eq!(profile.observed_candidate_plan_window_count, Some(0));
+        assert_eq!(profile.observed_candidate_exact_count, Some(0));
+        assert_eq!(profile.immutable_payload_operations, Some(4));
+        assert_eq!(profile.immutable_payload_logical_bytes, Some(16));
+        assert_eq!(profile.volatile_payload_operations, Some(4));
+        assert_eq!(profile.volatile_payload_logical_bytes, Some(32));
+        assert_eq!(profile.renderer_parameter_operations, Some(4));
+        assert_eq!(profile.renderer_parameter_logical_bytes, Some(64));
+    }
+
+    #[test]
+    fn render_canvas_upload_candidate_rebind_resets_old_generation_evidence() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let second_generation = NativeAdapterGeneration::from_test_serial(2);
+        let first_context = upload_plan_context(
+            first_generation,
+            NativeEncodePresentPath::Composited,
+            64,
+            32,
+        );
+        let second_context = upload_plan_context(
+            second_generation,
+            NativeEncodePresentPath::Composited,
+            64,
+            32,
+        );
+        let identity = NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("same-key"));
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let first = ledger
+            .register(identity, first_generation)
+            .expect("first upload account should register");
+        let first_plan = exact_upload_plan(first_context, 2, 3, 4);
+        assert!(ledger.contribute(
+            &first,
+            1,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(first_plan),
+            Some(first_context),
+        ));
+        assert_eq!(ledger.profile().observed_candidate_exact_count, Some(1));
+
+        ledger.record_adapter_generation(second_generation);
+        assert_eq!(ledger.profile().observed_candidate_plan_count, Some(0));
+        assert!(!ledger.contribute(
+            &first,
+            2,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(first_plan),
+            Some(first_context),
+        ));
+        let rebound = ledger
+            .rebind(&first, second_generation)
+            .expect("current account should rebind");
+        assert!(ledger.contribute(
+            &rebound,
+            1,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(exact_upload_plan(second_context, 5, 6, 7)),
+            Some(second_context),
+        ));
+        assert_eq!(ledger.profile().observed_candidate_plan_count, Some(1));
+        assert_eq!(
+            ledger
+                .profile()
+                .observed_candidate_exact_immutable_payload_logical_bytes,
+            Some(5)
+        );
+    }
+
+    #[test]
+    fn render_canvas_upload_candidate_counter_and_bytes_overflow_clear_on_removal() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let context = upload_plan_context(generation, NativeEncodePresentPath::Composited, 64, 32);
+        let mut ledger = NativeAdapterRenderCanvasUploadLedger::default();
+        ledger.record_adapter_generation(generation);
+        let token = ledger
+            .register(NativeAtlasResidencyWindowIdentity::Primary, generation)
+            .expect("upload account should register");
+        let account = ledger
+            .accounts
+            .get_mut(&token.window_identity)
+            .expect("registered account should exist");
+        account.has_observed_candidate_plan = true;
+        account.totals.candidate.observed_candidate_plan_count = Some(usize::MAX);
+        account.totals.candidate.observed_candidate_exact_count = Some(usize::MAX);
+        account
+            .totals
+            .candidate
+            .observed_candidate_exact_immutable_payload_operations = Some(usize::MAX);
+        account
+            .totals
+            .candidate
+            .observed_candidate_exact_immutable_payload_logical_bytes = Some(u64::MAX);
+        ledger.aggregate.candidate.observed_candidate_plan_count = Some(usize::MAX);
+        ledger.aggregate.candidate.observed_candidate_exact_count = Some(usize::MAX);
+        ledger
+            .aggregate
+            .candidate
+            .observed_candidate_exact_immutable_payload_operations = Some(usize::MAX);
+        ledger
+            .aggregate
+            .candidate
+            .observed_candidate_exact_immutable_payload_logical_bytes = Some(u64::MAX);
+
+        assert!(ledger.contribute(
+            &token,
+            1,
+            GpuSurfaceRenderCanvasUploadStats::default(),
+            Some(exact_upload_plan(context, 1, 2, 3)),
+            Some(context),
+        ));
+        let profile = ledger.profile();
+        assert_eq!(profile.observed_candidate_plan_count, None);
+        assert_eq!(profile.observed_candidate_exact_count, None);
+        assert_eq!(
+            profile.observed_candidate_exact_immutable_payload_operations,
+            None
+        );
+        assert_eq!(
+            profile.observed_candidate_exact_immutable_payload_logical_bytes,
+            None
+        );
+
+        assert!(ledger.remove(&token));
+        let recovered = ledger.profile();
+        assert_eq!(recovered.observed_candidate_plan_count, Some(0));
+        assert_eq!(recovered.observed_candidate_exact_count, Some(0));
+        assert_eq!(
+            recovered.observed_candidate_exact_immutable_payload_operations,
+            Some(0)
+        );
+        assert_eq!(
+            recovered.observed_candidate_exact_immutable_payload_logical_bytes,
+            Some(0)
+        );
     }
 
     #[test]

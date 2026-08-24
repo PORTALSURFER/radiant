@@ -168,6 +168,39 @@ pub(super) fn maybe_log_render_profile(
             application_render_canvas_uploads
                 .adapter_generation
                 .and_then(|generation| generation.known_serial()),
+        gpu_surface_render_canvas_upload_observed_candidate_plan_count =
+            application_render_canvas_uploads.observed_candidate_plan_count,
+        gpu_surface_render_canvas_upload_observed_candidate_plan_window_count =
+            application_render_canvas_uploads.observed_candidate_plan_window_count,
+        gpu_surface_render_canvas_upload_observed_candidate_no_work_count =
+            application_render_canvas_uploads.observed_candidate_no_work_count,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_count =
+            application_render_canvas_uploads.observed_candidate_exact_count,
+        gpu_surface_render_canvas_upload_observed_candidate_invalid_count =
+            application_render_canvas_uploads.observed_candidate_invalid_count,
+        gpu_surface_render_canvas_upload_observed_candidate_unsupported_count =
+            application_render_canvas_uploads.observed_candidate_unsupported_count,
+        gpu_surface_render_canvas_upload_observed_candidate_incomplete_count =
+            application_render_canvas_uploads.observed_candidate_incomplete_count,
+        gpu_surface_render_canvas_upload_observed_candidate_overflow_count =
+            application_render_canvas_uploads.observed_candidate_overflow_count,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_immutable_payload_operations =
+            application_render_canvas_uploads
+                .observed_candidate_exact_immutable_payload_operations,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_immutable_payload_bytes =
+            application_render_canvas_uploads
+                .observed_candidate_exact_immutable_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_volatile_payload_operations =
+            application_render_canvas_uploads.observed_candidate_exact_volatile_payload_operations,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_volatile_payload_bytes =
+            application_render_canvas_uploads
+                .observed_candidate_exact_volatile_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_renderer_parameter_operations =
+            application_render_canvas_uploads
+                .observed_candidate_exact_renderer_parameter_operations,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_renderer_parameter_bytes =
+            application_render_canvas_uploads
+                .observed_candidate_exact_renderer_parameter_logical_bytes,
         gpu_surface_render_canvas_upload_application_immutable_payload_operations =
             application_render_canvas_uploads.immutable_payload_operations,
         gpu_surface_render_canvas_upload_application_immutable_payload_bytes =
@@ -318,6 +351,39 @@ pub(super) fn maybe_log_slow_render_profile(
             application_render_canvas_uploads
                 .adapter_generation
                 .and_then(|generation| generation.known_serial()),
+        gpu_surface_render_canvas_upload_observed_candidate_plan_count =
+            application_render_canvas_uploads.observed_candidate_plan_count,
+        gpu_surface_render_canvas_upload_observed_candidate_plan_window_count =
+            application_render_canvas_uploads.observed_candidate_plan_window_count,
+        gpu_surface_render_canvas_upload_observed_candidate_no_work_count =
+            application_render_canvas_uploads.observed_candidate_no_work_count,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_count =
+            application_render_canvas_uploads.observed_candidate_exact_count,
+        gpu_surface_render_canvas_upload_observed_candidate_invalid_count =
+            application_render_canvas_uploads.observed_candidate_invalid_count,
+        gpu_surface_render_canvas_upload_observed_candidate_unsupported_count =
+            application_render_canvas_uploads.observed_candidate_unsupported_count,
+        gpu_surface_render_canvas_upload_observed_candidate_incomplete_count =
+            application_render_canvas_uploads.observed_candidate_incomplete_count,
+        gpu_surface_render_canvas_upload_observed_candidate_overflow_count =
+            application_render_canvas_uploads.observed_candidate_overflow_count,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_immutable_payload_operations =
+            application_render_canvas_uploads
+                .observed_candidate_exact_immutable_payload_operations,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_immutable_payload_bytes =
+            application_render_canvas_uploads
+                .observed_candidate_exact_immutable_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_volatile_payload_operations =
+            application_render_canvas_uploads.observed_candidate_exact_volatile_payload_operations,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_volatile_payload_bytes =
+            application_render_canvas_uploads
+                .observed_candidate_exact_volatile_payload_logical_bytes,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_renderer_parameter_operations =
+            application_render_canvas_uploads
+                .observed_candidate_exact_renderer_parameter_operations,
+        gpu_surface_render_canvas_upload_observed_candidate_exact_renderer_parameter_bytes =
+            application_render_canvas_uploads
+                .observed_candidate_exact_renderer_parameter_logical_bytes,
         gpu_surface_render_canvas_upload_application_immutable_payload_operations =
             application_render_canvas_uploads.immutable_payload_operations,
         gpu_surface_render_canvas_upload_application_immutable_payload_bytes =

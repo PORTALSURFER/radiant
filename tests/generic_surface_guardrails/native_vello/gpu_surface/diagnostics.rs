@@ -272,6 +272,27 @@ fn render_canvas_upload_evidence_stays_private_and_follows_actual_write_sites() 
             "private render profile should expose upload evidence field `{required}`"
         );
     }
+    for required in [
+        "gpu_surface_render_canvas_upload_observed_candidate_plan_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_plan_window_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_no_work_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_exact_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_invalid_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_unsupported_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_incomplete_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_overflow_count",
+        "gpu_surface_render_canvas_upload_observed_candidate_exact_immutable_payload_operations",
+        "gpu_surface_render_canvas_upload_observed_candidate_exact_immutable_payload_bytes",
+        "gpu_surface_render_canvas_upload_observed_candidate_exact_volatile_payload_operations",
+        "gpu_surface_render_canvas_upload_observed_candidate_exact_volatile_payload_bytes",
+        "gpu_surface_render_canvas_upload_observed_candidate_exact_renderer_parameter_operations",
+        "gpu_surface_render_canvas_upload_observed_candidate_exact_renderer_parameter_bytes",
+    ] {
+        assert!(
+            render_profile.contains(required),
+            "private render profile should expose observed candidate-plan field `{required}`"
+        );
+    }
 }
 
 #[test]
@@ -287,12 +308,22 @@ fn application_render_canvas_upload_aggregate_stays_private_to_native_profiling(
     let public_diagnostics =
         fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/gpu_surface.rs"))
             .expect("public GPU surface diagnostics should be readable");
+    let runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner.rs"),
+    )
+    .expect("native runner should be readable");
+    let gpu_surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface.rs"),
+    )
+    .expect("GPU surface renderer should be readable");
 
     assert!(
         module.contains("struct NativeAdapterRenderCanvasUploadAccountToken")
             && module.contains("struct NativeAdapterRenderCanvasUploadProfile")
             && adapter.contains("pub(super) struct NativeAdapterRenderCanvasUploadLedger")
             && adapter.contains("render_canvas_upload_ledger")
+            && adapter.contains("NativeAdapterRenderCanvasUploadCandidateAggregate")
+            && adapter.contains("Option<GpuSurfaceRenderCanvasUploadPlan>")
             && !adapter.contains("pub struct NativeAdapterRenderCanvasUploadLedger")
             && !public_diagnostics.contains("RenderCanvasUpload"),
         "application upload aggregation should remain crate-private and outside public diagnostics"
@@ -310,4 +341,30 @@ fn application_render_canvas_upload_aggregate_stays_private_to_native_profiling(
             "private aggregate profile should retain `{field}`"
         );
     }
+    for field in [
+        "pub(super) observed_candidate_plan_count",
+        "pub(super) observed_candidate_plan_window_count",
+        "pub(super) observed_candidate_no_work_count",
+        "pub(super) observed_candidate_exact_count",
+        "pub(super) observed_candidate_invalid_count",
+        "pub(super) observed_candidate_unsupported_count",
+        "pub(super) observed_candidate_incomplete_count",
+        "pub(super) observed_candidate_overflow_count",
+        "pub(super) observed_candidate_exact_immutable_payload_operations",
+        "pub(super) observed_candidate_exact_immutable_payload_logical_bytes",
+        "pub(super) observed_candidate_exact_volatile_payload_operations",
+        "pub(super) observed_candidate_exact_volatile_payload_logical_bytes",
+        "pub(super) observed_candidate_exact_renderer_parameter_operations",
+        "pub(super) observed_candidate_exact_renderer_parameter_logical_bytes",
+    ] {
+        assert!(
+            module.contains(field),
+            "private aggregate profile should retain `{field}`"
+        );
+    }
+    assert!(
+        !runner.contains("observed_candidate_")
+            && !gpu_surface.contains("NativeAdapterRenderCanvasUploadProfile"),
+        "candidate-plan aggregate evidence must not become a scheduler or renderer consumer"
+    );
 }

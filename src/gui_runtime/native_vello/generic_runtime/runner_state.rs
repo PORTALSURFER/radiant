@@ -16,8 +16,8 @@ use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
 use super::{
     CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceAtlasResidencySnapshot,
-    GpuSurfaceRenderer, GpuSurfaceSignalResidencySnapshot, NativeGpuTimingRoute,
-    PostGpuOverlayRenderer, RuntimeUserEvent,
+    GpuSurfaceCustomShaderResidencySnapshot, GpuSurfaceRenderer, GpuSurfaceSignalResidencySnapshot,
+    NativeGpuTimingRoute, PostGpuOverlayRenderer, RuntimeUserEvent,
 };
 use crate::gui::input::{InputSequence, InputSequenceRange};
 use crate::gui::types::Vector2;
@@ -341,6 +341,27 @@ impl NativeWindowSignalResidencySnapshots {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeWindowCustomShaderResidencySnapshots {
+    pub(super) active: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+    pub(super) quarantine_0: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+    pub(super) quarantine_1: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+}
+
+impl NativeWindowCustomShaderResidencySnapshots {
+    fn from_slots(
+        active: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+        quarantine_0: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+        quarantine_1: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+    ) -> Self {
+        Self {
+            active,
+            quarantine_0,
+            quarantine_1,
+        }
+    }
+}
+
 /// The complete native surface/renderer binding for one window.
 ///
 /// The bundle is published only after both WGPU surface setup and Vello
@@ -431,6 +452,15 @@ impl NativeWindowResourceBundle {
         self.gpu_resources
             .gpu_surface_renderer
             .signal_residency_snapshot()
+            .with_generation(self.generation)
+    }
+
+    pub(super) fn custom_shader_residency_snapshot(
+        &self,
+    ) -> GpuSurfaceCustomShaderResidencySnapshot {
+        self.gpu_resources
+            .gpu_surface_renderer
+            .custom_shader_residency_snapshot()
             .with_generation(self.generation)
     }
 
@@ -823,6 +853,24 @@ impl NativeRunnerWindowState {
             }
         }
         NativeWindowSignalResidencySnapshots::from_slots(active, quarantine[0], quarantine[1])
+    }
+
+    pub(super) fn custom_shader_residency_snapshots(
+        &self,
+    ) -> NativeWindowCustomShaderResidencySnapshots {
+        let active = self
+            .native_resources
+            .as_ref()
+            .map(NativeWindowResourceBundle::custom_shader_residency_snapshot);
+        let mut quarantine = [None, None];
+        for (index, resources) in self.quarantined_native_resources.entries.iter().enumerate() {
+            match index {
+                0 => quarantine[0] = Some(resources.custom_shader_residency_snapshot()),
+                1 => quarantine[1] = Some(resources.custom_shader_residency_snapshot()),
+                _ => break,
+            }
+        }
+        NativeWindowCustomShaderResidencySnapshots::from_slots(active, quarantine[0], quarantine[1])
     }
 
     pub(super) fn prepare_native_gpu_timing_delivery(
@@ -1275,13 +1323,13 @@ impl NativeRunnerTimingState {
 #[cfg(test)]
 mod tests {
     use super::{
-        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
-        NativeAdapterGeneration, NativeImeCursorAreaCache, NativeInputSequenceAllocator,
-        NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerInputState,
-        NativeRunnerTimingState, NativeRunnerWindowState, NativeSurfaceRecoveryState,
-        NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
-        NativeWindowDiagnosticIdentityAllocator, NativeWindowGpuResources,
-        NativeWindowSignalResidencySnapshots,
+        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+        GpuSurfaceSignalResidencySnapshot, NativeAdapterGeneration, NativeImeCursorAreaCache,
+        NativeInputSequenceAllocator, NativeResourceMaintenanceTurn, NativeResourceQuarantine,
+        NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
+        NativeSurfaceRecoveryState, NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
+        NativeWindowCustomShaderResidencySnapshots, NativeWindowDiagnosticIdentityAllocator,
+        NativeWindowGpuResources, NativeWindowSignalResidencySnapshots,
     };
     use crate::gui::types::{Point, Rect};
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
@@ -1381,12 +1429,77 @@ mod tests {
     }
 
     #[test]
+    fn custom_shader_residency_projection_preserves_bundle_generations_and_empty_slots() {
+        let active_generation = NativeAdapterGeneration::from_test_serial(41);
+        let quarantine_0_generation = NativeAdapterGeneration::from_test_serial(42);
+        let snapshots = NativeWindowCustomShaderResidencySnapshots::from_slots(
+            Some(GpuSurfaceCustomShaderResidencySnapshot {
+                generation: active_generation,
+                pipeline_resident_count: 2,
+                binding_resident_count: 3,
+                surface_uniform_logical_bytes: Some(128),
+                app_uniform_logical_bytes: Some(16),
+                storage_logical_bytes: Some(24),
+                presentation_uniform_logical_bytes: Some(32),
+            }),
+            Some(GpuSurfaceCustomShaderResidencySnapshot {
+                generation: quarantine_0_generation,
+                pipeline_resident_count: 0,
+                binding_resident_count: 0,
+                surface_uniform_logical_bytes: Some(0),
+                app_uniform_logical_bytes: Some(0),
+                storage_logical_bytes: Some(0),
+                presentation_uniform_logical_bytes: Some(0),
+            }),
+            None,
+        );
+
+        assert_eq!(
+            snapshots
+                .active
+                .map(GpuSurfaceCustomShaderResidencySnapshot::generation),
+            Some(active_generation)
+        );
+        assert_eq!(
+            snapshots
+                .active
+                .map(GpuSurfaceCustomShaderResidencySnapshot::generation_known),
+            Some(true)
+        );
+        assert_eq!(
+            snapshots
+                .active
+                .and_then(GpuSurfaceCustomShaderResidencySnapshot::generation_serial),
+            Some(41)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_0
+                .map(GpuSurfaceCustomShaderResidencySnapshot::generation),
+            Some(quarantine_0_generation)
+        );
+        assert_eq!(snapshots.quarantine_0.unwrap().pipeline_resident_count, 0);
+        assert_eq!(snapshots.quarantine_0.unwrap().binding_resident_count, 0);
+        assert!(snapshots.quarantine_1.is_none());
+    }
+
+    #[test]
     fn signal_residency_slots_are_absent_before_native_resource_publication() {
         let state = NativeRunnerWindowState::default();
 
         assert_eq!(
             state.signal_residency_snapshots(),
             NativeWindowSignalResidencySnapshots::default()
+        );
+    }
+
+    #[test]
+    fn custom_shader_residency_slots_are_absent_before_native_resource_publication() {
+        let state = NativeRunnerWindowState::default();
+
+        assert_eq!(
+            state.custom_shader_residency_snapshots(),
+            NativeWindowCustomShaderResidencySnapshots::default()
         );
     }
     use crate::theme::DpiScale;

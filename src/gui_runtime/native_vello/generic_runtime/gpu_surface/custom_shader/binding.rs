@@ -62,11 +62,10 @@ impl GpuSurfaceRenderer {
                 "radiant custom shader bind group validation failed"
             );
             self.resources
-                .custom_shader_bindings
-                .remove(&request.surface_key);
+                .remove_custom_shader_binding(&request.surface_key);
             return;
         }
-        self.resources.custom_shader_bindings.insert(
+        self.resources.insert_custom_shader_binding(
             request.surface_key,
             CustomShaderBinding {
                 cache_key,

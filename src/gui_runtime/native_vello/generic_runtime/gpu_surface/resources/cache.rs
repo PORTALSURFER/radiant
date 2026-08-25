@@ -2,7 +2,8 @@ use super::super::super::{GpuSurfaceAtlasResidencySnapshot, adapter::NativeAdapt
 use super::super::active_keys::ActiveGpuSurfaceKeys;
 use super::super::gpu_surface_types::{
     CachedSignalSummary, CachedSignalSummaryValidation, CustomShaderBinding, CustomShaderPipeline,
-    GpuSurfaceCompositeBinding, GpuSurfaceTexture, SignalBodyTexture, SignalBuffer,
+    GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey, GpuSurfaceTexture,
+    SignalBodyTexture, SignalBuffer,
 };
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -18,6 +19,37 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Ac
     known_logical_rgba_texel_bytes: u128,
     unavailable_logical_rgba_texel_bytes: usize,
     logical_rgba_texel_bytes_overflowed: bool,
+}
+
+#[derive(Default)]
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceResourceFingerprintScratch
+{
+    atlas_entries: Vec<(
+        u64,
+        usize,
+        u64,
+        super::super::identity::RenderCanvasContentIdentity,
+        usize,
+        usize,
+    )>,
+    binding_entries: Vec<(u64, GpuSurfaceCompositeBindingKey)>,
+}
+
+impl GpuSurfaceResourceFingerprintScratch {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn reset(&mut self) {
+        self.atlas_entries.clear();
+        self.binding_entries.clear();
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn capacity(
+        &self,
+    ) -> (usize, usize) {
+        (
+            self.atlas_entries.capacity(),
+            self.binding_entries.capacity(),
+        )
+    }
 }
 
 impl<T> Default for AccountedMap<T> {
@@ -176,11 +208,14 @@ impl<T> AccountedMap<T> {
 }
 
 impl AccountedMap<GpuSurfaceTexture> {
-    fn hash_atlas_state(&self, hasher: &mut impl Hasher) {
-        let mut entries: Vec<_> = self
-            .entries
-            .iter()
-            .map(|(key, entry)| {
+    fn hash_atlas_state(
+        &self,
+        hasher: &mut impl Hasher,
+        scratch: &mut GpuSurfaceResourceFingerprintScratch,
+    ) {
+        scratch
+            .atlas_entries
+            .extend(self.entries.iter().map(|(key, entry)| {
                 (
                     *key,
                     entry.value.device,
@@ -189,10 +224,10 @@ impl AccountedMap<GpuSurfaceTexture> {
                     entry.value.width,
                     entry.value.height,
                 )
-            })
-            .collect();
-        entries.sort_unstable_by_key(|entry| entry.0);
-        entries.hash(hasher);
+            }));
+        scratch.atlas_entries.sort_unstable_by_key(|entry| entry.0);
+        scratch.atlas_entries.hash(hasher);
+        scratch.atlas_entries.clear();
     }
 }
 
@@ -228,15 +263,19 @@ impl GpuSurfaceResourceCache {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn hash_atlas_state(
         &self,
         hasher: &mut impl Hasher,
+        scratch: &mut GpuSurfaceResourceFingerprintScratch,
     ) {
-        self.textures.hash_atlas_state(hasher);
-        let mut bindings: Vec<_> = self
-            .composite_bindings
-            .iter()
-            .map(|(key, binding)| (*key, binding.cache_key))
-            .collect();
-        bindings.sort_unstable_by_key(|entry| entry.0);
-        bindings.hash(hasher);
+        self.textures.hash_atlas_state(hasher, scratch);
+        scratch.binding_entries.extend(
+            self.composite_bindings
+                .iter()
+                .map(|(key, binding)| (*key, binding.cache_key)),
+        );
+        scratch
+            .binding_entries
+            .sort_unstable_by_key(|entry| entry.0);
+        scratch.binding_entries.hash(hasher);
+        scratch.binding_entries.clear();
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn prune_inactive(

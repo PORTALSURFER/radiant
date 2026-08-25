@@ -60,6 +60,29 @@ pub(super) struct AtlasUploadPreflightState {
 }
 
 impl AtlasUploadPreflightState {
+    pub(super) fn reset(&mut self, pipeline: Option<(usize, wgpu::TextureFormat, u64)>) {
+        self.pipeline =
+            pipeline.map(
+                |(device, format, generation)| AtlasPipelinePreflightIdentity {
+                    device,
+                    format,
+                    generation,
+                },
+            );
+        self.textures.clear();
+        self.composite_bindings.clear();
+    }
+
+    #[cfg(test)]
+    pub(super) fn textures_capacity(&self) -> usize {
+        self.textures.capacity()
+    }
+
+    #[cfg(test)]
+    pub(super) fn composite_bindings_capacity(&self) -> usize {
+        self.composite_bindings.capacity()
+    }
+
     fn atlas_texture_operation(
         &mut self,
         renderer: &GpuSurfaceRenderer,
@@ -183,30 +206,14 @@ impl AtlasUploadPreflightState {
 }
 
 impl GpuSurfaceRenderer {
-    pub(super) fn atlas_upload_preflight_state(&self) -> AtlasUploadPreflightState {
-        AtlasUploadPreflightState {
-            pipeline: self
-                .pipeline
-                .as_ref()
-                .map(|pipeline| AtlasPipelinePreflightIdentity {
-                    device: pipeline.device,
-                    format: pipeline.format,
-                    generation: self.pipeline_generation,
-                }),
-            ..AtlasUploadPreflightState::default()
-        }
-    }
-
     pub(super) fn preflight_atlas_upload_actions(
         &self,
         target: GpuSurfaceRenderCanvasUploadTarget,
         surface_index: usize,
         surface: &PaintGpuSurface,
         state: &mut AtlasUploadPreflightState,
-    ) -> Result<
-        Vec<GpuSurfaceRenderCanvasUploadAction>,
-        GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
-    > {
+        actions: &mut Vec<GpuSurfaceRenderCanvasUploadAction>,
+    ) -> Result<(), GpuSurfaceRenderCanvasUploadPlanUnavailableReason> {
         let mut texture = self.preflight_atlas_texture(target.device, surface_index, surface)?;
         texture.operation = state.atlas_texture_operation(self, surface, &texture);
         let (pipeline_generation, pipeline_rebuild) =
@@ -224,27 +231,25 @@ impl GpuSurfaceRenderer {
         let binding_operation = state.composite_binding_operation(self, surface.key, cache_key);
         state.record_composite_binding(surface.key, cache_key, binding_operation);
 
-        let mut actions = vec![
-            GpuSurfaceRenderCanvasUploadAction::Surface {
-                surface_index,
-                key: surface.key,
-                surface: GpuSurfaceRenderCanvasUploadSurface::Atlas,
-            },
-            GpuSurfaceRenderCanvasUploadAction::AtlasTexture {
-                surface_index,
-                key: surface.key,
-                device: texture.device,
-                revision: texture.revision,
-                content_identity: texture.content_identity,
-                width: texture.width,
-                height: texture.height,
-                byte_len: texture.byte_len,
-                extent_width: texture.extent_width,
-                extent_height: texture.extent_height,
-                bytes_per_row: texture.bytes_per_row,
-                operation: texture.operation,
-            },
-        ];
+        actions.push(GpuSurfaceRenderCanvasUploadAction::Surface {
+            surface_index,
+            key: surface.key,
+            surface: GpuSurfaceRenderCanvasUploadSurface::Atlas,
+        });
+        actions.push(GpuSurfaceRenderCanvasUploadAction::AtlasTexture {
+            surface_index,
+            key: surface.key,
+            device: texture.device,
+            revision: texture.revision,
+            content_identity: texture.content_identity,
+            width: texture.width,
+            height: texture.height,
+            byte_len: texture.byte_len,
+            extent_width: texture.extent_width,
+            extent_height: texture.extent_height,
+            bytes_per_row: texture.bytes_per_row,
+            operation: texture.operation,
+        });
         if let GpuSurfaceRenderCanvasUploadAtlasTextureOperation::Upload { .. } = texture.operation
         {
             actions.push(GpuSurfaceRenderCanvasUploadAction::Upload {
@@ -273,7 +278,7 @@ impl GpuSurfaceRenderer {
             byte_len: std::mem::size_of::<GpuSurfaceUniforms>(),
         });
         state.record_texture(surface.key, &texture);
-        Ok(actions)
+        Ok(())
     }
 
     pub(super) fn render_atlas(

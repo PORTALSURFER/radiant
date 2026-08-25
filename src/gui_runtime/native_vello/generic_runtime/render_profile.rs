@@ -1,13 +1,14 @@
 //! Native render profiling diagnostics for the generic Vello runtime.
 
 use super::runner_state::{
-    NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots,
+    NativeWindowAtlasResidencySnapshots, NativeWindowCustomShaderResidencySnapshots,
+    NativeWindowSignalResidencySnapshots,
 };
 use super::{
-    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
-    NativeAdapterAtlasResidencyProfile, NativeAdapterRenderCanvasUploadProfile,
-    NativeAdapterSignalResidencyProfile, RetainedSurfaceEncodeStats,
-    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+    GpuSurfaceSignalResidencySnapshot, NativeAdapterAtlasResidencyProfile,
+    NativeAdapterRenderCanvasUploadProfile, NativeAdapterSignalResidencyProfile,
+    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -58,6 +59,7 @@ pub(super) struct NativeRenderProfileGpuSurface {
     pub(super) stats: GpuSurfaceRenderStats,
     pub(super) atlas_residency: NativeWindowAtlasResidencySnapshots,
     pub(super) signal_residency: NativeWindowSignalResidencySnapshots,
+    pub(super) custom_shader_residency: NativeWindowCustomShaderResidencySnapshots,
     pub(super) application_atlas_residency: NativeAdapterAtlasResidencyProfile,
     pub(super) application_signal_residency: NativeAdapterSignalResidencyProfile,
     pub(super) application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
@@ -109,6 +111,36 @@ fn project_signal_residency(
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeRenderProfileCustomShaderResidency {
+    generation_known: Option<bool>,
+    generation_serial: Option<u64>,
+    pipeline_resident_count: Option<usize>,
+    binding_resident_count: Option<usize>,
+    surface_uniform_logical_bytes: Option<u64>,
+    app_uniform_logical_bytes: Option<u64>,
+    storage_logical_bytes: Option<u64>,
+    presentation_uniform_logical_bytes: Option<u64>,
+}
+
+fn project_custom_shader_residency(
+    snapshot: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+) -> NativeRenderProfileCustomShaderResidency {
+    NativeRenderProfileCustomShaderResidency {
+        generation_known: snapshot.map(GpuSurfaceCustomShaderResidencySnapshot::generation_known),
+        generation_serial: snapshot
+            .and_then(GpuSurfaceCustomShaderResidencySnapshot::generation_serial),
+        pipeline_resident_count: snapshot.map(|snapshot| snapshot.pipeline_resident_count),
+        binding_resident_count: snapshot.map(|snapshot| snapshot.binding_resident_count),
+        surface_uniform_logical_bytes: snapshot
+            .and_then(|snapshot| snapshot.surface_uniform_logical_bytes),
+        app_uniform_logical_bytes: snapshot.and_then(|snapshot| snapshot.app_uniform_logical_bytes),
+        storage_logical_bytes: snapshot.and_then(|snapshot| snapshot.storage_logical_bytes),
+        presentation_uniform_logical_bytes: snapshot
+            .and_then(|snapshot| snapshot.presentation_uniform_logical_bytes),
+    }
+}
+
 pub(super) fn maybe_log_render_profile(
     reason: &'static str,
     stats: RetainedSurfaceEncodeStats,
@@ -125,6 +157,7 @@ pub(super) fn maybe_log_render_profile(
         stats: gpu_surface_stats,
         atlas_residency,
         signal_residency,
+        custom_shader_residency,
         application_atlas_residency,
         application_signal_residency,
         application_render_canvas_uploads,
@@ -135,6 +168,11 @@ pub(super) fn maybe_log_render_profile(
     let active_signal = project_signal_residency(signal_residency.active);
     let quarantine_0_signal = project_signal_residency(signal_residency.quarantine_0);
     let quarantine_1_signal = project_signal_residency(signal_residency.quarantine_1);
+    let active_custom_shader = project_custom_shader_residency(custom_shader_residency.active);
+    let quarantine_0_custom_shader =
+        project_custom_shader_residency(custom_shader_residency.quarantine_0);
+    let quarantine_1_custom_shader =
+        project_custom_shader_residency(custom_shader_residency.quarantine_1);
     let render_canvas_uploads = gpu_surface_stats.render_canvas_uploads;
     let render_canvas_upload_plan = gpu_surface_stats.render_canvas_upload_plan;
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
@@ -321,6 +359,58 @@ pub(super) fn maybe_log_render_profile(
         submit_present_us = frame.submit_present.as_micros(),
         since_last_present_us = since_last_present.as_micros(),
         "radiant native render profile"
+    );
+    info!(
+        reason,
+        window_identity = frame
+            .window_identity
+            .map(NativeWindowDiagnosticIdentity::get),
+        frame_sequence = frame.frame_sequence,
+        gpu_surface_custom_shader_active_generation_known = active_custom_shader.generation_known,
+        gpu_surface_custom_shader_active_generation_serial = active_custom_shader.generation_serial,
+        gpu_surface_custom_shader_active_pipeline_resident_count =
+            active_custom_shader.pipeline_resident_count,
+        gpu_surface_custom_shader_active_binding_resident_count =
+            active_custom_shader.binding_resident_count,
+        gpu_surface_custom_shader_active_surface_uniform_logical_bytes =
+            active_custom_shader.surface_uniform_logical_bytes,
+        gpu_surface_custom_shader_active_app_uniform_logical_bytes =
+            active_custom_shader.app_uniform_logical_bytes,
+        gpu_surface_custom_shader_active_storage_logical_bytes =
+            active_custom_shader.storage_logical_bytes,
+        gpu_surface_custom_shader_active_presentation_uniform_logical_bytes =
+            active_custom_shader.presentation_uniform_logical_bytes,
+        gpu_surface_custom_shader_q0_generation_known = quarantine_0_custom_shader.generation_known,
+        gpu_surface_custom_shader_q0_generation_serial =
+            quarantine_0_custom_shader.generation_serial,
+        gpu_surface_custom_shader_q0_pipeline_resident_count =
+            quarantine_0_custom_shader.pipeline_resident_count,
+        gpu_surface_custom_shader_q0_binding_resident_count =
+            quarantine_0_custom_shader.binding_resident_count,
+        gpu_surface_custom_shader_q0_surface_uniform_logical_bytes =
+            quarantine_0_custom_shader.surface_uniform_logical_bytes,
+        gpu_surface_custom_shader_q0_app_uniform_logical_bytes =
+            quarantine_0_custom_shader.app_uniform_logical_bytes,
+        gpu_surface_custom_shader_q0_storage_logical_bytes =
+            quarantine_0_custom_shader.storage_logical_bytes,
+        gpu_surface_custom_shader_q0_presentation_uniform_logical_bytes =
+            quarantine_0_custom_shader.presentation_uniform_logical_bytes,
+        gpu_surface_custom_shader_q1_generation_known = quarantine_1_custom_shader.generation_known,
+        gpu_surface_custom_shader_q1_generation_serial =
+            quarantine_1_custom_shader.generation_serial,
+        gpu_surface_custom_shader_q1_pipeline_resident_count =
+            quarantine_1_custom_shader.pipeline_resident_count,
+        gpu_surface_custom_shader_q1_binding_resident_count =
+            quarantine_1_custom_shader.binding_resident_count,
+        gpu_surface_custom_shader_q1_surface_uniform_logical_bytes =
+            quarantine_1_custom_shader.surface_uniform_logical_bytes,
+        gpu_surface_custom_shader_q1_app_uniform_logical_bytes =
+            quarantine_1_custom_shader.app_uniform_logical_bytes,
+        gpu_surface_custom_shader_q1_storage_logical_bytes =
+            quarantine_1_custom_shader.storage_logical_bytes,
+        gpu_surface_custom_shader_q1_presentation_uniform_logical_bytes =
+            quarantine_1_custom_shader.presentation_uniform_logical_bytes,
+        "radiant native render profile custom shader residency"
     );
     info!(
         reason,
@@ -574,13 +664,18 @@ fn text_quality_status(text_stats: TextLayoutProfileCounters) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::super::{
-        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
+        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+        GpuSurfaceSignalResidencySnapshot,
         adapter::NativeAdapterGeneration,
-        runner_state::{NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots},
+        runner_state::{
+            NativeWindowAtlasResidencySnapshots, NativeWindowCustomShaderResidencySnapshots,
+            NativeWindowSignalResidencySnapshots,
+        },
     };
     use super::{
-        NativeRenderProfileAtlasResidency, NativeRenderProfileSignalResidency,
-        project_atlas_residency, project_signal_residency,
+        NativeRenderProfileAtlasResidency, NativeRenderProfileCustomShaderResidency,
+        NativeRenderProfileSignalResidency, project_atlas_residency,
+        project_custom_shader_residency, project_signal_residency,
     };
 
     #[test]
@@ -717,6 +812,121 @@ mod tests {
         assert_eq!(
             project_signal_residency(None),
             NativeRenderProfileSignalResidency::default()
+        );
+    }
+
+    #[test]
+    fn custom_shader_profile_projection_preserves_active_q0_q1_counts_and_unknown_bytes() {
+        let snapshots = NativeWindowCustomShaderResidencySnapshots {
+            active: Some(GpuSurfaceCustomShaderResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(31),
+                pipeline_resident_count: 3,
+                binding_resident_count: 2,
+                surface_uniform_logical_bytes: Some(128),
+                app_uniform_logical_bytes: Some(16),
+                storage_logical_bytes: Some(24),
+                presentation_uniform_logical_bytes: Some(32),
+            }),
+            quarantine_0: Some(GpuSurfaceCustomShaderResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(32),
+                pipeline_resident_count: 1,
+                binding_resident_count: 1,
+                surface_uniform_logical_bytes: Some(64),
+                app_uniform_logical_bytes: None,
+                storage_logical_bytes: Some(8),
+                presentation_uniform_logical_bytes: Some(0),
+            }),
+            quarantine_1: Some(GpuSurfaceCustomShaderResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(33),
+                pipeline_resident_count: 0,
+                binding_resident_count: 0,
+                surface_uniform_logical_bytes: Some(0),
+                app_uniform_logical_bytes: Some(0),
+                storage_logical_bytes: Some(0),
+                presentation_uniform_logical_bytes: Some(0),
+            }),
+        };
+
+        assert_eq!(
+            project_custom_shader_residency(snapshots.active),
+            NativeRenderProfileCustomShaderResidency {
+                generation_known: Some(true),
+                generation_serial: Some(31),
+                pipeline_resident_count: Some(3),
+                binding_resident_count: Some(2),
+                surface_uniform_logical_bytes: Some(128),
+                app_uniform_logical_bytes: Some(16),
+                storage_logical_bytes: Some(24),
+                presentation_uniform_logical_bytes: Some(32),
+            }
+        );
+        assert_eq!(
+            project_custom_shader_residency(snapshots.quarantine_0),
+            NativeRenderProfileCustomShaderResidency {
+                generation_known: Some(true),
+                generation_serial: Some(32),
+                pipeline_resident_count: Some(1),
+                binding_resident_count: Some(1),
+                surface_uniform_logical_bytes: Some(64),
+                app_uniform_logical_bytes: None,
+                storage_logical_bytes: Some(8),
+                presentation_uniform_logical_bytes: Some(0),
+            }
+        );
+        assert_eq!(
+            project_custom_shader_residency(snapshots.quarantine_1),
+            NativeRenderProfileCustomShaderResidency {
+                generation_known: Some(true),
+                generation_serial: Some(33),
+                pipeline_resident_count: Some(0),
+                binding_resident_count: Some(0),
+                surface_uniform_logical_bytes: Some(0),
+                app_uniform_logical_bytes: Some(0),
+                storage_logical_bytes: Some(0),
+                presentation_uniform_logical_bytes: Some(0),
+            }
+        );
+    }
+
+    #[test]
+    fn custom_shader_profile_projection_preserves_unknown_exhausted_and_absent_slots() {
+        let unknown = GpuSurfaceCustomShaderResidencySnapshot {
+            generation: NativeAdapterGeneration::default(),
+            pipeline_resident_count: 4,
+            binding_resident_count: 5,
+            surface_uniform_logical_bytes: Some(64),
+            app_uniform_logical_bytes: None,
+            storage_logical_bytes: Some(8),
+            presentation_uniform_logical_bytes: Some(0),
+        };
+        let mut exhausted_generation = NativeAdapterGeneration::from_test_serial(u64::MAX);
+        assert!(!exhausted_generation.advance());
+        let exhausted = GpuSurfaceCustomShaderResidencySnapshot {
+            generation: exhausted_generation,
+            pipeline_resident_count: 6,
+            binding_resident_count: 7,
+            surface_uniform_logical_bytes: Some(64),
+            app_uniform_logical_bytes: Some(8),
+            storage_logical_bytes: Some(16),
+            presentation_uniform_logical_bytes: Some(0),
+        };
+
+        for snapshot in [unknown, exhausted] {
+            let projection = project_custom_shader_residency(Some(snapshot));
+            assert_eq!(projection.generation_known, Some(false));
+            assert_eq!(projection.generation_serial, None);
+            assert_eq!(
+                projection.pipeline_resident_count,
+                Some(snapshot.pipeline_resident_count)
+            );
+            assert_eq!(
+                projection.binding_resident_count,
+                Some(snapshot.binding_resident_count)
+            );
+        }
+        assert_eq!(
+            project_custom_shader_residency(None),
+            NativeRenderProfileCustomShaderResidency::default()
         );
     }
 }

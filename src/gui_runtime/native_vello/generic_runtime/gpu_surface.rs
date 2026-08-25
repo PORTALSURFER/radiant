@@ -5,7 +5,10 @@ use super::runtime_helpers::{
     SurfaceOcclusionPlan, SurfaceOcclusionPolicy, SurfaceOcclusionQueryScratch,
     planned_surface_occlusion_regions_into,
 };
-use super::{GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot};
+use super::{
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+    GpuSurfaceSignalResidencySnapshot,
+};
 use crate::gui::types::{Rect as UiRect, Vector2};
 use crate::runtime::{GpuShaderPresentationUniformUpdate, GpuSurfaceContent, PaintPrimitive};
 use std::collections::hash_map::DefaultHasher;
@@ -612,6 +615,12 @@ impl GpuSurfaceRenderer {
 
     pub(super) fn signal_residency_snapshot(&self) -> GpuSurfaceSignalResidencySnapshot {
         self.resources.signal_residency_snapshot()
+    }
+
+    pub(super) fn custom_shader_residency_snapshot(
+        &self,
+    ) -> GpuSurfaceCustomShaderResidencySnapshot {
+        self.resources.custom_shader_residency_snapshot()
     }
 
     #[cfg(test)]
@@ -1538,6 +1547,19 @@ mod tests {
         assert!(signal_decision_consumed);
         assert_eq!(stats.custom_shader.unsupported.surfaces, 1);
         assert!(!renderer.resources.signal_summaries.contains_key(&900));
+        let custom_shader_residency = renderer.custom_shader_residency_snapshot();
+        assert_eq!(custom_shader_residency.pipeline_resident_count, 0);
+        assert_eq!(custom_shader_residency.binding_resident_count, 0);
+        assert_eq!(
+            custom_shader_residency.surface_uniform_logical_bytes,
+            Some(0)
+        );
+        assert_eq!(custom_shader_residency.app_uniform_logical_bytes, Some(0));
+        assert_eq!(custom_shader_residency.storage_logical_bytes, Some(0));
+        assert_eq!(
+            custom_shader_residency.presentation_uniform_logical_bytes,
+            Some(0)
+        );
         assert!(plan.finish_execution());
     }
 

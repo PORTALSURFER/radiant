@@ -32,21 +32,18 @@ impl GpuSurfaceRenderer {
         }
         stats.custom_shader.pipeline_rebuilds += 1;
         self.resources
-            .custom_shader_bindings
-            .remove(&request.surface_key);
+            .remove_custom_shader_binding(&request.surface_key);
         let Some(shader) = create_custom_shader_module(&request, stats) else {
             self.resources
-                .custom_shader_pipelines
-                .remove(&request.surface_key);
+                .remove_custom_shader_pipeline(&request.surface_key);
             return;
         };
         let Some(created) = create_custom_shader_pipeline(&request, &shader, stats) else {
             self.resources
-                .custom_shader_pipelines
-                .remove(&request.surface_key);
+                .remove_custom_shader_pipeline(&request.surface_key);
             return;
         };
-        self.resources.custom_shader_pipelines.insert(
+        self.resources.insert_custom_shader_pipeline(
             request.surface_key,
             CustomShaderPipeline {
                 format: request.target_format,

@@ -1,12 +1,13 @@
 use super::super::super::{
-    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
-    adapter::NativeAdapterGeneration,
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+    GpuSurfaceSignalResidencySnapshot, adapter::NativeAdapterGeneration,
 };
 use super::super::active_keys::ActiveGpuSurfaceKeys;
 use super::super::gpu_surface_types::{
-    CachedSignalSummary, CachedSignalSummaryValidation, CustomShaderBinding, CustomShaderPipeline,
-    GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey, GpuSurfaceTexture,
-    SignalBodyTexture, SignalBuffer,
+    CachedSignalSummary, CachedSignalSummaryValidation, CustomShaderBinding,
+    CustomShaderBindingKey, CustomShaderPipeline, GpuSurfaceCompositeBinding,
+    GpuSurfaceCompositeBindingKey, GpuSurfaceTexture, GpuSurfaceUniforms, SignalBodyTexture,
+    SignalBuffer,
 };
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -20,6 +21,118 @@ struct AccountedMapEntry<T> {
 struct AccountedMapResidency {
     resident_count: usize,
     logical_bytes: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct CustomShaderBindingLogicalBytes {
+    surface_uniform: Option<u64>,
+    app_uniform: Option<u64>,
+    storage: Option<u64>,
+    presentation_uniform: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct LogicalBytesAccumulator {
+    known: u128,
+    unavailable: usize,
+    overflowed: bool,
+}
+
+impl LogicalBytesAccumulator {
+    fn add(&mut self, bytes: Option<u64>) {
+        match bytes {
+            Some(bytes) => {
+                if let Some(known) = self.known.checked_add(u128::from(bytes)) {
+                    self.known = known;
+                } else {
+                    self.overflowed = true;
+                }
+            }
+            None => {
+                self.unavailable = self.unavailable.saturating_add(1);
+            }
+        }
+    }
+
+    fn remove(&mut self, bytes: Option<u64>) {
+        match bytes {
+            Some(bytes) if !self.overflowed => {
+                if let Some(known) = self.known.checked_sub(u128::from(bytes)) {
+                    self.known = known;
+                } else {
+                    self.overflowed = true;
+                }
+            }
+            Some(_) => {}
+            None => {
+                self.unavailable = self.unavailable.saturating_sub(1);
+            }
+        }
+    }
+
+    fn value(self) -> Option<u64> {
+        if self.unavailable > 0 || self.overflowed {
+            None
+        } else {
+            u64::try_from(self.known).ok()
+        }
+    }
+}
+
+#[derive(Default)]
+struct CustomShaderResidencyAccounting {
+    pipeline_resident_count: usize,
+    binding_resident_count: usize,
+    surface_uniform_logical_bytes: LogicalBytesAccumulator,
+    app_uniform_logical_bytes: LogicalBytesAccumulator,
+    storage_logical_bytes: LogicalBytesAccumulator,
+    presentation_uniform_logical_bytes: LogicalBytesAccumulator,
+}
+
+impl CustomShaderResidencyAccounting {
+    fn snapshot(&self) -> GpuSurfaceCustomShaderResidencySnapshot {
+        GpuSurfaceCustomShaderResidencySnapshot {
+            generation: NativeAdapterGeneration::default(),
+            pipeline_resident_count: self.pipeline_resident_count,
+            binding_resident_count: self.binding_resident_count,
+            surface_uniform_logical_bytes: self.surface_uniform_logical_bytes.value(),
+            app_uniform_logical_bytes: self.app_uniform_logical_bytes.value(),
+            storage_logical_bytes: self.storage_logical_bytes.value(),
+            presentation_uniform_logical_bytes: self.presentation_uniform_logical_bytes.value(),
+        }
+    }
+
+    fn set_pipeline_resident_count(&mut self, resident_count: usize) {
+        self.pipeline_resident_count = resident_count;
+    }
+
+    fn insert_binding(&mut self, logical_bytes: CustomShaderBindingLogicalBytes) {
+        self.surface_uniform_logical_bytes
+            .add(logical_bytes.surface_uniform);
+        self.app_uniform_logical_bytes
+            .add(logical_bytes.app_uniform);
+        self.storage_logical_bytes.add(logical_bytes.storage);
+        self.presentation_uniform_logical_bytes
+            .add(logical_bytes.presentation_uniform);
+    }
+
+    fn remove_binding(&mut self, logical_bytes: CustomShaderBindingLogicalBytes) {
+        self.surface_uniform_logical_bytes
+            .remove(logical_bytes.surface_uniform);
+        self.app_uniform_logical_bytes
+            .remove(logical_bytes.app_uniform);
+        self.storage_logical_bytes.remove(logical_bytes.storage);
+        self.presentation_uniform_logical_bytes
+            .remove(logical_bytes.presentation_uniform);
+    }
+
+    fn set_binding_resident_count(&mut self, resident_count: usize) {
+        self.binding_resident_count = resident_count;
+    }
+
+    fn clear(&mut self) {
+        *self = Self::default();
+    }
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct AccountedMap<T> {
@@ -274,6 +387,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
         HashMap<u64, CustomShaderPipeline>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) custom_shader_bindings:
         HashMap<u64, CustomShaderBinding>,
+    custom_shader_residency: CustomShaderResidencyAccounting,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_bodies:
         AccountedMap<SignalBodyTexture>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signals:
@@ -312,8 +426,19 @@ impl GpuSurfaceResourceCache {
             .retain(|key, _| active_keys.contains(key));
         self.custom_shader_pipelines
             .retain(|key, _| active_keys.contains(key));
-        self.custom_shader_bindings
-            .retain(|key, _| active_keys.contains(key));
+        self.custom_shader_residency
+            .set_pipeline_resident_count(self.custom_shader_pipelines.len());
+        let accounting = &mut self.custom_shader_residency;
+        self.custom_shader_bindings.retain(|key, binding| {
+            if active_keys.contains(key) {
+                true
+            } else {
+                accounting.remove_binding(custom_shader_binding_logical_bytes(&binding.cache_key));
+                false
+            }
+        });
+        self.custom_shader_residency
+            .set_binding_resident_count(self.custom_shader_bindings.len());
         self.signal_bodies
             .retain(|key, _| active_keys.contains(key));
         self.signals.retain(|key, _| active_keys.contains(key));
@@ -328,6 +453,7 @@ impl GpuSurfaceResourceCache {
         self.composite_bindings.clear();
         self.custom_shader_pipelines.clear();
         self.custom_shader_bindings.clear();
+        self.custom_shader_residency.clear();
         self.signal_bodies.clear();
         self.signals.clear();
         self.signal_summaries.clear();
@@ -353,6 +479,73 @@ impl GpuSurfaceResourceCache {
             signal_body_texture_logical_rgba_bytes: signal_body_textures.logical_bytes,
         }
     }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn insert_custom_shader_pipeline(
+        &mut self,
+        key: u64,
+        pipeline: CustomShaderPipeline,
+    ) {
+        self.custom_shader_pipelines.insert(key, pipeline);
+        self.custom_shader_residency
+            .set_pipeline_resident_count(self.custom_shader_pipelines.len());
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn remove_custom_shader_pipeline(
+        &mut self,
+        key: &u64,
+    ) -> Option<CustomShaderPipeline> {
+        let removed = self.custom_shader_pipelines.remove(key);
+        self.custom_shader_residency
+            .set_pipeline_resident_count(self.custom_shader_pipelines.len());
+        removed
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn insert_custom_shader_binding(
+        &mut self,
+        key: u64,
+        binding: CustomShaderBinding,
+    ) {
+        let logical_bytes = custom_shader_binding_logical_bytes(&binding.cache_key);
+        let previous = self.custom_shader_bindings.insert(key, binding);
+        if let Some(previous) = previous {
+            self.custom_shader_residency
+                .remove_binding(custom_shader_binding_logical_bytes(&previous.cache_key));
+        }
+        self.custom_shader_residency.insert_binding(logical_bytes);
+        self.custom_shader_residency
+            .set_binding_resident_count(self.custom_shader_bindings.len());
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn remove_custom_shader_binding(
+        &mut self,
+        key: &u64,
+    ) -> Option<CustomShaderBinding> {
+        let removed = self.custom_shader_bindings.remove(key);
+        if let Some(binding) = removed.as_ref() {
+            self.custom_shader_residency
+                .remove_binding(custom_shader_binding_logical_bytes(&binding.cache_key));
+        }
+        self.custom_shader_residency
+            .set_binding_resident_count(self.custom_shader_bindings.len());
+        removed
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_residency_snapshot(
+        &self,
+    ) -> GpuSurfaceCustomShaderResidencySnapshot {
+        self.custom_shader_residency.snapshot()
+    }
+}
+
+fn custom_shader_binding_logical_bytes(
+    cache_key: &CustomShaderBindingKey,
+) -> CustomShaderBindingLogicalBytes {
+    CustomShaderBindingLogicalBytes {
+        surface_uniform: u64::try_from(std::mem::size_of::<GpuSurfaceUniforms>()).ok(),
+        app_uniform: u64::try_from(cache_key.uniform_bytes_len).ok(),
+        storage: u64::try_from(cache_key.storage_bytes_len).ok(),
+        presentation_uniform: u64::try_from(cache_key.presentation_uniform_bytes_len).ok(),
+    }
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logical_signal_body_texture_bytes(
@@ -376,9 +569,13 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logica
 #[cfg(test)]
 mod tests {
     use super::{
-        AccountedMap, NativeAdapterGeneration, logical_rgba_texel_bytes,
+        AccountedMap, CustomShaderBindingKey, CustomShaderBindingLogicalBytes,
+        CustomShaderResidencyAccounting, NativeAdapterGeneration,
+        custom_shader_binding_logical_bytes, logical_rgba_texel_bytes,
         logical_signal_body_texture_bytes, logical_signal_buffer_bytes,
     };
+    use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::CustomShaderPipelineKey;
+    use std::sync::Arc;
 
     #[test]
     fn accounted_map_tracks_exact_logical_rgba_texel_bytes_and_replacement() {
@@ -468,6 +665,174 @@ mod tests {
     }
 
     #[test]
+    fn custom_shader_binding_logical_bytes_track_base_and_all_optional_buffers() {
+        let base = custom_shader_binding_logical_bytes(&custom_shader_binding_key(0, 0, 0));
+        assert_eq!(
+            base.surface_uniform,
+            u64::try_from(std::mem::size_of::<super::GpuSurfaceUniforms>()).ok()
+        );
+        assert_eq!(base.app_uniform, Some(0));
+        assert_eq!(base.storage, Some(0));
+        assert_eq!(base.presentation_uniform, Some(0));
+
+        let all_optional = custom_shader_binding_logical_bytes(&custom_shader_binding_key(4, 6, 8));
+        assert_eq!(all_optional.app_uniform, Some(4));
+        assert_eq!(all_optional.storage, Some(6));
+        assert_eq!(all_optional.presentation_uniform, Some(8));
+    }
+
+    #[test]
+    fn custom_shader_residency_accounting_keeps_counts_exact_through_replacement_and_removal() {
+        let mut accounting = CustomShaderResidencyAccounting::default();
+        accounting.set_pipeline_resident_count(2);
+
+        let first = CustomShaderBindingLogicalBytes {
+            surface_uniform: Some(64),
+            app_uniform: Some(4),
+            storage: Some(8),
+            presentation_uniform: Some(12),
+        };
+        let replacement = CustomShaderBindingLogicalBytes {
+            surface_uniform: Some(64),
+            app_uniform: Some(10),
+            storage: Some(0),
+            presentation_uniform: Some(12),
+        };
+        accounting.insert_binding(first);
+        accounting.set_binding_resident_count(1);
+        let before_replacement = accounting.snapshot();
+        accounting.remove_binding(first);
+        accounting.insert_binding(replacement);
+        assert_eq!(accounting.snapshot().pipeline_resident_count, 2);
+        assert_eq!(accounting.snapshot().binding_resident_count, 1);
+        assert_ne!(accounting.snapshot(), before_replacement);
+        assert_eq!(accounting.snapshot().app_uniform_logical_bytes, Some(10));
+        assert_eq!(accounting.snapshot().storage_logical_bytes, Some(0));
+
+        accounting.remove_binding(replacement);
+        accounting.set_binding_resident_count(0);
+        let empty = accounting.snapshot();
+        assert_eq!(empty.pipeline_resident_count, 2);
+        assert_eq!(empty.binding_resident_count, 0);
+        assert_eq!(empty.surface_uniform_logical_bytes, Some(0));
+        assert_eq!(empty.app_uniform_logical_bytes, Some(0));
+        assert_eq!(empty.storage_logical_bytes, Some(0));
+        assert_eq!(empty.presentation_uniform_logical_bytes, Some(0));
+    }
+
+    #[test]
+    fn custom_shader_residency_accounting_aggregates_multiple_keys_and_warm_reuse() {
+        let mut accounting = CustomShaderResidencyAccounting::default();
+        let first_key = CustomShaderBindingLogicalBytes {
+            surface_uniform: Some(64),
+            app_uniform: Some(4),
+            storage: Some(8),
+            presentation_uniform: Some(12),
+        };
+        let second_key = CustomShaderBindingLogicalBytes {
+            surface_uniform: Some(64),
+            app_uniform: Some(16),
+            storage: Some(24),
+            presentation_uniform: Some(32),
+        };
+
+        accounting.insert_binding(first_key);
+        accounting.insert_binding(second_key);
+        accounting.set_binding_resident_count(2);
+        let aggregate = accounting.snapshot();
+        assert_eq!(aggregate.binding_resident_count, 2);
+        assert_eq!(aggregate.surface_uniform_logical_bytes, Some(128));
+        assert_eq!(aggregate.app_uniform_logical_bytes, Some(20));
+        assert_eq!(aggregate.storage_logical_bytes, Some(32));
+        assert_eq!(aggregate.presentation_uniform_logical_bytes, Some(44));
+
+        accounting.remove_binding(second_key);
+        accounting.set_binding_resident_count(1);
+        assert_eq!(accounting.snapshot().app_uniform_logical_bytes, Some(4));
+
+        accounting.insert_binding(second_key);
+        accounting.set_binding_resident_count(2);
+        assert_eq!(accounting.snapshot(), aggregate);
+    }
+
+    #[test]
+    fn custom_shader_residency_accounting_keeps_unknown_bytes_local_and_recovers() {
+        let mut accounting = CustomShaderResidencyAccounting::default();
+        let unknown_app = CustomShaderBindingLogicalBytes {
+            surface_uniform: Some(64),
+            app_uniform: None,
+            storage: Some(8),
+            presentation_uniform: Some(0),
+        };
+        accounting.insert_binding(unknown_app);
+        accounting.set_binding_resident_count(1);
+        let snapshot = accounting.snapshot();
+        assert_eq!(snapshot.binding_resident_count, 1);
+        assert_eq!(snapshot.surface_uniform_logical_bytes, Some(64));
+        assert_eq!(snapshot.app_uniform_logical_bytes, None);
+        assert_eq!(snapshot.storage_logical_bytes, Some(8));
+        assert_eq!(snapshot.presentation_uniform_logical_bytes, Some(0));
+
+        accounting.remove_binding(unknown_app);
+        accounting.set_binding_resident_count(0);
+        assert_eq!(accounting.snapshot().app_uniform_logical_bytes, Some(0));
+
+        let aggregate_overflow = CustomShaderBindingLogicalBytes {
+            surface_uniform: Some(0),
+            app_uniform: Some(u64::MAX),
+            storage: Some(0),
+            presentation_uniform: Some(0),
+        };
+        let one_more = CustomShaderBindingLogicalBytes {
+            app_uniform: Some(1),
+            ..aggregate_overflow
+        };
+        accounting.insert_binding(aggregate_overflow);
+        accounting.insert_binding(one_more);
+        accounting.set_binding_resident_count(2);
+        assert_eq!(accounting.snapshot().binding_resident_count, 2);
+        assert_eq!(accounting.snapshot().app_uniform_logical_bytes, None);
+        accounting.remove_binding(one_more);
+        accounting.set_binding_resident_count(1);
+        assert_eq!(
+            accounting.snapshot().app_uniform_logical_bytes,
+            Some(u64::MAX)
+        );
+        accounting.remove_binding(aggregate_overflow);
+        accounting.set_binding_resident_count(0);
+        assert_eq!(accounting.snapshot().app_uniform_logical_bytes, Some(0));
+    }
+
+    #[test]
+    fn custom_shader_residency_accounting_prune_and_clear_restore_present_empty() {
+        let mut accounting = CustomShaderResidencyAccounting::default();
+        let footprint = CustomShaderBindingLogicalBytes {
+            surface_uniform: Some(64),
+            app_uniform: Some(4),
+            storage: Some(8),
+            presentation_uniform: Some(12),
+        };
+        accounting.insert_binding(footprint);
+        accounting.set_binding_resident_count(1);
+        accounting.remove_binding(footprint);
+        accounting.set_binding_resident_count(0);
+        assert_eq!(accounting.snapshot().binding_resident_count, 0);
+        accounting.clear();
+        assert_eq!(
+            accounting.snapshot(),
+            super::GpuSurfaceCustomShaderResidencySnapshot {
+                generation: NativeAdapterGeneration::default(),
+                pipeline_resident_count: 0,
+                binding_resident_count: 0,
+                surface_uniform_logical_bytes: Some(0),
+                app_uniform_logical_bytes: Some(0),
+                storage_logical_bytes: Some(0),
+                presentation_uniform_logical_bytes: Some(0),
+            }
+        );
+    }
+
+    #[test]
     fn signal_resource_accounting_tracks_cold_reuse_replacement_multiple_keys_and_zero() {
         let mut buffers = AccountedMap::default();
         let mut bodies = AccountedMap::default();
@@ -488,6 +853,27 @@ mod tests {
         bodies.insert_with_bytes(1, "body", Some(64 * 32 * 4));
         assert_eq!(bodies.residency().resident_count, 1);
         assert_eq!(bodies.residency().logical_bytes, Some(8_192));
+    }
+
+    fn custom_shader_binding_key(
+        uniform_bytes_len: usize,
+        storage_bytes_len: usize,
+        presentation_uniform_bytes_len: usize,
+    ) -> CustomShaderBindingKey {
+        CustomShaderBindingKey {
+            pipeline_key: CustomShaderPipelineKey {
+                shader_key: String::from("test/custom-shader"),
+                wgsl_source: Arc::<str>::from("test"),
+                vertex_entry_point: String::from("vertex_main"),
+                fragment_entry_point: String::from("fragment_main"),
+                has_uniform_payload: uniform_bytes_len > 0,
+                has_storage_payload: storage_bytes_len > 0,
+                has_presentation_uniform_payload: presentation_uniform_bytes_len > 0,
+            },
+            uniform_bytes_len,
+            storage_bytes_len,
+            presentation_uniform_bytes_len,
+        }
     }
 
     #[test]

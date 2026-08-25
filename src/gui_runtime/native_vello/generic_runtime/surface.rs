@@ -255,6 +255,7 @@ where
         })?;
         native_resource_publication.publish(native_resources);
         self.refresh_atlas_residency_account(adapter);
+        self.refresh_signal_residency_account(adapter);
         self.refresh_render_canvas_upload_account(adapter);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
@@ -712,6 +713,7 @@ where
             .map(|resources| resources.generation)
         else {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_signal_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
             self.fence_native_surface_target();
             return false;
@@ -727,6 +729,7 @@ where
         }
         let _ = self.window.isolate_native_resources();
         self.refresh_atlas_residency_account(adapter);
+        self.refresh_signal_residency_account(adapter);
         self.refresh_render_canvas_upload_account(adapter);
         self.fence_native_surface_target();
         false

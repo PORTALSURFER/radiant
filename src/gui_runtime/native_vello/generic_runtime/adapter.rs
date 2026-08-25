@@ -5,12 +5,16 @@ use super::gpu_surface::{
     GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
     GpuSurfaceRenderCanvasUploadPlanObservation, GpuSurfaceRenderCanvasUploadStats,
 };
-use super::runner_state::NativeWindowAtlasResidencySnapshots;
+use super::runner_state::{
+    NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots,
+};
 use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};
 use super::{
-    GpuSurfaceAtlasResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
-    NativeAdapterAtlasResidencyProfile, NativeAdapterRenderCanvasUploadAccountToken,
-    NativeAdapterRenderCanvasUploadProfile, NativeAtlasResidencyWindowIdentity,
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
+    NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyProfile,
+    NativeAdapterRenderCanvasUploadAccountToken, NativeAdapterRenderCanvasUploadProfile,
+    NativeAdapterSignalResidencyAccountToken, NativeAdapterSignalResidencyProfile,
+    NativeAtlasResidencyWindowIdentity,
 };
 use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -616,6 +620,331 @@ fn add_bytes(total: &mut Option<u64>, contribution: Option<u64>) {
     *total = total_value.checked_add(contribution);
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeAdapterSignalResidencyAggregate {
+    active_signal_buffer_resident_count: Option<usize>,
+    active_signal_buffer_logical_bytes: Option<u64>,
+    active_signal_body_texture_resident_count: Option<usize>,
+    active_signal_body_texture_logical_rgba_bytes: Option<u64>,
+    quarantined_signal_buffer_resident_count: Option<usize>,
+    quarantined_signal_buffer_logical_bytes: Option<u64>,
+    quarantined_signal_body_texture_resident_count: Option<usize>,
+    quarantined_signal_body_texture_logical_rgba_bytes: Option<u64>,
+}
+
+struct NativeAdapterSignalResidencyAccount {
+    account_generation: u64,
+    adapter_generation: NativeAdapterGeneration,
+    snapshots: NativeWindowSignalResidencySnapshots,
+}
+
+/// Application-scope, crate-private signal residency evidence owned by the
+/// selected adapter. Resource lifecycle code updates it at publication,
+/// quarantine, rebind, and physical retirement boundaries; profile capture
+/// only copies the cached aggregate.
+pub(super) struct NativeAdapterSignalResidencyLedger {
+    accounts: HashMap<NativeAtlasResidencyWindowIdentity, NativeAdapterSignalResidencyAccount>,
+    next_account_generation: Option<u64>,
+    /// Generations retained only while they are current or represented by a
+    /// live account/incarnation or one of its physical snapshots.
+    known_adapter_generations: Vec<NativeAdapterGeneration>,
+    current_adapter_generation: NativeAdapterGeneration,
+    aggregate: NativeAdapterSignalResidencyAggregate,
+}
+
+impl Default for NativeAdapterSignalResidencyLedger {
+    fn default() -> Self {
+        Self {
+            accounts: HashMap::new(),
+            next_account_generation: Some(1),
+            known_adapter_generations: Vec::new(),
+            current_adapter_generation: NativeAdapterGeneration::default(),
+            aggregate: NativeAdapterSignalResidencyAggregate {
+                active_signal_buffer_resident_count: Some(0),
+                active_signal_buffer_logical_bytes: Some(0),
+                active_signal_body_texture_resident_count: Some(0),
+                active_signal_body_texture_logical_rgba_bytes: Some(0),
+                quarantined_signal_buffer_resident_count: Some(0),
+                quarantined_signal_buffer_logical_bytes: Some(0),
+                quarantined_signal_body_texture_resident_count: Some(0),
+                quarantined_signal_body_texture_logical_rgba_bytes: Some(0),
+            },
+        }
+    }
+}
+
+impl NativeAdapterSignalResidencyLedger {
+    fn allocate_account_generation(&mut self) -> Option<u64> {
+        let generation = self.next_account_generation?;
+        self.next_account_generation = generation.checked_add(1);
+        Some(generation)
+    }
+
+    fn record_adapter_generation(&mut self, generation: NativeAdapterGeneration) {
+        if generation.is_known() && !self.known_adapter_generations.contains(&generation) {
+            self.known_adapter_generations.push(generation);
+        }
+        self.current_adapter_generation = generation;
+        self.recompute_aggregate();
+    }
+
+    fn prune_known_adapter_generations(&mut self) {
+        let current_adapter_generation = self.current_adapter_generation;
+        let accounts = &self.accounts;
+        self.known_adapter_generations.retain(|generation| {
+            *generation == current_adapter_generation
+                || accounts.values().any(|account| {
+                    signal_account_references_adapter_generation(account, *generation)
+                })
+        });
+    }
+
+    fn register(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowSignalResidencySnapshots,
+    ) -> Option<NativeAdapterSignalResidencyAccountToken> {
+        if !self.is_known_adapter_generation(adapter_generation)
+            || self.accounts.contains_key(&window_identity)
+        {
+            return None;
+        }
+        let account_generation = self.allocate_account_generation()?;
+        let token = NativeAdapterSignalResidencyAccountToken {
+            window_identity: window_identity.clone(),
+            account_generation,
+            adapter_generation,
+        };
+        self.accounts.insert(
+            window_identity,
+            NativeAdapterSignalResidencyAccount {
+                account_generation,
+                adapter_generation,
+                snapshots,
+            },
+        );
+        self.recompute_aggregate();
+        Some(token)
+    }
+
+    fn update(
+        &mut self,
+        token: &NativeAdapterSignalResidencyAccountToken,
+        snapshots: NativeWindowSignalResidencySnapshots,
+    ) -> bool {
+        let Some(account) = self.accounts.get_mut(&token.window_identity) else {
+            return false;
+        };
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return false;
+        }
+        account.snapshots = snapshots;
+        self.recompute_aggregate();
+        true
+    }
+
+    fn rebind(
+        &mut self,
+        token: &NativeAdapterSignalResidencyAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowSignalResidencySnapshots,
+    ) -> Option<NativeAdapterSignalResidencyAccountToken> {
+        if !self.is_known_adapter_generation(adapter_generation) {
+            return None;
+        }
+        let account = self.accounts.get_mut(&token.window_identity)?;
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return None;
+        }
+        account.adapter_generation = adapter_generation;
+        account.snapshots = snapshots;
+        let next = NativeAdapterSignalResidencyAccountToken {
+            window_identity: token.window_identity.clone(),
+            account_generation: token.account_generation,
+            adapter_generation,
+        };
+        self.recompute_aggregate();
+        Some(next)
+    }
+
+    fn remove(&mut self, token: &NativeAdapterSignalResidencyAccountToken) -> bool {
+        let Some(account) = self.accounts.get(&token.window_identity) else {
+            return false;
+        };
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return false;
+        }
+        let removed = self.accounts.remove(&token.window_identity).is_some();
+        if removed {
+            self.recompute_aggregate();
+        }
+        removed
+    }
+
+    fn is_known_adapter_generation(&self, generation: NativeAdapterGeneration) -> bool {
+        generation.is_known() && self.known_adapter_generations.contains(&generation)
+    }
+
+    fn profile(&self) -> NativeAdapterSignalResidencyProfile {
+        NativeAdapterSignalResidencyProfile {
+            adapter_generation: self
+                .current_adapter_generation
+                .is_known()
+                .then_some(self.current_adapter_generation),
+            active_signal_buffer_resident_count: self.aggregate.active_signal_buffer_resident_count,
+            active_signal_buffer_logical_bytes: self.aggregate.active_signal_buffer_logical_bytes,
+            active_signal_body_texture_resident_count: self
+                .aggregate
+                .active_signal_body_texture_resident_count,
+            active_signal_body_texture_logical_rgba_bytes: self
+                .aggregate
+                .active_signal_body_texture_logical_rgba_bytes,
+            quarantined_signal_buffer_resident_count: self
+                .aggregate
+                .quarantined_signal_buffer_resident_count,
+            quarantined_signal_buffer_logical_bytes: self
+                .aggregate
+                .quarantined_signal_buffer_logical_bytes,
+            quarantined_signal_body_texture_resident_count: self
+                .aggregate
+                .quarantined_signal_body_texture_resident_count,
+            quarantined_signal_body_texture_logical_rgba_bytes: self
+                .aggregate
+                .quarantined_signal_body_texture_logical_rgba_bytes,
+        }
+    }
+
+    fn recompute_aggregate(&mut self) {
+        self.prune_known_adapter_generations();
+        let mut aggregate = NativeAdapterSignalResidencyAggregate {
+            active_signal_buffer_resident_count: Some(0),
+            active_signal_buffer_logical_bytes: Some(0),
+            active_signal_body_texture_resident_count: Some(0),
+            active_signal_body_texture_logical_rgba_bytes: Some(0),
+            quarantined_signal_buffer_resident_count: Some(0),
+            quarantined_signal_buffer_logical_bytes: Some(0),
+            quarantined_signal_body_texture_resident_count: Some(0),
+            quarantined_signal_body_texture_logical_rgba_bytes: Some(0),
+        };
+        for account in self.accounts.values() {
+            accumulate_signal_active(
+                &mut aggregate,
+                account.snapshots.active,
+                self.current_adapter_generation,
+            );
+            accumulate_signal_quarantine(
+                &mut aggregate,
+                account.snapshots.quarantine_0,
+                &self.known_adapter_generations,
+            );
+            accumulate_signal_quarantine(
+                &mut aggregate,
+                account.snapshots.quarantine_1,
+                &self.known_adapter_generations,
+            );
+        }
+        self.aggregate = aggregate;
+    }
+
+    #[cfg(test)]
+    fn account_count(&self) -> usize {
+        self.accounts.len()
+    }
+}
+
+fn signal_account_references_adapter_generation(
+    account: &NativeAdapterSignalResidencyAccount,
+    generation: NativeAdapterGeneration,
+) -> bool {
+    account.adapter_generation == generation
+        || account
+            .snapshots
+            .active
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_0
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_1
+            .is_some_and(|snapshot| snapshot.generation == generation)
+}
+
+fn accumulate_signal_active(
+    aggregate: &mut NativeAdapterSignalResidencyAggregate,
+    snapshot: Option<GpuSurfaceSignalResidencySnapshot>,
+    current_adapter_generation: NativeAdapterGeneration,
+) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+    if snapshot.generation != current_adapter_generation || !current_adapter_generation.is_known() {
+        aggregate.active_signal_buffer_resident_count = None;
+        aggregate.active_signal_buffer_logical_bytes = None;
+        aggregate.active_signal_body_texture_resident_count = None;
+        aggregate.active_signal_body_texture_logical_rgba_bytes = None;
+        return;
+    }
+    add_count(
+        &mut aggregate.active_signal_buffer_resident_count,
+        snapshot.signal_buffer_resident_count,
+    );
+    add_bytes(
+        &mut aggregate.active_signal_buffer_logical_bytes,
+        snapshot.signal_buffer_logical_bytes,
+    );
+    add_count(
+        &mut aggregate.active_signal_body_texture_resident_count,
+        snapshot.signal_body_texture_resident_count,
+    );
+    add_bytes(
+        &mut aggregate.active_signal_body_texture_logical_rgba_bytes,
+        snapshot.signal_body_texture_logical_rgba_bytes,
+    );
+}
+
+fn accumulate_signal_quarantine(
+    aggregate: &mut NativeAdapterSignalResidencyAggregate,
+    snapshot: Option<GpuSurfaceSignalResidencySnapshot>,
+    known_adapter_generations: &[NativeAdapterGeneration],
+) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+    if !snapshot.generation.is_known() || !known_adapter_generations.contains(&snapshot.generation)
+    {
+        aggregate.quarantined_signal_buffer_resident_count = None;
+        aggregate.quarantined_signal_buffer_logical_bytes = None;
+        aggregate.quarantined_signal_body_texture_resident_count = None;
+        aggregate.quarantined_signal_body_texture_logical_rgba_bytes = None;
+        return;
+    }
+    add_count(
+        &mut aggregate.quarantined_signal_buffer_resident_count,
+        snapshot.signal_buffer_resident_count,
+    );
+    add_bytes(
+        &mut aggregate.quarantined_signal_buffer_logical_bytes,
+        snapshot.signal_buffer_logical_bytes,
+    );
+    add_count(
+        &mut aggregate.quarantined_signal_body_texture_resident_count,
+        snapshot.signal_body_texture_resident_count,
+    );
+    add_bytes(
+        &mut aggregate.quarantined_signal_body_texture_logical_rgba_bytes,
+        snapshot.signal_body_texture_logical_rgba_bytes,
+    );
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct NativeAdapterRenderCanvasUploadCandidateAggregate {
     observed_candidate_plan_count: Option<usize>,
@@ -1131,6 +1460,7 @@ pub(super) struct GenericNativeAdapterOwner {
     render_context: Option<RadiantWgpuContext>,
     selected: Option<SelectedNativeAdapter>,
     atlas_residency: NativeAdapterAtlasResidencyLedger,
+    signal_residency: NativeAdapterSignalResidencyLedger,
     render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger,
 }
 
@@ -1182,6 +1512,7 @@ impl GenericNativeAdapterOwner {
             render_context: Some(RadiantWgpuContext::new(instance_for_options(options))),
             selected: None,
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            signal_residency: NativeAdapterSignalResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         }
     }
@@ -1223,6 +1554,7 @@ impl GenericNativeAdapterOwner {
         };
         self.selected = Some(selected);
         self.atlas_residency.record_adapter_generation(generation);
+        self.signal_residency.record_adapter_generation(generation);
         self.render_canvas_upload_ledger
             .record_adapter_generation(generation);
         Ok(())
@@ -1366,6 +1698,45 @@ impl GenericNativeAdapterOwner {
         self.atlas_residency.profile()
     }
 
+    pub(super) fn register_signal_residency_account(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowSignalResidencySnapshots,
+    ) -> Option<NativeAdapterSignalResidencyAccountToken> {
+        self.signal_residency
+            .register(window_identity, adapter_generation, snapshots)
+    }
+
+    pub(super) fn update_signal_residency_account(
+        &mut self,
+        token: &NativeAdapterSignalResidencyAccountToken,
+        snapshots: NativeWindowSignalResidencySnapshots,
+    ) -> bool {
+        self.signal_residency.update(token, snapshots)
+    }
+
+    pub(super) fn rebind_signal_residency_account(
+        &mut self,
+        token: &NativeAdapterSignalResidencyAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowSignalResidencySnapshots,
+    ) -> Option<NativeAdapterSignalResidencyAccountToken> {
+        self.signal_residency
+            .rebind(token, adapter_generation, snapshots)
+    }
+
+    pub(super) fn remove_signal_residency_account(
+        &mut self,
+        token: &NativeAdapterSignalResidencyAccountToken,
+    ) -> bool {
+        self.signal_residency.remove(token)
+    }
+
+    pub(super) fn capture_signal_residency_profile(&self) -> NativeAdapterSignalResidencyProfile {
+        self.signal_residency.profile()
+    }
+
     pub(super) fn register_render_canvas_upload_account(
         &mut self,
         window_identity: NativeAtlasResidencyWindowIdentity,
@@ -1429,6 +1800,18 @@ impl GenericNativeAdapterOwner {
         self.atlas_residency = std::mem::take(&mut previous.atlas_residency);
         if let Some(next_generation) = next_generation {
             self.atlas_residency
+                .record_adapter_generation(next_generation);
+        }
+    }
+
+    pub(super) fn adopt_signal_residency_ledger(
+        &mut self,
+        previous: &mut GenericNativeAdapterOwner,
+    ) {
+        let next_generation = self.capture_generation();
+        self.signal_residency = std::mem::take(&mut previous.signal_residency);
+        if let Some(next_generation) = next_generation {
+            self.signal_residency
                 .record_adapter_generation(next_generation);
         }
     }
@@ -1517,9 +1900,11 @@ impl GenericNativeAdapterOwner {
                 device_loss_registration,
             }),
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            signal_residency: NativeAdapterSignalResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
         owner.atlas_residency.record_adapter_generation(generation);
+        owner.signal_residency.record_adapter_generation(generation);
         owner
             .render_canvas_upload_ledger
             .record_adapter_generation(generation);
@@ -1540,9 +1925,11 @@ impl GenericNativeAdapterOwner {
                 device_loss_registration: registration,
             }),
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            signal_residency: NativeAdapterSignalResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
         owner.atlas_residency.record_adapter_generation(generation);
+        owner.signal_residency.record_adapter_generation(generation);
         owner
             .render_canvas_upload_ledger
             .record_adapter_generation(generation);
@@ -1605,11 +1992,13 @@ mod tests {
     use super::{
         AdapterSurfaceError, DeviceLossRegistration, GenericNativeAdapterOwner,
         GpuSurfaceAtlasResidencySnapshot, GpuSurfaceRenderCanvasUploadStats,
-        NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyLedger,
-        NativeAdapterGeneration, NativeAdapterRenderCanvasUploadLedger,
+        GpuSurfaceSignalResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
+        NativeAdapterAtlasResidencyLedger, NativeAdapterGeneration,
+        NativeAdapterRenderCanvasUploadLedger, NativeAdapterSignalResidencyAccountToken,
+        NativeAdapterSignalResidencyLedger, NativeAdapterSignalResidencyProfile,
         NativeAtlasResidencyWindowIdentity, NativeWindowAtlasResidencySnapshots,
-        auxiliary_backend_policy_is_compatible, device_loss_registration_matches,
-        render_surface_creation_error,
+        NativeWindowSignalResidencySnapshots, auxiliary_backend_policy_is_compatible,
+        device_loss_registration_matches, render_surface_creation_error,
     };
     use crate::gui_runtime::NativeGpuBackend;
     use crate::gui_runtime::native_vello::generic_runtime::closing::NativeLifecycle;
@@ -1648,6 +2037,34 @@ mod tests {
         quarantine_1: Option<GpuSurfaceAtlasResidencySnapshot>,
     ) -> NativeWindowAtlasResidencySnapshots {
         NativeWindowAtlasResidencySnapshots {
+            active,
+            quarantine_0,
+            quarantine_1,
+        }
+    }
+
+    fn signal_snapshot(
+        generation: NativeAdapterGeneration,
+        signal_buffer_resident_count: usize,
+        signal_buffer_logical_bytes: Option<u64>,
+        signal_body_texture_resident_count: usize,
+        signal_body_texture_logical_rgba_bytes: Option<u64>,
+    ) -> GpuSurfaceSignalResidencySnapshot {
+        GpuSurfaceSignalResidencySnapshot {
+            generation,
+            signal_buffer_resident_count,
+            signal_buffer_logical_bytes,
+            signal_body_texture_resident_count,
+            signal_body_texture_logical_rgba_bytes,
+        }
+    }
+
+    fn signal_snapshots(
+        active: Option<GpuSurfaceSignalResidencySnapshot>,
+        quarantine_0: Option<GpuSurfaceSignalResidencySnapshot>,
+        quarantine_1: Option<GpuSurfaceSignalResidencySnapshot>,
+    ) -> NativeWindowSignalResidencySnapshots {
+        NativeWindowSignalResidencySnapshots {
             active,
             quarantine_0,
             quarantine_1,
@@ -2546,6 +2963,434 @@ mod tests {
     }
 
     #[test]
+    fn signal_ledger_aggregates_primary_and_auxiliaries_once() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterSignalResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+
+        let primary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                signal_snapshots(
+                    Some(signal_snapshot(generation, 3, Some(12), 2, Some(8))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("primary signal account should register");
+        let auxiliary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("inspector")),
+                generation,
+                signal_snapshots(
+                    Some(signal_snapshot(generation, 2, Some(8), 1, Some(4))),
+                    Some(signal_snapshot(generation, 1, Some(4), 1, Some(4))),
+                    None,
+                ),
+            )
+            .expect("auxiliary signal account should register");
+
+        assert_eq!(ledger.account_count(), 2);
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(5));
+        assert_eq!(profile.active_signal_buffer_logical_bytes, Some(20));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(3));
+        assert_eq!(
+            profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(12)
+        );
+        assert_eq!(profile.quarantined_signal_buffer_resident_count, Some(1));
+        assert_eq!(profile.quarantined_signal_buffer_logical_bytes, Some(4));
+        assert_eq!(
+            profile.quarantined_signal_body_texture_resident_count,
+            Some(1)
+        );
+        assert_eq!(
+            profile.quarantined_signal_body_texture_logical_rgba_bytes,
+            Some(4)
+        );
+
+        assert!(ledger.update(
+            &primary,
+            signal_snapshots(
+                Some(signal_snapshot(generation, 4, Some(16), 3, Some(12))),
+                None,
+                None,
+            ),
+        ));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(6));
+        assert_eq!(profile.active_signal_buffer_logical_bytes, Some(24));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(4));
+        assert_eq!(
+            profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(16)
+        );
+
+        assert!(ledger.remove(&auxiliary));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(4));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(3));
+        assert_eq!(profile.quarantined_signal_buffer_resident_count, Some(0));
+        assert_eq!(
+            profile.quarantined_signal_body_texture_resident_count,
+            Some(0)
+        );
+        assert!(!ledger.remove(&auxiliary));
+    }
+
+    #[test]
+    fn signal_ledger_keeps_physical_quarantine_across_recovery_and_rebinds_active() {
+        let old_generation = NativeAdapterGeneration::from_test_serial(1);
+        let new_generation = NativeAdapterGeneration::from_test_serial(2);
+        let mut ledger = NativeAdapterSignalResidencyLedger::default();
+        ledger.record_adapter_generation(old_generation);
+        let token = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                old_generation,
+                signal_snapshots(
+                    Some(signal_snapshot(old_generation, 3, Some(12), 2, Some(8))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("primary signal account should register");
+
+        ledger.record_adapter_generation(new_generation);
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, None);
+        assert_eq!(profile.active_signal_body_texture_resident_count, None);
+
+        let rebound = ledger
+            .rebind(
+                &token,
+                new_generation,
+                signal_snapshots(
+                    Some(signal_snapshot(new_generation, 2, Some(8), 1, Some(4))),
+                    Some(signal_snapshot(old_generation, 3, Some(12), 2, Some(8))),
+                    None,
+                ),
+            )
+            .expect("current signal account should rebind");
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(2));
+        assert_eq!(profile.active_signal_buffer_logical_bytes, Some(8));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(1));
+        assert_eq!(
+            profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(4)
+        );
+        assert_eq!(profile.quarantined_signal_buffer_resident_count, Some(3));
+        assert_eq!(profile.quarantined_signal_buffer_logical_bytes, Some(12));
+        assert_eq!(
+            profile.quarantined_signal_body_texture_resident_count,
+            Some(2)
+        );
+        assert_eq!(
+            profile.quarantined_signal_body_texture_logical_rgba_bytes,
+            Some(8)
+        );
+
+        assert!(!ledger.update(
+            &token,
+            signal_snapshots(
+                Some(signal_snapshot(
+                    old_generation,
+                    99,
+                    Some(396),
+                    98,
+                    Some(392)
+                )),
+                None,
+                None,
+            ),
+        ));
+        assert!(ledger.update(
+            &rebound,
+            signal_snapshots(
+                Some(signal_snapshot(new_generation, 4, Some(16), 3, Some(12))),
+                Some(signal_snapshot(old_generation, 3, Some(12), 2, Some(8))),
+                None,
+            ),
+        ));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(4));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(3));
+        assert_eq!(profile.quarantined_signal_buffer_resident_count, Some(3));
+        assert_eq!(
+            profile.quarantined_signal_body_texture_resident_count,
+            Some(2)
+        );
+
+        assert!(ledger.update(
+            &rebound,
+            signal_snapshots(
+                Some(signal_snapshot(new_generation, 4, Some(16), 3, Some(12))),
+                None,
+                None,
+            ),
+        ));
+        assert_eq!(ledger.known_adapter_generations.len(), 1);
+        let profile = ledger.profile();
+        assert_eq!(profile.quarantined_signal_buffer_resident_count, Some(0));
+        assert_eq!(profile.quarantined_signal_buffer_logical_bytes, Some(0));
+        assert_eq!(
+            profile.quarantined_signal_body_texture_resident_count,
+            Some(0)
+        );
+        assert_eq!(
+            profile.quarantined_signal_body_texture_logical_rgba_bytes,
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn signal_ledger_fences_wrong_generation_and_same_key_incarnations() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let second_generation = NativeAdapterGeneration::from_test_serial(2);
+        let identity = NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("same-key"));
+        let mut ledger = NativeAdapterSignalResidencyLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let first = ledger
+            .register(
+                identity.clone(),
+                first_generation,
+                signal_snapshots(
+                    Some(signal_snapshot(first_generation, 1, Some(4), 2, Some(8))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("first signal incarnation should register");
+        ledger.record_adapter_generation(second_generation);
+        let wrong_generation = NativeAdapterSignalResidencyAccountToken {
+            adapter_generation: second_generation,
+            ..first.clone()
+        };
+        assert!(!ledger.update(
+            &wrong_generation,
+            signal_snapshots(
+                Some(signal_snapshot(first_generation, 7, Some(28), 8, Some(32))),
+                None,
+                None,
+            ),
+        ));
+        assert!(ledger.remove(&first));
+        assert!(!ledger.remove(&first));
+
+        let second = ledger
+            .register(
+                identity,
+                second_generation,
+                signal_snapshots(
+                    Some(signal_snapshot(second_generation, 2, Some(8), 3, Some(12))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("replacement signal incarnation should register");
+        assert_ne!(first.account_generation, second.account_generation);
+        assert!(!ledger.update(
+            &first,
+            signal_snapshots(
+                Some(signal_snapshot(
+                    second_generation,
+                    9,
+                    Some(36),
+                    10,
+                    Some(40)
+                )),
+                None,
+                None,
+            ),
+        ));
+        assert!(!ledger.remove(&first));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(2));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(3));
+    }
+
+    #[test]
+    fn signal_ledger_keeps_unknown_bytes_independent_and_recovers() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterSignalResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+        let token = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                signal_snapshots(
+                    Some(signal_snapshot(generation, 2, None, 3, Some(12))),
+                    Some(signal_snapshot(generation, 1, Some(4), 2, None)),
+                    None,
+                ),
+            )
+            .expect("signal account with unknown bytes should register");
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(2));
+        assert_eq!(profile.active_signal_buffer_logical_bytes, None);
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(3));
+        assert_eq!(
+            profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(12)
+        );
+        assert_eq!(profile.quarantined_signal_buffer_resident_count, Some(1));
+        assert_eq!(profile.quarantined_signal_buffer_logical_bytes, Some(4));
+        assert_eq!(
+            profile.quarantined_signal_body_texture_resident_count,
+            Some(2)
+        );
+        assert_eq!(
+            profile.quarantined_signal_body_texture_logical_rgba_bytes,
+            None
+        );
+
+        assert!(ledger.update(
+            &token,
+            signal_snapshots(
+                Some(signal_snapshot(generation, 2, Some(8), 3, Some(12))),
+                Some(signal_snapshot(generation, 1, Some(4), 2, Some(8))),
+                None,
+            ),
+        ));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_logical_bytes, Some(8));
+        assert_eq!(
+            profile.quarantined_signal_body_texture_logical_rgba_bytes,
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn signal_ledger_recovers_after_count_and_byte_overflow() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterSignalResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+        let max = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                signal_snapshots(
+                    Some(signal_snapshot(
+                        generation,
+                        usize::MAX,
+                        Some(u64::MAX),
+                        usize::MAX,
+                        Some(u64::MAX),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("maximum signal contribution should register");
+        let one = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("overflow")),
+                generation,
+                signal_snapshots(
+                    Some(signal_snapshot(generation, 1, Some(1), 1, Some(1))),
+                    None,
+                    None,
+                ),
+            )
+            .expect("overflow signal contribution should register");
+
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, None);
+        assert_eq!(profile.active_signal_buffer_logical_bytes, None);
+        assert_eq!(profile.active_signal_body_texture_resident_count, None);
+        assert_eq!(profile.active_signal_body_texture_logical_rgba_bytes, None);
+        assert!(ledger.remove(&one));
+        let profile = ledger.profile();
+        assert_eq!(
+            profile.active_signal_buffer_resident_count,
+            Some(usize::MAX)
+        );
+        assert_eq!(profile.active_signal_buffer_logical_bytes, Some(u64::MAX));
+        assert_eq!(
+            profile.active_signal_body_texture_resident_count,
+            Some(usize::MAX)
+        );
+        assert_eq!(
+            profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(u64::MAX)
+        );
+        assert!(ledger.remove(&max));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(0));
+        assert_eq!(profile.active_signal_buffer_logical_bytes, Some(0));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(0));
+        assert_eq!(
+            profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn signal_profile_default_is_absent_while_empty_ledger_is_zero() {
+        let default_profile = NativeAdapterSignalResidencyProfile::default();
+        assert_eq!(default_profile.adapter_generation, None);
+        assert_eq!(default_profile.active_signal_buffer_resident_count, None);
+        assert_eq!(default_profile.active_signal_buffer_logical_bytes, None);
+        assert_eq!(
+            default_profile.active_signal_body_texture_resident_count,
+            None
+        );
+        assert_eq!(
+            default_profile.active_signal_body_texture_logical_rgba_bytes,
+            None
+        );
+        assert_eq!(
+            default_profile.quarantined_signal_buffer_resident_count,
+            None
+        );
+        assert_eq!(
+            default_profile.quarantined_signal_buffer_logical_bytes,
+            None
+        );
+        assert_eq!(
+            default_profile.quarantined_signal_body_texture_resident_count,
+            None
+        );
+        assert_eq!(
+            default_profile.quarantined_signal_body_texture_logical_rgba_bytes,
+            None
+        );
+
+        let empty_ledger = NativeAdapterSignalResidencyLedger::default();
+        let empty_profile = empty_ledger.profile();
+        assert_eq!(empty_profile.adapter_generation, None);
+        assert_eq!(empty_profile.active_signal_buffer_resident_count, Some(0));
+        assert_eq!(empty_profile.active_signal_buffer_logical_bytes, Some(0));
+        assert_eq!(
+            empty_profile.active_signal_body_texture_resident_count,
+            Some(0)
+        );
+        assert_eq!(
+            empty_profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(0)
+        );
+        assert_eq!(
+            empty_profile.quarantined_signal_buffer_resident_count,
+            Some(0)
+        );
+        assert_eq!(
+            empty_profile.quarantined_signal_buffer_logical_bytes,
+            Some(0)
+        );
+        assert_eq!(
+            empty_profile.quarantined_signal_body_texture_resident_count,
+            Some(0)
+        );
+        assert_eq!(
+            empty_profile.quarantined_signal_body_texture_logical_rgba_bytes,
+            Some(0)
+        );
+    }
+
+    #[test]
     fn auxiliary_auto_inherits_every_selected_backend() {
         for backend in wgpu::Backend::ALL {
             assert!(auxiliary_backend_policy_is_compatible(
@@ -2612,6 +3457,7 @@ mod tests {
             render_context: None,
             selected: None,
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
+            signal_residency: NativeAdapterSignalResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
 

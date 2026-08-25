@@ -1,10 +1,12 @@
 //! Native render profiling diagnostics for the generic Vello runtime.
 
-use super::runner_state::NativeWindowAtlasResidencySnapshots;
+use super::runner_state::{
+    NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots,
+};
 use super::{
-    GpuSurfaceAtlasResidencySnapshot, NativeAdapterAtlasResidencyProfile,
-    NativeAdapterRenderCanvasUploadProfile, RetainedSurfaceEncodeStats,
-    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
+    NativeAdapterAtlasResidencyProfile, NativeAdapterRenderCanvasUploadProfile,
+    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -54,6 +56,7 @@ impl RenderFrameProfile {
 pub(super) struct NativeRenderProfileGpuSurface {
     pub(super) stats: GpuSurfaceRenderStats,
     pub(super) atlas_residency: NativeWindowAtlasResidencySnapshots,
+    pub(super) signal_residency: NativeWindowSignalResidencySnapshots,
     pub(super) application_atlas_residency: NativeAdapterAtlasResidencyProfile,
     pub(super) application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
 }
@@ -77,6 +80,33 @@ fn project_atlas_residency(
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeRenderProfileSignalResidency {
+    generation_known: Option<bool>,
+    generation_serial: Option<u64>,
+    signal_buffer_resident_count: Option<usize>,
+    signal_buffer_logical_bytes: Option<u64>,
+    signal_body_texture_resident_count: Option<usize>,
+    signal_body_texture_logical_rgba_bytes: Option<u64>,
+}
+
+fn project_signal_residency(
+    snapshot: Option<GpuSurfaceSignalResidencySnapshot>,
+) -> NativeRenderProfileSignalResidency {
+    NativeRenderProfileSignalResidency {
+        generation_known: snapshot.map(GpuSurfaceSignalResidencySnapshot::generation_known),
+        generation_serial: snapshot.and_then(GpuSurfaceSignalResidencySnapshot::generation_serial),
+        signal_buffer_resident_count: snapshot
+            .map(|snapshot| snapshot.signal_buffer_resident_count),
+        signal_buffer_logical_bytes: snapshot
+            .and_then(|snapshot| snapshot.signal_buffer_logical_bytes),
+        signal_body_texture_resident_count: snapshot
+            .map(|snapshot| snapshot.signal_body_texture_resident_count),
+        signal_body_texture_logical_rgba_bytes: snapshot
+            .and_then(|snapshot| snapshot.signal_body_texture_logical_rgba_bytes),
+    }
+}
+
 pub(super) fn maybe_log_render_profile(
     reason: &'static str,
     stats: RetainedSurfaceEncodeStats,
@@ -92,12 +122,16 @@ pub(super) fn maybe_log_render_profile(
     let NativeRenderProfileGpuSurface {
         stats: gpu_surface_stats,
         atlas_residency,
+        signal_residency,
         application_atlas_residency,
         application_render_canvas_uploads,
     } = gpu_surface;
     let active_atlas = project_atlas_residency(atlas_residency.active);
     let quarantine_0_atlas = project_atlas_residency(atlas_residency.quarantine_0);
     let quarantine_1_atlas = project_atlas_residency(atlas_residency.quarantine_1);
+    let active_signal = project_signal_residency(signal_residency.active);
+    let quarantine_0_signal = project_signal_residency(signal_residency.quarantine_0);
+    let quarantine_1_signal = project_signal_residency(signal_residency.quarantine_1);
     let render_canvas_uploads = gpu_surface_stats.render_canvas_uploads;
     let render_canvas_upload_plan = gpu_surface_stats.render_canvas_upload_plan;
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
@@ -285,6 +319,43 @@ pub(super) fn maybe_log_render_profile(
         since_last_present_us = since_last_present.as_micros(),
         "radiant native render profile"
     );
+    info!(
+        reason,
+        window_identity = frame
+            .window_identity
+            .map(NativeWindowDiagnosticIdentity::get),
+        frame_sequence = frame.frame_sequence,
+        gpu_surface_signal_active_generation_known = active_signal.generation_known,
+        gpu_surface_signal_active_generation_serial = active_signal.generation_serial,
+        gpu_surface_signal_active_buffer_resident_count =
+            active_signal.signal_buffer_resident_count,
+        gpu_surface_signal_active_buffer_logical_bytes = active_signal.signal_buffer_logical_bytes,
+        gpu_surface_signal_active_body_texture_resident_count =
+            active_signal.signal_body_texture_resident_count,
+        gpu_surface_signal_active_body_texture_logical_rgba_bytes =
+            active_signal.signal_body_texture_logical_rgba_bytes,
+        gpu_surface_signal_q0_generation_known = quarantine_0_signal.generation_known,
+        gpu_surface_signal_q0_generation_serial = quarantine_0_signal.generation_serial,
+        gpu_surface_signal_q0_buffer_resident_count =
+            quarantine_0_signal.signal_buffer_resident_count,
+        gpu_surface_signal_q0_buffer_logical_bytes =
+            quarantine_0_signal.signal_buffer_logical_bytes,
+        gpu_surface_signal_q0_body_texture_resident_count =
+            quarantine_0_signal.signal_body_texture_resident_count,
+        gpu_surface_signal_q0_body_texture_logical_rgba_bytes =
+            quarantine_0_signal.signal_body_texture_logical_rgba_bytes,
+        gpu_surface_signal_q1_generation_known = quarantine_1_signal.generation_known,
+        gpu_surface_signal_q1_generation_serial = quarantine_1_signal.generation_serial,
+        gpu_surface_signal_q1_buffer_resident_count =
+            quarantine_1_signal.signal_buffer_resident_count,
+        gpu_surface_signal_q1_buffer_logical_bytes =
+            quarantine_1_signal.signal_buffer_logical_bytes,
+        gpu_surface_signal_q1_body_texture_resident_count =
+            quarantine_1_signal.signal_body_texture_resident_count,
+        gpu_surface_signal_q1_body_texture_logical_rgba_bytes =
+            quarantine_1_signal.signal_body_texture_logical_rgba_bytes,
+        "radiant native render profile signal residency"
+    );
 }
 
 pub(super) fn maybe_log_slow_render_profile(
@@ -470,10 +541,14 @@ fn text_quality_status(text_stats: TextLayoutProfileCounters) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::super::{
-        GpuSurfaceAtlasResidencySnapshot, adapter::NativeAdapterGeneration,
-        runner_state::NativeWindowAtlasResidencySnapshots,
+        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
+        adapter::NativeAdapterGeneration,
+        runner_state::{NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots},
     };
-    use super::{NativeRenderProfileAtlasResidency, project_atlas_residency};
+    use super::{
+        NativeRenderProfileAtlasResidency, NativeRenderProfileSignalResidency,
+        project_atlas_residency, project_signal_residency,
+    };
 
     #[test]
     fn atlas_profile_projection_preserves_generation_attribution_and_absent_slots() {
@@ -535,5 +610,80 @@ mod tests {
             assert_eq!(projection.generation_known, Some(false));
             assert_eq!(projection.generation_serial, None);
         }
+    }
+
+    #[test]
+    fn signal_profile_projection_preserves_active_q0_q1_and_unknown_bytes() {
+        let snapshots = NativeWindowSignalResidencySnapshots {
+            active: Some(GpuSurfaceSignalResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(21),
+                signal_buffer_resident_count: 3,
+                signal_buffer_logical_bytes: Some(456),
+                signal_body_texture_resident_count: 2,
+                signal_body_texture_logical_rgba_bytes: Some(8_192),
+            }),
+            quarantine_0: Some(GpuSurfaceSignalResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(22),
+                signal_buffer_resident_count: 1,
+                signal_buffer_logical_bytes: None,
+                signal_body_texture_resident_count: 1,
+                signal_body_texture_logical_rgba_bytes: Some(4),
+            }),
+            quarantine_1: Some(GpuSurfaceSignalResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(23),
+                signal_buffer_resident_count: 0,
+                signal_buffer_logical_bytes: Some(0),
+                signal_body_texture_resident_count: 0,
+                signal_body_texture_logical_rgba_bytes: Some(0),
+            }),
+        };
+
+        assert_eq!(
+            project_signal_residency(snapshots.active),
+            NativeRenderProfileSignalResidency {
+                generation_known: Some(true),
+                generation_serial: Some(21),
+                signal_buffer_resident_count: Some(3),
+                signal_buffer_logical_bytes: Some(456),
+                signal_body_texture_resident_count: Some(2),
+                signal_body_texture_logical_rgba_bytes: Some(8_192),
+            }
+        );
+        assert_eq!(
+            project_signal_residency(snapshots.quarantine_0),
+            NativeRenderProfileSignalResidency {
+                generation_known: Some(true),
+                generation_serial: Some(22),
+                signal_buffer_resident_count: Some(1),
+                signal_buffer_logical_bytes: None,
+                signal_body_texture_resident_count: Some(1),
+                signal_body_texture_logical_rgba_bytes: Some(4),
+            }
+        );
+        assert_eq!(
+            project_signal_residency(snapshots.quarantine_1),
+            NativeRenderProfileSignalResidency {
+                generation_known: Some(true),
+                generation_serial: Some(23),
+                signal_buffer_resident_count: Some(0),
+                signal_buffer_logical_bytes: Some(0),
+                signal_body_texture_resident_count: Some(0),
+                signal_body_texture_logical_rgba_bytes: Some(0),
+            }
+        );
+
+        let unknown = project_signal_residency(Some(GpuSurfaceSignalResidencySnapshot {
+            generation: NativeAdapterGeneration::default(),
+            signal_buffer_resident_count: 1,
+            signal_buffer_logical_bytes: None,
+            signal_body_texture_resident_count: 1,
+            signal_body_texture_logical_rgba_bytes: None,
+        }));
+        assert_eq!(unknown.generation_known, Some(false));
+        assert_eq!(unknown.generation_serial, None);
+        assert_eq!(
+            project_signal_residency(None),
+            NativeRenderProfileSignalResidency::default()
+        );
     }
 }

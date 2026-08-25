@@ -559,6 +559,7 @@ where
                 NativeRenderProfileGpuSurface {
                     stats: gpu_surface_stats,
                     atlas_residency: self.window.atlas_residency_snapshots(),
+                    signal_residency: self.window.signal_residency_snapshots(),
                     application_atlas_residency,
                     application_render_canvas_uploads,
                 },
@@ -699,6 +700,7 @@ where
                 NativeRenderProfileGpuSurface {
                     stats: gpu_surface_stats,
                     atlas_residency: self.window.atlas_residency_snapshots(),
+                    signal_residency: self.window.signal_residency_snapshots(),
                     application_atlas_residency,
                     application_render_canvas_uploads,
                 },

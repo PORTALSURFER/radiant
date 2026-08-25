@@ -1,11 +1,11 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
-use super::GpuSurfaceAtlasResidencySnapshot;
 use super::device::{wgpu_device_id, wgpu_target_matches};
 use super::runtime_helpers::{
     SurfaceOcclusionPlan, SurfaceOcclusionPolicy, SurfaceOcclusionQueryScratch,
     planned_surface_occlusion_regions_into,
 };
+use super::{GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot};
 use crate::gui::types::{Rect as UiRect, Vector2};
 use crate::runtime::{GpuShaderPresentationUniformUpdate, GpuSurfaceContent, PaintPrimitive};
 use std::collections::hash_map::DefaultHasher;
@@ -610,6 +610,10 @@ impl GpuSurfaceRenderer {
         self.resources.atlas_residency_snapshot()
     }
 
+    pub(super) fn signal_residency_snapshot(&self) -> GpuSurfaceSignalResidencySnapshot {
+        self.resources.signal_residency_snapshot()
+    }
+
     #[cfg(test)]
     fn collect_occlusion_regions_for_test(
         &mut self,
@@ -1136,6 +1140,14 @@ mod tests {
         assert!(renderer.resources.signal_summaries.is_empty());
         assert!(renderer.resources.signal_summary_validations.is_empty());
         assert!(renderer.resources.composite_bindings.is_empty());
+        let signal_residency = renderer.signal_residency_snapshot();
+        assert_eq!(signal_residency.signal_buffer_resident_count, 0);
+        assert_eq!(signal_residency.signal_buffer_logical_bytes, Some(0));
+        assert_eq!(signal_residency.signal_body_texture_resident_count, 0);
+        assert_eq!(
+            signal_residency.signal_body_texture_logical_rgba_bytes,
+            Some(0)
+        );
     }
 
     #[test]

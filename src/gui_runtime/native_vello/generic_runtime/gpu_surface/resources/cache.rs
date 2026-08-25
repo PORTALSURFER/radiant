@@ -1,4 +1,7 @@
-use super::super::super::{GpuSurfaceAtlasResidencySnapshot, adapter::NativeAdapterGeneration};
+use super::super::super::{
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
+    adapter::NativeAdapterGeneration,
+};
 use super::super::active_keys::ActiveGpuSurfaceKeys;
 use super::super::gpu_surface_types::{
     CachedSignalSummary, CachedSignalSummaryValidation, CustomShaderBinding, CustomShaderPipeline,
@@ -10,7 +13,13 @@ use std::hash::{Hash, Hasher};
 
 struct AccountedMapEntry<T> {
     value: T,
-    logical_rgba_texel_bytes: Option<u64>,
+    logical_bytes: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct AccountedMapResidency {
+    resident_count: usize,
+    logical_bytes: Option<u64>,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct AccountedMap<T> {
@@ -79,18 +88,26 @@ impl<T> AccountedMap<T> {
         width: usize,
         height: usize,
     ) {
-        let logical_rgba_texel_bytes = logical_rgba_texel_bytes(width, height);
+        self.insert_with_bytes(key, value, logical_rgba_texel_bytes(width, height));
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn insert_with_bytes(
+        &mut self,
+        key: u64,
+        value: T,
+        logical_bytes: Option<u64>,
+    ) {
         let previous = self.entries.insert(
             key,
             AccountedMapEntry {
                 value,
-                logical_rgba_texel_bytes,
+                logical_bytes,
             },
         );
         if let Some(previous) = previous {
-            self.remove_footprint(previous.logical_rgba_texel_bytes);
+            self.remove_footprint(previous.logical_bytes);
         }
-        self.add_footprint(logical_rgba_texel_bytes);
+        self.add_footprint(logical_bytes);
         self.resident_count = self.entries.len();
     }
 
@@ -104,7 +121,7 @@ impl<T> AccountedMap<T> {
             if keep(key, &entry.value) {
                 return true;
             }
-            match entry.logical_rgba_texel_bytes {
+            match entry.logical_bytes {
                 Some(bytes) => {
                     removed_known_logical_rgba_texel_bytes =
                         removed_known_logical_rgba_texel_bytes.saturating_add(u128::from(bytes));
@@ -154,10 +171,18 @@ impl<T> AccountedMap<T> {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn residency_snapshot(
         &self,
     ) -> GpuSurfaceAtlasResidencySnapshot {
+        let residency = self.residency();
         GpuSurfaceAtlasResidencySnapshot {
             generation: NativeAdapterGeneration::default(),
+            resident_count: residency.resident_count,
+            logical_rgba_texel_bytes: residency.logical_bytes,
+        }
+    }
+
+    fn residency(&self) -> AccountedMapResidency {
+        AccountedMapResidency {
             resident_count: self.resident_count,
-            logical_rgba_texel_bytes: if self.unavailable_logical_rgba_texel_bytes > 0
+            logical_bytes: if self.unavailable_logical_rgba_texel_bytes > 0
                 || self.logical_rgba_texel_bytes_overflowed
             {
                 None
@@ -250,9 +275,9 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) custom_shader_bindings:
         HashMap<u64, CustomShaderBinding>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_bodies:
-        HashMap<u64, SignalBodyTexture>,
+        AccountedMap<SignalBodyTexture>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signals:
-        HashMap<u64, SignalBuffer>,
+        AccountedMap<SignalBuffer>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_summaries:
         HashMap<u64, CachedSignalSummary>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_summary_validations:
@@ -314,11 +339,46 @@ impl GpuSurfaceResourceCache {
     ) -> GpuSurfaceAtlasResidencySnapshot {
         self.textures.residency_snapshot()
     }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn signal_residency_snapshot(
+        &self,
+    ) -> GpuSurfaceSignalResidencySnapshot {
+        let signal_buffers = self.signals.residency();
+        let signal_body_textures = self.signal_bodies.residency();
+        GpuSurfaceSignalResidencySnapshot {
+            generation: NativeAdapterGeneration::default(),
+            signal_buffer_resident_count: signal_buffers.resident_count,
+            signal_buffer_logical_bytes: signal_buffers.logical_bytes,
+            signal_body_texture_resident_count: signal_body_textures.resident_count,
+            signal_body_texture_logical_rgba_bytes: signal_body_textures.logical_bytes,
+        }
+    }
+}
+
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logical_signal_body_texture_bytes(
+    width: u32,
+    height: u32,
+) -> Option<u64> {
+    u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|texels| texels.checked_mul(4))
+}
+
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logical_signal_buffer_bytes(
+    sample_buffer_bytes: usize,
+    uniform_buffer_bytes: usize,
+) -> Option<u64> {
+    u64::try_from(sample_buffer_bytes)
+        .ok()?
+        .checked_add(u64::try_from(uniform_buffer_bytes).ok()?)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AccountedMap, NativeAdapterGeneration, logical_rgba_texel_bytes};
+    use super::{
+        AccountedMap, NativeAdapterGeneration, logical_rgba_texel_bytes,
+        logical_signal_body_texture_bytes, logical_signal_buffer_bytes,
+    };
 
     #[test]
     fn accounted_map_tracks_exact_logical_rgba_texel_bytes_and_replacement() {
@@ -405,6 +465,74 @@ mod tests {
     fn logical_rgba_texel_bytes_uses_checked_u64_math() {
         assert_eq!(logical_rgba_texel_bytes(256, 128), Some(131_072));
         assert_eq!(logical_rgba_texel_bytes(usize::MAX, usize::MAX), None);
+    }
+
+    #[test]
+    fn signal_resource_accounting_tracks_cold_reuse_replacement_multiple_keys_and_zero() {
+        let mut buffers = AccountedMap::default();
+        let mut bodies = AccountedMap::default();
+
+        assert_eq!(buffers.residency().resident_count, 0);
+        assert_eq!(buffers.residency().logical_bytes, Some(0));
+
+        buffers.insert_with_bytes(1, "cold", Some(152));
+        let warm_reuse_residency = buffers.residency();
+        assert_eq!(warm_reuse_residency.resident_count, 1);
+        assert_eq!(warm_reuse_residency.logical_bytes, Some(152));
+
+        buffers.insert_with_bytes(1, "replacement", Some(304));
+        buffers.insert_with_bytes(2, "zero", Some(0));
+        assert_eq!(buffers.residency().resident_count, 2);
+        assert_eq!(buffers.residency().logical_bytes, Some(304));
+
+        bodies.insert_with_bytes(1, "body", Some(64 * 32 * 4));
+        assert_eq!(bodies.residency().resident_count, 1);
+        assert_eq!(bodies.residency().logical_bytes, Some(8_192));
+    }
+
+    #[test]
+    fn signal_resource_accounting_preserves_unknown_bytes_through_prune_and_clear() {
+        let mut buffers = AccountedMap::default();
+        buffers.insert_with_bytes(1, "unknown", None);
+        buffers.insert_with_bytes(2, "known", Some(152));
+        assert_eq!(buffers.residency().resident_count, 2);
+        assert_eq!(buffers.residency().logical_bytes, None);
+
+        buffers.retain(|key, _| *key == 2);
+        assert_eq!(buffers.residency().resident_count, 1);
+        assert_eq!(buffers.residency().logical_bytes, Some(152));
+
+        buffers.clear();
+        assert_eq!(buffers.residency().resident_count, 0);
+        assert_eq!(buffers.residency().logical_bytes, Some(0));
+
+        let mut bodies = AccountedMap::default();
+        bodies.insert_with_bytes(1, "unknown", None);
+        assert_eq!(bodies.residency().logical_bytes, None);
+        bodies.clear();
+        assert_eq!(bodies.residency().logical_bytes, Some(0));
+    }
+
+    #[test]
+    fn signal_resource_logical_bytes_use_checked_arithmetic() {
+        assert_eq!(logical_signal_body_texture_bytes(64, 32), Some(8_192));
+        assert_eq!(logical_signal_body_texture_bytes(u32::MAX, u32::MAX), None);
+        assert_eq!(logical_signal_buffer_bytes(8, 144), Some(152));
+        assert_eq!(logical_signal_buffer_bytes(0, 0), Some(0));
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn signal_resource_logical_buffer_overflow_is_unavailable() {
+        assert_eq!(logical_signal_buffer_bytes(usize::MAX, 1), None);
+
+        let mut buffers = AccountedMap::default();
+        buffers.insert_with_bytes(1, "large", Some(u64::MAX - 3));
+        buffers.insert_with_bytes(2, "one-more", Some(4));
+        assert_eq!(buffers.residency().logical_bytes, None);
+
+        buffers.retain(|key, _| *key == 1);
+        assert_eq!(buffers.residency().logical_bytes, Some(u64::MAX - 3));
     }
 
     #[cfg(target_pointer_width = "64")]

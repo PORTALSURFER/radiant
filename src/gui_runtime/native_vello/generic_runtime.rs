@@ -94,6 +94,35 @@ impl GpuSurfaceAtlasResidencySnapshot {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct GpuSurfaceSignalResidencySnapshot {
+    generation: adapter::NativeAdapterGeneration,
+    pub(super) signal_buffer_resident_count: usize,
+    pub(super) signal_buffer_logical_bytes: Option<u64>,
+    pub(super) signal_body_texture_resident_count: usize,
+    pub(super) signal_body_texture_logical_rgba_bytes: Option<u64>,
+}
+
+impl GpuSurfaceSignalResidencySnapshot {
+    pub(super) fn with_generation(mut self, generation: adapter::NativeAdapterGeneration) -> Self {
+        self.generation = generation;
+        self
+    }
+
+    pub(super) const fn generation_known(self) -> bool {
+        self.generation.is_known()
+    }
+
+    pub(super) const fn generation_serial(self) -> Option<u64> {
+        self.generation.known_serial()
+    }
+
+    #[cfg(test)]
+    pub(super) fn generation(self) -> adapter::NativeAdapterGeneration {
+        self.generation
+    }
+}
+
 #[cfg(test)]
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8},

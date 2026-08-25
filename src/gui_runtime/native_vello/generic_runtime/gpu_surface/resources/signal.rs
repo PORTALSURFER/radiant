@@ -13,6 +13,7 @@ use super::super::upload_plan::{
     GpuSurfaceRenderCanvasUploadSignalBufferOperation,
 };
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
+use super::cache::{logical_signal_body_texture_bytes, logical_signal_buffer_bytes};
 use crate::runtime::GpuSignalSummaryBucket;
 use std::time::Instant;
 use vello::wgpu;
@@ -123,7 +124,7 @@ impl GpuSurfaceRenderer {
         stats.signal.body_renders += 1;
         stats.signal.body_encode_elapsed += started.elapsed();
         let cached_view = view.clone();
-        self.resources.signal_bodies.insert(
+        self.resources.signal_bodies.insert_with_bytes(
             key,
             SignalBodyTexture {
                 device: wgpu_device_id(device),
@@ -132,6 +133,7 @@ impl GpuSurfaceRenderer {
                 _texture: texture,
                 view,
             },
+            logical_signal_body_texture_bytes(body_key.width, body_key.height),
         );
         Some(cached_view)
     }
@@ -182,6 +184,7 @@ impl GpuSurfaceRenderer {
             .record_immutable_payload(bucket_bytes.len());
         let uniform_bytes = signal_uniforms_as_bytes(uniforms);
         stats.record_candidate_renderer_parameter(uniform_bytes.len());
+        let logical_bytes = logical_signal_buffer_bytes(bucket_bytes.len(), uniform_bytes.len());
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_uniforms"),
             contents: uniform_bytes,
@@ -204,7 +207,7 @@ impl GpuSurfaceRenderer {
                 },
             ],
         });
-        self.resources.signals.insert(
+        self.resources.signals.insert_with_bytes(
             key,
             SignalBuffer {
                 cache_key,
@@ -215,6 +218,7 @@ impl GpuSurfaceRenderer {
                 uniform_buffer,
                 bind_group,
             },
+            logical_bytes,
         );
     }
 }

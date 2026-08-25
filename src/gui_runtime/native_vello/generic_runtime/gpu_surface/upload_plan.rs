@@ -433,7 +433,6 @@ pub(super) enum GpuSurfaceRenderCanvasUploadAction {
         key: u64,
     },
     Prune {
-        active_keys: Vec<u64>,
         clear: bool,
     },
 }
@@ -492,6 +491,18 @@ impl GpuSurfaceRenderCanvasUploadPlan {
         plan.stream_ptr = stream_ptr;
         plan.stream_len = stream_len;
         plan.state_fingerprint = state_fingerprint;
+        plan
+    }
+
+    pub(super) fn preflight_with_actions(
+        context: GpuSurfaceRenderCanvasUploadPlanContext,
+        stream_ptr: usize,
+        stream_len: usize,
+        state_fingerprint: u64,
+        actions: Vec<GpuSurfaceRenderCanvasUploadAction>,
+    ) -> Self {
+        let mut plan = Self::preflight(context, stream_ptr, stream_len, state_fingerprint);
+        plan.actions = actions;
         plan
     }
 
@@ -1097,6 +1108,11 @@ impl GpuSurfaceRenderCanvasUploadPlan {
         !self.execution_vetoed
     }
 
+    pub(super) fn into_recyclable_actions(mut self) -> Vec<GpuSurfaceRenderCanvasUploadAction> {
+        self.actions.clear();
+        self.actions
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn matches_context(
         &self,
         current: GpuSurfaceRenderCanvasUploadPlanContext,
@@ -1511,10 +1527,7 @@ mod tests {
             generation: 3,
             rebuild: true,
         });
-        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Prune {
-            active_keys: vec![41, 42],
-            clear: false,
-        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Prune { clear: false });
 
         assert!(preflight.begin_execution(context, stream.as_ptr() as usize, 2, 17));
         assert!(preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame));
@@ -1528,10 +1541,7 @@ mod tests {
             })
         );
         assert!(
-            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::Prune {
-                active_keys: vec![41, 42],
-                clear: false,
-            })
+            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::Prune { clear: false })
         );
         preflight.finish_execution();
         assert!(preflight.actions.is_empty());
@@ -1669,10 +1679,7 @@ mod tests {
             surface_index: 0,
             key: 41,
         });
-        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Prune {
-            active_keys: vec![41],
-            clear: false,
-        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Prune { clear: false });
 
         assert!(preflight.begin_execution(context, stream.as_ptr() as usize, 1, 17));
         assert!(preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame));
@@ -1739,10 +1746,7 @@ mod tests {
             })
         );
         assert!(
-            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::Prune {
-                active_keys: vec![41],
-                clear: false,
-            })
+            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::Prune { clear: false })
         );
         assert!(preflight.finish_execution());
         assert!(preflight.actions.is_empty());

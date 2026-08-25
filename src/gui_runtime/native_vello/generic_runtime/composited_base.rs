@@ -41,7 +41,7 @@ pub(super) struct BaseFramePresentRequest<'a> {
 }
 
 fn preflight_render_canvas_upload_plan(
-    renderer: &GpuSurfaceRenderer,
+    renderer: &mut GpuSurfaceRenderer,
     context: gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext,
     primitives: &[PaintPrimitive],
     dpi_scale: crate::theme::DpiScale,

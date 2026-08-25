@@ -62,12 +62,26 @@ pub(super) struct CustomShaderUploadPreflightState {
 }
 
 pub(super) struct CustomShaderUploadPreflight {
-    pub(super) actions: Vec<GpuSurfaceRenderCanvasUploadAction>,
     pub(super) renderable: bool,
     pub(super) unavailable: Option<GpuSurfaceRenderCanvasUploadPlanUnavailableReason>,
 }
 
 impl CustomShaderUploadPreflightState {
+    pub(super) fn reset(&mut self) {
+        self.pipelines.clear();
+        self.bindings.clear();
+    }
+
+    #[cfg(test)]
+    pub(super) fn pipelines_capacity(&self) -> usize {
+        self.pipelines.capacity()
+    }
+
+    #[cfg(test)]
+    pub(super) fn bindings_capacity(&self) -> usize {
+        self.bindings.capacity()
+    }
+
     fn pipeline_decision(
         &mut self,
         renderer: &GpuSurfaceRenderer,
@@ -167,10 +181,6 @@ impl CustomShaderUploadPreflightState {
 }
 
 impl GpuSurfaceRenderer {
-    pub(super) fn custom_shader_upload_preflight_state(&self) -> CustomShaderUploadPreflightState {
-        CustomShaderUploadPreflightState::default()
-    }
-
     pub(super) fn preflight_custom_shader_upload_actions(
         &self,
         target: super::upload_plan::GpuSurfaceRenderCanvasUploadTarget,
@@ -178,30 +188,46 @@ impl GpuSurfaceRenderer {
         surface: &PaintGpuSurface,
         presentation_updates: &[GpuShaderPresentationUniformUpdate],
         state: &mut CustomShaderUploadPreflightState,
+        actions: &mut Vec<GpuSurfaceRenderCanvasUploadAction>,
     ) -> CustomShaderUploadPreflight {
-        let skip = |reason| CustomShaderUploadPreflight {
-            actions: vec![GpuSurfaceRenderCanvasUploadAction::Skip {
+        let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
+            actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
                 surface_index,
                 key: surface.key,
-                reason,
-            }],
-            renderable: false,
-            unavailable: Some(reason),
-        };
-        let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
-            return skip(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid);
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid,
+            });
+            return CustomShaderUploadPreflight {
+                renderable: false,
+                unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid),
+            };
         };
         if !custom_shader_descriptor_is_supported(descriptor) || !surface.content.is_renderable() {
-            return skip(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported);
+            actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
+                surface_index,
+                key: surface.key,
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported,
+            });
+            return CustomShaderUploadPreflight {
+                renderable: false,
+                unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported),
+            };
         }
         let Some(pipeline_key) = custom_shader_pipeline_key(descriptor) else {
-            return skip(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported);
+            actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
+                surface_index,
+                key: surface.key,
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported,
+            });
+            return CustomShaderUploadPreflight {
+                renderable: false,
+                unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported),
+            };
         };
-        let mut actions = vec![GpuSurfaceRenderCanvasUploadAction::Surface {
+        actions.push(GpuSurfaceRenderCanvasUploadAction::Surface {
             surface_index,
             key: surface.key,
             surface: GpuSurfaceRenderCanvasUploadSurface::CustomShader,
-        }];
+        });
         let device = target.device;
         let pipeline_rebuild =
             state.pipeline_decision(self, surface.key, device, target.format, &pipeline_key);
@@ -327,7 +353,6 @@ impl GpuSurfaceRenderer {
         }
 
         CustomShaderUploadPreflight {
-            actions,
             renderable: true,
             unavailable: None,
         }

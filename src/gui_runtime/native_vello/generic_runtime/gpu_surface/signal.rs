@@ -111,12 +111,52 @@ pub(super) struct SignalUploadPreflightState {
 }
 
 pub(super) struct SignalUploadPreflight {
-    pub(super) actions: Vec<GpuSurfaceRenderCanvasUploadAction>,
     pub(super) renderable: bool,
     pub(super) unavailable: Option<GpuSurfaceRenderCanvasUploadPlanUnavailableReason>,
 }
 
+pub(super) struct SignalUploadPreflightContext<'a> {
+    pub(super) composite_state: &'a mut AtlasUploadPreflightState,
+    pub(super) signal_state: &'a mut SignalUploadPreflightState,
+    pub(super) actions: &'a mut Vec<GpuSurfaceRenderCanvasUploadAction>,
+}
+
 impl SignalUploadPreflightState {
+    pub(super) fn reset(&mut self, pipeline: Option<(usize, wgpu::TextureFormat, u64)>) {
+        self.pipeline =
+            pipeline.map(
+                |(device, format, generation)| SignalPipelinePreflightIdentity {
+                    device,
+                    format,
+                    generation,
+                },
+            );
+        self.validations.clear();
+        self.summaries.clear();
+        self.buffers.clear();
+        self.bodies.clear();
+    }
+
+    #[cfg(test)]
+    pub(super) fn validations_capacity(&self) -> usize {
+        self.validations.capacity()
+    }
+
+    #[cfg(test)]
+    pub(super) fn summaries_capacity(&self) -> usize {
+        self.summaries.capacity()
+    }
+
+    #[cfg(test)]
+    pub(super) fn buffers_capacity(&self) -> usize {
+        self.buffers.capacity()
+    }
+
+    #[cfg(test)]
+    pub(super) fn bodies_capacity(&self) -> usize {
+        self.bodies.capacity()
+    }
+
     fn ensure_pipeline(
         &mut self,
         renderer: &GpuSurfaceRenderer,
@@ -168,8 +208,7 @@ impl SignalUploadPreflightState {
         };
         let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
         let sample_count = samples.len();
-        let had_cached = self.summaries.contains_key(&surface.key);
-        let cached = self.summaries.entry(surface.key).or_insert_with(|| {
+        let cached = self.summaries.get(&surface.key).cloned().or_else(|| {
             renderer
                 .resources
                 .signal_summaries
@@ -182,20 +221,8 @@ impl SignalUploadPreflightState {
                     sample_count: cached.sample_count,
                     summary: Arc::clone(&cached.summary),
                 })
-                .unwrap_or_else(|| SignalSummaryPreflightIdentity {
-                    revision: 0,
-                    content_identity: RenderCanvasContentIdentity::default(),
-                    frames: 0,
-                    band_count: 0,
-                    sample_count: 0,
-                    summary: Arc::new(GpuSignalSummary {
-                        frames: 0,
-                        band_count: 0,
-                        levels: Vec::new(),
-                    }),
-                })
         });
-        if had_cached
+        if let Some(cached) = cached
             && cached.revision == surface.revision
             && cached.content_identity == content_identity
             && cached.frames == shape.frames
@@ -212,14 +239,17 @@ impl SignalUploadPreflightState {
             shape.frames,
             shape.band_count,
         ));
-        *cached = SignalSummaryPreflightIdentity {
-            revision: surface.revision,
-            content_identity,
-            frames: shape.frames,
-            band_count: shape.band_count,
-            sample_count,
-            summary: Arc::clone(&summary),
-        };
+        self.summaries.insert(
+            surface.key,
+            SignalSummaryPreflightIdentity {
+                revision: surface.revision,
+                content_identity,
+                frames: shape.frames,
+                band_count: shape.band_count,
+                sample_count,
+                summary: Arc::clone(&summary),
+            },
+        );
         (
             summary,
             GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Build,
@@ -298,94 +328,24 @@ impl SignalUploadPreflightState {
 }
 
 impl GpuSurfaceRenderer {
-    pub(super) fn signal_upload_preflight_state(&self) -> SignalUploadPreflightState {
-        SignalUploadPreflightState {
-            pipeline: self.signal_pipeline.as_ref().map(|pipeline| {
-                SignalPipelinePreflightIdentity {
-                    device: pipeline.device,
-                    format: pipeline.format,
-                    generation: self.signal_pipeline_generation,
-                }
-            }),
-            validations: self
-                .resources
-                .signal_summary_validations
-                .iter()
-                .map(|(key, validation)| {
-                    (
-                        *key,
-                        SignalValidationPreflightIdentity {
-                            frames: validation.frames,
-                            band_count: validation.band_count,
-                            summary: Arc::as_ptr(&validation.summary) as *const () as usize,
-                        },
-                    )
-                })
-                .collect(),
-            summaries: self
-                .resources
-                .signal_summaries
-                .iter()
-                .map(|(key, summary)| {
-                    (
-                        *key,
-                        SignalSummaryPreflightIdentity {
-                            revision: summary.revision,
-                            content_identity: summary.content_identity,
-                            frames: summary.frames,
-                            band_count: summary.band_count,
-                            sample_count: summary.sample_count,
-                            summary: Arc::clone(&summary.summary),
-                        },
-                    )
-                })
-                .collect(),
-            buffers: self
-                .resources
-                .signals
-                .iter()
-                .map(|(key, buffer)| {
-                    (
-                        *key,
-                        SignalBufferPreflightIdentity {
-                            cache_key: buffer.cache_key,
-                            sample_count: buffer.sample_count,
-                            pipeline_generation: buffer.pipeline_generation,
-                        },
-                    )
-                })
-                .collect(),
-            bodies: self
-                .resources
-                .signal_bodies
-                .iter()
-                .map(|(key, body)| {
-                    (
-                        *key,
-                        SignalBodyPreflightIdentity {
-                            device: body.device,
-                            cache_key: body.cache_key,
-                        },
-                    )
-                })
-                .collect(),
-        }
-    }
-
     pub(super) fn preflight_signal_upload_actions(
         &self,
         target: GpuSurfaceRenderCanvasUploadTarget,
         dpi_scale: DpiScale,
         surface_index: usize,
         surface: &PaintGpuSurface,
-        composite_state: &mut AtlasUploadPreflightState,
-        signal_state: &mut SignalUploadPreflightState,
+        context: SignalUploadPreflightContext<'_>,
     ) -> SignalUploadPreflight {
-        let mut actions = vec![GpuSurfaceRenderCanvasUploadAction::Surface {
+        let SignalUploadPreflightContext {
+            composite_state,
+            signal_state,
+            actions,
+        } = context;
+        actions.push(GpuSurfaceRenderCanvasUploadAction::Surface {
             surface_index,
             key: surface.key,
             surface: super::upload_plan::GpuSurfaceRenderCanvasUploadSurface::Signal,
-        }];
+        });
         let (shape, validation_operation, summary_identity, validation_valid) = match &surface
             .content
         {
@@ -431,7 +391,6 @@ impl GpuSurfaceRenderer {
             }
             GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
                 return SignalUploadPreflight {
-                    actions,
                     renderable: false,
                     unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid),
                 };
@@ -460,7 +419,6 @@ impl GpuSurfaceRenderer {
         });
         let Some(shape) = shape else {
             return SignalUploadPreflight {
-                actions,
                 renderable: false,
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid),
             };
@@ -476,7 +434,6 @@ impl GpuSurfaceRenderer {
             ),
             GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
                 return SignalUploadPreflight {
-                    actions,
                     renderable: false,
                     unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid),
                 };
@@ -505,7 +462,6 @@ impl GpuSurfaceRenderer {
         };
         let Some(body) = signal_body_request_at_dpi(surface, &source, dpi_scale) else {
             return SignalUploadPreflight {
-                actions,
                 renderable: false,
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
             };
@@ -600,7 +556,6 @@ impl GpuSurfaceRenderer {
             byte_len: std::mem::size_of::<super::gpu_surface_types::GpuSurfaceUniforms>(),
         });
         SignalUploadPreflight {
-            actions,
             renderable: true,
             unavailable: None,
         }

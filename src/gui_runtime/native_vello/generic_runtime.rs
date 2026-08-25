@@ -34,6 +34,13 @@ pub(super) struct NativeAdapterSignalResidencyAccountToken {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct NativeAdapterCustomShaderResidencyAccountToken {
+    window_identity: NativeAtlasResidencyWindowIdentity,
+    account_generation: u64,
+    adapter_generation: adapter::NativeAdapterGeneration,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct NativeAdapterRenderCanvasUploadAccountToken {
     window_identity: NativeAtlasResidencyWindowIdentity,
     account_generation: u64,
@@ -60,6 +67,23 @@ pub(super) struct NativeAdapterSignalResidencyProfile {
     pub(super) quarantined_signal_buffer_logical_bytes: Option<u64>,
     pub(super) quarantined_signal_body_texture_resident_count: Option<usize>,
     pub(super) quarantined_signal_body_texture_logical_rgba_bytes: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeAdapterCustomShaderResidencyProfile {
+    pub(super) adapter_generation: Option<adapter::NativeAdapterGeneration>,
+    pub(super) active_pipeline_resident_count: Option<usize>,
+    pub(super) active_binding_resident_count: Option<usize>,
+    pub(super) active_surface_uniform_logical_bytes: Option<u64>,
+    pub(super) active_app_uniform_logical_bytes: Option<u64>,
+    pub(super) active_storage_logical_bytes: Option<u64>,
+    pub(super) active_presentation_uniform_logical_bytes: Option<u64>,
+    pub(super) quarantined_pipeline_resident_count: Option<usize>,
+    pub(super) quarantined_binding_resident_count: Option<usize>,
+    pub(super) quarantined_surface_uniform_logical_bytes: Option<u64>,
+    pub(super) quarantined_app_uniform_logical_bytes: Option<u64>,
+    pub(super) quarantined_storage_logical_bytes: Option<u64>,
+    pub(super) quarantined_presentation_uniform_logical_bytes: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

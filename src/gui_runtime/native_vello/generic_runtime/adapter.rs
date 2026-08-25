@@ -6,15 +6,17 @@ use super::gpu_surface::{
     GpuSurfaceRenderCanvasUploadPlanObservation, GpuSurfaceRenderCanvasUploadStats,
 };
 use super::runner_state::{
-    NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots,
+    NativeWindowAtlasResidencySnapshots, NativeWindowCustomShaderResidencySnapshots,
+    NativeWindowSignalResidencySnapshots,
 };
 use super::{DeviceLossRegistration, RuntimeUserEvent, device::install_device_loss_callback};
 use super::{
-    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
-    NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyProfile,
-    NativeAdapterRenderCanvasUploadAccountToken, NativeAdapterRenderCanvasUploadProfile,
-    NativeAdapterSignalResidencyAccountToken, NativeAdapterSignalResidencyProfile,
-    NativeAtlasResidencyWindowIdentity,
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+    GpuSurfaceSignalResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
+    NativeAdapterAtlasResidencyProfile, NativeAdapterCustomShaderResidencyAccountToken,
+    NativeAdapterCustomShaderResidencyProfile, NativeAdapterRenderCanvasUploadAccountToken,
+    NativeAdapterRenderCanvasUploadProfile, NativeAdapterSignalResidencyAccountToken,
+    NativeAdapterSignalResidencyProfile, NativeAtlasResidencyWindowIdentity,
 };
 use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
 use std::{collections::HashMap, fmt, sync::Arc};
@@ -945,6 +947,366 @@ fn accumulate_signal_quarantine(
     );
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeAdapterCustomShaderResidencyAggregate {
+    active_pipeline_resident_count: Option<usize>,
+    active_binding_resident_count: Option<usize>,
+    active_surface_uniform_logical_bytes: Option<u64>,
+    active_app_uniform_logical_bytes: Option<u64>,
+    active_storage_logical_bytes: Option<u64>,
+    active_presentation_uniform_logical_bytes: Option<u64>,
+    quarantined_pipeline_resident_count: Option<usize>,
+    quarantined_binding_resident_count: Option<usize>,
+    quarantined_surface_uniform_logical_bytes: Option<u64>,
+    quarantined_app_uniform_logical_bytes: Option<u64>,
+    quarantined_storage_logical_bytes: Option<u64>,
+    quarantined_presentation_uniform_logical_bytes: Option<u64>,
+}
+
+struct NativeAdapterCustomShaderResidencyAccount {
+    account_generation: u64,
+    adapter_generation: NativeAdapterGeneration,
+    snapshots: NativeWindowCustomShaderResidencySnapshots,
+}
+
+/// Application-scope, crate-private custom-shader residency evidence owned by
+/// the selected adapter. Resource lifecycle code updates it at publication,
+/// quarantine, rebind, and physical retirement boundaries; profile capture
+/// only copies the cached aggregate.
+pub(super) struct NativeAdapterCustomShaderResidencyLedger {
+    accounts:
+        HashMap<NativeAtlasResidencyWindowIdentity, NativeAdapterCustomShaderResidencyAccount>,
+    next_account_generation: Option<u64>,
+    /// Generations retained only while they are current or represented by a
+    /// live account/incarnation or one of its physical snapshots.
+    known_adapter_generations: Vec<NativeAdapterGeneration>,
+    current_adapter_generation: NativeAdapterGeneration,
+    aggregate: NativeAdapterCustomShaderResidencyAggregate,
+}
+
+impl Default for NativeAdapterCustomShaderResidencyLedger {
+    fn default() -> Self {
+        Self {
+            accounts: HashMap::new(),
+            next_account_generation: Some(1),
+            known_adapter_generations: Vec::new(),
+            current_adapter_generation: NativeAdapterGeneration::default(),
+            aggregate: NativeAdapterCustomShaderResidencyAggregate {
+                active_pipeline_resident_count: Some(0),
+                active_binding_resident_count: Some(0),
+                active_surface_uniform_logical_bytes: Some(0),
+                active_app_uniform_logical_bytes: Some(0),
+                active_storage_logical_bytes: Some(0),
+                active_presentation_uniform_logical_bytes: Some(0),
+                quarantined_pipeline_resident_count: Some(0),
+                quarantined_binding_resident_count: Some(0),
+                quarantined_surface_uniform_logical_bytes: Some(0),
+                quarantined_app_uniform_logical_bytes: Some(0),
+                quarantined_storage_logical_bytes: Some(0),
+                quarantined_presentation_uniform_logical_bytes: Some(0),
+            },
+        }
+    }
+}
+
+impl NativeAdapterCustomShaderResidencyLedger {
+    fn allocate_account_generation(&mut self) -> Option<u64> {
+        let generation = self.next_account_generation?;
+        self.next_account_generation = generation.checked_add(1);
+        Some(generation)
+    }
+
+    fn record_adapter_generation(&mut self, generation: NativeAdapterGeneration) {
+        if generation.is_known() && !self.known_adapter_generations.contains(&generation) {
+            self.known_adapter_generations.push(generation);
+        }
+        self.current_adapter_generation = generation;
+        self.recompute_aggregate();
+    }
+
+    fn prune_known_adapter_generations(&mut self) {
+        let current_adapter_generation = self.current_adapter_generation;
+        let accounts = &self.accounts;
+        self.known_adapter_generations.retain(|generation| {
+            *generation == current_adapter_generation
+                || accounts.values().any(|account| {
+                    custom_shader_account_references_adapter_generation(account, *generation)
+                })
+        });
+    }
+
+    fn register(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowCustomShaderResidencySnapshots,
+    ) -> Option<NativeAdapterCustomShaderResidencyAccountToken> {
+        if !self.is_known_adapter_generation(adapter_generation)
+            || self.accounts.contains_key(&window_identity)
+        {
+            return None;
+        }
+        let account_generation = self.allocate_account_generation()?;
+        let token = NativeAdapterCustomShaderResidencyAccountToken {
+            window_identity: window_identity.clone(),
+            account_generation,
+            adapter_generation,
+        };
+        self.accounts.insert(
+            window_identity,
+            NativeAdapterCustomShaderResidencyAccount {
+                account_generation,
+                adapter_generation,
+                snapshots,
+            },
+        );
+        self.recompute_aggregate();
+        Some(token)
+    }
+
+    fn update(
+        &mut self,
+        token: &NativeAdapterCustomShaderResidencyAccountToken,
+        snapshots: NativeWindowCustomShaderResidencySnapshots,
+    ) -> bool {
+        let Some(account) = self.accounts.get_mut(&token.window_identity) else {
+            return false;
+        };
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return false;
+        }
+        account.snapshots = snapshots;
+        self.recompute_aggregate();
+        true
+    }
+
+    fn rebind(
+        &mut self,
+        token: &NativeAdapterCustomShaderResidencyAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowCustomShaderResidencySnapshots,
+    ) -> Option<NativeAdapterCustomShaderResidencyAccountToken> {
+        if !self.is_known_adapter_generation(adapter_generation) {
+            return None;
+        }
+        let account = self.accounts.get_mut(&token.window_identity)?;
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return None;
+        }
+        account.adapter_generation = adapter_generation;
+        account.snapshots = snapshots;
+        let next = NativeAdapterCustomShaderResidencyAccountToken {
+            window_identity: token.window_identity.clone(),
+            account_generation: token.account_generation,
+            adapter_generation,
+        };
+        self.recompute_aggregate();
+        Some(next)
+    }
+
+    fn remove(&mut self, token: &NativeAdapterCustomShaderResidencyAccountToken) -> bool {
+        let Some(account) = self.accounts.get(&token.window_identity) else {
+            return false;
+        };
+        if account.account_generation != token.account_generation
+            || account.adapter_generation != token.adapter_generation
+        {
+            return false;
+        }
+        let removed = self.accounts.remove(&token.window_identity).is_some();
+        if removed {
+            self.recompute_aggregate();
+        }
+        removed
+    }
+
+    fn is_known_adapter_generation(&self, generation: NativeAdapterGeneration) -> bool {
+        generation.is_known() && self.known_adapter_generations.contains(&generation)
+    }
+
+    fn profile(&self) -> NativeAdapterCustomShaderResidencyProfile {
+        NativeAdapterCustomShaderResidencyProfile {
+            adapter_generation: self
+                .current_adapter_generation
+                .is_known()
+                .then_some(self.current_adapter_generation),
+            active_pipeline_resident_count: self.aggregate.active_pipeline_resident_count,
+            active_binding_resident_count: self.aggregate.active_binding_resident_count,
+            active_surface_uniform_logical_bytes: self
+                .aggregate
+                .active_surface_uniform_logical_bytes,
+            active_app_uniform_logical_bytes: self.aggregate.active_app_uniform_logical_bytes,
+            active_storage_logical_bytes: self.aggregate.active_storage_logical_bytes,
+            active_presentation_uniform_logical_bytes: self
+                .aggregate
+                .active_presentation_uniform_logical_bytes,
+            quarantined_pipeline_resident_count: self.aggregate.quarantined_pipeline_resident_count,
+            quarantined_binding_resident_count: self.aggregate.quarantined_binding_resident_count,
+            quarantined_surface_uniform_logical_bytes: self
+                .aggregate
+                .quarantined_surface_uniform_logical_bytes,
+            quarantined_app_uniform_logical_bytes: self
+                .aggregate
+                .quarantined_app_uniform_logical_bytes,
+            quarantined_storage_logical_bytes: self.aggregate.quarantined_storage_logical_bytes,
+            quarantined_presentation_uniform_logical_bytes: self
+                .aggregate
+                .quarantined_presentation_uniform_logical_bytes,
+        }
+    }
+
+    fn recompute_aggregate(&mut self) {
+        self.prune_known_adapter_generations();
+        let mut aggregate = NativeAdapterCustomShaderResidencyAggregate {
+            active_pipeline_resident_count: Some(0),
+            active_binding_resident_count: Some(0),
+            active_surface_uniform_logical_bytes: Some(0),
+            active_app_uniform_logical_bytes: Some(0),
+            active_storage_logical_bytes: Some(0),
+            active_presentation_uniform_logical_bytes: Some(0),
+            quarantined_pipeline_resident_count: Some(0),
+            quarantined_binding_resident_count: Some(0),
+            quarantined_surface_uniform_logical_bytes: Some(0),
+            quarantined_app_uniform_logical_bytes: Some(0),
+            quarantined_storage_logical_bytes: Some(0),
+            quarantined_presentation_uniform_logical_bytes: Some(0),
+        };
+        for account in self.accounts.values() {
+            accumulate_custom_shader_active(
+                &mut aggregate,
+                account.snapshots.active,
+                self.current_adapter_generation,
+            );
+            accumulate_custom_shader_quarantine(
+                &mut aggregate,
+                account.snapshots.quarantine_0,
+                &self.known_adapter_generations,
+            );
+            accumulate_custom_shader_quarantine(
+                &mut aggregate,
+                account.snapshots.quarantine_1,
+                &self.known_adapter_generations,
+            );
+        }
+        self.aggregate = aggregate;
+    }
+
+    #[cfg(test)]
+    fn account_count(&self) -> usize {
+        self.accounts.len()
+    }
+}
+
+fn custom_shader_account_references_adapter_generation(
+    account: &NativeAdapterCustomShaderResidencyAccount,
+    generation: NativeAdapterGeneration,
+) -> bool {
+    account.adapter_generation == generation
+        || account
+            .snapshots
+            .active
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_0
+            .is_some_and(|snapshot| snapshot.generation == generation)
+        || account
+            .snapshots
+            .quarantine_1
+            .is_some_and(|snapshot| snapshot.generation == generation)
+}
+
+fn accumulate_custom_shader_active(
+    aggregate: &mut NativeAdapterCustomShaderResidencyAggregate,
+    snapshot: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+    current_adapter_generation: NativeAdapterGeneration,
+) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+    if snapshot.generation != current_adapter_generation || !current_adapter_generation.is_known() {
+        aggregate.active_pipeline_resident_count = None;
+        aggregate.active_binding_resident_count = None;
+        aggregate.active_surface_uniform_logical_bytes = None;
+        aggregate.active_app_uniform_logical_bytes = None;
+        aggregate.active_storage_logical_bytes = None;
+        aggregate.active_presentation_uniform_logical_bytes = None;
+        return;
+    }
+    add_count(
+        &mut aggregate.active_pipeline_resident_count,
+        snapshot.pipeline_resident_count,
+    );
+    add_count(
+        &mut aggregate.active_binding_resident_count,
+        snapshot.binding_resident_count,
+    );
+    add_bytes(
+        &mut aggregate.active_surface_uniform_logical_bytes,
+        snapshot.surface_uniform_logical_bytes,
+    );
+    add_bytes(
+        &mut aggregate.active_app_uniform_logical_bytes,
+        snapshot.app_uniform_logical_bytes,
+    );
+    add_bytes(
+        &mut aggregate.active_storage_logical_bytes,
+        snapshot.storage_logical_bytes,
+    );
+    add_bytes(
+        &mut aggregate.active_presentation_uniform_logical_bytes,
+        snapshot.presentation_uniform_logical_bytes,
+    );
+}
+
+fn accumulate_custom_shader_quarantine(
+    aggregate: &mut NativeAdapterCustomShaderResidencyAggregate,
+    snapshot: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+    known_adapter_generations: &[NativeAdapterGeneration],
+) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+    if !snapshot.generation.is_known() || !known_adapter_generations.contains(&snapshot.generation)
+    {
+        aggregate.quarantined_pipeline_resident_count = None;
+        aggregate.quarantined_binding_resident_count = None;
+        aggregate.quarantined_surface_uniform_logical_bytes = None;
+        aggregate.quarantined_app_uniform_logical_bytes = None;
+        aggregate.quarantined_storage_logical_bytes = None;
+        aggregate.quarantined_presentation_uniform_logical_bytes = None;
+        return;
+    }
+    add_count(
+        &mut aggregate.quarantined_pipeline_resident_count,
+        snapshot.pipeline_resident_count,
+    );
+    add_count(
+        &mut aggregate.quarantined_binding_resident_count,
+        snapshot.binding_resident_count,
+    );
+    add_bytes(
+        &mut aggregate.quarantined_surface_uniform_logical_bytes,
+        snapshot.surface_uniform_logical_bytes,
+    );
+    add_bytes(
+        &mut aggregate.quarantined_app_uniform_logical_bytes,
+        snapshot.app_uniform_logical_bytes,
+    );
+    add_bytes(
+        &mut aggregate.quarantined_storage_logical_bytes,
+        snapshot.storage_logical_bytes,
+    );
+    add_bytes(
+        &mut aggregate.quarantined_presentation_uniform_logical_bytes,
+        snapshot.presentation_uniform_logical_bytes,
+    );
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct NativeAdapterRenderCanvasUploadCandidateAggregate {
     observed_candidate_plan_count: Option<usize>,
@@ -1461,6 +1823,7 @@ pub(super) struct GenericNativeAdapterOwner {
     selected: Option<SelectedNativeAdapter>,
     atlas_residency: NativeAdapterAtlasResidencyLedger,
     signal_residency: NativeAdapterSignalResidencyLedger,
+    custom_shader_residency: NativeAdapterCustomShaderResidencyLedger,
     render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger,
 }
 
@@ -1513,6 +1876,7 @@ impl GenericNativeAdapterOwner {
             selected: None,
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
             signal_residency: NativeAdapterSignalResidencyLedger::default(),
+            custom_shader_residency: NativeAdapterCustomShaderResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         }
     }
@@ -1555,6 +1919,8 @@ impl GenericNativeAdapterOwner {
         self.selected = Some(selected);
         self.atlas_residency.record_adapter_generation(generation);
         self.signal_residency.record_adapter_generation(generation);
+        self.custom_shader_residency
+            .record_adapter_generation(generation);
         self.render_canvas_upload_ledger
             .record_adapter_generation(generation);
         Ok(())
@@ -1737,6 +2103,47 @@ impl GenericNativeAdapterOwner {
         self.signal_residency.profile()
     }
 
+    pub(super) fn register_custom_shader_residency_account(
+        &mut self,
+        window_identity: NativeAtlasResidencyWindowIdentity,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowCustomShaderResidencySnapshots,
+    ) -> Option<NativeAdapterCustomShaderResidencyAccountToken> {
+        self.custom_shader_residency
+            .register(window_identity, adapter_generation, snapshots)
+    }
+
+    pub(super) fn update_custom_shader_residency_account(
+        &mut self,
+        token: &NativeAdapterCustomShaderResidencyAccountToken,
+        snapshots: NativeWindowCustomShaderResidencySnapshots,
+    ) -> bool {
+        self.custom_shader_residency.update(token, snapshots)
+    }
+
+    pub(super) fn rebind_custom_shader_residency_account(
+        &mut self,
+        token: &NativeAdapterCustomShaderResidencyAccountToken,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowCustomShaderResidencySnapshots,
+    ) -> Option<NativeAdapterCustomShaderResidencyAccountToken> {
+        self.custom_shader_residency
+            .rebind(token, adapter_generation, snapshots)
+    }
+
+    pub(super) fn remove_custom_shader_residency_account(
+        &mut self,
+        token: &NativeAdapterCustomShaderResidencyAccountToken,
+    ) -> bool {
+        self.custom_shader_residency.remove(token)
+    }
+
+    pub(super) fn capture_custom_shader_residency_profile(
+        &self,
+    ) -> NativeAdapterCustomShaderResidencyProfile {
+        self.custom_shader_residency.profile()
+    }
+
     pub(super) fn register_render_canvas_upload_account(
         &mut self,
         window_identity: NativeAtlasResidencyWindowIdentity,
@@ -1812,6 +2219,18 @@ impl GenericNativeAdapterOwner {
         self.signal_residency = std::mem::take(&mut previous.signal_residency);
         if let Some(next_generation) = next_generation {
             self.signal_residency
+                .record_adapter_generation(next_generation);
+        }
+    }
+
+    pub(super) fn adopt_custom_shader_residency_ledger(
+        &mut self,
+        previous: &mut GenericNativeAdapterOwner,
+    ) {
+        let next_generation = self.capture_generation();
+        self.custom_shader_residency = std::mem::take(&mut previous.custom_shader_residency);
+        if let Some(next_generation) = next_generation {
+            self.custom_shader_residency
                 .record_adapter_generation(next_generation);
         }
     }
@@ -1901,10 +2320,14 @@ impl GenericNativeAdapterOwner {
             }),
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
             signal_residency: NativeAdapterSignalResidencyLedger::default(),
+            custom_shader_residency: NativeAdapterCustomShaderResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
         owner.atlas_residency.record_adapter_generation(generation);
         owner.signal_residency.record_adapter_generation(generation);
+        owner
+            .custom_shader_residency
+            .record_adapter_generation(generation);
         owner
             .render_canvas_upload_ledger
             .record_adapter_generation(generation);
@@ -1926,10 +2349,14 @@ impl GenericNativeAdapterOwner {
             }),
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
             signal_residency: NativeAdapterSignalResidencyLedger::default(),
+            custom_shader_residency: NativeAdapterCustomShaderResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
         owner.atlas_residency.record_adapter_generation(generation);
         owner.signal_residency.record_adapter_generation(generation);
+        owner
+            .custom_shader_residency
+            .record_adapter_generation(generation);
         owner
             .render_canvas_upload_ledger
             .record_adapter_generation(generation);
@@ -1991,14 +2418,17 @@ pub(super) fn device_loss_registration_matches(
 mod tests {
     use super::{
         AdapterSurfaceError, DeviceLossRegistration, GenericNativeAdapterOwner,
-        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceRenderCanvasUploadStats,
-        GpuSurfaceSignalResidencySnapshot, NativeAdapterAtlasResidencyAccountToken,
-        NativeAdapterAtlasResidencyLedger, NativeAdapterGeneration,
+        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+        GpuSurfaceRenderCanvasUploadStats, GpuSurfaceSignalResidencySnapshot,
+        NativeAdapterAtlasResidencyAccountToken, NativeAdapterAtlasResidencyLedger,
+        NativeAdapterCustomShaderResidencyAccountToken, NativeAdapterCustomShaderResidencyLedger,
+        NativeAdapterCustomShaderResidencyProfile, NativeAdapterGeneration,
         NativeAdapterRenderCanvasUploadLedger, NativeAdapterSignalResidencyAccountToken,
         NativeAdapterSignalResidencyLedger, NativeAdapterSignalResidencyProfile,
         NativeAtlasResidencyWindowIdentity, NativeWindowAtlasResidencySnapshots,
-        NativeWindowSignalResidencySnapshots, auxiliary_backend_policy_is_compatible,
-        device_loss_registration_matches, render_surface_creation_error,
+        NativeWindowCustomShaderResidencySnapshots, NativeWindowSignalResidencySnapshots,
+        auxiliary_backend_policy_is_compatible, device_loss_registration_matches,
+        render_surface_creation_error,
     };
     use crate::gui_runtime::NativeGpuBackend;
     use crate::gui_runtime::native_vello::generic_runtime::closing::NativeLifecycle;
@@ -2065,6 +2495,38 @@ mod tests {
         quarantine_1: Option<GpuSurfaceSignalResidencySnapshot>,
     ) -> NativeWindowSignalResidencySnapshots {
         NativeWindowSignalResidencySnapshots {
+            active,
+            quarantine_0,
+            quarantine_1,
+        }
+    }
+
+    fn custom_shader_snapshot(
+        generation: NativeAdapterGeneration,
+        pipeline_resident_count: usize,
+        binding_resident_count: usize,
+        surface_uniform_logical_bytes: Option<u64>,
+        app_uniform_logical_bytes: Option<u64>,
+        storage_logical_bytes: Option<u64>,
+        presentation_uniform_logical_bytes: Option<u64>,
+    ) -> GpuSurfaceCustomShaderResidencySnapshot {
+        GpuSurfaceCustomShaderResidencySnapshot {
+            generation,
+            pipeline_resident_count,
+            binding_resident_count,
+            surface_uniform_logical_bytes,
+            app_uniform_logical_bytes,
+            storage_logical_bytes,
+            presentation_uniform_logical_bytes,
+        }
+    }
+
+    fn custom_shader_snapshots(
+        active: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+        quarantine_0: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+        quarantine_1: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+    ) -> NativeWindowCustomShaderResidencySnapshots {
+        NativeWindowCustomShaderResidencySnapshots {
             active,
             quarantine_0,
             quarantine_1,
@@ -3458,6 +3920,7 @@ mod tests {
             selected: None,
             atlas_residency: NativeAdapterAtlasResidencyLedger::default(),
             signal_residency: NativeAdapterSignalResidencyLedger::default(),
+            custom_shader_residency: NativeAdapterCustomShaderResidencyLedger::default(),
             render_canvas_upload_ledger: NativeAdapterRenderCanvasUploadLedger::default(),
         };
 
@@ -3473,6 +3936,524 @@ mod tests {
         );
 
         assert!(owner.instance().is_none());
+    }
+
+    #[test]
+    fn custom_shader_ledger_aggregates_primary_auxiliary_and_q0_q1_once() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterCustomShaderResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+        let primary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        generation,
+                        2,
+                        3,
+                        Some(10),
+                        Some(20),
+                        Some(30),
+                        Some(40),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("primary custom-shader account should register");
+        let auxiliary = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("inspector")),
+                generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        generation,
+                        4,
+                        5,
+                        Some(11),
+                        Some(21),
+                        Some(31),
+                        Some(41),
+                    )),
+                    Some(custom_shader_snapshot(
+                        generation,
+                        1,
+                        2,
+                        Some(12),
+                        Some(22),
+                        Some(32),
+                        Some(42),
+                    )),
+                    Some(custom_shader_snapshot(
+                        generation,
+                        3,
+                        4,
+                        Some(13),
+                        Some(23),
+                        Some(33),
+                        Some(43),
+                    )),
+                ),
+            )
+            .expect("auxiliary custom-shader account should register");
+
+        assert_eq!(ledger.account_count(), 2);
+        let profile = ledger.profile();
+        assert_eq!(profile.active_pipeline_resident_count, Some(6));
+        assert_eq!(profile.active_binding_resident_count, Some(8));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, Some(21));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(41));
+        assert_eq!(profile.active_storage_logical_bytes, Some(61));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(81));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(4));
+        assert_eq!(profile.quarantined_binding_resident_count, Some(6));
+        assert_eq!(profile.quarantined_surface_uniform_logical_bytes, Some(25));
+        assert_eq!(profile.quarantined_app_uniform_logical_bytes, Some(45));
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(65));
+        assert_eq!(
+            profile.quarantined_presentation_uniform_logical_bytes,
+            Some(85)
+        );
+
+        assert!(ledger.update(
+            &primary,
+            custom_shader_snapshots(
+                Some(custom_shader_snapshot(
+                    generation,
+                    5,
+                    6,
+                    Some(15),
+                    Some(25),
+                    Some(35),
+                    Some(45),
+                )),
+                None,
+                None,
+            ),
+        ));
+        assert_eq!(ledger.profile().active_pipeline_resident_count, Some(9));
+        assert!(ledger.remove(&auxiliary));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_pipeline_resident_count, Some(5));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(0));
+    }
+
+    #[test]
+    fn custom_shader_ledger_keeps_recovery_quarantine_and_prunes_history() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterCustomShaderResidencyLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let mut token = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                first_generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        first_generation,
+                        3,
+                        4,
+                        Some(12),
+                        Some(16),
+                        Some(20),
+                        Some(24),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("recovery account should register");
+
+        for serial in 2..=32 {
+            let generation = NativeAdapterGeneration::from_test_serial(serial);
+            ledger.record_adapter_generation(generation);
+            token = ledger
+                .rebind(
+                    &token,
+                    generation,
+                    custom_shader_snapshots(
+                        Some(custom_shader_snapshot(
+                            generation,
+                            2,
+                            3,
+                            Some(8),
+                            Some(12),
+                            Some(16),
+                            Some(20),
+                        )),
+                        Some(custom_shader_snapshot(
+                            first_generation,
+                            3,
+                            4,
+                            Some(12),
+                            Some(16),
+                            Some(20),
+                            Some(24),
+                        )),
+                        None,
+                    ),
+                )
+                .expect("current account should rebind");
+        }
+
+        assert_eq!(ledger.known_adapter_generations.len(), 2);
+        let profile = ledger.profile();
+        assert_eq!(
+            profile.adapter_generation,
+            Some(NativeAdapterGeneration::from_test_serial(32))
+        );
+        assert_eq!(profile.active_pipeline_resident_count, Some(2));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(3));
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(20));
+
+        assert!(ledger.update(
+            &token,
+            custom_shader_snapshots(
+                Some(custom_shader_snapshot(
+                    NativeAdapterGeneration::from_test_serial(32),
+                    2,
+                    3,
+                    Some(8),
+                    Some(12),
+                    Some(16),
+                    Some(20),
+                )),
+                None,
+                None,
+            ),
+        ));
+        assert_eq!(ledger.known_adapter_generations.len(), 1);
+        assert_eq!(
+            ledger.profile().quarantined_pipeline_resident_count,
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn custom_shader_ledger_fences_stale_wrong_and_same_key_tokens() {
+        let first_generation = NativeAdapterGeneration::from_test_serial(1);
+        let second_generation = NativeAdapterGeneration::from_test_serial(2);
+        let identity = NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("same-key"));
+        let mut ledger = NativeAdapterCustomShaderResidencyLedger::default();
+        ledger.record_adapter_generation(first_generation);
+        let first = ledger
+            .register(
+                identity.clone(),
+                first_generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        first_generation,
+                        1,
+                        2,
+                        Some(4),
+                        Some(8),
+                        Some(12),
+                        Some(16),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("first incarnation should register");
+        ledger.record_adapter_generation(second_generation);
+        let wrong_generation = NativeAdapterCustomShaderResidencyAccountToken {
+            adapter_generation: second_generation,
+            ..first.clone()
+        };
+        assert!(!ledger.update(
+            &wrong_generation,
+            custom_shader_snapshots(
+                Some(custom_shader_snapshot(
+                    first_generation,
+                    9,
+                    9,
+                    Some(36),
+                    Some(36),
+                    Some(36),
+                    Some(36),
+                )),
+                None,
+                None,
+            ),
+        ));
+        assert!(ledger.remove(&first));
+        let second = ledger
+            .register(
+                identity,
+                second_generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        second_generation,
+                        2,
+                        3,
+                        Some(8),
+                        Some(12),
+                        Some(16),
+                        Some(20),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("same-key replacement should register");
+        assert_ne!(first.account_generation, second.account_generation);
+        assert!(!ledger.update(
+            &first,
+            custom_shader_snapshots(
+                Some(custom_shader_snapshot(
+                    second_generation,
+                    99,
+                    99,
+                    Some(396),
+                    Some(396),
+                    Some(396),
+                    Some(396),
+                )),
+                None,
+                None,
+            ),
+        ));
+        assert!(!ledger.remove(&first));
+        assert_eq!(ledger.profile().active_pipeline_resident_count, Some(2));
+    }
+
+    #[test]
+    fn custom_shader_ledger_propagates_unknown_and_overflow_independently_and_recovers() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut ledger = NativeAdapterCustomShaderResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+        let unknown = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        generation,
+                        2,
+                        3,
+                        None,
+                        Some(8),
+                        Some(9),
+                        Some(10),
+                    )),
+                    Some(custom_shader_snapshot(
+                        generation,
+                        1,
+                        2,
+                        Some(4),
+                        None,
+                        Some(6),
+                        Some(7),
+                    )),
+                    None,
+                ),
+            )
+            .expect("unknown byte families should not reject account registration");
+        let profile = ledger.profile();
+        assert_eq!(profile.active_pipeline_resident_count, Some(2));
+        assert_eq!(profile.active_binding_resident_count, Some(3));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, None);
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(8));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(1));
+        assert_eq!(profile.quarantined_app_uniform_logical_bytes, None);
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(6));
+
+        assert!(ledger.update(
+            &unknown,
+            custom_shader_snapshots(
+                Some(custom_shader_snapshot(
+                    generation,
+                    2,
+                    3,
+                    Some(5),
+                    Some(8),
+                    Some(9),
+                    Some(10),
+                )),
+                Some(custom_shader_snapshot(
+                    generation,
+                    1,
+                    2,
+                    Some(4),
+                    Some(5),
+                    Some(6),
+                    Some(7),
+                )),
+                None,
+            ),
+        ));
+        assert_eq!(
+            ledger.profile().active_surface_uniform_logical_bytes,
+            Some(5)
+        );
+        assert_eq!(
+            ledger.profile().quarantined_app_uniform_logical_bytes,
+            Some(5)
+        );
+        assert!(ledger.remove(&unknown));
+
+        let max = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("max")),
+                generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        generation,
+                        usize::MAX,
+                        1,
+                        Some(u64::MAX),
+                        Some(1),
+                        Some(2),
+                        Some(3),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("maximum contribution should register");
+        let one = ledger
+            .register(
+                NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("overflow")),
+                generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        generation,
+                        1,
+                        1,
+                        Some(1),
+                        Some(2),
+                        Some(3),
+                        Some(4),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("overflow contribution should register");
+        let profile = ledger.profile();
+        assert_eq!(profile.active_pipeline_resident_count, None);
+        assert_eq!(profile.active_surface_uniform_logical_bytes, None);
+        assert_eq!(profile.active_binding_resident_count, Some(2));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(3));
+        assert_eq!(profile.active_storage_logical_bytes, Some(5));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(7));
+        assert!(ledger.remove(&one));
+        let profile = ledger.profile();
+        assert_eq!(profile.active_pipeline_resident_count, Some(usize::MAX));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, Some(u64::MAX));
+        assert_eq!(profile.active_binding_resident_count, Some(1));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(1));
+        assert_eq!(profile.active_storage_logical_bytes, Some(2));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(3));
+        assert!(ledger.remove(&max));
+    }
+
+    #[test]
+    fn custom_shader_ledger_fences_account_generation_exhaustion_and_reports_empty_vs_absent() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        assert_eq!(
+            NativeAdapterCustomShaderResidencyProfile::default().adapter_generation,
+            None
+        );
+        assert_eq!(
+            NativeAdapterCustomShaderResidencyLedger::default()
+                .profile()
+                .active_pipeline_resident_count,
+            Some(0)
+        );
+
+        let mut ledger = NativeAdapterCustomShaderResidencyLedger::default();
+        ledger.record_adapter_generation(generation);
+        ledger.next_account_generation = Some(u64::MAX);
+        assert!(
+            ledger
+                .register(
+                    NativeAtlasResidencyWindowIdentity::Primary,
+                    generation,
+                    NativeWindowCustomShaderResidencySnapshots::default(),
+                )
+                .is_some()
+        );
+        assert!(
+            ledger
+                .register(
+                    NativeAtlasResidencyWindowIdentity::Auxiliary(String::from("exhausted")),
+                    generation,
+                    NativeWindowCustomShaderResidencySnapshots::default(),
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn custom_shader_ledger_adoption_preserves_old_generation_quarantine_before_rebind() {
+        let old_generation = NativeAdapterGeneration::from_test_serial(1);
+        let new_generation = NativeAdapterGeneration::from_test_serial(2);
+        let registration = Arc::new(DeviceLossRegistration::new());
+        let mut previous = GenericNativeAdapterOwner::with_test_registration(
+            old_generation,
+            Arc::clone(&registration),
+        );
+        let token = previous
+            .register_custom_shader_residency_account(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                old_generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        old_generation,
+                        3,
+                        4,
+                        Some(12),
+                        Some(16),
+                        Some(20),
+                        Some(24),
+                    )),
+                    None,
+                    None,
+                ),
+            )
+            .expect("previous custom-shader account should register");
+        let mut current =
+            GenericNativeAdapterOwner::with_test_registration(new_generation, registration);
+        current.adopt_custom_shader_residency_ledger(&mut previous);
+        assert_eq!(
+            current
+                .capture_custom_shader_residency_profile()
+                .active_pipeline_resident_count,
+            None
+        );
+        let rebound = current
+            .rebind_custom_shader_residency_account(
+                &token,
+                new_generation,
+                custom_shader_snapshots(
+                    Some(custom_shader_snapshot(
+                        new_generation,
+                        2,
+                        3,
+                        Some(8),
+                        Some(12),
+                        Some(16),
+                        Some(20),
+                    )),
+                    Some(custom_shader_snapshot(
+                        old_generation,
+                        3,
+                        4,
+                        Some(12),
+                        Some(16),
+                        Some(20),
+                        Some(24),
+                    )),
+                    None,
+                ),
+            )
+            .expect("adopted account should rebind");
+        let profile = current.capture_custom_shader_residency_profile();
+        assert_eq!(profile.adapter_generation, Some(new_generation));
+        assert_eq!(profile.active_pipeline_resident_count, Some(2));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(3));
+        assert!(current.remove_custom_shader_residency_account(&rebound));
     }
 
     #[test]

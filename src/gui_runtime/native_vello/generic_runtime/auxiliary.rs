@@ -727,6 +727,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         self.runner.refresh_atlas_residency_account(adapter);
         self.runner.refresh_signal_residency_account(adapter);
+        self.runner.refresh_custom_shader_residency_account(adapter);
         self.runner.refresh_render_canvas_upload_account(adapter);
         true
     }
@@ -830,6 +831,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         publication.publish(native_resources);
         self.runner.refresh_atlas_residency_account(adapter);
         self.runner.refresh_signal_residency_account(adapter);
+        self.runner.refresh_custom_shader_residency_account(adapter);
         self.runner.refresh_render_canvas_upload_account(adapter);
         self.runner.complete_native_recovery_target_transition();
         self.runner.frame.invalidate_native_resources_for_recovery();
@@ -929,6 +931,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             if let Some(adapter) = adapter {
                 self.runner.refresh_atlas_residency_account(adapter);
                 self.runner.refresh_signal_residency_account(adapter);
+                self.runner.refresh_custom_shader_residency_account(adapter);
                 self.runner.refresh_render_canvas_upload_account(adapter);
             }
             return empty;
@@ -937,6 +940,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if let Some(adapter) = adapter {
             self.runner.refresh_atlas_residency_account(adapter);
             self.runner.refresh_signal_residency_account(adapter);
+            self.runner.refresh_custom_shader_residency_account(adapter);
             self.runner.refresh_render_canvas_upload_account(adapter);
         }
         false
@@ -1086,6 +1090,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         if admitted {
             self.runner.refresh_atlas_residency_account(adapter);
             self.runner.refresh_signal_residency_account(adapter);
+            self.runner.refresh_custom_shader_residency_account(adapter);
             self.runner.refresh_render_canvas_upload_account(adapter);
         }
         admitted

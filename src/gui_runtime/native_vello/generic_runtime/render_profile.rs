@@ -7,8 +7,9 @@ use super::runner_state::{
 use super::{
     GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
     GpuSurfaceSignalResidencySnapshot, NativeAdapterAtlasResidencyProfile,
-    NativeAdapterRenderCanvasUploadProfile, NativeAdapterSignalResidencyProfile,
-    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    NativeAdapterCustomShaderResidencyProfile, NativeAdapterRenderCanvasUploadProfile,
+    NativeAdapterSignalResidencyProfile, RetainedSurfaceEncodeStats,
+    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -62,6 +63,7 @@ pub(super) struct NativeRenderProfileGpuSurface {
     pub(super) custom_shader_residency: NativeWindowCustomShaderResidencySnapshots,
     pub(super) application_atlas_residency: NativeAdapterAtlasResidencyProfile,
     pub(super) application_signal_residency: NativeAdapterSignalResidencyProfile,
+    pub(super) application_custom_shader_residency: NativeAdapterCustomShaderResidencyProfile,
     pub(super) application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
 }
 
@@ -160,6 +162,7 @@ pub(super) fn maybe_log_render_profile(
         custom_shader_residency,
         application_atlas_residency,
         application_signal_residency,
+        application_custom_shader_residency,
         application_render_canvas_uploads,
     } = gpu_surface;
     let active_atlas = project_atlas_residency(atlas_residency.active);
@@ -410,6 +413,38 @@ pub(super) fn maybe_log_render_profile(
             quarantine_1_custom_shader.storage_logical_bytes,
         gpu_surface_custom_shader_q1_presentation_uniform_logical_bytes =
             quarantine_1_custom_shader.presentation_uniform_logical_bytes,
+        gpu_surface_custom_shader_application_adapter_generation_known =
+            application_custom_shader_residency
+                .adapter_generation
+                .map(|generation| generation.is_known()),
+        gpu_surface_custom_shader_application_adapter_generation_serial =
+            application_custom_shader_residency
+                .adapter_generation
+                .and_then(|generation| generation.known_serial()),
+        gpu_surface_custom_shader_application_active_pipeline_resident_count =
+            application_custom_shader_residency.active_pipeline_resident_count,
+        gpu_surface_custom_shader_application_active_binding_resident_count =
+            application_custom_shader_residency.active_binding_resident_count,
+        gpu_surface_custom_shader_application_active_surface_uniform_logical_bytes =
+            application_custom_shader_residency.active_surface_uniform_logical_bytes,
+        gpu_surface_custom_shader_application_active_app_uniform_logical_bytes =
+            application_custom_shader_residency.active_app_uniform_logical_bytes,
+        gpu_surface_custom_shader_application_active_storage_logical_bytes =
+            application_custom_shader_residency.active_storage_logical_bytes,
+        gpu_surface_custom_shader_application_active_presentation_uniform_logical_bytes =
+            application_custom_shader_residency.active_presentation_uniform_logical_bytes,
+        gpu_surface_custom_shader_application_quarantined_pipeline_resident_count =
+            application_custom_shader_residency.quarantined_pipeline_resident_count,
+        gpu_surface_custom_shader_application_quarantined_binding_resident_count =
+            application_custom_shader_residency.quarantined_binding_resident_count,
+        gpu_surface_custom_shader_application_quarantined_surface_uniform_logical_bytes =
+            application_custom_shader_residency.quarantined_surface_uniform_logical_bytes,
+        gpu_surface_custom_shader_application_quarantined_app_uniform_logical_bytes =
+            application_custom_shader_residency.quarantined_app_uniform_logical_bytes,
+        gpu_surface_custom_shader_application_quarantined_storage_logical_bytes =
+            application_custom_shader_residency.quarantined_storage_logical_bytes,
+        gpu_surface_custom_shader_application_quarantined_presentation_uniform_logical_bytes =
+            application_custom_shader_residency.quarantined_presentation_uniform_logical_bytes,
         "radiant native render profile custom shader residency"
     );
     info!(

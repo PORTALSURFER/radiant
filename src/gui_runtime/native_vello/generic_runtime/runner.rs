@@ -59,7 +59,8 @@ use super::{
     DeviceLossRegistration, FrameScheduleKey, FrameScheduleLane, FrameWork, FrameWorkReason,
     GenericNativeAdapterOwner, GenericNativeRuntimeCore, GenericRouteOutcome,
     GpuSurfaceRenderCanvasUploadStats, NativeAdapterAtlasResidencyAccountToken,
-    NativeAdapterAtlasResidencyProfile, NativeAdapterGeneration,
+    NativeAdapterAtlasResidencyProfile, NativeAdapterCustomShaderResidencyAccountToken,
+    NativeAdapterCustomShaderResidencyProfile, NativeAdapterGeneration,
     NativeAdapterRenderCanvasUploadAccountToken, NativeAdapterRenderCanvasUploadProfile,
     NativeAdapterSignalResidencyAccountToken, NativeAdapterSignalResidencyProfile,
     NativeAtlasResidencyWindowIdentity, NativeAutomationTargetExporter, NativeClosingProgress,
@@ -80,7 +81,8 @@ use super::{
     retained_paint_segments::NativePaintSegmentEligibilityPlan,
     runner_state::{
         NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
-        NativeWindowDiagnosticIdentityAllocator, NativeWindowSignalResidencySnapshots,
+        NativeWindowCustomShaderResidencySnapshots, NativeWindowDiagnosticIdentityAllocator,
+        NativeWindowSignalResidencySnapshots,
     },
     scene::{
         ArtifactFeasibilityObservation, NativePaintSegmentPayload,
@@ -122,6 +124,8 @@ where
     pub(super) adapter: Option<GenericNativeAdapterOwner>,
     pub(super) atlas_residency_account: Option<NativeAdapterAtlasResidencyAccountToken>,
     pub(super) signal_residency_account: Option<NativeAdapterSignalResidencyAccountToken>,
+    pub(super) custom_shader_residency_account:
+        Option<NativeAdapterCustomShaderResidencyAccountToken>,
     pub(super) render_canvas_upload_account: Option<NativeAdapterRenderCanvasUploadAccountToken>,
     atlas_residency_window_identity: NativeAtlasResidencyWindowIdentity,
     #[cfg(target_os = "macos")]
@@ -349,6 +353,7 @@ where
             adapter: None,
             atlas_residency_account: None,
             signal_residency_account: None,
+            custom_shader_residency_account: None,
             render_canvas_upload_account: None,
             atlas_residency_window_identity,
             #[cfg(target_os = "macos")]
@@ -441,6 +446,35 @@ where
         self.synchronize_signal_residency_account(adapter, adapter_generation, snapshots);
     }
 
+    /// Synchronize the adapter-owned custom-shader residency account with the
+    /// physical active/quarantine bundles currently retained by this runner.
+    /// Custom-shader snapshots use fixed active/Q0/Q1 bookkeeping rather than
+    /// a resource-map traversal. Lifecycle transitions call this unconditionally;
+    /// profile-enabled presentation captures the cached aggregate after cache
+    /// mutation.
+    pub(super) fn refresh_custom_shader_residency_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        let resources_empty = self.window.native_resources.is_none()
+            && self.window.quarantined_native_resources.is_empty();
+        if resources_empty {
+            if let Some(token) = self.custom_shader_residency_account.as_ref()
+                && adapter.remove_custom_shader_residency_account(token)
+            {
+                self.custom_shader_residency_account = None;
+            }
+            return;
+        }
+
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return;
+        };
+        let snapshots: NativeWindowCustomShaderResidencySnapshots =
+            self.window.custom_shader_residency_snapshots();
+        self.synchronize_custom_shader_residency_account(adapter, adapter_generation, snapshots);
+    }
+
     /// Synchronize the adapter-owned render-canvas upload account at resource
     /// and lifecycle boundaries. Successful presentation only contributes to
     /// the already-bound account.
@@ -487,6 +521,18 @@ where
         }
         self.refresh_signal_residency_account(adapter);
         adapter.capture_signal_residency_profile()
+    }
+
+    pub(super) fn capture_custom_shader_residency_profile(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        profile_enabled: bool,
+    ) -> NativeAdapterCustomShaderResidencyProfile {
+        if !profile_enabled {
+            return NativeAdapterCustomShaderResidencyProfile::default();
+        }
+        self.refresh_custom_shader_residency_account(adapter);
+        adapter.capture_custom_shader_residency_profile()
     }
 
     pub(super) fn capture_render_canvas_upload_profile(
@@ -615,6 +661,44 @@ where
             snapshots,
         ) {
             self.signal_residency_account = Some(token);
+        }
+    }
+
+    fn synchronize_custom_shader_residency_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowCustomShaderResidencySnapshots,
+    ) {
+        if let Some(token) = self.custom_shader_residency_account.as_mut() {
+            let accepted = if token.adapter_generation == adapter_generation {
+                adapter.update_custom_shader_residency_account(token, snapshots)
+            } else if let Some(next) =
+                adapter.rebind_custom_shader_residency_account(token, adapter_generation, snapshots)
+            {
+                *token = next;
+                true
+            } else {
+                false
+            };
+            if !accepted {
+                // A live token can outlast its ledger account. Re-register only
+                // after rejection; a refused same-key registration preserves
+                // the stale-token fence instead of overwriting its owner.
+                if let Some(next) = adapter.register_custom_shader_residency_account(
+                    token.window_identity.clone(),
+                    adapter_generation,
+                    snapshots,
+                ) {
+                    *token = next;
+                }
+            }
+        } else if let Some(token) = adapter.register_custom_shader_residency_account(
+            self.atlas_residency_window_identity.clone(),
+            adapter_generation,
+            snapshots,
+        ) {
+            self.custom_shader_residency_account = Some(token);
         }
     }
 
@@ -1921,6 +2005,7 @@ where
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
             self.refresh_signal_residency_account(adapter);
+            self.refresh_custom_shader_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
         }
         self.adapter = adapter;
@@ -1955,6 +2040,7 @@ where
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
             self.refresh_signal_residency_account(adapter);
+            self.refresh_custom_shader_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
@@ -2041,6 +2127,7 @@ where
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
             self.refresh_signal_residency_account(adapter);
+            self.refresh_custom_shader_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
@@ -2297,6 +2384,7 @@ where
         publication.publish(candidate.bundle);
         self.refresh_atlas_residency_account(adapter);
         self.refresh_signal_residency_account(adapter);
+        self.refresh_custom_shader_residency_account(adapter);
         self.refresh_render_canvas_upload_account(adapter);
         self.window.target_generation = admission.next_target_generation;
         self.window.native_surface_target_fenced = false;
@@ -2771,9 +2859,11 @@ where
         publication.publish(primary);
         self.refresh_atlas_residency_account(&mut previous_adapter);
         self.refresh_signal_residency_account(&mut previous_adapter);
+        self.refresh_custom_shader_residency_account(&mut previous_adapter);
         self.refresh_render_canvas_upload_account(&mut previous_adapter);
         adapter.adopt_atlas_residency_ledger(&mut previous_adapter);
         adapter.adopt_signal_residency_ledger(&mut previous_adapter);
+        adapter.adopt_custom_shader_residency_ledger(&mut previous_adapter);
         adapter.adopt_render_canvas_upload_ledger(&mut previous_adapter);
         self.adapter = Some(adapter);
         let Some(mut adapter) = self.adapter.take() else {
@@ -2783,6 +2873,7 @@ where
         };
         self.refresh_atlas_residency_account(&mut adapter);
         self.refresh_signal_residency_account(&mut adapter);
+        self.refresh_custom_shader_residency_account(&mut adapter);
         self.refresh_render_canvas_upload_account(&mut adapter);
         self.adapter = Some(adapter);
         self.complete_native_recovery_target_transition();
@@ -4401,15 +4492,19 @@ mod tests {
         FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleRedrawEvidence,
         assess_cpu_frame_fairness,
     };
-    use super::super::{GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot};
+    use super::super::{
+        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
+        GpuSurfaceSignalResidencySnapshot,
+    };
     use super::{
         AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
         FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome,
-        NativeAdapterAtlasResidencyProfile, NativeAdapterGeneration,
-        NativeAdapterSignalResidencyProfile, NativeAtlasResidencyWindowIdentity,
-        NativeGenericRunError, NativeLifecycle, NativeLifecycleStageEvidence,
-        NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn, NativeTargetGeneration,
-        NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots,
+        NativeAdapterAtlasResidencyProfile, NativeAdapterCustomShaderResidencyProfile,
+        NativeAdapterGeneration, NativeAdapterSignalResidencyProfile,
+        NativeAtlasResidencyWindowIdentity, NativeGenericRunError, NativeLifecycle,
+        NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
+        NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
+        NativeWindowCustomShaderResidencySnapshots, NativeWindowSignalResidencySnapshots,
         TimedFrameCadence, recovery_completion_is_admissible,
     };
     use crate::{
@@ -4997,6 +5092,26 @@ mod tests {
         snapshot
     }
 
+    fn custom_shader_snapshot(
+        generation: NativeAdapterGeneration,
+        pipeline_resident_count: usize,
+        binding_resident_count: usize,
+        surface_uniform_logical_bytes: Option<u64>,
+        app_uniform_logical_bytes: Option<u64>,
+        storage_logical_bytes: Option<u64>,
+        presentation_uniform_logical_bytes: Option<u64>,
+    ) -> GpuSurfaceCustomShaderResidencySnapshot {
+        let mut snapshot =
+            GpuSurfaceCustomShaderResidencySnapshot::default().with_generation(generation);
+        snapshot.pipeline_resident_count = pipeline_resident_count;
+        snapshot.binding_resident_count = binding_resident_count;
+        snapshot.surface_uniform_logical_bytes = surface_uniform_logical_bytes;
+        snapshot.app_uniform_logical_bytes = app_uniform_logical_bytes;
+        snapshot.storage_logical_bytes = storage_logical_bytes;
+        snapshot.presentation_uniform_logical_bytes = presentation_uniform_logical_bytes;
+        snapshot
+    }
+
     #[test]
     fn atlas_residency_refresh_reregisters_a_rejected_live_token() {
         let generation = NativeAdapterGeneration::from_test_serial(1);
@@ -5100,6 +5215,103 @@ mod tests {
     }
 
     #[test]
+    fn custom_shader_residency_refresh_reregisters_a_rejected_live_token() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut adapter = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        );
+        let mut runner = runner();
+        let old_snapshots = NativeWindowCustomShaderResidencySnapshots {
+            active: Some(custom_shader_snapshot(
+                generation,
+                1,
+                2,
+                Some(4),
+                Some(8),
+                Some(12),
+                Some(16),
+            )),
+            ..NativeWindowCustomShaderResidencySnapshots::default()
+        };
+        let token = adapter
+            .register_custom_shader_residency_account(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                old_snapshots,
+            )
+            .expect("the custom-shader test account should register");
+        runner.custom_shader_residency_account = Some(token.clone());
+        assert!(adapter.remove_custom_shader_residency_account(&token));
+
+        let current_snapshots = NativeWindowCustomShaderResidencySnapshots {
+            active: Some(custom_shader_snapshot(
+                generation,
+                3,
+                4,
+                Some(12),
+                Some(16),
+                Some(20),
+                Some(24),
+            )),
+            ..NativeWindowCustomShaderResidencySnapshots::default()
+        };
+        runner.synchronize_custom_shader_residency_account(
+            &mut adapter,
+            generation,
+            current_snapshots,
+        );
+
+        assert!(runner.custom_shader_residency_account.is_some());
+        assert_ne!(
+            runner.custom_shader_residency_account.as_ref(),
+            Some(&token)
+        );
+        let profile = adapter.capture_custom_shader_residency_profile();
+        assert_eq!(profile.adapter_generation, Some(generation));
+        assert_eq!(profile.active_pipeline_resident_count, Some(3));
+        assert_eq!(profile.active_binding_resident_count, Some(4));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, Some(12));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(16));
+        assert_eq!(profile.active_storage_logical_bytes, Some(20));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(24));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(0));
+        assert_eq!(profile.quarantined_binding_resident_count, Some(0));
+        assert_eq!(profile.quarantined_surface_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_app_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(0));
+        assert_eq!(
+            profile.quarantined_presentation_uniform_logical_bytes,
+            Some(0)
+        );
+
+        assert_eq!(
+            runner.capture_custom_shader_residency_profile(&mut adapter, false),
+            NativeAdapterCustomShaderResidencyProfile::default()
+        );
+
+        runner.refresh_custom_shader_residency_account(&mut adapter);
+        assert!(runner.custom_shader_residency_account.is_none());
+        let profile = adapter.capture_custom_shader_residency_profile();
+        assert_eq!(profile.adapter_generation, Some(generation));
+        assert_eq!(profile.active_pipeline_resident_count, Some(0));
+        assert_eq!(profile.active_binding_resident_count, Some(0));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.active_storage_logical_bytes, Some(0));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(0));
+        assert_eq!(profile.quarantined_binding_resident_count, Some(0));
+        assert_eq!(profile.quarantined_surface_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_app_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(0));
+        assert_eq!(
+            profile.quarantined_presentation_uniform_logical_bytes,
+            Some(0)
+        );
+    }
+
+    #[test]
     fn atlas_ledger_syncs_post_cache_mutation_and_clear_at_profile_boundary() {
         let generation = NativeAdapterGeneration::from_test_serial(1);
         let mut adapter = GenericNativeAdapterOwner::with_test_registration(
@@ -5157,6 +5369,140 @@ mod tests {
         assert_eq!(profile.active_logical_rgba_texel_bytes, Some(0));
         assert_eq!(profile.quarantined_resident_count, Some(0));
         assert_eq!(profile.quarantined_logical_rgba_texel_bytes, Some(0));
+    }
+
+    #[test]
+    fn custom_shader_ledger_syncs_post_cache_mutation_and_clear_at_profile_boundary() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut adapter = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        );
+        let mut runner = runner();
+        let empty_snapshots = NativeWindowCustomShaderResidencySnapshots {
+            active: Some(custom_shader_snapshot(
+                generation,
+                0,
+                0,
+                Some(0),
+                Some(0),
+                Some(0),
+                Some(0),
+            )),
+            ..NativeWindowCustomShaderResidencySnapshots::default()
+        };
+
+        runner.synchronize_custom_shader_residency_account(
+            &mut adapter,
+            generation,
+            empty_snapshots,
+        );
+        let profile = adapter.capture_custom_shader_residency_profile();
+        assert_eq!(profile.active_pipeline_resident_count, Some(0));
+        assert_eq!(profile.active_binding_resident_count, Some(0));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.active_storage_logical_bytes, Some(0));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(0));
+        assert_eq!(profile.quarantined_binding_resident_count, Some(0));
+        assert_eq!(profile.quarantined_surface_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_app_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(0));
+        assert_eq!(
+            profile.quarantined_presentation_uniform_logical_bytes,
+            Some(0)
+        );
+
+        let populated_snapshots = NativeWindowCustomShaderResidencySnapshots {
+            active: Some(custom_shader_snapshot(
+                generation,
+                3,
+                4,
+                Some(12),
+                Some(16),
+                Some(20),
+                Some(24),
+            )),
+            quarantine_0: Some(custom_shader_snapshot(
+                generation,
+                2,
+                3,
+                Some(4),
+                Some(5),
+                Some(6),
+                Some(7),
+            )),
+            quarantine_1: Some(custom_shader_snapshot(
+                generation,
+                5,
+                6,
+                Some(7),
+                Some(8),
+                Some(9),
+                Some(10),
+            )),
+        };
+        runner.synchronize_custom_shader_residency_account(
+            &mut adapter,
+            generation,
+            populated_snapshots,
+        );
+        let profile = adapter.capture_custom_shader_residency_profile();
+        assert_eq!(profile.active_pipeline_resident_count, Some(3));
+        assert_eq!(profile.active_binding_resident_count, Some(4));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, Some(12));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(16));
+        assert_eq!(profile.active_storage_logical_bytes, Some(20));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(24));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(7));
+        assert_eq!(profile.quarantined_binding_resident_count, Some(9));
+        assert_eq!(profile.quarantined_surface_uniform_logical_bytes, Some(11));
+        assert_eq!(profile.quarantined_app_uniform_logical_bytes, Some(13));
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(15));
+        assert_eq!(
+            profile.quarantined_presentation_uniform_logical_bytes,
+            Some(17)
+        );
+
+        assert_eq!(
+            runner.capture_custom_shader_residency_profile(&mut adapter, false),
+            NativeAdapterCustomShaderResidencyProfile::default()
+        );
+
+        let cleared_snapshots = NativeWindowCustomShaderResidencySnapshots {
+            active: Some(custom_shader_snapshot(
+                generation,
+                0,
+                0,
+                Some(0),
+                Some(0),
+                Some(0),
+                Some(0),
+            )),
+            ..NativeWindowCustomShaderResidencySnapshots::default()
+        };
+        runner.synchronize_custom_shader_residency_account(
+            &mut adapter,
+            generation,
+            cleared_snapshots,
+        );
+        let profile = adapter.capture_custom_shader_residency_profile();
+        assert_eq!(profile.active_pipeline_resident_count, Some(0));
+        assert_eq!(profile.active_binding_resident_count, Some(0));
+        assert_eq!(profile.active_surface_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.active_app_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.active_storage_logical_bytes, Some(0));
+        assert_eq!(profile.active_presentation_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_pipeline_resident_count, Some(0));
+        assert_eq!(profile.quarantined_binding_resident_count, Some(0));
+        assert_eq!(profile.quarantined_surface_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_app_uniform_logical_bytes, Some(0));
+        assert_eq!(profile.quarantined_storage_logical_bytes, Some(0));
+        assert_eq!(
+            profile.quarantined_presentation_uniform_logical_bytes,
+            Some(0)
+        );
     }
 
     #[test]

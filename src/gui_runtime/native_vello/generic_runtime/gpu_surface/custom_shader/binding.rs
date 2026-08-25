@@ -42,11 +42,7 @@ impl GpuSurfaceRenderer {
             return;
         };
         let cache_key = custom_shader_binding_key(&pipeline.key, request.descriptor);
-        let rebuild = self
-            .resources
-            .custom_shader_bindings
-            .get(&request.surface_key)
-            .is_none_or(|binding| binding.cache_key != cache_key);
+        let rebuild = self.custom_shader_binding_needs_rebuild(request.surface_key, &cache_key);
         if !rebuild {
             stats.custom_shader.binding_cache_hits += 1;
             return;
@@ -83,9 +79,20 @@ impl GpuSurfaceRenderer {
             },
         );
     }
+
+    pub(super) fn custom_shader_binding_needs_rebuild(
+        &self,
+        surface_key: u64,
+        cache_key: &CustomShaderBindingKey,
+    ) -> bool {
+        self.resources
+            .custom_shader_bindings
+            .get(&surface_key)
+            .is_none_or(|binding| binding.cache_key != *cache_key)
+    }
 }
 
-fn custom_shader_binding_key(
+pub(super) fn custom_shader_binding_key(
     pipeline_key: &super::super::gpu_surface_types::CustomShaderPipelineKey,
     descriptor: &GpuShaderSurfaceDescriptor,
 ) -> CustomShaderBindingKey {

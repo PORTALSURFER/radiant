@@ -812,7 +812,7 @@ impl NativeAdapterRenderCanvasUploadLedger {
         let candidate_observation = candidate_plan
             .zip(current_plan_context)
             .and_then(|(plan, current)| plan.matches_context(current).then_some(plan))
-            .map(GpuSurfaceRenderCanvasUploadPlan::observation);
+            .map(|plan| plan.observation());
         let mut candidate_window_was_new = false;
         {
             let Some(account) = self.accounts.get_mut(&token.window_identity) else {
@@ -1938,14 +1938,14 @@ mod tests {
             &primary,
             1,
             GpuSurfaceRenderCanvasUploadStats::default(),
-            Some(primary_plan),
+            Some(exact_upload_plan(context, 16, 8, 32)),
             Some(context),
         ));
         assert!(!ledger.contribute(
             &primary,
             0,
             GpuSurfaceRenderCanvasUploadStats::default(),
-            Some(primary_plan),
+            Some(exact_upload_plan(context, 16, 8, 32)),
             Some(context),
         ));
 
@@ -2144,7 +2144,7 @@ mod tests {
             &first,
             2,
             GpuSurfaceRenderCanvasUploadStats::default(),
-            Some(first_plan),
+            Some(exact_upload_plan(first_context, 2, 3, 4)),
             Some(first_context),
         ));
         let rebound = ledger

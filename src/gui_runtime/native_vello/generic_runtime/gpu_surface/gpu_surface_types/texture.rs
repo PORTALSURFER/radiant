@@ -1,5 +1,4 @@
 use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
-use super::super::wgpu_device_id;
 use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceTexture {
@@ -16,9 +15,9 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
 }
 
 impl GpuSurfaceTexture {
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn matches_atlas(
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn matches_atlas_identity(
         &self,
-        device: &wgpu::Device,
+        device: usize,
         revision: u64,
         content_identity: RenderCanvasContentIdentity,
         width: usize,
@@ -33,7 +32,7 @@ impl GpuSurfaceTexture {
                 height: self.height,
             },
             AtlasTextureDescriptor {
-                device: wgpu_device_id(device),
+                device,
                 revision,
                 content_identity,
                 width,

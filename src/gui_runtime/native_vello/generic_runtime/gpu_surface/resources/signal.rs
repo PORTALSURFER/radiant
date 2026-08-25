@@ -7,7 +7,11 @@ use super::super::gpu_surface_types::{
 use super::super::identity::RenderCanvasContentOwner;
 use super::super::passes::signal_body_render_pass;
 use super::super::stats::GpuSurfaceRenderStats;
-use super::super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
+use super::super::upload_plan::{
+    GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+    GpuSurfaceRenderCanvasUploadSignalBodyOperation,
+    GpuSurfaceRenderCanvasUploadSignalBufferOperation,
+};
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use crate::runtime::GpuSignalSummaryBucket;
 use std::time::Instant;
@@ -29,6 +33,38 @@ pub(crate) struct EnsureSignalBufferRequest<'a> {
 }
 
 impl GpuSurfaceRenderer {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn signal_buffer_operation(
+        &self,
+        key: u64,
+        cache_key: SignalBufferCacheKey,
+        sample_count: usize,
+    ) -> GpuSurfaceRenderCanvasUploadSignalBufferOperation {
+        self.resources
+            .signals
+            .get(&key)
+            .filter(|buffer| {
+                buffer.cache_key == cache_key
+                    && buffer.sample_count == sample_count
+                    && buffer.pipeline_generation == self.signal_pipeline_generation
+            })
+            .map(|_| GpuSurfaceRenderCanvasUploadSignalBufferOperation::Reuse)
+            .unwrap_or(GpuSurfaceRenderCanvasUploadSignalBufferOperation::Upload)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn signal_body_operation(
+        &self,
+        device: &wgpu::Device,
+        key: u64,
+        body_key: SignalBodyCacheKey,
+    ) -> GpuSurfaceRenderCanvasUploadSignalBodyOperation {
+        self.resources
+            .signal_bodies
+            .get(&key)
+            .filter(|body| body.matches_body(device, body_key))
+            .map(|_| GpuSurfaceRenderCanvasUploadSignalBodyOperation::Reuse)
+            .unwrap_or(GpuSurfaceRenderCanvasUploadSignalBodyOperation::Render)
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_signal_body_texture(
         &mut self,
         device: &wgpu::Device,

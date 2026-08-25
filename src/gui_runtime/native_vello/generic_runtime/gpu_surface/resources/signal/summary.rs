@@ -2,6 +2,7 @@ use super::super::super::GpuSurfaceRenderer;
 use super::super::super::gpu_surface_types::CachedSignalSummary;
 use super::super::super::identity::RenderCanvasContentIdentity;
 use super::super::super::stats::GpuSurfaceRenderStats;
+use super::super::super::upload_plan::GpuSurfaceRenderCanvasUploadSignalSummaryOperation;
 use crate::runtime::GpuSignalSummary;
 use std::sync::Arc;
 
@@ -16,6 +17,29 @@ pub(crate) struct CachedSignalSummaryRequest<'a> {
 }
 
 impl GpuSurfaceRenderer {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn signal_summary_cache_operation(
+        &self,
+        key: u64,
+        revision: u64,
+        content_identity: RenderCanvasContentIdentity,
+        frames: usize,
+        band_count: usize,
+        sample_count: usize,
+    ) -> GpuSurfaceRenderCanvasUploadSignalSummaryOperation {
+        self.resources
+            .signal_summaries
+            .get(&key)
+            .filter(|cached| {
+                cached.revision == revision
+                    && cached.content_identity == content_identity
+                    && cached.frames == frames
+                    && cached.band_count == band_count
+                    && cached.sample_count == sample_count
+            })
+            .map(|_| GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse)
+            .unwrap_or(GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Build)
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn cached_signal_summary(
         &mut self,
         request: CachedSignalSummaryRequest<'_>,

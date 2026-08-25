@@ -20,7 +20,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
         Option<GpuSignalGainPreview>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBufferCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:

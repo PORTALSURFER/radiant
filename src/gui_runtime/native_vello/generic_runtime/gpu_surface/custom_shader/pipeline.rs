@@ -58,7 +58,7 @@ impl GpuSurfaceRenderer {
         );
     }
 
-    fn custom_shader_pipeline_needs_rebuild(
+    pub(super) fn custom_shader_pipeline_needs_rebuild(
         &self,
         request: &CustomShaderPipelineRequest<'_>,
     ) -> bool {

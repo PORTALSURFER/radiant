@@ -5,6 +5,7 @@ use super::super::gpu_surface_types::{
     GpuSurfaceCompositeBinding, GpuSurfaceTexture, SignalBodyTexture, SignalBuffer,
 };
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 struct AccountedMapEntry<T> {
     value: T,
@@ -114,7 +115,6 @@ impl<T> AccountedMap<T> {
         self.entries.is_empty()
     }
 
-    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn len(&self) -> usize {
         self.entries.len()
     }
@@ -175,6 +175,27 @@ impl<T> AccountedMap<T> {
     }
 }
 
+impl AccountedMap<GpuSurfaceTexture> {
+    fn hash_atlas_state(&self, hasher: &mut impl Hasher) {
+        let mut entries: Vec<_> = self
+            .entries
+            .iter()
+            .map(|(key, entry)| {
+                (
+                    *key,
+                    entry.value.device,
+                    entry.value.revision,
+                    entry.value.content_identity,
+                    entry.value.width,
+                    entry.value.height,
+                )
+            })
+            .collect();
+        entries.sort_unstable_by_key(|entry| entry.0);
+        entries.hash(hasher);
+    }
+}
+
 fn logical_rgba_texel_bytes(width: usize, height: usize) -> Option<u64> {
     u64::try_from(width)
         .ok()?
@@ -204,6 +225,20 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
 }
 
 impl GpuSurfaceResourceCache {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn hash_atlas_state(
+        &self,
+        hasher: &mut impl Hasher,
+    ) {
+        self.textures.hash_atlas_state(hasher);
+        let mut bindings: Vec<_> = self
+            .composite_bindings
+            .iter()
+            .map(|(key, binding)| (*key, binding.cache_key))
+            .collect();
+        bindings.sort_unstable_by_key(|entry| entry.0);
+        bindings.hash(hasher);
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn prune_inactive(
         &mut self,
         active_keys: &ActiveGpuSurfaceKeys,

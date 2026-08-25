@@ -61,6 +61,7 @@ use super::{
     GpuSurfaceRenderCanvasUploadStats, NativeAdapterAtlasResidencyAccountToken,
     NativeAdapterAtlasResidencyProfile, NativeAdapterGeneration,
     NativeAdapterRenderCanvasUploadAccountToken, NativeAdapterRenderCanvasUploadProfile,
+    NativeAdapterSignalResidencyAccountToken, NativeAdapterSignalResidencyProfile,
     NativeAtlasResidencyWindowIdentity, NativeAutomationTargetExporter, NativeClosingProgress,
     NativeFrameDiagnosticsPublication, NativeFrameScheduler, NativeGenericRunError,
     NativeGpuTimingRoute, NativeLifecycle, NativeRenderDeviceErrorKind,
@@ -79,7 +80,7 @@ use super::{
     retained_paint_segments::NativePaintSegmentEligibilityPlan,
     runner_state::{
         NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
-        NativeWindowDiagnosticIdentityAllocator,
+        NativeWindowDiagnosticIdentityAllocator, NativeWindowSignalResidencySnapshots,
     },
     scene::{
         ArtifactFeasibilityObservation, NativePaintSegmentPayload,
@@ -120,6 +121,7 @@ where
     /// generic-native windows. Auxiliary runners borrow it at event boundaries.
     pub(super) adapter: Option<GenericNativeAdapterOwner>,
     pub(super) atlas_residency_account: Option<NativeAdapterAtlasResidencyAccountToken>,
+    pub(super) signal_residency_account: Option<NativeAdapterSignalResidencyAccountToken>,
     pub(super) render_canvas_upload_account: Option<NativeAdapterRenderCanvasUploadAccountToken>,
     atlas_residency_window_identity: NativeAtlasResidencyWindowIdentity,
     #[cfg(target_os = "macos")]
@@ -346,6 +348,7 @@ where
             application_reopen_events: None,
             adapter: None,
             atlas_residency_account: None,
+            signal_residency_account: None,
             render_canvas_upload_account: None,
             atlas_residency_window_identity,
             #[cfg(target_os = "macos")]
@@ -409,6 +412,35 @@ where
         self.synchronize_atlas_residency_account(adapter, adapter_generation, snapshots);
     }
 
+    /// Synchronize the adapter-owned signal-residency account with the
+    /// physical active/quarantine bundles currently retained by this runner.
+    /// Signal snapshots use fixed active/Q0/Q1 bookkeeping rather than a
+    /// resource-map traversal. Lifecycle transitions call this unconditionally;
+    /// profile-enabled presentation captures the cached aggregate after signal
+    /// cache mutation.
+    pub(super) fn refresh_signal_residency_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        let resources_empty = self.window.native_resources.is_none()
+            && self.window.quarantined_native_resources.is_empty();
+        if resources_empty {
+            if let Some(token) = self.signal_residency_account.as_ref()
+                && adapter.remove_signal_residency_account(token)
+            {
+                self.signal_residency_account = None;
+            }
+            return;
+        }
+
+        let Some(adapter_generation) = adapter.capture_generation() else {
+            return;
+        };
+        let snapshots: NativeWindowSignalResidencySnapshots =
+            self.window.signal_residency_snapshots();
+        self.synchronize_signal_residency_account(adapter, adapter_generation, snapshots);
+    }
+
     /// Synchronize the adapter-owned render-canvas upload account at resource
     /// and lifecycle boundaries. Successful presentation only contributes to
     /// the already-bound account.
@@ -443,6 +475,18 @@ where
         }
         self.refresh_atlas_residency_account(adapter);
         adapter.capture_atlas_residency_profile()
+    }
+
+    pub(super) fn capture_signal_residency_profile(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        profile_enabled: bool,
+    ) -> NativeAdapterSignalResidencyProfile {
+        if !profile_enabled {
+            return NativeAdapterSignalResidencyProfile::default();
+        }
+        self.refresh_signal_residency_account(adapter);
+        adapter.capture_signal_residency_profile()
     }
 
     pub(super) fn capture_render_canvas_upload_profile(
@@ -533,6 +577,44 @@ where
             snapshots,
         ) {
             self.atlas_residency_account = Some(token);
+        }
+    }
+
+    fn synchronize_signal_residency_account(
+        &mut self,
+        adapter: &mut GenericNativeAdapterOwner,
+        adapter_generation: NativeAdapterGeneration,
+        snapshots: NativeWindowSignalResidencySnapshots,
+    ) {
+        if let Some(token) = self.signal_residency_account.as_mut() {
+            let accepted = if token.adapter_generation == adapter_generation {
+                adapter.update_signal_residency_account(token, snapshots)
+            } else if let Some(next) =
+                adapter.rebind_signal_residency_account(token, adapter_generation, snapshots)
+            {
+                *token = next;
+                true
+            } else {
+                false
+            };
+            if !accepted {
+                // A live token can outlast its ledger account. Re-register only
+                // after rejection; a refused same-key registration preserves
+                // the stale-token fence instead of overwriting its owner.
+                if let Some(next) = adapter.register_signal_residency_account(
+                    token.window_identity.clone(),
+                    adapter_generation,
+                    snapshots,
+                ) {
+                    *token = next;
+                }
+            }
+        } else if let Some(token) = adapter.register_signal_residency_account(
+            self.atlas_residency_window_identity.clone(),
+            adapter_generation,
+            snapshots,
+        ) {
+            self.signal_residency_account = Some(token);
         }
     }
 
@@ -1838,6 +1920,7 @@ where
         let mut adapter = self.adapter.take();
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_signal_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
         }
         self.adapter = adapter;
@@ -1871,6 +1954,7 @@ where
         self.window.maintain_native_resources(turn);
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_signal_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
@@ -1956,6 +2040,7 @@ where
         let primary_empty = self.retire_native_resources_with_turn(turn);
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
+            self.refresh_signal_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
         }
         let retiring_auxiliary_keys = self
@@ -2211,6 +2296,7 @@ where
         };
         publication.publish(candidate.bundle);
         self.refresh_atlas_residency_account(adapter);
+        self.refresh_signal_residency_account(adapter);
         self.refresh_render_canvas_upload_account(adapter);
         self.window.target_generation = admission.next_target_generation;
         self.window.native_surface_target_fenced = false;
@@ -2684,8 +2770,10 @@ where
         };
         publication.publish(primary);
         self.refresh_atlas_residency_account(&mut previous_adapter);
+        self.refresh_signal_residency_account(&mut previous_adapter);
         self.refresh_render_canvas_upload_account(&mut previous_adapter);
         adapter.adopt_atlas_residency_ledger(&mut previous_adapter);
+        adapter.adopt_signal_residency_ledger(&mut previous_adapter);
         adapter.adopt_render_canvas_upload_ledger(&mut previous_adapter);
         self.adapter = Some(adapter);
         let Some(mut adapter) = self.adapter.take() else {
@@ -2694,6 +2782,7 @@ where
             ));
         };
         self.refresh_atlas_residency_account(&mut adapter);
+        self.refresh_signal_residency_account(&mut adapter);
         self.refresh_render_canvas_upload_account(&mut adapter);
         self.adapter = Some(adapter);
         self.complete_native_recovery_target_transition();
@@ -4299,7 +4388,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::GpuSurfaceAtlasResidencySnapshot;
     use super::super::frame_scheduler_policy::{
         DiscreteInputCompletion, ImmediateTransientCompletion, NativeInputStageDisposition,
         discrete_input_completion_disposition,
@@ -4313,14 +4401,16 @@ mod tests {
         FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleRedrawEvidence,
         assess_cpu_frame_fairness,
     };
+    use super::super::{GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot};
     use super::{
         AuxiliaryNativeWindow, DeviceLossRegistration, FrameScheduleKey, FrameWork,
         FrameWorkReason, GenericNativeAdapterOwner, GenericNativeVelloRunner, GenericRouteOutcome,
         NativeAdapterAtlasResidencyProfile, NativeAdapterGeneration,
-        NativeAtlasResidencyWindowIdentity, NativeGenericRunError, NativeLifecycle,
-        NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
-        NativeTargetGeneration, NativeWindowAtlasResidencySnapshots, TimedFrameCadence,
-        recovery_completion_is_admissible,
+        NativeAdapterSignalResidencyProfile, NativeAtlasResidencyWindowIdentity,
+        NativeGenericRunError, NativeLifecycle, NativeLifecycleStageEvidence,
+        NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn, NativeTargetGeneration,
+        NativeWindowAtlasResidencySnapshots, NativeWindowSignalResidencySnapshots,
+        TimedFrameCadence, recovery_completion_is_admissible,
     };
     use crate::{
         application::empty,
@@ -4892,6 +4982,21 @@ mod tests {
         snapshot
     }
 
+    fn signal_snapshot(
+        generation: NativeAdapterGeneration,
+        signal_buffer_resident_count: usize,
+        signal_buffer_logical_bytes: Option<u64>,
+        signal_body_texture_resident_count: usize,
+        signal_body_texture_logical_rgba_bytes: Option<u64>,
+    ) -> GpuSurfaceSignalResidencySnapshot {
+        let mut snapshot = GpuSurfaceSignalResidencySnapshot::default().with_generation(generation);
+        snapshot.signal_buffer_resident_count = signal_buffer_resident_count;
+        snapshot.signal_buffer_logical_bytes = signal_buffer_logical_bytes;
+        snapshot.signal_body_texture_resident_count = signal_body_texture_resident_count;
+        snapshot.signal_body_texture_logical_rgba_bytes = signal_body_texture_logical_rgba_bytes;
+        snapshot
+    }
+
     #[test]
     fn atlas_residency_refresh_reregisters_a_rejected_live_token() {
         let generation = NativeAdapterGeneration::from_test_serial(1);
@@ -4935,6 +5040,63 @@ mod tests {
         let profile = adapter.capture_atlas_residency_profile();
         assert_eq!(profile.active_resident_count, Some(3));
         assert_eq!(profile.active_logical_rgba_texel_bytes, Some(12));
+    }
+
+    #[test]
+    fn signal_residency_refresh_reregisters_a_rejected_live_token() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut adapter = GenericNativeAdapterOwner::with_test_registration(
+            generation,
+            Arc::new(DeviceLossRegistration::new()),
+        );
+        let mut runner = runner();
+        let old_snapshots = NativeWindowSignalResidencySnapshots {
+            active: Some(signal_snapshot(generation, 1, Some(4), 2, Some(8))),
+            ..NativeWindowSignalResidencySnapshots::default()
+        };
+        let token = adapter
+            .register_signal_residency_account(
+                NativeAtlasResidencyWindowIdentity::Primary,
+                generation,
+                old_snapshots,
+            )
+            .expect("the signal test account should register");
+        runner.signal_residency_account = Some(token.clone());
+        assert!(adapter.remove_signal_residency_account(&token));
+
+        let current_snapshots = NativeWindowSignalResidencySnapshots {
+            active: Some(signal_snapshot(generation, 3, Some(12), 4, Some(16))),
+            ..NativeWindowSignalResidencySnapshots::default()
+        };
+        runner.synchronize_signal_residency_account(&mut adapter, generation, current_snapshots);
+
+        assert!(runner.signal_residency_account.is_some());
+        let profile = adapter.capture_signal_residency_profile();
+        assert_eq!(profile.active_signal_buffer_resident_count, Some(3));
+        assert_eq!(profile.active_signal_buffer_logical_bytes, Some(12));
+        assert_eq!(profile.active_signal_body_texture_resident_count, Some(4));
+        assert_eq!(
+            profile.active_signal_body_texture_logical_rgba_bytes,
+            Some(16)
+        );
+        assert_eq!(
+            runner.capture_signal_residency_profile(&mut adapter, false),
+            NativeAdapterSignalResidencyProfile::default()
+        );
+        assert_eq!(
+            adapter
+                .capture_signal_residency_profile()
+                .active_signal_buffer_resident_count,
+            Some(3)
+        );
+        runner.refresh_signal_residency_account(&mut adapter);
+        assert!(runner.signal_residency_account.is_none());
+        assert_eq!(
+            adapter
+                .capture_signal_residency_profile()
+                .active_signal_buffer_resident_count,
+            Some(0)
+        );
     }
 
     #[test]

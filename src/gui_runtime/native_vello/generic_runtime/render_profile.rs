@@ -6,7 +6,8 @@ use super::runner_state::{
 use super::{
     GpuSurfaceAtlasResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
     NativeAdapterAtlasResidencyProfile, NativeAdapterRenderCanvasUploadProfile,
-    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    NativeAdapterSignalResidencyProfile, RetainedSurfaceEncodeStats,
+    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -58,6 +59,7 @@ pub(super) struct NativeRenderProfileGpuSurface {
     pub(super) atlas_residency: NativeWindowAtlasResidencySnapshots,
     pub(super) signal_residency: NativeWindowSignalResidencySnapshots,
     pub(super) application_atlas_residency: NativeAdapterAtlasResidencyProfile,
+    pub(super) application_signal_residency: NativeAdapterSignalResidencyProfile,
     pub(super) application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
 }
 
@@ -124,6 +126,7 @@ pub(super) fn maybe_log_render_profile(
         atlas_residency,
         signal_residency,
         application_atlas_residency,
+        application_signal_residency,
         application_render_canvas_uploads,
     } = gpu_surface;
     let active_atlas = project_atlas_residency(atlas_residency.active);
@@ -355,6 +358,36 @@ pub(super) fn maybe_log_render_profile(
         gpu_surface_signal_q1_body_texture_logical_rgba_bytes =
             quarantine_1_signal.signal_body_texture_logical_rgba_bytes,
         "radiant native render profile signal residency"
+    );
+    info!(
+        reason,
+        window_identity = frame
+            .window_identity
+            .map(NativeWindowDiagnosticIdentity::get),
+        frame_sequence = frame.frame_sequence,
+        gpu_surface_signal_application_adapter_generation_known = application_signal_residency
+            .adapter_generation
+            .map(|generation| generation.is_known()),
+        gpu_surface_signal_application_adapter_generation_serial = application_signal_residency
+            .adapter_generation
+            .and_then(|generation| generation.known_serial()),
+        gpu_surface_signal_application_active_buffer_resident_count =
+            application_signal_residency.active_signal_buffer_resident_count,
+        gpu_surface_signal_application_active_buffer_logical_bytes =
+            application_signal_residency.active_signal_buffer_logical_bytes,
+        gpu_surface_signal_application_active_body_texture_resident_count =
+            application_signal_residency.active_signal_body_texture_resident_count,
+        gpu_surface_signal_application_active_body_texture_logical_rgba_bytes =
+            application_signal_residency.active_signal_body_texture_logical_rgba_bytes,
+        gpu_surface_signal_application_quarantined_buffer_resident_count =
+            application_signal_residency.quarantined_signal_buffer_resident_count,
+        gpu_surface_signal_application_quarantined_buffer_logical_bytes =
+            application_signal_residency.quarantined_signal_buffer_logical_bytes,
+        gpu_surface_signal_application_quarantined_body_texture_resident_count =
+            application_signal_residency.quarantined_signal_body_texture_resident_count,
+        gpu_surface_signal_application_quarantined_body_texture_logical_rgba_bytes =
+            application_signal_residency.quarantined_signal_body_texture_logical_rgba_bytes,
+        "radiant native render profile application signal residency"
     );
 }
 

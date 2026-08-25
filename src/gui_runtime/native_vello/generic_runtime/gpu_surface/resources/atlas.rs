@@ -1,13 +1,17 @@
 use super::super::gpu_surface_types::GpuSurfaceTexture;
 use super::super::identity::{RenderCanvasContentIdentity, RenderCanvasContentOwner};
 use super::super::stats::GpuSurfaceRenderStats;
-use super::super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason;
+use super::super::upload_plan::{
+    GpuSurfaceRenderCanvasUploadAtlasTextureExecution,
+    GpuSurfaceRenderCanvasUploadAtlasTextureOperation,
+    GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+};
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
 use vello::wgpu;
 
 impl GpuSurfaceRenderer {
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_texture(
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_texture_legacy(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -18,9 +22,10 @@ impl GpuSurfaceRenderer {
             return;
         };
         let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let device_id = wgpu_device_id(device);
         if let Some(texture) = self.resources.textures.get(&surface.key) {
-            if texture.matches_atlas(
-                device,
+            if texture.matches_atlas_identity(
+                device_id,
                 surface.revision,
                 content_identity,
                 atlas.width(),
@@ -82,14 +87,12 @@ impl GpuSurfaceRenderer {
                 depth_or_array_layers: 1,
             },
         );
-        stats
-            .render_canvas_uploads
-            .record_immutable_payload(pixels.len());
+        record_atlas_texture_upload(stats, pixels.len());
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         self.resources.textures.insert(
             surface.key,
             GpuSurfaceTexture {
-                device: wgpu_device_id(device),
+                device: device_id,
                 revision: surface.revision,
                 content_identity,
                 _content_owner: RenderCanvasContentOwner::from_content(&surface.content),
@@ -102,6 +105,207 @@ impl GpuSurfaceRenderer {
             atlas.height(),
         );
         stats.atlas.texture_uploads += 1;
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn preflight_atlas_texture(
+        &self,
+        device: usize,
+        surface_index: usize,
+        surface: &PaintGpuSurface,
+    ) -> Result<
+        GpuSurfaceRenderCanvasUploadAtlasTextureExecution,
+        GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+    > {
+        let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &surface.content else {
+            return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid);
+        };
+        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let extent =
+            GpuAtlasTextureExtent::try_new(atlas.width(), atlas.height(), atlas.pixels().len())?;
+        Ok(GpuSurfaceRenderCanvasUploadAtlasTextureExecution {
+            surface_index,
+            key: surface.key,
+            device,
+            revision: surface.revision,
+            content_identity,
+            width: atlas.width(),
+            height: atlas.height(),
+            extent_width: extent.width,
+            extent_height: extent.height,
+            bytes_per_row: extent.bytes_per_row,
+            byte_len: atlas.pixels().len(),
+            operation: atlas_texture_operation(
+                self.resources.textures.get(&surface.key),
+                device,
+                surface.revision,
+                content_identity,
+                atlas.width(),
+                atlas.height(),
+            ),
+        })
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn execute_atlas_texture(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        surface: &PaintGpuSurface,
+        execution: GpuSurfaceRenderCanvasUploadAtlasTextureExecution,
+        upload_byte_len: Option<usize>,
+        stats: &mut GpuSurfaceRenderStats,
+    ) -> Result<(), GpuSurfaceRenderCanvasUploadPlanUnavailableReason> {
+        let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &surface.content else {
+            return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid);
+        };
+        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let extent =
+            GpuAtlasTextureExtent::try_new(atlas.width(), atlas.height(), atlas.pixels().len())?;
+        if execution.surface_index == usize::MAX
+            || execution.key != surface.key
+            || execution.device != wgpu_device_id(device)
+            || execution.revision != surface.revision
+            || execution.content_identity != content_identity
+            || execution.width != atlas.width()
+            || execution.height != atlas.height()
+            || execution.extent_width != extent.width
+            || execution.extent_height != extent.height
+            || execution.bytes_per_row != extent.bytes_per_row
+            || execution.byte_len != atlas.pixels().len()
+        {
+            return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+        }
+
+        let expected_operation = atlas_texture_operation(
+            self.resources.textures.get(&surface.key),
+            execution.device,
+            surface.revision,
+            content_identity,
+            atlas.width(),
+            atlas.height(),
+        );
+        if execution.operation != expected_operation {
+            return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+        }
+
+        if let GpuSurfaceRenderCanvasUploadAtlasTextureOperation::Upload {
+            revision_mismatch,
+            content_mismatch,
+        } = expected_operation
+        {
+            if revision_mismatch {
+                stats.atlas.texture_revision_mismatches += 1;
+            } else if content_mismatch {
+                stats.atlas.texture_content_mismatches += 1;
+            }
+        }
+
+        match execution.operation {
+            GpuSurfaceRenderCanvasUploadAtlasTextureOperation::Reuse => {
+                if upload_byte_len.is_some() {
+                    return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+                }
+                stats.atlas.texture_cache_hits += 1;
+                Ok(())
+            }
+            GpuSurfaceRenderCanvasUploadAtlasTextureOperation::Upload { .. } => {
+                let Some(upload_byte_len) = upload_byte_len else {
+                    return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+                };
+                if upload_byte_len != execution.byte_len {
+                    return Err(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+                }
+                let texture = device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("radiant_gpu_surface_texture"),
+                    size: wgpu::Extent3d {
+                        width: extent.width,
+                        height: extent.height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                });
+                queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    atlas.pixels(),
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(extent.bytes_per_row),
+                        rows_per_image: Some(extent.height),
+                    },
+                    wgpu::Extent3d {
+                        width: extent.width,
+                        height: extent.height,
+                        depth_or_array_layers: 1,
+                    },
+                );
+                stats.record_candidate_immutable_payload(upload_byte_len);
+                record_atlas_texture_upload(stats, upload_byte_len);
+                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+                self.resources.textures.insert(
+                    surface.key,
+                    GpuSurfaceTexture {
+                        device: execution.device,
+                        revision: surface.revision,
+                        content_identity,
+                        _content_owner: RenderCanvasContentOwner::from_content(&surface.content),
+                        width: atlas.width(),
+                        height: atlas.height(),
+                        _texture: texture,
+                        view,
+                    },
+                    atlas.width(),
+                    atlas.height(),
+                );
+                stats.atlas.texture_uploads += 1;
+                Ok(())
+            }
+        }
+    }
+}
+
+fn record_atlas_texture_upload(stats: &mut GpuSurfaceRenderStats, byte_len: usize) {
+    stats
+        .render_canvas_uploads
+        .record_immutable_payload(byte_len);
+}
+
+fn atlas_texture_operation(
+    cached: Option<&GpuSurfaceTexture>,
+    device: usize,
+    revision: u64,
+    content_identity: RenderCanvasContentIdentity,
+    width: usize,
+    height: usize,
+) -> GpuSurfaceRenderCanvasUploadAtlasTextureOperation {
+    match cached {
+        Some(texture)
+            if texture.matches_atlas_identity(
+                device,
+                revision,
+                content_identity,
+                width,
+                height,
+            ) =>
+        {
+            GpuSurfaceRenderCanvasUploadAtlasTextureOperation::Reuse
+        }
+        Some(texture) => GpuSurfaceRenderCanvasUploadAtlasTextureOperation::Upload {
+            revision_mismatch: texture.revision != revision,
+            content_mismatch: texture.revision == revision,
+        },
+        None => GpuSurfaceRenderCanvasUploadAtlasTextureOperation::Upload {
+            revision_mismatch: false,
+            content_mismatch: false,
+        },
     }
 }
 
@@ -118,7 +322,7 @@ impl GpuAtlasTextureExtent {
         Self::try_new(width, height, byte_len).ok()
     }
 
-    fn try_new(
+    pub(super) fn try_new(
         width: usize,
         height: usize,
         byte_len: usize,

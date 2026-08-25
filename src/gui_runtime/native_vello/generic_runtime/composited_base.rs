@@ -35,10 +35,24 @@ pub(super) struct BaseFramePresentRequest<'a> {
     pub(super) paint_plan: &'a SurfacePaintPlan,
     pub(super) occlusion_plan: &'a SurfaceOcclusionPlan,
     pub(super) transient_overlay_primitives: &'a [PaintPrimitive],
-    pub(super) has_gpu_surfaces: bool,
     pub(super) presentation_updates: &'a [GpuShaderPresentationUniformUpdate],
     pub(super) collect_upload_plan: bool,
     pub(super) upload_plan_context: Option<gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext>,
+}
+
+fn preflight_render_canvas_upload_plan(
+    renderer: &GpuSurfaceRenderer,
+    context: gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext,
+    primitives: &[PaintPrimitive],
+    dpi_scale: crate::theme::DpiScale,
+    presentation_updates: &[GpuShaderPresentationUniformUpdate],
+) -> gpu_surface::GpuSurfaceRenderCanvasUploadPlan {
+    renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
+        context,
+        primitives,
+        dpi_scale,
+        presentation_updates,
+    )
 }
 
 pub(super) fn present_base_frame(
@@ -71,8 +85,7 @@ pub(super) fn present_base_frame(
         };
         refresh_composited_base_frame(frame, refresh_state, surface, target, request)
     } else {
-        state.profile.composited_base_cache_hit = true;
-        gpu_surface::GpuSurfaceRenderStats::with_upload_plan(upload_plan_context(request))
+        composited_base_cache_hit_stats(state.profile, request)
     };
     surface.blitter.copy(
         target.device,
@@ -95,10 +108,17 @@ fn present_live_base(
         &surface.target_view,
         target.surface_view,
     );
-    if !should_render_gpu_surfaces(request.has_gpu_surfaces) {
-        return gpu_surface::GpuSurfaceRenderStats::with_upload_plan(upload_plan_context(request));
-    }
     let surface_size = RenderSurfacePixelSize::from_surface(surface);
+    let upload_plan_context = upload_plan_context(request);
+    let upload_plan = upload_plan_context.map(|context| {
+        preflight_render_canvas_upload_plan(
+            gpu_surface_renderer,
+            context,
+            &request.paint_plan.primitives,
+            target.dpi_scale,
+            request.presentation_updates,
+        )
+    });
     gpu_surface_renderer.render(
         &mut gpu_surface::GpuSurfaceRenderTarget {
             device: target.device,
@@ -108,7 +128,9 @@ fn present_live_base(
             format: surface.config.format,
             size: surface_size.physical_size(),
             dpi_scale: target.dpi_scale,
-            upload_plan_context: upload_plan_context(request),
+            upload_plan_context,
+            upload_plan,
+            collect_upload_plan: request.collect_upload_plan,
         },
         &request.paint_plan.primitives,
         request.occlusion_plan,
@@ -130,26 +152,34 @@ fn refresh_composited_base_frame(
             &surface.target_view,
             &frame.view,
         );
-        if should_render_gpu_surfaces(request.has_gpu_surfaces) {
-            let surface_size = RenderSurfacePixelSize::from_surface(surface);
-            state.gpu_surface_renderer.render(
-                &mut gpu_surface::GpuSurfaceRenderTarget {
-                    device: target.device,
-                    queue: target.queue,
-                    encoder: target.encoder,
-                    target_view: &frame.view,
-                    format: surface.config.format,
-                    size: surface_size.physical_size(),
-                    dpi_scale: target.dpi_scale,
-                    upload_plan_context: upload_plan_context(request),
-                },
+        let surface_size = RenderSurfacePixelSize::from_surface(surface);
+        let upload_plan_context = upload_plan_context(request);
+        let upload_plan = upload_plan_context.map(|context| {
+            preflight_render_canvas_upload_plan(
+                state.gpu_surface_renderer,
+                context,
                 &request.paint_plan.primitives,
-                request.occlusion_plan,
+                target.dpi_scale,
                 request.presentation_updates,
             )
-        } else {
-            gpu_surface::GpuSurfaceRenderStats::with_upload_plan(upload_plan_context(request))
-        }
+        });
+        state.gpu_surface_renderer.render(
+            &mut gpu_surface::GpuSurfaceRenderTarget {
+                device: target.device,
+                queue: target.queue,
+                encoder: target.encoder,
+                target_view: &frame.view,
+                format: surface.config.format,
+                size: surface_size.physical_size(),
+                dpi_scale: target.dpi_scale,
+                upload_plan_context,
+                upload_plan,
+                collect_upload_plan: request.collect_upload_plan,
+            },
+            &request.paint_plan.primitives,
+            request.occlusion_plan,
+            request.presentation_updates,
+        )
     });
     *state.base_dirty = false;
     state.profile.composited_base_refresh = elapsed;
@@ -168,22 +198,40 @@ fn should_use_composited_base(transient_overlay_primitives: &[PaintPrimitive]) -
     !transient_overlay_primitives.is_empty()
 }
 
-fn should_render_gpu_surfaces(has_gpu_surfaces: bool) -> bool {
-    has_gpu_surfaces
+fn composited_base_cache_hit_stats(
+    profile: &mut RenderFrameProfile,
+    request: &BaseFramePresentRequest<'_>,
+) -> gpu_surface::GpuSurfaceRenderStats {
+    profile.composited_base_cache_hit = true;
+    if request.collect_upload_plan {
+        gpu_surface::GpuSurfaceRenderStats::with_upload_plan(upload_plan_context(request))
+    } else {
+        gpu_surface::GpuSurfaceRenderStats::default()
+    }
 }
 
 fn upload_plan_context(
     request: &BaseFramePresentRequest<'_>,
 ) -> Option<gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext> {
-    request
-        .collect_upload_plan
-        .then_some(request.upload_plan_context)
-        .flatten()
+    request.upload_plan_context
 }
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU64;
+
     use super::*;
+    use crate::gui_runtime::native_vello::generic_runtime::FrameWork;
+    use crate::gui_runtime::native_vello::generic_runtime::adapter::NativeAdapterGeneration;
+    use crate::gui_runtime::native_vello::generic_runtime::closing::NativeLifecycle;
+    use crate::gui_runtime::native_vello::generic_runtime::native_encode_present::{
+        NativeEncodePresentPath, NativeEncodePresentPlanContext,
+    };
+    use crate::gui_runtime::native_vello::generic_runtime::native_visual_packet::{
+        NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestMailbox,
+    };
+    use crate::gui_runtime::native_vello::generic_runtime::runner_state::NativeTargetGeneration;
+    use winit::window::WindowId;
 
     #[test]
     fn composited_base_refreshes_when_dirty_recreated_or_updated() {
@@ -212,8 +260,55 @@ mod tests {
     }
 
     #[test]
-    fn gpu_surface_composition_is_needed_only_when_scene_contains_gpu_surfaces() {
-        assert!(!should_render_gpu_surfaces(false));
-        assert!(should_render_gpu_surfaces(true));
+    fn upload_plan_context_and_cache_hit_observation_follow_collection_mode() {
+        let mut mailbox = NativeVisualRequestMailbox::new();
+        let window_id = WindowId::dummy();
+        assert!(mailbox.bind_window(window_id));
+        let _ = mailbox.enqueue_for_test(FrameWork::None);
+        let packet = match NativeVisualRequestAdapter::begin(&mut mailbox, window_id, true) {
+            NativeVisualRequestBegin::Requested(packet) => packet.identity(),
+            other => panic!("unexpected packet begin: {other:?}"),
+        };
+        let context = gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext::new(
+            NativeEncodePresentPlanContext {
+                packet,
+                adapter_generation: NativeAdapterGeneration::from_test_serial(1),
+                target_generation: NativeTargetGeneration::from_test_serial(1),
+                lifecycle: NativeLifecycle::default(),
+                path: NativeEncodePresentPath::Composited,
+                snapshot_revision: NonZeroU64::MIN,
+            },
+            NativeAdapterGeneration::from_test_serial(1),
+            gpu_surface::GpuSurfaceRenderCanvasUploadTarget::new(
+                1,
+                wgpu::TextureFormat::Rgba8Unorm,
+                64,
+                32,
+            ),
+        )
+        .expect("valid upload-plan context");
+        let theme = crate::theme::ThemeTokens::default();
+        let paint_plan = SurfacePaintPlan::empty(&theme);
+        let occlusion_plan = SurfaceOcclusionPlan::default();
+        for collect_upload_plan in [false, true] {
+            let mut profile = RenderFrameProfile::default();
+            let request = BaseFramePresentRequest {
+                paint_plan: &paint_plan,
+                occlusion_plan: &occlusion_plan,
+                transient_overlay_primitives: &[],
+                presentation_updates: &[],
+                collect_upload_plan,
+                upload_plan_context: Some(context),
+            };
+
+            assert_eq!(upload_plan_context(&request), Some(context));
+            let stats = composited_base_cache_hit_stats(&mut profile, &request);
+            assert!(profile.composited_base_cache_hit);
+            assert_eq!(
+                stats.render_canvas_upload_plan,
+                collect_upload_plan
+                    .then_some(gpu_surface::GpuSurfaceRenderCanvasUploadPlanObservation::NoWork)
+            );
+        }
     }
 }

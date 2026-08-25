@@ -1,5 +1,6 @@
 use super::gpu_surface::{
-    GpuSurfaceRenderCanvasUploadPlanContext, GpuSurfaceRenderCanvasUploadTarget,
+    GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
+    GpuSurfaceRenderCanvasUploadTarget,
 };
 use super::gpu_timing::GpuTimingAdmission;
 use super::native_encode_present::NativeEncodePresentPath;
@@ -350,22 +351,18 @@ where
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         let encode_present_plan_context = ticket_ref.plan_context();
-        let upload_plan_context = if profile_enabled {
-            self.window.native_resources.as_ref().and_then(|resources| {
-                GpuSurfaceRenderCanvasUploadPlanContext::new(
-                    encode_present_plan_context,
-                    resources.generation,
-                    GpuSurfaceRenderCanvasUploadTarget::new(
-                        wgpu_device_id(&dev_handle.device),
-                        resources.render_surface.config.format,
-                        resources.render_surface.config.width,
-                        resources.render_surface.config.height,
-                    ),
-                )
-            })
-        } else {
-            None
-        };
+        let upload_plan_context = self.window.native_resources.as_ref().and_then(|resources| {
+            GpuSurfaceRenderCanvasUploadPlanContext::new(
+                encode_present_plan_context,
+                resources.generation,
+                GpuSurfaceRenderCanvasUploadTarget::new(
+                    wgpu_device_id(&dev_handle.device),
+                    resources.render_surface.config.format,
+                    resources.render_surface.config.width,
+                    resources.render_surface.config.height,
+                ),
+            )
+        });
         let mut encoder =
             dev_handle
                 .device
@@ -389,7 +386,6 @@ where
                 paint_plan: &self.frame.last_paint_plan,
                 occlusion_plan: &self.frame.surface_occlusion_plan,
                 transient_overlay_primitives: &self.frame.transient_overlay_primitives,
-                has_gpu_surfaces: self.frame.last_scene_stats.gpu_surface_count > 0,
                 presentation_updates,
                 collect_upload_plan: profile_enabled,
                 upload_plan_context,
@@ -498,14 +494,28 @@ where
         self.core.runtime.commit_gpu_shader_presentation_updates();
         profile.submit_present = elapsed;
         profile.frame_sequence = self.timing.allocate_frame_sequence();
-        let current_plan_context = gpu_surface_stats.render_canvas_upload_plan.and_then(|_| {
-            self.current_render_canvas_upload_plan_context(adapter, encode_present_plan_context)
-        });
+        let mut current_plan_context = None;
         self.contribute_render_canvas_uploads(
             adapter,
             profile.frame_sequence,
             gpu_surface_stats.render_canvas_uploads,
-            gpu_surface_stats.render_canvas_upload_plan,
+            match gpu_surface_stats.render_canvas_upload_plan {
+                Some(observation) => {
+                    if let Some(context) = self.current_render_canvas_upload_plan_context(
+                        adapter,
+                        encode_present_plan_context,
+                    ) {
+                        current_plan_context = Some(context);
+                        Some(GpuSurfaceRenderCanvasUploadPlan::from_observation(
+                            context,
+                            observation,
+                        ))
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            },
             current_plan_context,
         );
         let application_render_canvas_uploads =

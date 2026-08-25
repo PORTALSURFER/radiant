@@ -12,7 +12,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
         wgpu::BindGroup,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceCompositeBindingKey
 {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) pipeline_generation: u64,
@@ -28,7 +28,7 @@ impl GpuSurfaceCompositeBindingKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) enum GpuSurfaceTextureIdentity
 {
     RgbaAtlas {

@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use super::upload_plan::{
-    GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
+    GpuSurfaceRenderCanvasUploadClass, GpuSurfaceRenderCanvasUploadPlan,
+    GpuSurfaceRenderCanvasUploadPlanContext, GpuSurfaceRenderCanvasUploadPlanObservation,
     GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
 };
 
@@ -12,7 +13,7 @@ pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) composite: GpuSurfaceCompositeRenderStats,
     pub(crate) custom_shader: GpuSurfaceCustomShaderRenderStats,
     pub(crate) render_canvas_uploads: GpuSurfaceRenderCanvasUploadStats,
-    pub(crate) render_canvas_upload_plan: Option<GpuSurfaceRenderCanvasUploadPlan>,
+    pub(crate) render_canvas_upload_plan: Option<GpuSurfaceRenderCanvasUploadPlanObservation>,
 }
 
 impl GpuSurfaceRenderStats {
@@ -20,26 +21,39 @@ impl GpuSurfaceRenderStats {
         context: Option<GpuSurfaceRenderCanvasUploadPlanContext>,
     ) -> Self {
         Self {
-            render_canvas_upload_plan: context.map(GpuSurfaceRenderCanvasUploadPlan::new),
+            render_canvas_upload_plan: context
+                .map(|_| GpuSurfaceRenderCanvasUploadPlanObservation::NoWork),
             ..Self::default()
         }
     }
 
     pub(crate) fn record_candidate_immutable_payload(&mut self, byte_len: usize) {
-        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
-            plan.record_immutable_payload(byte_len);
+        if let Some(observation) = self.render_canvas_upload_plan.as_mut() {
+            GpuSurfaceRenderCanvasUploadPlan::record_observation(
+                observation,
+                GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
+                byte_len,
+            );
         }
     }
 
     pub(crate) fn record_candidate_volatile_payload(&mut self, byte_len: usize) {
-        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
-            plan.record_volatile_payload(byte_len);
+        if let Some(observation) = self.render_canvas_upload_plan.as_mut() {
+            GpuSurfaceRenderCanvasUploadPlan::record_observation(
+                observation,
+                GpuSurfaceRenderCanvasUploadClass::VolatilePayload,
+                byte_len,
+            );
         }
     }
 
     pub(crate) fn record_candidate_renderer_parameter(&mut self, byte_len: usize) {
-        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
-            plan.record_renderer_parameter(byte_len);
+        if let Some(observation) = self.render_canvas_upload_plan.as_mut() {
+            GpuSurfaceRenderCanvasUploadPlan::record_observation(
+                observation,
+                GpuSurfaceRenderCanvasUploadClass::RendererParameter,
+                byte_len,
+            );
         }
     }
 
@@ -47,8 +61,8 @@ impl GpuSurfaceRenderStats {
         &mut self,
         reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
     ) {
-        if let Some(plan) = self.render_canvas_upload_plan.as_mut() {
-            plan.mark_unavailable(reason);
+        if let Some(observation) = self.render_canvas_upload_plan.as_mut() {
+            GpuSurfaceRenderCanvasUploadPlan::mark_observation_unavailable(observation, reason);
         }
     }
 }

@@ -1,5 +1,10 @@
 use super::super::adapter::NativeAdapterGeneration;
 use super::super::native_encode_present::NativeEncodePresentPlanContext;
+use super::gpu_surface_types::{
+    CustomShaderBindingKey, CustomShaderPipelineKey, CustomShaderStaticPayloadKey,
+    GpuSurfaceCompositeBindingKey, SignalBodyCacheKey, SignalBufferCacheKey,
+};
+use super::identity::RenderCanvasContentIdentity;
 use vello::wgpu;
 
 /// The target identity carried by one private upload-plan result.
@@ -120,19 +125,334 @@ pub(super) enum GpuSurfaceRenderCanvasUploadPlanResult {
     Unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason),
 }
 
-/// Candidate work observed immediately before the existing native write
-/// predicates execute. A later ticket veto drops this value with the frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::gui_runtime::native_vello::generic_runtime) struct GpuSurfaceRenderCanvasUploadPlan {
-    pub(super) context: GpuSurfaceRenderCanvasUploadPlanContext,
-    pub(super) result: GpuSurfaceRenderCanvasUploadPlanResult,
+pub(super) enum GpuSurfaceRenderCanvasUploadPipeline {
+    Composite,
+    Signal,
 }
 
-#[derive(Clone, Copy)]
-enum GpuSurfaceRenderCanvasUploadClass {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadSurface {
+    Atlas,
+    Signal,
+    CustomShader,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadAtlasTextureOperation {
+    Reuse,
+    Upload {
+        revision_mismatch: bool,
+        content_mismatch: bool,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadCompositeBindingOperation {
+    Reuse,
+    Rebuild {
+        revision_mismatch: bool,
+        content_mismatch: bool,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadSignalValidationOperation {
+    Pure,
+    CacheHit,
+    CacheUpdate,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadSignalSummaryOperation {
+    Reuse,
+    Build,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadSignalBufferOperation {
+    Reuse,
+    Upload,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadSignalBodyOperation {
+    Reuse,
+    Render,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadPipelineExecution {
+    pub(super) pipeline: GpuSurfaceRenderCanvasUploadPipeline,
+    pub(super) device: usize,
+    pub(super) format: wgpu::TextureFormat,
+    pub(super) generation: u64,
+    pub(super) rebuild: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadAtlasTextureExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) device: usize,
+    pub(super) revision: u64,
+    pub(super) content_identity: RenderCanvasContentIdentity,
+    pub(super) width: usize,
+    pub(super) height: usize,
+    pub(super) extent_width: u32,
+    pub(super) extent_height: u32,
+    pub(super) bytes_per_row: u32,
+    pub(super) byte_len: usize,
+    pub(super) operation: GpuSurfaceRenderCanvasUploadAtlasTextureOperation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadCompositeBindingExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) cache_key: GpuSurfaceCompositeBindingKey,
+    pub(super) uniform_byte_len: usize,
+    pub(super) operation: GpuSurfaceRenderCanvasUploadCompositeBindingOperation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadSignalValidationExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) frames: usize,
+    pub(super) band_count: usize,
+    pub(super) summary: usize,
+    pub(super) valid: bool,
+    pub(super) operation: GpuSurfaceRenderCanvasUploadSignalValidationOperation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadSignalSummaryExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) revision: u64,
+    pub(super) content_identity: RenderCanvasContentIdentity,
+    pub(super) frames: usize,
+    pub(super) band_count: usize,
+    pub(super) sample_count: usize,
+    pub(super) operation: GpuSurfaceRenderCanvasUploadSignalSummaryOperation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadSignalBufferExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) cache_key: SignalBufferCacheKey,
+    pub(super) sample_count: usize,
+    pub(super) immutable_byte_len: usize,
+    pub(super) renderer_parameter_byte_len: usize,
+    pub(super) operation: GpuSurfaceRenderCanvasUploadSignalBufferOperation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadSignalBodyExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) device: usize,
+    pub(super) cache_key: SignalBodyCacheKey,
+    pub(super) operation: GpuSurfaceRenderCanvasUploadSignalBodyOperation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadSurfaceDecision {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) surface: GpuSurfaceRenderCanvasUploadSurface,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadCustomPipelineExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) device: usize,
+    pub(super) format: wgpu::TextureFormat,
+    pub(super) pipeline_key: CustomShaderPipelineKey,
+    pub(super) rebuild: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadCustomBindingExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) cache_key: CustomShaderBindingKey,
+    pub(super) rebuild: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadCustomStaticStateExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) payload: CustomShaderStaticPayloadKey,
+    pub(super) write: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceRenderCanvasUploadCustomPresentationStateExecution {
+    pub(super) surface_index: usize,
+    pub(super) key: u64,
+    pub(super) payload: CustomShaderStaticPayloadKey,
+    pub(super) revision: u64,
+    pub(super) byte_len: usize,
+    pub(super) source: GpuSurfaceRenderCanvasUploadCustomPresentationSource,
+    pub(super) write: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadClass {
     ImmutablePayload,
     VolatilePayload,
     RendererParameter,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadCustomPresentationSource {
+    Initial,
+    Update,
+}
+
+/// One bounded operation in the complete ordered render-canvas stream.
+/// Payloads stay in the immutable paint stream; the plan owns only identities,
+/// derived facts, and checked byte counts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceRenderCanvasUploadAction {
+    BeginFrame,
+    Surface {
+        surface_index: usize,
+        key: u64,
+        surface: GpuSurfaceRenderCanvasUploadSurface,
+    },
+    Skip {
+        surface_index: usize,
+        key: u64,
+        reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+    },
+    EnsurePipeline {
+        pipeline: GpuSurfaceRenderCanvasUploadPipeline,
+        device: usize,
+        format: wgpu::TextureFormat,
+        generation: u64,
+        rebuild: bool,
+    },
+    AtlasTexture {
+        surface_index: usize,
+        key: u64,
+        device: usize,
+        revision: u64,
+        content_identity: RenderCanvasContentIdentity,
+        width: usize,
+        height: usize,
+        byte_len: usize,
+        extent_width: u32,
+        extent_height: u32,
+        bytes_per_row: u32,
+        operation: GpuSurfaceRenderCanvasUploadAtlasTextureOperation,
+    },
+    SignalValidation {
+        surface_index: usize,
+        key: u64,
+        frames: usize,
+        band_count: usize,
+        summary: usize,
+        valid: bool,
+        operation: GpuSurfaceRenderCanvasUploadSignalValidationOperation,
+    },
+    SignalSummary {
+        surface_index: usize,
+        key: u64,
+        revision: u64,
+        content_identity: RenderCanvasContentIdentity,
+        frames: usize,
+        band_count: usize,
+        sample_count: usize,
+        operation: GpuSurfaceRenderCanvasUploadSignalSummaryOperation,
+    },
+    SignalBuffer {
+        surface_index: usize,
+        key: u64,
+        cache_key: SignalBufferCacheKey,
+        sample_count: usize,
+        immutable_byte_len: usize,
+        renderer_parameter_byte_len: usize,
+        operation: GpuSurfaceRenderCanvasUploadSignalBufferOperation,
+    },
+    SignalBody {
+        surface_index: usize,
+        key: u64,
+        device: usize,
+        cache_key: SignalBodyCacheKey,
+        operation: GpuSurfaceRenderCanvasUploadSignalBodyOperation,
+    },
+    CompositeBinding {
+        surface_index: usize,
+        key: u64,
+        cache_key: GpuSurfaceCompositeBindingKey,
+        uniform_byte_len: usize,
+        operation: GpuSurfaceRenderCanvasUploadCompositeBindingOperation,
+    },
+    CustomPipeline {
+        surface_index: usize,
+        key: u64,
+        device: usize,
+        format: wgpu::TextureFormat,
+        pipeline_key: CustomShaderPipelineKey,
+        rebuild: bool,
+    },
+    CustomBinding {
+        surface_index: usize,
+        key: u64,
+        cache_key: CustomShaderBindingKey,
+        rebuild: bool,
+    },
+    Upload {
+        surface_index: usize,
+        class: GpuSurfaceRenderCanvasUploadClass,
+        byte_len: usize,
+    },
+    CustomStaticState {
+        surface_index: usize,
+        key: u64,
+        payload: CustomShaderStaticPayloadKey,
+        write: bool,
+    },
+    CustomPresentationState {
+        surface_index: usize,
+        key: u64,
+        payload: CustomShaderStaticPayloadKey,
+        revision: u64,
+        byte_len: usize,
+        source: GpuSurfaceRenderCanvasUploadCustomPresentationSource,
+        write: bool,
+    },
+    Activate {
+        surface_index: usize,
+        key: u64,
+    },
+    Prune {
+        active_keys: Vec<u64>,
+        clear: bool,
+    },
+}
+
+/// Renderer-wide exact preflight and execution witness. It is deliberately
+/// non-`Clone`: the action stream can be consumed exactly once.
+#[derive(Debug)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct GpuSurfaceRenderCanvasUploadPlan {
+    pub(super) context: GpuSurfaceRenderCanvasUploadPlanContext,
+    pub(super) result: GpuSurfaceRenderCanvasUploadPlanResult,
+    pub(super) actions: Vec<GpuSurfaceRenderCanvasUploadAction>,
+    stream_ptr: usize,
+    stream_len: usize,
+    state_fingerprint: u64,
+    action_cursor: usize,
+    consumed: bool,
+    execution_vetoed: bool,
+    execution_mutated: bool,
+    atlas_executor_enabled: bool,
 }
 
 impl GpuSurfaceRenderCanvasUploadPlan {
@@ -142,18 +462,650 @@ impl GpuSurfaceRenderCanvasUploadPlan {
         Self {
             context,
             result: GpuSurfaceRenderCanvasUploadPlanResult::NoWork,
+            actions: Vec::new(),
+            stream_ptr: 0,
+            stream_len: 0,
+            state_fingerprint: 0,
+            action_cursor: 0,
+            consumed: false,
+            execution_vetoed: false,
+            execution_mutated: false,
+            atlas_executor_enabled: false,
         }
     }
 
+    pub(super) fn enable_atlas_executor(&mut self, enabled: bool) {
+        self.atlas_executor_enabled = enabled;
+    }
+
+    pub(super) const fn atlas_executor_enabled(&self) -> bool {
+        self.atlas_executor_enabled
+    }
+
+    pub(super) fn preflight(
+        context: GpuSurfaceRenderCanvasUploadPlanContext,
+        stream_ptr: usize,
+        stream_len: usize,
+        state_fingerprint: u64,
+    ) -> Self {
+        let mut plan = Self::new(context);
+        plan.stream_ptr = stream_ptr;
+        plan.stream_len = stream_len;
+        plan.state_fingerprint = state_fingerprint;
+        plan
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn from_observation(
+        context: GpuSurfaceRenderCanvasUploadPlanContext,
+        observation: GpuSurfaceRenderCanvasUploadPlanObservation,
+    ) -> Self {
+        let mut plan = Self::new(context);
+        plan.result = match observation {
+            GpuSurfaceRenderCanvasUploadPlanObservation::NoWork => {
+                GpuSurfaceRenderCanvasUploadPlanResult::NoWork
+            }
+            GpuSurfaceRenderCanvasUploadPlanObservation::Exact(stats) => {
+                GpuSurfaceRenderCanvasUploadPlanResult::Exact(stats)
+            }
+            GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(reason) => {
+                GpuSurfaceRenderCanvasUploadPlanResult::Unavailable(reason)
+            }
+        };
+        plan
+    }
+
+    pub(super) fn record_observation(
+        observation: &mut GpuSurfaceRenderCanvasUploadPlanObservation,
+        class: GpuSurfaceRenderCanvasUploadClass,
+        byte_len: usize,
+    ) {
+        if matches!(
+            observation,
+            GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(_)
+        ) {
+            return;
+        }
+        if matches!(
+            observation,
+            GpuSurfaceRenderCanvasUploadPlanObservation::NoWork
+        ) {
+            *observation = GpuSurfaceRenderCanvasUploadPlanObservation::Exact(Default::default());
+        }
+        let GpuSurfaceRenderCanvasUploadPlanObservation::Exact(stats) = observation else {
+            return;
+        };
+        let evidence = match class {
+            GpuSurfaceRenderCanvasUploadClass::ImmutablePayload => &mut stats.immutable_payload,
+            GpuSurfaceRenderCanvasUploadClass::VolatilePayload => &mut stats.volatile_payload,
+            GpuSurfaceRenderCanvasUploadClass::RendererParameter => &mut stats.renderer_parameter,
+        };
+        if let Err(reason) = update_evidence(evidence, byte_len) {
+            *observation = GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(reason);
+        }
+    }
+
+    pub(super) fn mark_observation_unavailable(
+        observation: &mut GpuSurfaceRenderCanvasUploadPlanObservation,
+        reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+    ) {
+        if !matches!(
+            observation,
+            GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(_)
+        ) {
+            *observation = GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(reason);
+        }
+    }
+
+    pub(super) fn push_action(&mut self, action: GpuSurfaceRenderCanvasUploadAction) {
+        self.actions.push(action);
+    }
+
+    pub(super) fn consume_surface_decision(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<
+        Result<
+            GpuSurfaceRenderCanvasUploadSurfaceDecision,
+            GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+        >,
+    > {
+        if self.execution_vetoed {
+            return None;
+        }
+        let action = self.actions.get(self.action_cursor)?;
+        let decision = match action {
+            GpuSurfaceRenderCanvasUploadAction::Surface {
+                surface_index: action_index,
+                key: action_key,
+                surface,
+            } if *action_index == surface_index && *action_key == key => {
+                Ok(GpuSurfaceRenderCanvasUploadSurfaceDecision {
+                    surface_index: *action_index,
+                    key: *action_key,
+                    surface: *surface,
+                })
+            }
+            GpuSurfaceRenderCanvasUploadAction::Skip {
+                surface_index: action_index,
+                key: action_key,
+                reason,
+            } if *action_index == surface_index && *action_key == key => Err(*reason),
+            _ => {
+                self.mark_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+                self.execution_vetoed = true;
+                return Some(Err(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                ));
+            }
+        };
+        self.action_cursor += 1;
+        Some(decision)
+    }
+
+    pub(super) fn consume_pipeline(
+        &mut self,
+        pipeline: GpuSurfaceRenderCanvasUploadPipeline,
+    ) -> Option<GpuSurfaceRenderCanvasUploadPipelineExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::EnsurePipeline {
+            pipeline: action_pipeline,
+            device,
+            format,
+            generation,
+            rebuild,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_pipeline != pipeline {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadPipelineExecution {
+            pipeline: *action_pipeline,
+            device: *device,
+            format: *format,
+            generation: *generation,
+            rebuild: *rebuild,
+        })
+    }
+
+    pub(super) fn consume_atlas_texture(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadAtlasTextureExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::AtlasTexture {
+            surface_index: action_index,
+            key: action_key,
+            device,
+            revision,
+            content_identity,
+            width,
+            height,
+            byte_len,
+            extent_width,
+            extent_height,
+            bytes_per_row,
+            operation,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadAtlasTextureExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            device: *device,
+            revision: *revision,
+            content_identity: *content_identity,
+            width: *width,
+            height: *height,
+            extent_width: *extent_width,
+            extent_height: *extent_height,
+            bytes_per_row: *bytes_per_row,
+            byte_len: *byte_len,
+            operation: *operation,
+        })
+    }
+
+    pub(super) fn consume_signal_validation(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadSignalValidationExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::SignalValidation {
+            surface_index: action_index,
+            key: action_key,
+            frames,
+            band_count,
+            summary,
+            valid,
+            operation,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadSignalValidationExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            frames: *frames,
+            band_count: *band_count,
+            summary: *summary,
+            valid: *valid,
+            operation: *operation,
+        })
+    }
+
+    pub(super) fn consume_signal_summary(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadSignalSummaryExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::SignalSummary {
+            surface_index: action_index,
+            key: action_key,
+            revision,
+            content_identity,
+            frames,
+            band_count,
+            sample_count,
+            operation,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadSignalSummaryExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            revision: *revision,
+            content_identity: *content_identity,
+            frames: *frames,
+            band_count: *band_count,
+            sample_count: *sample_count,
+            operation: *operation,
+        })
+    }
+
+    pub(super) fn consume_signal_buffer(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadSignalBufferExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::SignalBuffer {
+            surface_index: action_index,
+            key: action_key,
+            cache_key,
+            sample_count,
+            immutable_byte_len,
+            renderer_parameter_byte_len,
+            operation,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadSignalBufferExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            cache_key: *cache_key,
+            sample_count: *sample_count,
+            immutable_byte_len: *immutable_byte_len,
+            renderer_parameter_byte_len: *renderer_parameter_byte_len,
+            operation: *operation,
+        })
+    }
+
+    pub(super) fn consume_signal_body(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadSignalBodyExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::SignalBody {
+            surface_index: action_index,
+            key: action_key,
+            device,
+            cache_key,
+            operation,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadSignalBodyExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            device: *device,
+            cache_key: *cache_key,
+            operation: *operation,
+        })
+    }
+
+    pub(super) fn consume_composite_binding(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadCompositeBindingExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::CompositeBinding {
+            surface_index: action_index,
+            key: action_key,
+            cache_key,
+            uniform_byte_len,
+            operation,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadCompositeBindingExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            cache_key: *cache_key,
+            uniform_byte_len: *uniform_byte_len,
+            operation: *operation,
+        })
+    }
+
+    pub(super) fn consume_upload(
+        &mut self,
+        surface_index: usize,
+        class: GpuSurfaceRenderCanvasUploadClass,
+    ) -> Option<usize> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::Upload {
+            surface_index: action_index,
+            class: action_class,
+            byte_len,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_class != class {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(*byte_len)
+    }
+
+    pub(super) fn consume_custom_pipeline(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadCustomPipelineExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::CustomPipeline {
+            surface_index: action_index,
+            key: action_key,
+            device,
+            format,
+            pipeline_key,
+            rebuild,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadCustomPipelineExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            device: *device,
+            format: *format,
+            pipeline_key: pipeline_key.clone(),
+            rebuild: *rebuild,
+        })
+    }
+
+    pub(super) fn consume_custom_binding(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadCustomBindingExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::CustomBinding {
+            surface_index: action_index,
+            key: action_key,
+            cache_key,
+            rebuild,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadCustomBindingExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            cache_key: cache_key.clone(),
+            rebuild: *rebuild,
+        })
+    }
+
+    pub(super) fn consume_custom_static_state(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadCustomStaticStateExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::CustomStaticState {
+            surface_index: action_index,
+            key: action_key,
+            payload,
+            write,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(GpuSurfaceRenderCanvasUploadCustomStaticStateExecution {
+            surface_index: *action_index,
+            key: *action_key,
+            payload: *payload,
+            write: *write,
+        })
+    }
+
+    pub(super) fn consume_custom_presentation_state(
+        &mut self,
+        surface_index: usize,
+        key: u64,
+    ) -> Option<GpuSurfaceRenderCanvasUploadCustomPresentationStateExecution> {
+        let action = self.actions.get(self.action_cursor)?;
+        let GpuSurfaceRenderCanvasUploadAction::CustomPresentationState {
+            surface_index: action_index,
+            key: action_key,
+            payload,
+            revision,
+            byte_len,
+            source,
+            write,
+        } = action
+        else {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        };
+        if *action_index != surface_index || *action_key != key {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return None;
+        }
+        self.action_cursor += 1;
+        Some(
+            GpuSurfaceRenderCanvasUploadCustomPresentationStateExecution {
+                surface_index: *action_index,
+                key: *action_key,
+                payload: *payload,
+                revision: *revision,
+                byte_len: *byte_len,
+                source: *source,
+                write: *write,
+            },
+        )
+    }
+
+    pub(super) fn begin_execution(
+        &mut self,
+        current: GpuSurfaceRenderCanvasUploadPlanContext,
+        stream_ptr: usize,
+        stream_len: usize,
+        state_fingerprint: u64,
+    ) -> bool {
+        if self.consumed {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return false;
+        }
+        self.consumed = true;
+        if !self.matches_context(current)
+            || self.stream_ptr != stream_ptr
+            || self.stream_len != stream_len
+            || self.state_fingerprint != state_fingerprint
+        {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid);
+            self.execution_vetoed = true;
+            return false;
+        }
+        self.actions
+            .first()
+            .is_some_and(|action| matches!(action, GpuSurfaceRenderCanvasUploadAction::BeginFrame))
+    }
+
+    pub(super) fn consume_action(&mut self, expected: GpuSurfaceRenderCanvasUploadAction) -> bool {
+        if self.execution_vetoed {
+            return false;
+        }
+        let matches = self
+            .actions
+            .get(self.action_cursor)
+            .is_some_and(|actual| actual == &expected);
+        if !matches {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+            return false;
+        }
+        self.action_cursor += 1;
+        true
+    }
+
+    pub(super) fn veto_execution(
+        &mut self,
+        reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason,
+    ) {
+        self.mark_unavailable(reason);
+        self.execution_vetoed = true;
+    }
+
+    pub(super) fn mark_execution_mutated(&mut self) {
+        self.execution_mutated = true;
+    }
+
+    pub(super) const fn execution_mutated(&self) -> bool {
+        self.execution_mutated
+    }
+
+    pub(super) const fn execution_is_available(&self) -> bool {
+        !self.execution_vetoed
+    }
+
+    pub(super) fn finish_execution(&mut self) -> bool {
+        if !self.execution_vetoed && self.action_cursor != self.actions.len() {
+            self.mark_unavailable(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+            self.execution_vetoed = true;
+        }
+        self.actions.clear();
+        !self.execution_vetoed
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn matches_context(
-        self,
+        &self,
         current: GpuSurfaceRenderCanvasUploadPlanContext,
     ) -> bool {
         self.context.accepts_candidate() && current.accepts_candidate() && self.context == current
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime) const fn observation(
-        self,
+        &self,
     ) -> GpuSurfaceRenderCanvasUploadPlanObservation {
         match self.result {
             GpuSurfaceRenderCanvasUploadPlanResult::NoWork => {
@@ -168,6 +1120,7 @@ impl GpuSurfaceRenderCanvasUploadPlan {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn record_immutable_payload(
         &mut self,
         byte_len: usize,
@@ -178,6 +1131,7 @@ impl GpuSurfaceRenderCanvasUploadPlan {
         );
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn record_volatile_payload(
         &mut self,
         byte_len: usize,
@@ -185,6 +1139,7 @@ impl GpuSurfaceRenderCanvasUploadPlan {
         self.record(GpuSurfaceRenderCanvasUploadClass::VolatilePayload, byte_len);
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn record_renderer_parameter(
         &mut self,
         byte_len: usize,
@@ -207,6 +1162,7 @@ impl GpuSurfaceRenderCanvasUploadPlan {
         }
     }
 
+    #[cfg(test)]
     fn record(&mut self, class: GpuSurfaceRenderCanvasUploadClass, byte_len: usize) {
         if matches!(
             self.result,
@@ -269,6 +1225,7 @@ fn update_evidence(
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;
+    use std::sync::Arc;
 
     use super::*;
     use crate::gui_runtime::native_vello::generic_runtime::FrameWork;
@@ -533,5 +1490,262 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn preflight_plan_consumes_ordered_actions_once() {
+        let initial = plan();
+        let context = initial.context;
+        let stream = [0_u8; 2];
+        let mut preflight = GpuSurfaceRenderCanvasUploadPlan::preflight(
+            context,
+            stream.as_ptr() as usize,
+            stream.len(),
+            17,
+        );
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame);
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::EnsurePipeline {
+            pipeline: GpuSurfaceRenderCanvasUploadPipeline::Composite,
+            device: context.target.device,
+            format: context.target.format,
+            generation: 3,
+            rebuild: true,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Prune {
+            active_keys: vec![41, 42],
+            clear: false,
+        });
+
+        assert!(preflight.begin_execution(context, stream.as_ptr() as usize, 2, 17));
+        assert!(preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame));
+        assert!(
+            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::EnsurePipeline {
+                pipeline: GpuSurfaceRenderCanvasUploadPipeline::Composite,
+                device: context.target.device,
+                format: context.target.format,
+                generation: 3,
+                rebuild: true,
+            })
+        );
+        assert!(
+            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::Prune {
+                active_keys: vec![41, 42],
+                clear: false,
+            })
+        );
+        preflight.finish_execution();
+        assert!(preflight.actions.is_empty());
+
+        assert!(!preflight.begin_execution(context, stream.as_ptr() as usize, 2, 17));
+        assert_eq!(
+            preflight.observation(),
+            GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete
+            )
+        );
+    }
+
+    #[test]
+    fn preflight_context_or_stream_drift_vetoes_before_action_consumption() {
+        let initial = plan();
+        let context = initial.context;
+        let stream = [0_u8; 1];
+        let mut preflight = GpuSurfaceRenderCanvasUploadPlan::preflight(
+            context,
+            stream.as_ptr() as usize,
+            stream.len(),
+            23,
+        );
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame);
+
+        assert!(!preflight.begin_execution(context, stream.as_ptr() as usize, 2, 23));
+        assert_eq!(preflight.action_cursor, 0);
+        assert_eq!(preflight.actions.len(), 1);
+        assert_eq!(
+            preflight.observation(),
+            GpuSurfaceRenderCanvasUploadPlanObservation::Unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid
+            )
+        );
+        assert!(!preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame));
+    }
+
+    #[test]
+    fn custom_shader_actions_are_consumed_once_in_mutation_order() {
+        let initial = plan();
+        let context = initial.context;
+        let stream = [0_u8; 1];
+        let pipeline_key = CustomShaderPipelineKey {
+            shader_key: String::from("test/custom-shader"),
+            wgsl_source: Arc::<str>::from("shader"),
+            vertex_entry_point: String::from("vertex_main"),
+            fragment_entry_point: String::from("fragment_main"),
+            has_uniform_payload: true,
+            has_storage_payload: false,
+            has_presentation_uniform_payload: true,
+        };
+        let binding_key = CustomShaderBindingKey {
+            pipeline_key: pipeline_key.clone(),
+            uniform_bytes_len: 4,
+            storage_bytes_len: 0,
+            presentation_uniform_bytes_len: 4,
+        };
+        let payload = CustomShaderStaticPayloadKey::new(7, 11, 4, 0);
+        let mut preflight = GpuSurfaceRenderCanvasUploadPlan::preflight(
+            context,
+            stream.as_ptr() as usize,
+            stream.len(),
+            17,
+        );
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame);
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Surface {
+            surface_index: 0,
+            key: 41,
+            surface: GpuSurfaceRenderCanvasUploadSurface::CustomShader,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::CustomPipeline {
+            surface_index: 0,
+            key: 41,
+            device: context.target.device,
+            format: context.target.format,
+            pipeline_key: pipeline_key.clone(),
+            rebuild: true,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::CustomBinding {
+            surface_index: 0,
+            key: 41,
+            cache_key: binding_key,
+            rebuild: true,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Upload {
+            surface_index: 0,
+            class: GpuSurfaceRenderCanvasUploadClass::RendererParameter,
+            byte_len: 240,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::CustomStaticState {
+            surface_index: 0,
+            key: 41,
+            payload,
+            write: true,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Upload {
+            surface_index: 0,
+            class: GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
+            byte_len: 4,
+        });
+        preflight.push_action(
+            GpuSurfaceRenderCanvasUploadAction::CustomPresentationState {
+                surface_index: 0,
+                key: 41,
+                payload,
+                revision: 3,
+                byte_len: 4,
+                source: GpuSurfaceRenderCanvasUploadCustomPresentationSource::Initial,
+                write: true,
+            },
+        );
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Upload {
+            surface_index: 0,
+            class: GpuSurfaceRenderCanvasUploadClass::VolatilePayload,
+            byte_len: 4,
+        });
+        preflight.push_action(
+            GpuSurfaceRenderCanvasUploadAction::CustomPresentationState {
+                surface_index: 0,
+                key: 41,
+                payload,
+                revision: 4,
+                byte_len: 4,
+                source: GpuSurfaceRenderCanvasUploadCustomPresentationSource::Update,
+                write: true,
+            },
+        );
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Upload {
+            surface_index: 0,
+            class: GpuSurfaceRenderCanvasUploadClass::VolatilePayload,
+            byte_len: 4,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Activate {
+            surface_index: 0,
+            key: 41,
+        });
+        preflight.push_action(GpuSurfaceRenderCanvasUploadAction::Prune {
+            active_keys: vec![41],
+            clear: false,
+        });
+
+        assert!(preflight.begin_execution(context, stream.as_ptr() as usize, 1, 17));
+        assert!(preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::BeginFrame));
+        assert_eq!(
+            preflight
+                .consume_surface_decision(0, 41)
+                .expect("surface decision")
+                .expect("custom surface should be admitted")
+                .surface,
+            GpuSurfaceRenderCanvasUploadSurface::CustomShader
+        );
+        assert!(
+            preflight
+                .consume_custom_pipeline(0, 41)
+                .expect("pipeline")
+                .rebuild
+        );
+        assert!(
+            preflight
+                .consume_custom_binding(0, 41)
+                .expect("binding")
+                .rebuild
+        );
+        assert_eq!(
+            preflight.consume_upload(0, GpuSurfaceRenderCanvasUploadClass::RendererParameter),
+            Some(240)
+        );
+        assert!(
+            preflight
+                .consume_custom_static_state(0, 41)
+                .expect("static")
+                .write
+        );
+        assert_eq!(
+            preflight.consume_upload(0, GpuSurfaceRenderCanvasUploadClass::ImmutablePayload),
+            Some(4)
+        );
+        assert_eq!(
+            preflight
+                .consume_custom_presentation_state(0, 41)
+                .expect("initial presentation")
+                .source,
+            GpuSurfaceRenderCanvasUploadCustomPresentationSource::Initial
+        );
+        assert_eq!(
+            preflight.consume_upload(0, GpuSurfaceRenderCanvasUploadClass::VolatilePayload),
+            Some(4)
+        );
+        assert_eq!(
+            preflight
+                .consume_custom_presentation_state(0, 41)
+                .expect("update presentation")
+                .source,
+            GpuSurfaceRenderCanvasUploadCustomPresentationSource::Update
+        );
+        assert_eq!(
+            preflight.consume_upload(0, GpuSurfaceRenderCanvasUploadClass::VolatilePayload),
+            Some(4)
+        );
+        assert!(
+            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::Activate {
+                surface_index: 0,
+                key: 41,
+            })
+        );
+        assert!(
+            preflight.consume_action(GpuSurfaceRenderCanvasUploadAction::Prune {
+                active_keys: vec![41],
+                clear: false,
+            })
+        );
+        assert!(preflight.finish_execution());
+        assert!(preflight.actions.is_empty());
+        assert!(!preflight.begin_execution(context, stream.as_ptr() as usize, 1, 17));
     }
 }

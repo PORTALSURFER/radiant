@@ -368,3 +368,96 @@ fn application_render_canvas_upload_aggregate_stays_private_to_native_profiling(
         "candidate-plan aggregate evidence must not become a scheduler or renderer consumer"
     );
 }
+
+#[test]
+fn render_canvas_upload_transaction_has_renderer_wide_preflight_scaffold() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let upload_plan = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/upload_plan.rs"),
+    )
+    .expect("render-canvas upload plan should be readable");
+    let gpu_surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface.rs"),
+    )
+    .expect("GPU surface renderer should be readable");
+    let composited_base = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/composited_base.rs"),
+    )
+    .expect("composited-base renderer should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("present orchestration should be readable");
+
+    let plan_marker = "struct GpuSurfaceRenderCanvasUploadPlan {";
+    let plan_start = upload_plan
+        .find(plan_marker)
+        .expect("the private transaction plan should remain named and focused");
+    let plan_prefix = &upload_plan[..plan_start];
+    let derive_start = plan_prefix
+        .rfind("#[derive(")
+        .expect("the transaction plan should carry an explicit derive list");
+    let plan_derive = &plan_prefix[derive_start..];
+    assert!(
+        plan_derive.starts_with("#[derive(Debug)]"),
+        "the one-shot transaction plan must not become Clone or Copy"
+    );
+    for required in [
+        "actions: Vec<GpuSurfaceRenderCanvasUploadAction>",
+        "consumed: bool",
+        "fn preflight(",
+        "fn begin_execution(",
+        "fn consume_action(",
+        "fn finish_execution(",
+        "EnsurePipeline",
+        "SignalValidation",
+        "CustomPresentationState",
+    ] {
+        assert!(
+            upload_plan.contains(required),
+            "one-shot transaction plan should retain `{required}`"
+        );
+    }
+
+    let preflight = gpu_surface
+        .find("fn preflight_render_canvas_upload_plan")
+        .expect("renderer-wide preflight should be present");
+    let render = gpu_surface
+        .find("pub(super) fn render(")
+        .expect("renderer execution should remain the single render entry point");
+    assert!(
+        preflight < render,
+        "preflight should be declared before execution"
+    );
+    assert!(
+        gpu_surface.contains("GpuSurfaceRenderCanvasUploadPlan::preflight")
+            && gpu_surface
+                .contains("for (surface_index, primitive) in primitives.iter().enumerate()")
+            && gpu_surface.contains("target.upload_plan.take()")
+            && gpu_surface.contains("plan.begin_execution(")
+            && gpu_surface.contains("plan.finish_execution()")
+            && gpu_surface.contains(".collect_upload_plan")
+            && gpu_surface.contains("then_some(target.upload_plan_context)")
+            && !upload_plan.contains("primitives.to_vec()")
+            && !upload_plan.contains("clone_from(primitives"),
+        "the scaffold should preflight the complete borrowed stream and consume one plan"
+    );
+
+    let base_preflight = composited_base
+        .find("preflight_render_canvas_upload_plan(")
+        .expect("composited-base presentation should invoke renderer preflight");
+    let base_render = composited_base
+        .find(".render(")
+        .expect("composited-base presentation should retain renderer execution");
+    assert!(
+        base_preflight < base_render,
+        "composited-base orchestration should preflight before renderer execution"
+    );
+    assert!(
+        composited_base.contains("collect_upload_plan: request.collect_upload_plan")
+            && present.contains("let upload_plan_context = self.window.native_resources")
+            && !present.contains("profile_enabled.then_some(upload_plan_context)"),
+        "the transaction context should be available to execution even when profiling is off"
+    );
+}

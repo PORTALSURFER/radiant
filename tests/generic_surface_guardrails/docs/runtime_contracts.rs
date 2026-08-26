@@ -71,6 +71,53 @@ fn ui_first_runtime_threading_contract_is_documented() {
 }
 
 #[test]
+fn numeric_adoption_sequence_and_shipped_surfaces_are_current() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let design = fs::read_to_string(manifest_dir.join("docs/DESIGN_DIRECTION.md"))
+        .expect("Design Direction docs should be readable");
+    let api =
+        fs::read_to_string(manifest_dir.join("docs/API.md")).expect("API docs should be readable");
+    let normalized_design = design.split_whitespace().collect::<Vec<_>>().join(" ");
+    let normalized_api = api.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "The shared edit-event foundation, Slider, Knob, PanelResizeState, and the public generic `NumericInput` control are shipped API.",
+        "remaining continuous controls and separately unshipped native/product boundaries are follow-up work.",
+    ] {
+        assert!(
+            normalized_design.contains(required),
+            "Design Direction docs should record the completed numeric adoption sequence with `{required}`"
+        );
+    }
+
+    for required in [
+        "The shared edit-event adopters currently shipped are `Slider`, `Knob`, `PanelResizeState`, and the public generic `NumericInput`",
+        "`radiant::application::{numeric_input, NumericInputBuilder}` exports",
+        "`NumericInputEditBatch<T>` is the shipped bounded incremental carrier.",
+        "Complete-mode PointerScrub and NumericInput wheel consumption are separate shipped consumers",
+        "NumericInput IME/composition plus the widget-local accessibility policy and generic runtime accessibility dispatch are now shipped consumers",
+    ] {
+        assert!(
+            normalized_api.contains(required),
+            "API docs should record shipped NumericInput surfaces with `{required}`"
+        );
+    }
+
+    for forbidden in [
+        "generic numeric control is the next target adopter",
+        "move the migration past Knob to the next shared-edit consumer",
+        "`PanelResizeState` is the next shipped shared-edit consumer",
+        "`PanelResizeState` is now the next shipped shared-edit consumer",
+        "Slider/Knob adoption, native unit/phase adapters",
+    ] {
+        assert!(
+            !normalized_design.contains(forbidden) && !normalized_api.contains(forbidden),
+            "numeric adoption docs must not restore stale sequence claim `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn api_docs_describe_paint_only_overlay_composition_cache() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))

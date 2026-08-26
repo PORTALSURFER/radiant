@@ -821,20 +821,21 @@ The migration order is explicit:
 3. Migrate other discrete controls in bounded groups.
 4. Ship `Slider` as the first provenance-aware shared edit-event consumer,
    including its bounded typed batch and concise compatibility projection.
-5. Adopt `Knob` next, then move the migration past Knob to the next shared-edit
-   consumer.
+5. Ship `Knob` as the second provenance-aware shared edit-event consumer.
 6. Ship `PanelResizeState` as the splitter-resize shared-edit consumer with a
    qualified typed boundary API, concise compatibility projection, and
    deterministic cancellation rollback.
 7. Ship the public generic numeric control with its required codec and
-   adjustment policies, then validate text, keyboard, pointer, wheel, arrow,
-   IME, and accessibility boundaries as one bounded consumer.
+   adjustment policies; its text, keyboard, pointer, wheel, IME, and
+   accessibility consumers are shipped, while other native adapters and
+   product policy remain separate boundaries.
 8. Reconcile remaining continuous controls after the shared-edit compatibility
    review.
 
-The shared edit-event foundation, Slider, Knob, and PanelResizeState adoption
-are shipped API. The qualified lifecycle APIs remain outside the common prelude;
-the generic numeric control is the next target adopter.
+The shared edit-event foundation, Slider, Knob, PanelResizeState, and the public
+generic `NumericInput` control are shipped API. The qualified lifecycle APIs
+remain outside the common prelude; remaining continuous controls and separately
+unshipped native/product boundaries are follow-up work.
 
 ### Frame packets and backpressure
 
@@ -4177,8 +4178,8 @@ source-compatible. Focus loss and explicit capture cancellation restore the
 transaction start without committing. Official retained Knob lowering also
 delivers typed `Cancel` for both interruption reasons, including no-op active
 gestures; its legacy projections keep focus-loss `GestureEnded` with the last
-value and suppress pointer-capture cancellation. Numeric text editing remains
-a separate consumer; Slider and Knob domain mapping are separate qualified
+value and suppress pointer-capture cancellation. Numeric text editing is a
+separate shipped consumer; Slider and Knob domain mapping are separate qualified
 consumers. Knob is also shipped, and PanelResizeState is the shared-edit
 consumer for the runtime-owned split-pane divider; the generic
 `LayoutInteraction` capability and runtime `split_pane` ratio projection are
@@ -4202,8 +4203,10 @@ An edit event carries a stable transaction ID, `Begin`, `Update`, `Commit`, or
 `Cancel` phase, current and starting value, and `InteractionProvenance` from the
 shared vocabulary. `EditTransaction` selects its `InteractionSource` at
 `Begin` and preserves that source through `Update`, `Commit`, and `Cancel`.
-`Slider`, `Knob`, and `PanelResizeState` are adopted; the remaining continuous
-controls are the next shared-edit slices. Panel splitter edits use the
+`Slider`, `Knob`, `PanelResizeState`, and the public generic `NumericInput`
+control are adopted; the remaining continuous controls are the next shared-edit
+slices. Separately, unshipped native adapters and product-policy consumers
+remain outside this sequence. Panel splitter edits use the
 qualified `resize_edit(...)` and `resize_collapsible_edit(...)` boundaries;
 their concise projections preserve existing size APIs, and an interrupted
 drag restores the transaction start before typed `Cancel`. Begin,

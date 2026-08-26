@@ -1578,8 +1578,11 @@ The public `SliderState` remains the source-compatible one-field
 crate-private retained adapter that owns the active transaction; a bare public
 `SliderWidget` keeps the concise `handle_input(...) -> Option<SliderMessage>`
 contract and does not carry typed lifecycle state. `Knob` is also a shipped
-shared-edit adopter, and `PanelResizeState` is the next shipped shared-edit
-consumer.
+shared-edit adopter, and `PanelResizeState` is also a shipped shared-edit
+consumer. The shared edit-event adopters currently shipped are `Slider`,
+`Knob`, `PanelResizeState`, and the public generic `NumericInput`; remaining
+continuous controls and separately unshipped native/product boundaries remain
+follow-up work.
 
 ### Additive Slider domain mapping
 
@@ -1723,8 +1726,8 @@ capture cancellation emits no legacy message. `WidgetMessageMapper::knob_edits`,
 `application::knob_edit_mapped` receive complete ordered batches. These Knob
 lifecycle APIs are qualified and are not exported through the common prelude;
 the public `KnobWidget { common, props, state }` shape and legacy automation
-gesture types remain source-compatible. `PanelResizeState` is now the next
-shipped shared-edit consumer alongside Slider and Knob. Its qualified
+gesture types remain source-compatible. `PanelResizeState` is also a shipped
+shared-edit consumer alongside Slider and Knob. Its qualified
 `resize_edit(...)` and `resize_collapsible_edit(...)` methods return one
 accepted `EditEvent<f32>` boundary for each drag-handle input while the state
 owns the active transaction beside its existing drag state. `Begin`, `Update`,
@@ -1924,9 +1927,9 @@ contract. Normalized `KeyRelease` plumbing is shipped across the runtime/native
 boundary. Complete-mode PointerScrub and NumericInput wheel consumption are
 separate shipped consumers, and NumericInput IME/composition plus the
 widget-local accessibility policy and generic runtime accessibility dispatch
-are now shipped consumers; Slider/Knob adoption, native unit/phase adapters,
-scheduler/renderer integration, and product numeric policy remain follow-up
-slices. The supplied
+are now shipped consumers; `Slider` and `Knob` adoption is complete, while
+native unit/phase adapters, scheduler/renderer integration, and product numeric
+policy remain follow-up slices. The supplied
 `NumericAdjustment<T>` step, scrub, and wheel methods are consumed only by
 complete mode with their explicit policies.
 

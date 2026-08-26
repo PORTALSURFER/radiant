@@ -409,8 +409,12 @@ pub(super) fn maybe_log_render_profile(
             active_composited_base.generation_serial,
         gpu_surface_composited_base_active_object_count =
             active_composited_base.active_object_count,
+        gpu_surface_composited_base_active_retired_object_count =
+            active_composited_base.retired_object_count,
         gpu_surface_composited_base_active_requested_backing_bytes =
             active_composited_base.active_requested_backing_bytes,
+        gpu_surface_composited_base_active_retired_requested_backing_bytes =
+            active_composited_base.retired_requested_backing_bytes,
         gpu_surface_composited_base_q0_generation_known =
             quarantine_0_composited_base.generation_known,
         gpu_surface_composited_base_q0_generation_serial =

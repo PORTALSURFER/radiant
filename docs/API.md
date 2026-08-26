@@ -923,6 +923,21 @@ missing, or mismatched authority withholds the complete custom projection; no
 resolver is invoked or reconstructed and no affine, corner-mapping, inversion,
 or identity fallback is permitted.
 
+The private primary-window macOS/AppKit consumer also consumes the passive
+split-pane projection. It admits a separator only when one unique current
+target with materialized authority matches the exact node ID, semantic path,
+`AutomationRole::Separator`, normalized ratio value, finite bounds, orientation,
+and actionless/non-focusable state. A valid separator publishes one `AXSplitter`
+between the two pane children with current bounds, ratio value, and
+`AXOrientation`; stable native token/object identity is retained across an
+admitted ratio update. Static/controlled, stale, unmaterialized,
+duplicate/mismatched, malformed, focused, or actionful evidence leaves the
+ordinary native tree in place without provider calls, runtime refresh, partial
+topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
+unverified. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
+resizing, semantic accessibility actions, pointer/collapse mapping, and
+paint/cursor/renderer work remain future slices.
+
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
 replacement, and close cancel and retire the lease before native objects drop.
@@ -6718,10 +6733,20 @@ read-only, or traversal behavior; its flattened `interaction_target` is false.
 The complete insertion set is preflighted, so stale, missing, malformed,
 ambiguous, colliding, or otherwise invalid evidence returns the unchanged
 ordinary snapshot without partial separator nodes. Directional focus hints and
-live-region values are backend-neutral hints only. Native platform adapters are
-separate future consumers of selected public semantic data, not the first
-consumer of the provider-backed session contract above; ordinary application
-APIs do not expose AccessKit, screen-reader, or OS tree handles.
+live-region values are backend-neutral hints only. The private primary-window
+macOS/AppKit consumer is shipped for this passive separator projection: one
+unique current target with materialized authority must match the exact ID,
+semantic path, role, normalized ratio value, bounds, orientation, and
+actionless/non-focusable state before it publishes one `AXSplitter` between the
+two pane children. It retains native token/object identity across an admitted
+ratio update and falls back to the ordinary native tree without provider calls,
+runtime refresh, partial topology, or interaction authority when evidence is
+stale, unmaterialized, duplicate/mismatched, malformed, focused, or actionful.
+Manual macOS/VoiceOver acceptance remains unverified. Other platform adapters,
+focus/traversal, keyboard/arrow-key resizing, semantic actions,
+pointer/collapse mapping, and paint/cursor/renderer behavior remain future work;
+ordinary application APIs do not expose AccessKit, screen-reader, or OS tree
+handles.
 The macOS development app-bundle helper improves process/window discovery for
 app-level automation tools. `RADIANT_AUTOMATION_TARGET_EXPORT` pairs with that
 launch path by exposing the current flattened target snapshot to external
@@ -6826,10 +6851,13 @@ persistence: it emits once for a meaningful successful drag commit or discrete
 collapse/restore of the final finite normalized ratio, and remains silent for
 intermediate, no-op, cancelled, lost, incompatible, unmounted, static, and
 controlled interactions. Passive separator semantics are published by the pure
-automation read above; they remain non-focusable, actionless, non-interactive,
-and native-omitted. Separator focus ownership, Tab/spatial traversal,
-keyboard/arrow-key resizing, semantic actions, native adapters,
-paint/cursor/renderer behavior, and `VirtualLayoutPolicy` remain future work.
+automation read above; the private primary-window macOS/AppKit consumer now
+publishes each qualified separator as one `AXSplitter` between its two pane
+children. They remain non-focusable, actionless, and non-interactive; invalid
+or ambiguous evidence falls back to the ordinary native tree. Separator focus
+ownership, Tab/spatial traversal, keyboard/arrow-key resizing, semantic actions,
+pointer/collapse mapping, paint/cursor/renderer behavior, and
+`VirtualLayoutPolicy` remain future work.
 Internally, the
 controller may retain
 a bounded crate-private `SplitPaneSeparatorProjection` collection after the

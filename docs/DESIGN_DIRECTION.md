@@ -1685,6 +1685,21 @@ missing, or mismatched authority withholds the complete custom projection; no
 resolver is invoked or reconstructed and no affine, corner-mapping, inversion,
 or identity fallback is permitted.
 
+The private primary-window macOS/AppKit consumer also consumes the passive
+split-pane projection. It admits a separator only when one unique current
+target with materialized authority matches the exact node ID, semantic path,
+`AutomationRole::Separator`, normalized ratio value, finite bounds, orientation,
+and actionless/non-focusable state. A valid separator publishes one `AXSplitter`
+between the two pane children with current bounds, ratio value, and
+`AXOrientation`; stable native token/object identity is retained across an
+admitted ratio update. Static/controlled, stale, unmaterialized,
+duplicate/mismatched, malformed, focused, or actionful evidence leaves the
+ordinary native tree in place without provider calls, runtime refresh, partial
+topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
+unverified. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
+resizing, semantic accessibility actions, pointer/collapse mapping, and
+paint/cursor/renderer work remain future slices.
+
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
 replacement, and close cancel and retire the lease before native objects drop.
@@ -2332,12 +2347,15 @@ delivers typed `Cancel`; collapsible double activation remains a discrete
 collapse/restore command outside the continuous edit stream.
 
 The shipped divider automation remains passive: it reports final geometry and
-value but is non-focusable, actionless, has no interaction target, and omits
-native publication. Divider focus ownership, Tab/spatial traversal, keyboard or
-arrow-key resizing, semantic actions, native adapters, and paint/cursor/renderer
-work remain future slices. Nested split panes retain independent mounted
-collapse/restore authority and use the same geometry/lifecycle rules without
-becoming workspace or docking nodes.
+value, and the private primary-window macOS/AppKit consumer publishes each
+qualified separator as one `AXSplitter` between its two pane children. The
+separator is non-focusable, actionless, and has no interaction target; invalid
+or ambiguous evidence falls back to the ordinary native tree. Divider focus
+ownership, Tab/spatial traversal, keyboard or arrow-key resizing, semantic
+actions, pointer/collapse mapping, and paint/cursor/renderer work remain future
+slices. Nested split panes retain independent mounted collapse/restore
+authority and use the same geometry/lifecycle rules without becoming workspace
+or docking nodes.
 
 All children use one slot-sizing vocabulary: `fixed`, `fill`, `grow`, `shrink`,
 `min_size`, `max_size`, `aspect_ratio`, and cross-axis alignment. `spacer()`

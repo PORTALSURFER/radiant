@@ -1872,6 +1872,16 @@ mod macos {
         if specs.len() != projection.nodes.len() || specs.len() != frames.len() {
             return None;
         }
+        let current_contains_separator = projection
+            .nodes
+            .iter()
+            .any(|node| node.kind == NativeNodeKind::Separator);
+        let next_contains_separator = specs
+            .iter()
+            .any(|spec| spec.kind == NativeNodeKind::Separator);
+        if current_contains_separator != next_contains_separator {
+            return None;
+        }
         let focused_token = focused_token_for_specs(specs);
         if specs.iter().filter(|spec| spec.focused).count() > 1 {
             return None;
@@ -1881,7 +1891,7 @@ mod macos {
             specs.iter().zip(&projection.nodes).zip(frames).enumerate()
         {
             let frame_changed = node.frame != *frame;
-            let frame_is_stable = !frame_changed || spec.kind == NativeNodeKind::Separator;
+            let frame_is_stable = !frame_changed || current_contains_separator;
             let stable_native_evidence = frame_is_stable
                 && node.token == spec.token
                 && node.kind == spec.kind
@@ -6137,7 +6147,15 @@ mod macos {
                 .publish_projection(&initial_snapshot, &initial_targets, &[], None, 1)
                 .expect("the valid split separator should publish");
 
-            let (objects, root, container, separator, separator_token, initial_frame) = {
+            let (
+                objects,
+                root,
+                container,
+                separator,
+                separator_token,
+                initial_frame,
+                initial_frames,
+            ) = {
                 let state = adapter.callback_state.borrow();
                 let projection = &state.projection;
                 assert_eq!(projection.nodes.len(), 5);
@@ -6168,6 +6186,11 @@ mod macos {
                     separator_node.object,
                     separator_token,
                     separator_node.frame,
+                    projection
+                        .nodes
+                        .iter()
+                        .map(|node| node.frame)
+                        .collect::<Vec<_>>(),
                 )
             };
             assert_eq!(
@@ -6233,23 +6256,12 @@ mod macos {
             assert!(adapter.active_ranges.is_empty());
             assert_eq!(accessibility_children_readback(host).0, root);
 
-            let mut updated_snapshot = initial_snapshot.clone();
-            let mut updated_targets = initial_targets.clone();
-            let updated_separator = &mut updated_snapshot.root.children[0].children[1];
-            updated_separator.bounds.x = 160.0;
-            updated_separator.value = Some(String::from("0.75"));
-            updated_separator.semantics.value_text = updated_separator.value.clone();
-            let updated_separator_target = updated_targets
-                .targets
-                .iter_mut()
-                .find(|target| target.role == AutomationRole::Separator)
-                .expect("updated separator target");
-            updated_separator_target.bounds.x = 160.0;
-            updated_separator_target.value = Some(String::from("0.75"));
+            let (updated_snapshot, updated_targets) =
+                native_split_snapshot("0.75", "horizontal", 160.0);
             adapter
                 .publish_projection(&updated_snapshot, &updated_targets, &[], None, 1)
                 .expect("the ratio update should remain a stable native projection");
-            let (updated_objects, updated_separator, updated_frame) = {
+            let (updated_objects, updated_frames, updated_separator, updated_frame) = {
                 let state = adapter.callback_state.borrow();
                 let separator = state
                     .projection
@@ -6264,12 +6276,28 @@ mod macos {
                         .iter()
                         .map(|node| node.object)
                         .collect::<Vec<_>>(),
+                    state
+                        .projection
+                        .nodes
+                        .iter()
+                        .map(|node| node.frame)
+                        .collect::<Vec<_>>(),
                     separator.object,
                     separator.frame,
                 )
             };
             assert_eq!(updated_objects, objects);
             assert_eq!(updated_separator, separator);
+            assert_eq!(updated_frames.len(), initial_frames.len());
+            assert_ne!(updated_frames[2], initial_frames[2]);
+            assert_ne!(updated_frames[3], initial_frames[3]);
+            assert_ne!(updated_frames[4], initial_frames[4]);
+            for (object, frame) in updated_objects.iter().zip(&updated_frames) {
+                assert_eq!(
+                    unsafe { msg_rect(*object, sel(c"accessibilityFrame")) },
+                    *frame
+                );
+            }
             assert_ne!(updated_frame, initial_frame);
             assert_eq!(adapter.tokens.separators.len(), 1);
             assert_eq!(adapter.tokens.separators[0].token, separator_token);

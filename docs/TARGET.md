@@ -1305,10 +1305,13 @@ incompatible mounted state, unavailable capacity, invalid evidence, and no-ops
 remain inert. Meaningful collapse/restore updates mounted state first,
 requests the existing layout work, and emits one settled ratio after cleanup;
 restore evidence is bounded and retired with the existing lifecycle.
-Passive separator automation may report final geometry/value, but remains
-non-focusable, actionless, non-interactive, and native-omitted. Focus ownership,
-Tab/spatial traversal, keyboard/arrow-key resizing, semantic actions, native
-adapters, and paint/cursor/renderer behavior remain future work.
+Passive separator automation reports final geometry/value and is now published
+by the private primary-window macOS/AppKit consumer as one `AXSplitter` between
+the two pane children. It remains non-focusable, actionless, and
+non-interactive; invalid or ambiguous evidence falls back to the ordinary native
+tree. Focus ownership, Tab/spatial traversal, keyboard/arrow-key resizing,
+semantic actions, pointer/collapse mapping, and paint/cursor/renderer behavior
+remain future work.
 
 ## Styling and Theming
 
@@ -1469,6 +1472,21 @@ consumes the compositor's normalized logical bounds plus exact sidecar
 witness/publication authority. It performs the existing logical-to-AppKit
 conversion and never invokes or reconstructs the custom resolver, assumes an
 affine mapping, maps corners, inverts, or uses identity fallback.
+
+The private primary-window macOS/AppKit consumer also consumes the passive
+split-pane projection. It admits a separator only when one unique current
+target with materialized authority matches the exact node ID, semantic path,
+`AutomationRole::Separator`, normalized ratio value, finite bounds, orientation,
+and actionless/non-focusable state. A valid separator publishes one `AXSplitter`
+between the two pane children with current bounds, ratio value, and
+`AXOrientation`; stable native token/object identity is retained across an
+admitted ratio update. Static/controlled, stale, unmaterialized,
+duplicate/mismatched, malformed, focused, or actionful evidence leaves the
+ordinary native tree in place without provider calls, runtime refresh, partial
+topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
+unverified. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
+resizing, semantic accessibility actions, pointer/collapse mapping, and
+paint/cursor/renderer work remain future slices.
 
 ## Application Independence
 

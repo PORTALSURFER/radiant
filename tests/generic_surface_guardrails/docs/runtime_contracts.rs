@@ -118,6 +118,30 @@ fn numeric_adoption_sequence_and_shipped_surfaces_are_current() {
 }
 
 #[test]
+fn split_separator_native_publication_contract_is_current() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for relative_path in [
+        "docs/DESIGN_DIRECTION.md",
+        "docs/TARGET.md",
+        "docs/API.md",
+        "docs/ARCHITECTURE.md",
+    ] {
+        let source = fs::read_to_string(manifest_dir.join(relative_path))
+            .unwrap_or_else(|error| panic!("{relative_path} should be readable: {error}"));
+        let normalized = source.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            normalized.contains("AXSplitter"),
+            "{relative_path} should record shipped passive AXSplitter publication"
+        );
+        assert!(
+            !normalized.contains("native-omitted")
+                && !normalized.contains("omits native publication"),
+            "{relative_path} must not retain the stale native-omitted separator contract"
+        );
+    }
+}
+
+#[test]
 fn api_docs_describe_paint_only_overlay_composition_cache() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))

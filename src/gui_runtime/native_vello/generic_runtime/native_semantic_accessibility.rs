@@ -56,9 +56,14 @@ mod macos {
     const NS_ACCESSIBILITY_INCREMENT_ACTION: &CStr = c"AXIncrement";
     const NS_ACCESSIBILITY_DECREMENT_ACTION: &CStr = c"AXDecrement";
     const NS_ACCESSIBILITY_VALUE_ATTRIBUTE: &CStr = c"AXValue";
+    const NS_ACCESSIBILITY_ORIENTATION_ATTRIBUTE: &CStr = c"AXOrientation";
     const NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_ATTRIBUTE: &CStr = c"AXFocusedUIElement";
     const NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_CHANGED_NOTIFICATION: &CStr =
         c"AXFocusedUIElementChanged";
+    const NATIVE_HORIZONTAL_ORIENTATION: &str = "AXHorizontalOrientation";
+    const NATIVE_VERTICAL_ORIENTATION: &str = "AXVerticalOrientation";
+    const NATIVE_HORIZONTAL_ORIENTATION_VALUE: isize = 2;
+    const NATIVE_VERTICAL_ORIENTATION_VALUE: isize = 1;
     const NS_NOT_FOUND: usize = isize::MAX as usize;
     #[cfg(test)]
     const MAX_NATIVE_VALUE_UTF16_UNITS: usize = 1_024;
@@ -68,6 +73,7 @@ mod macos {
     const MODERN_FOCUSED_UI_ELEMENT_METHOD_TYPE: &CStr = c"@@:";
     const DEPRECATED_ACTION_METHOD_TYPE: &CStr = c"v@:@";
     const MODERN_VALUE_METHOD_TYPE: &CStr = c"@@:";
+    const MODERN_ORIENTATION_METHOD_TYPE: &CStr = c"q@:";
     const VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@";
     const LEGACY_VALUE_SETTER_METHOD_TYPE: &CStr = c"v@:@@";
     const INDEX_OF_CHILD_METHOD_TYPE: &CStr = c"Q@:@";
@@ -274,6 +280,11 @@ mod macos {
                     MODERN_VALUE_METHOD_TYPE,
                 ),
                 (
+                    c"accessibilityOrientation",
+                    native_accessibility_orientation as *const c_void,
+                    MODERN_ORIENTATION_METHOD_TYPE,
+                ),
+                (
                     c"accessibilityArrayAttributeCount:",
                     native_array_attribute_count as *const c_void,
                     c"Q@:@",
@@ -380,6 +391,13 @@ mod macos {
     #[cfg(test)]
     unsafe fn msg_usize(receiver: Id, selector: Sel) -> usize {
         let message: unsafe extern "C" fn(Id, Sel) -> usize =
+            unsafe { transmute(objc_msgSend as *const ()) };
+        unsafe { message(receiver, selector) }
+    }
+
+    #[cfg(test)]
+    unsafe fn msg_isize(receiver: Id, selector: Sel) -> isize {
+        let message: unsafe extern "C" fn(Id, Sel) -> isize =
             unsafe { transmute(objc_msgSend as *const ()) };
         unsafe { message(receiver, selector) }
     }
@@ -571,6 +589,7 @@ mod macos {
         Ordinary,
         Container,
         Item,
+        Separator,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -706,8 +725,14 @@ mod macos {
     fn native_index_child_kind_is_valid(receiver: NativeNodeKind, child: NativeNodeKind) -> bool {
         match receiver {
             NativeNodeKind::Container => child == NativeNodeKind::Item,
+            NativeNodeKind::Separator => false,
             NativeNodeKind::Root | NativeNodeKind::Ordinary | NativeNodeKind::Item => {
-                matches!(child, NativeNodeKind::Ordinary | NativeNodeKind::Container)
+                matches!(
+                    child,
+                    NativeNodeKind::Ordinary
+                        | NativeNodeKind::Container
+                        | NativeNodeKind::Separator
+                )
             }
         }
     }
@@ -784,7 +809,10 @@ mod macos {
                     .filter(|index| *index != NS_NOT_FOUND)
                     .unwrap_or(NS_NOT_FOUND)
             }
-            NativeNodeKind::Root | NativeNodeKind::Ordinary | NativeNodeKind::Item => {
+            NativeNodeKind::Root
+            | NativeNodeKind::Ordinary
+            | NativeNodeKind::Item
+            | NativeNodeKind::Separator => {
                 if receiver_node.logical_count.is_some()
                     || !receiver_node.logical_children.is_empty()
                 {
@@ -882,6 +910,7 @@ mod macos {
         children: Vec<u64>,
         logical_children: Vec<(usize, u64)>,
         role: &'static str,
+        orientation: Option<&'static str>,
         frame: NSRect,
         label: Option<String>,
         description: Option<String>,
@@ -1388,11 +1417,22 @@ mod macos {
         window_generation: u64,
     }
 
+    #[derive(Clone, Debug, PartialEq)]
+    struct NativeSeparatorToken {
+        token: u64,
+        id: AutomationNodeId,
+        path: Vec<AutomationNodeId>,
+        parent: Option<u64>,
+        lease: Option<SemanticAutomationSessionHandle>,
+        window_generation: u64,
+    }
+
     #[derive(Clone, Debug, Default, PartialEq)]
     struct NativeTokenLedger {
         next: u64,
         root: Option<(u64, Option<SemanticAutomationSessionHandle>, u64)>,
         ordinary: Vec<NativeOrdinaryToken>,
+        separators: Vec<NativeSeparatorToken>,
         containers: Vec<NativeContainerToken>,
         items: Vec<NativeItemToken>,
     }
@@ -1407,6 +1447,7 @@ mod macos {
         fn retire_all(&mut self) {
             self.root = None;
             self.ordinary.clear();
+            self.separators.clear();
             self.containers.clear();
             self.items.clear();
         }
@@ -1506,6 +1547,160 @@ mod macos {
         (!provider_descendant)
             .then(|| qualified_numeric_action_target(targets, node, semantic_path, kind))
             .flatten()
+    }
+
+    fn native_separator_orientation_name(
+        semantics: &AutomationNodeSemantics,
+    ) -> Option<&'static str> {
+        match semantics.metadata.get("orientation").map(String::as_str) {
+            Some("horizontal") => Some("horizontal"),
+            Some("vertical") => Some("vertical"),
+            _ => None,
+        }
+    }
+
+    fn native_separator_orientation(orientation_name: &str) -> Option<&'static str> {
+        match orientation_name {
+            "horizontal" => Some(NATIVE_HORIZONTAL_ORIENTATION),
+            "vertical" => Some(NATIVE_VERTICAL_ORIENTATION),
+            _ => None,
+        }
+    }
+
+    fn native_accessibility_orientation_value(orientation: &str) -> isize {
+        match orientation {
+            NATIVE_HORIZONTAL_ORIENTATION => NATIVE_HORIZONTAL_ORIENTATION_VALUE,
+            NATIVE_VERTICAL_ORIENTATION => NATIVE_VERTICAL_ORIENTATION_VALUE,
+            _ => 0,
+        }
+    }
+
+    fn native_separator_value_is_normalized(value: Option<&str>) -> bool {
+        let Some(value) = value else {
+            return false;
+        };
+        let Ok(parsed) = value.parse::<f32>() else {
+            return false;
+        };
+        if !parsed.is_finite() || !(0.0..=1.0).contains(&parsed) {
+            return false;
+        }
+        let normalized = if parsed == 0.0 {
+            String::from("0")
+        } else {
+            parsed.to_string()
+        };
+        normalized == value
+    }
+
+    fn qualified_native_separator_target(
+        targets: &GuiAutomationTargetSnapshot,
+        node: &AutomationNodeSnapshot,
+        semantic_path: &[AutomationNodeId],
+        runtime_projection_generation: u64,
+    ) -> Option<&'static str> {
+        if node.role != AutomationRole::Separator
+            || !node.enabled
+            || node.semantics.disabled
+            || node.semantics.selected
+            || node.semantics.checked != Some(false)
+            || node.semantics.read_only
+            || node.semantics.focusable
+            || node.semantics.focused
+            || !node.available_actions.is_empty()
+            || node.value != node.semantics.value_text
+            || !native_separator_value_is_normalized(node.value.as_deref())
+            || !bounds_are_finite(node.bounds)
+            || node.bounds.x < 0.0
+            || node.bounds.y < 0.0
+            || node.bounds.width <= 0.0
+            || node.bounds.height <= 0.0
+        {
+            return None;
+        }
+
+        let orientation_name = native_separator_orientation_name(&node.semantics)?;
+        if node.metadata.get("orientation").map(String::as_str) != Some(orientation_name) {
+            return None;
+        }
+        let orientation = native_separator_orientation(orientation_name)?;
+
+        let mut matching_targets = targets
+            .targets
+            .iter()
+            .filter(|target| target.id == node.id && target.path == semantic_path);
+        let target = matching_targets.next()?;
+        if matching_targets.next().is_some()
+            || target.role != AutomationRole::Separator
+            || target.value != node.value
+            || target.bounds != node.bounds
+            || !target.enabled
+            || target.selected
+            || target.checked != Some(false)
+            || target.focusable
+            || target.focused
+            || target.interaction_target
+            || !target.available_actions.is_empty()
+            || target.metadata.get("orientation").map(String::as_str) != Some(orientation_name)
+            || !target.authority.is_some_and(|authority| {
+                authority.materialized
+                    && authority.runtime_generation == runtime_projection_generation
+            })
+        {
+            return None;
+        }
+
+        Some(orientation)
+    }
+
+    fn native_separator_set_is_admitted(
+        snapshot: &GuiAutomationSnapshot,
+        targets: &GuiAutomationTargetSnapshot,
+        runtime_projection_generation: u64,
+    ) -> bool {
+        fn visit(
+            node: &AutomationNodeSnapshot,
+            semantic_path: &[AutomationNodeId],
+            targets: &GuiAutomationTargetSnapshot,
+            runtime_projection_generation: u64,
+        ) -> bool {
+            let separator_count = node
+                .children
+                .iter()
+                .filter(|child| child.role == AutomationRole::Separator)
+                .count();
+            for (index, child) in node.children.iter().enumerate() {
+                let mut child_path = semantic_path.to_vec();
+                child_path.push(child.id.clone());
+                if child.role == AutomationRole::Separator
+                    && (index != 1
+                        || node.children.len() != 3
+                        || separator_count != 1
+                        || !child.children.is_empty()
+                        || qualified_native_separator_target(
+                            targets,
+                            child,
+                            &child_path,
+                            runtime_projection_generation,
+                        )
+                        .is_none())
+                {
+                    return false;
+                }
+                if !visit(child, &child_path, targets, runtime_projection_generation) {
+                    return false;
+                }
+            }
+            true
+        }
+
+        let root_path = vec![snapshot.root.id.clone()];
+        visit(
+            &snapshot.root,
+            &root_path,
+            targets,
+            runtime_projection_generation,
+        )
     }
 
     fn native_numeric_action_name(
@@ -1646,8 +1841,10 @@ mod macos {
     #[derive(Clone, Debug, PartialEq)]
     struct StableValueProjectionUpdate {
         index: usize,
+        frame: NSRect,
         value: Option<String>,
         action_target: Option<AutomationTarget>,
+        frame_changed: bool,
         value_changed: bool,
         focused: bool,
         focus_changed: bool,
@@ -1661,6 +1858,7 @@ mod macos {
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct StableProjectionNotifications {
+        layout_changed: bool,
         value_changed: Vec<Id>,
         focused: Option<Id>,
     }
@@ -1674,6 +1872,16 @@ mod macos {
         if specs.len() != projection.nodes.len() || specs.len() != frames.len() {
             return None;
         }
+        let current_contains_separator = projection
+            .nodes
+            .iter()
+            .any(|node| node.kind == NativeNodeKind::Separator);
+        let next_contains_separator = specs
+            .iter()
+            .any(|spec| spec.kind == NativeNodeKind::Separator);
+        if current_contains_separator != next_contains_separator {
+            return None;
+        }
         let focused_token = focused_token_for_specs(specs);
         if specs.iter().filter(|spec| spec.focused).count() > 1 {
             return None;
@@ -1682,14 +1890,17 @@ mod macos {
         for (index, ((spec, node), frame)) in
             specs.iter().zip(&projection.nodes).zip(frames).enumerate()
         {
-            let stable_native_evidence = node.token == spec.token
+            let frame_changed = node.frame != *frame;
+            let frame_is_stable = !frame_changed || current_contains_separator;
+            let stable_native_evidence = frame_is_stable
+                && node.token == spec.token
                 && node.kind == spec.kind
                 && node.parent == spec.parent
                 && node.children == spec.children
                 && node.logical_children == spec.logical_children
-                && node.frame == *frame
                 && node.role
                     == native_role(spec.kind, spec.semantics.role, spec.action_target.is_some())
+                && node.orientation == native_orientation(spec.kind, &spec.semantics)
                 && node.label == spec.semantics.label
                 && node.description == spec.semantics.description
                 && node.logical_count == spec.logical_count;
@@ -1708,16 +1919,25 @@ mod macos {
                 return None;
             }
             let value_changed = node.value != spec.semantics.value_text;
-            if value_changed && spec.action_target.is_none() {
+            if value_changed
+                && spec.action_target.is_none()
+                && spec.kind != NativeNodeKind::Separator
+            {
                 return None;
             }
             let focused = focused_token == Some(spec.token);
             let focus_changed = (current_focused_token == Some(node.token)) != focused;
-            if value_changed || node.action_target != spec.action_target || focus_changed {
+            if frame_changed
+                || value_changed
+                || node.action_target != spec.action_target
+                || focus_changed
+            {
                 updates.push(StableValueProjectionUpdate {
                     index,
+                    frame: *frame,
                     value: spec.semantics.value_text.clone(),
                     action_target: spec.action_target.clone(),
+                    frame_changed,
                     value_changed,
                     focused,
                     focus_changed,
@@ -1745,10 +1965,13 @@ mod macos {
         }
         let mut value_notifications = Vec::new();
         let mut focus_notifications = Vec::new();
+        let mut layout_changed = false;
         for update in updates {
             let node = projection.nodes.get_mut(update.index)?;
+            node.frame = update.frame;
             node.value = update.value.clone();
             node.action_target = update.action_target.clone();
+            layout_changed |= update.frame_changed;
             if update.value_changed {
                 value_notifications.push(node.object);
             }
@@ -1767,6 +1990,7 @@ mod macos {
             return None;
         }
         Some(StableProjectionNotifications {
+            layout_changed,
             value_changed: value_notifications,
             focused: focus_notifications.pop(),
         })
@@ -2268,13 +2492,16 @@ mod macos {
                 return Ok(());
             }
             if self.attached
-                && let Some(value_notifications) = self.update_stable_value_projection(&specs)
+                && let Some(projection_notifications) = self.update_stable_value_projection(&specs)
             {
                 self.current_containers = containers.to_vec();
-                for object in value_notifications.value_changed {
+                if projection_notifications.layout_changed {
+                    self.post_layout_changed();
+                }
+                for object in projection_notifications.value_changed {
                     self.post_value_changed(object);
                 }
-                if let Some(object) = value_notifications.focused {
+                if let Some(object) = projection_notifications.focused {
                     self.post_focused_element_changed(object);
                 }
                 return Ok(());
@@ -2333,6 +2560,8 @@ mod macos {
             if containers.len() > MAX_NATIVE_REGISTRATIONS {
                 return Err(String::from("native semantic registration cap exceeded"));
             }
+            let admit_separators =
+                native_separator_set_is_admitted(snapshot, targets, runtime_projection_generation);
             let root_token = self.retain_or_issue_root_token()?;
             let root_bounds = self.transform.map_or(
                 AutomationBounds {
@@ -2407,6 +2636,7 @@ mod macos {
                     &mut path,
                     &mut semantic_path,
                     false,
+                    admit_separators,
                     targets,
                     &accepted,
                     &anchor_ids,
@@ -2439,6 +2669,7 @@ mod macos {
             path: &mut Vec<usize>,
             semantic_path: &mut Vec<AutomationNodeId>,
             provider_descendant: bool,
+            admit_separators: bool,
             targets: &GuiAutomationTargetSnapshot,
             containers: &[NativeSemanticContainerSnapshot],
             anchor_ids: &[AutomationNodeId],
@@ -2451,7 +2682,32 @@ mod macos {
             specs: &mut Vec<NativeNodeSpec>,
         ) -> Result<Option<u64>, String> {
             if node.role == AutomationRole::Separator {
-                return Ok(None);
+                if !admit_separators
+                    || qualified_native_separator_target(
+                        targets,
+                        node,
+                        semantic_path,
+                        runtime_projection_generation,
+                    )
+                    .is_none()
+                {
+                    return Ok(None);
+                }
+                let token =
+                    self.retain_or_issue_separator_token(node, parent, semantic_path, specs)?;
+                specs.push(NativeNodeSpec {
+                    token,
+                    kind: NativeNodeKind::Separator,
+                    parent,
+                    children: Vec::new(),
+                    logical_children: Vec::new(),
+                    bounds: node.bounds,
+                    semantics: node.semantics.clone(),
+                    action_target: None,
+                    logical_count: None,
+                    focused: false,
+                });
+                return Ok(Some(token));
             }
 
             let container = anchor_ids
@@ -2553,6 +2809,7 @@ mod macos {
                                 &mut item_path,
                                 &mut item_semantic_path,
                                 true,
+                                admit_separators,
                                 targets,
                                 containers,
                                 anchor_ids,
@@ -2589,6 +2846,7 @@ mod macos {
                             path,
                             semantic_path,
                             provider_descendant,
+                            admit_separators,
                             targets,
                             containers,
                             anchor_ids,
@@ -2617,6 +2875,7 @@ mod macos {
                         path,
                         semantic_path,
                         provider_descendant,
+                        admit_separators,
                         targets,
                         containers,
                         anchor_ids,
@@ -2655,18 +2914,24 @@ mod macos {
                 specs,
                 &frames,
             )?;
+            let mut next_projection = state.projection.clone();
+            let mut focused_token = state.focused_token;
             drop(state);
 
             if plan.updates.is_empty() {
                 return None;
             }
-            let mut state = self.callback_state.try_borrow_mut().ok()?;
-            let mut focused_token = state.focused_token;
             let notifications = apply_stable_value_projection_updates(
-                &mut state.projection,
+                &mut next_projection,
                 &mut focused_token,
                 &plan,
             )?;
+
+            if !self.view.is_null() {
+                self.configure_modern_projection(&next_projection).ok()?;
+            }
+            let mut state = self.callback_state.try_borrow_mut().ok()?;
+            state.projection = next_projection;
             state.focused_token = focused_token;
             Some(notifications)
         }
@@ -2700,6 +2965,38 @@ mod macos {
             Ok(token)
         }
 
+        fn retain_or_issue_separator_token(
+            &mut self,
+            node: &AutomationNodeSnapshot,
+            parent: Option<u64>,
+            semantic_path: &[AutomationNodeId],
+            specs: &[NativeNodeSpec],
+        ) -> Result<u64, String> {
+            if let Some(previous) = self.tokens.separators.iter().find(|previous| {
+                previous.id == node.id
+                    && previous.path == semantic_path
+                    && previous.parent == parent
+                    && previous.lease == self.lease
+                    && previous.window_generation == self.window_generation
+                    && !specs.iter().any(|spec| spec.token == previous.token)
+            }) {
+                return Ok(previous.token);
+            }
+            let token = self
+                .tokens
+                .issue()
+                .ok_or_else(|| String::from("native semantic token space exhausted"))?;
+            self.tokens.separators.push(NativeSeparatorToken {
+                token,
+                id: node.id.clone(),
+                path: semantic_path.to_vec(),
+                parent,
+                lease: self.lease,
+                window_generation: self.window_generation,
+            });
+            Ok(token)
+        }
+
         fn specs_match_projection(&self, specs: &[NativeNodeSpec]) -> bool {
             let Some(transform) = self.transform else {
                 return false;
@@ -2726,6 +3023,8 @@ mod macos {
                                         spec.semantics.role,
                                         spec.action_target.is_some(),
                                     )
+                                && node.orientation
+                                    == native_orientation(spec.kind, &spec.semantics)
                                 && node.label == spec.semantics.label
                                 && node.description == spec.semantics.description
                                 && node.value == spec.semantics.value_text
@@ -2781,6 +3080,7 @@ mod macos {
                     children: spec.children,
                     logical_children: spec.logical_children,
                     role: native_role(spec.kind, spec.semantics.role, spec.action_target.is_some()),
+                    orientation: native_orientation(spec.kind, &spec.semantics),
                     frame,
                     label: spec.semantics.label,
                     description: spec.semantics.description,
@@ -3150,6 +3450,9 @@ mod macos {
             self.tokens
                 .items
                 .retain(|entry| active_tokens.contains(&entry.token));
+            self.tokens
+                .separators
+                .retain(|entry| active_tokens.contains(&entry.token));
             if self
                 .tokens
                 .root
@@ -3218,13 +3521,25 @@ mod macos {
         role: AutomationRole,
         numeric_action_target: bool,
     ) -> &'static str {
-        if numeric_action_target {
+        if role == AutomationRole::Separator {
+            "AXSplitter"
+        } else if numeric_action_target {
             "AXIncrementor"
         } else if matches!(role, AutomationRole::Text | AutomationRole::Readout) {
             "AXStaticText"
         } else {
             "AXGroup"
         }
+    }
+
+    fn native_orientation(
+        kind: NativeNodeKind,
+        semantics: &AutomationNodeSemantics,
+    ) -> Option<&'static str> {
+        (kind == NativeNodeKind::Separator)
+            .then(|| native_separator_orientation_name(semantics))
+            .flatten()
+            .and_then(native_separator_orientation)
     }
 
     fn bounds_are_finite(bounds: AutomationBounds) -> bool {
@@ -3259,6 +3574,7 @@ mod macos {
                         || previous.logical_children != next.logical_children
                         || previous.frame != next.frame
                         || previous.role != next.role
+                        || previous.orientation != next.orientation
                         || previous.label != next.label
                         || previous.description != next.description
                         || previous.value != next.value
@@ -3442,6 +3758,9 @@ mod macos {
             let name = unsafe { CStr::from_ptr(name) };
             if name == c"AXRole" {
                 unsafe { ns_string(node.role) }
+            } else if name == NS_ACCESSIBILITY_ORIENTATION_ATTRIBUTE {
+                node.orientation
+                    .map_or(null_mut(), |orientation| unsafe { ns_string(orientation) })
             } else if name == c"AXParent" {
                 if let Some(parent) = node.parent {
                     state
@@ -3517,6 +3836,21 @@ mod macos {
                 return null_mut();
             };
             native_value_from_node(node)
+        })
+    }
+
+    extern "C" fn native_accessibility_orientation(receiver: Id, _: Sel) -> isize {
+        ffi_boundary(0, || {
+            let Some(state) = callback_state(receiver) else {
+                return 0;
+            };
+            let Ok(state) = state.try_borrow() else {
+                return 0;
+            };
+            state
+                .node_for_object(receiver)
+                .and_then(|node| node.orientation)
+                .map_or(0, native_accessibility_orientation_value)
         })
     }
 
@@ -4142,6 +4476,7 @@ mod macos {
                 children: Vec::new(),
                 logical_children: Vec::new(),
                 role: "AXIncrementor",
+                orientation: None,
                 frame: NSRect {
                     origin: NSPoint { x: 8.0, y: 12.0 },
                     size: NSSize {
@@ -4197,6 +4532,7 @@ mod macos {
                 children,
                 logical_children,
                 role: "AXGroup",
+                orientation: None,
                 frame: NSRect {
                     origin: NSPoint { x: 0.0, y: 0.0 },
                     size: NSSize {
@@ -4373,6 +4709,7 @@ mod macos {
                         lease: Some(session),
                         window_generation: 5,
                     }],
+                    separators: Vec::new(),
                     containers: vec![container.clone()],
                     items: vec![NativeItemToken {
                         token: 6,
@@ -5058,6 +5395,12 @@ mod macos {
                     MODERN_FOCUSED_UI_ELEMENT_METHOD_TYPE,
                     b"@@:\0" as &[u8],
                 ),
+                (
+                    c"accessibilityOrientation",
+                    native_accessibility_orientation as *const c_void,
+                    MODERN_ORIENTATION_METHOD_TYPE,
+                    b"q@:\0" as &[u8],
+                ),
             ];
             for (selector, implementation, expected_encoding, bytes) in methods {
                 let method = unsafe { class_getInstanceMethod(class.class(), sel(selector)) };
@@ -5076,6 +5419,14 @@ mod macos {
                 NS_ACCESSIBILITY_FOCUSED_UI_ELEMENT_CHANGED_NOTIFICATION.to_bytes_with_nul(),
                 b"AXFocusedUIElementChanged\0"
             );
+            assert_eq!(
+                NS_ACCESSIBILITY_ORIENTATION_ATTRIBUTE.to_bytes_with_nul(),
+                b"AXOrientation\0"
+            );
+            assert_eq!(NATIVE_HORIZONTAL_ORIENTATION, "AXHorizontalOrientation");
+            assert_eq!(NATIVE_VERTICAL_ORIENTATION, "AXVerticalOrientation");
+            assert_eq!(NATIVE_HORIZONTAL_ORIENTATION_VALUE, 2);
+            assert_eq!(NATIVE_VERTICAL_ORIENTATION_VALUE, 1);
         }
 
         #[test]
@@ -5454,98 +5805,633 @@ mod macos {
             release_accessibility_children_test_host(host);
         }
 
-        #[test]
-        fn native_publication_omits_separator_without_changing_the_native_tree() {
-            let node = |id: &str, role: AutomationRole, label: &str, x: f32, width: f32| {
-                AutomationNodeSnapshot::from_semantics(
-                    AutomationNodeId::new(id),
+        fn native_split_separator_semantics(
+            ratio: &str,
+            orientation: &str,
+        ) -> AutomationNodeSemantics {
+            let mut semantics =
+                AutomationNodeSemantics::new(AutomationRole::Separator).with_value_text(ratio);
+            semantics.checked = Some(false);
+            semantics
+                .metadata
+                .insert(String::from("orientation"), orientation.to_owned());
+            semantics
+        }
+
+        fn native_split_leaf(
+            id: &str,
+            label: &str,
+            bounds: AutomationBounds,
+        ) -> AutomationNodeSnapshot {
+            AutomationNodeSnapshot::from_semantics(
+                AutomationNodeId::new(id),
+                bounds,
+                AutomationNodeSemantics::new(AutomationRole::Text).with_label(label),
+            )
+        }
+
+        fn native_split_separator(
+            id: &str,
+            bounds: AutomationBounds,
+            ratio: &str,
+            orientation: &str,
+        ) -> AutomationNodeSnapshot {
+            AutomationNodeSnapshot::from_semantics(
+                AutomationNodeId::new(id),
+                bounds,
+                native_split_separator_semantics(ratio, orientation),
+            )
+        }
+
+        fn native_split_container(
+            id: &str,
+            bounds: AutomationBounds,
+            children: Vec<AutomationNodeSnapshot>,
+        ) -> AutomationNodeSnapshot {
+            AutomationNodeSnapshot::from_semantics(
+                AutomationNodeId::new(id),
+                bounds,
+                AutomationNodeSemantics::new(AutomationRole::Group),
+            )
+            .with_children(children)
+        }
+
+        fn native_materialized_targets(
+            snapshot: &GuiAutomationSnapshot,
+            runtime_generation: u64,
+        ) -> GuiAutomationTargetSnapshot {
+            let mut targets = snapshot.target_snapshot();
+            for target in &mut targets.targets {
+                target.authority =
+                    Some(AutomationTargetAuthority::materialized(runtime_generation));
+            }
+            targets
+        }
+
+        fn native_split_snapshot(
+            ratio: &str,
+            orientation: &str,
+            position: f32,
+        ) -> (GuiAutomationSnapshot, GuiAutomationTargetSnapshot) {
+            let (first_bounds, separator_bounds, second_bounds) = if orientation == "horizontal" {
+                (
                     AutomationBounds {
-                        x,
+                        x: 0.0,
                         y: 0.0,
-                        width,
+                        width: position,
                         height: 120.0,
                     },
-                    AutomationNodeSemantics::new(role).with_label(label),
+                    AutomationBounds {
+                        x: position,
+                        y: 0.0,
+                        width: 8.0,
+                        height: 120.0,
+                    },
+                    AutomationBounds {
+                        x: position + 8.0,
+                        y: 0.0,
+                        width: 240.0 - position - 8.0,
+                        height: 120.0,
+                    },
+                )
+            } else {
+                (
+                    AutomationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 240.0,
+                        height: position,
+                    },
+                    AutomationBounds {
+                        x: 0.0,
+                        y: position,
+                        width: 240.0,
+                        height: 8.0,
+                    },
+                    AutomationBounds {
+                        x: 0.0,
+                        y: position + 8.0,
+                        width: 240.0,
+                        height: 120.0 - position - 8.0,
+                    },
                 )
             };
-            let snapshot = |include_separator: bool| {
-                let mut children = vec![
-                    node("left", AutomationRole::Text, "Left", 0.0, 100.0),
-                    node("right", AutomationRole::Text, "Right", 108.0, 132.0),
-                ];
-                if include_separator {
-                    children.insert(
-                        1,
-                        node(
-                            "separator",
-                            AutomationRole::Separator,
-                            "Divider",
-                            100.0,
-                            8.0,
-                        ),
-                    );
-                }
-                let container = AutomationNodeSnapshot::from_semantics(
-                    AutomationNodeId::new("container"),
+            let container = native_split_container(
+                "split",
+                AutomationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 240.0,
+                    height: 120.0,
+                },
+                vec![
+                    native_split_leaf("left", "Left", first_bounds),
+                    native_split_separator("separator", separator_bounds, ratio, orientation),
+                    native_split_leaf("right", "Right", second_bounds),
+                ],
+            );
+            let snapshot = GuiAutomationSnapshot {
+                schema_version: 3,
+                viewport_width: 240,
+                viewport_height: 120,
+                root: native_split_container(
+                    "root",
                     AutomationBounds {
                         x: 0.0,
                         y: 0.0,
                         width: 240.0,
                         height: 120.0,
                     },
-                    AutomationNodeSemantics::new(AutomationRole::Group),
-                )
-                .with_children(children);
-                let snapshot = GuiAutomationSnapshot {
-                    schema_version: 3,
-                    viewport_width: 240,
-                    viewport_height: 120,
-                    root: AutomationNodeSnapshot::from_semantics(
-                        AutomationNodeId::new("root"),
+                    vec![container],
+                ),
+            };
+            let targets = native_materialized_targets(&snapshot, 1);
+            (snapshot, targets)
+        }
+
+        fn native_nested_split_snapshot() -> (GuiAutomationSnapshot, GuiAutomationTargetSnapshot) {
+            let inner = native_split_container(
+                "inner",
+                AutomationBounds {
+                    x: 8.0,
+                    y: 8.0,
+                    width: 80.0,
+                    height: 104.0,
+                },
+                vec![
+                    native_split_leaf(
+                        "inner-left",
+                        "Inner left",
+                        AutomationBounds {
+                            x: 8.0,
+                            y: 8.0,
+                            width: 36.0,
+                            height: 104.0,
+                        },
+                    ),
+                    native_split_separator(
+                        "inner-separator",
+                        AutomationBounds {
+                            x: 44.0,
+                            y: 8.0,
+                            width: 8.0,
+                            height: 104.0,
+                        },
+                        "0.5",
+                        "horizontal",
+                    ),
+                    native_split_leaf(
+                        "inner-right",
+                        "Inner right",
+                        AutomationBounds {
+                            x: 52.0,
+                            y: 8.0,
+                            width: 36.0,
+                            height: 104.0,
+                        },
+                    ),
+                ],
+            );
+            let outer = native_split_container(
+                "outer",
+                AutomationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 240.0,
+                    height: 120.0,
+                },
+                vec![
+                    native_split_container(
+                        "outer-left",
                         AutomationBounds {
                             x: 0.0,
                             y: 0.0,
-                            width: 240.0,
+                            width: 96.0,
                             height: 120.0,
                         },
-                        AutomationNodeSemantics::new(AutomationRole::Root),
-                    )
-                    .with_children(vec![container]),
-                };
-                let targets = snapshot.target_snapshot();
-                (snapshot, targets)
+                        vec![inner],
+                    ),
+                    native_split_separator(
+                        "outer-separator",
+                        AutomationBounds {
+                            x: 96.0,
+                            y: 0.0,
+                            width: 8.0,
+                            height: 120.0,
+                        },
+                        "0.4",
+                        "horizontal",
+                    ),
+                    native_split_leaf(
+                        "outer-right",
+                        "Outer right",
+                        AutomationBounds {
+                            x: 104.0,
+                            y: 0.0,
+                            width: 136.0,
+                            height: 120.0,
+                        },
+                    ),
+                ],
+            );
+            let snapshot = GuiAutomationSnapshot {
+                schema_version: 3,
+                viewport_width: 240,
+                viewport_height: 120,
+                root: native_split_container(
+                    "root",
+                    AutomationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 240.0,
+                        height: 120.0,
+                    },
+                    vec![outer],
+                ),
             };
+            let targets = native_materialized_targets(&snapshot, 1);
+            (snapshot, targets)
+        }
 
-            let (ordinary, ordinary_targets) = snapshot(false);
-            let (with_separator, separator_targets) = snapshot(true);
-            assert_eq!(separator_targets.schema_version, 3);
-            assert!(
-                separator_targets
-                    .targets
+        #[test]
+        fn native_separator_admission_requires_exact_current_materialized_evidence() {
+            let (snapshot, targets) = native_split_snapshot("0.25", "horizontal", 60.0);
+            let node = &snapshot.root.children[0].children[1];
+            let path = vec![
+                snapshot.root.id.clone(),
+                snapshot.root.children[0].id.clone(),
+                node.id.clone(),
+            ];
+            assert!(qualified_native_separator_target(&targets, node, &path, 1).is_some());
+
+            let reject_node = |candidate: AutomationNodeSnapshot| {
+                assert!(
+                    qualified_native_separator_target(&targets, &candidate, &path, 1).is_none()
+                );
+            };
+            let mut malformed_ratio = node.clone();
+            malformed_ratio.value = Some(String::from("0.25f32"));
+            malformed_ratio.semantics.value_text = malformed_ratio.value.clone();
+            reject_node(malformed_ratio);
+            let mut missing_orientation = node.clone();
+            missing_orientation.semantics.metadata.clear();
+            missing_orientation.metadata.clear();
+            reject_node(missing_orientation);
+            let mut focusable = node.clone();
+            focusable.semantics.focusable = true;
+            reject_node(focusable);
+            let mut focused = node.clone();
+            focused.semantics.focused = true;
+            reject_node(focused);
+            let mut actionful = node.clone();
+            actionful.available_actions.push(String::from("resize"));
+            reject_node(actionful);
+            let mut malformed_bounds = node.clone();
+            malformed_bounds.bounds.width = 0.0;
+            reject_node(malformed_bounds);
+
+            let target_index = targets
+                .targets
+                .iter()
+                .position(|target| target.id == node.id && target.path == path)
+                .expect("separator target");
+            let reject_target = |candidate: GuiAutomationTargetSnapshot| {
+                assert!(qualified_native_separator_target(&candidate, node, &path, 1,).is_none());
+            };
+            let mut stale = targets.clone();
+            stale.targets[target_index].authority =
+                Some(AutomationTargetAuthority::materialized(2));
+            reject_target(stale);
+            let mut unmaterialized = targets.clone();
+            unmaterialized.targets[target_index].authority = Some(AutomationTargetAuthority {
+                runtime_generation: 1,
+                materialized: false,
+            });
+            reject_target(unmaterialized);
+            let mut duplicate = targets.clone();
+            duplicate
+                .targets
+                .push(duplicate.targets[target_index].clone());
+            reject_target(duplicate);
+            let mut mismatched_role = targets.clone();
+            mismatched_role.targets[target_index].role = AutomationRole::Group;
+            reject_target(mismatched_role);
+            let mut mismatched_value = targets.clone();
+            mismatched_value.targets[target_index].value = Some(String::from("0.5"));
+            reject_target(mismatched_value);
+            let mut mismatched_bounds = targets.clone();
+            mismatched_bounds.targets[target_index].bounds.x += 1.0;
+            reject_target(mismatched_bounds);
+            let mut focus_target = targets.clone();
+            focus_target.targets[target_index].focusable = true;
+            reject_target(focus_target);
+            let mut action_target = targets.clone();
+            action_target.targets[target_index]
+                .available_actions
+                .push(String::from("resize"));
+            reject_target(action_target);
+            let mut bad_orientation = targets.clone();
+            bad_orientation.targets[target_index]
+                .metadata
+                .insert(String::from("orientation"), String::from("diagonal"));
+            reject_target(bad_orientation);
+        }
+
+        #[test]
+        fn native_publication_maps_separator_to_axsplitter_and_reuses_identity() {
+            let (initial_snapshot, initial_targets) =
+                native_split_snapshot("0.25", "horizontal", 60.0);
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            adapter
+                .publish_projection(&initial_snapshot, &initial_targets, &[], None, 1)
+                .expect("the valid split separator should publish");
+
+            let (
+                objects,
+                root,
+                container,
+                separator,
+                separator_token,
+                initial_frame,
+                initial_frames,
+            ) = {
+                let state = adapter.callback_state.borrow();
+                let projection = &state.projection;
+                assert_eq!(projection.nodes.len(), 5);
+                let root = projection.nodes[0].object;
+                let container = projection.nodes[1].object;
+                let separator_node = projection
+                    .nodes
                     .iter()
-                    .any(|target| target.role == AutomationRole::Separator)
+                    .find(|node| node.kind == NativeNodeKind::Separator)
+                    .expect("the separator should be in the native projection");
+                assert_eq!(separator_node.role, "AXSplitter");
+                assert_eq!(
+                    separator_node.orientation,
+                    Some(NATIVE_HORIZONTAL_ORIENTATION)
+                );
+                assert_eq!(projection.nodes[1].children.len(), 3);
+                assert_eq!(projection.nodes[1].children[1], separator_node.token);
+                let separator_token = separator_node.token;
+                let objects = projection
+                    .nodes
+                    .iter()
+                    .map(|node| node.object)
+                    .collect::<Vec<_>>();
+                (
+                    objects,
+                    root,
+                    container,
+                    separator_node.object,
+                    separator_token,
+                    separator_node.frame,
+                    projection
+                        .nodes
+                        .iter()
+                        .map(|node| node.frame)
+                        .collect::<Vec<_>>(),
+                )
+            };
+            assert_eq!(
+                unsafe { msg_usize_id(container, sel(c"accessibilityIndexOfChild:"), separator) },
+                1
             );
             assert_eq!(
-                with_separator.root.children[0].children[1].role,
-                AutomationRole::Separator
+                unsafe {
+                    bounded_ns_string_to_rust(native_attribute_value(
+                        separator,
+                        null_mut(),
+                        ns_string("AXRole"),
+                    ))
+                }
+                .as_deref(),
+                Some("AXSplitter")
             );
+            assert_eq!(
+                modern_accessibility_string(separator, unsafe { sel(c"accessibilityRole") })
+                    .as_deref(),
+                Some("AXSplitter")
+            );
+            assert_eq!(
+                unsafe { msg_isize(separator, sel(c"accessibilityOrientation")) },
+                NATIVE_HORIZONTAL_ORIENTATION_VALUE
+            );
+            assert_eq!(
+                unsafe {
+                    bounded_ns_string_to_rust(native_attribute_value(
+                        separator,
+                        null_mut(),
+                        ns_string("AXValue"),
+                    ))
+                }
+                .as_deref(),
+                Some("0.25")
+            );
+            assert_eq!(
+                modern_accessibility_string(separator, unsafe { sel(c"accessibilityValue") })
+                    .as_deref(),
+                Some("0.25")
+            );
+            assert_eq!(
+                unsafe { msg_rect(separator, sel(c"accessibilityFrame")) },
+                initial_frame
+            );
+            assert!(modern_accessibility_children(separator).is_empty());
+            assert_eq!(native_focus_attribute_bool(separator), NO);
+            assert_eq!(
+                unsafe { msg_bool(separator, sel(c"isAccessibilityFocused")) },
+                NO
+            );
+            assert_eq!(
+                unsafe { msg_usize(native_action_names(separator, null_mut()), sel(c"count")) },
+                0
+            );
+            assert_eq!(
+                native_attribute_settable(separator, null_mut(), unsafe { ns_string("AXValue") },),
+                NO
+            );
+            assert_eq!(adapter.layout_notifications, 1);
+            assert_eq!(adapter.value_notifications, 0);
+            assert!(adapter.active_ranges.is_empty());
+            assert_eq!(accessibility_children_readback(host).0, root);
+
+            let (updated_snapshot, updated_targets) =
+                native_split_snapshot("0.75", "horizontal", 160.0);
+            adapter
+                .publish_projection(&updated_snapshot, &updated_targets, &[], None, 1)
+                .expect("the ratio update should remain a stable native projection");
+            let (updated_objects, updated_frames, updated_separator, updated_frame) = {
+                let state = adapter.callback_state.borrow();
+                let separator = state
+                    .projection
+                    .nodes
+                    .iter()
+                    .find(|node| node.kind == NativeNodeKind::Separator)
+                    .expect("the updated separator should remain published");
+                (
+                    state
+                        .projection
+                        .nodes
+                        .iter()
+                        .map(|node| node.object)
+                        .collect::<Vec<_>>(),
+                    state
+                        .projection
+                        .nodes
+                        .iter()
+                        .map(|node| node.frame)
+                        .collect::<Vec<_>>(),
+                    separator.object,
+                    separator.frame,
+                )
+            };
+            assert_eq!(updated_objects, objects);
+            assert_eq!(updated_separator, separator);
+            assert_eq!(updated_frames.len(), initial_frames.len());
+            assert_ne!(updated_frames[2], initial_frames[2]);
+            assert_ne!(updated_frames[3], initial_frames[3]);
+            assert_ne!(updated_frames[4], initial_frames[4]);
+            for (object, frame) in updated_objects.iter().zip(&updated_frames) {
+                assert_eq!(
+                    unsafe { msg_rect(*object, sel(c"accessibilityFrame")) },
+                    *frame
+                );
+            }
+            assert_ne!(updated_frame, initial_frame);
+            assert_eq!(adapter.tokens.separators.len(), 1);
+            assert_eq!(adapter.tokens.separators[0].token, separator_token);
+            assert_eq!(adapter.layout_notifications, 2);
+            assert_eq!(adapter.value_notifications, 1);
+            assert_eq!(
+                modern_accessibility_string(separator, unsafe { sel(c"accessibilityValue") })
+                    .as_deref(),
+                Some("0.75")
+            );
+            assert_eq!(
+                unsafe { msg_rect(separator, sel(c"accessibilityFrame")) },
+                updated_frame
+            );
+
+            adapter
+                .publish_projection(&updated_snapshot, &updated_targets, &[], None, 1)
+                .expect("the unchanged ratio projection should be a no-op");
+            assert_eq!(adapter.layout_notifications, 2);
+            assert_eq!(adapter.value_notifications, 1);
+            assert_eq!(
+                adapter
+                    .callback_state
+                    .borrow()
+                    .projection
+                    .nodes
+                    .iter()
+                    .map(|node| node.object)
+                    .collect::<Vec<_>>(),
+                objects
+            );
+
+            unsafe { msg_id(separator, sel(c"retain")) };
+            let expected_destroyed = adapter.objects.len();
+            assert!(adapter.retire_published_objects());
+            assert_eq!(adapter.destroyed_notifications, expected_destroyed);
+            assert!(adapter.callback_state.borrow().projection.nodes.is_empty());
+            assert_eq!(native_accessibility_orientation(separator, null_mut()), 0);
+            assert!(native_action_names(separator, null_mut()).is_null());
+            adapter.retire();
+            assert!(adapter.tokens.separators.is_empty());
+            unsafe { msg_void(separator, sel(c"release")) };
+            drop(adapter);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn native_nested_separator_publication_preserves_independent_ordering() {
+            let (snapshot, targets) = native_nested_split_snapshot();
+            let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
+            let mut adapter = native_publication_adapter_fixture(host);
+            adapter
+                .publish_projection(&snapshot, &targets, &[], None, 1)
+                .expect("nested split separators should publish");
+            let state = adapter.callback_state.borrow();
+            let separators = state
+                .projection
+                .nodes
+                .iter()
+                .filter(|node| node.kind == NativeNodeKind::Separator)
+                .collect::<Vec<_>>();
+            assert_eq!(separators.len(), 2);
+            for separator in &separators {
+                assert_eq!(separator.role, "AXSplitter");
+                assert!(separator.children.is_empty());
+                let parent = state
+                    .projection
+                    .nodes
+                    .iter()
+                    .find(|node| node.children.contains(&separator.token))
+                    .expect("each separator should have one semantic parent");
+                assert_eq!(parent.children.len(), 3);
+                assert_eq!(
+                    parent
+                        .children
+                        .iter()
+                        .position(|token| *token == separator.token),
+                    Some(1)
+                );
+                assert_eq!(
+                    unsafe {
+                        msg_usize_id(
+                            parent.object,
+                            sel(c"accessibilityIndexOfChild:"),
+                            separator.object,
+                        )
+                    },
+                    1
+                );
+            }
+            assert_ne!(separators[0].token, separators[1].token);
+            assert_eq!(adapter.tokens.separators.len(), 2);
+            drop(state);
+            assert!(adapter.retire_published_objects());
+            drop(adapter);
+            release_accessibility_children_test_host(host);
+        }
+
+        #[test]
+        fn native_publication_falls_back_to_ordinary_tree_for_unqualified_separator() {
+            let (with_separator, mut invalid_targets) =
+                native_split_snapshot("0.25", "horizontal", 60.0);
+            let separator_target = invalid_targets
+                .targets
+                .iter_mut()
+                .find(|target| target.role == AutomationRole::Separator)
+                .expect("separator target");
+            separator_target.authority = Some(AutomationTargetAuthority {
+                runtime_generation: 1,
+                materialized: false,
+            });
+            let mut ordinary = with_separator.clone();
+            ordinary.root.children[0].children.remove(1);
+            let ordinary_targets = native_materialized_targets(&ordinary, 1);
 
             let host = accessibility_children_test_host(ACCESSIBILITY_CHILDREN_HOST_STANDARD);
             let mut adapter = native_publication_adapter_fixture(host);
             adapter
                 .publish_projection(&ordinary, &ordinary_targets, &[], None, 1)
-                .expect("the ordinary native tree should publish");
+                .expect("the ordinary fallback tree should publish");
             let ordinary_projection = adapter.callback_state.borrow().projection.clone();
-
+            let ordinary_objects = adapter.objects.clone();
+            let ordinary_layout_notifications = adapter.layout_notifications;
             adapter
-                .publish_projection(&with_separator, &separator_targets, &[], None, 1)
-                .expect("the separator-bearing backend-neutral tree should publish");
+                .publish_projection(&with_separator, &invalid_targets, &[], None, 1)
+                .expect("invalid separator evidence should preserve ordinary publication");
             assert_eq!(
                 adapter.callback_state.borrow().projection,
-                ordinary_projection,
-                "Separator remains backend-neutral and does not alter the native tree"
+                ordinary_projection
             );
-            assert_eq!(adapter.layout_notifications, 1);
+            assert_eq!(adapter.objects, ordinary_objects);
+            assert_eq!(adapter.layout_notifications, ordinary_layout_notifications);
+            assert!(adapter.tokens.separators.is_empty());
+            assert!(adapter.active_ranges.is_empty());
             assert!(
                 adapter
                     .callback_state
@@ -5553,9 +6439,8 @@ mod macos {
                     .projection
                     .nodes
                     .iter()
-                    .all(|node| node.label.as_deref() != Some("Divider"))
+                    .all(|node| node.kind != NativeNodeKind::Separator)
             );
-
             assert!(adapter.retire_published_objects());
             drop(adapter);
             release_accessibility_children_test_host(host);
@@ -5830,6 +6715,7 @@ mod macos {
                         children: vec![TEST_NUMERIC_TOKEN],
                         logical_children: Vec::new(),
                         role: native_role(NativeNodeKind::Root, AutomationRole::Root, false),
+                        orientation: None,
                         frame: native_test_frame(root_bounds),
                         label: None,
                         description: None,
@@ -5845,6 +6731,7 @@ mod macos {
                         children: Vec::new(),
                         logical_children: Vec::new(),
                         role: native_role(NativeNodeKind::Ordinary, numeric_node.role, true),
+                        orientation: None,
                         frame: native_test_frame(numeric_node.bounds),
                         label: numeric_node.semantics.label.clone(),
                         description: numeric_node.semantics.description.clone(),
@@ -5996,6 +6883,7 @@ mod macos {
                         children: vec![container_token.token],
                         logical_children: Vec::new(),
                         role: "AXGroup",
+                        orientation: None,
                         frame: NSRect {
                             origin: NSPoint { x: 0.0, y: 0.0 },
                             size: NSSize {
@@ -6021,6 +6909,7 @@ mod macos {
                             .map(|(index, token)| (index, *token))
                             .collect(),
                         role: "AXGroup",
+                        orientation: None,
                         frame: NSRect {
                             origin: NSPoint { x: 0.0, y: 0.0 },
                             size: NSSize {
@@ -6042,6 +6931,7 @@ mod macos {
                         children: Vec::new(),
                         logical_children: Vec::new(),
                         role: "AXGroup",
+                        orientation: None,
                         frame: NSRect {
                             origin: NSPoint { x: 0.0, y: 0.0 },
                             size: NSSize {
@@ -6063,6 +6953,7 @@ mod macos {
                         children: Vec::new(),
                         logical_children: Vec::new(),
                         role: "AXGroup",
+                        orientation: None,
                         frame: NSRect {
                             origin: NSPoint { x: 0.0, y: 20.0 },
                             size: NSSize {
@@ -6101,6 +6992,7 @@ mod macos {
                     next: item_tokens[1],
                     root: Some((40, Some(session), 5)),
                     ordinary: Vec::new(),
+                    separators: Vec::new(),
                     containers: vec![container_token.clone()],
                     items: item_tokens
                         .iter()
@@ -6466,6 +7358,7 @@ mod macos {
                 children: vec![10, 11, 12],
                 logical_children: vec![(0, 10), (1, 11), (2, 12)],
                 role: "AXGroup",
+                orientation: None,
                 frame: NSRect {
                     origin: NSPoint { x: 0.0, y: 0.0 },
                     size: NSSize {
@@ -6915,6 +7808,7 @@ mod macos {
                 children: vec![2, 3],
                 logical_children: vec![(100, 2), (101, 3)],
                 role: "AXGroup",
+                orientation: None,
                 frame: NSRect {
                     origin: NSPoint { x: 0.0, y: 0.0 },
                     size: NSSize {
@@ -6941,6 +7835,7 @@ mod macos {
                 children: (0..9).collect(),
                 logical_children: Vec::new(),
                 role: "AXGroup",
+                orientation: None,
                 frame: NSRect {
                     origin: NSPoint { x: 0.0, y: 0.0 },
                     size: NSSize {
@@ -7619,6 +8514,7 @@ mod macos {
                     &updates,
                 ),
                 Some(StableProjectionNotifications {
+                    layout_changed: false,
                     value_changed: vec![object],
                     focused: None,
                 })
@@ -7630,11 +8526,24 @@ mod macos {
             let same_updates = collect_stable_value_projection_updates(
                 &changed_projection,
                 focused_token,
-                &[same_spec],
+                std::slice::from_ref(&same_spec),
                 &[same_frame],
             )
             .expect("the unchanged native evidence should remain stable");
             assert!(same_updates.updates.is_empty());
+
+            let mut changed_frame = same_frame;
+            changed_frame.origin.x += 1.0;
+            assert!(
+                collect_stable_value_projection_updates(
+                    &changed_projection,
+                    focused_token,
+                    std::slice::from_ref(&same_spec),
+                    &[changed_frame],
+                )
+                .is_none(),
+                "ordinary geometry changes must use the re-instantiation path"
+            );
 
             let mut changed_target = target;
             changed_target.authority = Some(AutomationTargetAuthority::materialized(10));

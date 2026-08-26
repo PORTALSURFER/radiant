@@ -4,7 +4,10 @@
 //! The binding is observational only until the window-stage owner accepts it;
 //! callers must re-check the same binding immediately before doing work.
 
-use super::{NativeAdapterGeneration, submission_completion::NativeSubmissionCompletionIdentity};
+use super::{
+    CompositedBaseFrameRetirementIdentity, NativeAdapterGeneration,
+    submission_completion::NativeSubmissionCompletionIdentity,
+};
 use std::time::Duration;
 
 pub(super) const NATIVE_RESOURCE_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(16);
@@ -37,6 +40,7 @@ pub(super) struct NativeResourceMaintenanceBinding {
     slot: NativeResourceMaintenanceSlot,
     generation: NativeAdapterGeneration,
     completion: NativeSubmissionCompletionIdentity,
+    composited_base_frame_retirement: Option<CompositedBaseFrameRetirementIdentity>,
 }
 
 impl NativeResourceMaintenanceBinding {
@@ -49,7 +53,16 @@ impl NativeResourceMaintenanceBinding {
             slot,
             generation,
             completion,
+            composited_base_frame_retirement: None,
         }
+    }
+
+    pub(super) const fn with_composited_base_frame_retirement(
+        mut self,
+        retirement: Option<CompositedBaseFrameRetirementIdentity>,
+    ) -> Self {
+        self.composited_base_frame_retirement = retirement;
+        self
     }
 
     pub(super) const fn slot(self) -> NativeResourceMaintenanceSlot {
@@ -62,6 +75,12 @@ impl NativeResourceMaintenanceBinding {
 
     pub(super) const fn completion(self) -> NativeSubmissionCompletionIdentity {
         self.completion
+    }
+
+    pub(super) const fn composited_base_frame_retirement(
+        self,
+    ) -> Option<CompositedBaseFrameRetirementIdentity> {
+        self.composited_base_frame_retirement
     }
 }
 

@@ -1996,7 +1996,11 @@ where
             self.defer_normal_native_resource_maintenance(now);
             return false;
         }
-        let Some(quarantine_removed) = self.window.maintain_native_resource_slot(binding) else {
+        let mut maintenance_turn = NativeResourceMaintenanceTurn::new();
+        let Some(quarantine_removed) = self
+            .window
+            .maintain_native_resource_slot(binding, &mut maintenance_turn)
+        else {
             let _ = self.frame_stage_owner.veto_maintenance(ticket);
             self.defer_normal_native_resource_maintenance(now);
             return false;

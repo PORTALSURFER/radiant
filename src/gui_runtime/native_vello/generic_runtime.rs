@@ -198,6 +198,35 @@ impl GpuSurfaceCustomShaderResidencySnapshot {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct GpuSurfaceCompositedBaseResidencySnapshot {
+    generation: adapter::NativeAdapterGeneration,
+    pub(super) active_object_count: usize,
+    pub(super) retired_object_count: usize,
+    pub(super) active_requested_backing_bytes: Option<u64>,
+    pub(super) retired_requested_backing_bytes: Option<u64>,
+}
+
+impl GpuSurfaceCompositedBaseResidencySnapshot {
+    pub(super) fn with_generation(mut self, generation: adapter::NativeAdapterGeneration) -> Self {
+        self.generation = generation;
+        self
+    }
+
+    pub(super) const fn generation_known(self) -> bool {
+        self.generation.is_known()
+    }
+
+    pub(super) const fn generation_serial(self) -> Option<u64> {
+        self.generation.known_serial()
+    }
+
+    #[cfg(test)]
+    pub(super) fn generation(self) -> adapter::NativeAdapterGeneration {
+        self.generation
+    }
+}
+
 #[cfg(test)]
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8},
@@ -282,7 +311,9 @@ use auxiliary::AuxiliaryFrameDiagnostics;
 use auxiliary::AuxiliaryWindowCloseAdmission;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use closing::{NativeClosingProgress, NativeLifecycle};
-use composited_base::CompositedBaseFrame;
+use composited_base::{
+    CompositedBaseFrame, CompositedBaseFrameRetirement, CompositedBaseFrameRetirementIdentity,
+};
 pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, PaintPlanCacheDecision, PointerPressStamp,
 };

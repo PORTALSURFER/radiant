@@ -35,6 +35,11 @@ impl NativeSubmissionCompletionIdentity {
     pub(super) const fn generation(self) -> NativeAdapterGeneration {
         self.generation
     }
+
+    pub(super) const fn is_valid_for_retirement(self) -> bool {
+        self.generation.is_known()
+            && !matches!(self.phase, NativeSubmissionCompletionPhase::Exhausted)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -302,6 +307,11 @@ impl NativeSubmissionCompletionWitness {
         self.state.identity(self.capability.generation)
     }
 
+    pub(super) fn retirement_identity(&self) -> Option<NativeSubmissionCompletionIdentity> {
+        let identity = self.maintenance_identity();
+        identity.is_valid_for_retirement().then_some(identity)
+    }
+
     pub(super) fn maintenance_pending(&self) -> bool {
         self.state.callback_pending() || self.state.rearm_required()
     }
@@ -377,6 +387,21 @@ mod tests {
         assert!(!state.observe_callback_completion(first));
         assert!(state.observe_callback_completion(second));
         assert!(!state.observe_callback_completion(second));
+    }
+
+    #[test]
+    fn exhausted_completion_identity_is_not_retirement_evidence() {
+        let mut state = NativeSubmissionCompletionState {
+            phase: super::NativeSubmissionCompletionPhase::Exhausted,
+            next_callback_id: u64::MAX,
+        };
+        let mut generation = super::NativeAdapterGeneration::from_test_serial(1);
+        let identity = state.identity(generation);
+        assert!(!identity.is_valid_for_retirement());
+
+        generation.advance();
+        state.phase = super::NativeSubmissionCompletionPhase::NeverSubmitted;
+        assert!(state.identity(generation).is_valid_for_retirement());
     }
 
     #[test]

@@ -135,6 +135,8 @@ where
         let Some(adapter_generation) = adapter.capture_generation() else {
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
+        let target_generation = self.window.target_generation;
+        let target_fenced = self.window.native_surface_target_fenced;
         // Volatile GPU updates are staged before the final stage-owner ticket
         // and before get_current_texture. Every veto below aborts this
         // snapshot; only a successful present commits it.
@@ -387,6 +389,8 @@ where
                 self.core.runtime.abort_gpu_shader_presentation_updates();
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
+            let resource_generation = resources.generation;
+            let completion_identity = resources.completion_witness.retirement_identity();
             let surface = &mut resources.render_surface;
             let gpu_resources = &mut resources.gpu_resources;
             let request = BaseFramePresentRequest {
@@ -400,6 +404,7 @@ where
             let gpu_surface_stats = present_base_frame(
                 &mut BaseFramePresentState {
                     base_frame: &mut gpu_resources.composited_base_frame,
+                    retired_base_frame: &mut gpu_resources.composited_base_frame_retirement,
                     base_dirty: &mut self.frame.composited_base_dirty,
                     gpu_surface_renderer: &mut gpu_resources.gpu_surface_renderer,
                     profile: &mut profile,
@@ -411,6 +416,11 @@ where
                     encoder: &mut encoder,
                     surface_view: &surface_view,
                     dpi_scale: self.window.dpi_scale,
+                    adapter_generation,
+                    resource_generation,
+                    target_generation,
+                    target_fenced,
+                    completion_identity,
                 },
                 &request,
             );
@@ -572,6 +582,7 @@ where
                     atlas_residency: self.window.atlas_residency_snapshots(),
                     signal_residency: self.window.signal_residency_snapshots(),
                     custom_shader_residency: self.window.custom_shader_residency_snapshots(),
+                    composited_base_residency: self.window.composited_base_residency_snapshots(),
                     application_atlas_residency,
                     application_signal_residency,
                     application_custom_shader_residency,
@@ -718,6 +729,7 @@ where
                     atlas_residency: self.window.atlas_residency_snapshots(),
                     signal_residency: self.window.signal_residency_snapshots(),
                     custom_shader_residency: self.window.custom_shader_residency_snapshots(),
+                    composited_base_residency: self.window.composited_base_residency_snapshots(),
                     application_atlas_residency,
                     application_signal_residency,
                     application_custom_shader_residency,

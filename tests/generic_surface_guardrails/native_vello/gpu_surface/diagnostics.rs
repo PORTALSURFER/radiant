@@ -196,6 +196,32 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
 }
 
 #[test]
+fn active_composited_base_profile_record_includes_retired_residency() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let render_profile = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/render_profile.rs"),
+    )
+    .expect("native render profile should be readable");
+    let active_record = render_profile
+        .split("gpu_surface_composited_base_active_generation_known =")
+        .nth(1)
+        .and_then(|tail| {
+            tail.split("gpu_surface_composited_base_q0_generation_known =")
+                .next()
+        })
+        .expect("active composited-base profile record should be present");
+
+    assert!(
+        active_record.contains(
+            "gpu_surface_composited_base_active_retired_object_count =\n            active_composited_base.retired_object_count"
+        ) && active_record.contains(
+            "gpu_surface_composited_base_active_retired_requested_backing_bytes =\n            active_composited_base.retired_requested_backing_bytes"
+        ),
+        "active composited-base profile record should emit projected retired residency fields"
+    );
+}
+
+#[test]
 fn render_canvas_upload_evidence_stays_private_and_follows_actual_write_sites() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let stats = fs::read_to_string(

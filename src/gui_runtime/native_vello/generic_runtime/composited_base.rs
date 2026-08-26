@@ -1,6 +1,7 @@
 //! Cached composed frame used by paint-only transient overlay presentations.
 
 use super::runtime_helpers::SurfaceOcclusionPlan;
+use super::submission_completion::NativeSubmissionCompletionIdentity;
 use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_surface};
 #[cfg(test)]
 use crate::gui::types::{Point, Rect as UiRect, Rgba8, Vector2};
@@ -8,7 +9,10 @@ use crate::runtime::{GpuShaderPresentationUniformUpdate, PaintPrimitive, Surface
 use vello::{util::RenderSurface, wgpu};
 
 mod frame;
-pub(super) use frame::CompositedBaseFrame;
+pub(super) use frame::{
+    CompositedBaseFrame, CompositedBaseFrameEnsureOutcome, CompositedBaseFrameEnsureRequest,
+    CompositedBaseFrameRetirement, CompositedBaseFrameRetirementIdentity,
+};
 
 pub(super) struct BaseFramePresentTarget<'a> {
     pub(super) device: &'a wgpu::Device,
@@ -16,10 +20,16 @@ pub(super) struct BaseFramePresentTarget<'a> {
     pub(super) encoder: &'a mut wgpu::CommandEncoder,
     pub(super) surface_view: &'a wgpu::TextureView,
     pub(super) dpi_scale: crate::theme::DpiScale,
+    pub(super) adapter_generation: super::NativeAdapterGeneration,
+    pub(super) resource_generation: super::NativeAdapterGeneration,
+    pub(super) target_generation: super::runner_state::NativeTargetGeneration,
+    pub(super) target_fenced: bool,
+    pub(super) completion_identity: Option<NativeSubmissionCompletionIdentity>,
 }
 
 pub(super) struct BaseFramePresentState<'a> {
     pub(super) base_frame: &'a mut Option<CompositedBaseFrame>,
+    pub(super) retired_base_frame: &'a mut Option<CompositedBaseFrameRetirement>,
     pub(super) base_dirty: &'a mut bool,
     pub(super) gpu_surface_renderer: &'a mut GpuSurfaceRenderer,
     pub(super) profile: &'a mut RenderFrameProfile,
@@ -65,13 +75,32 @@ pub(super) fn present_base_frame(
         return present_live_base(state.gpu_surface_renderer, surface, target, request);
     }
 
-    let (frame, frame_recreated) = CompositedBaseFrame::ensure(
+    let ensure_outcome = CompositedBaseFrame::ensure(
         state.base_frame,
-        target.device,
-        surface.config.width,
-        surface.config.height,
-        surface.config.format,
+        state.retired_base_frame,
+        CompositedBaseFrameEnsureRequest {
+            device: target.device,
+            width: surface.config.width,
+            height: surface.config.height,
+            format: surface.config.format,
+            adapter_generation: target.adapter_generation,
+            resource_generation: target.resource_generation,
+            target_generation: target.target_generation,
+            target_fenced: target.target_fenced,
+            completion_identity: target.completion_identity,
+        },
     );
+    let frame_recreated = match ensure_outcome {
+        CompositedBaseFrameEnsureOutcome::Reused => false,
+        CompositedBaseFrameEnsureOutcome::Created => true,
+        CompositedBaseFrameEnsureOutcome::Vetoed => {
+            *state.base_dirty = true;
+            return present_live_base(state.gpu_surface_renderer, surface, target, request);
+        }
+    };
+    let Some(frame) = state.base_frame.as_ref() else {
+        return present_live_base(state.gpu_surface_renderer, surface, target, request);
+    };
     let needs_refresh = composited_base_needs_refresh(
         *state.base_dirty,
         frame_recreated,

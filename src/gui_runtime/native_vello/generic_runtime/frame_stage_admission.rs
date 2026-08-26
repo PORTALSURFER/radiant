@@ -1420,6 +1420,7 @@ impl WindowStageOwner {
             || self.has_in_flight()
             || !binding.generation().is_known()
             || binding.completion().generation() != binding.generation()
+            || !binding.completion().is_valid_for_retirement()
         {
             return None;
         }

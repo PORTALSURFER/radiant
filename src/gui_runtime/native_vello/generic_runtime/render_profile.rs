@@ -1,15 +1,15 @@
 //! Native render profiling diagnostics for the generic Vello runtime.
 
 use super::runner_state::{
-    NativeWindowAtlasResidencySnapshots, NativeWindowCustomShaderResidencySnapshots,
-    NativeWindowSignalResidencySnapshots,
+    NativeWindowAtlasResidencySnapshots, NativeWindowCompositedBaseResidencySnapshots,
+    NativeWindowCustomShaderResidencySnapshots, NativeWindowSignalResidencySnapshots,
 };
 use super::{
-    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
-    GpuSurfaceSignalResidencySnapshot, NativeAdapterAtlasResidencyProfile,
-    NativeAdapterCustomShaderResidencyProfile, NativeAdapterRenderCanvasUploadProfile,
-    NativeAdapterSignalResidencyProfile, RetainedSurfaceEncodeStats,
-    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCompositedBaseResidencySnapshot,
+    GpuSurfaceCustomShaderResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
+    NativeAdapterAtlasResidencyProfile, NativeAdapterCustomShaderResidencyProfile,
+    NativeAdapterRenderCanvasUploadProfile, NativeAdapterSignalResidencyProfile,
+    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -61,6 +61,7 @@ pub(super) struct NativeRenderProfileGpuSurface {
     pub(super) atlas_residency: NativeWindowAtlasResidencySnapshots,
     pub(super) signal_residency: NativeWindowSignalResidencySnapshots,
     pub(super) custom_shader_residency: NativeWindowCustomShaderResidencySnapshots,
+    pub(super) composited_base_residency: NativeWindowCompositedBaseResidencySnapshots,
     pub(super) application_atlas_residency: NativeAdapterAtlasResidencyProfile,
     pub(super) application_signal_residency: NativeAdapterSignalResidencyProfile,
     pub(super) application_custom_shader_residency: NativeAdapterCustomShaderResidencyProfile,
@@ -143,6 +144,32 @@ fn project_custom_shader_residency(
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeRenderProfileCompositedBaseResidency {
+    generation_known: Option<bool>,
+    generation_serial: Option<u64>,
+    active_object_count: Option<usize>,
+    retired_object_count: Option<usize>,
+    active_requested_backing_bytes: Option<u64>,
+    retired_requested_backing_bytes: Option<u64>,
+}
+
+fn project_composited_base_residency(
+    snapshot: Option<GpuSurfaceCompositedBaseResidencySnapshot>,
+) -> NativeRenderProfileCompositedBaseResidency {
+    NativeRenderProfileCompositedBaseResidency {
+        generation_known: snapshot.map(GpuSurfaceCompositedBaseResidencySnapshot::generation_known),
+        generation_serial: snapshot
+            .and_then(GpuSurfaceCompositedBaseResidencySnapshot::generation_serial),
+        active_object_count: snapshot.map(|snapshot| snapshot.active_object_count),
+        retired_object_count: snapshot.map(|snapshot| snapshot.retired_object_count),
+        active_requested_backing_bytes: snapshot
+            .and_then(|snapshot| snapshot.active_requested_backing_bytes),
+        retired_requested_backing_bytes: snapshot
+            .and_then(|snapshot| snapshot.retired_requested_backing_bytes),
+    }
+}
+
 pub(super) fn maybe_log_render_profile(
     reason: &'static str,
     stats: RetainedSurfaceEncodeStats,
@@ -160,6 +187,7 @@ pub(super) fn maybe_log_render_profile(
         atlas_residency,
         signal_residency,
         custom_shader_residency,
+        composited_base_residency,
         application_atlas_residency,
         application_signal_residency,
         application_custom_shader_residency,
@@ -176,6 +204,12 @@ pub(super) fn maybe_log_render_profile(
         project_custom_shader_residency(custom_shader_residency.quarantine_0);
     let quarantine_1_custom_shader =
         project_custom_shader_residency(custom_shader_residency.quarantine_1);
+    let active_composited_base =
+        project_composited_base_residency(composited_base_residency.active);
+    let quarantine_0_composited_base =
+        project_composited_base_residency(composited_base_residency.quarantine_0);
+    let quarantine_1_composited_base =
+        project_composited_base_residency(composited_base_residency.quarantine_1);
     let render_canvas_uploads = gpu_surface_stats.render_canvas_uploads;
     let render_canvas_upload_plan = gpu_surface_stats.render_canvas_upload_plan;
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
@@ -362,6 +396,46 @@ pub(super) fn maybe_log_render_profile(
         submit_present_us = frame.submit_present.as_micros(),
         since_last_present_us = since_last_present.as_micros(),
         "radiant native render profile"
+    );
+    info!(
+        reason,
+        window_identity = frame
+            .window_identity
+            .map(NativeWindowDiagnosticIdentity::get),
+        frame_sequence = frame.frame_sequence,
+        gpu_surface_composited_base_active_generation_known =
+            active_composited_base.generation_known,
+        gpu_surface_composited_base_active_generation_serial =
+            active_composited_base.generation_serial,
+        gpu_surface_composited_base_active_object_count =
+            active_composited_base.active_object_count,
+        gpu_surface_composited_base_active_requested_backing_bytes =
+            active_composited_base.active_requested_backing_bytes,
+        gpu_surface_composited_base_q0_generation_known =
+            quarantine_0_composited_base.generation_known,
+        gpu_surface_composited_base_q0_generation_serial =
+            quarantine_0_composited_base.generation_serial,
+        gpu_surface_composited_base_q0_active_object_count =
+            quarantine_0_composited_base.active_object_count,
+        gpu_surface_composited_base_q0_retired_object_count =
+            quarantine_0_composited_base.retired_object_count,
+        gpu_surface_composited_base_q0_active_requested_backing_bytes =
+            quarantine_0_composited_base.active_requested_backing_bytes,
+        gpu_surface_composited_base_q0_retired_requested_backing_bytes =
+            quarantine_0_composited_base.retired_requested_backing_bytes,
+        gpu_surface_composited_base_q1_generation_known =
+            quarantine_1_composited_base.generation_known,
+        gpu_surface_composited_base_q1_generation_serial =
+            quarantine_1_composited_base.generation_serial,
+        gpu_surface_composited_base_q1_active_object_count =
+            quarantine_1_composited_base.active_object_count,
+        gpu_surface_composited_base_q1_retired_object_count =
+            quarantine_1_composited_base.retired_object_count,
+        gpu_surface_composited_base_q1_active_requested_backing_bytes =
+            quarantine_1_composited_base.active_requested_backing_bytes,
+        gpu_surface_composited_base_q1_retired_requested_backing_bytes =
+            quarantine_1_composited_base.retired_requested_backing_bytes,
+        "radiant native render profile composited base residency"
     );
     info!(
         reason,
@@ -699,17 +773,18 @@ fn text_quality_status(text_stats: TextLayoutProfileCounters) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::super::{
-        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
-        GpuSurfaceSignalResidencySnapshot,
+        GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCompositedBaseResidencySnapshot,
+        GpuSurfaceCustomShaderResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
         adapter::NativeAdapterGeneration,
         runner_state::{
-            NativeWindowAtlasResidencySnapshots, NativeWindowCustomShaderResidencySnapshots,
-            NativeWindowSignalResidencySnapshots,
+            NativeWindowAtlasResidencySnapshots, NativeWindowCompositedBaseResidencySnapshots,
+            NativeWindowCustomShaderResidencySnapshots, NativeWindowSignalResidencySnapshots,
         },
     };
     use super::{
-        NativeRenderProfileAtlasResidency, NativeRenderProfileCustomShaderResidency,
-        NativeRenderProfileSignalResidency, project_atlas_residency,
+        NativeRenderProfileAtlasResidency, NativeRenderProfileCompositedBaseResidency,
+        NativeRenderProfileCustomShaderResidency, NativeRenderProfileSignalResidency,
+        project_atlas_residency, project_composited_base_residency,
         project_custom_shader_residency, project_signal_residency,
     };
 
@@ -772,6 +847,88 @@ mod tests {
             let projection = project_atlas_residency(Some(snapshot));
             assert_eq!(projection.generation_known, Some(false));
             assert_eq!(projection.generation_serial, None);
+        }
+    }
+
+    #[test]
+    fn composited_base_profile_projection_preserves_counts_and_requested_bytes() {
+        let snapshots = NativeWindowCompositedBaseResidencySnapshots {
+            active: Some(GpuSurfaceCompositedBaseResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(61),
+                active_object_count: 1,
+                retired_object_count: 1,
+                active_requested_backing_bytes: Some(921_600),
+                retired_requested_backing_bytes: Some(512),
+            }),
+            quarantine_0: Some(GpuSurfaceCompositedBaseResidencySnapshot {
+                generation: NativeAdapterGeneration::from_test_serial(62),
+                active_object_count: 0,
+                retired_object_count: 1,
+                active_requested_backing_bytes: None,
+                retired_requested_backing_bytes: Some(256),
+            }),
+            quarantine_1: None,
+        };
+
+        assert_eq!(
+            snapshots
+                .active
+                .map(GpuSurfaceCompositedBaseResidencySnapshot::generation),
+            Some(NativeAdapterGeneration::from_test_serial(61))
+        );
+
+        assert_eq!(
+            project_composited_base_residency(snapshots.active),
+            NativeRenderProfileCompositedBaseResidency {
+                generation_known: Some(true),
+                generation_serial: Some(61),
+                active_object_count: Some(1),
+                retired_object_count: Some(1),
+                active_requested_backing_bytes: Some(921_600),
+                retired_requested_backing_bytes: Some(512),
+            }
+        );
+        assert_eq!(
+            project_composited_base_residency(snapshots.quarantine_0),
+            NativeRenderProfileCompositedBaseResidency {
+                generation_known: Some(true),
+                generation_serial: Some(62),
+                active_object_count: Some(0),
+                retired_object_count: Some(1),
+                active_requested_backing_bytes: None,
+                retired_requested_backing_bytes: Some(256),
+            }
+        );
+        assert_eq!(
+            project_composited_base_residency(snapshots.quarantine_1),
+            NativeRenderProfileCompositedBaseResidency::default()
+        );
+    }
+
+    #[test]
+    fn composited_base_profile_projection_keeps_unknown_and_exhausted_generation_untrusted() {
+        let unknown = GpuSurfaceCompositedBaseResidencySnapshot {
+            generation: NativeAdapterGeneration::default(),
+            active_object_count: 1,
+            retired_object_count: 0,
+            active_requested_backing_bytes: Some(4),
+            retired_requested_backing_bytes: None,
+        };
+        let mut exhausted_generation = NativeAdapterGeneration::from_test_serial(u64::MAX);
+        assert!(!exhausted_generation.advance());
+        let exhausted = GpuSurfaceCompositedBaseResidencySnapshot {
+            generation: exhausted_generation,
+            active_object_count: 1,
+            retired_object_count: 1,
+            active_requested_backing_bytes: Some(8),
+            retired_requested_backing_bytes: Some(8),
+        };
+
+        for snapshot in [unknown, exhausted] {
+            let projection = project_composited_base_residency(Some(snapshot));
+            assert_eq!(projection.generation_known, Some(false));
+            assert_eq!(projection.generation_serial, None);
+            assert_eq!(projection.active_object_count, Some(1));
         }
     }
 

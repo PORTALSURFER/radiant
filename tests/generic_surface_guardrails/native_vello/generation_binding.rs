@@ -148,6 +148,7 @@ fn retained_window_gpu_state_is_generation_owned_and_admitted() {
         "gpu_surface_renderer: GpuSurfaceRenderer",
         "post_gpu_overlay_renderer: PostGpuOverlayRenderer",
         "composited_base_frame: Option<CompositedBaseFrame>",
+        "composited_base_frame_retirement: Option<CompositedBaseFrameRetirement>",
         "gpu_timing: NativeGpuTimingResources",
         "gpu_resources: NativeWindowGpuResources",
         "NativeWindowGpuResources::new_with_timing(",
@@ -175,6 +176,7 @@ fn retained_window_gpu_state_is_generation_owned_and_admitted() {
     assert!(
         present.contains("let gpu_resources = &mut resources.gpu_resources")
             && present.contains("gpu_resources.composited_base_frame")
+            && present.contains("gpu_resources.composited_base_frame_retirement")
             && present.contains("gpu_resources.gpu_surface_renderer")
             && present.contains("gpu_resources.post_gpu_overlay_renderer")
             && !present.contains("self.frame.gpu_surface_renderer")
@@ -415,7 +417,7 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
         lifecycle.contains("selected_lane == FrameScheduleLane::Maintenance")
             && lifecycle.contains("self.admit_native_resource_maintenance(")
             && runner.contains("pub(super) fn admit_native_resource_maintenance(")
-            && runner.contains("self.window.maintain_native_resource_slot(binding)")
+            && runner.contains(".maintain_native_resource_slot(binding, &mut maintenance_turn)",)
             && runner.contains("advance_native_resource_maintenance_cursor")
             && !lifecycle.contains("begin_native_resource_maintenance_and_wake_primary")
             && !runner.contains("begin_native_resource_maintenance_and_wake_primary"),

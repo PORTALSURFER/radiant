@@ -15,7 +15,8 @@ use super::native_visual_packet::NativeVisualRequestMailbox;
 use super::submission_completion::NativeSubmissionCompletionWitness;
 use super::window_environment::{AccessibilityDisplaySnapshot, MonitorFingerprint};
 use super::{
-    CompositedBaseFrame, FrameWork, FrameWorkReason, GpuSurfaceAtlasResidencySnapshot,
+    CompositedBaseFrame, CompositedBaseFrameRetirement, FrameWork, FrameWorkReason,
+    GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCompositedBaseResidencySnapshot,
     GpuSurfaceCustomShaderResidencySnapshot, GpuSurfaceRenderer, GpuSurfaceSignalResidencySnapshot,
     NativeGpuTimingRoute, PostGpuOverlayRenderer, RuntimeUserEvent,
 };
@@ -265,6 +266,7 @@ pub(super) struct NativeWindowGpuResources {
     pub(super) gpu_surface_renderer: GpuSurfaceRenderer,
     pub(super) post_gpu_overlay_renderer: PostGpuOverlayRenderer,
     pub(super) composited_base_frame: Option<CompositedBaseFrame>,
+    pub(super) composited_base_frame_retirement: Option<CompositedBaseFrameRetirement>,
     pub(super) gpu_timing: NativeGpuTimingResources,
 }
 
@@ -274,6 +276,7 @@ impl NativeWindowGpuResources {
             gpu_surface_renderer: GpuSurfaceRenderer::default(),
             post_gpu_overlay_renderer: PostGpuOverlayRenderer::default(),
             composited_base_frame: None,
+            composited_base_frame_retirement: None,
             gpu_timing: NativeGpuTimingResources::disabled(),
         }
     }
@@ -353,6 +356,27 @@ impl NativeWindowCustomShaderResidencySnapshots {
         active: Option<GpuSurfaceCustomShaderResidencySnapshot>,
         quarantine_0: Option<GpuSurfaceCustomShaderResidencySnapshot>,
         quarantine_1: Option<GpuSurfaceCustomShaderResidencySnapshot>,
+    ) -> Self {
+        Self {
+            active,
+            quarantine_0,
+            quarantine_1,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeWindowCompositedBaseResidencySnapshots {
+    pub(super) active: Option<GpuSurfaceCompositedBaseResidencySnapshot>,
+    pub(super) quarantine_0: Option<GpuSurfaceCompositedBaseResidencySnapshot>,
+    pub(super) quarantine_1: Option<GpuSurfaceCompositedBaseResidencySnapshot>,
+}
+
+impl NativeWindowCompositedBaseResidencySnapshots {
+    fn from_slots(
+        active: Option<GpuSurfaceCompositedBaseResidencySnapshot>,
+        quarantine_0: Option<GpuSurfaceCompositedBaseResidencySnapshot>,
+        quarantine_1: Option<GpuSurfaceCompositedBaseResidencySnapshot>,
     ) -> Self {
         Self {
             active,
@@ -464,6 +488,30 @@ impl NativeWindowResourceBundle {
             .with_generation(self.generation)
     }
 
+    pub(super) fn composited_base_residency_snapshot(
+        &self,
+    ) -> GpuSurfaceCompositedBaseResidencySnapshot {
+        GpuSurfaceCompositedBaseResidencySnapshot {
+            active_object_count: usize::from(self.gpu_resources.composited_base_frame.is_some()),
+            retired_object_count: usize::from(
+                self.gpu_resources
+                    .composited_base_frame_retirement
+                    .is_some(),
+            ),
+            active_requested_backing_bytes: self
+                .gpu_resources
+                .composited_base_frame
+                .as_ref()
+                .and_then(CompositedBaseFrame::requested_backing_bytes),
+            retired_requested_backing_bytes: self
+                .gpu_resources
+                .composited_base_frame_retirement
+                .as_ref()
+                .and_then(CompositedBaseFrameRetirement::requested_backing_bytes),
+            ..GpuSurfaceCompositedBaseResidencySnapshot::default().with_generation(self.generation)
+        }
+    }
+
     pub(super) fn bind_gpu_timing(
         &mut self,
         reservation: GpuTimingReservation,
@@ -491,10 +539,11 @@ impl NativeWindowResourceBundle {
         self.completion_witness.record_successful_submission();
     }
 
-    pub(super) fn maintain_completion(&mut self) -> bool {
+    pub(super) fn maintain_completion(&mut self, turn: &mut NativeResourceMaintenanceTurn) -> bool {
         let completion_pending = self.completion_witness.maintain();
         let timing_pending = self.gpu_resources.gpu_timing.maintain();
-        completion_pending || timing_pending
+        let composited_base_pending = self.maintain_composited_base_frame(turn);
+        completion_pending || timing_pending || composited_base_pending
     }
 
     pub(super) fn maintenance_binding(
@@ -506,27 +555,66 @@ impl NativeWindowResourceBundle {
             self.generation,
             self.completion_witness.maintenance_identity(),
         )
+        .with_composited_base_frame_retirement(
+            self.gpu_resources
+                .composited_base_frame_retirement
+                .as_ref()
+                .map(CompositedBaseFrameRetirement::identity),
+        )
     }
 
     pub(super) fn maintenance_pending(&self) -> bool {
         self.completion_witness.maintenance_pending()
             || self.gpu_resources.gpu_timing.maintenance_pending()
+            || self.composited_base_frame_maintenance_pending()
     }
 
-    pub(super) fn maintain_completion_once(&mut self) -> bool {
+    pub(super) fn maintain_completion_once(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
         let completion_pending = self.completion_witness.maintain_once();
         let timing_pending = self.gpu_resources.gpu_timing.maintain();
-        completion_pending || timing_pending
+        let composited_base_pending = self.maintain_composited_base_frame(turn);
+        completion_pending || timing_pending || composited_base_pending
     }
 
     pub(super) fn retirement_eligible(&self) -> bool {
         self.completion_witness.retirement_eligible()
             && self.gpu_resources.gpu_timing.retirement_eligible()
+            && self
+                .gpu_resources
+                .composited_base_frame_retirement
+                .is_none()
+    }
+
+    fn composited_base_frame_maintenance_pending(&self) -> bool {
+        self.gpu_resources
+            .composited_base_frame_retirement
+            .is_some()
+            && self.completion_witness.retirement_identity().is_some()
+            && (self.completion_witness.maintenance_pending()
+                || self.completion_witness.retirement_eligible())
+    }
+
+    fn maintain_composited_base_frame(&mut self, turn: &mut NativeResourceMaintenanceTurn) -> bool {
+        if self
+            .gpu_resources
+            .composited_base_frame_retirement
+            .is_some()
+            && self.completion_witness.retirement_identity().is_some()
+            && self.completion_witness.retirement_eligible()
+            && turn.claim_drop()
+        {
+            let _ = self.gpu_resources.composited_base_frame_retirement.take();
+        }
+        self.composited_base_frame_maintenance_pending()
     }
 }
 
-/// One event-loop maintenance turn may physically drop at most one quarantined
-/// native bundle across the primary and all auxiliary runners.
+/// One event-loop maintenance turn may physically drop at most one owned native
+/// object or unit across the primary and all auxiliary runners. This budget is
+/// shared by quarantined bundles and embedded composited-base predecessors.
 pub(super) struct NativeResourceMaintenanceTurn {
     drop_available: bool,
     pending: bool,
@@ -573,6 +661,14 @@ impl NativeResourceMaintenanceTurn {
         self.drop_available = false;
     }
 
+    fn claim_drop(&mut self) -> bool {
+        if !self.drop_available {
+            return false;
+        }
+        self.record_drop();
+        true
+    }
+
     fn drop_one_ready<T>(
         &mut self,
         quarantine: &mut NativeResourceQuarantine<T>,
@@ -581,8 +677,7 @@ impl NativeResourceMaintenanceTurn {
         if !self.drop_available || !quarantine.drop_one_ready(ready) {
             return false;
         }
-        self.record_drop();
-        true
+        self.claim_drop()
     }
 
     fn record_pending_if_ready<T>(
@@ -682,16 +777,16 @@ fn maintain_native_resource_entries<T>(
     active: &mut Option<T>,
     quarantine: &mut NativeResourceQuarantine<T>,
     turn: &mut NativeResourceMaintenanceTurn,
-    mut maintain: impl FnMut(&mut T) -> bool,
+    mut maintain: impl FnMut(&mut T, &mut NativeResourceMaintenanceTurn) -> bool,
     mut ready: impl FnMut(&T) -> bool,
 ) {
     if let Some(entry) = active.as_mut()
-        && maintain(entry)
+        && maintain(entry, turn)
     {
         turn.record_pending();
     }
     for entry in &mut quarantine.entries {
-        if maintain(entry) {
+        if maintain(entry, turn) {
             turn.record_pending();
         }
     }
@@ -703,7 +798,7 @@ fn retire_native_resource_entries<T>(
     active: &mut Option<T>,
     quarantine: &mut NativeResourceQuarantine<T>,
     turn: &mut NativeResourceMaintenanceTurn,
-    mut maintain: impl FnMut(&mut T) -> bool,
+    mut maintain: impl FnMut(&mut T, &mut NativeResourceMaintenanceTurn) -> bool,
     mut ready: impl FnMut(&T) -> bool,
 ) -> bool {
     if active.is_some() {
@@ -871,6 +966,28 @@ impl NativeRunnerWindowState {
             }
         }
         NativeWindowCustomShaderResidencySnapshots::from_slots(active, quarantine[0], quarantine[1])
+    }
+
+    pub(super) fn composited_base_residency_snapshots(
+        &self,
+    ) -> NativeWindowCompositedBaseResidencySnapshots {
+        let active = self
+            .native_resources
+            .as_ref()
+            .map(NativeWindowResourceBundle::composited_base_residency_snapshot);
+        let mut quarantine = [None, None];
+        for (index, resources) in self.quarantined_native_resources.entries.iter().enumerate() {
+            match index {
+                0 => quarantine[0] = Some(resources.composited_base_residency_snapshot()),
+                1 => quarantine[1] = Some(resources.composited_base_residency_snapshot()),
+                _ => break,
+            }
+        }
+        NativeWindowCompositedBaseResidencySnapshots::from_slots(
+            active,
+            quarantine[0],
+            quarantine[1],
+        )
     }
 
     pub(super) fn prepare_native_gpu_timing_delivery(
@@ -1057,15 +1174,19 @@ impl NativeRunnerWindowState {
     pub(super) fn maintain_native_resource_slot(
         &mut self,
         binding: NativeResourceMaintenanceBinding,
+        turn: &mut NativeResourceMaintenanceTurn,
     ) -> Option<bool> {
         match binding.slot() {
             NativeResourceMaintenanceSlot::Active => {
                 let resources = self.native_resources.as_mut()?;
                 let current = resources.maintenance_binding(NativeResourceMaintenanceSlot::Active);
-                if !NativeResourceMaintenanceKernel::is_current(binding, current) {
+                if !NativeResourceMaintenanceKernel::is_current(binding, current)
+                    || current.composited_base_frame_retirement()
+                        != binding.composited_base_frame_retirement()
+                {
                     return None;
                 }
-                let _ = resources.maintain_completion_once();
+                let _ = resources.maintain_completion_once(turn);
                 Some(false)
             }
             NativeResourceMaintenanceSlot::Quarantine(index) => {
@@ -1073,15 +1194,23 @@ impl NativeRunnerWindowState {
                 let resources = self.quarantined_native_resources.entries.get_mut(index)?;
                 let current = resources
                     .maintenance_binding(NativeResourceMaintenanceSlot::Quarantine(index as u8));
-                if !NativeResourceMaintenanceKernel::is_current(binding, current) {
+                if !NativeResourceMaintenanceKernel::is_current(binding, current)
+                    || current.composited_base_frame_retirement()
+                        != binding.composited_base_frame_retirement()
+                {
                     return None;
                 }
-                let _ = resources.maintain_completion_once();
+                let _ = resources.maintain_completion_once(turn);
                 let retirement_eligible = resources.retirement_eligible();
-                if retirement_eligible {
+                if retirement_eligible && turn.claim_drop() {
                     let _ = self.quarantined_native_resources.entries.remove(index);
+                    Some(true)
+                } else {
+                    if retirement_eligible {
+                        turn.record_pending();
+                    }
+                    Some(false)
                 }
-                Some(retirement_eligible)
             }
         }
     }
@@ -1750,7 +1879,7 @@ mod tests {
             &mut active,
             &mut quarantine,
             &mut turn,
-            |entry| !entry.ready,
+            |entry, _turn| !entry.ready,
             |entry| entry.ready,
         ));
         assert!(active.is_none());
@@ -1772,7 +1901,7 @@ mod tests {
             &mut active,
             &mut quarantine,
             &mut turn,
-            |entry| !entry.ready,
+            |entry, _turn| !entry.ready,
             |entry| entry.ready,
         ));
         assert!(active.is_some());
@@ -1792,7 +1921,7 @@ mod tests {
             &mut active,
             &mut quarantine,
             &mut turn,
-            |entry| !entry.ready,
+            |entry, _turn| !entry.ready,
             |entry| entry.ready,
         ));
         assert!(active.is_none());

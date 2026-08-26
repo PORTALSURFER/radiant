@@ -19,7 +19,8 @@ fn frame_cache_avoids_post_mutation_expect() {
 
     assert!(
         module.contains("mod frame;")
-            && module.contains("pub(super) use frame::CompositedBaseFrame;"),
+            && module.contains("pub(super) use frame::{")
+            && module.contains("CompositedBaseFrameRetirement"),
         "composited base presentation should delegate cached texture ownership to the frame module"
     );
     assert!(
@@ -44,12 +45,20 @@ fn frame_cache_avoids_post_mutation_expect() {
         "composited base frame cache should name its WGPU and device-id dependencies"
     );
     assert!(
-        ensure_body.contains(".is_some_and(|frame| frame.matches(device, width, height, format))")
-            && ensure_body.contains("frame.insert(Self::new(device, width, height, format))"),
-        "CompositedBaseFrame::ensure should reuse device-matching frames and install replacements directly"
+        ensure_body.contains("composited_base_frame_ensure_decision")
+            && ensure_body.contains("retired.is_some()")
+            && ensure_body.contains("CompositedBaseFrameEnsureOutcome::Vetoed")
+            && source.contains("target_generation")
+            && source.contains("completion_identity"),
+        "CompositedBaseFrame::ensure should make exact allow/reuse/veto decisions before ownership mutation"
     );
     assert!(
-        !ensure_body.contains(".expect(") && !ensure_body.contains(".unwrap("),
-        "CompositedBaseFrame::ensure should not assert the Option state after mutating it"
+        source.contains("block_dimensions()")
+            && source.contains("block_copy_size(None)")
+            && source.contains("checked_mul")
+            && !source.contains("PollType::Wait")
+            && !ensure_body.contains(".expect(")
+            && !ensure_body.contains(".unwrap("),
+        "CompositedBaseFrame should use checked requested footprint accounting without waits or panic shortcuts"
     );
 }

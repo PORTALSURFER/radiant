@@ -180,7 +180,15 @@ where
                 SplitPaneSeparatorFocusAdmission::Admitted
             }
             FocusTransition::Unchanged | FocusTransition::Changed => {
-                if self.interaction.focus.owner == Some(proposed_owner) {
+                if let (
+                    Some(RuntimeFocusOwner::SplitPaneSeparator(current_owner)),
+                    RuntimeFocusOwner::SplitPaneSeparator(proposed_owner),
+                ) = (self.interaction.focus.owner, proposed_owner)
+                    && Self::separator_owner_is_behavior_refreshed_descendant(
+                        current_owner,
+                        proposed_owner,
+                    )
+                {
                     self.interaction.focus.owner = None;
                 }
                 SplitPaneSeparatorFocusAdmission::Invalidated
@@ -342,6 +350,16 @@ where
         owner.target == candidate.target
             && owner.mounted_state_id == candidate.mounted_state_id
             && owner.axis == candidate.axis
+    }
+
+    fn separator_owner_is_behavior_refreshed_descendant(
+        owner: RuntimeSplitPaneSeparatorFocusOwner,
+        candidate: RuntimeSplitPaneSeparatorFocusOwner,
+    ) -> bool {
+        owner.target == candidate.target
+            && owner.mounted_state_id == candidate.mounted_state_id
+            && owner.axis == candidate.axis
+            && owner.behavior.compatible_with(candidate.behavior)
     }
 
     fn separator_focus_owner_is_current(&self, owner: RuntimeSplitPaneSeparatorFocusOwner) -> bool {

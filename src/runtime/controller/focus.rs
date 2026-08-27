@@ -22,6 +22,14 @@ pub(super) enum FocusTransition {
     Changed,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SplitPaneSeparatorFocusAdmission {
+    NotAcquirable,
+    Vetoed,
+    Invalidated,
+    Admitted,
+}
+
 /// Result of one metadata-aware focused-key decision.
 ///
 /// The type stays crate-private so the public API exposes only the existing
@@ -105,10 +113,6 @@ where
     }
 
     /// Admit one exact separator projection at the committed layout boundary.
-    ///
-    /// This is a private foundation seam only. No pointer, traversal, native,
-    /// or semantic producer calls it yet.
-    #[allow(dead_code)]
     pub(super) fn request_split_pane_separator_focus(
         &mut self,
         projection: SplitPaneSeparatorProjection,
@@ -120,12 +124,7 @@ where
             return FocusTransition::InvalidTarget;
         }
 
-        let next = RuntimeFocusOwner::SplitPaneSeparator(RuntimeSplitPaneSeparatorFocusOwner {
-            target: current.target,
-            mounted_state_id: current.mounted_state_id,
-            axis: current.axis,
-            behavior: current.behavior,
-        });
+        let next = Self::split_pane_separator_focus_owner(current);
         if let Some(existing) = self.interaction.focus.owner {
             match existing {
                 RuntimeFocusOwner::SplitPaneSeparator(existing)
@@ -141,13 +140,60 @@ where
                     return FocusTransition::InvalidTarget;
                 }
                 RuntimeFocusOwner::SplitPaneSeparator(_) => {
-                    self.interaction.focus.owner = None;
-                    return FocusTransition::InvalidTarget;
+                    // A private separator owner may transfer directly to a
+                    // different exact separator without routing widget loss.
                 }
                 RuntimeFocusOwner::Widget(_) => {}
             }
         }
         self.request_focus_owner(next)
+    }
+
+    pub(super) fn request_split_pane_separator_focus_at(
+        &mut self,
+        position: crate::gui::types::Point,
+    ) -> SplitPaneSeparatorFocusAdmission {
+        if !position.is_finite() {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        }
+        let Some((target, target_bounds)) =
+            self.layout_input_target_identity_and_bounds_at(position)
+        else {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        };
+        let Some(projection) = self.current_split_pane_separator_projection(target) else {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        };
+        if target_bounds != projection.divider_bounds
+            || !self.split_pane_separator_pointer_evidence_is_current(position, projection)
+        {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        }
+
+        let proposed_owner = Self::split_pane_separator_focus_owner(projection);
+        match self.request_split_pane_separator_focus(projection) {
+            FocusTransition::Vetoed => SplitPaneSeparatorFocusAdmission::Vetoed,
+            FocusTransition::InvalidTarget => SplitPaneSeparatorFocusAdmission::Invalidated,
+            FocusTransition::Unchanged | FocusTransition::Changed
+                if self.split_pane_separator_pointer_evidence_is_current(position, projection) =>
+            {
+                SplitPaneSeparatorFocusAdmission::Admitted
+            }
+            FocusTransition::Unchanged | FocusTransition::Changed => {
+                if let (
+                    Some(RuntimeFocusOwner::SplitPaneSeparator(current_owner)),
+                    RuntimeFocusOwner::SplitPaneSeparator(proposed_owner),
+                ) = (self.interaction.focus.owner, proposed_owner)
+                    && Self::separator_owner_is_behavior_refreshed_descendant(
+                        current_owner,
+                        proposed_owner,
+                    )
+                {
+                    self.interaction.focus.owner = None;
+                }
+                SplitPaneSeparatorFocusAdmission::Invalidated
+            }
+        }
     }
 
     fn request_focus_owner(&mut self, next: RuntimeFocusOwner) -> FocusTransition {
@@ -208,6 +254,24 @@ where
                 }
             }
             RuntimeFocusOwner::SplitPaneSeparator(owner) => {
+                let current_owner_is_request_lineage =
+                    self.interaction
+                        .focus
+                        .owner
+                        .is_some_and(|current| match current {
+                            RuntimeFocusOwner::SplitPaneSeparator(current) => {
+                                current == owner
+                                    || Self::separator_owner_is_behavior_refreshed_descendant(
+                                        current, owner,
+                                    )
+                            }
+                            RuntimeFocusOwner::Widget(_) => false,
+                        });
+                if !current_owner_is_request_lineage {
+                    // FocusChanged(false) may have synchronously installed an
+                    // independent owner while the proposed separator was live.
+                    return FocusTransition::InvalidTarget;
+                }
                 if self.separator_focus_owner_is_current(owner) {
                     FocusTransition::Changed
                 } else {
@@ -264,6 +328,36 @@ where
         current
     }
 
+    fn split_pane_separator_pointer_evidence_is_current(
+        &self,
+        position: crate::gui::types::Point,
+        projection: SplitPaneSeparatorProjection,
+    ) -> bool {
+        let Some((target, target_bounds)) =
+            self.layout_input_target_identity_and_bounds_at(position)
+        else {
+            return false;
+        };
+        target == projection.target
+            && target_bounds == projection.divider_bounds
+            && projection.divider_bounds.has_finite_positive_area()
+            && projection.divider_bounds.contains(position)
+            && projection.live_ratio.is_finite()
+            && (0.0..=1.0).contains(&projection.live_ratio)
+            && self.current_split_pane_separator_projection(projection.target) == Some(projection)
+    }
+
+    fn split_pane_separator_focus_owner(
+        projection: SplitPaneSeparatorProjection,
+    ) -> RuntimeFocusOwner {
+        RuntimeFocusOwner::SplitPaneSeparator(RuntimeSplitPaneSeparatorFocusOwner {
+            target: projection.target,
+            mounted_state_id: projection.mounted_state_id,
+            axis: projection.axis,
+            behavior: projection.behavior,
+        })
+    }
+
     fn separator_owner_identity_matches(
         owner: RuntimeSplitPaneSeparatorFocusOwner,
         candidate: RuntimeFocusOwner,
@@ -274,6 +368,16 @@ where
         owner.target == candidate.target
             && owner.mounted_state_id == candidate.mounted_state_id
             && owner.axis == candidate.axis
+    }
+
+    fn separator_owner_is_behavior_refreshed_descendant(
+        owner: RuntimeSplitPaneSeparatorFocusOwner,
+        candidate: RuntimeSplitPaneSeparatorFocusOwner,
+    ) -> bool {
+        owner.target == candidate.target
+            && owner.mounted_state_id == candidate.mounted_state_id
+            && owner.axis == candidate.axis
+            && owner.behavior.compatible_with(candidate.behavior)
     }
 
     fn separator_focus_owner_is_current(&self, owner: RuntimeSplitPaneSeparatorFocusOwner) -> bool {

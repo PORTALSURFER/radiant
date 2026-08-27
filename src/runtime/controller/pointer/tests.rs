@@ -1,4 +1,4 @@
-use super::super::{focus::FocusTransition, interaction_state::RuntimeFocusOwner};
+use super::super::{FocusTraversal, focus::FocusTransition, interaction_state::RuntimeFocusOwner};
 use super::*;
 use crate::{
     gui::automation::AutomationRole,
@@ -346,6 +346,13 @@ impl RuntimeBridge<FocusDecisionEvent> for FocusDecisionBridge {
 struct FocusDecisionSplitBridge {
     inner: FocusDecisionBridge,
     policy: SplitPanePolicy,
+    remove_split_on_host_output: bool,
+    change_split_geometry_on_host_output: bool,
+    change_split_initial_ratio_on_host_output: bool,
+    focus_widget_20_on_host_output: bool,
+    collapse_policy: Option<SplitPaneCollapsePolicy>,
+    split_present: bool,
+    split_spacing: f32,
 }
 
 impl FocusDecisionSplitBridge {
@@ -359,7 +366,39 @@ impl FocusDecisionSplitBridge {
                 first_min_extent: 0.0,
                 second_min_extent: 0.0,
             },
+            remove_split_on_host_output: false,
+            change_split_geometry_on_host_output: false,
+            change_split_initial_ratio_on_host_output: false,
+            focus_widget_20_on_host_output: false,
+            collapse_policy: None,
+            split_present: true,
+            split_spacing: 0.0,
         }
+    }
+
+    fn with_split_removed_on_host_output(mut self) -> Self {
+        self.remove_split_on_host_output = true;
+        self
+    }
+
+    fn with_split_geometry_changed_on_host_output(mut self) -> Self {
+        self.change_split_geometry_on_host_output = true;
+        self
+    }
+
+    fn with_split_initial_ratio_changed_on_host_output(mut self) -> Self {
+        self.change_split_initial_ratio_on_host_output = true;
+        self
+    }
+
+    fn with_focus_widget_20_on_host_output(mut self) -> Self {
+        self.focus_widget_20_on_host_output = true;
+        self
+    }
+
+    fn with_collapse_policy(mut self, collapse_policy: SplitPaneCollapsePolicy) -> Self {
+        self.collapse_policy = Some(collapse_policy);
+        self
     }
 
     fn surface(&self) -> UiSurface<FocusDecisionEvent> {
@@ -383,33 +422,48 @@ impl FocusDecisionSplitBridge {
         )
         .with_split_pane_runtime_mode(Some(
             crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
-                collapse_policy: None,
+                collapse_policy: self.collapse_policy,
             },
         ))
         .with_layout_capabilities(
-            crate::gui::layout_core::runtime_owned_split_pane_capabilities(self.policy, None),
+            crate::gui::layout_core::runtime_owned_split_pane_capabilities(
+                self.policy,
+                self.collapse_policy,
+            ),
         );
 
-        UiSurface::new(SurfaceNode::column(
-            99,
-            0.0,
-            vec![
-                fixed_child(
-                    28.0,
-                    SurfaceNode::widget(
-                        FocusDecisionWidget::new(
-                            10,
-                            Rc::clone(&self.inner.old_decision),
-                            Rc::clone(&self.inner.events),
-                            true,
-                            true,
-                        ),
-                        WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
-                    ),
+        let mut children = vec![fixed_child(
+            28.0,
+            SurfaceNode::widget(
+                FocusDecisionWidget::new(
+                    10,
+                    Rc::clone(&self.inner.old_decision),
+                    Rc::clone(&self.inner.events),
+                    true,
+                    true,
                 ),
-                SurfaceChild::fill(split),
-            ],
-        ))
+                WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+            ),
+        )];
+        if self.focus_widget_20_on_host_output {
+            children.push(fixed_child(
+                28.0,
+                SurfaceNode::widget(
+                    FocusDecisionWidget::new(
+                        20,
+                        Rc::clone(&self.inner.target_decision),
+                        Rc::clone(&self.inner.events),
+                        false,
+                        true,
+                    ),
+                    WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+                ),
+            ));
+        }
+        if self.split_present {
+            children.push(SurfaceChild::fill(split));
+        }
+        UiSurface::new(SurfaceNode::column(99, self.split_spacing, children))
     }
 }
 
@@ -420,7 +474,98 @@ impl RuntimeBridge<FocusDecisionEvent> for FocusDecisionSplitBridge {
 
     fn reduce_message(&mut self, message: FocusDecisionEvent) {
         self.inner.reduce_message(message);
+        if message == FocusDecisionEvent::HostOutput && self.remove_split_on_host_output {
+            self.split_present = false;
+        }
+        if message == FocusDecisionEvent::HostOutput && self.change_split_geometry_on_host_output {
+            self.split_spacing = 8.0;
+        }
+        if message == FocusDecisionEvent::HostOutput
+            && self.change_split_initial_ratio_on_host_output
+        {
+            self.policy.initial_ratio = 0.5;
+        }
     }
+
+    fn update(&mut self, message: FocusDecisionEvent) -> Command<FocusDecisionEvent> {
+        self.reduce_message(message);
+        if message == FocusDecisionEvent::HostOutput && self.focus_widget_20_on_host_output {
+            Command::focus(20)
+        } else {
+            Command::none()
+        }
+    }
+}
+
+struct SplitFallbackBridge {
+    events: Rc<RefCell<Vec<FocusDecisionEvent>>>,
+}
+
+impl SplitFallbackBridge {
+    fn new(events: Rc<RefCell<Vec<FocusDecisionEvent>>>) -> Self {
+        Self { events }
+    }
+
+    fn surface(&self) -> UiSurface<FocusDecisionEvent> {
+        let policy = SplitPanePolicy {
+            axis: SplitPaneAxis::Horizontal,
+            initial_ratio: 0.25,
+            divider_extent: 8.0,
+            first_min_extent: 0.0,
+            second_min_extent: 0.0,
+        };
+        let split = SurfaceNode::container(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::SplitPane,
+                split_pane: policy,
+                ..ContainerPolicy::default()
+            },
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(2, "first", WidgetSizing::fixed(Vector2::new(20.0, 20.0))),
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(3, "second", WidgetSizing::fixed(Vector2::new(20.0, 20.0))),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        )
+        .with_split_pane_runtime_mode(Some(
+            crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        ))
+        .with_layout_capabilities(
+            crate::gui::layout_core::runtime_owned_split_pane_capabilities(policy, None),
+        );
+        UiSurface::new(SurfaceNode::stack(
+            99,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    FocusDecisionWidget::new_with_size(
+                        40,
+                        Rc::new(Cell::new(FocusLossDecision::Allow)),
+                        Rc::clone(&self.events),
+                        Vector2::new(200.0, 80.0),
+                        false,
+                        false,
+                    ),
+                    WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+                )),
+                SurfaceChild::fill(split),
+            ],
+        ))
+    }
+}
+
+impl RuntimeBridge<FocusDecisionEvent> for SplitFallbackBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<FocusDecisionEvent>> {
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn reduce_message(&mut self, _message: FocusDecisionEvent) {}
 }
 
 #[derive(Default)]
@@ -2980,6 +3125,539 @@ fn exact_current_runtime_owned_separator_admits_one_private_owner() {
 }
 
 #[test]
+fn primary_separator_press_allows_transfer_before_layout_capture_and_keeps_public_focus_widget_only()
+ {
+    let mut runtime =
+        SurfaceRuntime::new(FocusDecisionSplitBridge::new(), Vector2::new(200.0, 160.0));
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime.take_repaint_requested();
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let position = projection.divider_bounds.center();
+
+    assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+    assert_eq!(runtime.layout_pointer_capture(), Some(projection.target));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+        ]
+    );
+    assert_eq!(runtime.traversal.widgets.keyboard_focus.order(), &[10]);
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(10));
+    assert_eq!(runtime.focused_widget(), Some(10));
+}
+
+#[test]
+fn separator_pointer_focus_loss_command_preserves_independent_widget_owner() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new().with_focus_widget_20_on_host_output(),
+        Vector2::new(200.0, 160.0),
+    );
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime.take_repaint_requested();
+    let before_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(before_projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("runtime-owned split state remains mounted");
+    let before_layout = runtime.layout().rects.clone();
+    let before_counters = runtime.refresh_counters();
+    let position = before_projection.divider_bounds.center();
+
+    assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+
+    assert_eq!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(20))
+    );
+    assert_eq!(runtime.focused_widget(), Some(20));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(20)
+            .expect("independent focus target")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects, before_layout);
+    assert_eq!(
+        runtime.split_pane_separator_projections().first().copied(),
+        Some(before_projection)
+    );
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(before_projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+    assert_eq!(
+        runtime.refresh_counters().layout,
+        before_counters.layout + 1
+    );
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+            FocusDecisionEvent::Changed(20, true),
+        ]
+    );
+}
+
+#[test]
+fn separator_pointer_double_click_focus_loss_command_preserves_actionable_split() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new()
+            .with_focus_widget_20_on_host_output()
+            .with_collapse_policy(SplitPaneCollapsePolicy::FirstPane),
+        Vector2::new(200.0, 160.0),
+    );
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime.take_repaint_requested();
+    let before_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(before_projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("runtime-owned split state remains mounted");
+    assert_eq!(
+        before_state.policy_revision.collapse_policy,
+        Some(SplitPaneCollapsePolicy::FirstPane)
+    );
+    let before_layout = runtime.layout().rects.clone();
+    let before_counters = runtime.refresh_counters();
+    let position = before_projection.divider_bounds.center();
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_double_click(position)),
+        None
+    );
+
+    assert_eq!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(20))
+    );
+    assert_eq!(runtime.focused_widget(), Some(20));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(20)
+            .expect("independent focus target")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects, before_layout);
+    assert_eq!(
+        runtime.split_pane_separator_projections().first().copied(),
+        Some(before_projection)
+    );
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(before_projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+    assert_eq!(
+        runtime.refresh_counters().layout,
+        before_counters.layout + 1
+    );
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+            FocusDecisionEvent::Changed(20, true),
+        ]
+    );
+}
+
+#[test]
+fn separator_pointer_focus_veto_blocks_primary_and_double_click_without_mutation() {
+    let mut runtime =
+        SurfaceRuntime::new(FocusDecisionSplitBridge::new(), Vector2::new(200.0, 160.0));
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .inner
+        .old_decision
+        .set(FocusLossDecision::Veto);
+    runtime.take_repaint_requested();
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let position = projection.divider_bounds.center();
+
+    let before_layout = runtime.layout().rects.clone();
+    let before_projection = projection;
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("runtime-owned split state");
+    let before_counters = runtime.refresh_counters();
+    assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(10))
+    ));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects, before_layout);
+    assert_eq!(
+        runtime.split_pane_separator_projections().first().copied(),
+        Some(before_projection)
+    );
+    assert_eq!(runtime.refresh_counters(), before_counters);
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+    assert!(runtime.repaint_requested());
+
+    runtime.take_repaint_requested();
+    runtime.bridge().inner.events.borrow_mut().clear();
+    let before_layout = runtime.layout().rects.clone();
+    let before_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("separator remains current after veto");
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(before_projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("runtime-owned split state remains mounted");
+    let before_counters = runtime.refresh_counters();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_double_click(position)),
+        None
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects, before_layout);
+    assert_eq!(
+        runtime.split_pane_separator_projections().first().copied(),
+        Some(before_projection)
+    );
+    assert_eq!(runtime.refresh_counters(), before_counters);
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(before_projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+    assert!(runtime.repaint_requested());
+}
+
+#[test]
+fn separator_pointer_double_click_claims_no_action_without_widget_fallthrough() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        SplitFallbackBridge::new(Rc::clone(&events)),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let before_layout = runtime.layout().rects.clone();
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_double_click(
+            projection.divider_bounds.center()
+        )),
+        None
+    );
+    assert!(events.borrow().is_empty());
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(_))
+    ));
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects, before_layout);
+}
+
+#[test]
+fn separator_pointer_admission_leaves_secondary_and_non_runtime_fallback_unchanged() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let position = Point::new(52.0, 40.0);
+    let before_layout = runtime.layout().rects.clone();
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_press(position)),
+        None
+    );
+    assert_eq!(runtime.interaction.focus.owner, None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.layout().rects, before_layout);
+
+    for mode in [
+        SplitInteractionMode::Static,
+        SplitInteractionMode::Controlled,
+    ] {
+        let mut runtime =
+            SurfaceRuntime::new(SplitInteractionBridge::new(mode), Vector2::new(200.0, 80.0));
+        let before_layout = runtime.layout().rects.clone();
+        assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+        assert_eq!(runtime.interaction.focus.owner, None);
+        assert_eq!(runtime.layout_pointer_capture(), None);
+        assert_eq!(runtime.layout().rects, before_layout);
+    }
+}
+
+#[test]
+fn separator_pointer_focus_loss_reprojection_consumes_invalidated_candidate() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new().with_split_removed_on_host_output(),
+        Vector2::new(200.0, 160.0),
+    );
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime.take_repaint_requested();
+    let position = runtime
+        .split_pane_separator_projections()
+        .first()
+        .expect("current runtime-owned separator projection")
+        .divider_bounds
+        .center();
+
+    assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+    assert_eq!(runtime.interaction.focus.owner, None);
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert!(runtime.split_pane_separator_projections().is_empty());
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+        ]
+    );
+}
+
+#[test]
+fn separator_pointer_focus_loss_geometry_reprojection_clears_candidate_without_fallback() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new().with_split_geometry_changed_on_host_output(),
+        Vector2::new(200.0, 160.0),
+    );
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime.take_repaint_requested();
+    let before_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(before_projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("runtime-owned split state remains mounted");
+    let position = before_projection.divider_bounds.center();
+
+    assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+
+    let after_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("same runtime-owned separator remains mounted after reprojection");
+    assert_eq!(after_projection.target, before_projection.target);
+    assert_eq!(
+        after_projection.mounted_state_id,
+        before_projection.mounted_state_id
+    );
+    assert_eq!(after_projection.axis, before_projection.axis);
+    assert_eq!(after_projection.behavior, before_projection.behavior);
+    assert_ne!(
+        after_projection.divider_bounds,
+        before_projection.divider_bounds
+    );
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(after_projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+    assert_eq!(runtime.interaction.focus.owner, None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+        ]
+    );
+}
+
+#[test]
+fn separator_pointer_focus_loss_initial_ratio_reprojection_clears_refreshed_candidate_without_fallback()
+ {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new().with_split_initial_ratio_changed_on_host_output(),
+        Vector2::new(200.0, 160.0),
+    );
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime.take_repaint_requested();
+    let before_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let before_layout = runtime.layout().rects.clone();
+    let position = before_projection.divider_bounds.center();
+
+    assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+
+    let after_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("same runtime-owned separator remains mounted after reprojection");
+    assert_eq!(after_projection.target, before_projection.target);
+    assert_eq!(
+        after_projection.mounted_state_id,
+        before_projection.mounted_state_id
+    );
+    assert_eq!(after_projection.axis, before_projection.axis);
+    assert_ne!(after_projection.behavior, before_projection.behavior);
+    assert!(
+        before_projection
+            .behavior
+            .compatible_with(after_projection.behavior)
+    );
+    assert_eq!(
+        after_projection.divider_bounds,
+        before_projection.divider_bounds
+    );
+    assert_eq!(runtime.layout().rects, before_layout);
+    assert_eq!(runtime.interaction.focus.owner, None);
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+        ]
+    );
+}
+
+#[test]
+fn nested_separator_pointer_transfer_moves_private_owner_to_exact_inner_target() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_nested(),
+        Vector2::new(200.0, 120.0),
+    );
+    let outer = runtime
+        .split_pane_separator_projections()
+        .iter()
+        .find(|projection| projection.target.container_id == 1)
+        .copied()
+        .expect("outer separator projection");
+    let inner = runtime
+        .split_pane_separator_projections()
+        .iter()
+        .find(|projection| projection.target.container_id == 4)
+        .copied()
+        .expect("inner separator projection");
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_double_click(outer.divider_bounds.center())),
+        None
+    );
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner)) if owner.target == outer.target
+    ));
+    assert_eq!(runtime.layout_pointer_capture(), None);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(inner.divider_bounds.center())),
+        None
+    );
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner)) if owner.target == inner.target
+    ));
+    assert_eq!(runtime.layout_pointer_capture(), Some(inner.target));
+}
+
+#[test]
 fn separator_focus_allow_routes_widget_loss_once_before_private_ownership() {
     let mut runtime =
         SurfaceRuntime::new(FocusDecisionSplitBridge::new(), Vector2::new(200.0, 160.0));
@@ -4984,7 +5662,7 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
 
     let mut full_divider = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
     full_divider.policy.divider_extent = 400.0;
-    let full_runtime = SurfaceRuntime::new(full_divider, Vector2::new(200.0, 80.0));
+    let mut full_runtime = SurfaceRuntime::new(full_divider, Vector2::new(200.0, 80.0));
     assert_eq!(
         full_runtime
             .layout_target_at(Point::new(100.0, 40.0))
@@ -4992,6 +5670,14 @@ fn runtime_owned_split_projects_only_one_positive_clipped_divider_target() {
             .bounds,
         Rect::from_xy_size(0.0, 0.0, 200.0, 80.0)
     );
+    assert!(full_runtime.split_pane_separator_projections().is_empty());
+    let before_full_layout = full_runtime.layout().rects.clone();
+    assert_eq!(
+        full_runtime.dispatch_event(Event::primary_press(Point::new(100.0, 40.0))),
+        None
+    );
+    assert_eq!(full_runtime.layout_pointer_capture(), None);
+    assert_eq!(full_runtime.layout().rects, before_full_layout);
 
     let mut malformed = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned);
     malformed.policy.divider_extent = f32::NAN;

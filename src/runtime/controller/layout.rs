@@ -112,6 +112,14 @@ where
         self.layout_target_binding_at(point).is_some()
     }
 
+    pub(super) fn layout_input_target_identity_and_bounds_at(
+        &self,
+        point: Point,
+    ) -> Option<(LayoutTargetIdentity, crate::gui::types::Rect)> {
+        let binding = self.layout_target_binding_at(point)?;
+        Some((binding.identity, binding.target_bounds?))
+    }
+
     pub(super) fn dispatch_layout_input_at(
         &mut self,
         point: Point,

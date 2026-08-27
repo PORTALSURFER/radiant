@@ -90,12 +90,15 @@ use timers::TimerEffects;
 use traversal_state::RuntimeTraversalState;
 use work::RuntimeWorkQueues;
 
-/// Direction for deterministic keyboard focus traversal.
+/// Direction for deterministic backend-neutral sequential focus traversal.
+///
+/// [`SurfaceRuntime::traverse_focus`] may visit a private runtime-owned split
+/// separator stop, while its public return value remains widget-only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FocusTraversal {
-    /// Move to the next keyboard-focusable widget in declarative tree order.
+    /// Move to the next focus stop in committed declarative order.
     Forward,
-    /// Move to the previous keyboard-focusable widget in declarative tree order.
+    /// Move to the previous focus stop in committed declarative order.
     Backward,
 }
 

@@ -92,7 +92,10 @@ pub enum Event {
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
     },
-    /// Move keyboard focus in declarative tree order.
+    /// Move focus in committed declarative order.
+    ///
+    /// A private runtime-owned split separator may be one visited stop even
+    /// though public dispatch results remain widget-only.
     TraverseFocus(FocusTraversal),
     /// Clear current runtime focus ownership.
     ClearFocus,

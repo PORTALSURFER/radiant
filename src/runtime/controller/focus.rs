@@ -4,6 +4,7 @@ use super::interaction_state::{
     RuntimeFocusOwner, RuntimeFocusedKeyCapture, RuntimeSplitPaneSeparatorFocusOwner,
 };
 use super::split_pane_separator::SplitPaneSeparatorProjection;
+use super::traversal_state::RuntimeFocusOrderEntry;
 use super::{FocusTraversal, SurfaceRuntime};
 use crate::widgets::interaction::CompositionStartContext;
 use crate::widgets::{FocusLossDecision, KeyboardModifiers};
@@ -448,20 +449,37 @@ where
             .unwrap_or(FocusLossDecision::Allow)
     }
 
-    /// Move keyboard focus through the current declarative tree.
+    /// Move keyboard focus through the current committed traversal sequence.
     ///
-    /// Traversal uses stable tree order and wraps at either end. Returns the new
-    /// focus target, or `None` when no keyboard-focusable widgets are projected.
+    /// Traversal uses stable tree order and wraps at either end. Runtime-owned
+    /// split separators may be private stops in that sequence; selecting one
+    /// installs its private focus owner and returns `None` because this public
+    /// method reports widget destinations only. A widget destination returns
+    /// its id, or `None` when no destination can be admitted.
     pub fn traverse_focus(&mut self, direction: FocusTraversal) -> Option<WidgetId> {
-        let next = next_focus_target(
-            self.interaction.focus.focused_widget(),
+        let next = next_focus_entry(
+            self.interaction.focus.owner,
+            &self.traversal.widgets.mixed_focus_order,
             self.traversal.widgets.keyboard_focus.order(),
             self.traversal.widgets.keyboard_focus.rank(),
             direction,
         )?;
-        match self.request_focus(next) {
-            FocusTransition::Changed | FocusTransition::Unchanged => Some(next),
-            FocusTransition::InvalidTarget | FocusTransition::Vetoed => None,
+        let transition = match next {
+            RuntimeFocusOrderEntry::Widget(widget_id) => self.request_focus(widget_id),
+            RuntimeFocusOrderEntry::SplitPaneSeparator(projection) => {
+                self.request_split_pane_separator_focus(projection)
+            }
+        };
+        match (next, transition) {
+            (RuntimeFocusOrderEntry::Widget(widget_id), FocusTransition::Changed)
+            | (RuntimeFocusOrderEntry::Widget(widget_id), FocusTransition::Unchanged) => {
+                Some(widget_id)
+            }
+            (
+                RuntimeFocusOrderEntry::SplitPaneSeparator(_),
+                FocusTransition::Changed | FocusTransition::Unchanged,
+            )
+            | (_, FocusTransition::InvalidTarget | FocusTransition::Vetoed) => None,
         }
     }
 
@@ -884,4 +902,53 @@ fn next_focus_target(
         (None, FocusTraversal::Backward) => order.len() - 1,
     };
     Some(order[next_index])
+}
+
+fn next_focus_entry(
+    current: Option<RuntimeFocusOwner>,
+    mixed_order: &[RuntimeFocusOrderEntry],
+    widget_order: &[WidgetId],
+    widget_rank: &HashMap<WidgetId, usize>,
+    direction: FocusTraversal,
+) -> Option<RuntimeFocusOrderEntry> {
+    if mixed_order.is_empty() {
+        return next_focus_target(
+            current.and_then(RuntimeFocusOwner::widget_id),
+            widget_order,
+            widget_rank,
+            direction,
+        )
+        .map(RuntimeFocusOrderEntry::Widget);
+    }
+
+    let current_index = current.and_then(|owner| {
+        mixed_order.iter().position(|entry| match (owner, entry) {
+            (RuntimeFocusOwner::Widget(widget_id), RuntimeFocusOrderEntry::Widget(entry_id)) => {
+                widget_rank.contains_key(&widget_id) && widget_id == *entry_id
+            }
+            (
+                RuntimeFocusOwner::SplitPaneSeparator(owner),
+                RuntimeFocusOrderEntry::SplitPaneSeparator(projection),
+            ) => {
+                owner.target == projection.target
+                    && owner.mounted_state_id == projection.mounted_state_id
+                    && owner.axis == projection.axis
+                    && owner.behavior
+                        == super::interaction_state::SplitPaneSeparatorBehaviorEvidence::new(
+                            projection.behavior.contract_version,
+                            projection.behavior.state_schema_version,
+                            projection.behavior.policy_revision,
+                        )
+            }
+            _ => false,
+        })
+    });
+    let next_index = match (current_index, direction) {
+        (Some(index), FocusTraversal::Forward) => (index + 1) % mixed_order.len(),
+        (Some(0), FocusTraversal::Backward) => mixed_order.len() - 1,
+        (Some(index), FocusTraversal::Backward) => index - 1,
+        (None, FocusTraversal::Forward) => 0,
+        (None, FocusTraversal::Backward) => mixed_order.len() - 1,
+    };
+    Some(mixed_order[next_index])
 }

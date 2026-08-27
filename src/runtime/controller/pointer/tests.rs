@@ -350,6 +350,7 @@ struct FocusDecisionSplitBridge {
     change_split_geometry_on_host_output: bool,
     change_split_initial_ratio_on_host_output: bool,
     focus_widget_20_on_host_output: bool,
+    focus_widget_20_after_split: bool,
     collapse_policy: Option<SplitPaneCollapsePolicy>,
     split_present: bool,
     split_spacing: f32,
@@ -370,6 +371,7 @@ impl FocusDecisionSplitBridge {
             change_split_geometry_on_host_output: false,
             change_split_initial_ratio_on_host_output: false,
             focus_widget_20_on_host_output: false,
+            focus_widget_20_after_split: false,
             collapse_policy: None,
             split_present: true,
             split_spacing: 0.0,
@@ -393,6 +395,12 @@ impl FocusDecisionSplitBridge {
 
     fn with_focus_widget_20_on_host_output(mut self) -> Self {
         self.focus_widget_20_on_host_output = true;
+        self
+    }
+
+    fn with_focus_widget_20_after_split_on_host_output(mut self) -> Self {
+        self.focus_widget_20_on_host_output = true;
+        self.focus_widget_20_after_split = true;
         self
     }
 
@@ -445,7 +453,7 @@ impl FocusDecisionSplitBridge {
                 WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
             ),
         )];
-        if self.focus_widget_20_on_host_output {
+        if self.focus_widget_20_on_host_output && !self.focus_widget_20_after_split {
             children.push(fixed_child(
                 28.0,
                 SurfaceNode::widget(
@@ -462,6 +470,21 @@ impl FocusDecisionSplitBridge {
         }
         if self.split_present {
             children.push(SurfaceChild::fill(split));
+        }
+        if self.focus_widget_20_on_host_output && self.focus_widget_20_after_split {
+            children.push(fixed_child(
+                28.0,
+                SurfaceNode::widget(
+                    FocusDecisionWidget::new(
+                        20,
+                        Rc::clone(&self.inner.target_decision),
+                        Rc::clone(&self.inner.events),
+                        false,
+                        true,
+                    ),
+                    WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+                ),
+            ));
         }
         UiSurface::new(SurfaceNode::column(99, self.split_spacing, children))
     }
@@ -1064,6 +1087,7 @@ struct SplitInteractionBridge {
     clipped: bool,
     mounted: bool,
     nested: bool,
+    focusable_panes: bool,
 }
 
 impl SplitInteractionBridge {
@@ -1083,6 +1107,7 @@ impl SplitInteractionBridge {
             clipped: false,
             mounted: true,
             nested: false,
+            focusable_panes: false,
         }
     }
 
@@ -1093,6 +1118,11 @@ impl SplitInteractionBridge {
 
     fn with_nested(mut self) -> Self {
         self.nested = true;
+        self
+    }
+
+    fn with_focusable_panes(mut self) -> Self {
+        self.focusable_panes = true;
         self
     }
 
@@ -1123,14 +1153,28 @@ impl SplitInteractionBridge {
                 axis: SplitPaneAxis::Vertical,
                 ..policy
             };
-            let inner_first = SurfaceNode::widget(
-                TextWidget::new(5, "inner-first", WidgetSizing::fixed(child_size)),
-                WidgetMessageMapper::none(),
-            );
-            let inner_second = SurfaceNode::widget(
-                TextWidget::new(6, "inner-second", WidgetSizing::fixed(child_size)),
-                WidgetMessageMapper::none(),
-            );
+            let inner_first = if self.focusable_panes {
+                SurfaceNode::widget(
+                    ButtonWidget::new(5, "inner-first", WidgetSizing::fixed(child_size)),
+                    WidgetMessageMapper::none(),
+                )
+            } else {
+                SurfaceNode::widget(
+                    TextWidget::new(5, "inner-first", WidgetSizing::fixed(child_size)),
+                    WidgetMessageMapper::none(),
+                )
+            };
+            let inner_second = if self.focusable_panes {
+                SurfaceNode::widget(
+                    ButtonWidget::new(6, "inner-second", WidgetSizing::fixed(child_size)),
+                    WidgetMessageMapper::none(),
+                )
+            } else {
+                SurfaceNode::widget(
+                    TextWidget::new(6, "inner-second", WidgetSizing::fixed(child_size)),
+                    WidgetMessageMapper::none(),
+                )
+            };
             let mut inner = SurfaceNode::container(
                 4,
                 ContainerPolicy {
@@ -1169,15 +1213,29 @@ impl SplitInteractionBridge {
             }
             inner
         } else {
+            if self.focusable_panes {
+                SurfaceNode::widget(
+                    ButtonWidget::new(2, "first", WidgetSizing::fixed(child_size)),
+                    WidgetMessageMapper::none(),
+                )
+            } else {
+                SurfaceNode::widget(
+                    TextWidget::new(2, "first", WidgetSizing::fixed(child_size)),
+                    WidgetMessageMapper::none(),
+                )
+            }
+        };
+        let second = if self.focusable_panes {
             SurfaceNode::widget(
-                TextWidget::new(2, "first", WidgetSizing::fixed(child_size)),
+                ButtonWidget::new(3, "second", WidgetSizing::fixed(child_size)),
+                WidgetMessageMapper::none(),
+            )
+        } else {
+            SurfaceNode::widget(
+                TextWidget::new(3, "second", WidgetSizing::fixed(child_size)),
                 WidgetMessageMapper::none(),
             )
         };
-        let second = SurfaceNode::widget(
-            TextWidget::new(3, "second", WidgetSizing::fixed(child_size)),
-            WidgetMessageMapper::none(),
-        );
         let mut split = SurfaceNode::container(
             1,
             ContainerPolicy {
@@ -3122,6 +3180,262 @@ fn exact_current_runtime_owned_separator_admits_one_private_owner() {
         runtime.request_split_pane_separator_focus(projection),
         FocusTransition::Unchanged
     );
+}
+
+#[test]
+fn sequential_focus_traversal_uses_flat_separator_stop_and_widget_only_wrap() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_focusable_panes(),
+        Vector2::new(200.0, 80.0),
+    );
+
+    assert_eq!(runtime.surface().keyboard_focus_order(), vec![2, 3]);
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner))
+            if owner.target.container_id == 1
+    ));
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(3));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
+
+    runtime.clear_focus();
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(3));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner))
+            if owner.target.container_id == 1
+    ));
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(2));
+}
+
+#[test]
+fn sequential_focus_traversal_places_nested_separators_between_pane_subtrees() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned)
+            .with_nested()
+            .with_focusable_panes(),
+        Vector2::new(200.0, 120.0),
+    );
+
+    assert_eq!(runtime.surface().keyboard_focus_order(), vec![5, 6, 3]);
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(5));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner))
+            if owner.target.container_id == 4
+    ));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(6));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner))
+            if owner.target.container_id == 1
+    ));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(3));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(5));
+
+    runtime.clear_focus();
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(3));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner))
+            if owner.target.container_id == 1
+    ));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(6));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner))
+            if owner.target.container_id == 4
+    ));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(5));
+}
+
+#[test]
+fn sequential_focus_traversal_uses_empty_and_non_runtime_widget_only_fallbacks() {
+    let mut empty_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::Static),
+        Vector2::new(200.0, 80.0),
+    );
+    assert!(empty_runtime.surface().keyboard_focus_order().is_empty());
+    assert_eq!(empty_runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert_eq!(empty_runtime.traverse_focus(FocusTraversal::Backward), None);
+    assert_eq!(empty_runtime.interaction.focus.owner, None);
+
+    for mode in [
+        SplitInteractionMode::Static,
+        SplitInteractionMode::Controlled,
+    ] {
+        let mut runtime = SurfaceRuntime::new(
+            SplitInteractionBridge::new(mode).with_focusable_panes(),
+            Vector2::new(200.0, 80.0),
+        );
+        assert_eq!(runtime.surface().keyboard_focus_order(), vec![2, 3]);
+        assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
+        assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(3));
+        assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
+        assert_eq!(
+            runtime.interaction.focus.owner,
+            Some(RuntimeFocusOwner::Widget(2))
+        );
+    }
+}
+
+#[test]
+fn sequential_focus_traversal_falls_back_after_invalid_evidence_and_lifecycle_change() {
+    let mut invalid_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_focusable_panes(),
+        Vector2::new(200.0, 80.0),
+    );
+    invalid_runtime
+        .traversal
+        .widgets
+        .keyboard_focus_order_candidates[0]
+        .contract_version += 1;
+    let lifecycle_phase = invalid_runtime.lifecycle_phase();
+    invalid_runtime
+        .traversal
+        .rebuild_mixed_focus_order(lifecycle_phase, &invalid_runtime.interaction.layout_state);
+    assert_eq!(
+        invalid_runtime.traverse_focus(FocusTraversal::Forward),
+        Some(2)
+    );
+    assert_eq!(
+        invalid_runtime.traverse_focus(FocusTraversal::Forward),
+        Some(3)
+    );
+    assert_eq!(
+        invalid_runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(3))
+    );
+
+    let mut recovering_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_focusable_panes(),
+        Vector2::new(200.0, 80.0),
+    );
+    assert_eq!(
+        recovering_runtime.traverse_focus(FocusTraversal::Forward),
+        Some(2)
+    );
+    assert_eq!(
+        recovering_runtime.traverse_focus(FocusTraversal::Forward),
+        None
+    );
+    assert!(matches!(
+        recovering_runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(_))
+    ));
+    assert!(recovering_runtime.begin_native_recovery());
+    assert_eq!(recovering_runtime.interaction.focus.owner, None);
+    assert_eq!(
+        recovering_runtime.traverse_focus(FocusTraversal::Forward),
+        Some(2)
+    );
+    assert_eq!(
+        recovering_runtime.traverse_focus(FocusTraversal::Forward),
+        Some(3)
+    );
+}
+
+#[test]
+fn sequential_focus_traversal_preserves_widget_veto_and_commit_before_callback_order() {
+    let mut runtime =
+        SurfaceRuntime::new(FocusDecisionSplitBridge::new(), Vector2::new(200.0, 160.0));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .inner
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert_eq!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(10))
+    );
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+
+    runtime
+        .bridge_mut()
+        .inner
+        .old_decision
+        .set(FocusLossDecision::Allow);
+    runtime.bridge().inner.events.borrow_mut().clear();
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner)) if owner.target.container_id == 1
+    ));
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+        ]
+    );
+}
+
+#[test]
+fn sequential_focus_traversal_does_not_retry_an_invalidated_separator() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new().with_split_removed_on_host_output(),
+        Vector2::new(200.0, 160.0),
+    );
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert_eq!(runtime.interaction.focus.owner, None);
+    assert!(runtime.split_pane_separator_projections().is_empty());
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+        ]
+    );
+}
+
+#[test]
+fn sequential_focus_traversal_preserves_independent_owner_after_separator_reprojection() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new().with_focus_widget_20_after_split_on_host_output(),
+        Vector2::new(200.0, 160.0),
+    );
+    assert_eq!(runtime.surface().keyboard_focus_order(), vec![10, 20]);
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert_eq!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(20))
+    );
+    assert_eq!(runtime.focused_widget(), Some(20));
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+            FocusDecisionEvent::Changed(20, true),
+        ]
+    );
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(10));
 }
 
 #[test]

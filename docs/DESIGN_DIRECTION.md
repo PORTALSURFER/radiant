@@ -1698,10 +1698,14 @@ ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
 unverified. A separate crate-private runtime focus-order sidecar may retain
 source candidates and a committed mixed-order evidence sequence after exact
-current projection/lifecycle reconciliation, but this passive consumer does
-not consume it. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
-resizing, semantic accessibility actions, pointer/collapse mapping, and
-paint/cursor/renderer work remain future slices.
+current projection/lifecycle reconciliation, but this passive native consumer
+does not consume it. The explicit backend-neutral sequential traversal consumer
+does: exact current runtime-owned separators are private stops between their
+pane widget subtrees, including nested separators, while invalid evidence uses
+the complete widget-only order. This is separate from private pointer ownership
+and does not expose native/public or spatial focus; keyboard/arrow-key resizing,
+semantic accessibility actions, and paint/cursor/renderer work remain future
+slices.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -2355,9 +2359,13 @@ qualified separator as one `AXSplitter` between its two pane children. The
 separator is non-focusable, actionless, and has no interaction target; invalid
 or ambiguous evidence falls back to the ordinary native tree. A private
 runtime focus-order sidecar may retain non-authorizing committed mixed-order
-evidence, but the shipped divider remains outside focus ownership. Divider
-focus ownership, Tab/spatial traversal, keyboard or arrow-key resizing, semantic
-actions, pointer/collapse mapping, and paint/cursor/renderer work remain future
+evidence. The explicit backend-neutral sequential traversal consumer may admit
+an exact current runtime-owned separator as one private stop between pane
+widget subtrees, including nested separators, while the shipped divider remains
+outside native/public focus ownership. Private separator ownership for
+traversal and pointer acquisition is distinct from key routing, semantic
+actions, spatial traversal, and native publication. Keyboard or arrow-key
+resizing, pointer/collapse mapping, and paint/cursor/renderer work remain future
 slices. Nested split panes retain independent mounted collapse/restore
 authority and use the same geometry/lifecycle rules without becoming workspace
 or docking nodes.

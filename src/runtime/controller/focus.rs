@@ -254,6 +254,24 @@ where
                 }
             }
             RuntimeFocusOwner::SplitPaneSeparator(owner) => {
+                let current_owner_is_request_lineage =
+                    self.interaction
+                        .focus
+                        .owner
+                        .is_some_and(|current| match current {
+                            RuntimeFocusOwner::SplitPaneSeparator(current) => {
+                                current == owner
+                                    || Self::separator_owner_is_behavior_refreshed_descendant(
+                                        current, owner,
+                                    )
+                            }
+                            RuntimeFocusOwner::Widget(_) => false,
+                        });
+                if !current_owner_is_request_lineage {
+                    // FocusChanged(false) may have synchronously installed an
+                    // independent owner while the proposed separator was live.
+                    return FocusTransition::InvalidTarget;
+                }
                 if self.separator_focus_owner_is_current(owner) {
                     FocusTransition::Changed
                 } else {

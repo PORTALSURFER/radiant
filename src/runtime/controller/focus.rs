@@ -124,12 +124,7 @@ where
             return FocusTransition::InvalidTarget;
         }
 
-        let next = RuntimeFocusOwner::SplitPaneSeparator(RuntimeSplitPaneSeparatorFocusOwner {
-            target: current.target,
-            mounted_state_id: current.mounted_state_id,
-            axis: current.axis,
-            behavior: current.behavior,
-        });
+        let next = Self::split_pane_separator_focus_owner(current);
         if let Some(existing) = self.interaction.focus.owner {
             match existing {
                 RuntimeFocusOwner::SplitPaneSeparator(existing)
@@ -175,6 +170,7 @@ where
             return SplitPaneSeparatorFocusAdmission::NotAcquirable;
         }
 
+        let proposed_owner = Self::split_pane_separator_focus_owner(projection);
         match self.request_split_pane_separator_focus(projection) {
             FocusTransition::Vetoed => SplitPaneSeparatorFocusAdmission::Vetoed,
             FocusTransition::InvalidTarget => SplitPaneSeparatorFocusAdmission::Invalidated,
@@ -184,6 +180,9 @@ where
                 SplitPaneSeparatorFocusAdmission::Admitted
             }
             FocusTransition::Unchanged | FocusTransition::Changed => {
+                if self.interaction.focus.owner == Some(proposed_owner) {
+                    self.interaction.focus.owner = None;
+                }
                 SplitPaneSeparatorFocusAdmission::Invalidated
             }
         }
@@ -320,6 +319,17 @@ where
             && projection.live_ratio.is_finite()
             && (0.0..=1.0).contains(&projection.live_ratio)
             && self.current_split_pane_separator_projection(projection.target) == Some(projection)
+    }
+
+    fn split_pane_separator_focus_owner(
+        projection: SplitPaneSeparatorProjection,
+    ) -> RuntimeFocusOwner {
+        RuntimeFocusOwner::SplitPaneSeparator(RuntimeSplitPaneSeparatorFocusOwner {
+            target: projection.target,
+            mounted_state_id: projection.mounted_state_id,
+            axis: projection.axis,
+            behavior: projection.behavior,
+        })
     }
 
     fn separator_owner_identity_matches(

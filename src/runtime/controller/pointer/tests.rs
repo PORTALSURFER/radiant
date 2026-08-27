@@ -347,7 +347,9 @@ struct FocusDecisionSplitBridge {
     inner: FocusDecisionBridge,
     policy: SplitPanePolicy,
     remove_split_on_host_output: bool,
+    change_split_geometry_on_host_output: bool,
     split_present: bool,
+    split_spacing: f32,
 }
 
 impl FocusDecisionSplitBridge {
@@ -362,12 +364,19 @@ impl FocusDecisionSplitBridge {
                 second_min_extent: 0.0,
             },
             remove_split_on_host_output: false,
+            change_split_geometry_on_host_output: false,
             split_present: true,
+            split_spacing: 0.0,
         }
     }
 
     fn with_split_removed_on_host_output(mut self) -> Self {
         self.remove_split_on_host_output = true;
+        self
+    }
+
+    fn with_split_geometry_changed_on_host_output(mut self) -> Self {
+        self.change_split_geometry_on_host_output = true;
         self
     }
 
@@ -415,7 +424,7 @@ impl FocusDecisionSplitBridge {
         if self.split_present {
             children.push(SurfaceChild::fill(split));
         }
-        UiSurface::new(SurfaceNode::column(99, 0.0, children))
+        UiSurface::new(SurfaceNode::column(99, self.split_spacing, children))
     }
 }
 
@@ -428,6 +437,9 @@ impl RuntimeBridge<FocusDecisionEvent> for FocusDecisionSplitBridge {
         self.inner.reduce_message(message);
         if message == FocusDecisionEvent::HostOutput && self.remove_split_on_host_output {
             self.split_present = false;
+        }
+        if message == FocusDecisionEvent::HostOutput && self.change_split_geometry_on_host_output {
+            self.split_spacing = 8.0;
         }
     }
 }
@@ -3273,6 +3285,68 @@ fn separator_pointer_focus_loss_reprojection_consumes_invalidated_candidate() {
     assert_eq!(runtime.pointer_capture(), None);
     assert_eq!(runtime.layout_pointer_capture(), None);
     assert!(runtime.split_pane_separator_projections().is_empty());
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [
+            FocusDecisionEvent::Prepare(10),
+            FocusDecisionEvent::Changed(10, false),
+            FocusDecisionEvent::HostOutput,
+        ]
+    );
+}
+
+#[test]
+fn separator_pointer_focus_loss_geometry_reprojection_clears_candidate_without_fallback() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusDecisionSplitBridge::new().with_split_geometry_changed_on_host_output(),
+        Vector2::new(200.0, 160.0),
+    );
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime.take_repaint_requested();
+    let before_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(before_projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("runtime-owned split state remains mounted");
+    let position = before_projection.divider_bounds.center();
+
+    assert_eq!(runtime.dispatch_event(Event::primary_press(position)), None);
+
+    let after_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("same runtime-owned separator remains mounted after reprojection");
+    assert_eq!(after_projection.target, before_projection.target);
+    assert_eq!(
+        after_projection.mounted_state_id,
+        before_projection.mounted_state_id
+    );
+    assert_eq!(after_projection.axis, before_projection.axis);
+    assert_eq!(after_projection.behavior, before_projection.behavior);
+    assert_ne!(
+        after_projection.divider_bounds,
+        before_projection.divider_bounds
+    );
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(after_projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+    assert_eq!(runtime.interaction.focus.owner, None);
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), None);
     assert_eq!(
         runtime.bridge().inner.events.borrow().as_slice(),
         [

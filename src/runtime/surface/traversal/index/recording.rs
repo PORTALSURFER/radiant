@@ -1,6 +1,6 @@
 use super::{
-    ClipAncestors, SurfaceContainerTraversalRecord, SurfaceTraversalIndex,
-    SurfaceWidgetTraversalRecord, WheelHitTarget, WidgetPath,
+    ClipAncestors, SurfaceContainerTraversalRecord, SurfaceSplitPaneFocusOrderCandidate,
+    SurfaceTraversalIndex, SurfaceWidgetTraversalRecord, WheelHitTarget, WidgetPath,
 };
 
 impl<Message> SurfaceTraversalIndex<Message> {
@@ -67,5 +67,13 @@ impl<Message> SurfaceTraversalIndex<Message> {
             self.widget_clip_ancestors
                 .insert(record.id, ClipAncestors::from_slice(record.clipped_by));
         }
+    }
+
+    pub(in crate::runtime) fn record_split_pane_focus_order_candidate(
+        &mut self,
+        mut candidate: SurfaceSplitPaneFocusOrderCandidate,
+    ) {
+        candidate.widget_index = self.keyboard_focus_order.len();
+        self.keyboard_focus_order_candidates.push(candidate);
     }
 }

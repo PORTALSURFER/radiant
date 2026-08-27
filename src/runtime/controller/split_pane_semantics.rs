@@ -204,7 +204,10 @@ mod tests {
     use crate::{
         gui::{
             automation::AutomationNodeSnapshot,
-            layout_core::{LayoutTargetIdentity, MountedContainerStateId},
+            layout_core::{
+                LayoutTargetIdentity, MountedContainerStateId, SplitPaneDividerDescriptor,
+                SplitPaneRuntimeOwnership,
+            },
         },
         layout::{ContainerStateId, LayoutHitRegionId},
     };
@@ -251,10 +254,24 @@ mod tests {
     fn projection(container_id: NodeId, axis: SplitPaneAxis) -> SplitPaneSeparatorProjection {
         SplitPaneSeparatorProjection {
             target: LayoutTargetIdentity::new(container_id, REGION_ID),
+            state_id: ContainerStateId::new::<crate::gui::layout_core::SplitPaneRuntimeState>(
+                container_id,
+                3,
+            ),
             mounted_state_id: MountedContainerStateId::new(
                 ContainerStateId::new::<u32>(container_id, 1),
                 NonZeroU64::new(1).expect("non-zero test generation"),
             ),
+            descriptor: SplitPaneDividerDescriptor {
+                container_id,
+                first_child: container_id + 1,
+                second_child: container_id + 2,
+                axis,
+                first_min_extent: 0.0,
+                second_min_extent: 0.0,
+                divider_extent: 8.0,
+            },
+            ownership: SplitPaneRuntimeOwnership::RuntimeOwned,
             axis,
             divider_bounds: crate::gui::types::Rect::from_xy_size(96.0, 0.0, 8.0, 120.0),
             live_ratio: 0.5,

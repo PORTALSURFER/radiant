@@ -1311,9 +1311,11 @@ the two pane children. It remains non-focusable, actionless, and
 non-interactive; invalid or ambiguous evidence falls back to the ordinary native
 tree. Focus ownership, Tab/spatial traversal, keyboard/arrow-key resizing,
 semantic actions, pointer/collapse mapping, and paint/cursor/renderer behavior
-remain future work. A separate crate-private runtime focus-owner foundation may
-retain exact current mounted separator identity and behavior evidence, but does
-not make this passive projection focusable or expose separator focus.
+remain future work. A separate crate-private runtime focus-order sidecar may
+retain source candidates and a committed mixed-order evidence sequence after
+exact current projection/lifecycle reconciliation; it remains non-authorizing,
+does not make this passive projection focusable, and does not expose separator
+focus.
 
 ## Styling and Theming
 
@@ -1486,9 +1488,10 @@ admitted ratio update. Static/controlled, stale, unmaterialized,
 duplicate/mismatched, malformed, focused, or actionful evidence leaves the
 ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
-unverified. A separate crate-private runtime focus-owner foundation may retain
-exact current mounted separator identity and behavior evidence, but this passive
-consumer does not consume it. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
+unverified. A separate crate-private runtime focus-order sidecar may retain
+source candidates and a committed mixed-order evidence sequence after exact
+current projection/lifecycle reconciliation, but this passive consumer does
+not consume it. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
 resizing, semantic accessibility actions, pointer/collapse mapping, and
 paint/cursor/renderer work remain future slices.
 

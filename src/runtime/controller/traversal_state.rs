@@ -2,11 +2,15 @@
 
 use super::{ClipAncestors, WidgetPath, hit_order::HitOrderIndex};
 use crate::{
+    gui::layout_core::{SplitPaneRuntimeOwnership, SplitPaneRuntimeState},
     layout::{
         LayoutHitRegion, LayoutHitRegionDiagnostics, LayoutHitTarget, LayoutInteraction,
         LayoutInteractionRevision, LayoutOutput, NodeId, Rect,
     },
-    runtime::{SurfaceLayoutInteractionRecord, WheelHitTarget},
+    runtime::{
+        RuntimeLifecyclePhase, SurfaceLayoutInteractionRecord, SurfaceSplitPaneFocusOrderCandidate,
+        WheelHitTarget,
+    },
     widgets::WidgetId,
 };
 use std::collections::{HashMap, HashSet};
@@ -14,6 +18,12 @@ use std::collections::{HashMap, HashSet};
 pub(super) struct RuntimeTraversalState<Message = ()> {
     pub(super) widgets: RuntimeWidgetTraversal,
     pub(super) containers: RuntimeContainerTraversal<Message>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum RuntimeFocusOrderEntry {
+    Widget(WidgetId),
+    SplitPaneSeparator(super::split_pane_separator::SplitPaneSeparatorProjection),
 }
 
 impl<Message> Default for RuntimeTraversalState<Message> {
@@ -32,6 +42,8 @@ pub(super) struct RuntimeWidgetTraversal {
     pub(super) pointer: HitOrderIndex,
     pub(super) native_file_drop: HitOrderIndex,
     pub(super) keyboard_focus: HitOrderIndex,
+    pub(super) keyboard_focus_order_candidates: Vec<SurfaceSplitPaneFocusOrderCandidate>,
+    pub(super) mixed_focus_order: Vec<RuntimeFocusOrderEntry>,
     pub(super) wheel: HitOrderIndex,
     pub(super) wheel_targets: RuntimeWheelTargetTraversal,
     pub(super) stateful_order: Vec<WidgetId>,
@@ -130,6 +142,174 @@ impl<Message> Default for RuntimeContainerTraversal<Message> {
             layout_region_declarations: Vec::new(),
         }
     }
+}
+
+impl<Message> RuntimeTraversalState<Message> {
+    /// Reconcile private mixed-focus evidence only after a committed boundary.
+    ///
+    /// The ordinary widget order remains the sole focus/key routing order. A
+    /// separator is copied into this sidecar only when every source marker and
+    /// current committed projection pair exactly; any incomplete or malformed
+    /// set falls back to the unchanged widget-only sequence.
+    pub(super) fn rebuild_mixed_focus_order(
+        &mut self,
+        lifecycle_phase: RuntimeLifecyclePhase,
+        state_store: &super::layout_state::RuntimeLayoutContainerStateStore,
+    ) {
+        let widget_order = self.widgets.keyboard_focus.order();
+        let candidates = &self.widgets.keyboard_focus_order_candidates;
+        let projections = &self.containers.split_pane_separator_projections;
+        let evidence_is_current = mixed_focus_order_evidence_is_current(
+            lifecycle_phase,
+            widget_order.len(),
+            candidates,
+            projections,
+            state_store,
+        );
+        let required_capacity = widget_order.len().saturating_add(projections.len());
+
+        self.widgets.mixed_focus_order.clear();
+        if self.widgets.mixed_focus_order.capacity() < required_capacity {
+            self.widgets
+                .mixed_focus_order
+                .reserve(required_capacity - self.widgets.mixed_focus_order.capacity());
+        }
+
+        if !evidence_is_current {
+            self.widgets.mixed_focus_order.extend(
+                widget_order
+                    .iter()
+                    .copied()
+                    .map(RuntimeFocusOrderEntry::Widget),
+            );
+            return;
+        }
+
+        let mut candidate_index = 0;
+        for widget_index in 0..=widget_order.len() {
+            while candidates
+                .get(candidate_index)
+                .is_some_and(|candidate| candidate.widget_index == widget_index)
+            {
+                let candidate = candidates[candidate_index];
+                if let Some(projection) = projections
+                    .iter()
+                    .find(|projection| {
+                        split_pane_focus_order_candidate_matches(
+                            &candidate,
+                            projection,
+                            state_store,
+                        )
+                    })
+                    .copied()
+                {
+                    self.widgets
+                        .mixed_focus_order
+                        .push(RuntimeFocusOrderEntry::SplitPaneSeparator(projection));
+                }
+                candidate_index += 1;
+            }
+            if let Some(widget_id) = widget_order.get(widget_index).copied() {
+                self.widgets
+                    .mixed_focus_order
+                    .push(RuntimeFocusOrderEntry::Widget(widget_id));
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::runtime::controller) fn mixed_focus_order(&self) -> &[RuntimeFocusOrderEntry] {
+        &self.widgets.mixed_focus_order
+    }
+}
+
+fn mixed_focus_order_evidence_is_current(
+    lifecycle_phase: RuntimeLifecyclePhase,
+    widget_count: usize,
+    candidates: &[SurfaceSplitPaneFocusOrderCandidate],
+    projections: &[super::split_pane_separator::SplitPaneSeparatorProjection],
+    state_store: &super::layout_state::RuntimeLayoutContainerStateStore,
+) -> bool {
+    if lifecycle_phase != RuntimeLifecyclePhase::Running || candidates.len() != projections.len() {
+        return false;
+    }
+
+    for (index, candidate) in candidates.iter().enumerate() {
+        if candidate.widget_index > widget_count
+            || candidate.ownership != SplitPaneRuntimeOwnership::RuntimeOwned
+            || candidate.target.region_id != crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID
+            || candidate.target.container_id != candidate.state_id.container_id()
+            || candidate.target.container_id != candidate.descriptor.container_id
+            || candidate.state_schema_version != candidate.state_id.schema_version()
+            || !candidate.descriptor.first_min_extent.is_finite()
+            || candidate.descriptor.first_min_extent < 0.0
+            || !candidate.descriptor.second_min_extent.is_finite()
+            || candidate.descriptor.second_min_extent < 0.0
+            || !candidate.descriptor.divider_extent.is_finite()
+            || candidate.descriptor.divider_extent <= 0.0
+            || candidate.descriptor.first_child == candidate.descriptor.second_child
+            || (index > 0 && candidate.widget_index < candidates[index - 1].widget_index)
+            || candidates[..index]
+                .iter()
+                .any(|previous| previous.target == candidate.target)
+        {
+            return false;
+        }
+
+        let matching_projections = projections
+            .iter()
+            .filter(|projection| {
+                split_pane_focus_order_candidate_matches(candidate, projection, state_store)
+            })
+            .count();
+        if matching_projections != 1 {
+            return false;
+        }
+    }
+
+    for (index, projection) in projections.iter().enumerate() {
+        if projections[..index]
+            .iter()
+            .any(|previous| previous.target == projection.target)
+        {
+            return false;
+        }
+
+        let matching_candidates = candidates
+            .iter()
+            .filter(|candidate| {
+                split_pane_focus_order_candidate_matches(candidate, projection, state_store)
+            })
+            .count();
+        if matching_candidates != 1 {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn split_pane_focus_order_candidate_matches(
+    candidate: &SurfaceSplitPaneFocusOrderCandidate,
+    projection: &super::split_pane_separator::SplitPaneSeparatorProjection,
+    state_store: &super::layout_state::RuntimeLayoutContainerStateStore,
+) -> bool {
+    candidate.target == projection.target
+        && candidate.state_id == projection.state_id
+        && candidate.descriptor == projection.descriptor
+        && candidate.ownership == projection.ownership
+        && candidate.descriptor.axis == projection.axis
+        && candidate.contract_version == projection.behavior.contract_version
+        && candidate.state_schema_version == projection.behavior.state_schema_version
+        && candidate.policy_revision == projection.behavior.policy_revision
+        && projection.state_id.is::<SplitPaneRuntimeState>()
+        && projection.state_id.schema_version() == candidate.state_schema_version
+        && projection.target.region_id == crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID
+        && projection.divider_bounds.has_finite_positive_area()
+        && projection.live_ratio.is_finite()
+        && (0.0..=1.0).contains(&projection.live_ratio)
+        && state_store.current_mounted_state_id(candidate.state_id)
+            == Some(projection.mounted_state_id)
 }
 
 impl<Message> RuntimeContainerTraversal<Message> {
@@ -248,11 +428,15 @@ impl<Message> RuntimeContainerTraversal<Message> {
         &mut self,
         state_store: &super::layout_state::RuntimeLayoutContainerStateStore,
     ) {
-        let mut next = Vec::with_capacity(
-            self.split_pane_runtime
-                .len()
-                .min(self.split_pane_dividers.len()),
-        );
+        let desired_capacity = self
+            .split_pane_runtime
+            .len()
+            .min(self.split_pane_dividers.len());
+        self.split_pane_separator_projections.clear();
+        if self.split_pane_separator_projections.capacity() < desired_capacity {
+            self.split_pane_separator_projections
+                .reserve_exact(desired_capacity - self.split_pane_separator_projections.capacity());
+        }
         for input in &self.split_pane_runtime {
             if self
                 .split_pane_runtime
@@ -308,10 +492,9 @@ impl<Message> RuntimeContainerTraversal<Message> {
                     state_store,
                 )
             {
-                next.push(projection);
+                self.split_pane_separator_projections.push(projection);
             }
         }
-        self.split_pane_separator_projections = next;
     }
 
     fn layout_clip_for_container<'a>(

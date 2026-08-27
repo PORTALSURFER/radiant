@@ -6,9 +6,9 @@ use super::{
 };
 use crate::gui::{
     layout_core::{
-        LayoutTargetIdentity, MountedContainerStateId, SPLIT_PANE_DIVIDER_REGION_ID,
-        SplitPaneDividerDescriptor, SplitPaneRuntimeMode, SplitPaneRuntimeOwnership,
-        SplitPaneRuntimeState, SplitPaneRuntimeStateInput,
+        ContainerStateId, LayoutTargetIdentity, MountedContainerStateId,
+        SPLIT_PANE_DIVIDER_REGION_ID, SplitPaneDividerDescriptor, SplitPaneRuntimeMode,
+        SplitPaneRuntimeOwnership, SplitPaneRuntimeState, SplitPaneRuntimeStateInput,
     },
     panel::SplitPaneAxis,
     types::Rect,
@@ -26,7 +26,10 @@ use crate::gui::{
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct SplitPaneSeparatorProjection {
     pub(super) target: LayoutTargetIdentity,
+    pub(super) state_id: ContainerStateId,
     pub(super) mounted_state_id: MountedContainerStateId,
+    pub(super) descriptor: SplitPaneDividerDescriptor,
+    pub(super) ownership: SplitPaneRuntimeOwnership,
     pub(super) axis: SplitPaneAxis,
     pub(super) divider_bounds: Rect,
     pub(super) live_ratio: f32,
@@ -102,7 +105,10 @@ pub(super) fn build_split_pane_separator_projection<Message>(
 
     Some(SplitPaneSeparatorProjection {
         target: target.target.identity(),
+        state_id: input.state_id(),
         mounted_state_id: committed.mounted_id(),
+        descriptor,
+        ownership: state.ownership,
         axis: descriptor.axis,
         divider_bounds: clipped_bounds,
         live_ratio: state.ratio,
@@ -123,10 +129,14 @@ mod tests {
             LayoutInteractionRevision, SplitPaneRuntimePolicyRevision, SplitPaneRuntimeStateInput,
         },
         layout::{LayoutHitRegionId, LayoutTargetIdentity, NodeId},
+        runtime::SurfaceSplitPaneFocusOrderCandidate,
         runtime::controller::{
             layout_state::MAX_LAYOUT_CONTAINER_STATE_SLOTS,
             layout_state::RuntimeLayoutContainerStateStore,
-            traversal_state::{RuntimeContainerTraversal, RuntimeLayoutHitTarget},
+            traversal_state::{
+                RuntimeContainerTraversal, RuntimeFocusOrderEntry, RuntimeLayoutHitTarget,
+                RuntimeTraversalState,
+            },
         },
     };
     use std::rc::Rc;
@@ -161,6 +171,47 @@ mod tests {
             second_min_extent: 0.0,
             divider_extent: 8.0,
         }
+    }
+
+    fn focus_order_candidate(
+        input: SplitPaneRuntimeStateInput,
+        descriptor: SplitPaneDividerDescriptor,
+        widget_index: usize,
+    ) -> SurfaceSplitPaneFocusOrderCandidate {
+        SurfaceSplitPaneFocusOrderCandidate {
+            widget_index,
+            target: LayoutTargetIdentity::new(input.container_id, SPLIT_PANE_DIVIDER_REGION_ID),
+            state_id: input.state_id(),
+            descriptor,
+            ownership: SplitPaneRuntimeOwnership::RuntimeOwned,
+            contract_version: crate::layout::LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION,
+            state_schema_version: input.state_id().schema_version(),
+            policy_revision: input.policy_revision,
+        }
+    }
+
+    fn admitted_projection(
+        store: &mut RuntimeLayoutContainerStateStore,
+        input: SplitPaneRuntimeStateInput,
+        descriptor: SplitPaneDividerDescriptor,
+        bounds: Rect,
+    ) -> SplitPaneSeparatorProjection {
+        let mounted_state_id = store
+            .current_mounted_state_id(input.state_id())
+            .expect("split state should be mounted");
+        let mut traversal = RuntimeContainerTraversal::default();
+        traversal.split_pane_runtime.push(input);
+        traversal.split_pane_dividers.push(descriptor);
+        traversal
+            .layout_targets
+            .push(target(input, Some(mounted_state_id), bounds, Some(bounds)));
+        traversal.bind_committed_mounted_state_ids(store);
+        traversal.rebuild_split_pane_separator_projections(store);
+        traversal
+            .split_pane_separator_projections
+            .first()
+            .copied()
+            .expect("valid split evidence should admit")
     }
 
     fn target(
@@ -491,6 +542,7 @@ mod tests {
 
         assert_eq!(traversal.split_pane_separator_projections.len(), 2);
         assert!(traversal.split_pane_separator_projections.capacity() <= 2);
+        let projection_capacity = traversal.split_pane_separator_projections.capacity();
         assert_eq!(
             traversal.split_pane_separator_projections[0]
                 .target
@@ -514,6 +566,10 @@ mod tests {
         traversal.rebuild_split_pane_separator_projections(&store);
         assert_eq!(traversal.split_pane_separator_projections.len(), 1);
         assert_eq!(
+            traversal.split_pane_separator_projections.capacity(),
+            projection_capacity
+        );
+        assert_eq!(
             traversal.split_pane_separator_projections[0]
                 .target
                 .container_id,
@@ -525,5 +581,137 @@ mod tests {
         traversal.split_pane_dividers.clear();
         traversal.rebuild_split_pane_separator_projections(&store);
         assert!(traversal.split_pane_separator_projections.is_empty());
+    }
+
+    #[test]
+    fn mixed_focus_order_inserts_nested_separators_in_source_order() {
+        let outer = split_input(
+            1,
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        );
+        let inner = split_input(
+            4,
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        );
+        let outer_descriptor = descriptor(1, SplitPaneAxis::Horizontal);
+        let inner_descriptor = descriptor(4, SplitPaneAxis::Horizontal);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(&[outer.declaration(), inner.declaration()]);
+        let outer_projection = admitted_projection(
+            &mut store,
+            outer,
+            outer_descriptor,
+            Rect::from_xy_size(48.0, 0.0, 8.0, 80.0),
+        );
+        let inner_projection = admitted_projection(
+            &mut store,
+            inner,
+            inner_descriptor,
+            Rect::from_xy_size(48.0, 0.0, 8.0, 80.0),
+        );
+
+        let mut traversal = RuntimeTraversalState::<()>::default();
+        traversal.widgets.keyboard_focus.set_order(vec![10, 20]);
+        traversal.widgets.keyboard_focus_order_candidates.extend([
+            focus_order_candidate(inner, inner_descriptor, 1),
+            focus_order_candidate(outer, outer_descriptor, 1),
+        ]);
+        traversal
+            .containers
+            .split_pane_separator_projections
+            .extend([outer_projection, inner_projection]);
+
+        traversal.rebuild_mixed_focus_order(crate::runtime::RuntimeLifecyclePhase::Running, &store);
+
+        assert_eq!(
+            traversal.mixed_focus_order(),
+            &[
+                RuntimeFocusOrderEntry::Widget(10),
+                RuntimeFocusOrderEntry::SplitPaneSeparator(inner_projection),
+                RuntimeFocusOrderEntry::SplitPaneSeparator(outer_projection),
+                RuntimeFocusOrderEntry::Widget(20),
+            ]
+        );
+    }
+
+    #[test]
+    fn mixed_focus_order_falls_back_for_invalid_evidence_and_lifecycle_retirement() {
+        let input = split_input(
+            1,
+            SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        );
+        let divider = descriptor(input.container_id, SplitPaneAxis::Horizontal);
+        let mut store = RuntimeLayoutContainerStateStore::default();
+        store.reconcile(std::slice::from_ref(&input.declaration()));
+        let projection = admitted_projection(
+            &mut store,
+            input,
+            divider,
+            Rect::from_xy_size(48.0, 0.0, 8.0, 80.0),
+        );
+        let candidate = focus_order_candidate(input, divider, 1);
+        let mut traversal = RuntimeTraversalState::<()>::default();
+        traversal.widgets.keyboard_focus.set_order(vec![10, 20]);
+        traversal
+            .widgets
+            .keyboard_focus_order_candidates
+            .push(candidate);
+        traversal
+            .containers
+            .split_pane_separator_projections
+            .push(projection);
+
+        traversal.rebuild_mixed_focus_order(crate::runtime::RuntimeLifecyclePhase::Running, &store);
+        assert!(matches!(
+            traversal.mixed_focus_order()[1],
+            RuntimeFocusOrderEntry::SplitPaneSeparator(_)
+        ));
+        let capacity = traversal.widgets.mixed_focus_order.capacity();
+
+        traversal.widgets.keyboard_focus_order_candidates[0].contract_version += 1;
+        traversal.rebuild_mixed_focus_order(crate::runtime::RuntimeLifecyclePhase::Running, &store);
+        assert_eq!(
+            traversal.mixed_focus_order(),
+            &[
+                RuntimeFocusOrderEntry::Widget(10),
+                RuntimeFocusOrderEntry::Widget(20)
+            ]
+        );
+
+        traversal.widgets.keyboard_focus_order_candidates[0] = candidate;
+        let stale_generation = projection.mounted_state_id;
+        store.reconcile(&[]);
+        let _ = committed_state(&mut store, input);
+        assert_ne!(
+            stale_generation,
+            store
+                .current_mounted_state_id(input.state_id())
+                .expect("remounted split state")
+        );
+        traversal.rebuild_mixed_focus_order(crate::runtime::RuntimeLifecyclePhase::Running, &store);
+        assert_eq!(
+            traversal.mixed_focus_order(),
+            &[
+                RuntimeFocusOrderEntry::Widget(10),
+                RuntimeFocusOrderEntry::Widget(20)
+            ]
+        );
+
+        traversal
+            .rebuild_mixed_focus_order(crate::runtime::RuntimeLifecyclePhase::Recovering, &store);
+        assert_eq!(
+            traversal.mixed_focus_order(),
+            &[
+                RuntimeFocusOrderEntry::Widget(10),
+                RuntimeFocusOrderEntry::Widget(20)
+            ]
+        );
+        assert_eq!(traversal.widgets.mixed_focus_order.capacity(), capacity);
     }
 }

@@ -296,6 +296,7 @@ fn runtime_projection_reusing_clears_stale_traversal_without_shrinking_buffers()
         scroll_containers: 2,
         clipped_containers: 0,
         styled_hoverable_containers: 0,
+        split_pane_focus_order_candidates: 0,
         max_depth: 4,
         max_scroll_depth: 2,
     });
@@ -417,6 +418,7 @@ fn runtime_projection_reusing_preserves_scratch_stack_capacity() {
         scroll_containers: 1,
         clipped_containers: 1,
         styled_hoverable_containers: 0,
+        split_pane_focus_order_candidates: 0,
         max_depth: 4,
         max_scroll_depth: 1,
     });

@@ -1,6 +1,12 @@
 use crate::{
-    gui::layout_core::{SplitPaneDividerDescriptor, SplitPaneRuntimeStateInput},
-    layout::{ContainerStateDeclaration, LayoutInteraction, LayoutInteractionRevision, NodeId},
+    gui::layout_core::{
+        SplitPaneDividerDescriptor, SplitPaneRuntimeOwnership, SplitPaneRuntimePolicyRevision,
+        SplitPaneRuntimeStateInput,
+    },
+    layout::{
+        ContainerStateDeclaration, ContainerStateId, LayoutInteraction, LayoutInteractionRevision,
+        LayoutTargetIdentity, NodeId,
+    },
     widgets::WidgetId,
 };
 use std::rc::Rc;
@@ -17,6 +23,23 @@ impl WheelHitTarget {
             Self::Widget(id) | Self::ScrollContainer(id) => id,
         }
     }
+}
+
+/// Non-authorizing source evidence for one runtime-owned split separator.
+///
+/// The marker records only the declarative boundary and its source behavior.
+/// It becomes usable only when the committed controller finds one exact
+/// current separator projection with the same evidence and mounted generation.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::runtime) struct SurfaceSplitPaneFocusOrderCandidate {
+    pub(in crate::runtime) widget_index: usize,
+    pub(in crate::runtime) target: LayoutTargetIdentity,
+    pub(in crate::runtime) state_id: ContainerStateId,
+    pub(in crate::runtime) descriptor: SplitPaneDividerDescriptor,
+    pub(in crate::runtime) ownership: SplitPaneRuntimeOwnership,
+    pub(in crate::runtime) contract_version: u16,
+    pub(in crate::runtime) state_schema_version: u16,
+    pub(in crate::runtime) policy_revision: SplitPaneRuntimePolicyRevision,
 }
 
 pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a, Message> {

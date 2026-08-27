@@ -166,15 +166,17 @@ where
         next: RuntimeLifecyclePhase,
     ) -> bool {
         let transitioned = self.lifecycle.transition(next);
-        if transitioned
-            && matches!(
+        if transitioned {
+            self.traversal
+                .rebuild_mixed_focus_order(next, &self.interaction.layout_state);
+            if matches!(
                 next,
                 RuntimeLifecyclePhase::Recovering
                     | RuntimeLifecyclePhase::Closing
                     | RuntimeLifecyclePhase::Stopped
-            )
-        {
-            self.clear_separator_focus_owner();
+            ) {
+                self.clear_separator_focus_owner();
+            }
         }
         transitioned
     }

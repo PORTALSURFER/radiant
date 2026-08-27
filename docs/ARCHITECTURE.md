@@ -417,8 +417,10 @@ admitted ratio update. Static/controlled, stale, unmaterialized,
 duplicate/mismatched, malformed, focused, or actionful evidence leaves the
 ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
-unverified. A separate crate-private runtime focus-owner foundation is not
-consumed by this passive native path. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
+unverified. A separate crate-private runtime focus-order sidecar may retain
+source candidates and a committed mixed-order evidence sequence after exact
+projection/lifecycle reconciliation; neither is consumed by this passive
+native path. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
 resizing, semantic accessibility actions, pointer/collapse mapping, and
 paint/cursor/renderer work remain future slices.
 

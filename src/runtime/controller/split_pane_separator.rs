@@ -68,6 +68,17 @@ pub(super) fn build_split_pane_separator_projection<Message>(
         return None;
     }
 
+    let container_bounds = target.container_bounds?;
+    let total_extent = match descriptor.axis {
+        SplitPaneAxis::Horizontal => container_bounds.width(),
+        SplitPaneAxis::Vertical => container_bounds.height(),
+    };
+    let divider_extent = descriptor.divider_extent.min(total_extent);
+    let movable_extent = total_extent - divider_extent;
+    if !movable_extent.is_finite() || movable_extent <= 0.0 {
+        return None;
+    }
+
     let divider_bounds = target.divider_bounds?;
     let clipped_bounds = target.target.bounds;
     if !divider_bounds.has_finite_positive_area() || !clipped_bounds.has_finite_positive_area() {

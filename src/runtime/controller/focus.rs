@@ -22,6 +22,14 @@ pub(super) enum FocusTransition {
     Changed,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SplitPaneSeparatorFocusAdmission {
+    NotAcquirable,
+    Vetoed,
+    Invalidated,
+    Admitted,
+}
+
 /// Result of one metadata-aware focused-key decision.
 ///
 /// The type stays crate-private so the public API exposes only the existing
@@ -105,10 +113,6 @@ where
     }
 
     /// Admit one exact separator projection at the committed layout boundary.
-    ///
-    /// This is a private foundation seam only. No pointer, traversal, native,
-    /// or semantic producer calls it yet.
-    #[allow(dead_code)]
     pub(super) fn request_split_pane_separator_focus(
         &mut self,
         projection: SplitPaneSeparatorProjection,
@@ -141,13 +145,48 @@ where
                     return FocusTransition::InvalidTarget;
                 }
                 RuntimeFocusOwner::SplitPaneSeparator(_) => {
-                    self.interaction.focus.owner = None;
-                    return FocusTransition::InvalidTarget;
+                    // A private separator owner may transfer directly to a
+                    // different exact separator without routing widget loss.
                 }
                 RuntimeFocusOwner::Widget(_) => {}
             }
         }
         self.request_focus_owner(next)
+    }
+
+    pub(super) fn request_split_pane_separator_focus_at(
+        &mut self,
+        position: crate::gui::types::Point,
+    ) -> SplitPaneSeparatorFocusAdmission {
+        if !position.is_finite() {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        }
+        let Some((target, target_bounds)) =
+            self.layout_input_target_identity_and_bounds_at(position)
+        else {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        };
+        let Some(projection) = self.current_split_pane_separator_projection(target) else {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        };
+        if target_bounds != projection.divider_bounds
+            || !self.split_pane_separator_pointer_evidence_is_current(position, projection)
+        {
+            return SplitPaneSeparatorFocusAdmission::NotAcquirable;
+        }
+
+        match self.request_split_pane_separator_focus(projection) {
+            FocusTransition::Vetoed => SplitPaneSeparatorFocusAdmission::Vetoed,
+            FocusTransition::InvalidTarget => SplitPaneSeparatorFocusAdmission::Invalidated,
+            FocusTransition::Unchanged | FocusTransition::Changed
+                if self.split_pane_separator_pointer_evidence_is_current(position, projection) =>
+            {
+                SplitPaneSeparatorFocusAdmission::Admitted
+            }
+            FocusTransition::Unchanged | FocusTransition::Changed => {
+                SplitPaneSeparatorFocusAdmission::Invalidated
+            }
+        }
     }
 
     fn request_focus_owner(&mut self, next: RuntimeFocusOwner) -> FocusTransition {
@@ -262,6 +301,25 @@ where
             }
         }
         current
+    }
+
+    fn split_pane_separator_pointer_evidence_is_current(
+        &self,
+        position: crate::gui::types::Point,
+        projection: SplitPaneSeparatorProjection,
+    ) -> bool {
+        let Some((target, target_bounds)) =
+            self.layout_input_target_identity_and_bounds_at(position)
+        else {
+            return false;
+        };
+        target == projection.target
+            && target_bounds == projection.divider_bounds
+            && projection.divider_bounds.has_finite_positive_area()
+            && projection.divider_bounds.contains(position)
+            && projection.live_ratio.is_finite()
+            && (0.0..=1.0).contains(&projection.live_ratio)
+            && self.current_split_pane_separator_projection(projection.target) == Some(projection)
     }
 
     fn separator_owner_identity_matches(

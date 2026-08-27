@@ -1,5 +1,5 @@
 use super::super::SurfaceRuntime;
-use super::super::focus::FocusTransition;
+use super::super::focus::{FocusTransition, SplitPaneSeparatorFocusAdmission};
 use super::super::pointer::PointInputDispatch;
 use crate::{
     gui::input::InputTimestamp,
@@ -62,6 +62,26 @@ where
                 true,
             );
             return None;
+        }
+        if button == PointerButton::Primary {
+            match self.request_split_pane_separator_focus_at(position) {
+                SplitPaneSeparatorFocusAdmission::Admitted => {
+                    let _ = self.dispatch_layout_input_at(
+                        position,
+                        LayoutInput::PointerPress {
+                            position,
+                            button,
+                            modifiers,
+                            timestamp,
+                        },
+                        true,
+                    );
+                    return None;
+                }
+                SplitPaneSeparatorFocusAdmission::Vetoed
+                | SplitPaneSeparatorFocusAdmission::Invalidated => return None,
+                SplitPaneSeparatorFocusAdmission::NotAcquirable => {}
+            }
         }
         if self
             .dispatch_layout_input_at(
@@ -161,6 +181,26 @@ where
                 true,
             );
             return None;
+        }
+        if button == PointerButton::Primary {
+            match self.request_split_pane_separator_focus_at(position) {
+                SplitPaneSeparatorFocusAdmission::Admitted => {
+                    let _ = self.dispatch_layout_input_at(
+                        position,
+                        LayoutInput::PointerDoubleClick {
+                            position,
+                            button,
+                            modifiers,
+                            timestamp,
+                        },
+                        true,
+                    );
+                    return None;
+                }
+                SplitPaneSeparatorFocusAdmission::Vetoed
+                | SplitPaneSeparatorFocusAdmission::Invalidated => return None,
+                SplitPaneSeparatorFocusAdmission::NotAcquirable => {}
+            }
         }
         if self
             .dispatch_layout_input_at(

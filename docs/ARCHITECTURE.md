@@ -176,7 +176,10 @@ new focused export leaf or a module split, not a formatting workaround.
   committed mixed-order sidecar. The explicit backend-neutral sequential
   traversal consumer admits exact current mounted separator identity and
   behavior evidence as private stops between pane widget subtrees, including
-  nested separators; invalid evidence uses the complete widget-only order.
+  nested separators; invalid evidence uses the complete widget-only order. The
+  crate-private traversal disposition distinguishes `NoDestination`, admitted
+  widget/separator, `Vetoed`, and `Invalidated`; only `NoDestination` is eligible
+  for a future key-routing fallback, while veto and invalidation are terminal.
   This does not make the passive projection focusable or public. Private
   separator ownership for traversal and pointer acquisition remains distinct
   from key routing, native/public focus, spatial traversal, keyboard/arrow-key
@@ -427,7 +430,10 @@ projection/lifecycle reconciliation. The explicit backend-neutral sequential
 traversal consumer is the only consumer of that sidecar: it admits each exact
 current runtime-owned separator as one private stop between its pane widget
 subtrees, including nested separators, and falls back to the complete
-widget-only order for invalid evidence. It is separate from this passive native
+widget-only order for invalid evidence. Its crate-private disposition keeps
+`NoDestination`, admitted widget/separator, `Vetoed`, and `Invalidated`
+separate; only `NoDestination` may feed a future key-routing fallback, while
+veto and invalidation are terminal. It is separate from this passive native
 path, private pointer ownership for divider acquisition, public/native focus,
 key routing, and future spatial traversal. Keyboard/arrow-key resizing,
 semantic accessibility actions, and paint/cursor/renderer work remain future

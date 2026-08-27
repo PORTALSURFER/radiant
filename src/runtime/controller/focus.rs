@@ -23,6 +23,21 @@ pub(super) enum FocusTransition {
     Changed,
 }
 
+/// Exact crate-private disposition of one sequential-focus traversal attempt.
+///
+/// `Vetoed` and `Invalidated` are terminal for the attempt. Only
+/// `NoDestination` is eligible for a future caller-owned fallback; an admitted
+/// private separator is a real runtime destination even though it has no
+/// public widget projection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SequentialFocusTraversalDisposition {
+    NoDestination,
+    AdmittedWidget(WidgetId),
+    AdmittedPrivateSplitPaneSeparator,
+    Vetoed,
+    Invalidated,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SplitPaneSeparatorFocusAdmission {
     NotAcquirable,
@@ -449,37 +464,57 @@ where
             .unwrap_or(FocusLossDecision::Allow)
     }
 
-    /// Move keyboard focus through the current committed traversal sequence.
-    ///
-    /// Traversal uses stable tree order and wraps at either end. Runtime-owned
-    /// split separators may be private stops in that sequence; selecting one
-    /// installs its private focus owner and returns `None` because this public
-    /// method reports widget destinations only. A widget destination returns
-    /// its id, or `None` when no destination can be admitted.
-    pub fn traverse_focus(&mut self, direction: FocusTraversal) -> Option<WidgetId> {
-        let next = next_focus_entry(
+    /// Resolve one exact traversal attempt through the current committed
+    /// sequence without delegating to any fallback or alternate search.
+    pub(crate) fn traverse_focus_with_disposition(
+        &mut self,
+        direction: FocusTraversal,
+    ) -> SequentialFocusTraversalDisposition {
+        let Some(next) = next_focus_entry(
             self.interaction.focus.owner,
             &self.traversal.widgets.mixed_focus_order,
             self.traversal.widgets.keyboard_focus.order(),
             self.traversal.widgets.keyboard_focus.rank(),
             direction,
-        )?;
-        let transition = match next {
-            RuntimeFocusOrderEntry::Widget(widget_id) => self.request_focus(widget_id),
-            RuntimeFocusOrderEntry::SplitPaneSeparator(projection) => {
-                self.request_split_pane_separator_focus(projection)
-            }
+        ) else {
+            return SequentialFocusTraversalDisposition::NoDestination;
         };
-        match (next, transition) {
-            (RuntimeFocusOrderEntry::Widget(widget_id), FocusTransition::Changed)
-            | (RuntimeFocusOrderEntry::Widget(widget_id), FocusTransition::Unchanged) => {
-                Some(widget_id)
+        match next {
+            RuntimeFocusOrderEntry::Widget(widget_id) => match self.request_focus(widget_id) {
+                FocusTransition::Changed | FocusTransition::Unchanged => {
+                    SequentialFocusTraversalDisposition::AdmittedWidget(widget_id)
+                }
+                FocusTransition::Vetoed => SequentialFocusTraversalDisposition::Vetoed,
+                FocusTransition::InvalidTarget => SequentialFocusTraversalDisposition::Invalidated,
+            },
+            RuntimeFocusOrderEntry::SplitPaneSeparator(projection) => {
+                match self.request_split_pane_separator_focus(projection) {
+                    FocusTransition::Changed | FocusTransition::Unchanged => {
+                        SequentialFocusTraversalDisposition::AdmittedPrivateSplitPaneSeparator
+                    }
+                    FocusTransition::Vetoed => SequentialFocusTraversalDisposition::Vetoed,
+                    FocusTransition::InvalidTarget => {
+                        SequentialFocusTraversalDisposition::Invalidated
+                    }
+                }
             }
-            (
-                RuntimeFocusOrderEntry::SplitPaneSeparator(_),
-                FocusTransition::Changed | FocusTransition::Unchanged,
-            )
-            | (_, FocusTransition::InvalidTarget | FocusTransition::Vetoed) => None,
+        }
+    }
+
+    /// Move keyboard focus through the current committed traversal sequence.
+    ///
+    /// Traversal uses stable tree order and wraps at either end. Runtime-owned
+    /// split separators may be private stops in that sequence; selecting one
+    /// installs its private focus owner and returns `None` because this public
+    /// compatibility projection reports widget destinations only. A widget
+    /// destination returns its id, or `None` for every other disposition.
+    pub fn traverse_focus(&mut self, direction: FocusTraversal) -> Option<WidgetId> {
+        match self.traverse_focus_with_disposition(direction) {
+            SequentialFocusTraversalDisposition::AdmittedWidget(widget_id) => Some(widget_id),
+            SequentialFocusTraversalDisposition::NoDestination
+            | SequentialFocusTraversalDisposition::AdmittedPrivateSplitPaneSeparator
+            | SequentialFocusTraversalDisposition::Vetoed
+            | SequentialFocusTraversalDisposition::Invalidated => None,
         }
     }
 

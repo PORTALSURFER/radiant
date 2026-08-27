@@ -1,4 +1,8 @@
-use super::super::{FocusTraversal, focus::FocusTransition, interaction_state::RuntimeFocusOwner};
+use super::super::{
+    FocusTraversal,
+    focus::{FocusTransition, SequentialFocusTraversalDisposition},
+    interaction_state::RuntimeFocusOwner,
+};
 use super::*;
 use crate::{
     gui::automation::AutomationRole,
@@ -3190,7 +3194,10 @@ fn sequential_focus_traversal_uses_flat_separator_stop_and_widget_only_wrap() {
     );
 
     assert_eq!(runtime.surface().keyboard_focus_order(), vec![2, 3]);
-    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(2)
+    );
     assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
     assert!(matches!(
         runtime.interaction.focus.owner,
@@ -3198,12 +3205,18 @@ fn sequential_focus_traversal_uses_flat_separator_stop_and_widget_only_wrap() {
             if owner.target.container_id == 1
     ));
     assert_eq!(runtime.focused_widget(), None);
-    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(3));
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(3)
+    );
     assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
 
     runtime.clear_focus();
     assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(3));
-    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), None);
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Backward),
+        SequentialFocusTraversalDisposition::AdmittedPrivateSplitPaneSeparator
+    );
     assert!(matches!(
         runtime.interaction.focus.owner,
         Some(RuntimeFocusOwner::SplitPaneSeparator(owner))
@@ -3211,6 +3224,28 @@ fn sequential_focus_traversal_uses_flat_separator_stop_and_widget_only_wrap() {
     ));
     assert_eq!(runtime.focused_widget(), None);
     assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(2));
+}
+
+#[test]
+fn sequential_focus_traversal_wraps_a_single_private_separator_stop() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+
+    assert!(runtime.surface().keyboard_focus_order().is_empty());
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedPrivateSplitPaneSeparator
+    );
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Backward),
+        SequentialFocusTraversalDisposition::AdmittedPrivateSplitPaneSeparator
+    );
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(_))
+    ));
 }
 
 #[test]
@@ -3265,8 +3300,14 @@ fn sequential_focus_traversal_uses_empty_and_non_runtime_widget_only_fallbacks()
         Vector2::new(200.0, 80.0),
     );
     assert!(empty_runtime.surface().keyboard_focus_order().is_empty());
-    assert_eq!(empty_runtime.traverse_focus(FocusTraversal::Forward), None);
-    assert_eq!(empty_runtime.traverse_focus(FocusTraversal::Backward), None);
+    assert_eq!(
+        empty_runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::NoDestination
+    );
+    assert_eq!(
+        empty_runtime.traverse_focus_with_disposition(FocusTraversal::Backward),
+        SequentialFocusTraversalDisposition::NoDestination
+    );
     assert_eq!(empty_runtime.interaction.focus.owner, None);
 
     for mode in [
@@ -3278,7 +3319,10 @@ fn sequential_focus_traversal_uses_empty_and_non_runtime_widget_only_fallbacks()
             Vector2::new(200.0, 80.0),
         );
         assert_eq!(runtime.surface().keyboard_focus_order(), vec![2, 3]);
-        assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
+        assert_eq!(
+            runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+            SequentialFocusTraversalDisposition::AdmittedWidget(2)
+        );
         assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(3));
         assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(2));
         assert_eq!(
@@ -3304,8 +3348,8 @@ fn sequential_focus_traversal_falls_back_after_invalid_evidence_and_lifecycle_ch
         .traversal
         .rebuild_mixed_focus_order(lifecycle_phase, &invalid_runtime.interaction.layout_state);
     assert_eq!(
-        invalid_runtime.traverse_focus(FocusTraversal::Forward),
-        Some(2)
+        invalid_runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(2)
     );
     assert_eq!(
         invalid_runtime.traverse_focus(FocusTraversal::Forward),
@@ -3321,8 +3365,8 @@ fn sequential_focus_traversal_falls_back_after_invalid_evidence_and_lifecycle_ch
         Vector2::new(200.0, 80.0),
     );
     assert_eq!(
-        recovering_runtime.traverse_focus(FocusTraversal::Forward),
-        Some(2)
+        recovering_runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(2)
     );
     assert_eq!(
         recovering_runtime.traverse_focus(FocusTraversal::Forward),
@@ -3335,8 +3379,8 @@ fn sequential_focus_traversal_falls_back_after_invalid_evidence_and_lifecycle_ch
     assert!(recovering_runtime.begin_native_recovery());
     assert_eq!(recovering_runtime.interaction.focus.owner, None);
     assert_eq!(
-        recovering_runtime.traverse_focus(FocusTraversal::Forward),
-        Some(2)
+        recovering_runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(2)
     );
     assert_eq!(
         recovering_runtime.traverse_focus(FocusTraversal::Forward),
@@ -3389,15 +3433,55 @@ fn sequential_focus_traversal_preserves_widget_veto_and_commit_before_callback_o
 }
 
 #[test]
+fn sequential_focus_traversal_reports_veto_as_terminal_disposition() {
+    let mut runtime =
+        SurfaceRuntime::new(FocusDecisionSplitBridge::new(), Vector2::new(200.0, 160.0));
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(10)
+    );
+    runtime
+        .bridge_mut()
+        .inner
+        .old_decision
+        .set(FocusLossDecision::Veto);
+
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::Vetoed
+    );
+    assert_eq!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(10))
+    );
+
+    runtime
+        .bridge_mut()
+        .inner
+        .old_decision
+        .set(FocusLossDecision::Allow);
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedPrivateSplitPaneSeparator
+    );
+}
+
+#[test]
 fn sequential_focus_traversal_does_not_retry_an_invalidated_separator() {
     let mut runtime = SurfaceRuntime::new(
         FocusDecisionSplitBridge::new().with_split_removed_on_host_output(),
         Vector2::new(200.0, 160.0),
     );
-    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(10));
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(10)
+    );
     runtime.bridge().inner.events.borrow_mut().clear();
 
-    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::Invalidated
+    );
     assert_eq!(runtime.interaction.focus.owner, None);
     assert!(runtime.split_pane_separator_projections().is_empty());
     assert_eq!(
@@ -3408,6 +3492,10 @@ fn sequential_focus_traversal_does_not_retry_an_invalidated_separator() {
             FocusDecisionEvent::HostOutput,
         ]
     );
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(10)
+    );
 }
 
 #[test]
@@ -3417,10 +3505,16 @@ fn sequential_focus_traversal_preserves_independent_owner_after_separator_reproj
         Vector2::new(200.0, 160.0),
     );
     assert_eq!(runtime.surface().keyboard_focus_order(), vec![10, 20]);
-    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(10));
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::AdmittedWidget(10)
+    );
     runtime.bridge().inner.events.borrow_mut().clear();
 
-    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), None);
+    assert_eq!(
+        runtime.traverse_focus_with_disposition(FocusTraversal::Forward),
+        SequentialFocusTraversalDisposition::Invalidated
+    );
     assert_eq!(
         runtime.interaction.focus.owner,
         Some(RuntimeFocusOwner::Widget(20))

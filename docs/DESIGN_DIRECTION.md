@@ -1703,7 +1703,13 @@ does not consume it. The explicit backend-neutral sequential traversal consumer
 does: exact current runtime-owned separators are private stops between their
 pane widget subtrees, including nested separators, while invalid evidence uses
 the complete widget-only order. This is separate from private pointer ownership
-and does not expose native/public or spatial focus; keyboard/arrow-key resizing,
+and does not expose native/public or spatial focus. Its crate-private result
+distinguishes `NoDestination`, `AdmittedWidget`,
+`AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and `Invalidated`; only
+`NoDestination` may be considered by a future key-routing fallback, while
+veto and invalidation are terminal for the attempt. The public projection
+remains `Some(widget_id)` only for an admitted widget and `None` otherwise.
+Keyboard/arrow-key resizing,
 semantic accessibility actions, and paint/cursor/renderer work remain future
 slices.
 
@@ -2362,8 +2368,11 @@ runtime focus-order sidecar may retain non-authorizing committed mixed-order
 evidence. The explicit backend-neutral sequential traversal consumer may admit
 an exact current runtime-owned separator as one private stop between pane
 widget subtrees, including nested separators, while the shipped divider remains
-outside native/public focus ownership. Private separator ownership for
-traversal and pointer acquisition is distinct from key routing, semantic
+outside native/public focus ownership. Its typed crate-private disposition
+keeps `NoDestination` separate from admitted widget/separator, `Vetoed`, and
+`Invalidated` results; veto and invalidation are terminal and only
+`NoDestination` can feed a future key-routing fallback. Private separator
+ownership for traversal and pointer acquisition is distinct from key routing, semantic
 actions, spatial traversal, and native publication. Keyboard or arrow-key
 resizing, pointer/collapse mapping, and paint/cursor/renderer work remain future
 slices. Nested split panes retain independent mounted collapse/restore

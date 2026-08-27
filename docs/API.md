@@ -5474,7 +5474,12 @@ sequential traversal. `focused_widget()` and the public result of
 `traverse_focus(...)` remain widget-only: when traversal selects a private
 runtime-owned split separator stop, it installs the existing private separator
 focus owner and returns `None`. Separators do not enter the public widget order,
-public key-routing target, or public focus API.
+public key-routing target, or public focus API. The crate-private
+`traverse_focus_with_disposition(...)` distinguishes `NoDestination`,
+`AdmittedWidget`, `AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and
+`Invalidated`; only `NoDestination` is eligible for a future key-routing
+fallback, while veto and invalidation are terminal. `Event::TraverseFocus`
+remains unchanged.
 `UiSurface::keyboard_focus_order_into(...)` writes the same deterministic order
 into caller-owned storage for diagnostics or host integrations that inspect
 focus order repeatedly without reallocating.
@@ -6869,7 +6874,10 @@ or ambiguous evidence falls back to the ordinary native tree. The explicit
 backend-neutral sequential traversal consumer reads the private committed
 mixed-order sidecar and treats each exact current runtime-owned separator as
 one private stop between its pane widget subtrees, including nested separators.
-Invalid or unavailable evidence uses the complete widget-only order; an
+Invalid or unavailable evidence uses the complete widget-only order. The
+crate-private traversal disposition distinguishes `NoDestination`, admitted
+widget/separator, `Vetoed`, and `Invalidated`; only `NoDestination` may feed a
+future key-routing fallback, while veto and invalidation are terminal. An
 invalidated separator does not retry or choose an alternate destination. This
 consumer is distinct from private pointer ownership for divider acquisition and
 collapse/restore. Neither path changes public/native focus, key routing,

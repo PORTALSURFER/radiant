@@ -1318,7 +1318,12 @@ exact current projection/lifecycle reconciliation. The explicit
 backend-neutral sequential traversal consumer reads that sidecar, admits each
 exact current runtime-owned separator as one private stop between its pane
 widget subtrees, including nested separators, and otherwise uses the complete
-widget-only order. It does not make this passive projection focusable, expose
+widget-only order. Its crate-private disposition distinguishes
+`NoDestination`, `AdmittedWidget`, `AdmittedPrivateSplitPaneSeparator`,
+`Vetoed`, and `Invalidated`; only `NoDestination` is eligible for a future
+key-routing fallback, while veto and invalidation are terminal. The existing
+public projection remains `Some(widget_id)` only for an admitted widget and
+`None` otherwise. It does not make this passive projection focusable, expose
 separator focus publicly, or authorize key routing, pointer behavior, native
 publication, rendering, or future spatial traversal.
 
@@ -1499,7 +1504,10 @@ current projection/lifecycle reconciliation, but this passive native consumer
 does not consume it. The explicit backend-neutral sequential traversal consumer
 does, admitting exact current runtime-owned separators as private stops between
 pane widget subtrees, including nested separators, and otherwise using the
-complete widget-only order. Private pointer ownership remains a separate
+complete widget-only order. Its crate-private disposition distinguishes
+`NoDestination`, admitted widget/separator, `Vetoed`, and `Invalidated`; only
+`NoDestination` may feed a future key-routing fallback, and veto/invalidation
+are terminal. Private pointer ownership remains a separate
 divider interaction path; public/native focus, key routing, spatial traversal,
 keyboard/arrow-key resizing, semantic accessibility actions, pointer/collapse
 mapping, and paint/cursor/renderer work remain future slices.

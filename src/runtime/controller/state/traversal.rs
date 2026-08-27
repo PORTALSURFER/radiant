@@ -29,6 +29,8 @@ where
             .widgets
             .keyboard_focus
             .set_order(traversal.keyboard_focus_order);
+        self.traversal.widgets.keyboard_focus_order_candidates =
+            traversal.keyboard_focus_order_candidates;
         self.traversal
             .widgets
             .wheel
@@ -97,6 +99,9 @@ where
             widget_paint_order: std::mem::take(&mut self.traversal.widgets.hit_order),
             focusable_widget_order: self.traversal.widgets.focusable.take_order(),
             keyboard_focus_order: self.traversal.widgets.keyboard_focus.take_order(),
+            keyboard_focus_order_candidates: std::mem::take(
+                &mut self.traversal.widgets.keyboard_focus_order_candidates,
+            ),
             pointer_hit_order: self.traversal.widgets.pointer.take_order(),
             native_file_drop_hit_order: self.traversal.widgets.native_file_drop.take_order(),
             wheel_hit_order: self.traversal.widgets.wheel.take_order(),

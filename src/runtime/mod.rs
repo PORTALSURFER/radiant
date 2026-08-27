@@ -223,8 +223,9 @@ pub use resource::{
 };
 pub(crate) use surface::lower_public_virtual_layout;
 pub(in crate::runtime) use surface::{
-    ClipAncestors, SurfaceLayoutInteractionRecord, SurfaceRuntimeProjection, SurfaceTraversalIndex,
-    WheelHitTarget, WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
+    ClipAncestors, SurfaceLayoutInteractionRecord, SurfaceRuntimeProjection,
+    SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex, WheelHitTarget,
+    WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
 pub use surface::{
     Element, EventMapper, LayerKind, MessageMapper, NativeFileDropMessageMapper,

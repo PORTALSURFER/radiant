@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    layout::ContainerKind,
+    layout::{ContainerKind, ContainerPolicy, NodeId, SplitPanePolicy},
     runtime::{ClipAncestors, SurfaceChild, SurfaceNode, WidgetMessageMapper, WidgetPath},
     widgets::{ButtonWidget, TextWidget, WidgetSizing},
 };
@@ -94,6 +94,121 @@ fn traversal_tracks_only_widgets_that_need_state_synchronization() {
     assert_eq!(index.stateful_widget_order, vec![20]);
 }
 
+fn runtime_owned_split(
+    id: NodeId,
+    first: SurfaceNode<()>,
+    second: SurfaceNode<()>,
+) -> SurfaceNode<()> {
+    let policy = SplitPanePolicy {
+        axis: crate::layout::SplitPaneAxis::Horizontal,
+        initial_ratio: 0.5,
+        divider_extent: 8.0,
+        first_min_extent: 0.0,
+        second_min_extent: 0.0,
+    };
+    SurfaceNode::container(
+        id,
+        ContainerPolicy {
+            kind: ContainerKind::SplitPane,
+            split_pane: policy,
+            ..ContainerPolicy::default()
+        },
+        vec![SurfaceChild::fill(first), SurfaceChild::fill(second)],
+    )
+    .with_split_pane_runtime_mode(Some(
+        crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
+            collapse_policy: None,
+        },
+    ))
+    .with_layout_capabilities(
+        crate::gui::layout_core::runtime_owned_split_pane_capabilities(policy, None),
+    )
+}
+
+#[test]
+fn runtime_split_focus_candidates_follow_flat_and_nested_focusable_boundaries() {
+    let flat = runtime_owned_split(
+        1,
+        SurfaceNode::column(
+            2,
+            0.0,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(
+                        10,
+                        "first",
+                        WidgetSizing::fixed(crate::layout::Vector2::new(80.0, 28.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::static_widget(TextWidget::new(
+                    11,
+                    "non-focusable",
+                    WidgetSizing::fixed(crate::layout::Vector2::new(80.0, 20.0)),
+                ))),
+            ],
+        ),
+        SurfaceNode::widget(
+            ButtonWidget::new(
+                12,
+                "second",
+                WidgetSizing::fixed(crate::layout::Vector2::new(80.0, 28.0)),
+            ),
+            WidgetMessageMapper::none(),
+        ),
+    );
+    let flat_projection = UiSurface::new(flat).runtime_projection();
+    assert_eq!(flat_projection.traversal.keyboard_focus_order, vec![10, 12]);
+    assert_eq!(
+        flat_projection
+            .traversal
+            .keyboard_focus_order_candidates
+            .iter()
+            .map(|candidate| (candidate.target.container_id, candidate.widget_index))
+            .collect::<Vec<_>>(),
+        vec![(1, 1)]
+    );
+
+    let nested = runtime_owned_split(
+        1,
+        runtime_owned_split(
+            4,
+            SurfaceNode::widget(
+                ButtonWidget::new(
+                    5,
+                    "inner first",
+                    WidgetSizing::fixed(crate::layout::Vector2::new(80.0, 28.0)),
+                ),
+                WidgetMessageMapper::none(),
+            ),
+            SurfaceNode::static_widget(TextWidget::new(
+                6,
+                "inner non-focusable",
+                WidgetSizing::fixed(crate::layout::Vector2::new(80.0, 20.0)),
+            )),
+        ),
+        SurfaceNode::widget(
+            ButtonWidget::new(
+                7,
+                "outer second",
+                WidgetSizing::fixed(crate::layout::Vector2::new(80.0, 28.0)),
+            ),
+            WidgetMessageMapper::none(),
+        ),
+    );
+    let nested_projection = UiSurface::new(nested).runtime_projection();
+    assert_eq!(nested_projection.traversal.keyboard_focus_order, vec![5, 7]);
+    assert_eq!(
+        nested_projection
+            .traversal
+            .keyboard_focus_order_candidates
+            .iter()
+            .map(|candidate| (candidate.target.container_id, candidate.widget_index))
+            .collect::<Vec<_>>(),
+        vec![(4, 1), (1, 1)]
+    );
+}
+
 #[test]
 fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() {
     let mut index = SurfaceTraversalIndex::<()>::with_stats(SurfaceTraversalStats {
@@ -103,6 +218,7 @@ fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() 
         styled_hoverable_containers: 1,
         scroll_containers: 1,
         clipped_containers: 1,
+        split_pane_focus_order_candidates: 4,
         max_depth: 1,
         max_scroll_depth: 1,
     });
@@ -114,6 +230,7 @@ fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() 
         styled_hoverable_containers: 12,
         scroll_containers: 8,
         clipped_containers: 16,
+        split_pane_focus_order_candidates: 32,
         max_depth: 4,
         max_scroll_depth: 2,
     });
@@ -121,6 +238,7 @@ fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() 
     assert!(index.widget_paint_order.capacity() >= 96);
     assert!(index.focusable_widget_order.capacity() >= 96);
     assert!(index.keyboard_focus_order.capacity() >= 96);
+    assert!(index.keyboard_focus_order_candidates.capacity() >= 32);
     assert!(index.pointer_hit_order.capacity() >= 96);
     assert!(index.wheel_hit_order.capacity() >= 96);
     assert!(index.wheel_target_order.capacity() >= 104);

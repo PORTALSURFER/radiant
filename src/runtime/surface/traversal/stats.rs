@@ -8,6 +8,7 @@ pub(in crate::runtime) struct SurfaceTraversalStats {
     pub(in crate::runtime) scroll_containers: usize,
     pub(in crate::runtime) clipped_containers: usize,
     pub(in crate::runtime) styled_hoverable_containers: usize,
+    pub(in crate::runtime) split_pane_focus_order_candidates: usize,
     pub(in crate::runtime) max_depth: usize,
     pub(in crate::runtime) max_scroll_depth: usize,
 }
@@ -53,6 +54,9 @@ impl<Message> SurfaceNode<Message> {
                 if container.style.is_some() && container.hoverable {
                     stats.styled_hoverable_containers += 1;
                 }
+                if is_runtime_owned_two_child_split(container) {
+                    stats.split_pane_focus_order_candidates += 1;
+                }
                 let child_scroll_depth = scroll_depth + usize::from(is_scroll);
                 for child in &container.children {
                     child.child.collect_runtime_traversal_stats(
@@ -87,6 +91,9 @@ impl<Message> SurfaceNode<Message> {
                 }
                 if layer.container.style.is_some() && layer.container.hoverable {
                     stats.styled_hoverable_containers += 1;
+                }
+                if is_runtime_owned_two_child_split(&layer.container) {
+                    stats.split_pane_focus_order_candidates += 1;
                 }
                 let child_scroll_depth = scroll_depth + usize::from(is_scroll);
                 for child in &layer.container.children {
@@ -125,4 +132,15 @@ impl<Message> SurfaceNode<Message> {
             }
         }
     }
+}
+
+fn is_runtime_owned_two_child_split<Message>(
+    container: &crate::runtime::SurfaceContainer<Message>,
+) -> bool {
+    container.policy.kind == ContainerKind::SplitPane
+        && container.children.len() == 2
+        && matches!(
+            container.split_pane_runtime,
+            Some(crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned { .. })
+        )
 }

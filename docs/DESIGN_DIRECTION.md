@@ -1696,9 +1696,10 @@ admitted ratio update. Static/controlled, stale, unmaterialized,
 duplicate/mismatched, malformed, focused, or actionful evidence leaves the
 ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
-unverified. A separate crate-private runtime focus-owner foundation may retain
-exact current mounted separator identity and behavior evidence, but this passive
-consumer does not consume it. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
+unverified. A separate crate-private runtime focus-order sidecar may retain
+source candidates and a committed mixed-order evidence sequence after exact
+current projection/lifecycle reconciliation, but this passive consumer does
+not consume it. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
 resizing, semantic accessibility actions, pointer/collapse mapping, and
 paint/cursor/renderer work remain future slices.
 
@@ -2352,8 +2353,10 @@ The shipped divider automation remains passive: it reports final geometry and
 value, and the private primary-window macOS/AppKit consumer publishes each
 qualified separator as one `AXSplitter` between its two pane children. The
 separator is non-focusable, actionless, and has no interaction target; invalid
-or ambiguous evidence falls back to the ordinary native tree. Divider focus
-ownership, Tab/spatial traversal, keyboard or arrow-key resizing, semantic
+or ambiguous evidence falls back to the ordinary native tree. A private
+runtime focus-order sidecar may retain non-authorizing committed mixed-order
+evidence, but the shipped divider remains outside focus ownership. Divider
+focus ownership, Tab/spatial traversal, keyboard or arrow-key resizing, semantic
 actions, pointer/collapse mapping, and paint/cursor/renderer work remain future
 slices. Nested split panes retain independent mounted collapse/restore
 authority and use the same geometry/lifecycle rules without becoming workspace

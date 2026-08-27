@@ -19,14 +19,16 @@ mod records;
 mod tests;
 
 pub(in crate::runtime) use records::{
-    SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceWidgetTraversalRecord,
-    WheelHitTarget,
+    SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord,
+    SurfaceSplitPaneFocusOrderCandidate, SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 
 pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
     pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
     pub(in crate::runtime) focusable_widget_order: Vec<WidgetId>,
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
+    pub(in crate::runtime) keyboard_focus_order_candidates:
+        Vec<SurfaceSplitPaneFocusOrderCandidate>,
     pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) wheel_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) wheel_target_order: Vec<WheelHitTarget>,
@@ -52,6 +54,9 @@ impl<Message> SurfaceTraversalIndex<Message> {
             widget_paint_order: Vec::with_capacity(stats.widgets),
             focusable_widget_order: Vec::with_capacity(stats.widgets),
             keyboard_focus_order: Vec::with_capacity(stats.widgets),
+            keyboard_focus_order_candidates: Vec::with_capacity(
+                stats.split_pane_focus_order_candidates,
+            ),
             pointer_hit_order: Vec::with_capacity(stats.widgets),
             wheel_hit_order: Vec::with_capacity(stats.widgets),
             wheel_target_order: Vec::with_capacity(stats.widgets + stats.scroll_containers),
@@ -78,6 +83,11 @@ impl<Message> SurfaceTraversalIndex<Message> {
         reserve_vec_capacity(&mut self.focusable_widget_order, stats.widgets);
         self.keyboard_focus_order.clear();
         reserve_vec_capacity(&mut self.keyboard_focus_order, stats.widgets);
+        self.keyboard_focus_order_candidates.clear();
+        reserve_vec_capacity(
+            &mut self.keyboard_focus_order_candidates,
+            stats.split_pane_focus_order_candidates,
+        );
         self.pointer_hit_order.clear();
         reserve_vec_capacity(&mut self.pointer_hit_order, stats.widgets);
         self.wheel_hit_order.clear();
@@ -121,6 +131,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
         self.widget_paint_order.clear();
         self.focusable_widget_order.clear();
         self.keyboard_focus_order.clear();
+        self.keyboard_focus_order_candidates.clear();
         self.pointer_hit_order.clear();
         self.wheel_hit_order.clear();
         self.wheel_target_order.clear();

@@ -1,6 +1,7 @@
 use super::{
     SourceTraversalIndex, SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode,
-    SurfaceScene, SurfaceTraversalIndex, SurfaceTraversalStats, UiSurface,
+    SurfaceScene, SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex,
+    SurfaceTraversalStats, UiSurface,
 };
 use super::{SurfaceWidget, SurfaceWidgetTraversalRecord};
 use crate::layout::supports_layout_capabilities_contract;
@@ -130,10 +131,16 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Container(container) => {
                 let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
+                let focus_order_candidate = split_pane_focus_order_candidate(container);
                 let children = container_layout_children(container, |child_index, child| {
                     child_path.push(child_index);
                     let layout = child.project_runtime(scroll_stack, child_path, traversal, source);
                     child_path.pop();
+                    if child_index == 0
+                        && let Some(candidate) = focus_order_candidate
+                    {
+                        traversal.record_split_pane_focus_order_candidate(candidate);
+                    }
                     layout
                 });
                 end_container_runtime(is_scroll, scroll_stack);
@@ -153,12 +160,18 @@ impl<Message> SurfaceNode<Message> {
                 if layer.interactive {
                     let is_scroll =
                         begin_container_runtime(&layer.container, scroll_stack, traversal);
+                    let focus_order_candidate = split_pane_focus_order_candidate(&layer.container);
                     let children =
                         container_layout_children(&layer.container, |child_index, child| {
                             child_path.push(child_index);
                             let layout =
                                 child.project_runtime(scroll_stack, child_path, traversal, source);
                             child_path.pop();
+                            if child_index == 0
+                                && let Some(candidate) = focus_order_candidate
+                            {
+                                traversal.record_split_pane_focus_order_candidate(candidate);
+                            }
                             layout
                         });
                     end_container_runtime(is_scroll, scroll_stack);
@@ -207,9 +220,19 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Container(container) => {
                 let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
-                visit_container_children(container, child_path, |child, child_path| {
-                    child.collect_runtime_index(scroll_stack, child_path, traversal);
-                });
+                let focus_order_candidate = split_pane_focus_order_candidate(container);
+                visit_container_children(
+                    container,
+                    child_path,
+                    |child_index, child, child_path| {
+                        child.collect_runtime_index(scroll_stack, child_path, traversal);
+                        if child_index == 0
+                            && let Some(candidate) = focus_order_candidate
+                        {
+                            traversal.record_split_pane_focus_order_candidate(candidate);
+                        }
+                    },
+                );
                 end_container_runtime(is_scroll, scroll_stack);
             }
             Self::Widget(widget) => {
@@ -221,9 +244,19 @@ impl<Message> SurfaceNode<Message> {
                     return;
                 }
                 let is_scroll = begin_container_runtime(&layer.container, scroll_stack, traversal);
-                visit_container_children(&layer.container, child_path, |child, child_path| {
-                    child.collect_runtime_index(scroll_stack, child_path, traversal);
-                });
+                let focus_order_candidate = split_pane_focus_order_candidate(&layer.container);
+                visit_container_children(
+                    &layer.container,
+                    child_path,
+                    |child_index, child, child_path| {
+                        child.collect_runtime_index(scroll_stack, child_path, traversal);
+                        if child_index == 0
+                            && let Some(candidate) = focus_order_candidate
+                        {
+                            traversal.record_split_pane_focus_order_candidate(candidate);
+                        }
+                    },
+                );
                 end_container_runtime(is_scroll, scroll_stack);
             }
         }
@@ -326,13 +359,62 @@ fn container_layout_children<Message>(
 fn visit_container_children<Message>(
     container: &SurfaceContainer<Message>,
     child_path: &mut Vec<usize>,
-    mut visit_child: impl FnMut(&SurfaceNode<Message>, &mut Vec<usize>),
+    mut visit_child: impl FnMut(usize, &SurfaceNode<Message>, &mut Vec<usize>),
 ) {
     for (child_index, child) in container.children.iter().enumerate() {
         child_path.push(child_index);
-        visit_child(&child.child, child_path);
+        visit_child(child_index, &child.child, child_path);
         child_path.pop();
     }
+}
+
+fn split_pane_focus_order_candidate<Message>(
+    container: &SurfaceContainer<Message>,
+) -> Option<SurfaceSplitPaneFocusOrderCandidate> {
+    let Some(crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned { collapse_policy }) =
+        container.split_pane_runtime
+    else {
+        return None;
+    };
+    if container.policy.kind != ContainerKind::SplitPane {
+        return None;
+    }
+    let [first, second] = container.children.as_slice() else {
+        return None;
+    };
+    let child_ids = [first.child.id(), second.child.id()];
+    let descriptor = crate::gui::layout_core::SplitPaneDividerDescriptor::from_policy(
+        container.id,
+        container.policy.split_pane,
+        &child_ids,
+    )?;
+    let policy_revision = crate::gui::layout_core::SplitPaneRuntimePolicyRevision::new(
+        container.policy.split_pane,
+        collapse_policy,
+    );
+    let state_id = crate::gui::layout_core::SplitPaneRuntimeStateInput {
+        container_id: container.id,
+        initial_ratio: container.policy.split_pane.initial_ratio,
+        mode: crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned { collapse_policy },
+        policy_revision,
+    }
+    .state_id();
+    Some(SurfaceSplitPaneFocusOrderCandidate {
+        widget_index: 0,
+        target: crate::layout::LayoutTargetIdentity::new(
+            container.id,
+            crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID,
+        ),
+        state_id,
+        descriptor,
+        ownership: crate::gui::layout_core::SplitPaneRuntimeOwnership::RuntimeOwned,
+        contract_version: container
+            .layout_capabilities
+            .as_ref()
+            .map_or(0, |capabilities| capabilities.contract_version),
+        state_schema_version: state_id.schema_version(),
+        policy_revision,
+    })
 }
 
 fn begin_container_runtime<Message>(

@@ -37,8 +37,9 @@ pub(in crate::runtime) use state_sync::{
     WidgetReplacementPlan, WidgetReplacementPlanVeto, WidgetStateSyncPolicy,
 };
 pub(in crate::runtime) use traversal::{
-    SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord, SurfaceTraversalIndex,
-    SurfaceTraversalStats, SurfaceWidgetTraversalRecord, WheelHitTarget,
+    SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord,
+    SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex, SurfaceTraversalStats,
+    SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 #[cfg(test)]
 pub(in crate::runtime) use virtual_layout::VirtualLayoutRegistrationRevisions;

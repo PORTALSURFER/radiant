@@ -6869,7 +6869,11 @@ axis, final clipped bounds, and finite normalized live ratio. The pure runtime
 automation compositor may consume that evidence for the passive separator
 publication above; it is not a public API or an authority for focus, key
 handling, actions, paint, relayout, provider/native calls, or application
-projection.
+projection. The controller may also retain a private source-candidate sequence
+alongside the widget keyboard order and a committed mixed-order evidence
+sequence after exact projection/lifecycle reconciliation; this evidence is
+non-authorizing and is not consumed by current focus, key, pointer, native,
+rendering, or public API paths.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

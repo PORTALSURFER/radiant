@@ -512,7 +512,7 @@ where
                     && !common.state.disabled
                     && !common.state.read_only
                     && (!widget.is_focusable()
-                        || self.interaction.focus.focused_widget == Some(widget_id))
+                        || self.interaction.focus.focused_widget() == Some(widget_id))
                     && widget.receives_wheel_input()
                     && widget.retains_managed_wheel_sequence()
             })

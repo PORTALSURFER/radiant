@@ -165,7 +165,18 @@ where
         &mut self,
         next: RuntimeLifecyclePhase,
     ) -> bool {
-        self.lifecycle.transition(next)
+        let transitioned = self.lifecycle.transition(next);
+        if transitioned
+            && matches!(
+                next,
+                RuntimeLifecyclePhase::Recovering
+                    | RuntimeLifecyclePhase::Closing
+                    | RuntimeLifecyclePhase::Stopped
+            )
+        {
+            self.clear_separator_focus_owner();
+        }
+        transitioned
     }
 
     pub(crate) fn begin_native_recovery(&mut self) -> bool {
@@ -288,14 +299,7 @@ where
     }
 
     pub(in crate::runtime::controller) fn clear_stale_interaction_state(&mut self) {
-        if self
-            .interaction
-            .focus
-            .focused_widget
-            .is_some_and(|widget_id| !self.traversal.widgets.focusable.contains(widget_id))
-        {
-            self.interaction.focus.focused_widget = None;
-        }
+        self.revalidate_focus_owner();
         if self.interaction.pointer.capture.is_some_and(|widget_id| {
             !self
                 .traversal

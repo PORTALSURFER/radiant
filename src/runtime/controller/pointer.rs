@@ -310,7 +310,8 @@ where
             && compatibility_kind.is_none_or(|kind| widget.compatibility_kind() == kind)
             && !common.state.disabled
             && !common.state.read_only
-            && (!widget.is_focusable() || self.interaction.focus.focused_widget == Some(widget_id))
+            && (!widget.is_focusable()
+                || self.interaction.focus.focused_widget() == Some(widget_id))
             && self.layout.rects.contains_key(&widget_id)
     }
 
@@ -404,7 +405,7 @@ where
             && !common.state.disabled
             && !common.state.read_only
             && (!widget.is_focusable()
-                || self.interaction.focus.focused_widget == Some(capture.widget_id))
+                || self.interaction.focus.focused_widget() == Some(capture.widget_id))
             && widget.retains_managed_pointer_capture()
     }
 
@@ -610,7 +611,8 @@ where
         widget.id() == widget_id
             && !common.state.disabled
             && !common.state.read_only
-            && (!widget.is_focusable() || self.interaction.focus.focused_widget == Some(widget_id))
+            && (!widget.is_focusable()
+                || self.interaction.focus.focused_widget() == Some(widget_id))
             && widget.retains_managed_pointer_capture()
     }
 

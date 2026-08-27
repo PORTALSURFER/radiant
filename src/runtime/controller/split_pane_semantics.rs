@@ -258,6 +258,15 @@ mod tests {
             axis,
             divider_bounds: crate::gui::types::Rect::from_xy_size(96.0, 0.0, 8.0, 120.0),
             live_ratio: 0.5,
+            behavior: super::super::interaction_state::SplitPaneSeparatorBehaviorEvidence::new(
+                crate::layout::LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION,
+                ContainerStateId::new::<crate::gui::layout_core::SplitPaneRuntimeState>(
+                    container_id,
+                    3,
+                )
+                .schema_version(),
+                crate::gui::layout_core::SplitPaneRuntimePolicyRevision::default(),
+            ),
         }
     }
 

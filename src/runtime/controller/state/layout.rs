@@ -68,6 +68,10 @@ where
         self.traversal
             .containers
             .rebuild_split_pane_separator_projections(&self.interaction.layout_state);
+        // Separator focus is revalidated only after the committed mounted
+        // state and its projections are both installed. Prepared candidates
+        // therefore cannot mutate the active owner.
+        self.revalidate_focus_owner();
     }
 
     pub(in crate::runtime::controller) fn relayout_with_traversal(

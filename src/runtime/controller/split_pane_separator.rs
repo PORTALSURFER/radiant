@@ -1,6 +1,7 @@
 //! Crate-private observational projection for mounted split-pane separators.
 
 use super::{
+    interaction_state::SplitPaneSeparatorBehaviorEvidence,
     layout_state::RuntimeLayoutContainerStateStore, traversal_state::RuntimeLayoutHitTarget,
 };
 use crate::gui::{
@@ -29,6 +30,7 @@ pub(super) struct SplitPaneSeparatorProjection {
     pub(super) axis: SplitPaneAxis,
     pub(super) divider_bounds: Rect,
     pub(super) live_ratio: f32,
+    pub(super) behavior: SplitPaneSeparatorBehaviorEvidence,
 }
 
 pub(super) fn build_split_pane_separator_projection<Message>(
@@ -37,12 +39,31 @@ pub(super) fn build_split_pane_separator_projection<Message>(
     descriptor: SplitPaneDividerDescriptor,
     state_store: &RuntimeLayoutContainerStateStore,
 ) -> Option<SplitPaneSeparatorProjection> {
-    if !matches!(input.mode, SplitPaneRuntimeMode::RuntimeOwned { .. })
-        || descriptor.container_id != input.container_id
+    let SplitPaneRuntimeMode::RuntimeOwned { collapse_policy } = input.mode else {
+        return None;
+    };
+    if descriptor.container_id != input.container_id
         || target.target.identity()
             != LayoutTargetIdentity::new(input.container_id, SPLIT_PANE_DIVIDER_REGION_ID)
         || target.state_id != Some(input.state_id())
+        || !target.revision.is_exact()
         || !crate::layout::supports_layout_state_input_contract(target.contract_version)
+        || target.target_bounds != Some(target.target.bounds)
+        || !target
+            .container_bounds
+            .is_some_and(Rect::has_finite_positive_area)
+        || descriptor.axis != input.policy_revision.axis
+        || collapse_policy != input.policy_revision.collapse_policy
+        || descriptor.first_child == descriptor.second_child
+        || !descriptor.first_min_extent.is_finite()
+        || descriptor.first_min_extent < 0.0
+        || !descriptor.second_min_extent.is_finite()
+        || descriptor.second_min_extent < 0.0
+        || !descriptor.divider_extent.is_finite()
+        || descriptor.divider_extent <= 0.0
+        || descriptor.first_min_extent.to_bits() != input.policy_revision.first_min_extent
+        || descriptor.second_min_extent.to_bits() != input.policy_revision.second_min_extent
+        || descriptor.divider_extent.to_bits() != input.policy_revision.divider_extent
     {
         return None;
     }
@@ -61,6 +82,9 @@ pub(super) fn build_split_pane_separator_projection<Message>(
     if state.ownership != SplitPaneRuntimeOwnership::RuntimeOwned
         || !state.ratio.is_finite()
         || !(0.0..=1.0).contains(&state.ratio)
+        || !state
+            .policy_revision
+            .runtime_state_compatible(input.policy_revision)
     {
         return None;
     }
@@ -71,6 +95,11 @@ pub(super) fn build_split_pane_separator_projection<Message>(
         axis: descriptor.axis,
         divider_bounds: clipped_bounds,
         live_ratio: state.ratio,
+        behavior: SplitPaneSeparatorBehaviorEvidence::new(
+            target.contract_version,
+            input.state_id().schema_version(),
+            input.policy_revision,
+        ),
     })
 }
 
@@ -96,11 +125,18 @@ mod tests {
     impl LayoutInteraction<()> for NoopInteraction {}
 
     fn split_input(container_id: NodeId, mode: SplitPaneRuntimeMode) -> SplitPaneRuntimeStateInput {
+        let policy = crate::layout::SplitPanePolicy {
+            axis: SplitPaneAxis::Horizontal,
+            initial_ratio: 0.25,
+            divider_extent: 8.0,
+            first_min_extent: 0.0,
+            second_min_extent: 0.0,
+        };
         SplitPaneRuntimeStateInput {
             container_id,
             initial_ratio: 0.25,
             mode,
-            policy_revision: SplitPaneRuntimePolicyRevision::default(),
+            policy_revision: SplitPaneRuntimePolicyRevision::new(policy, mode.collapse_policy()),
         }
     }
 
@@ -165,12 +201,13 @@ mod tests {
                 Rect::from_xy_size(0.0, 48.0, 80.0, 8.0),
             ),
         ] {
-            let input = split_input(
+            let mut input = split_input(
                 container_id,
                 SplitPaneRuntimeMode::RuntimeOwned {
                     collapse_policy: None,
                 },
             );
+            input.policy_revision.axis = axis;
             let mut store = RuntimeLayoutContainerStateStore::default();
             let mounted_state_id = committed_state(&mut store, input);
             let mut traversal = RuntimeContainerTraversal::default();
@@ -201,6 +238,20 @@ mod tests {
             assert_eq!(projection.axis, axis);
             assert_eq!(projection.divider_bounds, bounds);
             assert_eq!(projection.live_ratio, 0.25);
+            assert_eq!(
+                projection.behavior.contract_version,
+                crate::layout::LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION
+            );
+            assert_eq!(
+                projection.behavior.state_schema_version,
+                input.state_id().schema_version()
+            );
+            assert!(
+                projection
+                    .behavior
+                    .policy_revision
+                    .runtime_state_compatible(input.policy_revision)
+            );
         }
     }
 
@@ -367,6 +418,19 @@ mod tests {
             )
             .is_none()
         );
+
+        let mut conservative_target =
+            target(input, Some(malformed_geometry_state), bounds, Some(bounds));
+        conservative_target.revision = LayoutInteractionRevision::conservative();
+        assert!(
+            build_split_pane_separator_projection(
+                &conservative_target,
+                input,
+                descriptor,
+                &malformed_geometry_store,
+            )
+            .is_none()
+        );
         assert!(
             missing_store
                 .current_mounted_state_id(input.state_id())
@@ -382,12 +446,13 @@ mod tests {
                 collapse_policy: None,
             },
         );
-        let inner = split_input(
+        let mut inner = split_input(
             10,
             SplitPaneRuntimeMode::RuntimeOwned {
                 collapse_policy: None,
             },
         );
+        inner.policy_revision.axis = SplitPaneAxis::Vertical;
         let mut store = RuntimeLayoutContainerStateStore::default();
         let outer_declaration = outer.declaration();
         let inner_declaration = inner.declaration();

@@ -369,8 +369,8 @@ where
             .commit_validated_widget_replacements(&surface, validated_replacement_plan);
         let terminal_messages = replacement_commit.terminal_messages;
         let retired_widget_ids = replacement_commit.retired_widget_ids;
-        let wheel_focus_before_refresh = self.interaction.focus.focused_widget;
-        let composition_focus_before_refresh = self.interaction.focus.focused_widget;
+        let wheel_focus_before_refresh = self.interaction.focus.focused_widget();
+        let composition_focus_before_refresh = self.interaction.focus.focused_widget();
         let identity = self.discard_incompatible_widget_ownership(
             &surface,
             &traversal.widget_paint_order,
@@ -446,7 +446,7 @@ where
             self.capture_pointer_capture_state(capture.widget_id);
         }
         self.clear_stale_interaction_state();
-        if let Some(widget_id) = self.interaction.focus.focused_widget {
+        if let Some(widget_id) = self.interaction.focus.focused_widget() {
             self.restore_focused_widget_state(widget_id);
         }
         self.validate_focused_key_capture_authority();
@@ -2906,7 +2906,9 @@ mod tests {
     #[test]
     fn allowed_vetoed_and_discarded_preparation_preserve_active_state() {
         let (mut runtime, _, _) = runtime_fixture();
-        runtime.interaction.focus.focused_widget = Some(2);
+        runtime.interaction.focus.owner = Some(
+            super::super::interaction_state::RuntimeFocusOwner::Widget(2),
+        );
         runtime.interaction.pointer.capture = Some(2);
         runtime.interaction.wheel.managed_sequence =
             super::super::interaction_state::RuntimeManagedWheelSequenceState::Active {

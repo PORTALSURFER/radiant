@@ -145,8 +145,9 @@ pub(super) struct RuntimeSplitPaneSeparatorFocusOwner {
     pub(super) behavior: SplitPaneSeparatorBehaviorEvidence,
 }
 
-/// The one runtime focus owner. The separator variant is private foundation
-/// only; it is not a widget-focus compatibility projection or public target.
+/// The one runtime focus owner. The separator variant is private ownership for
+/// pointer acquisition and explicit sequential traversal; it is not a
+/// widget-focus compatibility projection or public target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RuntimeFocusOwner {
     Widget(WidgetId),

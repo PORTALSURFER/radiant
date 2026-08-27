@@ -172,11 +172,15 @@ new focused export leaf or a module split, not a formatting workaround.
   snapshot unchanged. The private primary-window macOS/AppKit consumer now
   publishes each qualified separator as one `AXSplitter` between the two pane
   children, while retaining passive, non-focusable, actionless behavior.
-  Separately, the runtime has a crate-private fixed-size focus-owner foundation
-  that may retain exact current mounted separator identity and behavior evidence
-  after commit; it does not make this projection focusable or public.
-  Focus ownership, Tab/spatial traversal, keyboard/arrow-key resizing, semantic
-  actions, pointer/collapse mapping, and paint/cursor/renderer work remain
+  Separately, the runtime has a crate-private fixed-size focus owner and a
+  committed mixed-order sidecar. The explicit backend-neutral sequential
+  traversal consumer admits exact current mounted separator identity and
+  behavior evidence as private stops between pane widget subtrees, including
+  nested separators; invalid evidence uses the complete widget-only order.
+  This does not make the passive projection focusable or public. Private
+  separator ownership for traversal and pointer acquisition remains distinct
+  from key routing, native/public focus, spatial traversal, keyboard/arrow-key
+  resizing, semantic actions, and paint/cursor/renderer work, which remain
   future slices.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
@@ -419,10 +423,15 @@ ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
 unverified. A separate crate-private runtime focus-order sidecar may retain
 source candidates and a committed mixed-order evidence sequence after exact
-projection/lifecycle reconciliation; neither is consumed by this passive
-native path. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
-resizing, semantic accessibility actions, pointer/collapse mapping, and
-paint/cursor/renderer work remain future slices.
+projection/lifecycle reconciliation. The explicit backend-neutral sequential
+traversal consumer is the only consumer of that sidecar: it admits each exact
+current runtime-owned separator as one private stop between its pane widget
+subtrees, including nested separators, and falls back to the complete
+widget-only order for invalid evidence. It is separate from this passive native
+path, private pointer ownership for divider acquisition, public/native focus,
+key routing, and future spatial traversal. Keyboard/arrow-key resizing,
+semantic accessibility actions, and paint/cursor/renderer work remain future
+slices.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -567,8 +576,10 @@ exposes only role, exact parent/children, finite frame, label, description/help,
 and value. Checked/selected/enabled/read-only/focusable/focused/tab/live/action
 metadata is omitted for passive nodes; separators remain non-focusable and
 actionless, and buttons/toggles/sliders/tables/text inputs never become
-actionable roles through this consumer. Defunct objects return conservative
-empty/zero values.
+actionable roles through this consumer. The runtime may hold private separator
+ownership for pointer acquisition or explicit sequential traversal, but that
+ownership does not expose separators as native/public focus targets. Defunct
+objects return conservative empty/zero values.
 
 AppKit callbacks are non-blocking and never call or mutate the runtime/provider.
 A valid explicit item/range query enqueues and coalesces one owned runtime turn.

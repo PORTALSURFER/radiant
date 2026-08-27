@@ -147,10 +147,11 @@ impl<Message> Default for RuntimeContainerTraversal<Message> {
 impl<Message> RuntimeTraversalState<Message> {
     /// Reconcile private mixed-focus evidence only after a committed boundary.
     ///
-    /// The ordinary widget order remains the sole focus/key routing order. A
-    /// separator is copied into this sidecar only when every source marker and
-    /// current committed projection pair exactly; any incomplete or malformed
-    /// set falls back to the unchanged widget-only sequence.
+    /// The ordinary widget order remains the sole key-routing and public-order
+    /// source. A separator is copied into this private traversal sidecar only
+    /// when every source marker and current committed projection pair exactly;
+    /// any incomplete or malformed set falls back to the unchanged widget-only
+    /// sequence.
     pub(super) fn rebuild_mixed_focus_order(
         &mut self,
         lifecycle_phase: RuntimeLifecyclePhase,

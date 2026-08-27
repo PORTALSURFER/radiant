@@ -144,6 +144,9 @@ where
     }
 
     /// Return the widget that currently owns keyboard focus.
+    ///
+    /// Returns `None` while private runtime ownership is held by a split-pane
+    /// separator; separators are not public widget focus targets.
     pub fn focused_widget(&self) -> Option<WidgetId> {
         self.interaction.focus.focused_widget()
     }

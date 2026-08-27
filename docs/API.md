@@ -934,11 +934,15 @@ admitted ratio update. Static/controlled, stale, unmaterialized,
 duplicate/mismatched, malformed, focused, or actionful evidence leaves the
 ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
-unverified. A separate crate-private runtime focus-owner foundation may retain
-exact current mounted separator identity and behavior evidence, but this passive
-consumer does not consume it. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
-resizing, semantic accessibility actions, pointer/collapse mapping, and
-paint/cursor/renderer work remain future slices.
+unverified. A separate crate-private runtime focus-owner foundation and
+committed mixed-order sidecar may retain exact current mounted separator
+identity and behavior evidence, but this passive native consumer does not
+consume it. The explicit backend-neutral sequential traversal consumer does,
+using exact private separator stops without exposing them through public/native
+focus. Private pointer ownership remains a separate divider interaction path;
+key routing, Tab/spatial traversal, keyboard/arrow-key resizing, semantic
+accessibility actions, pointer/collapse mapping, and paint/cursor/renderer work
+remain future slices.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -5465,7 +5469,12 @@ status-bar sizing, padding, spacing, truncation, and optional trailing content
 such as a progress bar.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
-`FocusTraversal` expose deterministic keyboard focus ownership and traversal.
+`FocusTraversal` expose deterministic backend-neutral focus ownership and
+sequential traversal. `focused_widget()` and the public result of
+`traverse_focus(...)` remain widget-only: when traversal selects a private
+runtime-owned split separator stop, it installs the existing private separator
+focus owner and returns `None`. Separators do not enter the public widget order,
+public key-routing target, or public focus API.
 `UiSurface::keyboard_focus_order_into(...)` writes the same deterministic order
 into caller-owned storage for diagnostics or host integrations that inspect
 focus order repeatedly without reallocating.
@@ -6856,10 +6865,16 @@ controlled interactions. Passive separator semantics are published by the pure
 automation read above; the private primary-window macOS/AppKit consumer now
 publishes each qualified separator as one `AXSplitter` between its two pane
 children. They remain non-focusable, actionless, and non-interactive; invalid
-or ambiguous evidence falls back to the ordinary native tree. Separator focus
-ownership, Tab/spatial traversal, keyboard/arrow-key resizing, semantic actions,
-pointer/collapse mapping, paint/cursor/renderer behavior, and
-`VirtualLayoutPolicy` remain future work.
+or ambiguous evidence falls back to the ordinary native tree. The explicit
+backend-neutral sequential traversal consumer reads the private committed
+mixed-order sidecar and treats each exact current runtime-owned separator as
+one private stop between its pane widget subtrees, including nested separators.
+Invalid or unavailable evidence uses the complete widget-only order; an
+invalidated separator does not retry or choose an alternate destination. This
+consumer is distinct from private pointer ownership for divider acquisition and
+collapse/restore. Neither path changes public/native focus, key routing,
+spatial traversal, semantic actions, paint/cursor/renderer behavior, or
+`VirtualLayoutPolicy`; those remain future work.
 Internally, the
 controller may retain
 a bounded crate-private `SplitPaneSeparatorProjection` collection after the
@@ -6871,9 +6886,10 @@ publication above; it is not a public API or an authority for focus, key
 handling, actions, paint, relayout, provider/native calls, or application
 projection. The controller may also retain a private source-candidate sequence
 alongside the widget keyboard order and a committed mixed-order evidence
-sequence after exact projection/lifecycle reconciliation; this evidence is
-non-authorizing and is not consumed by current focus, key, pointer, native,
-rendering, or public API paths.
+sequence after exact projection/lifecycle reconciliation. This evidence is
+non-authorizing for key routing, pointer behavior, native publication,
+rendering, or public APIs; the explicit backend-neutral sequential traversal
+consumer is its only focus consumer.
 Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient

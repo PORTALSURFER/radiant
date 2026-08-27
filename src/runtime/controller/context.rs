@@ -145,7 +145,7 @@ where
 
     /// Return the widget that currently owns keyboard focus.
     pub fn focused_widget(&self) -> Option<WidgetId> {
-        self.interaction.focus.focused_widget
+        self.interaction.focus.focused_widget()
     }
 
     /// Return the widget that currently owns pointer capture.

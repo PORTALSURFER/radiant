@@ -2,7 +2,9 @@
 
 use super::{
     SurfaceRuntime,
-    interaction_state::{RuntimeManagedPointerCaptureState, RuntimeManagedWheelSequenceState},
+    interaction_state::{
+        RuntimeFocusOwner, RuntimeManagedPointerCaptureState, RuntimeManagedWheelSequenceState,
+    },
     layout_state::SurfaceLayoutStateDiagnostics,
     virtual_layout::RuntimeVirtualLayoutProjectionProbe,
 };
@@ -705,7 +707,7 @@ mod tests {
         for mode in [TeardownMode::Removed, TeardownMode::Incompatible] {
             let (bridge, log) = TeardownBridge::new(TeardownMode::Single(active_probe(7)));
             let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
-            runtime.interaction.focus.focused_widget = Some(20);
+            runtime.interaction.focus.owner = Some(RuntimeFocusOwner::Widget(20));
             runtime.interaction.pointer.capture = Some(20);
             runtime.interaction.pointer.capture_state = Some((20, Default::default()));
             runtime.interaction.hover.widget = Some(20);
@@ -2089,7 +2091,7 @@ mod tests {
             },
             Vector2::new(120.0, 80.0),
         );
-        runtime.interaction.focus.focused_widget = Some(999);
+        runtime.interaction.focus.owner = Some(RuntimeFocusOwner::Widget(999));
         runtime.interaction.hover.container = Some(1);
         runtime.interaction.pointer.current_position = Some(Point::new(8.0, 8.0));
         runtime.interaction.pointer.capture = Some(999);
@@ -2149,7 +2151,7 @@ mod tests {
     fn incompatible_replacement_discards_controller_ownership_and_reports_identity() {
         let mut runtime =
             SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
-        runtime.interaction.focus.focused_widget = Some(20);
+        runtime.interaction.focus.owner = Some(RuntimeFocusOwner::Widget(20));
         runtime.interaction.pointer.capture = Some(20);
         runtime.interaction.pointer.capture_state = Some((20, Default::default()));
         runtime.interaction.hover.widget = Some(20);
@@ -2265,7 +2267,7 @@ mod tests {
             MutableCompatibilityBridge::new(Rc::clone(&changed)),
             Vector2::new(120.0, 80.0),
         );
-        runtime.interaction.focus.focused_widget = Some(20);
+        runtime.interaction.focus.owner = Some(RuntimeFocusOwner::Widget(20));
         runtime.interaction.pointer.capture = Some(20);
         runtime.interaction.pointer.capture_state = Some((20, Default::default()));
         runtime.interaction.hover.widget = Some(20);
@@ -2322,7 +2324,7 @@ mod tests {
     #[test]
     fn projection_reidentification_preserves_retained_ownership_across_refreshes() {
         let mut runtime = SurfaceRuntime::new(ReidentifiedWidgetBridge, Vector2::new(120.0, 80.0));
-        runtime.interaction.focus.focused_widget = Some(20);
+        runtime.interaction.focus.owner = Some(RuntimeFocusOwner::Widget(20));
         runtime.interaction.pointer.capture = Some(20);
         runtime.interaction.pointer.capture_state = Some((20, Default::default()));
         runtime.interaction.hover.widget = Some(20);
@@ -2350,7 +2352,7 @@ mod tests {
         let mut runtime =
             SurfaceRuntime::new(ReplacementBridge::default(), Vector2::new(120.0, 80.0));
         runtime.set_identity_audit(IdentityAudit::strict());
-        runtime.interaction.focus.focused_widget = Some(20);
+        runtime.interaction.focus.owner = Some(RuntimeFocusOwner::Widget(20));
         runtime.interaction.pointer.capture = Some(20);
         runtime.interaction.pointer.capture_state = Some((20, Default::default()));
         runtime.interaction.hover.widget = Some(20);
@@ -3658,8 +3660,8 @@ where
         };
         let terminal_messages = replacement_commit.terminal_messages;
         let retired_widget_ids = replacement_commit.retired_widget_ids;
-        let wheel_focus_before_refresh = self.interaction.focus.focused_widget;
-        let composition_focus_before_refresh = self.interaction.focus.focused_widget;
+        let wheel_focus_before_refresh = self.interaction.focus.focused_widget();
+        let composition_focus_before_refresh = self.interaction.focus.focused_widget();
         let identity = self.discard_incompatible_widget_ownership(
             &next_surface,
             &traversal.widget_paint_order,
@@ -3752,7 +3754,7 @@ where
             self.capture_pointer_capture_state(capture.widget_id);
         }
         self.clear_stale_interaction_state();
-        if let Some(widget_id) = self.interaction.focus.focused_widget {
+        if let Some(widget_id) = self.interaction.focus.focused_widget() {
             self.restore_focused_widget_state(widget_id);
         }
         self.validate_focused_key_capture_authority();
@@ -3830,7 +3832,7 @@ where
             hovered_container: self.interaction.hover.container,
             hovered_widget: self.interaction.hover.widget,
             hovered_scroll_affordance: self.interaction.hover.scroll_affordance,
-            focused_widget: self.interaction.focus.focused_widget,
+            focused_widget: self.interaction.focus.focused_widget(),
             pointer_capture: self.interaction.pointer.capture,
             pointer_capture_state: self.interaction.pointer.capture_state,
             scrollbar_drag: self
@@ -3955,7 +3957,7 @@ where
         }
 
         let widget_id = capture.widget_id;
-        let exact_compatible_sync = self.interaction.focus.focused_widget == Some(widget_id)
+        let exact_compatible_sync = self.interaction.focus.focused_widget() == Some(widget_id)
             && has_unique_widget_id(previous_widget_order, widget_id)
             && has_unique_widget_id(current_widget_order, widget_id)
             && has_unique_widget_id(previous_stateful_widget_order, widget_id)
@@ -4130,7 +4132,10 @@ where
     ) -> SurfaceIdentityOwnership {
         self.mark_focused_key_capture_stale(widget_id);
         self.clear_managed_composition_for_widget(widget_id);
-        let focus = self.interaction.focus.focused_widget == Some(widget_id);
+        let focus = matches!(
+            self.interaction.focus.owner,
+            Some(RuntimeFocusOwner::Widget(current)) if current == widget_id
+        );
         let pointer_capture = self.interaction.pointer.capture == Some(widget_id)
             || self
                 .interaction
@@ -4147,7 +4152,7 @@ where
             self.reset_tooltip_hover_intent();
         }
         if focus {
-            self.interaction.focus.focused_widget = None;
+            self.interaction.focus.owner = None;
         }
         if pointer_capture {
             self.clear_managed_pointer_capture_for_widget(widget_id);

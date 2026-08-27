@@ -8,6 +8,8 @@ use super::{
 use crate::widgets::CompositionPhase;
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp, KeyPress},
+    gui::layout_core::{MountedContainerStateId, SplitPaneRuntimePolicyRevision},
+    gui::panel::SplitPaneAxis,
     gui::types::Point,
     layout::{
         ContainerStateId, LayoutInteraction, LayoutInteractionRevision, LayoutTargetIdentity,
@@ -91,9 +93,83 @@ impl<Message> Clone for RuntimeLayoutPointerCapture<Message> {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct RuntimeFocusState {
-    pub(super) focused_widget: Option<WidgetId>,
+    pub(super) owner: Option<RuntimeFocusOwner>,
     pub(super) pending_key_chord: Option<KeyPress>,
     pub(super) focused_key_capture: Option<RuntimeFocusedKeyCapture>,
+}
+
+/// Fixed-size behavior evidence required to retain a private separator owner.
+///
+/// The initial ratio is deliberately not included: it seeds a mounted runtime
+/// slot, while the policy revision's compatibility relation covers the inputs
+/// that can change the separator's behavior after mounting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct SplitPaneSeparatorBehaviorEvidence {
+    pub(super) contract_version: u16,
+    pub(super) state_schema_version: u16,
+    pub(super) policy_revision: SplitPaneRuntimePolicyRevision,
+}
+
+impl SplitPaneSeparatorBehaviorEvidence {
+    pub(super) const fn new(
+        contract_version: u16,
+        state_schema_version: u16,
+        policy_revision: SplitPaneRuntimePolicyRevision,
+    ) -> Self {
+        Self {
+            contract_version,
+            state_schema_version,
+            policy_revision,
+        }
+    }
+
+    pub(super) fn compatible_with(self, current: Self) -> bool {
+        self.contract_version == current.contract_version
+            && self.state_schema_version == current.state_schema_version
+            && self
+                .policy_revision
+                .runtime_state_compatible(current.policy_revision)
+    }
+}
+
+/// Exact identity for one private runtime-owned split-pane separator owner.
+///
+/// Geometry and live ratio remain in the committed projection. Keeping only
+/// identity and behavior evidence makes this owner fixed-size and lets
+/// compatible geometry changes retain ownership without retaining stale rects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RuntimeSplitPaneSeparatorFocusOwner {
+    pub(super) target: LayoutTargetIdentity,
+    pub(super) mounted_state_id: MountedContainerStateId,
+    pub(super) axis: SplitPaneAxis,
+    pub(super) behavior: SplitPaneSeparatorBehaviorEvidence,
+}
+
+/// The one runtime focus owner. The separator variant is private foundation
+/// only; it is not a widget-focus compatibility projection or public target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RuntimeFocusOwner {
+    Widget(WidgetId),
+    #[allow(dead_code)]
+    SplitPaneSeparator(RuntimeSplitPaneSeparatorFocusOwner),
+}
+
+impl RuntimeFocusOwner {
+    pub(super) const fn widget_id(self) -> Option<WidgetId> {
+        match self {
+            Self::Widget(widget_id) => Some(widget_id),
+            Self::SplitPaneSeparator(_) => None,
+        }
+    }
+}
+
+impl RuntimeFocusState {
+    pub(super) const fn focused_widget(self) -> Option<WidgetId> {
+        match self.owner {
+            Some(RuntimeFocusOwner::Widget(widget_id)) => Some(widget_id),
+            Some(RuntimeFocusOwner::SplitPaneSeparator(_)) | None => None,
+        }
+    }
 }
 
 /// Runtime-owned authority for one metadata-aware focused-key sequence.

@@ -172,6 +172,9 @@ new focused export leaf or a module split, not a formatting workaround.
   snapshot unchanged. The private primary-window macOS/AppKit consumer now
   publishes each qualified separator as one `AXSplitter` between the two pane
   children, while retaining passive, non-focusable, actionless behavior.
+  Separately, the runtime has a crate-private fixed-size focus-owner foundation
+  that may retain exact current mounted separator identity and behavior evidence
+  after commit; it does not make this projection focusable or public.
   Focus ownership, Tab/spatial traversal, keyboard/arrow-key resizing, semantic
   actions, pointer/collapse mapping, and paint/cursor/renderer work remain
   future slices.
@@ -414,7 +417,8 @@ admitted ratio update. Static/controlled, stale, unmaterialized,
 duplicate/mismatched, malformed, focused, or actionful evidence leaves the
 ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
-unverified. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
+unverified. A separate crate-private runtime focus-owner foundation is not
+consumed by this passive native path. Separator focus ownership, Tab/spatial traversal, keyboard/arrow-key
 resizing, semantic accessibility actions, pointer/collapse mapping, and
 paint/cursor/renderer work remain future slices.
 

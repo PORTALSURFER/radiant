@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use super::interaction_state::RuntimeFocusedKeyCapture;
+use super::interaction_state::{
+    RuntimeFocusOwner, RuntimeFocusedKeyCapture, RuntimeSplitPaneSeparatorFocusOwner,
+};
+use super::split_pane_separator::SplitPaneSeparatorProjection;
 use super::{FocusTraversal, SurfaceRuntime};
 use crate::widgets::interaction::CompositionStartContext;
 use crate::widgets::{FocusLossDecision, KeyboardModifiers};
@@ -66,21 +69,30 @@ where
     }
 
     pub(super) fn clear_focus_with_transition(&mut self) -> FocusTransition {
-        let Some(previous) = self.interaction.focus.focused_widget else {
+        let Some(previous_owner) = self.interaction.focus.owner else {
             return FocusTransition::Unchanged;
         };
-        let previous_is_live = self.focus_owner_can_prepare_loss(previous);
-        if previous_is_live && self.prepare_focus_loss(previous) == FocusLossDecision::Veto {
+        let previous_widget = previous_owner.widget_id();
+        let previous_is_live =
+            previous_widget.is_some_and(|widget_id| self.focus_owner_can_prepare_loss(widget_id));
+        if let Some(previous_widget) = previous_widget
+            && previous_is_live
+            && self.prepare_focus_loss(previous_widget) == FocusLossDecision::Veto
+        {
             self.repaint_requested = true;
             return FocusTransition::Vetoed;
         }
-        self.clear_managed_wheel_sequence_for_widget(previous);
-        self.clear_managed_composition_for_widget(previous);
-        self.terminate_managed_pointer_capture_for_widget(previous);
-        self.mark_focused_key_capture_stale(previous);
-        self.interaction.focus.focused_widget = None;
-        if previous_is_live {
-            self.route_focus_changed(previous, false);
+        if let Some(previous_widget) = previous_widget {
+            self.clear_managed_wheel_sequence_for_widget(previous_widget);
+            self.clear_managed_composition_for_widget(previous_widget);
+            self.terminate_managed_pointer_capture_for_widget(previous_widget);
+            self.mark_focused_key_capture_stale(previous_widget);
+        }
+        self.interaction.focus.owner = None;
+        if let Some(previous_widget) = previous_widget
+            && previous_is_live
+        {
+            self.route_focus_changed(previous_widget, false);
         }
         FocusTransition::Changed
     }
@@ -89,51 +101,132 @@ where
         if !self.is_live_focus_target(widget_id) {
             return FocusTransition::InvalidTarget;
         }
-        if self.interaction.focus.focused_widget == Some(widget_id) {
+        self.request_focus_owner(RuntimeFocusOwner::Widget(widget_id))
+    }
+
+    /// Admit one exact separator projection at the committed layout boundary.
+    ///
+    /// This is a private foundation seam only. No pointer, traversal, native,
+    /// or semantic producer calls it yet.
+    #[allow(dead_code)]
+    pub(super) fn request_split_pane_separator_focus(
+        &mut self,
+        projection: SplitPaneSeparatorProjection,
+    ) -> FocusTransition {
+        let Some(current) = self.current_split_pane_separator_projection(projection.target) else {
+            return FocusTransition::InvalidTarget;
+        };
+        if current != projection {
+            return FocusTransition::InvalidTarget;
+        }
+
+        let next = RuntimeFocusOwner::SplitPaneSeparator(RuntimeSplitPaneSeparatorFocusOwner {
+            target: current.target,
+            mounted_state_id: current.mounted_state_id,
+            axis: current.axis,
+            behavior: current.behavior,
+        });
+        if let Some(existing) = self.interaction.focus.owner {
+            match existing {
+                RuntimeFocusOwner::SplitPaneSeparator(existing)
+                    if Self::separator_owner_identity_matches(existing, next) =>
+                {
+                    if existing.behavior.compatible_with(current.behavior) {
+                        if existing.behavior != current.behavior {
+                            self.interaction.focus.owner = Some(next);
+                        }
+                        return FocusTransition::Unchanged;
+                    }
+                    self.interaction.focus.owner = None;
+                    return FocusTransition::InvalidTarget;
+                }
+                RuntimeFocusOwner::SplitPaneSeparator(_) => {
+                    self.interaction.focus.owner = None;
+                    return FocusTransition::InvalidTarget;
+                }
+                RuntimeFocusOwner::Widget(_) => {}
+            }
+        }
+        self.request_focus_owner(next)
+    }
+
+    fn request_focus_owner(&mut self, next: RuntimeFocusOwner) -> FocusTransition {
+        if self.interaction.focus.owner == Some(next) {
             return FocusTransition::Unchanged;
         }
 
-        if let Some(previous) = self.interaction.focus.focused_widget {
-            let previous_is_live = self.focus_owner_can_prepare_loss(previous);
-            if previous_is_live && self.prepare_focus_loss(previous) == FocusLossDecision::Veto {
-                self.repaint_requested = true;
-                return FocusTransition::Vetoed;
-            }
+        let previous_owner = self.interaction.focus.owner;
+        let previous_widget = previous_owner.and_then(RuntimeFocusOwner::widget_id);
+        let previous_is_live =
+            previous_widget.is_some_and(|widget_id| self.focus_owner_can_prepare_loss(widget_id));
+        if let Some(previous_widget) = previous_widget
+            && previous_is_live
+            && self.prepare_focus_loss(previous_widget) == FocusLossDecision::Veto
+        {
+            self.repaint_requested = true;
+            return FocusTransition::Vetoed;
+        }
 
-            self.clear_managed_wheel_sequence_for_widget(previous);
-            self.clear_managed_composition_for_widget(previous);
-            self.terminate_managed_pointer_capture_for_widget(previous);
+        if let Some(previous_widget) = previous_widget {
+            self.clear_managed_wheel_sequence_for_widget(previous_widget);
+            self.clear_managed_composition_for_widget(previous_widget);
+            self.terminate_managed_pointer_capture_for_widget(previous_widget);
             // Install the controller-owned target before FocusChanged(false)
             // can emit a message and synchronously reproject the surface.
-            self.mark_focused_key_capture_stale(previous);
-            self.interaction.focus.focused_widget = Some(widget_id);
-            let application_projection_before = self.refresh_counters().application_projection;
-            if previous_is_live {
-                self.route_focus_changed(previous, false);
-            }
-            let reprojected =
-                self.refresh_counters().application_projection != application_projection_before;
-            if !reprojected && self.is_authoritative_focus_target(widget_id) {
-                self.route_focus_changed(widget_id, true);
-            }
-        } else {
-            self.interaction.focus.focused_widget = Some(widget_id);
-            if self.is_authoritative_focus_target(widget_id) {
-                self.route_focus_changed(widget_id, true);
-            }
+            self.mark_focused_key_capture_stale(previous_widget);
         }
-        if self.interaction.focus.focused_widget == Some(widget_id)
-            && !self.is_authoritative_focus_target(widget_id)
+        self.interaction.focus.owner = Some(next);
+        let application_projection_before = self.refresh_counters().application_projection;
+        if let Some(previous_widget) = previous_widget
+            && previous_is_live
         {
-            // A focus-loss output may remove or supersede the proposed target
-            // while the old owner is being routed out.
-            self.interaction.focus.focused_widget = None;
-            return FocusTransition::InvalidTarget;
+            self.route_focus_changed(previous_widget, false);
         }
-        if self.interaction.focus.focused_widget == Some(widget_id) {
-            FocusTransition::Changed
-        } else {
-            FocusTransition::InvalidTarget
+        let reprojected =
+            self.refresh_counters().application_projection != application_projection_before;
+        if let RuntimeFocusOwner::Widget(widget_id) = next
+            && !reprojected
+            && self.is_authoritative_focus_target(widget_id)
+        {
+            self.route_focus_changed(widget_id, true);
+        }
+
+        match next {
+            RuntimeFocusOwner::Widget(widget_id) => {
+                if self.interaction.focus.owner == Some(next)
+                    && !self.is_authoritative_focus_target(widget_id)
+                {
+                    // A focus-loss output may remove or supersede the proposed
+                    // target while the old owner is being routed out.
+                    self.interaction.focus.owner = None;
+                    return FocusTransition::InvalidTarget;
+                }
+                if self.interaction.focus.owner == Some(next) {
+                    FocusTransition::Changed
+                } else {
+                    FocusTransition::InvalidTarget
+                }
+            }
+            RuntimeFocusOwner::SplitPaneSeparator(owner) => {
+                if self.separator_focus_owner_is_current(owner) {
+                    FocusTransition::Changed
+                } else {
+                    if self
+                        .interaction
+                        .focus
+                        .owner
+                        .is_some_and(|current| match current {
+                            RuntimeFocusOwner::SplitPaneSeparator(current) => {
+                                Self::separator_owner_identity_matches(current, next)
+                            }
+                            RuntimeFocusOwner::Widget(_) => false,
+                        })
+                    {
+                        self.interaction.focus.owner = None;
+                    }
+                    FocusTransition::InvalidTarget
+                }
+            }
         }
     }
 
@@ -151,8 +244,90 @@ where
     }
 
     pub(super) fn is_authoritative_focus_target(&self, widget_id: WidgetId) -> bool {
-        self.interaction.focus.focused_widget == Some(widget_id)
+        self.interaction.focus.focused_widget() == Some(widget_id)
             && self.is_live_focus_target(widget_id)
+    }
+
+    fn current_split_pane_separator_projection(
+        &self,
+        target: crate::layout::LayoutTargetIdentity,
+    ) -> Option<SplitPaneSeparatorProjection> {
+        let mut current = None;
+        for projection in &self.traversal.containers.split_pane_separator_projections {
+            if projection.target != target {
+                continue;
+            }
+            if current.replace(*projection).is_some() {
+                return None;
+            }
+        }
+        current
+    }
+
+    fn separator_owner_identity_matches(
+        owner: RuntimeSplitPaneSeparatorFocusOwner,
+        candidate: RuntimeFocusOwner,
+    ) -> bool {
+        let RuntimeFocusOwner::SplitPaneSeparator(candidate) = candidate else {
+            return false;
+        };
+        owner.target == candidate.target
+            && owner.mounted_state_id == candidate.mounted_state_id
+            && owner.axis == candidate.axis
+    }
+
+    fn separator_focus_owner_is_current(&self, owner: RuntimeSplitPaneSeparatorFocusOwner) -> bool {
+        self.current_split_pane_separator_projection(owner.target)
+            .is_some_and(|projection| {
+                owner.mounted_state_id == projection.mounted_state_id
+                    && owner.axis == projection.axis
+                    && owner.behavior.compatible_with(projection.behavior)
+            })
+    }
+
+    pub(super) fn revalidate_focus_owner(&mut self) {
+        let Some(owner) = self.interaction.focus.owner else {
+            return;
+        };
+        match owner {
+            RuntimeFocusOwner::Widget(widget_id) => {
+                if !self.traversal.widgets.focusable.contains(widget_id) {
+                    self.interaction.focus.owner = None;
+                }
+            }
+            RuntimeFocusOwner::SplitPaneSeparator(owner) => {
+                let Some(projection) = self.current_split_pane_separator_projection(owner.target)
+                else {
+                    self.interaction.focus.owner = None;
+                    return;
+                };
+                if owner.mounted_state_id != projection.mounted_state_id
+                    || owner.axis != projection.axis
+                    || !owner.behavior.compatible_with(projection.behavior)
+                {
+                    self.interaction.focus.owner = None;
+                } else if owner.behavior != projection.behavior {
+                    self.interaction.focus.owner = Some(RuntimeFocusOwner::SplitPaneSeparator(
+                        RuntimeSplitPaneSeparatorFocusOwner {
+                            behavior: projection.behavior,
+                            ..owner
+                        },
+                    ));
+                }
+            }
+        }
+    }
+
+    pub(super) fn clear_separator_focus_owner(&mut self) -> bool {
+        if matches!(
+            self.interaction.focus.owner,
+            Some(RuntimeFocusOwner::SplitPaneSeparator(_))
+        ) {
+            self.interaction.focus.owner = None;
+            true
+        } else {
+            false
+        }
     }
 
     fn focus_owner_can_prepare_loss(&self, widget_id: WidgetId) -> bool {
@@ -175,7 +350,7 @@ where
     /// focus target, or `None` when no keyboard-focusable widgets are projected.
     pub fn traverse_focus(&mut self, direction: FocusTraversal) -> Option<WidgetId> {
         let next = next_focus_target(
-            self.interaction.focus.focused_widget,
+            self.interaction.focus.focused_widget(),
             self.traversal.widgets.keyboard_focus.order(),
             self.traversal.widgets.keyboard_focus.rank(),
             direction,
@@ -192,7 +367,7 @@ where
     /// or [`SurfaceRuntime::dispatch_input`], because they carry their own hit
     /// target. Keyboard events are resolved through focused widget identity.
     pub fn dispatch_focused_input(&mut self, input: WidgetInput) -> Option<WidgetId> {
-        let widget_id = self.interaction.focus.focused_widget?;
+        let widget_id = self.interaction.focus.focused_widget()?;
         self.dispatch_input(widget_id, input).then_some(widget_id)
     }
 
@@ -262,7 +437,7 @@ where
             }
         }
 
-        let widget_id = self.interaction.focus.focused_widget?;
+        let widget_id = self.interaction.focus.focused_widget()?;
         if !self.is_authoritative_focus_target(widget_id)
             || !self.focused_key_widget_has_authority(widget_id)
         {
@@ -306,7 +481,7 @@ where
 
         // Host resolution is allowed to observe and mutate host-owned state,
         // so validate the same focus identity and authority before delivery.
-        if self.interaction.focus.focused_widget != Some(widget_id)
+        if self.interaction.focus.focused_widget() != Some(widget_id)
             || !self.is_authoritative_focus_target(widget_id)
             || !self.focused_key_participates(widget_id)
         {
@@ -383,7 +558,7 @@ where
     }
 
     fn focused_key_capture_is_current(&self, capture: RuntimeFocusedKeyCapture) -> bool {
-        self.interaction.focus.focused_widget == Some(capture.widget_id)
+        self.interaction.focus.focused_widget() == Some(capture.widget_id)
             && self.is_authoritative_focus_target(capture.widget_id)
             && self.focused_key_widget_has_authority(capture.widget_id)
             && self
@@ -399,7 +574,7 @@ where
         if self.interaction.focus.focused_key_capture.is_some() {
             return;
         }
-        if self.interaction.focus.focused_widget == Some(widget_id)
+        if self.interaction.focus.focused_widget() == Some(widget_id)
             && self.is_authoritative_focus_target(widget_id)
             && self.focused_key_widget_has_authority(widget_id)
             && self.surface_widget(widget_id).is_some_and(|widget| {
@@ -467,7 +642,7 @@ where
 
     /// Return whether the current focus target is a text input.
     pub fn focused_text_input_id(&self) -> Option<WidgetId> {
-        let widget_id = self.interaction.focus.focused_widget?;
+        let widget_id = self.interaction.focus.focused_widget()?;
         self.surface_widget(widget_id).and_then(|widget| {
             widget
                 .widget_object()
@@ -479,7 +654,7 @@ where
     /// Return the exact current scalar replacement and selection context for
     /// a focused native composition start.
     pub fn focused_composition_start_context(&self) -> Option<CompositionStartContext> {
-        let widget_id = self.interaction.focus.focused_widget?;
+        let widget_id = self.interaction.focus.focused_widget()?;
         if !self.is_authoritative_focus_target(widget_id)
             || self.focused_text_input_id() != Some(widget_id)
         {
@@ -491,7 +666,7 @@ where
 
     /// Return whether the focused widget asks to receive `key` before host shortcuts.
     pub fn focused_widget_preempts_host_shortcut_key(&self, key: WidgetKey) -> bool {
-        let Some(widget_id) = self.interaction.focus.focused_widget else {
+        let Some(widget_id) = self.interaction.focus.focused_widget() else {
             return false;
         };
         self.surface_widget(widget_id)

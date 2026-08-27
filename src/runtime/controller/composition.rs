@@ -133,7 +133,7 @@ where
     }
 
     fn dispatch_composition_start(&mut self, sample: CompositionSample) -> Option<WidgetId> {
-        let widget_id = self.interaction.focus.focused_widget?;
+        let widget_id = self.interaction.focus.focused_widget()?;
         if !self.composition_widget_is_unique(widget_id)
             || !self.is_authoritative_focus_target(widget_id)
             || !self.composition_widget_is_admitting(widget_id)
@@ -385,7 +385,7 @@ where
             && current_valid
             && previous_kind == current_kind
             && focused_widget_before_refresh == Some(widget_id)
-            && self.interaction.focus.focused_widget == Some(widget_id)
+            && self.interaction.focus.focused_widget() == Some(widget_id)
             && previous_widget.is_some_and(|widget| {
                 Self::managed_refresh_composition_widget_is_live(
                     widget,

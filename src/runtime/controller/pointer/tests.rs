@@ -1,3 +1,4 @@
+use super::super::{focus::FocusTransition, interaction_state::RuntimeFocusOwner};
 use super::*;
 use crate::{
     gui::automation::AutomationRole,
@@ -339,6 +340,86 @@ impl RuntimeBridge<FocusDecisionEvent> for FocusDecisionBridge {
         if message == FocusDecisionEvent::HostOutput {
             self.events.borrow_mut().push(message);
         }
+    }
+}
+
+struct FocusDecisionSplitBridge {
+    inner: FocusDecisionBridge,
+    policy: SplitPanePolicy,
+}
+
+impl FocusDecisionSplitBridge {
+    fn new() -> Self {
+        Self {
+            inner: FocusDecisionBridge::new(),
+            policy: SplitPanePolicy {
+                axis: SplitPaneAxis::Horizontal,
+                initial_ratio: 0.25,
+                divider_extent: 8.0,
+                first_min_extent: 0.0,
+                second_min_extent: 0.0,
+            },
+        }
+    }
+
+    fn surface(&self) -> UiSurface<FocusDecisionEvent> {
+        let split = SurfaceNode::container(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::SplitPane,
+                split_pane: self.policy,
+                ..ContainerPolicy::default()
+            },
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(2, "first", WidgetSizing::fixed(Vector2::new(20.0, 20.0))),
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(3, "second", WidgetSizing::fixed(Vector2::new(20.0, 20.0))),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        )
+        .with_split_pane_runtime_mode(Some(
+            crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
+                collapse_policy: None,
+            },
+        ))
+        .with_layout_capabilities(
+            crate::gui::layout_core::runtime_owned_split_pane_capabilities(self.policy, None),
+        );
+
+        UiSurface::new(SurfaceNode::column(
+            99,
+            0.0,
+            vec![
+                fixed_child(
+                    28.0,
+                    SurfaceNode::widget(
+                        FocusDecisionWidget::new(
+                            10,
+                            Rc::clone(&self.inner.old_decision),
+                            Rc::clone(&self.inner.events),
+                            true,
+                            true,
+                        ),
+                        WidgetMessageMapper::typed(|event: FocusDecisionEvent| event),
+                    ),
+                ),
+                SurfaceChild::fill(split),
+            ],
+        ))
+    }
+}
+
+impl RuntimeBridge<FocusDecisionEvent> for FocusDecisionSplitBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<FocusDecisionEvent>> {
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn reduce_message(&mut self, message: FocusDecisionEvent) {
+        self.inner.reduce_message(message);
     }
 }
 
@@ -2869,6 +2950,363 @@ fn focus_loss_allow_commits_owner_before_focus_loss_output_reprojection() {
             .state
             .focused
     );
+}
+
+#[test]
+fn exact_current_runtime_owned_separator_admits_one_private_owner() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(_))
+    ));
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Unchanged
+    );
+}
+
+#[test]
+fn separator_focus_allow_routes_widget_loss_once_before_private_ownership() {
+    let mut runtime =
+        SurfaceRuntime::new(FocusDecisionSplitBridge::new(), Vector2::new(200.0, 160.0));
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    let events = runtime.bridge().inner.events.borrow();
+    let prepare = events
+        .iter()
+        .position(|event| matches!(*event, FocusDecisionEvent::Prepare(10)))
+        .expect("widget loss was prepared");
+    let changed = events
+        .iter()
+        .position(|event| matches!(*event, FocusDecisionEvent::Changed(10, false)))
+        .expect("widget focus loss was routed");
+    let output = events
+        .iter()
+        .position(|event| matches!(*event, FocusDecisionEvent::HostOutput))
+        .expect("widget focus-loss output was reduced");
+    assert!(prepare < changed && changed < output);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| matches!(**event, FocusDecisionEvent::Changed(10, false)))
+            .count(),
+        1
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|event| { matches!(*event, FocusDecisionEvent::Changed(_, true)) })
+    );
+    assert_eq!(runtime.focused_widget(), None);
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(_))
+    ));
+}
+
+#[test]
+fn separator_focus_veto_preserves_widget_and_split_runtime_state() {
+    let mut runtime =
+        SurfaceRuntime::new(FocusDecisionSplitBridge::new(), Vector2::new(200.0, 160.0));
+    assert!(runtime.focus_widget(10));
+    runtime.bridge().inner.events.borrow_mut().clear();
+    runtime
+        .bridge_mut()
+        .inner
+        .old_decision
+        .set(FocusLossDecision::Veto);
+    runtime.take_repaint_requested();
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+    let before_layout = runtime.layout().rects.clone();
+    let before_projection = projection;
+    let before_counters = runtime.refresh_counters();
+
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Vetoed
+    );
+    assert!(matches!(
+        runtime.interaction.focus.owner,
+        Some(RuntimeFocusOwner::Widget(10))
+    ));
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(runtime.layout().rects, before_layout);
+    assert_eq!(
+        runtime.split_pane_separator_projections().first().copied(),
+        Some(before_projection)
+    );
+    assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.refresh_counters(), before_counters);
+    assert_eq!(
+        runtime.bridge().inner.events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+    assert!(runtime.repaint_requested());
+}
+
+#[test]
+fn separator_focus_rejects_malformed_stale_and_non_runtime_candidates_without_veto() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current runtime-owned separator projection");
+
+    let mut malformed = projection;
+    malformed.divider_bounds = Rect::default();
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(malformed),
+        FocusTransition::InvalidTarget
+    );
+    let mut wrong_region = projection;
+    wrong_region.target.region_id = LayoutHitRegionId::new(7);
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(wrong_region),
+        FocusTransition::InvalidTarget
+    );
+    let mut wrong_schema = projection;
+    wrong_schema.behavior.state_schema_version = 99;
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(wrong_schema),
+        FocusTransition::InvalidTarget
+    );
+    let mut stale_generation = projection;
+    stale_generation.mounted_state_id = crate::gui::layout_core::MountedContainerStateId::new(
+        crate::layout::ContainerStateId::new::<SplitPaneRuntimeState>(1, 3),
+        std::num::NonZeroU64::new(2).expect("non-zero stale generation"),
+    );
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(stale_generation),
+        FocusTransition::InvalidTarget
+    );
+    assert_eq!(runtime.interaction.focus.owner, None);
+
+    let mut static_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::Static),
+        Vector2::new(200.0, 80.0),
+    );
+    assert_eq!(
+        static_runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::InvalidTarget
+    );
+    let mut controlled_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::Controlled),
+        Vector2::new(200.0, 80.0),
+    );
+    assert_eq!(
+        controlled_runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::InvalidTarget
+    );
+}
+
+#[test]
+fn separator_focus_retains_compatible_ratio_geometry_viewport_and_collapse_lifecycle() {
+    let mut bridge = SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned)
+        .with_collapse_policy(SplitPaneCollapsePolicy::FirstPane);
+    bridge.policy.first_min_extent = 20.0;
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    let initial_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("initial separator projection");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(initial_projection),
+        FocusTransition::Changed
+    );
+
+    runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    runtime.dispatch_event(Event::pointer_release(
+        Point::new(130.0, 100.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    ));
+    runtime.dispatch_event(Event::primary_double_click(Point::new(134.0, 40.0)));
+    runtime.dispatch_event(Event::primary_double_click(Point::new(24.0, 40.0)));
+    runtime.set_viewport(Vector2::new(240.0, 80.0));
+
+    let retained = match runtime.interaction.focus.owner {
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner)) => owner,
+        _ => panic!("compatible split lifecycle should retain separator focus"),
+    };
+    let current_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("current separator projection after compatible changes");
+    assert_eq!(retained.target, initial_projection.target);
+    assert_eq!(
+        retained.mounted_state_id,
+        initial_projection.mounted_state_id
+    );
+    assert_eq!(retained.axis, current_projection.axis);
+    assert!(
+        retained
+            .behavior
+            .compatible_with(current_projection.behavior)
+    );
+}
+
+#[test]
+fn separator_focus_retires_on_mount_mode_policy_projection_and_lifecycle_boundaries() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let initial = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("initial separator projection");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(initial),
+        FocusTransition::Changed
+    );
+    runtime.bridge_mut().mounted = false;
+    runtime.refresh();
+    assert_eq!(runtime.interaction.focus.owner, None);
+
+    runtime.bridge_mut().mounted = true;
+    runtime.refresh();
+    let remounted = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("remounted separator projection");
+    assert_ne!(initial.mounted_state_id, remounted.mounted_state_id);
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(remounted),
+        FocusTransition::Changed
+    );
+
+    runtime.bridge_mut().policy.axis = SplitPaneAxis::Vertical;
+    runtime.refresh();
+    assert_eq!(runtime.interaction.focus.owner, None);
+    let changed_axis = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("changed-axis separator projection");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(changed_axis),
+        FocusTransition::Changed
+    );
+
+    runtime.bridge_mut().mode = SplitInteractionMode::Controlled;
+    runtime.bridge_mut().generation = 2;
+    runtime.refresh();
+    assert_eq!(runtime.interaction.focus.owner, None);
+
+    runtime.bridge_mut().mode = SplitInteractionMode::RuntimeOwned;
+    runtime.refresh();
+    let explicit_clear_projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("runtime-owned separator after mode restore");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(explicit_clear_projection),
+        FocusTransition::Changed
+    );
+    runtime.clear_focus();
+    assert_eq!(runtime.interaction.focus.owner, None);
+
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(explicit_clear_projection),
+        FocusTransition::Changed
+    );
+    assert!(runtime.begin_native_recovery());
+    assert_eq!(runtime.interaction.focus.owner, None);
+
+    let mut closing_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let closing_projection = closing_runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("closing separator projection");
+    assert_eq!(
+        closing_runtime.request_split_pane_separator_focus(closing_projection),
+        FocusTransition::Changed
+    );
+    assert!(closing_runtime.begin_closing());
+    assert_eq!(closing_runtime.interaction.focus.owner, None);
+}
+
+#[test]
+fn prepared_discarded_and_stale_refresh_candidates_cannot_mutate_separator_focus() {
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("separator projection");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    let before = runtime.interaction.focus.owner;
+
+    let request = runtime
+        .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+        .expect("fresh projection request");
+    let candidate_surface = runtime.bridge().surface();
+    let candidate = runtime
+        .prepare_fresh_surface(candidate_surface, request)
+        .expect("unchanged split candidate");
+    assert_eq!(runtime.interaction.focus.owner, before);
+    candidate.discard();
+    assert_eq!(runtime.interaction.focus.owner, before);
+
+    let stale_request = runtime
+        .issue_fresh_surface_refresh_request(RepaintScope::Projection)
+        .expect("stale projection request");
+    runtime.advance_fresh_surface_active_generation();
+    let candidate_surface = runtime.bridge().surface();
+    assert!(
+        runtime
+            .prepare_fresh_surface(candidate_surface, stale_request)
+            .is_none()
+    );
+    assert_eq!(runtime.interaction.focus.owner, before);
 }
 
 #[test]

@@ -227,6 +227,44 @@ impl GpuSurfaceCompositedBaseResidencySnapshot {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct GpuSurfaceTargetResidencySnapshot {
+    generation: adapter::NativeAdapterGeneration,
+    pub(super) resident_count: usize,
+    pub(super) requested_rgba8_bytes: Option<u64>,
+}
+
+impl GpuSurfaceTargetResidencySnapshot {
+    pub(super) fn from_surface_config(
+        generation: adapter::NativeAdapterGeneration,
+        width: u32,
+        height: u32,
+    ) -> Self {
+        let requested_rgba8_bytes = u64::from(width)
+            .checked_mul(u64::from(height))
+            .and_then(|pixels| pixels.checked_mul(4))
+            .filter(|bytes| *bytes > 0);
+        Self {
+            generation,
+            resident_count: 1,
+            requested_rgba8_bytes,
+        }
+    }
+
+    pub(super) const fn generation_known(self) -> bool {
+        self.generation.is_known()
+    }
+
+    pub(super) const fn generation_serial(self) -> Option<u64> {
+        self.generation.known_serial()
+    }
+
+    #[cfg(test)]
+    pub(super) fn generation(self) -> adapter::NativeAdapterGeneration {
+        self.generation
+    }
+}
+
 #[cfg(test)]
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8},

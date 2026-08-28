@@ -18,7 +18,8 @@ use super::{
     CompositedBaseFrame, CompositedBaseFrameRetirement, FrameWork, FrameWorkReason,
     GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCompositedBaseResidencySnapshot,
     GpuSurfaceCustomShaderResidencySnapshot, GpuSurfaceRenderer, GpuSurfaceSignalResidencySnapshot,
-    NativeGpuTimingRoute, PostGpuOverlayRenderer, RuntimeUserEvent,
+    GpuSurfaceTargetResidencySnapshot, NativeGpuTimingRoute, PostGpuOverlayRenderer,
+    RuntimeUserEvent,
 };
 use crate::gui::input::{InputSequence, InputSequenceRange};
 use crate::gui::types::Vector2;
@@ -386,6 +387,27 @@ impl NativeWindowCompositedBaseResidencySnapshots {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct NativeWindowTargetResidencySnapshots {
+    pub(super) active: Option<GpuSurfaceTargetResidencySnapshot>,
+    pub(super) quarantine_0: Option<GpuSurfaceTargetResidencySnapshot>,
+    pub(super) quarantine_1: Option<GpuSurfaceTargetResidencySnapshot>,
+}
+
+impl NativeWindowTargetResidencySnapshots {
+    fn from_slots(
+        active: Option<GpuSurfaceTargetResidencySnapshot>,
+        quarantine_0: Option<GpuSurfaceTargetResidencySnapshot>,
+        quarantine_1: Option<GpuSurfaceTargetResidencySnapshot>,
+    ) -> Self {
+        Self {
+            active,
+            quarantine_0,
+            quarantine_1,
+        }
+    }
+}
+
 /// The complete native surface/renderer binding for one window.
 ///
 /// The bundle is published only after both WGPU surface setup and Vello
@@ -510,6 +532,14 @@ impl NativeWindowResourceBundle {
                 .and_then(CompositedBaseFrameRetirement::requested_backing_bytes),
             ..GpuSurfaceCompositedBaseResidencySnapshot::default().with_generation(self.generation)
         }
+    }
+
+    pub(super) fn target_residency_snapshot(&self) -> GpuSurfaceTargetResidencySnapshot {
+        GpuSurfaceTargetResidencySnapshot::from_surface_config(
+            self.generation,
+            self.render_surface.config.width,
+            self.render_surface.config.height,
+        )
     }
 
     pub(super) fn bind_gpu_timing(
@@ -990,6 +1020,22 @@ impl NativeRunnerWindowState {
         )
     }
 
+    pub(super) fn target_residency_snapshots(&self) -> NativeWindowTargetResidencySnapshots {
+        let active = self
+            .native_resources
+            .as_ref()
+            .map(NativeWindowResourceBundle::target_residency_snapshot);
+        let mut quarantine = [None, None];
+        for (index, resources) in self.quarantined_native_resources.entries.iter().enumerate() {
+            match index {
+                0 => quarantine[0] = Some(resources.target_residency_snapshot()),
+                1 => quarantine[1] = Some(resources.target_residency_snapshot()),
+                _ => break,
+            }
+        }
+        NativeWindowTargetResidencySnapshots::from_slots(active, quarantine[0], quarantine[1])
+    }
+
     pub(super) fn prepare_native_gpu_timing_delivery(
         &mut self,
         generation: NativeAdapterGeneration,
@@ -1460,12 +1506,14 @@ impl NativeRunnerTimingState {
 mod tests {
     use super::{
         GpuSurfaceAtlasResidencySnapshot, GpuSurfaceCustomShaderResidencySnapshot,
-        GpuSurfaceSignalResidencySnapshot, NativeAdapterGeneration, NativeImeCursorAreaCache,
-        NativeInputSequenceAllocator, NativeResourceMaintenanceTurn, NativeResourceQuarantine,
-        NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
-        NativeSurfaceRecoveryState, NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
+        GpuSurfaceSignalResidencySnapshot, GpuSurfaceTargetResidencySnapshot,
+        NativeAdapterGeneration, NativeImeCursorAreaCache, NativeInputSequenceAllocator,
+        NativeResourceMaintenanceTurn, NativeResourceQuarantine, NativeRunnerInputState,
+        NativeRunnerTimingState, NativeRunnerWindowState, NativeSurfaceRecoveryState,
+        NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
         NativeWindowCustomShaderResidencySnapshots, NativeWindowDiagnosticIdentityAllocator,
         NativeWindowGpuResources, NativeWindowSignalResidencySnapshots,
+        NativeWindowTargetResidencySnapshots,
     };
     use crate::gui::types::{Point, Rect};
     use crate::runtime::NativeSurfaceRecoveryDiagnostics;
@@ -1638,6 +1686,109 @@ mod tests {
             NativeWindowCustomShaderResidencySnapshots::default()
         );
     }
+
+    #[test]
+    fn target_residency_snapshot_counts_one_owned_texture_for_known_nonzero_config() {
+        let generation = NativeAdapterGeneration::from_test_serial(51);
+        let snapshot = GpuSurfaceTargetResidencySnapshot::from_surface_config(generation, 640, 360);
+
+        assert_eq!(snapshot.generation(), generation);
+        assert!(snapshot.generation_known());
+        assert_eq!(snapshot.generation_serial(), Some(51));
+        assert_eq!(snapshot.resident_count, 1);
+        assert_eq!(snapshot.requested_rgba8_bytes, Some(921_600));
+    }
+
+    #[test]
+    fn target_residency_snapshot_reports_zero_dimensions_as_unavailable() {
+        let generation = NativeAdapterGeneration::from_test_serial(52);
+
+        for (width, height) in [(0, 360), (640, 0), (0, 0)] {
+            let snapshot =
+                GpuSurfaceTargetResidencySnapshot::from_surface_config(generation, width, height);
+            assert_eq!(snapshot.resident_count, 1);
+            assert_eq!(snapshot.requested_rgba8_bytes, None);
+        }
+    }
+
+    #[test]
+    fn target_residency_snapshot_reports_checked_rgba8_multiplication_overflow() {
+        let snapshot = GpuSurfaceTargetResidencySnapshot::from_surface_config(
+            NativeAdapterGeneration::from_test_serial(53),
+            u32::MAX,
+            u32::MAX,
+        );
+
+        assert_eq!(snapshot.resident_count, 1);
+        assert_eq!(snapshot.requested_rgba8_bytes, None);
+    }
+
+    #[test]
+    fn target_residency_projection_keeps_active_q0_q1_order_and_independent_evidence() {
+        let snapshots = NativeWindowTargetResidencySnapshots::from_slots(
+            Some(GpuSurfaceTargetResidencySnapshot::from_surface_config(
+                NativeAdapterGeneration::from_test_serial(61),
+                640,
+                360,
+            )),
+            Some(GpuSurfaceTargetResidencySnapshot::from_surface_config(
+                NativeAdapterGeneration::from_test_serial(62),
+                320,
+                200,
+            )),
+            Some(GpuSurfaceTargetResidencySnapshot::from_surface_config(
+                NativeAdapterGeneration::from_test_serial(63),
+                1,
+                1,
+            )),
+        );
+
+        assert_eq!(
+            snapshots
+                .active
+                .and_then(GpuSurfaceTargetResidencySnapshot::generation_serial),
+            Some(61)
+        );
+        assert_eq!(
+            snapshots
+                .active
+                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+            Some(921_600)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_0
+                .and_then(GpuSurfaceTargetResidencySnapshot::generation_serial),
+            Some(62)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_0
+                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+            Some(256_000)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_1
+                .and_then(GpuSurfaceTargetResidencySnapshot::generation_serial),
+            Some(63)
+        );
+        assert_eq!(
+            snapshots
+                .quarantine_1
+                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+            Some(4)
+        );
+    }
+
+    #[test]
+    fn target_residency_slots_are_absent_before_native_resource_publication() {
+        assert_eq!(
+            NativeRunnerWindowState::default().target_residency_snapshots(),
+            NativeWindowTargetResidencySnapshots::default()
+        );
+    }
+
     use crate::theme::DpiScale;
     use std::sync::{
         Arc,

@@ -6,6 +6,8 @@ use super::{
     keyboard_modifiers_from_winit, keypress_from_input,
 };
 use crate::gui::input::{InputTimestamp, KeyCode, KeyPress};
+use crate::runtime::FocusTraversal;
+use crate::runtime::SequentialFocusTraversalDisposition;
 use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
 use std::time::Instant;
 use winit::{
@@ -97,15 +99,34 @@ where
         }
         self.sync_runtime_pointer_from_native_cursor();
         let repeat = event.repeat;
-        let mut repeat_accepted = !repeat;
-        let mut route_outcome = GenericRouteOutcome::default();
         let logical_text = keyboard_event_text(&event);
         let physical_key = match event.physical_key {
             PhysicalKey::Code(code) => key_code_from_winit(code),
             PhysicalKey::Unidentified(_) => None,
         };
-        let timestamp = Some(timestamp);
+        self.route_native_key_press_inner(
+            physical_key,
+            &event.logical_key,
+            logical_text,
+            Some(timestamp),
+            repeat,
+        )
+    }
+
+    fn route_native_key_press_inner(
+        &mut self,
+        physical_key: Option<KeyCode>,
+        logical_key: &Key,
+        logical_text: Option<&str>,
+        timestamp: Option<InputTimestamp>,
+        repeat: bool,
+    ) -> Option<GenericRouteOutcome> {
+        let mut repeat_accepted = !repeat;
+        let mut route_outcome = GenericRouteOutcome::default();
         let widget_modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
+        if repeat && physical_key == Some(KeyCode::Tab) && self.input.tab_sequence_latch.is_some() {
+            return Some(self.core.route_consumed_input());
+        }
         if let Some(outcome) = self.core.route_metadata_key_press_with_timestamp(
             physical_key.map(|key| keypress_from_input(key, self.input.modifiers)),
             physical_key.and_then(WidgetKey::from_key_code),
@@ -164,6 +185,19 @@ where
             ) {
                 return Some(route_outcome);
             }
+            if !repeat
+                && key == KeyCode::Tab
+                && let Some(direction) = tab_traversal_direction(self.input.modifiers)
+            {
+                let (disposition, traversal_outcome) =
+                    self.core.route_sequential_focus_with_disposition(direction);
+                if let Some(latch) = tab_sequence_latch_for_disposition(direction, disposition) {
+                    self.input.tab_sequence_latch = Some(latch);
+                    return Some(
+                        traversal_outcome.unwrap_or_else(|| self.core.route_consumed_input()),
+                    );
+                }
+            }
             let outcome = self.core.route_key_press_with_timestamp(
                 keypress_from_input(key, self.input.modifiers),
                 WidgetKey::from_key_code(key),
@@ -189,18 +223,18 @@ where
                 return Some(route_outcome);
             }
         }
-        if let Some(text) = event.text.as_ref() {
+        if let Some(text) = logical_text {
             self.route_text_input_after_unhandled_keypress(text, timestamp, &mut route_outcome);
-        } else if matches!(event.logical_key, Key::Named(NamedKey::Space)) {
+        } else if matches!(logical_key, Key::Named(NamedKey::Space)) {
             self.route_text_input_after_unhandled_keypress(" ", timestamp, &mut route_outcome);
-        } else if let Key::Character(text) = &event.logical_key {
+        } else if let Key::Character(text) = logical_key {
             self.route_text_input_after_unhandled_keypress(
                 text.as_str(),
                 timestamp,
                 &mut route_outcome,
             );
         }
-        if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
+        if !route_outcome.routed && matches!(logical_key, Key::Named(NamedKey::Backspace)) {
             let outcome = self.core.route_widget_key_with_metadata(
                 WidgetKey::Backspace,
                 widget_modifiers,
@@ -209,7 +243,7 @@ where
             );
             route_outcome.merge(outcome);
         }
-        if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
+        if !route_outcome.routed && matches!(logical_key, Key::Named(NamedKey::Delete)) {
             let outcome = self.core.route_widget_key_with_metadata(
                 WidgetKey::Delete,
                 widget_modifiers,
@@ -239,6 +273,9 @@ where
         };
         let modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
         let key = key_code_from_winit(code);
+        if key == Some(KeyCode::Tab) && self.input.tab_sequence_latch.take().is_some() {
+            return Some(self.core.route_consumed_input());
+        }
         let widget_key = key.and_then(WidgetKey::from_key_code);
         match widget_key {
             Some(widget_key) => Some(
@@ -249,6 +286,22 @@ where
                 .core
                 .route_metadata_key_release_with_metadata(None, modifiers, timestamp),
         }
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn route_native_tab_for_test(
+        &mut self,
+        repeat: bool,
+    ) -> Option<GenericRouteOutcome> {
+        self.sync_runtime_pointer_from_native_cursor();
+        let logical_key = Key::Named(NamedKey::Tab);
+        self.route_native_key_press_inner(
+            Some(KeyCode::Tab),
+            &logical_key,
+            None,
+            Some(InputTimestamp::capture()),
+            repeat,
+        )
     }
 
     pub(super) fn sync_runtime_pointer_from_native_cursor(&mut self) {
@@ -275,6 +328,28 @@ fn logical_shortcut_keypress_from_text(text: Option<&str>) -> Option<KeyPress> {
     }))
 }
 
+fn tab_traversal_direction(modifiers: winit::keyboard::ModifiersState) -> Option<FocusTraversal> {
+    if modifiers.control_key() || modifiers.super_key() || modifiers.alt_key() {
+        return None;
+    }
+    Some(if modifiers.shift_key() {
+        FocusTraversal::Backward
+    } else {
+        FocusTraversal::Forward
+    })
+}
+
+fn tab_sequence_latch_for_disposition(
+    direction: FocusTraversal,
+    disposition: SequentialFocusTraversalDisposition,
+) -> Option<super::runner_state::NativeTabSequenceLatch> {
+    (!matches!(
+        disposition,
+        SequentialFocusTraversalDisposition::NoDestination
+    ))
+    .then_some(super::runner_state::NativeTabSequenceLatch { direction })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,5 +371,35 @@ mod tests {
         assert_eq!(logical_shortcut_keypress_from_text(Some("{")), None);
         assert_eq!(logical_shortcut_keypress_from_text(Some("[]")), None);
         assert_eq!(logical_shortcut_keypress_from_text(None), None);
+    }
+
+    #[test]
+    fn tab_sequence_latch_covers_every_consumed_disposition() {
+        let direction = FocusTraversal::Backward;
+        let dispositions = [
+            SequentialFocusTraversalDisposition::NoDestination,
+            SequentialFocusTraversalDisposition::AdmittedWidget(1),
+            SequentialFocusTraversalDisposition::AdmittedPrivateSplitPaneSeparator,
+            SequentialFocusTraversalDisposition::Vetoed,
+            SequentialFocusTraversalDisposition::Invalidated,
+        ];
+
+        for disposition in dispositions {
+            let latch = tab_sequence_latch_for_disposition(direction, disposition);
+            let expected = if matches!(
+                disposition,
+                SequentialFocusTraversalDisposition::NoDestination
+            ) {
+                None
+            } else {
+                Some(direction)
+            };
+            assert_eq!(
+                latch.is_some(),
+                expected.is_some(),
+                "unexpected latch state for {disposition:?}"
+            );
+            assert_eq!(latch.map(|latch| latch.direction), expected);
+        }
     }
 }

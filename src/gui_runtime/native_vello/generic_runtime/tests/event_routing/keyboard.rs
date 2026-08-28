@@ -8,13 +8,14 @@ use crate::{
     },
     layout::LayoutOutput,
     runtime::{
-        Event, PaintPrimitive, RuntimeBridge, RuntimeHostCapabilities, RuntimeInputHost,
-        SurfaceNode, UiSurface, WidgetMessageMapper,
+        Event, FocusTraversal, PaintPrimitive, RuntimeBridge, RuntimeHostCapabilities,
+        RuntimeInputHost, SequentialFocusTraversalDisposition, SurfaceChild, SurfaceNode,
+        UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{
-        CanvasMessage, CanvasWidget, KeyboardModifiers, TextEditCommand, Widget, WidgetCommon,
-        WidgetId, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        CanvasMessage, CanvasWidget, KeyboardModifiers, TextEditCommand, TextWidget, Widget,
+        WidgetCommon, WidgetId, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -330,6 +331,316 @@ impl RuntimeInputHost<FocusedKeyRouteMessage> for FocusedKeyRoutingBridge {
             ShortcutResolution::unhandled()
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum NativeTabRouteMessage {
+    KeyPress {
+        widget_id: WidgetId,
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        repeat: bool,
+    },
+    KeyRelease {
+        widget_id: WidgetId,
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+    },
+    Ignored,
+}
+
+fn map_native_tab_canvas_message(
+    widget_id: WidgetId,
+    message: CanvasMessage,
+) -> NativeTabRouteMessage {
+    match message {
+        CanvasMessage::Input {
+            input:
+                WidgetInput::KeyPress {
+                    key,
+                    modifiers,
+                    repeat,
+                    ..
+                },
+        } => NativeTabRouteMessage::KeyPress {
+            widget_id,
+            key,
+            modifiers,
+            repeat,
+        },
+        CanvasMessage::Input {
+            input: WidgetInput::KeyRelease { key, modifiers, .. },
+        } => NativeTabRouteMessage::KeyRelease {
+            widget_id,
+            key,
+            modifiers,
+        },
+        CanvasMessage::Input { .. } => NativeTabRouteMessage::Ignored,
+    }
+}
+
+#[derive(Default)]
+struct NativeTabBridge {
+    messages: Vec<NativeTabRouteMessage>,
+    host_presses: Vec<KeyPress>,
+}
+
+impl RuntimeBridge<NativeTabRouteMessage> for NativeTabBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<NativeTabRouteMessage>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::row(
+            1,
+            0.0,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    CanvasWidget::new(101, WidgetSizing::fixed(Vector2::new(120.0, 28.0))),
+                    WidgetMessageMapper::canvas(move |message| {
+                        map_native_tab_canvas_message(101, message)
+                    }),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    CanvasWidget::new(102, WidgetSizing::fixed(Vector2::new(120.0, 28.0))),
+                    WidgetMessageMapper::canvas(move |message| {
+                        map_native_tab_canvas_message(102, message)
+                    }),
+                )),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, message: NativeTabRouteMessage) {
+        if !matches!(message, NativeTabRouteMessage::Ignored) {
+            self.messages.push(message);
+        }
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, NativeTabRouteMessage> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<NativeTabRouteMessage> for NativeTabBridge {
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<NativeTabRouteMessage> {
+        self.host_presses.push(press);
+        ShortcutResolution::unhandled()
+    }
+}
+
+fn native_tab_runner() -> GenericNativeVelloRunner<NativeTabBridge, NativeTabRouteMessage> {
+    GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        NativeTabBridge::default(),
+        Vector2::new(240.0, 28.0),
+    )
+}
+
+#[derive(Default)]
+struct UnclaimedTabBridge {
+    host_presses: Vec<KeyPress>,
+}
+
+impl RuntimeBridge<()> for UnclaimedTabBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::static_widget(
+            TextWidget::new(
+                201,
+                "unclaimed",
+                WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            ),
+        )))
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<()> for UnclaimedTabBridge {
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<()> {
+        self.host_presses.push(press);
+        ShortcutResolution::unhandled()
+    }
+}
+
+#[test]
+fn native_unclaimed_initial_tab_falls_back_once_without_latching() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        UnclaimedTabBridge::default(),
+        Vector2::new(120.0, 28.0),
+    );
+
+    let initial = runner
+        .route_native_tab_for_test(false)
+        .expect("initial Tab should be routed");
+    assert!(!initial.routed);
+    assert!(runner.input.tab_sequence_latch.is_none());
+    assert_eq!(runner.core.runtime.bridge().host_presses.len(), 1);
+
+    assert!(runner.route_native_tab_for_test(true).is_none());
+    let release = runner
+        .route_native_key_release(PhysicalKey::Code(WinitKeyCode::Tab))
+        .expect("supported physical release should produce a route outcome");
+    assert!(!release.routed);
+    assert_eq!(runner.core.runtime.bridge().host_presses.len(), 1);
+}
+
+#[test]
+fn native_shift_tab_traverses_backward_and_latches_direction() {
+    let mut runner = native_tab_runner();
+    assert!(runner.core.runtime.focus_widget(102));
+    runner.input.modifiers = ModifiersState::SHIFT;
+
+    let outcome = runner
+        .route_native_tab_for_test(false)
+        .expect("initial Shift-Tab should be routed");
+    assert!(outcome.routed);
+    assert_eq!(runner.core.runtime.focused_widget(), Some(101));
+    assert_eq!(
+        runner.input.tab_sequence_latch.map(|latch| latch.direction),
+        Some(FocusTraversal::Backward)
+    );
+    assert!(runner.core.runtime.bridge().host_presses.is_empty());
+    assert!(runner.core.runtime.bridge().messages.is_empty());
+}
+
+#[test]
+fn native_admitted_tab_repeat_and_matching_release_do_not_reach_new_focus() {
+    let mut runner = native_tab_runner();
+    assert!(runner.core.runtime.focus_widget(101));
+
+    let initial = runner
+        .route_native_tab_for_test(false)
+        .expect("initial Tab should be routed");
+    assert!(initial.routed);
+    assert_eq!(runner.core.runtime.focused_widget(), Some(102));
+    assert_eq!(
+        runner.input.tab_sequence_latch.map(|latch| latch.direction),
+        Some(FocusTraversal::Forward)
+    );
+    let messages_before = runner.core.runtime.bridge().messages.clone();
+    let host_presses_before = runner.core.runtime.bridge().host_presses.clone();
+
+    assert!(
+        runner
+            .route_native_tab_for_test(true)
+            .expect("latched Tab repeat should be consumed")
+            .routed
+    );
+    assert!(
+        runner
+            .route_native_key_release(PhysicalKey::Code(WinitKeyCode::Tab))
+            .expect("latched Tab release should be consumed")
+            .routed
+    );
+
+    assert_eq!(runner.core.runtime.focused_widget(), Some(102));
+    assert_eq!(runner.core.runtime.bridge().messages, messages_before);
+    assert_eq!(
+        runner.core.runtime.bridge().host_presses,
+        host_presses_before
+    );
+    assert!(runner.input.tab_sequence_latch.is_none());
+}
+
+#[test]
+fn native_terminal_tab_dispositions_consume_repeat_and_matching_release() {
+    for disposition in [
+        SequentialFocusTraversalDisposition::Vetoed,
+        SequentialFocusTraversalDisposition::Invalidated,
+    ] {
+        let mut runner = native_tab_runner();
+        assert!(runner.core.runtime.focus_widget(101));
+        runner.input.tab_sequence_latch =
+            Some(super::super::super::runner_state::NativeTabSequenceLatch {
+                direction: FocusTraversal::Forward,
+            });
+        let messages_before = runner.core.runtime.bridge().messages.clone();
+        let host_presses_before = runner.core.runtime.bridge().host_presses.clone();
+
+        assert!(
+            runner
+                .route_native_tab_for_test(true)
+                .expect("terminal Tab repeat should be consumed")
+                .routed,
+            "terminal disposition {disposition:?} should consume repeat"
+        );
+        assert!(
+            runner
+                .route_native_key_release(PhysicalKey::Code(WinitKeyCode::Tab))
+                .expect("terminal Tab release should be consumed")
+                .routed,
+            "terminal disposition {disposition:?} should consume release"
+        );
+
+        assert_eq!(runner.core.runtime.focused_widget(), Some(101));
+        assert_eq!(runner.core.runtime.bridge().messages, messages_before);
+        assert_eq!(
+            runner.core.runtime.bridge().host_presses,
+            host_presses_before
+        );
+        assert!(runner.input.tab_sequence_latch.is_none());
+    }
+}
+
+#[test]
+fn native_command_control_and_alt_tab_bypass_sequential_focus_traversal() {
+    for native_modifiers in [
+        ModifiersState::SUPER,
+        ModifiersState::CONTROL,
+        ModifiersState::ALT,
+    ] {
+        let mut runner = native_tab_runner();
+        assert!(runner.core.runtime.focus_widget(101));
+        runner.input.modifiers = native_modifiers;
+
+        let outcome = runner
+            .route_native_tab_for_test(false)
+            .expect("modified Tab should be routed");
+        assert!(outcome.routed);
+        assert_eq!(runner.core.runtime.focused_widget(), Some(101));
+        assert!(runner.input.tab_sequence_latch.is_none());
+        assert_eq!(runner.core.runtime.bridge().host_presses.len(), 1);
+        assert_eq!(
+            runner.core.runtime.bridge().host_presses,
+            vec![keypress_from_input(KeyCode::Tab, native_modifiers)]
+        );
+        assert_eq!(
+            runner.core.runtime.bridge().messages,
+            vec![NativeTabRouteMessage::KeyPress {
+                widget_id: 101,
+                key: WidgetKey::Tab,
+                modifiers: keyboard_modifiers_from_winit(native_modifiers),
+                repeat: false,
+            }]
+        );
+    }
+}
+
+#[test]
+fn native_focus_loss_clears_tab_sequence_latch() {
+    let mut runner = native_tab_runner();
+    assert!(runner.core.runtime.focus_widget(101));
+    assert!(
+        runner
+            .route_native_tab_for_test(false)
+            .expect("initial Tab should be routed")
+            .routed
+    );
+    assert!(runner.input.tab_sequence_latch.is_some());
+
+    assert!(runner.handle_focus_lost_before_external_drag().routed);
+    assert!(runner.input.tab_sequence_latch.is_none());
+    assert_eq!(runner.core.runtime.focused_widget(), None);
 }
 
 #[test]

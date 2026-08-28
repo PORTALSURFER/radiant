@@ -207,6 +207,7 @@ where
 
     pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {
         self.window.native_focus_lost = true;
+        self.input.tab_sequence_latch = None;
         self.input.effective_pointer_gesture = None;
         let mut outcome = self.clear_native_pointer_presence();
         outcome.merge(self.clear_native_modifier_state());
@@ -215,6 +216,7 @@ where
     }
 
     pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) -> GenericRouteOutcome {
+        self.input.tab_sequence_latch = None;
         self.clear_native_visual_request_wake_timing();
         // Record normal-window activation before the exact transient ticket is
         // completed. Native visibility and visual-mailbox work are applied by

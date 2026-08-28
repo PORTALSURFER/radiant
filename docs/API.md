@@ -6554,7 +6554,10 @@ the standard `icon_button(...)` builder. For common compact controls, use
 text labels or parse their own standard close/disclosure icons. Icon-button
 builders support both message-style `.message(...)` routing and direct
 callback routing for compatibility. Use `.message(...)` for normal
-application interactions. Use `icon_button(...).passive()`,
+application interactions. Use `.label(...)` on an icon-button builder when an
+icon-only action needs an exact automation name; it exposes a button role and
+the supplied label independently of any visual `.tooltip(...)`. Use
+`icon_button(...).passive()`,
 `close_button().passive()`, or `disclosure_button(expanded).passive()` when a
 standard icon should paint as decorative chrome while another parent surface
 owns interaction routing. Use `.tooltip_opt(...)` when tooltip text is

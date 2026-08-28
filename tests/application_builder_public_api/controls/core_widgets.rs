@@ -1,4 +1,5 @@
 use super::super::*;
+use radiant::gui::automation::AutomationRole;
 use radiant::runtime::EventMapper;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
@@ -6,7 +7,7 @@ use radiant::widgets::{
     FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, InteractionProvenance,
     InteractionSource, KnobEditBatch, MarkerRunWidget, NumericAdjustment, NumericStep,
     NumericStepDirection, PaintBounds, PointerModifiers, SelectableWidget, SliderEditBatch,
-    SliderMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, ValueFormat,
+    SliderMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, ValueFormat, Widget,
     WidgetInput, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 use std::sync::Arc;
@@ -1028,6 +1029,66 @@ fn icon_button_builder_supports_message_and_passive_apps() {
 
     let passive_surface: UiSurface<DemoState> = ui::close_button().passive().id(32).into_surface();
     assert!(passive_surface.find_widget(32).is_some());
+}
+
+#[test]
+fn labeled_icon_button_projects_exact_automation_label_without_changing_tooltip_or_focus() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let icon = ui::SvgIcon::from_svg(
+        r##"<svg viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg"><path d="M1 0 L4 2 L1 4 Z"/></svg>"##,
+    )
+    .expect("icon");
+    let surface: UiSurface<()> = ui::column([
+        ui::icon_button(icon.clone())
+            .label("Re-import / replace reference track")
+            .passive()
+            .tooltip("Re-import reference")
+            .id(33),
+        ui::icon_button(icon.clone())
+            .label("Remove reference track")
+            .enabled(false)
+            .passive()
+            .id(34),
+        ui::icon_button(icon).passive().id(35),
+    ])
+    .into_surface();
+
+    let enabled = surface
+        .find_widget(33)
+        .expect("labeled icon button should exist");
+    let enabled_semantics = enabled.widget().automation_semantics();
+    assert_eq!(enabled_semantics.role, AutomationRole::Button);
+    assert_eq!(
+        enabled_semantics.label.as_deref(),
+        Some("Re-import / replace reference track")
+    );
+    assert!(!enabled_semantics.disabled);
+    assert!(enabled_semantics.focusable);
+    assert_eq!(enabled_semantics.tab_index, Some(0));
+    assert_eq!(
+        enabled.widget().common().tooltip.as_deref(),
+        Some("Re-import reference")
+    );
+
+    let disabled = surface
+        .find_widget(34)
+        .expect("disabled labeled icon button should exist");
+    let disabled_semantics = disabled.widget().automation_semantics();
+    assert_eq!(disabled_semantics.role, AutomationRole::Button);
+    assert_eq!(
+        disabled_semantics.label.as_deref(),
+        Some("Remove reference track")
+    );
+    assert!(disabled_semantics.disabled);
+    assert!(!disabled_semantics.focusable);
+    assert_eq!(disabled_semantics.tab_index, None);
+
+    let unlabeled = widget_ref::<IconButtonWidget, _>(&surface, 35, "unlabeled icon button");
+    let unlabeled_semantics = unlabeled.automation_semantics();
+    assert_eq!(unlabeled_semantics.role, AutomationRole::Custom);
+    assert_eq!(unlabeled_semantics.label, None);
+    assert!(unlabeled_semantics.focusable);
 }
 
 #[test]

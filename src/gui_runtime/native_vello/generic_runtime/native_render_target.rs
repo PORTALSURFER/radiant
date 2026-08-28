@@ -38,6 +38,19 @@ impl NativeRenderTargetReplacementEvidence {
     pub(super) const fn completion(self) -> NativeSubmissionCompletionIdentity {
         self.completion
     }
+
+    pub(super) fn is_current_for_resource_generation(
+        self,
+        resource_generation: NativeAdapterGeneration,
+    ) -> bool {
+        let mut target_generation = self.target_generation;
+        self.resource_generation == resource_generation
+            && resource_generation.is_known()
+            && self.completion.generation() == resource_generation
+            && self.completion.is_valid_for_retirement()
+            && target_generation.is_known()
+            && target_generation.advance()
+    }
 }
 
 /// Exact identity of the predecessor retained after a target replacement.
@@ -372,6 +385,69 @@ mod tests {
                 context(7, Some(7), Some(resource)),
             ),
             NativeRenderTargetReplacementOutcome::Deferred
+        );
+    }
+
+    #[test]
+    fn replacement_preflight_reuses_exact_evidence_until_successor_commits() {
+        let resource = NativeAdapterGeneration::from_test_serial(1);
+        let evidence = evidence(1, 4);
+
+        assert!(evidence.is_current_for_resource_generation(resource));
+        assert_eq!(
+            evidence.target_generation(),
+            NativeTargetGeneration::from_test_serial(4)
+        );
+
+        assert_eq!(
+            replacement_preflight(
+                request(
+                    NativeRenderTargetReplacementMode::Ordinary,
+                    (640, 360),
+                    (800, 450),
+                    true,
+                    Some(evidence),
+                ),
+                context(7, Some(7), Some(resource)),
+            ),
+            NativeRenderTargetReplacementOutcome::Deferred
+        );
+
+        assert_eq!(
+            evidence.target_generation(),
+            NativeTargetGeneration::from_test_serial(4)
+        );
+        assert_eq!(
+            replacement_preflight(
+                request(
+                    NativeRenderTargetReplacementMode::Recovery,
+                    (640, 360),
+                    (800, 450),
+                    false,
+                    Some(evidence),
+                ),
+                context(7, Some(7), Some(resource)),
+            ),
+            NativeRenderTargetReplacementOutcome::Committed {
+                next_target_generation: NativeTargetGeneration::from_test_serial(5),
+            }
+        );
+        assert!(NativeTargetGeneration::from_test_serial(5).is_known());
+        assert!(
+            !NativeRenderTargetReplacementEvidence::new(
+                resource,
+                NativeTargetGeneration::unknown(),
+                NativeSubmissionCompletionIdentity::never_submitted(resource),
+            )
+            .is_current_for_resource_generation(resource)
+        );
+        assert!(
+            !NativeRenderTargetReplacementEvidence::new(
+                resource,
+                NativeTargetGeneration::from_test_serial(u64::MAX),
+                NativeSubmissionCompletionIdentity::never_submitted(resource),
+            )
+            .is_current_for_resource_generation(resource)
         );
     }
 

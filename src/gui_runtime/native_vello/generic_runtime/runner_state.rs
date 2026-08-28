@@ -640,6 +640,17 @@ impl NativeWindowResourceBundle {
         completion_pending || timing_pending || composited_base_pending || render_target_pending
     }
 
+    pub(super) fn maintain_render_target_retirement_once(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        if self.render_target_retirement.is_none() {
+            return false;
+        }
+        let _ = self.maintain_completion_once(turn);
+        self.render_target_retirement.is_none()
+    }
+
     pub(super) fn retirement_eligible(&self) -> bool {
         self.completion_witness.retirement_eligible()
             && self.gpu_resources.gpu_timing.retirement_eligible()
@@ -1313,6 +1324,15 @@ impl NativeRunnerWindowState {
         }
     }
 
+    pub(super) fn maintain_native_surface_target_retirement(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        self.native_resources
+            .as_mut()
+            .is_some_and(|resources| resources.maintain_render_target_retirement_once(turn))
+    }
+
     /// Move the complete active bundle into bounded retirement ownership,
     /// advance every exact-generation completion witness without waiting, and
     /// report completion only after both active and quarantined ownership is
@@ -1471,6 +1491,10 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) last_interactive_scene_rebuild: Instant,
     pub(super) pending_surface_resize: Option<PhysicalSize<u32>>,
     pub(super) pending_surface_resize_reason: Option<FrameWorkReason>,
+    /// Exact pre-fence evidence retained while a recovery retry waits for the
+    /// predecessor to release the replacement boundary.
+    pub(super) pending_surface_recovery_replacement_evidence:
+        Option<NativeRenderTargetReplacementEvidence>,
     pub(super) pending_viewport_resize: Option<Vector2>,
     pub(super) pending_viewport_resize_reason: Option<FrameWorkReason>,
     pub(super) surface_resize_applied_this_frame: bool,
@@ -1478,6 +1502,10 @@ pub(super) struct NativeRunnerTimingState {
     /// Next normal Running maintenance opportunity for this window.  Lifecycle
     /// maintenance uses its separate turn and does not consume this deadline.
     pub(super) native_resource_maintenance_deadline: Option<Instant>,
+    /// Recovery-only opportunity for the active surface predecessor while the
+    /// published target is fenced.  This is kept separate from the normal
+    /// Maintenance stage because that stage requires a known, unfenced target.
+    pub(super) native_surface_target_retirement_deadline: Option<Instant>,
     /// Parent-owned opportunity for bounded cleanup of retiring auxiliary
     /// children. Nested auxiliary runners leave this unused.
     pub(super) retiring_auxiliary_maintenance_deadline: Option<Instant>,
@@ -1514,11 +1542,13 @@ impl NativeRunnerTimingState {
             last_interactive_scene_rebuild: now - Duration::from_secs(1),
             pending_surface_resize: None,
             pending_surface_resize_reason: None,
+            pending_surface_recovery_replacement_evidence: None,
             pending_viewport_resize: None,
             pending_viewport_resize_reason: None,
             surface_resize_applied_this_frame: false,
             pending_frame_work: FrameWork::None,
             native_resource_maintenance_deadline: None,
+            native_surface_target_retirement_deadline: None,
             retiring_auxiliary_maintenance_deadline: None,
         }
     }

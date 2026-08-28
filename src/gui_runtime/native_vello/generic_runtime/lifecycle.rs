@@ -692,6 +692,7 @@ where
                     // parent-owned retiring-child opportunity due, but never
                     // poll, sync, remove, or dispatch from this callback.
                     self.arm_retiring_auxiliary_maintenance_due_now();
+                    self.wake_native_surface_target_retirement_maintenance();
                     self.wake_normal_native_resource_maintenance();
                     if let Some(generation) = self
                         .adapter
@@ -783,6 +784,7 @@ where
             return;
         }
         let now = Instant::now();
+        self.maintain_native_surface_target_retirement_if_due(now);
         let retiring_auxiliary_maintenance_due = self.retiring_auxiliary_maintenance_is_due(now);
         if retiring_auxiliary_maintenance_due {
             // One shared turn covers the parent and all retiring children.
@@ -875,6 +877,10 @@ where
             }
             .merge(FrameScheduleDeadlines {
                 maintenance: self.retiring_auxiliary_maintenance_deadline(),
+                ..FrameScheduleDeadlines::default()
+            })
+            .merge(FrameScheduleDeadlines {
+                maintenance: self.native_surface_target_retirement_deadline(),
                 ..FrameScheduleDeadlines::default()
             }),
         );

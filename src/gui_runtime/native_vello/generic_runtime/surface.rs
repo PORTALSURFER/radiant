@@ -341,7 +341,13 @@ where
             .timing
             .pending_surface_resize_reason
             .unwrap_or(FrameWorkReason::NativeResize);
-        let applied = self.resize_surface_now(size, false, reason, adapter);
+        let applied = if self.window.native_surface_target_fenced
+            || !self.window.target_generation.is_known()
+        {
+            self.resize_surface_now_for_recovery(size, adapter)
+        } else {
+            self.resize_surface_now(size, false, reason, adapter)
+        };
         self.timing.surface_resize_applied_this_frame = applied;
         if applied {
             self.record_frame_work(FrameWork::ResizeSurface { reason });
@@ -392,6 +398,7 @@ where
             NativeRenderTargetReplacementOutcome::Committed {
                 next_target_generation,
             } => {
+                self.timing.pending_surface_recovery_replacement_evidence = None;
                 self.window.target_generation = next_target_generation;
                 self.complete_target_transition();
                 self.defer_viewport_resize_with_reason(
@@ -426,37 +433,90 @@ where
         }
         // Capture the last known target before the recovery fence invalidates
         // it; the replacement transaction needs that exact predecessor
-        // evidence.
+        // evidence. A deferred recovery retries this same evidence after the
+        // predecessor is retired instead of rebuilding it from fenced state.
         let target_generation = self.window.target_generation;
         let pending_surface_resize = self.timing.pending_surface_resize;
         let pending_surface_resize_reason = self.timing.pending_surface_resize_reason;
-        self.fence_native_surface_target();
-        let outcome = {
-            let Some(resources) = self.window.native_resources.as_mut() else {
-                self.retain_or_rearm_surface_resize_for_recovery(size);
+        let recovery_reason =
+            pending_surface_resize_reason.unwrap_or(FrameWorkReason::NativeResize);
+        let pending_recovery_evidence = self.timing.pending_surface_recovery_replacement_evidence;
+        let requested_size = self
+            .timing
+            .pending_surface_resize
+            .filter(|pending| pending.width > 0 && pending.height > 0)
+            .unwrap_or(size);
+        let (replacement_evidence, predecessor_occupied, evidence_current, viewport_resize_needed) = {
+            let Some(resources) = self.window.native_resources.as_ref() else {
+                self.timing.pending_surface_recovery_replacement_evidence = None;
+                self.retain_or_rearm_surface_resize_for_recovery(requested_size);
                 return false;
             };
-            let evidence = resources.target_replacement_evidence(target_generation);
+            let evidence = pending_recovery_evidence.or_else(|| {
+                target_generation
+                    .is_known()
+                    .then(|| resources.target_replacement_evidence(target_generation))
+            });
+            (
+                evidence,
+                resources.render_target_retirement.is_some(),
+                evidence.is_some_and(|evidence| {
+                    evidence.is_current_for_resource_generation(resources.generation)
+                }),
+                surface_size_changed(
+                    resources.render_surface.config.width,
+                    resources.render_surface.config.height,
+                    requested_size,
+                ),
+            )
+        };
+
+        if !self.window.native_surface_target_fenced {
+            self.fence_native_surface_target();
+        }
+        let outcome = {
+            let Some(resources) = self.window.native_resources.as_mut() else {
+                self.timing.pending_surface_recovery_replacement_evidence = None;
+                self.retain_or_rearm_surface_resize_for_recovery(requested_size);
+                return false;
+            };
             adapter.replace_render_surface_targets(
                 &mut resources.render_surface,
                 &mut resources.render_target_retirement,
-                Some(evidence),
-                size.width,
-                size.height,
+                replacement_evidence,
+                requested_size.width,
+                requested_size.height,
                 NativeRenderTargetReplacementMode::Recovery,
             )
         };
         match outcome {
-            NativeRenderTargetReplacementOutcome::Noop
-            | NativeRenderTargetReplacementOutcome::Deferred => {
-                self.retain_or_rearm_surface_resize_for_recovery(size);
+            NativeRenderTargetReplacementOutcome::Noop => {
+                self.timing.pending_surface_recovery_replacement_evidence = None;
+                self.retain_or_rearm_surface_resize_for_recovery(requested_size);
+                false
+            }
+            NativeRenderTargetReplacementOutcome::Deferred => {
+                self.timing.pending_surface_recovery_replacement_evidence =
+                    if predecessor_occupied && evidence_current {
+                        replacement_evidence
+                    } else {
+                        None
+                    };
+                self.retain_or_rearm_surface_resize_for_recovery(requested_size);
                 false
             }
             NativeRenderTargetReplacementOutcome::Committed {
                 next_target_generation,
             } => {
+                self.timing.pending_surface_recovery_replacement_evidence = None;
                 self.window.target_generation = next_target_generation;
                 self.complete_target_transition();
+                if viewport_resize_needed {
+                    self.defer_viewport_resize_with_reason(
+                        logical_viewport_for_size(requested_size, self.window.dpi_scale),
+                        recovery_reason,
+                    );
+                }
                 self.clear_pending_surface_resize_if_snapshot_matches(
                     pending_surface_resize,
                     pending_surface_resize_reason,
@@ -470,6 +530,7 @@ where
         // Ordinary deferred resize is applied after RedrawRequested claims its
         // packet. A replacement transaction has already advanced the target
         // evidence; install that exact successor instead of advancing again.
+        self.timing.pending_surface_recovery_replacement_evidence = None;
         let committed_target_generation = self.window.target_generation;
         self.fence_native_surface_target_for_transition();
         if committed_target_generation.is_known() {
@@ -513,6 +574,7 @@ where
         } else {
             self.arm_requested_recovery_redraw();
         }
+        self.arm_native_surface_target_retirement_maintenance();
     }
 
     pub(super) fn complete_native_recovery_target_transition(&mut self) {
@@ -556,6 +618,7 @@ where
         self.window
             .surface_recovery
             .observe_acquire_error(&NativeSurfaceAcquireFailure::Other);
+        self.timing.pending_surface_recovery_replacement_evidence = None;
         self.fence_native_surface_target();
         if matches!(
             surface_acquire_policy(NativeSurfaceAcquireFailure::Other, size),
@@ -571,6 +634,7 @@ where
 
     pub(super) fn prepare_successful_surface_acquisition(&mut self) {
         if !self.window.target_generation.is_known() && self.window.target_generation.advance() {
+            self.timing.pending_surface_recovery_replacement_evidence = None;
             self.window.native_surface_target_fenced = false;
         }
         self.window.surface_recovery.rearm_transient_retry();
@@ -779,6 +843,7 @@ where
     pub(super) fn fence_native_presentation(&mut self) {
         self.timing.pending_surface_resize = None;
         self.timing.pending_surface_resize_reason = None;
+        self.timing.pending_surface_recovery_replacement_evidence = None;
         self.timing.pending_viewport_resize = None;
         self.timing.pending_viewport_resize_reason = None;
         let _ = self.invalidate_native_visual_requests();
@@ -802,6 +867,7 @@ where
             .as_ref()
             .map(|resources| resources.generation)
         else {
+            self.timing.pending_surface_recovery_replacement_evidence = None;
             self.refresh_atlas_residency_account(adapter);
             self.refresh_signal_residency_account(adapter);
             self.refresh_custom_shader_residency_account(adapter);
@@ -819,6 +885,7 @@ where
                 .discard_presentation_staging_belt();
         }
         let _ = self.window.isolate_native_resources();
+        self.timing.pending_surface_recovery_replacement_evidence = None;
         self.refresh_atlas_residency_account(adapter);
         self.refresh_signal_residency_account(adapter);
         self.refresh_custom_shader_residency_account(adapter);

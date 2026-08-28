@@ -6875,14 +6875,23 @@ backend-neutral sequential traversal consumer reads the private committed
 mixed-order sidecar and treats each exact current runtime-owned separator as
 one private stop between its pane widget subtrees, including nested separators.
 Invalid or unavailable evidence uses the complete widget-only order. The
-crate-private traversal disposition distinguishes `NoDestination`, admitted
-widget/separator, `Vetoed`, and `Invalidated`; only `NoDestination` may feed a
-future key-routing fallback, while veto and invalidation are terminal. An
-invalidated separator does not retry or choose an alternate destination. This
-consumer is distinct from private pointer ownership for divider acquisition and
-collapse/restore. Neither path changes public/native focus, key routing,
-spatial traversal, semantic actions, paint/cursor/renderer behavior, or
-`VirtualLayoutPolicy`; those remain future work.
+crate-private traversal disposition distinguishes `NoDestination`,
+`AdmittedWidget`, `AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and
+`Invalidated`. The generic native runtime consumes an unclaimed plain
+`Tab`/`Shift-Tab` using that committed sequential disposition:
+`AdmittedWidget` and `AdmittedPrivateSplitPaneSeparator` are consumed
+destinations; `Vetoed` and `Invalidated` are terminal with no fallback/retry;
+only `NoDestination` reaches the existing host-first/widget fallback exactly
+once. Focused-key/text input ownership and command/control/alt-modified `Tab`
+retain precedence. Repeat/release do not traverse again, and the per-window
+sequence latch is cleared on native focus loss/regain. An invalidated separator
+does not retry or choose an alternate destination. This consumer is distinct
+from private pointer ownership for divider acquisition and collapse/restore.
+The passive `AXSplitter` projection remains non-focusable, actionless, and
+non-interactive; it does not itself authorize key routing. Public/native
+separator focus, spatial traversal, keyboard/arrow-key resizing, semantic
+actions, paint/cursor/renderer behavior, and `VirtualLayoutPolicy` remain future
+work.
 Internally, the
 controller may retain
 a bounded crate-private `SplitPaneSeparatorProjection` collection after the

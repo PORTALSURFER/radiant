@@ -1696,22 +1696,28 @@ admitted ratio update. Static/controlled, stale, unmaterialized,
 duplicate/mismatched, malformed, focused, or actionful evidence leaves the
 ordinary native tree in place without provider calls, runtime refresh, partial
 topology, or interaction authority. Manual macOS/VoiceOver acceptance remains
-unverified. A separate crate-private runtime focus-order sidecar may retain
-source candidates and a committed mixed-order evidence sequence after exact
-current projection/lifecycle reconciliation, but this passive native consumer
-does not consume it. The explicit backend-neutral sequential traversal consumer
-does: exact current runtime-owned separators are private stops between their
-pane widget subtrees, including nested separators, while invalid evidence uses
-the complete widget-only order. This is separate from private pointer ownership
-and does not expose native/public or spatial focus. Its crate-private result
+unverified. A separate crate-private runtime focus-order sidecar retains source
+candidates and a committed mixed-order evidence sequence after exact current
+projection/lifecycle reconciliation, but this passive native consumer does not
+consume it. The explicit backend-neutral sequential traversal consumer does:
+exact current runtime-owned separators are private stops between their pane
+widget subtrees, including nested separators, while invalid evidence uses the
+complete widget-only order. This is separate from private pointer ownership and
+does not expose native/public or spatial focus. Its crate-private result
 distinguishes `NoDestination`, `AdmittedWidget`,
-`AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and `Invalidated`; only
-`NoDestination` may be considered by a future key-routing fallback, while
-veto and invalidation are terminal for the attempt. The public projection
-remains `Some(widget_id)` only for an admitted widget and `None` otherwise.
-Keyboard/arrow-key resizing,
-semantic accessibility actions, and paint/cursor/renderer work remain future
-slices.
+`AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and `Invalidated`. The generic
+native runtime consumes an unclaimed plain `Tab`/`Shift-Tab` using that committed
+sequential disposition: `AdmittedWidget` and
+`AdmittedPrivateSplitPaneSeparator` are consumed destinations; `Vetoed` and
+`Invalidated` are terminal with no fallback/retry; only `NoDestination` reaches
+the existing host-first/widget fallback exactly once. Focused-key/text input
+ownership and command/control/alt-modified `Tab` retain precedence.
+Repeat/release do not traverse again, and the per-window sequence latch is
+cleared on native focus loss/regain. The public projection remains
+`Some(widget_id)` only for an admitted widget and `None` otherwise. The passive
+`AXSplitter` projection remains non-focusable and actionless; it does not itself
+authorize key routing. Keyboard/arrow-key resizing, semantic accessibility
+actions, and paint/cursor/renderer work remain future slices.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery

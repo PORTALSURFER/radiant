@@ -177,14 +177,21 @@ new focused export leaf or a module split, not a formatting workaround.
   traversal consumer admits exact current mounted separator identity and
   behavior evidence as private stops between pane widget subtrees, including
   nested separators; invalid evidence uses the complete widget-only order. The
-  crate-private traversal disposition distinguishes `NoDestination`, admitted
-  widget/separator, `Vetoed`, and `Invalidated`; only `NoDestination` is eligible
-  for a future key-routing fallback, while veto and invalidation are terminal.
-  This does not make the passive projection focusable or public. Private
-  separator ownership for traversal and pointer acquisition remains distinct
-  from key routing, native/public focus, spatial traversal, keyboard/arrow-key
-  resizing, semantic actions, and paint/cursor/renderer work, which remain
-  future slices.
+  crate-private traversal disposition distinguishes `NoDestination`,
+  `AdmittedWidget`, `AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and
+  `Invalidated`. The generic native runtime consumes an unclaimed plain
+  `Tab`/`Shift-Tab` using that committed sequential disposition:
+  `AdmittedWidget` and `AdmittedPrivateSplitPaneSeparator` are consumed
+  destinations; `Vetoed` and `Invalidated` are terminal with no fallback/retry;
+  only `NoDestination` reaches the existing host-first/widget fallback exactly
+  once. Focused-key/text input ownership and command/control/alt-modified `Tab`
+  retain precedence. Repeat/release do not traverse again, and the per-window
+  sequence latch is cleared on native focus loss/regain. This does not make the
+  passive `AXSplitter` projection focusable or public; it remains non-focusable
+  and actionless. Private separator ownership for traversal and pointer
+  acquisition remains distinct from this native key-routing consumer,
+  public/native separator focus, spatial traversal, keyboard/arrow-key resizing,
+  semantic actions, and paint/cursor/renderer work, which remain future slices.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,

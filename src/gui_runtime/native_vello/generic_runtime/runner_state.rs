@@ -1509,6 +1509,8 @@ pub(super) struct NativeRunnerTimingState {
     /// Parent-owned opportunity for bounded cleanup of retiring auxiliary
     /// children. Nested auxiliary runners leave this unused.
     pub(super) retiring_auxiliary_maintenance_deadline: Option<Instant>,
+    /// Round-robin cursor for admitted auxiliary target-retirement work.
+    pub(super) auxiliary_surface_target_retirement_cursor: usize,
 }
 
 impl Default for NativeRunnerTimingState {
@@ -1550,6 +1552,7 @@ impl NativeRunnerTimingState {
             native_resource_maintenance_deadline: None,
             native_surface_target_retirement_deadline: None,
             retiring_auxiliary_maintenance_deadline: None,
+            auxiliary_surface_target_retirement_cursor: 0,
         }
     }
 

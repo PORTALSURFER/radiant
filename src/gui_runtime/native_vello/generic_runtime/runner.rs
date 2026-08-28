@@ -157,6 +157,18 @@ where
     pub(super) recovery_auxiliary_followup_pending: bool,
 }
 
+pub(super) fn select_due_admitted_auxiliary_index(
+    cursor: usize,
+    due_admitted: &[bool],
+) -> Option<usize> {
+    if due_admitted.is_empty() {
+        return None;
+    }
+    (0..due_admitted.len())
+        .map(|offset| (cursor + offset) % due_admitted.len())
+        .find(|&index| due_admitted[index])
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct AppliedRouteOutcome {
     pub(super) exit_requested: bool,
@@ -1914,14 +1926,32 @@ where
         }
     }
 
-    pub(super) fn maintain_native_surface_target_retirement_if_due(&mut self, now: Instant) {
+    pub(super) fn maintain_native_surface_target_retirement_if_due_with_turn(
+        &mut self,
+        now: Instant,
+        current_adapter_generation: NativeAdapterGeneration,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) {
         if !self.native_surface_target_retirement_is_due(now) {
             return;
         }
-        let mut turn = NativeResourceMaintenanceTurn::new();
-        let target_retirement_removed = self
-            .window
-            .maintain_native_surface_target_retirement(&mut turn);
+        if !self.is_running()
+            || self.has_terminal_cause()
+            || !self.window.native_surface_target_fenced
+            || self.validated_pending_resize().is_none()
+            || !self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| {
+                    resources.generation == current_adapter_generation
+                        && resources.render_target_retirement.is_some()
+                })
+        {
+            self.timing.native_surface_target_retirement_deadline = None;
+            return;
+        }
+        let target_retirement_removed = self.window.maintain_native_surface_target_retirement(turn);
         let target_retirement_pending = self
             .window
             .native_resources
@@ -4598,7 +4628,7 @@ mod tests {
         NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
         NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
         NativeWindowCustomShaderResidencySnapshots, NativeWindowSignalResidencySnapshots,
-        TimedFrameCadence, recovery_completion_is_admissible,
+        TimedFrameCadence, recovery_completion_is_admissible, select_due_admitted_auxiliary_index,
     };
     use crate::{
         application::empty,
@@ -4623,6 +4653,15 @@ mod tests {
         time::{Duration, Instant},
     };
     use winit::window::WindowId;
+
+    #[test]
+    fn due_admitted_auxiliary_selection_round_robins() {
+        let due = [true, true];
+
+        assert_eq!(select_due_admitted_auxiliary_index(0, &due), Some(0));
+        assert_eq!(select_due_admitted_auxiliary_index(1, &due), Some(1));
+        assert_eq!(select_due_admitted_auxiliary_index(2, &due), Some(0));
+    }
 
     struct EmptyBridge;
 

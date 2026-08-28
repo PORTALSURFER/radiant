@@ -1,10 +1,12 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
+use super::auxiliary::AuxiliaryNativeWindow;
 use super::frame_scheduler_policy::NativeInputStageDisposition;
 use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::native_immediate_transient_stage::NativeImmediateTransientKind;
 use super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL;
+use super::runner::select_due_admitted_auxiliary_index;
 use super::{
     AuxiliaryWindowCloseAdmission, AuxiliaryWindowEventResult, CpuFrameObservationOwner,
     FrameScheduleDeadlines, FrameScheduleDemand, FrameScheduleKey, FrameScheduleLane,
@@ -700,7 +702,10 @@ where
                         .and_then(GenericNativeAdapterOwner::capture_generation)
                     {
                         for window in &mut self.auxiliary_windows {
-                            window.wake_normal_native_resource_maintenance(generation);
+                            if window.is_admitted() {
+                                window.wake_native_surface_target_retirement_maintenance();
+                                window.wake_normal_native_resource_maintenance(generation);
+                            }
                         }
                     }
                 }
@@ -784,20 +789,52 @@ where
             return;
         }
         let now = Instant::now();
-        self.maintain_native_surface_target_retirement_if_due(now);
+        let current_generation = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation);
+        let mut maintenance = super::NativeResourceMaintenanceTurn::new();
+        if let Some(current_generation) = current_generation {
+            self.maintain_native_surface_target_retirement_if_due_with_turn(
+                now,
+                current_generation,
+                &mut maintenance,
+            );
+            if let Some(index) = select_due_admitted_auxiliary_index(
+                self.timing.auxiliary_surface_target_retirement_cursor,
+                &self
+                    .auxiliary_windows
+                    .iter()
+                    .map(|window| {
+                        window.is_admitted()
+                            && window
+                                .native_surface_target_retirement_deadline()
+                                .is_some_and(|deadline| deadline <= now)
+                    })
+                    .collect::<Vec<_>>(),
+            ) {
+                self.auxiliary_windows[index]
+                    .maintain_native_surface_target_retirement_if_due_with_turn(
+                        now,
+                        current_generation,
+                        &mut maintenance,
+                    );
+                self.timing.auxiliary_surface_target_retirement_cursor =
+                    if self.auxiliary_windows.is_empty() {
+                        0
+                    } else {
+                        (index + 1) % self.auxiliary_windows.len()
+                    };
+            }
+        }
         let retiring_auxiliary_maintenance_due = self.retiring_auxiliary_maintenance_is_due(now);
         if retiring_auxiliary_maintenance_due {
             // One shared turn covers the parent and all retiring children.
             // It intentionally excludes the primary and active auxiliary
             // maintenance-ticket paths for this opportunity.
-            let mut maintenance = super::NativeResourceMaintenanceTurn::new();
             self.maintain_retiring_auxiliary_resources_with_turn(&mut maintenance);
             self.rearm_retiring_auxiliary_maintenance(now);
         }
-        let current_generation = self
-            .adapter
-            .as_ref()
-            .and_then(GenericNativeAdapterOwner::capture_generation);
         let primary_maintenance_deadline =
             self.normal_native_resource_maintenance_deadline(now, current_generation);
         let primary_window_ready = self.window.window.is_some();
@@ -881,6 +918,14 @@ where
             })
             .merge(FrameScheduleDeadlines {
                 maintenance: self.native_surface_target_retirement_deadline(),
+                ..FrameScheduleDeadlines::default()
+            })
+            .merge(FrameScheduleDeadlines {
+                maintenance: self
+                    .auxiliary_windows
+                    .iter()
+                    .filter_map(AuxiliaryNativeWindow::native_surface_target_retirement_deadline)
+                    .min(),
                 ..FrameScheduleDeadlines::default()
             }),
         );

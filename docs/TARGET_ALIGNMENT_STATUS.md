@@ -14,7 +14,7 @@
 | Text, focus, and selection | ~70% |
 | Numeric controls | 90% |
 | Runtime, effects, and scheduling | 100% |
-| Rendering, invalidation, retained GPU surfaces | ~85% |
+| Rendering, invalidation, retained GPU surfaces | ~86% |
 | Platform, windowing, and host boundaries | 67% |
 | Diagnostics, profiling, and performance validation | ~94% |
 | Examples, documentation, and CI guardrails | 87.5% |

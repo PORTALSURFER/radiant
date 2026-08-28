@@ -1,5 +1,8 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
+use super::native_render_target::{
+    NativeRenderTargetReplacementMode, NativeRenderTargetReplacementOutcome,
+};
 use super::native_visual_packet::NativeVisualRequestDisposition;
 use super::runner_state::{
     NativeResourceMaintenanceTurn, NativeSurfaceAcquireFailure, NativeWindowGpuTimingConfig,
@@ -331,13 +334,12 @@ where
         if !self.admit_native_resources(adapter) {
             return;
         }
-        let Some(size) = self.timing.pending_surface_resize.take() else {
+        let Some(size) = self.timing.pending_surface_resize else {
             return;
         };
         let reason = self
             .timing
             .pending_surface_resize_reason
-            .take()
             .unwrap_or(FrameWorkReason::NativeResize);
         let applied = self.resize_surface_now(size, false, reason, adapter);
         self.timing.surface_resize_applied_this_frame = applied;
@@ -359,30 +361,50 @@ where
         if !self.admit_native_resources(adapter) {
             return false;
         }
-        self.timing.pending_surface_resize = None;
-        self.timing.pending_surface_resize_reason = None;
-        if let Some(resources) = self.window.native_resources.as_mut() {
+        let outcome = {
+            let Some(resources) = self.window.native_resources.as_mut() else {
+                return false;
+            };
             if !surface_size_changed(
                 resources.render_surface.config.width,
                 resources.render_surface.config.height,
                 size,
             ) {
-                return false;
+                NativeRenderTargetReplacementOutcome::Noop
+            } else {
+                let evidence = resources.target_replacement_evidence(self.window.target_generation);
+                adapter.replace_render_surface_targets(
+                    &mut resources.render_surface,
+                    &mut resources.render_target_retirement,
+                    Some(evidence),
+                    size.width,
+                    size.height,
+                    NativeRenderTargetReplacementMode::Ordinary,
+                )
             }
-            if !adapter.resize_surface(&mut resources.render_surface, size.width, size.height) {
-                return false;
+        };
+        match outcome {
+            NativeRenderTargetReplacementOutcome::Noop => {
+                self.clear_pending_surface_resize_if_matches(size, reason);
+                false
             }
-            self.complete_target_transition();
-            self.defer_viewport_resize_with_reason(
-                logical_viewport_for_size(size, self.window.dpi_scale),
-                reason,
-            );
-            if request_redraw {
-                self.request_redraw_for_frame_work(FrameWork::ResizeSurface { reason });
+            NativeRenderTargetReplacementOutcome::Deferred => false,
+            NativeRenderTargetReplacementOutcome::Committed {
+                next_target_generation,
+            } => {
+                self.window.target_generation = next_target_generation;
+                self.complete_target_transition();
+                self.defer_viewport_resize_with_reason(
+                    logical_viewport_for_size(size, self.window.dpi_scale),
+                    reason,
+                );
+                self.clear_pending_surface_resize_if_matches(size, reason);
+                if request_redraw {
+                    self.request_redraw_for_frame_work(FrameWork::ResizeSurface { reason });
+                }
+                true
             }
-            return true;
         }
-        false
     }
 
     fn resize_surface_now_for_recovery(
@@ -396,34 +418,101 @@ where
         if !self.admit_native_resources(adapter) {
             return false;
         }
-        self.timing.pending_surface_resize = None;
-        self.timing.pending_surface_resize_reason = None;
         // A Lost/Outdated surface is a resource-failure boundary, not an
         // ordinary deferred resize. Fence the claimed packet before
         // reconfiguration so recovery cannot finish stale work.
         if self.window.native_resources.is_none() {
             return false;
         }
+        // Capture the last known target before the recovery fence invalidates
+        // it; the replacement transaction needs that exact predecessor
+        // evidence.
+        let target_generation = self.window.target_generation;
+        let pending_surface_resize = self.timing.pending_surface_resize;
+        let pending_surface_resize_reason = self.timing.pending_surface_resize_reason;
         self.fence_native_surface_target();
-        if let Some(resources) = self.window.native_resources.as_mut() {
-            if !adapter.resize_surface(&mut resources.render_surface, size.width, size.height) {
+        let outcome = {
+            let Some(resources) = self.window.native_resources.as_mut() else {
+                self.retain_or_rearm_surface_resize_for_recovery(size);
                 return false;
+            };
+            let evidence = resources.target_replacement_evidence(target_generation);
+            adapter.replace_render_surface_targets(
+                &mut resources.render_surface,
+                &mut resources.render_target_retirement,
+                Some(evidence),
+                size.width,
+                size.height,
+                NativeRenderTargetReplacementMode::Recovery,
+            )
+        };
+        match outcome {
+            NativeRenderTargetReplacementOutcome::Noop
+            | NativeRenderTargetReplacementOutcome::Deferred => {
+                self.retain_or_rearm_surface_resize_for_recovery(size);
+                false
             }
-            self.complete_target_transition();
-            return true;
+            NativeRenderTargetReplacementOutcome::Committed {
+                next_target_generation,
+            } => {
+                self.window.target_generation = next_target_generation;
+                self.complete_target_transition();
+                self.clear_pending_surface_resize_if_snapshot_matches(
+                    pending_surface_resize,
+                    pending_surface_resize_reason,
+                );
+                true
+            }
         }
-        false
     }
 
     fn complete_target_transition(&mut self) {
         // Ordinary deferred resize is applied after RedrawRequested claims its
-        // packet. Advance only the physical target evidence here; the
-        // target-unbound packet must survive to its normal finish boundary.
+        // packet. A replacement transaction has already advanced the target
+        // evidence; install that exact successor instead of advancing again.
+        let committed_target_generation = self.window.target_generation;
         self.fence_native_surface_target_for_transition();
-        if self.window.target_generation.advance() {
+        if committed_target_generation.is_known() {
+            self.window.target_generation = committed_target_generation;
+            self.window.native_surface_target_fenced = false;
+        } else if self.window.target_generation.advance() {
             self.window.native_surface_target_fenced = false;
         }
         self.window.surface_recovery.rearm_transient_retry();
+    }
+
+    fn clear_pending_surface_resize_if_matches(
+        &mut self,
+        size: PhysicalSize<u32>,
+        reason: FrameWorkReason,
+    ) {
+        if self.timing.pending_surface_resize == Some(size)
+            && self.timing.pending_surface_resize_reason == Some(reason)
+        {
+            self.timing.pending_surface_resize = None;
+            self.timing.pending_surface_resize_reason = None;
+        }
+    }
+
+    fn clear_pending_surface_resize_if_snapshot_matches(
+        &mut self,
+        pending_surface_resize: Option<PhysicalSize<u32>>,
+        pending_surface_resize_reason: Option<FrameWorkReason>,
+    ) {
+        if self.timing.pending_surface_resize == pending_surface_resize
+            && self.timing.pending_surface_resize_reason == pending_surface_resize_reason
+        {
+            self.timing.pending_surface_resize = None;
+            self.timing.pending_surface_resize_reason = None;
+        }
+    }
+
+    fn retain_or_rearm_surface_resize_for_recovery(&mut self, size: PhysicalSize<u32>) {
+        if self.timing.pending_surface_resize.is_none() {
+            self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
+        } else {
+            self.arm_requested_recovery_redraw();
+        }
     }
 
     pub(super) fn complete_native_recovery_target_transition(&mut self) {

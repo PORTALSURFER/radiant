@@ -2829,7 +2829,7 @@ where
         }
         if let Some(window) = self.window.window.as_ref() {
             let size = window.inner_size();
-            if !adapter.resize_surface(
+            if !adapter.resize_unpublished_recovery_candidate_surface(
                 &mut primary.render_surface,
                 size.width.max(1),
                 size.height.max(1),

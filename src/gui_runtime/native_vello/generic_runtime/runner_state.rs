@@ -7,6 +7,9 @@ use super::gpu_timing::{
     GpuTimingAdmission, GpuTimingReservation, NativeGpuTimingDelivery, NativeGpuTimingResources,
 };
 use super::input::NativePointerGestureLatch;
+use super::native_render_target::{
+    NativeRenderTargetReplacementEvidence, NativeRenderTargetRetirement,
+};
 use super::native_resource_maintenance::{
     NativeResourceMaintenanceBinding, NativeResourceMaintenanceKernel,
     NativeResourceMaintenanceSlot,
@@ -421,6 +424,7 @@ pub(super) struct NativeWindowGpuTimingConfig {
 pub(super) struct NativeWindowResourceBundle {
     pub(super) generation: NativeAdapterGeneration,
     pub(super) render_surface: RenderSurface<'static>,
+    pub(super) render_target_retirement: Option<NativeRenderTargetRetirement>,
     pub(super) renderer: Renderer,
     pub(super) gpu_resources: NativeWindowGpuResources,
     pub(super) completion_witness: NativeSubmissionCompletionWitness,
@@ -448,6 +452,7 @@ impl NativeWindowResourceBundle {
         Some(Self {
             generation,
             render_surface,
+            render_target_retirement: None,
             renderer,
             gpu_resources: NativeWindowGpuResources::new_with_timing(
                 generation,
@@ -535,10 +540,28 @@ impl NativeWindowResourceBundle {
     }
 
     pub(super) fn target_residency_snapshot(&self) -> GpuSurfaceTargetResidencySnapshot {
-        GpuSurfaceTargetResidencySnapshot::from_surface_config(
+        GpuSurfaceTargetResidencySnapshot {
+            predecessor_object_count: usize::from(self.render_target_retirement.is_some()),
+            predecessor_requested_rgba8_bytes: self
+                .render_target_retirement
+                .as_ref()
+                .and_then(NativeRenderTargetRetirement::requested_rgba8_bytes),
+            ..GpuSurfaceTargetResidencySnapshot::from_surface_config(
+                self.generation,
+                self.render_surface.config.width,
+                self.render_surface.config.height,
+            )
+        }
+    }
+
+    pub(super) fn target_replacement_evidence(
+        &self,
+        target_generation: super::runner_state::NativeTargetGeneration,
+    ) -> NativeRenderTargetReplacementEvidence {
+        NativeRenderTargetReplacementEvidence::new(
             self.generation,
-            self.render_surface.config.width,
-            self.render_surface.config.height,
+            target_generation,
+            self.completion_witness.maintenance_identity(),
         )
     }
 
@@ -573,7 +596,8 @@ impl NativeWindowResourceBundle {
         let completion_pending = self.completion_witness.maintain();
         let timing_pending = self.gpu_resources.gpu_timing.maintain();
         let composited_base_pending = self.maintain_composited_base_frame(turn);
-        completion_pending || timing_pending || composited_base_pending
+        let render_target_pending = self.maintain_render_target_retirement(turn);
+        completion_pending || timing_pending || composited_base_pending || render_target_pending
     }
 
     pub(super) fn maintenance_binding(
@@ -591,12 +615,18 @@ impl NativeWindowResourceBundle {
                 .as_ref()
                 .map(CompositedBaseFrameRetirement::identity),
         )
+        .with_render_target_retirement(
+            self.render_target_retirement
+                .as_ref()
+                .map(NativeRenderTargetRetirement::identity),
+        )
     }
 
     pub(super) fn maintenance_pending(&self) -> bool {
         self.completion_witness.maintenance_pending()
             || self.gpu_resources.gpu_timing.maintenance_pending()
             || self.composited_base_frame_maintenance_pending()
+            || self.render_target_retirement.is_some()
     }
 
     pub(super) fn maintain_completion_once(
@@ -606,7 +636,8 @@ impl NativeWindowResourceBundle {
         let completion_pending = self.completion_witness.maintain_once();
         let timing_pending = self.gpu_resources.gpu_timing.maintain();
         let composited_base_pending = self.maintain_composited_base_frame(turn);
-        completion_pending || timing_pending || composited_base_pending
+        let render_target_pending = self.maintain_render_target_retirement(turn);
+        completion_pending || timing_pending || composited_base_pending || render_target_pending
     }
 
     pub(super) fn retirement_eligible(&self) -> bool {
@@ -616,6 +647,7 @@ impl NativeWindowResourceBundle {
                 .gpu_resources
                 .composited_base_frame_retirement
                 .is_none()
+            && self.render_target_retirement.is_none()
     }
 
     fn composited_base_frame_maintenance_pending(&self) -> bool {
@@ -639,6 +671,24 @@ impl NativeWindowResourceBundle {
             let _ = self.gpu_resources.composited_base_frame_retirement.take();
         }
         self.composited_base_frame_maintenance_pending()
+    }
+
+    fn maintain_render_target_retirement(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        if self.render_target_retirement.is_some()
+            && self
+                .gpu_resources
+                .composited_base_frame_retirement
+                .is_none()
+            && self.completion_witness.retirement_eligible()
+            && turn.claim_drop()
+            && let Some(retirement) = self.render_target_retirement.take()
+        {
+            retirement.drop_owned_targets();
+        }
+        self.render_target_retirement.is_some()
     }
 }
 
@@ -1229,6 +1279,7 @@ impl NativeRunnerWindowState {
                 if !NativeResourceMaintenanceKernel::is_current(binding, current)
                     || current.composited_base_frame_retirement()
                         != binding.composited_base_frame_retirement()
+                    || current.render_target_retirement() != binding.render_target_retirement()
                 {
                     return None;
                 }
@@ -1243,6 +1294,7 @@ impl NativeRunnerWindowState {
                 if !NativeResourceMaintenanceKernel::is_current(binding, current)
                     || current.composited_base_frame_retirement()
                         != binding.composited_base_frame_retirement()
+                    || current.render_target_retirement() != binding.render_target_retirement()
                 {
                     return None;
                 }
@@ -1695,8 +1747,10 @@ mod tests {
         assert_eq!(snapshot.generation(), generation);
         assert!(snapshot.generation_known());
         assert_eq!(snapshot.generation_serial(), Some(51));
-        assert_eq!(snapshot.resident_count, 1);
-        assert_eq!(snapshot.requested_rgba8_bytes, Some(921_600));
+        assert_eq!(snapshot.active_object_count, 1);
+        assert_eq!(snapshot.predecessor_object_count, 0);
+        assert_eq!(snapshot.active_requested_rgba8_bytes, Some(921_600));
+        assert_eq!(snapshot.predecessor_requested_rgba8_bytes, None);
     }
 
     #[test]
@@ -1706,8 +1760,10 @@ mod tests {
         for (width, height) in [(0, 360), (640, 0), (0, 0)] {
             let snapshot =
                 GpuSurfaceTargetResidencySnapshot::from_surface_config(generation, width, height);
-            assert_eq!(snapshot.resident_count, 1);
-            assert_eq!(snapshot.requested_rgba8_bytes, None);
+            assert_eq!(snapshot.active_object_count, 1);
+            assert_eq!(snapshot.predecessor_object_count, 0);
+            assert_eq!(snapshot.active_requested_rgba8_bytes, None);
+            assert_eq!(snapshot.predecessor_requested_rgba8_bytes, None);
         }
     }
 
@@ -1719,8 +1775,10 @@ mod tests {
             u32::MAX,
         );
 
-        assert_eq!(snapshot.resident_count, 1);
-        assert_eq!(snapshot.requested_rgba8_bytes, None);
+        assert_eq!(snapshot.active_object_count, 1);
+        assert_eq!(snapshot.predecessor_object_count, 0);
+        assert_eq!(snapshot.active_requested_rgba8_bytes, None);
+        assert_eq!(snapshot.predecessor_requested_rgba8_bytes, None);
     }
 
     #[test]
@@ -1752,7 +1810,7 @@ mod tests {
         assert_eq!(
             snapshots
                 .active
-                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+                .and_then(|snapshot| snapshot.active_requested_rgba8_bytes),
             Some(921_600)
         );
         assert_eq!(
@@ -1764,7 +1822,7 @@ mod tests {
         assert_eq!(
             snapshots
                 .quarantine_0
-                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+                .and_then(|snapshot| snapshot.active_requested_rgba8_bytes),
             Some(256_000)
         );
         assert_eq!(
@@ -1776,7 +1834,7 @@ mod tests {
         assert_eq!(
             snapshots
                 .quarantine_1
-                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+                .and_then(|snapshot| snapshot.active_requested_rgba8_bytes),
             Some(4)
         );
     }

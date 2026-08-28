@@ -77,13 +77,20 @@ fn unbound_resources_preserve_pending_resize_without_native_work_or_retry() {
         Arc::new(DeviceLossRegistration::new()),
     );
 
-    runner.defer_surface_resize(PhysicalSize::new(640, 360));
+    runner.defer_surface_resize_with_reason(
+        PhysicalSize::new(640, 360),
+        FrameWorkReason::CommandResize,
+    );
     let initial_context_generation = runner.frame.native_scene_context_generation_for_test();
     runner.apply_pending_surface_resize_if_needed(&mut adapter);
 
     assert_eq!(
         runner.timing.pending_surface_resize,
         Some(PhysicalSize::new(640, 360))
+    );
+    assert_eq!(
+        runner.timing.pending_surface_resize_reason,
+        Some(FrameWorkReason::CommandResize)
     );
     assert!(!runner.timing.redraw_requested);
     assert!(runner.window.native_surface_target_fenced);

@@ -6,6 +6,7 @@
 
 use super::{
     CompositedBaseFrameRetirementIdentity, NativeAdapterGeneration,
+    native_render_target::NativeRenderTargetRetirementIdentity,
     submission_completion::NativeSubmissionCompletionIdentity,
 };
 use std::time::Duration;
@@ -41,6 +42,7 @@ pub(super) struct NativeResourceMaintenanceBinding {
     generation: NativeAdapterGeneration,
     completion: NativeSubmissionCompletionIdentity,
     composited_base_frame_retirement: Option<CompositedBaseFrameRetirementIdentity>,
+    render_target_retirement: Option<NativeRenderTargetRetirementIdentity>,
 }
 
 impl NativeResourceMaintenanceBinding {
@@ -54,6 +56,7 @@ impl NativeResourceMaintenanceBinding {
             generation,
             completion,
             composited_base_frame_retirement: None,
+            render_target_retirement: None,
         }
     }
 
@@ -81,6 +84,20 @@ impl NativeResourceMaintenanceBinding {
         self,
     ) -> Option<CompositedBaseFrameRetirementIdentity> {
         self.composited_base_frame_retirement
+    }
+
+    pub(super) const fn render_target_retirement(
+        self,
+    ) -> Option<NativeRenderTargetRetirementIdentity> {
+        self.render_target_retirement
+    }
+
+    pub(super) const fn with_render_target_retirement(
+        mut self,
+        retirement: Option<NativeRenderTargetRetirementIdentity>,
+    ) -> Self {
+        self.render_target_retirement = retirement;
+        self
     }
 }
 

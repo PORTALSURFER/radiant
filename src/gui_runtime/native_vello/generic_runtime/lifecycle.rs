@@ -829,9 +829,9 @@ where
         }
         let retiring_auxiliary_maintenance_due = self.retiring_auxiliary_maintenance_is_due(now);
         if retiring_auxiliary_maintenance_due {
-            // One shared turn covers the parent, retiring children, and any
-            // scheduler-selected ordinary maintenance below. claim_drop()
-            // enforces the one-physical-drop budget across every path.
+            // One shared turn covers target-retirement and retiring-child
+            // work. Ordinary maintenance is excluded specifically when
+            // retiring-child cleanup is due.
             self.maintain_retiring_auxiliary_resources_with_turn(&mut maintenance);
             self.rearm_retiring_auxiliary_maintenance(now);
         }
@@ -946,7 +946,8 @@ where
                 FrameScheduleKey::Primary => {
                     let work = demand.work(now);
                     if selected_lane == FrameScheduleLane::Maintenance {
-                        if let Some(adapter_generation) = current_generation
+                        if !retiring_auxiliary_maintenance_due
+                            && let Some(adapter_generation) = current_generation
                             && self.admit_native_resource_maintenance(
                                 now,
                                 &FrameScheduleKey::Primary,
@@ -1030,25 +1031,27 @@ where
                 FrameScheduleKey::Auxiliary(key) => {
                     let work = demand.work(now);
                     if selected_lane == FrameScheduleLane::Maintenance {
-                        let admitted = self.adapter.as_mut().is_some_and(|adapter| {
-                            self.auxiliary_windows
-                                .iter_mut()
-                                .find(|window| window.key() == key)
-                                .is_some_and(|window| {
-                                    window.admit_native_resource_maintenance(
-                                        adapter,
-                                        now,
-                                        &mut maintenance,
-                                    )
-                                })
-                        });
-                        if admitted {
-                            self.record_frame_schedule_admission_with_lane(
-                                selected,
-                                selected_lane,
-                                false,
-                                false,
-                            );
+                        if !retiring_auxiliary_maintenance_due {
+                            let admitted = self.adapter.as_mut().is_some_and(|adapter| {
+                                self.auxiliary_windows
+                                    .iter_mut()
+                                    .find(|window| window.key() == key)
+                                    .is_some_and(|window| {
+                                        window.admit_native_resource_maintenance(
+                                            adapter,
+                                            now,
+                                            &mut maintenance,
+                                        )
+                                    })
+                            });
+                            if admitted {
+                                self.record_frame_schedule_admission_with_lane(
+                                    selected,
+                                    selected_lane,
+                                    false,
+                                    false,
+                                );
+                            }
                         }
                     } else {
                         let result = self.adapter.as_mut().and_then(|adapter| {

@@ -476,28 +476,24 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
         "target retirement, retiring cleanup, and selected primary/auxiliary maintenance should share the AboutToWait turn"
     );
     let primary_maintenance_start = about_to_wait
-        .find("self.admit_native_resource_maintenance(")
+        .find("                FrameScheduleKey::Primary => {")
         .expect("AboutToWait should retain the primary ordinary maintenance branch");
     let primary_maintenance_end = about_to_wait[primary_maintenance_start..]
-        .find("\n                        {")
+        .find("\n                FrameScheduleKey::Auxiliary(key) => {")
         .map(|end| primary_maintenance_start + end)
         .unwrap_or(about_to_wait.len());
     assert!(
-        !about_to_wait[primary_maintenance_start..primary_maintenance_end]
-            .contains("retiring_auxiliary_maintenance_due"),
-        "primary ordinary maintenance must not be skipped when retiring cleanup is due"
+        about_to_wait[primary_maintenance_start..primary_maintenance_end]
+            .contains("!retiring_auxiliary_maintenance_due"),
+        "primary ordinary maintenance should be gated when retiring cleanup is due"
     );
     let auxiliary_maintenance_start = about_to_wait
-        .find("window.admit_native_resource_maintenance(")
+        .find("                FrameScheduleKey::Auxiliary(key) => {")
         .expect("AboutToWait should retain the auxiliary ordinary maintenance branch");
-    let auxiliary_maintenance_end = about_to_wait[auxiliary_maintenance_start..]
-        .find("\n                                    })")
-        .map(|end| auxiliary_maintenance_start + end)
-        .unwrap_or(about_to_wait.len());
     assert!(
-        !about_to_wait[auxiliary_maintenance_start..auxiliary_maintenance_end]
-            .contains("retiring_auxiliary_maintenance_due"),
-        "auxiliary ordinary maintenance must not be skipped when retiring cleanup is due"
+        about_to_wait[auxiliary_maintenance_start..]
+            .contains("!retiring_auxiliary_maintenance_due"),
+        "auxiliary ordinary maintenance should be gated when retiring cleanup is due"
     );
     let composited_pending_start = runner_state
         .find("    fn composited_base_frame_maintenance_pending(")

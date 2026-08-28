@@ -5867,9 +5867,9 @@ mod tests {
         assert!(!runner.maintain_retiring_auxiliary_resources_with_turn(&mut turn));
         runner.rearm_retiring_auxiliary_maintenance(Instant::now());
 
-        // A scheduler-selected normal MaintenanceStage ticket may still run
-        // after retiring cleanup, but the shared turn prevents a second
-        // physical drop; its deadline remains due for the next opportunity.
+        // AboutToWait spends this turn exclusively on the retiring-child
+        // opportunity; the separate normal MaintenanceStage ticket remains
+        // due for the next scheduler opportunity.
         assert_eq!(
             runner.timing.native_resource_maintenance_deadline,
             Some(normal_deadline)

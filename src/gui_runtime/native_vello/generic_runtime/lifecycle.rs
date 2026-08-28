@@ -829,9 +829,9 @@ where
         }
         let retiring_auxiliary_maintenance_due = self.retiring_auxiliary_maintenance_is_due(now);
         if retiring_auxiliary_maintenance_due {
-            // One shared turn covers the parent and all retiring children.
-            // It intentionally excludes the primary and active auxiliary
-            // maintenance-ticket paths for this opportunity.
+            // One shared turn covers the parent, retiring children, and any
+            // scheduler-selected ordinary maintenance below. claim_drop()
+            // enforces the one-physical-drop budget across every path.
             self.maintain_retiring_auxiliary_resources_with_turn(&mut maintenance);
             self.rearm_retiring_auxiliary_maintenance(now);
         }
@@ -946,12 +946,12 @@ where
                 FrameScheduleKey::Primary => {
                     let work = demand.work(now);
                     if selected_lane == FrameScheduleLane::Maintenance {
-                        if !retiring_auxiliary_maintenance_due
-                            && let Some(adapter_generation) = current_generation
+                        if let Some(adapter_generation) = current_generation
                             && self.admit_native_resource_maintenance(
                                 now,
                                 &FrameScheduleKey::Primary,
                                 adapter_generation,
+                                &mut maintenance,
                             )
                         {
                             self.record_frame_schedule_admission_with_lane(
@@ -1030,23 +1030,25 @@ where
                 FrameScheduleKey::Auxiliary(key) => {
                     let work = demand.work(now);
                     if selected_lane == FrameScheduleLane::Maintenance {
-                        if !retiring_auxiliary_maintenance_due {
-                            let admitted = self.adapter.as_mut().is_some_and(|adapter| {
-                                self.auxiliary_windows
-                                    .iter_mut()
-                                    .find(|window| window.key() == key)
-                                    .is_some_and(|window| {
-                                        window.admit_native_resource_maintenance(adapter, now)
-                                    })
-                            });
-                            if admitted {
-                                self.record_frame_schedule_admission_with_lane(
-                                    selected,
-                                    selected_lane,
-                                    false,
-                                    false,
-                                );
-                            }
+                        let admitted = self.adapter.as_mut().is_some_and(|adapter| {
+                            self.auxiliary_windows
+                                .iter_mut()
+                                .find(|window| window.key() == key)
+                                .is_some_and(|window| {
+                                    window.admit_native_resource_maintenance(
+                                        adapter,
+                                        now,
+                                        &mut maintenance,
+                                    )
+                                })
+                        });
+                        if admitted {
+                            self.record_frame_schedule_admission_with_lane(
+                                selected,
+                                selected_lane,
+                                false,
+                                false,
+                            );
                         }
                     } else {
                         let result = self.adapter.as_mut().and_then(|adapter| {

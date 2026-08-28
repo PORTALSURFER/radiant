@@ -662,23 +662,28 @@ impl NativeWindowResourceBundle {
     }
 
     fn composited_base_frame_maintenance_pending(&self) -> bool {
-        self.gpu_resources
-            .composited_base_frame_retirement
-            .is_some()
-            && self.completion_witness.retirement_identity().is_some()
+        let Some(retirement) = self.gpu_resources.composited_base_frame_retirement.as_ref() else {
+            return false;
+        };
+        let historical_completion = self
+            .completion_witness
+            .completed_through(retirement.identity().completion());
+        let current_witness_progress = self.completion_witness.retirement_identity().is_some()
             && (self.completion_witness.maintenance_pending()
-                || self.completion_witness.retirement_eligible())
+                || self.completion_witness.retirement_eligible());
+        historical_completion || current_witness_progress
     }
 
     fn maintain_composited_base_frame(&mut self, turn: &mut NativeResourceMaintenanceTurn) -> bool {
-        if self
+        let completion_ready = self
             .gpu_resources
             .composited_base_frame_retirement
-            .is_some()
-            && self.completion_witness.retirement_identity().is_some()
-            && self.completion_witness.retirement_eligible()
-            && turn.claim_drop()
-        {
+            .as_ref()
+            .is_some_and(|retirement| {
+                self.completion_witness
+                    .completed_through(retirement.identity().completion())
+            });
+        if completion_ready && turn.claim_drop() {
             let _ = self.gpu_resources.composited_base_frame_retirement.take();
         }
         self.composited_base_frame_maintenance_pending()
@@ -688,12 +693,19 @@ impl NativeWindowResourceBundle {
         &mut self,
         turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
+        let completion_ready = self
+            .render_target_retirement
+            .as_ref()
+            .is_some_and(|retirement| {
+                self.completion_witness
+                    .completed_through(retirement.identity().completion())
+            });
         if self.render_target_retirement.is_some()
             && self
                 .gpu_resources
                 .composited_base_frame_retirement
                 .is_none()
-            && self.completion_witness.retirement_eligible()
+            && completion_ready
             && turn.claim_drop()
             && let Some(retirement) = self.render_target_retirement.take()
         {
@@ -2194,21 +2206,33 @@ mod tests {
     }
 
     #[test]
-    fn native_resource_maintenance_drops_at_most_one_bundle_globally_per_turn() {
+    fn one_turn_cannot_drop_fenced_predecessor_and_ordinary_resource() {
         let drops = Arc::new(AtomicUsize::new(0));
-        let mut primary = NativeResourceQuarantine::default();
-        let mut auxiliary = NativeResourceQuarantine::default();
-        assert!(primary.try_push(DropTracked::new(true, &drops)).is_ok());
-        assert!(auxiliary.try_push(DropTracked::new(true, &drops)).is_ok());
+        let mut fenced_predecessor = NativeResourceQuarantine::default();
+        let mut ordinary = NativeResourceQuarantine::default();
+        assert!(
+            fenced_predecessor
+                .try_push(DropTracked::new(true, &drops))
+                .is_ok()
+        );
+        assert!(ordinary.try_push(DropTracked::new(true, &drops)).is_ok());
         let mut turn = NativeResourceMaintenanceTurn::new();
 
-        assert!(turn.drop_one_ready(&mut primary, |entry| entry.ready));
-        assert!(!turn.drop_one_ready(&mut auxiliary, |entry| entry.ready));
-        turn.record_pending_if_ready(&auxiliary, |entry| entry.ready);
+        // A completed fenced predecessor and a completed ordinary unit share
+        // the same parent-owned AboutToWait budget.
+        assert!(turn.drop_one_ready(&mut fenced_predecessor, |entry| entry.ready));
+        assert!(!turn.drop_one_ready(&mut ordinary, |entry| entry.ready));
+        turn.record_pending_if_ready(&ordinary, |entry| entry.ready);
         assert_eq!(drops.load(Ordering::Relaxed), 1);
-        assert!(primary.is_empty());
-        assert_eq!(auxiliary.len(), 1);
+        assert!(fenced_predecessor.is_empty());
+        assert_eq!(ordinary.len(), 1);
         assert!(turn.has_pending());
+
+        // The ordinary unit remains due and can be admitted by the next
+        // independently rearmed turn.
+        let mut next_turn = NativeResourceMaintenanceTurn::new();
+        assert!(next_turn.drop_one_ready(&mut ordinary, |entry| entry.ready));
+        assert_eq!(drops.load(Ordering::Relaxed), 2);
     }
 
     #[test]

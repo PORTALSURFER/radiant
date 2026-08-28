@@ -64,6 +64,12 @@ pub(super) struct NativeRenderTargetRetirementIdentity {
     completion: NativeSubmissionCompletionIdentity,
 }
 
+impl NativeRenderTargetRetirementIdentity {
+    pub(super) const fn completion(self) -> NativeSubmissionCompletionIdentity {
+        self.completion
+    }
+}
+
 /// One old target pair retained until its bundle completion witness is ready.
 pub(super) struct NativeRenderTargetRetirement {
     pub(super) texture: wgpu::Texture,
@@ -397,6 +403,10 @@ mod tests {
         assert_eq!(
             evidence.target_generation(),
             NativeTargetGeneration::from_test_serial(4)
+        );
+        assert_eq!(
+            retirement_identity(evidence, 640, 360).completion(),
+            evidence.completion()
         );
 
         assert_eq!(

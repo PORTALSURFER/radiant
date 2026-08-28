@@ -2067,6 +2067,7 @@ where
         now: Instant,
         key: &FrameScheduleKey,
         adapter_generation: NativeAdapterGeneration,
+        turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
         if !self.frame_stage_owner.owns_key(key)
             || !self.normal_native_resource_maintenance_eligible(adapter_generation)
@@ -2097,10 +2098,7 @@ where
             self.defer_normal_native_resource_maintenance(now);
             return false;
         }
-        let mut maintenance_turn = NativeResourceMaintenanceTurn::new();
-        let Some(quarantine_removed) = self
-            .window
-            .maintain_native_resource_slot(binding, &mut maintenance_turn)
+        let Some(quarantine_removed) = self.window.maintain_native_resource_slot(binding, turn)
         else {
             let _ = self.frame_stage_owner.veto_maintenance(ticket);
             self.defer_normal_native_resource_maintenance(now);
@@ -5869,9 +5867,9 @@ mod tests {
         assert!(!runner.maintain_retiring_auxiliary_resources_with_turn(&mut turn));
         runner.rearm_retiring_auxiliary_maintenance(Instant::now());
 
-        // AboutToWait spends this turn exclusively on the retiring-child
-        // opportunity; the separate normal MaintenanceStage ticket remains
-        // due for the next scheduler opportunity.
+        // A scheduler-selected normal MaintenanceStage ticket may still run
+        // after retiring cleanup, but the shared turn prevents a second
+        // physical drop; its deadline remains due for the next opportunity.
         assert_eq!(
             runner.timing.native_resource_maintenance_deadline,
             Some(normal_deadline)

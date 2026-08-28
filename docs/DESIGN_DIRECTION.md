@@ -2378,10 +2378,14 @@ outside native/public focus ownership. Its typed crate-private disposition
 keeps `NoDestination` separate from admitted widget/separator, `Vetoed`, and
 `Invalidated` results; veto and invalidation are terminal and only
 `NoDestination` can feed a future key-routing fallback. Private separator
-ownership for traversal and pointer acquisition is distinct from key routing, semantic
-actions, spatial traversal, and native publication. Keyboard or arrow-key
-resizing, pointer/collapse mapping, and paint/cursor/renderer work remain future
-slices. Nested split panes retain independent mounted collapse/restore
+ownership for traversal and pointer acquisition is distinct from the shipped
+crate-private generic native plain `Tab`/`Shift-Tab` consumer: focused-key/text
+input gets first refusal; modified `Tab` is unchanged; repeats/releases do not
+retraverse; focus loss/regain clears the latch; and only `NoDestination` feeds
+the existing host-first/widget fallback. Native/public focus, semantic actions,
+spatial traversal, keyboard or arrow-key resizing, pointer/collapse mapping,
+native publication, and paint/cursor/renderer work remain future slices. Nested
+split panes retain independent mounted collapse/restore
 authority and use the same geometry/lifecycle rules without becoming workspace
 or docking nodes.
 

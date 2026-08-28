@@ -1513,9 +1513,13 @@ complete widget-only order. Its crate-private disposition distinguishes
 `NoDestination`, admitted widget/separator, `Vetoed`, and `Invalidated`; only
 `NoDestination` may feed a future key-routing fallback, and veto/invalidation
 are terminal. Private pointer ownership remains a separate
-divider interaction path; public/native focus, key routing, spatial traversal,
-keyboard/arrow-key resizing, semantic accessibility actions, pointer/collapse
-mapping, and paint/cursor/renderer work remain future slices.
+divider interaction path. The crate-private generic native plain `Tab`/`Shift-Tab`
+consumer is shipped: focused-key/text input gets first refusal; modified `Tab`
+is unchanged; repeats/releases do not retraverse; focus loss/regain clears the
+latch; and only `NoDestination` feeds the existing host-first/widget fallback.
+Public/native focus, spatial traversal, keyboard/arrow-key resizing, semantic
+accessibility actions, pointer/collapse mapping, and paint/cursor/renderer work
+remain future slices.
 
 ## Application Independence
 

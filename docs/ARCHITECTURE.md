@@ -441,10 +441,13 @@ widget-only order for invalid evidence. Its crate-private disposition keeps
 `NoDestination`, admitted widget/separator, `Vetoed`, and `Invalidated`
 separate; only `NoDestination` may feed a future key-routing fallback, while
 veto and invalidation are terminal. It is separate from this passive native
-path, private pointer ownership for divider acquisition, public/native focus,
-key routing, and future spatial traversal. Keyboard/arrow-key resizing,
-semantic accessibility actions, and paint/cursor/renderer work remain future
-slices.
+path and private pointer ownership for divider acquisition. The crate-private
+generic native plain `Tab`/`Shift-Tab` consumer is shipped: focused-key/text
+input gets first refusal; modified `Tab` is unchanged; repeats/releases do not
+retraverse; focus loss/regain clears the latch; and only `NoDestination` feeds
+the existing host-first/widget fallback. Public/native focus, spatial traversal,
+keyboard/arrow-key resizing, semantic accessibility actions, and
+paint/cursor/renderer work remain future slices.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery

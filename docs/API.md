@@ -939,10 +939,14 @@ committed mixed-order sidecar may retain exact current mounted separator
 identity and behavior evidence, but this passive native consumer does not
 consume it. The explicit backend-neutral sequential traversal consumer does,
 using exact private separator stops without exposing them through public/native
-focus. Private pointer ownership remains a separate divider interaction path;
-key routing, Tab/spatial traversal, keyboard/arrow-key resizing, semantic
-accessibility actions, pointer/collapse mapping, and paint/cursor/renderer work
-remain future slices.
+focus. Private pointer ownership remains a separate divider interaction path.
+The crate-private generic native plain `Tab`/`Shift-Tab` consumer is shipped:
+focused-key/text input gets first refusal; modified `Tab` is unchanged;
+repeats/releases do not retraverse; focus loss/regain clears the latch; and only
+`NoDestination` feeds the existing host-first/widget fallback. Public/native
+focus, spatial traversal, keyboard/arrow-key resizing, semantic accessibility
+actions, pointer/collapse mapping, and paint/cursor/renderer work remain future
+slices.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -6758,9 +6762,14 @@ two pane children. It retains native token/object identity across an admitted
 ratio update and falls back to the ordinary native tree without provider calls,
 runtime refresh, partial topology, or interaction authority when evidence is
 stale, unmaterialized, duplicate/mismatched, malformed, focused, or actionful.
-Manual macOS/VoiceOver acceptance remains unverified. Other platform adapters,
-focus/traversal, keyboard/arrow-key resizing, semantic actions,
-pointer/collapse mapping, and paint/cursor/renderer behavior remain future work;
+Manual macOS/VoiceOver acceptance remains unverified. The crate-private generic
+native plain `Tab`/`Shift-Tab` consumer is shipped using committed sequential
+disposition: focused-key/text input gets first refusal; modified `Tab` is
+unchanged; repeats/releases do not retraverse; focus loss/regain clears its
+per-window latch; and only `NoDestination` feeds the existing host-first/widget
+fallback. Other platform adapters, public/native focus, spatial traversal,
+keyboard/arrow-key resizing, semantic actions, pointer/collapse mapping, and
+paint/cursor/renderer behavior remain future work;
 ordinary application APIs do not expose AccessKit, screen-reader, or OS tree
 handles.
 The macOS development app-bundle helper improves process/window discovery for

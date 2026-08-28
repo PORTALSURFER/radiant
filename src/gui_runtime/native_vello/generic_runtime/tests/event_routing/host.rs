@@ -234,6 +234,37 @@ fn focused_text_input_tab_routes_completion_before_host_shortcuts() {
 }
 
 #[test]
+fn native_focused_text_input_tab_completion_preempts_sequential_traversal() {
+    let bridge = ShortcutDemoBridge::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        bridge,
+        Vector2::new(320.0, 40.0),
+    );
+    focus_demo_text_input(&mut runner.core);
+
+    let mut type_outcome = GenericRouteOutcome::default();
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::E,
+        Some("e"),
+        None,
+        false,
+        &mut type_outcome,
+    ));
+
+    assert!(
+        runner
+            .route_native_tab_for_test(false)
+            .expect("focused text Tab should be routed")
+            .routed
+    );
+    assert_eq!(runner.core.runtime.focused_widget(), Some(12));
+    assert!(runner.input.tab_sequence_latch.is_none());
+    assert_eq!(runner.core.runtime.bridge().state.name, "e");
+    assert_eq!(runner.core.runtime.bridge().state.count, 0);
+}
+
+#[test]
 fn generic_core_routes_second_nearby_press_as_double_click() {
     let bridge = CanvasBridge::default();
     let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));

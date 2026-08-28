@@ -939,10 +939,14 @@ committed mixed-order sidecar may retain exact current mounted separator
 identity and behavior evidence, but this passive native consumer does not
 consume it. The explicit backend-neutral sequential traversal consumer does,
 using exact private separator stops without exposing them through public/native
-focus. Private pointer ownership remains a separate divider interaction path;
-key routing, Tab/spatial traversal, keyboard/arrow-key resizing, semantic
-accessibility actions, pointer/collapse mapping, and paint/cursor/renderer work
-remain future slices.
+focus. Private pointer ownership remains a separate divider interaction path.
+The crate-private generic native plain `Tab`/`Shift-Tab` consumer is shipped:
+focused-key/text input gets first refusal; modified `Tab` is unchanged;
+repeats/releases do not retraverse; focus loss/regain clears the latch; and only
+`NoDestination` feeds the existing host-first/widget fallback. Public/native
+focus, spatial traversal, keyboard/arrow-key resizing, semantic accessibility
+actions, pointer/collapse mapping, and paint/cursor/renderer work remain future
+slices.
 
 Activation/opening is provider-free. Explicit native queries refresh, and an
 explicit repeated query MAY retry. Deactivation, window retirement, recovery
@@ -6758,9 +6762,14 @@ two pane children. It retains native token/object identity across an admitted
 ratio update and falls back to the ordinary native tree without provider calls,
 runtime refresh, partial topology, or interaction authority when evidence is
 stale, unmaterialized, duplicate/mismatched, malformed, focused, or actionful.
-Manual macOS/VoiceOver acceptance remains unverified. Other platform adapters,
-focus/traversal, keyboard/arrow-key resizing, semantic actions,
-pointer/collapse mapping, and paint/cursor/renderer behavior remain future work;
+Manual macOS/VoiceOver acceptance remains unverified. The crate-private generic
+native plain `Tab`/`Shift-Tab` consumer is shipped using committed sequential
+disposition: focused-key/text input gets first refusal; modified `Tab` is
+unchanged; repeats/releases do not retraverse; focus loss/regain clears its
+per-window latch; and only `NoDestination` feeds the existing host-first/widget
+fallback. Other platform adapters, public/native focus, spatial traversal,
+keyboard/arrow-key resizing, semantic actions, pointer/collapse mapping, and
+paint/cursor/renderer behavior remain future work;
 ordinary application APIs do not expose AccessKit, screen-reader, or OS tree
 handles.
 The macOS development app-bundle helper improves process/window discovery for
@@ -6875,14 +6884,23 @@ backend-neutral sequential traversal consumer reads the private committed
 mixed-order sidecar and treats each exact current runtime-owned separator as
 one private stop between its pane widget subtrees, including nested separators.
 Invalid or unavailable evidence uses the complete widget-only order. The
-crate-private traversal disposition distinguishes `NoDestination`, admitted
-widget/separator, `Vetoed`, and `Invalidated`; only `NoDestination` may feed a
-future key-routing fallback, while veto and invalidation are terminal. An
-invalidated separator does not retry or choose an alternate destination. This
-consumer is distinct from private pointer ownership for divider acquisition and
-collapse/restore. Neither path changes public/native focus, key routing,
-spatial traversal, semantic actions, paint/cursor/renderer behavior, or
-`VirtualLayoutPolicy`; those remain future work.
+crate-private traversal disposition distinguishes `NoDestination`,
+`AdmittedWidget`, `AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and
+`Invalidated`. The generic native runtime consumes an unclaimed plain
+`Tab`/`Shift-Tab` using that committed sequential disposition:
+`AdmittedWidget` and `AdmittedPrivateSplitPaneSeparator` are consumed
+destinations; `Vetoed` and `Invalidated` are terminal with no fallback/retry;
+only `NoDestination` reaches the existing host-first/widget fallback exactly
+once. Focused-key/text input ownership and command/control/alt-modified `Tab`
+retain precedence. Repeat/release do not traverse again, and the per-window
+sequence latch is cleared on native focus loss/regain. An invalidated separator
+does not retry or choose an alternate destination. This consumer is distinct
+from private pointer ownership for divider acquisition and collapse/restore.
+The passive `AXSplitter` projection remains non-focusable, actionless, and
+non-interactive; it does not itself authorize key routing. Public/native
+separator focus, spatial traversal, keyboard/arrow-key resizing, semantic
+actions, paint/cursor/renderer behavior, and `VirtualLayoutPolicy` remain future
+work.
 Internally, the
 controller may retain
 a bounded crate-private `SplitPaneSeparatorProjection` collection after the

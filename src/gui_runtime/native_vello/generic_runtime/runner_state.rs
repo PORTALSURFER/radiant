@@ -24,7 +24,7 @@ use crate::gui::input::{InputSequence, InputSequenceRange};
 use crate::gui::types::Vector2;
 use crate::gui::types::{Point, Rect as UiRect};
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
-use crate::runtime::NativeWindowDiagnosticIdentity;
+use crate::runtime::{FocusTraversal, NativeWindowDiagnosticIdentity};
 use crate::widgets::WidgetCursor;
 use std::{
     collections::VecDeque,
@@ -1245,6 +1245,11 @@ impl NativeRunnerWindowState {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativeTabSequenceLatch {
+    pub(super) direction: FocusTraversal,
+}
+
 pub(super) struct NativeRunnerInputState {
     pub(super) last_cursor: Option<Point>,
     pub(super) native_cursor: Option<WidgetCursor>,
@@ -1253,6 +1258,7 @@ pub(super) struct NativeRunnerInputState {
     pub(super) native_cursor_apply_count: usize,
     pub(super) clipboard: Option<arboard::Clipboard>,
     pub(super) modifiers: ModifiersState,
+    pub(super) tab_sequence_latch: Option<NativeTabSequenceLatch>,
     pub(super) effective_pointer_gesture: Option<NativePointerGestureLatch>,
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) input_sequence_allocator: NativeInputSequenceAllocator,
@@ -1271,6 +1277,7 @@ impl Default for NativeRunnerInputState {
             native_cursor_apply_count: 0,
             clipboard: arboard::Clipboard::new().ok(),
             modifiers: ModifiersState::default(),
+            tab_sequence_latch: None,
             effective_pointer_gesture: None,
             last_navigation_key_repeat: None,
             input_sequence_allocator: NativeInputSequenceAllocator::default(),

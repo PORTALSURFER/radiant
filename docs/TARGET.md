@@ -1309,23 +1309,28 @@ Passive separator automation reports final geometry/value and is now published
 by the private primary-window macOS/AppKit consumer as one `AXSplitter` between
 the two pane children. It remains non-focusable, actionless, and
 non-interactive; invalid or ambiguous evidence falls back to the ordinary native
-tree. Native/public separator focus ownership, Tab/spatial traversal,
-keyboard/arrow-key resizing,
-semantic actions, pointer/collapse mapping, and paint/cursor/renderer behavior
-remain future work. A separate crate-private runtime focus-order sidecar may
-retain source candidates and a committed mixed-order evidence sequence after
-exact current projection/lifecycle reconciliation. The explicit
-backend-neutral sequential traversal consumer reads that sidecar, admits each
-exact current runtime-owned separator as one private stop between its pane
+tree. Native/public separator focus ownership, spatial traversal,
+keyboard/arrow-key resizing, semantic actions, pointer/collapse mapping, and
+paint/cursor/renderer behavior remain future work. A separate crate-private
+runtime focus-order sidecar retains source candidates and a committed mixed-order
+evidence sequence after exact current projection/lifecycle reconciliation. The
+explicit backend-neutral sequential traversal consumer reads that sidecar, admits
+each exact current runtime-owned separator as one private stop between its pane
 widget subtrees, including nested separators, and otherwise uses the complete
-widget-only order. Its crate-private disposition distinguishes
-`NoDestination`, `AdmittedWidget`, `AdmittedPrivateSplitPaneSeparator`,
-`Vetoed`, and `Invalidated`; only `NoDestination` is eligible for a future
-key-routing fallback, while veto and invalidation are terminal. The existing
-public projection remains `Some(widget_id)` only for an admitted widget and
-`None` otherwise. It does not make this passive projection focusable, expose
-separator focus publicly, or authorize key routing, pointer behavior, native
-publication, rendering, or future spatial traversal.
+widget-only order. Its crate-private disposition distinguishes `NoDestination`,
+`AdmittedWidget`, `AdmittedPrivateSplitPaneSeparator`, `Vetoed`, and
+`Invalidated`. The generic native runtime consumes an unclaimed plain
+`Tab`/`Shift-Tab` using this committed sequential disposition:
+`AdmittedWidget` and `AdmittedPrivateSplitPaneSeparator` are consumed
+destinations; `Vetoed` and `Invalidated` are terminal with no fallback/retry; only
+`NoDestination` reaches the existing host-first/widget fallback exactly once.
+Focused-key/text input ownership and command/control/alt-modified `Tab` retain
+precedence. Repeat/release do not traverse again, and the per-window sequence
+latch is cleared on native focus loss/regain. The existing public projection
+remains `Some(widget_id)` only for an admitted widget and `None` otherwise. This
+passive projection remains non-focusable, exposes no separator focus publicly,
+and does not itself authorize key routing, pointer behavior, native publication,
+rendering, or future spatial traversal.
 
 ## Styling and Theming
 
@@ -1508,9 +1513,13 @@ complete widget-only order. Its crate-private disposition distinguishes
 `NoDestination`, admitted widget/separator, `Vetoed`, and `Invalidated`; only
 `NoDestination` may feed a future key-routing fallback, and veto/invalidation
 are terminal. Private pointer ownership remains a separate
-divider interaction path; public/native focus, key routing, spatial traversal,
-keyboard/arrow-key resizing, semantic accessibility actions, pointer/collapse
-mapping, and paint/cursor/renderer work remain future slices.
+divider interaction path. The crate-private generic native plain `Tab`/`Shift-Tab`
+consumer is shipped: focused-key/text input gets first refusal; modified `Tab`
+is unchanged; repeats/releases do not retraverse; focus loss/regain clears the
+latch; and only `NoDestination` feeds the existing host-first/widget fallback.
+Public/native focus, spatial traversal, keyboard/arrow-key resizing, semantic
+accessibility actions, pointer/collapse mapping, and paint/cursor/renderer work
+remain future slices.
 
 ## Application Independence
 

@@ -38,6 +38,8 @@ mod traversal_state;
 mod virtual_layout;
 mod work;
 
+pub(crate) use focus::SequentialFocusTraversalDisposition;
+
 #[cfg(target_os = "macos")]
 pub(crate) use automation_compositor::{
     NormalizedSemanticPublicationFenceSet, VirtualLayoutNormalizedSemanticSidecar,

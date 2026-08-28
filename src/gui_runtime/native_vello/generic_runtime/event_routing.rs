@@ -10,7 +10,9 @@ use crate::gui::{
     types::{Point, Vector2},
 };
 use crate::runtime::WheelOrScrollRoute;
-use crate::runtime::{Event, RepaintScope, RuntimeBridge};
+use crate::runtime::{
+    Event, FocusTraversal, RepaintScope, RuntimeBridge, SequentialFocusTraversalDisposition,
+};
 use crate::widgets::{
     KeyboardModifiers, PointerButton, PointerModifiers, TextEditCommand, WheelSample, WidgetInput,
     WidgetKey,
@@ -384,6 +386,31 @@ where
             repeat,
         );
         self.route_outcome(routed)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_sequential_focus_with_disposition(
+        &mut self,
+        direction: FocusTraversal,
+    ) -> (
+        SequentialFocusTraversalDisposition,
+        Option<GenericRouteOutcome>,
+    ) {
+        let disposition = self.runtime.traverse_focus_with_disposition(direction);
+        let outcome = if matches!(
+            disposition,
+            SequentialFocusTraversalDisposition::NoDestination
+        ) {
+            None
+        } else {
+            Some(self.route_outcome(true))
+        };
+        (disposition, outcome)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_consumed_input(
+        &mut self,
+    ) -> GenericRouteOutcome {
+        self.route_outcome(true)
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_metadata_key_press_with_timestamp(

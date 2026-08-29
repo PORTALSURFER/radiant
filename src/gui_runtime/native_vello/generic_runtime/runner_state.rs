@@ -7,6 +7,9 @@ use super::gpu_timing::{
     GpuTimingAdmission, GpuTimingReservation, NativeGpuTimingDelivery, NativeGpuTimingResources,
 };
 use super::input::NativePointerGestureLatch;
+use super::native_render_target::{
+    NativeRenderTargetReplacementEvidence, NativeRenderTargetRetirement,
+};
 use super::native_resource_maintenance::{
     NativeResourceMaintenanceBinding, NativeResourceMaintenanceKernel,
     NativeResourceMaintenanceSlot,
@@ -421,6 +424,7 @@ pub(super) struct NativeWindowGpuTimingConfig {
 pub(super) struct NativeWindowResourceBundle {
     pub(super) generation: NativeAdapterGeneration,
     pub(super) render_surface: RenderSurface<'static>,
+    pub(super) render_target_retirement: Option<NativeRenderTargetRetirement>,
     pub(super) renderer: Renderer,
     pub(super) gpu_resources: NativeWindowGpuResources,
     pub(super) completion_witness: NativeSubmissionCompletionWitness,
@@ -448,6 +452,7 @@ impl NativeWindowResourceBundle {
         Some(Self {
             generation,
             render_surface,
+            render_target_retirement: None,
             renderer,
             gpu_resources: NativeWindowGpuResources::new_with_timing(
                 generation,
@@ -535,10 +540,28 @@ impl NativeWindowResourceBundle {
     }
 
     pub(super) fn target_residency_snapshot(&self) -> GpuSurfaceTargetResidencySnapshot {
-        GpuSurfaceTargetResidencySnapshot::from_surface_config(
+        GpuSurfaceTargetResidencySnapshot {
+            predecessor_object_count: usize::from(self.render_target_retirement.is_some()),
+            predecessor_requested_rgba8_bytes: self
+                .render_target_retirement
+                .as_ref()
+                .and_then(NativeRenderTargetRetirement::requested_rgba8_bytes),
+            ..GpuSurfaceTargetResidencySnapshot::from_surface_config(
+                self.generation,
+                self.render_surface.config.width,
+                self.render_surface.config.height,
+            )
+        }
+    }
+
+    pub(super) fn target_replacement_evidence(
+        &self,
+        target_generation: super::runner_state::NativeTargetGeneration,
+    ) -> NativeRenderTargetReplacementEvidence {
+        NativeRenderTargetReplacementEvidence::new(
             self.generation,
-            self.render_surface.config.width,
-            self.render_surface.config.height,
+            target_generation,
+            self.completion_witness.maintenance_identity(),
         )
     }
 
@@ -573,7 +596,8 @@ impl NativeWindowResourceBundle {
         let completion_pending = self.completion_witness.maintain();
         let timing_pending = self.gpu_resources.gpu_timing.maintain();
         let composited_base_pending = self.maintain_composited_base_frame(turn);
-        completion_pending || timing_pending || composited_base_pending
+        let render_target_pending = self.maintain_render_target_retirement(turn);
+        completion_pending || timing_pending || composited_base_pending || render_target_pending
     }
 
     pub(super) fn maintenance_binding(
@@ -591,12 +615,18 @@ impl NativeWindowResourceBundle {
                 .as_ref()
                 .map(CompositedBaseFrameRetirement::identity),
         )
+        .with_render_target_retirement(
+            self.render_target_retirement
+                .as_ref()
+                .map(NativeRenderTargetRetirement::identity),
+        )
     }
 
     pub(super) fn maintenance_pending(&self) -> bool {
         self.completion_witness.maintenance_pending()
             || self.gpu_resources.gpu_timing.maintenance_pending()
             || self.composited_base_frame_maintenance_pending()
+            || self.render_target_retirement.is_some()
     }
 
     pub(super) fn maintain_completion_once(
@@ -606,7 +636,19 @@ impl NativeWindowResourceBundle {
         let completion_pending = self.completion_witness.maintain_once();
         let timing_pending = self.gpu_resources.gpu_timing.maintain();
         let composited_base_pending = self.maintain_composited_base_frame(turn);
-        completion_pending || timing_pending || composited_base_pending
+        let render_target_pending = self.maintain_render_target_retirement(turn);
+        completion_pending || timing_pending || composited_base_pending || render_target_pending
+    }
+
+    pub(super) fn maintain_render_target_retirement_once(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        if self.render_target_retirement.is_none() {
+            return false;
+        }
+        let _ = self.maintain_completion_once(turn);
+        self.render_target_retirement.is_none()
     }
 
     pub(super) fn retirement_eligible(&self) -> bool {
@@ -616,29 +658,60 @@ impl NativeWindowResourceBundle {
                 .gpu_resources
                 .composited_base_frame_retirement
                 .is_none()
+            && self.render_target_retirement.is_none()
     }
 
     fn composited_base_frame_maintenance_pending(&self) -> bool {
-        self.gpu_resources
-            .composited_base_frame_retirement
-            .is_some()
-            && self.completion_witness.retirement_identity().is_some()
+        let Some(retirement) = self.gpu_resources.composited_base_frame_retirement.as_ref() else {
+            return false;
+        };
+        let historical_completion = self
+            .completion_witness
+            .completed_through(retirement.identity().completion());
+        let current_witness_progress = self.completion_witness.retirement_identity().is_some()
             && (self.completion_witness.maintenance_pending()
-                || self.completion_witness.retirement_eligible())
+                || self.completion_witness.retirement_eligible());
+        historical_completion || current_witness_progress
     }
 
     fn maintain_composited_base_frame(&mut self, turn: &mut NativeResourceMaintenanceTurn) -> bool {
-        if self
+        let completion_ready = self
             .gpu_resources
             .composited_base_frame_retirement
-            .is_some()
-            && self.completion_witness.retirement_identity().is_some()
-            && self.completion_witness.retirement_eligible()
-            && turn.claim_drop()
-        {
+            .as_ref()
+            .is_some_and(|retirement| {
+                self.completion_witness
+                    .completed_through(retirement.identity().completion())
+            });
+        if completion_ready && turn.claim_drop() {
             let _ = self.gpu_resources.composited_base_frame_retirement.take();
         }
         self.composited_base_frame_maintenance_pending()
+    }
+
+    fn maintain_render_target_retirement(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        let completion_ready = self
+            .render_target_retirement
+            .as_ref()
+            .is_some_and(|retirement| {
+                self.completion_witness
+                    .completed_through(retirement.identity().completion())
+            });
+        if self.render_target_retirement.is_some()
+            && self
+                .gpu_resources
+                .composited_base_frame_retirement
+                .is_none()
+            && completion_ready
+            && turn.claim_drop()
+            && let Some(retirement) = self.render_target_retirement.take()
+        {
+            retirement.drop_owned_targets();
+        }
+        self.render_target_retirement.is_some()
     }
 }
 
@@ -1229,6 +1302,7 @@ impl NativeRunnerWindowState {
                 if !NativeResourceMaintenanceKernel::is_current(binding, current)
                     || current.composited_base_frame_retirement()
                         != binding.composited_base_frame_retirement()
+                    || current.render_target_retirement() != binding.render_target_retirement()
                 {
                     return None;
                 }
@@ -1243,6 +1317,7 @@ impl NativeRunnerWindowState {
                 if !NativeResourceMaintenanceKernel::is_current(binding, current)
                     || current.composited_base_frame_retirement()
                         != binding.composited_base_frame_retirement()
+                    || current.render_target_retirement() != binding.render_target_retirement()
                 {
                     return None;
                 }
@@ -1259,6 +1334,15 @@ impl NativeRunnerWindowState {
                 }
             }
         }
+    }
+
+    pub(super) fn maintain_native_surface_target_retirement(
+        &mut self,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) -> bool {
+        self.native_resources
+            .as_mut()
+            .is_some_and(|resources| resources.maintain_render_target_retirement_once(turn))
     }
 
     /// Move the complete active bundle into bounded retirement ownership,
@@ -1419,6 +1503,10 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) last_interactive_scene_rebuild: Instant,
     pub(super) pending_surface_resize: Option<PhysicalSize<u32>>,
     pub(super) pending_surface_resize_reason: Option<FrameWorkReason>,
+    /// Exact pre-fence evidence retained while a recovery retry waits for the
+    /// predecessor to release the replacement boundary.
+    pub(super) pending_surface_recovery_replacement_evidence:
+        Option<NativeRenderTargetReplacementEvidence>,
     pub(super) pending_viewport_resize: Option<Vector2>,
     pub(super) pending_viewport_resize_reason: Option<FrameWorkReason>,
     pub(super) surface_resize_applied_this_frame: bool,
@@ -1426,9 +1514,15 @@ pub(super) struct NativeRunnerTimingState {
     /// Next normal Running maintenance opportunity for this window.  Lifecycle
     /// maintenance uses its separate turn and does not consume this deadline.
     pub(super) native_resource_maintenance_deadline: Option<Instant>,
+    /// Recovery-only opportunity for the active surface predecessor while the
+    /// published target is fenced.  This is kept separate from the normal
+    /// Maintenance stage because that stage requires a known, unfenced target.
+    pub(super) native_surface_target_retirement_deadline: Option<Instant>,
     /// Parent-owned opportunity for bounded cleanup of retiring auxiliary
     /// children. Nested auxiliary runners leave this unused.
     pub(super) retiring_auxiliary_maintenance_deadline: Option<Instant>,
+    /// Round-robin cursor for admitted auxiliary target-retirement work.
+    pub(super) auxiliary_surface_target_retirement_cursor: usize,
 }
 
 impl Default for NativeRunnerTimingState {
@@ -1462,12 +1556,15 @@ impl NativeRunnerTimingState {
             last_interactive_scene_rebuild: now - Duration::from_secs(1),
             pending_surface_resize: None,
             pending_surface_resize_reason: None,
+            pending_surface_recovery_replacement_evidence: None,
             pending_viewport_resize: None,
             pending_viewport_resize_reason: None,
             surface_resize_applied_this_frame: false,
             pending_frame_work: FrameWork::None,
             native_resource_maintenance_deadline: None,
+            native_surface_target_retirement_deadline: None,
             retiring_auxiliary_maintenance_deadline: None,
+            auxiliary_surface_target_retirement_cursor: 0,
         }
     }
 
@@ -1695,8 +1792,10 @@ mod tests {
         assert_eq!(snapshot.generation(), generation);
         assert!(snapshot.generation_known());
         assert_eq!(snapshot.generation_serial(), Some(51));
-        assert_eq!(snapshot.resident_count, 1);
-        assert_eq!(snapshot.requested_rgba8_bytes, Some(921_600));
+        assert_eq!(snapshot.active_object_count, 1);
+        assert_eq!(snapshot.predecessor_object_count, 0);
+        assert_eq!(snapshot.active_requested_rgba8_bytes, Some(921_600));
+        assert_eq!(snapshot.predecessor_requested_rgba8_bytes, None);
     }
 
     #[test]
@@ -1706,8 +1805,10 @@ mod tests {
         for (width, height) in [(0, 360), (640, 0), (0, 0)] {
             let snapshot =
                 GpuSurfaceTargetResidencySnapshot::from_surface_config(generation, width, height);
-            assert_eq!(snapshot.resident_count, 1);
-            assert_eq!(snapshot.requested_rgba8_bytes, None);
+            assert_eq!(snapshot.active_object_count, 1);
+            assert_eq!(snapshot.predecessor_object_count, 0);
+            assert_eq!(snapshot.active_requested_rgba8_bytes, None);
+            assert_eq!(snapshot.predecessor_requested_rgba8_bytes, None);
         }
     }
 
@@ -1719,8 +1820,10 @@ mod tests {
             u32::MAX,
         );
 
-        assert_eq!(snapshot.resident_count, 1);
-        assert_eq!(snapshot.requested_rgba8_bytes, None);
+        assert_eq!(snapshot.active_object_count, 1);
+        assert_eq!(snapshot.predecessor_object_count, 0);
+        assert_eq!(snapshot.active_requested_rgba8_bytes, None);
+        assert_eq!(snapshot.predecessor_requested_rgba8_bytes, None);
     }
 
     #[test]
@@ -1752,7 +1855,7 @@ mod tests {
         assert_eq!(
             snapshots
                 .active
-                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+                .and_then(|snapshot| snapshot.active_requested_rgba8_bytes),
             Some(921_600)
         );
         assert_eq!(
@@ -1764,7 +1867,7 @@ mod tests {
         assert_eq!(
             snapshots
                 .quarantine_0
-                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+                .and_then(|snapshot| snapshot.active_requested_rgba8_bytes),
             Some(256_000)
         );
         assert_eq!(
@@ -1776,7 +1879,7 @@ mod tests {
         assert_eq!(
             snapshots
                 .quarantine_1
-                .and_then(|snapshot| snapshot.requested_rgba8_bytes),
+                .and_then(|snapshot| snapshot.active_requested_rgba8_bytes),
             Some(4)
         );
     }
@@ -2103,21 +2206,33 @@ mod tests {
     }
 
     #[test]
-    fn native_resource_maintenance_drops_at_most_one_bundle_globally_per_turn() {
+    fn one_turn_cannot_drop_fenced_predecessor_and_ordinary_resource() {
         let drops = Arc::new(AtomicUsize::new(0));
-        let mut primary = NativeResourceQuarantine::default();
-        let mut auxiliary = NativeResourceQuarantine::default();
-        assert!(primary.try_push(DropTracked::new(true, &drops)).is_ok());
-        assert!(auxiliary.try_push(DropTracked::new(true, &drops)).is_ok());
+        let mut fenced_predecessor = NativeResourceQuarantine::default();
+        let mut ordinary = NativeResourceQuarantine::default();
+        assert!(
+            fenced_predecessor
+                .try_push(DropTracked::new(true, &drops))
+                .is_ok()
+        );
+        assert!(ordinary.try_push(DropTracked::new(true, &drops)).is_ok());
         let mut turn = NativeResourceMaintenanceTurn::new();
 
-        assert!(turn.drop_one_ready(&mut primary, |entry| entry.ready));
-        assert!(!turn.drop_one_ready(&mut auxiliary, |entry| entry.ready));
-        turn.record_pending_if_ready(&auxiliary, |entry| entry.ready);
+        // A completed fenced predecessor and a completed ordinary unit share
+        // the same parent-owned AboutToWait budget.
+        assert!(turn.drop_one_ready(&mut fenced_predecessor, |entry| entry.ready));
+        assert!(!turn.drop_one_ready(&mut ordinary, |entry| entry.ready));
+        turn.record_pending_if_ready(&ordinary, |entry| entry.ready);
         assert_eq!(drops.load(Ordering::Relaxed), 1);
-        assert!(primary.is_empty());
-        assert_eq!(auxiliary.len(), 1);
+        assert!(fenced_predecessor.is_empty());
+        assert_eq!(ordinary.len(), 1);
         assert!(turn.has_pending());
+
+        // The ordinary unit remains due and can be admitted by the next
+        // independently rearmed turn.
+        let mut next_turn = NativeResourceMaintenanceTurn::new();
+        assert!(next_turn.drop_one_ready(&mut ordinary, |entry| entry.ready));
+        assert_eq!(drops.load(Ordering::Relaxed), 2);
     }
 
     #[test]

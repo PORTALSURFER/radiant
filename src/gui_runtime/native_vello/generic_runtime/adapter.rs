@@ -5,6 +5,12 @@ use super::gpu_surface::{
     GpuSurfaceRenderCanvasUploadPlan, GpuSurfaceRenderCanvasUploadPlanContext,
     GpuSurfaceRenderCanvasUploadPlanObservation, GpuSurfaceRenderCanvasUploadStats,
 };
+use super::native_render_target::{
+    NativeRenderTargetReplacementContext, NativeRenderTargetReplacementEvidence,
+    NativeRenderTargetReplacementMode, NativeRenderTargetReplacementOutcome,
+    NativeRenderTargetReplacementRequest, NativeRenderTargetRetirement, replacement_preflight,
+    retirement_identity,
+};
 use super::runner_state::{
     NativeWindowAtlasResidencySnapshots, NativeWindowCustomShaderResidencySnapshots,
     NativeWindowSignalResidencySnapshots,
@@ -2258,7 +2264,10 @@ impl GenericNativeAdapterOwner {
             .flatten()
     }
 
-    pub(super) fn resize_surface(
+    /// Resize a recovery candidate before it is published.  The candidate has
+    /// no active resource bundle yet, so it intentionally has no retirement
+    /// owner or completion evidence to pass to the active replacement path.
+    pub(super) fn resize_unpublished_recovery_candidate_surface(
         &self,
         surface: &mut RenderSurface<'_>,
         width: u32,
@@ -2274,6 +2283,69 @@ impl GenericNativeAdapterOwner {
             return false;
         };
         context.resize_surface(surface, width, height)
+    }
+
+    pub(super) fn replace_render_surface_targets(
+        &self,
+        surface: &mut RenderSurface<'_>,
+        predecessor: &mut Option<NativeRenderTargetRetirement>,
+        evidence: Option<NativeRenderTargetReplacementEvidence>,
+        width: u32,
+        height: u32,
+        mode: NativeRenderTargetReplacementMode,
+    ) -> NativeRenderTargetReplacementOutcome {
+        let selected_device_id = self.selected.as_ref().map(|selected| selected.device_id);
+        let selected_generation = self.capture_generation();
+        let outcome = replacement_preflight(
+            NativeRenderTargetReplacementRequest {
+                mode,
+                current_width: surface.config.width,
+                current_height: surface.config.height,
+                width,
+                height,
+                predecessor_occupied: predecessor.is_some(),
+                evidence,
+            },
+            NativeRenderTargetReplacementContext {
+                surface_device_id: surface.dev_id,
+                selected_device_id,
+                selected_generation,
+            },
+        );
+        let NativeRenderTargetReplacementOutcome::Committed {
+            next_target_generation,
+        } = outcome
+        else {
+            return outcome;
+        };
+        let Some(device_id) = selected_device_id else {
+            return NativeRenderTargetReplacementOutcome::Deferred;
+        };
+        let Some(context) = self.render_context.as_ref() else {
+            return NativeRenderTargetReplacementOutcome::Deferred;
+        };
+        let Some(device) = context.device_handle(device_id) else {
+            return NativeRenderTargetReplacementOutcome::Deferred;
+        };
+        let Some(evidence) = evidence else {
+            return NativeRenderTargetReplacementOutcome::Deferred;
+        };
+        let (target_texture, target_view) = create_targets(width, height, &device.device);
+        let old_texture = std::mem::replace(&mut surface.target_texture, target_texture);
+        let old_view = std::mem::replace(&mut surface.target_view, target_view);
+        let old_width = surface.config.width;
+        let old_height = surface.config.height;
+        *predecessor = Some(NativeRenderTargetRetirement::new(
+            old_texture,
+            old_view,
+            retirement_identity(evidence, old_width, old_height),
+        ));
+        surface.config.width = width;
+        surface.config.height = height;
+        surface.surface.configure(&device.device, &surface.config);
+        NativeRenderTargetReplacementOutcome::Committed {
+            next_target_generation,
+        }
     }
 
     pub(super) fn accepts_device_loss(

@@ -25,6 +25,14 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct CompositedBaseF
     completion: NativeSubmissionCompletionIdentity,
 }
 
+impl CompositedBaseFrameRetirementIdentity {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) const fn completion(
+        self,
+    ) -> NativeSubmissionCompletionIdentity {
+        self.completion
+    }
+}
+
 pub(in crate::gui_runtime::native_vello::generic_runtime) struct CompositedBaseFrameRetirement {
     frame: CompositedBaseFrame,
     identity: CompositedBaseFrameRetirementIdentity,
@@ -477,13 +485,15 @@ mod tests {
     #[test]
     fn retirement_identity_binds_predecessor_descriptor_and_completion() {
         let descriptor = descriptor(7, 640, 360, wgpu::TextureFormat::Rgba8Unorm, 1, 1);
+        let completion = NativeSubmissionCompletionIdentity::never_submitted(
+            NativeAdapterGeneration::from_test_serial(1),
+        );
         let identity = CompositedBaseFrameRetirementIdentity {
             descriptor,
-            completion: NativeSubmissionCompletionIdentity::never_submitted(
-                NativeAdapterGeneration::from_test_serial(1),
-            ),
+            completion,
         };
         assert_eq!(identity.descriptor, descriptor);
+        assert_eq!(identity.completion(), completion);
         assert_ne!(
             identity,
             CompositedBaseFrameRetirementIdentity {

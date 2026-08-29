@@ -37,8 +37,25 @@ impl NativeSubmissionCompletionIdentity {
     }
 
     pub(super) const fn is_valid_for_retirement(self) -> bool {
-        self.generation.is_known()
-            && !matches!(self.phase, NativeSubmissionCompletionPhase::Exhausted)
+        if !self.generation.is_known() {
+            return false;
+        }
+        match self.phase {
+            NativeSubmissionCompletionPhase::NeverSubmitted => self.callback_sequence == 0,
+            NativeSubmissionCompletionPhase::Pending {
+                callback_id,
+                rearm_required,
+            } => {
+                callback_id.0 != 0
+                    && callback_id.0 == self.callback_sequence
+                    && (!rearm_required || self.callback_sequence.checked_add(1).is_some())
+            }
+            NativeSubmissionCompletionPhase::Completed { rearm_required } => {
+                self.callback_sequence != 0
+                    && (!rearm_required || self.callback_sequence.checked_add(1).is_some())
+            }
+            NativeSubmissionCompletionPhase::Exhausted => false,
+        }
     }
 }
 
@@ -66,6 +83,7 @@ enum NativeSubmissionCompletionPhase {
 pub(super) struct NativeSubmissionCompletionState {
     phase: NativeSubmissionCompletionPhase,
     next_callback_id: u64,
+    completed_callback_high_water: Option<u64>,
 }
 
 impl Default for NativeSubmissionCompletionState {
@@ -73,6 +91,7 @@ impl Default for NativeSubmissionCompletionState {
         Self {
             phase: NativeSubmissionCompletionPhase::NeverSubmitted,
             next_callback_id: 0,
+            completed_callback_high_water: None,
         }
     }
 }
@@ -128,6 +147,10 @@ impl NativeSubmissionCompletionState {
         if expected != callback_id {
             return false;
         }
+        self.completed_callback_high_water = Some(
+            self.completed_callback_high_water
+                .map_or(callback_id.0, |completed| completed.max(callback_id.0)),
+        );
         self.phase = NativeSubmissionCompletionPhase::Completed { rearm_required };
         true
     }
@@ -179,6 +202,65 @@ impl NativeSubmissionCompletionState {
             phase: self.phase,
             callback_sequence: self.next_callback_id,
         }
+    }
+
+    /// Return whether this state has completed all work represented by a
+    /// captured identity. Completion is historical: a later successor
+    /// submission or rearm cannot make an already-satisfied capture false.
+    ///
+    /// A capture made while rearm is required needs the checked next callback
+    /// sequence. The current state is validated except for an exhausted phase,
+    /// which may still use its preserved completion high-water mark for an
+    /// already-captured predecessor.
+    pub(super) fn completed_through(
+        self,
+        current_generation: NativeAdapterGeneration,
+        captured: NativeSubmissionCompletionIdentity,
+    ) -> bool {
+        if !current_generation.is_known()
+            || captured.generation != current_generation
+            || !captured.is_valid_for_retirement()
+            || (!matches!(self.phase, NativeSubmissionCompletionPhase::Exhausted)
+                && !self.identity(current_generation).is_valid_for_retirement())
+        {
+            return false;
+        }
+
+        if matches!(
+            captured.phase,
+            NativeSubmissionCompletionPhase::NeverSubmitted
+        ) {
+            return true;
+        }
+
+        let required_sequence = match captured.phase {
+            NativeSubmissionCompletionPhase::Pending {
+                rearm_required: false,
+                ..
+            }
+            | NativeSubmissionCompletionPhase::Completed {
+                rearm_required: false,
+            } => captured.callback_sequence,
+            NativeSubmissionCompletionPhase::Pending {
+                rearm_required: true,
+                ..
+            }
+            | NativeSubmissionCompletionPhase::Completed {
+                rearm_required: true,
+            } => {
+                let Some(sequence) = captured.callback_sequence.checked_add(1) else {
+                    return false;
+                };
+                sequence
+            }
+            NativeSubmissionCompletionPhase::NeverSubmitted
+            | NativeSubmissionCompletionPhase::Exhausted => return false,
+        };
+
+        let Some(completed_sequence) = self.completed_callback_high_water else {
+            return false;
+        };
+        completed_sequence >= required_sequence
     }
 
     fn allocate_callback(&mut self) -> Option<NativeSubmissionCallbackId> {
@@ -307,6 +389,11 @@ impl NativeSubmissionCompletionWitness {
         self.state.identity(self.capability.generation)
     }
 
+    pub(super) fn completed_through(&self, captured: NativeSubmissionCompletionIdentity) -> bool {
+        self.state
+            .completed_through(self.capability.generation, captured)
+    }
+
     pub(super) fn retirement_identity(&self) -> Option<NativeSubmissionCompletionIdentity> {
         let identity = self.maintenance_identity();
         identity.is_valid_for_retirement().then_some(identity)
@@ -334,7 +421,11 @@ impl NativeSubmissionCompletionWitness {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeSubmissionCallbackId, NativeSubmissionCompletionState};
+    use super::{
+        NativeSubmissionCallbackId, NativeSubmissionCompletionIdentity,
+        NativeSubmissionCompletionPhase, NativeSubmissionCompletionState,
+    };
+    use crate::gui_runtime::native_vello::generic_runtime::adapter::NativeAdapterGeneration;
 
     #[test]
     fn never_submitted_witness_is_immediately_eligible() {
@@ -394,6 +485,7 @@ mod tests {
         let mut state = NativeSubmissionCompletionState {
             phase: super::NativeSubmissionCompletionPhase::Exhausted,
             next_callback_id: u64::MAX,
+            completed_callback_high_water: None,
         };
         let mut generation = super::NativeAdapterGeneration::from_test_serial(1);
         let identity = state.identity(generation);
@@ -401,7 +493,29 @@ mod tests {
 
         generation.advance();
         state.phase = super::NativeSubmissionCompletionPhase::NeverSubmitted;
+        state.next_callback_id = 0;
         assert!(state.identity(generation).is_valid_for_retirement());
+    }
+
+    #[test]
+    fn satisfied_capture_survives_later_successor_allocation_exhaustion() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut state = NativeSubmissionCompletionState::default();
+        let callback = state.record_successful_submission().unwrap();
+        let captured = state.identity(generation);
+        assert!(state.observe_callback_completion(callback));
+        assert!(state.completed_through(generation, captured));
+
+        // Model the bounded private state machine at the allocation boundary
+        // without iterating through every callback sequence.
+        state.next_callback_id = u64::MAX;
+        assert!(state.record_successful_submission().is_none());
+        assert!(matches!(
+            state.phase,
+            NativeSubmissionCompletionPhase::Exhausted
+        ));
+        assert_eq!(state.completed_callback_high_water, Some(callback.0));
+        assert!(state.completed_through(generation, captured));
     }
 
     #[test]
@@ -462,5 +576,133 @@ mod tests {
             .expect("indeterminate work after a pending callback should rearm");
         assert!(state.observe_callback_completion(rearm));
         assert!(state.retirement_eligible());
+    }
+
+    #[test]
+    fn captured_pending_completion_survives_a_successor_rearm() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut state = NativeSubmissionCompletionState::default();
+        let first = state.record_successful_submission().unwrap();
+        let captured = state.identity(generation);
+
+        assert!(!state.completed_through(generation, captured));
+        assert!(state.record_successful_submission().is_none());
+        assert!(state.observe_callback_completion(first));
+        assert!(!state.retirement_eligible());
+
+        let rearm = state
+            .prepare_rearm()
+            .expect("coalesced successor work should register a rearm callback");
+        assert!(state.completed_through(generation, captured));
+        assert!(state.observe_callback_completion(rearm));
+        assert!(state.completed_through(generation, captured));
+    }
+
+    #[test]
+    fn never_and_completed_captures_remain_satisfied_through_successors() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut state = NativeSubmissionCompletionState::default();
+        let never_submitted = state.identity(generation);
+        assert!(state.completed_through(generation, never_submitted));
+
+        let first = state.record_successful_submission().unwrap();
+        assert!(state.observe_callback_completion(first));
+        let completed = state.identity(generation);
+        assert!(state.completed_through(generation, completed));
+
+        let successor = state.record_successful_submission().unwrap();
+        assert!(state.completed_through(generation, completed));
+        assert!(state.observe_callback_completion(successor));
+        assert!(state.completed_through(generation, completed));
+    }
+
+    #[test]
+    fn pre_capture_coalescing_requires_the_checked_next_callback() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut state = NativeSubmissionCompletionState::default();
+        let first = state.record_successful_submission().unwrap();
+        assert!(state.record_successful_submission().is_none());
+        let captured = state.identity(generation);
+
+        assert!(!state.completed_through(generation, captured));
+        assert!(state.observe_callback_completion(first));
+        assert!(!state.completed_through(generation, captured));
+
+        let rearm = state
+            .prepare_rearm()
+            .expect("coalesced work should register the checked next callback");
+        assert!(!state.completed_through(generation, captured));
+        assert!(state.observe_callback_completion(rearm));
+        assert!(state.completed_through(generation, captured));
+    }
+
+    #[test]
+    fn completion_predicate_is_monotonic_across_later_successors() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let mut state = NativeSubmissionCompletionState::default();
+        let first = state.record_successful_submission().unwrap();
+        let captured = state.identity(generation);
+
+        assert!(state.observe_callback_completion(first));
+        assert!(state.completed_through(generation, captured));
+
+        let second = state.record_successful_submission().unwrap();
+        assert!(state.completed_through(generation, captured));
+        assert!(state.record_successful_submission().is_none());
+        assert!(state.observe_callback_completion(second));
+        assert!(state.completed_through(generation, captured));
+
+        let rearm = state.prepare_rearm().unwrap();
+        assert!(state.completed_through(generation, captured));
+        assert!(state.observe_callback_completion(rearm));
+        assert!(state.completed_through(generation, captured));
+    }
+
+    #[test]
+    fn completion_predicate_vetoes_generation_sequence_and_overflow_evidence() {
+        let generation = NativeAdapterGeneration::from_test_serial(1);
+        let other_generation = NativeAdapterGeneration::from_test_serial(2);
+        let mut state = NativeSubmissionCompletionState::default();
+        let callback = state.record_successful_submission().unwrap();
+        let captured = state.identity(generation);
+
+        assert!(!state.completed_through(generation, captured));
+        assert!(!state.completed_through(other_generation, captured));
+        assert!(
+            !state.completed_through(
+                generation,
+                NativeSubmissionCompletionIdentity::never_submitted(
+                    NativeAdapterGeneration::unknown(),
+                ),
+            )
+        );
+
+        let malformed = NativeSubmissionCompletionIdentity {
+            generation,
+            phase: NativeSubmissionCompletionPhase::Pending {
+                callback_id: NativeSubmissionCallbackId(callback.0),
+                rearm_required: false,
+            },
+            callback_sequence: callback.0 + 1,
+        };
+        assert!(!malformed.is_valid_for_retirement());
+        assert!(!state.completed_through(generation, malformed));
+
+        let overflowing_rearm = NativeSubmissionCompletionIdentity {
+            generation,
+            phase: NativeSubmissionCompletionPhase::Completed {
+                rearm_required: true,
+            },
+            callback_sequence: u64::MAX,
+        };
+        assert!(!overflowing_rearm.is_valid_for_retirement());
+        assert!(!state.completed_through(generation, overflowing_rearm));
+
+        let exhausted = NativeSubmissionCompletionState {
+            phase: NativeSubmissionCompletionPhase::Exhausted,
+            next_callback_id: u64::MAX,
+            completed_callback_high_water: None,
+        };
+        assert!(!exhausted.completed_through(generation, captured));
     }
 }

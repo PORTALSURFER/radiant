@@ -349,6 +349,10 @@ fn native_submission_completion_is_exact_generation_and_covers_both_present_path
 #[test]
 fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let runner_state = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner_state.rs"),
+    )
+    .expect("generic runner state source should be readable");
     let lifecycle = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
     )
@@ -417,11 +421,94 @@ fn native_resource_maintenance_is_shared_bounded_and_nonblocking() {
         lifecycle.contains("selected_lane == FrameScheduleLane::Maintenance")
             && lifecycle.contains("self.admit_native_resource_maintenance(")
             && runner.contains("pub(super) fn admit_native_resource_maintenance(")
-            && runner.contains(".maintain_native_resource_slot(binding, &mut maintenance_turn)",)
+            && runner.contains(".maintain_native_resource_slot(binding, turn)")
             && runner.contains("advance_native_resource_maintenance_cursor")
             && !lifecycle.contains("begin_native_resource_maintenance_and_wake_primary")
             && !runner.contains("begin_native_resource_maintenance_and_wake_primary"),
         "normal Running maintenance should use the selected exact Maintenance lane and slot ticket"
+    );
+    let runner_admission_start = runner
+        .find("pub(super) fn admit_native_resource_maintenance(")
+        .expect("runner should expose the normal maintenance admission boundary");
+    let runner_admission_end = runner[runner_admission_start..]
+        .find("\n    pub(super) fn maintain_native_resources_with_turn(")
+        .expect("runner maintenance admission should end before broad maintenance")
+        + runner_admission_start;
+    let runner_admission = &runner[runner_admission_start..runner_admission_end];
+    assert!(
+        runner_admission.contains("turn: &mut NativeResourceMaintenanceTurn")
+            && runner_admission.contains("maintain_native_resource_slot(binding, turn)")
+            && !runner_admission.contains("NativeResourceMaintenanceTurn::new()"),
+        "ordinary runner admission must use the caller-owned maintenance turn"
+    );
+    let auxiliary_admission_start = auxiliary
+        .find("pub(super) fn admit_native_resource_maintenance(")
+        .expect("auxiliary should expose the normal maintenance admission boundary");
+    let auxiliary_admission_end = auxiliary[auxiliary_admission_start..]
+        .find("\n    pub(super) fn admit_frame_schedule_work(")
+        .expect("auxiliary maintenance admission should end before scheduled frame work")
+        + auxiliary_admission_start;
+    let auxiliary_admission = &auxiliary[auxiliary_admission_start..auxiliary_admission_end];
+    assert!(
+        auxiliary_admission.contains("turn: &mut NativeResourceMaintenanceTurn")
+            && auxiliary_admission.contains("self.runner.admit_native_resource_maintenance(")
+            && auxiliary_admission.contains("turn,")
+            && !auxiliary_admission.contains("NativeResourceMaintenanceTurn::new()"),
+        "auxiliary admission must forward the caller-owned maintenance turn"
+    );
+    let about_to_wait_start = lifecycle
+        .find("    fn about_to_wait(")
+        .expect("lifecycle should retain one AboutToWait maintenance boundary");
+    let about_to_wait_end = lifecycle[about_to_wait_start..]
+        .find("\nfn native_resource_maintenance_deadline(")
+        .expect("AboutToWait should end before standalone deadline helpers")
+        + about_to_wait_start;
+    let about_to_wait = &lifecycle[about_to_wait_start..about_to_wait_end];
+    assert_eq!(
+        about_to_wait
+            .matches("NativeResourceMaintenanceTurn::new()")
+            .count(),
+        1,
+        "AboutToWait should construct exactly one parent-owned maintenance turn"
+    );
+    assert!(
+        about_to_wait.matches("&mut maintenance").count() >= 4,
+        "target retirement, retiring cleanup, and selected primary/auxiliary maintenance should share the AboutToWait turn"
+    );
+    let primary_maintenance_start = about_to_wait
+        .find("                FrameScheduleKey::Primary => {")
+        .expect("AboutToWait should retain the primary ordinary maintenance branch");
+    let primary_maintenance_end = about_to_wait[primary_maintenance_start..]
+        .find("\n                FrameScheduleKey::Auxiliary(key) => {")
+        .map(|end| primary_maintenance_start + end)
+        .unwrap_or(about_to_wait.len());
+    assert!(
+        about_to_wait[primary_maintenance_start..primary_maintenance_end]
+            .contains("!retiring_auxiliary_maintenance_due"),
+        "primary ordinary maintenance should be gated when retiring cleanup is due"
+    );
+    let auxiliary_maintenance_start = about_to_wait
+        .find("                FrameScheduleKey::Auxiliary(key) => {")
+        .expect("AboutToWait should retain the auxiliary ordinary maintenance branch");
+    assert!(
+        about_to_wait[auxiliary_maintenance_start..]
+            .contains("!retiring_auxiliary_maintenance_due"),
+        "auxiliary ordinary maintenance should be gated when retiring cleanup is due"
+    );
+    let composited_pending_start = runner_state
+        .find("    fn composited_base_frame_maintenance_pending(")
+        .expect("runner state should retain composited-base pending detection");
+    let composited_pending_end = runner_state[composited_pending_start..]
+        .find("\n    fn maintain_composited_base_frame(")
+        .expect("composited-base pending detection should end before maintenance")
+        + composited_pending_start;
+    let composited_pending = &runner_state[composited_pending_start..composited_pending_end];
+    assert!(
+        composited_pending.contains("completed_through(retirement.identity().completion())")
+            && composited_pending.contains("let historical_completion")
+            && composited_pending.contains("let current_witness_progress")
+            && composited_pending.contains("historical_completion || current_witness_progress"),
+        "composited-base pending detection should retain stored completion evidence while preserving current-witness progress"
     );
     assert!(
         surface.contains("maintenance: &mut NativeResourceMaintenanceTurn")

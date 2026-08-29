@@ -157,6 +157,18 @@ where
     pub(super) recovery_auxiliary_followup_pending: bool,
 }
 
+pub(super) fn select_due_admitted_auxiliary_index(
+    cursor: usize,
+    due_admitted: &[bool],
+) -> Option<usize> {
+    if due_admitted.is_empty() {
+        return None;
+    }
+    (0..due_admitted.len())
+        .map(|offset| (cursor + offset) % due_admitted.len())
+        .find(|&index| due_admitted[index])
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct AppliedRouteOutcome {
     pub(super) exit_requested: bool,
@@ -1876,6 +1888,95 @@ where
         turn
     }
 
+    pub(super) fn native_surface_target_retirement_deadline(&self) -> Option<Instant> {
+        self.timing.native_surface_target_retirement_deadline
+    }
+
+    pub(super) fn native_surface_target_retirement_is_due(&self, now: Instant) -> bool {
+        self.timing
+            .native_surface_target_retirement_deadline
+            .is_some_and(|deadline| deadline <= now)
+    }
+
+    pub(super) fn arm_native_surface_target_retirement_maintenance(&mut self) {
+        if self.is_running()
+            && self.window.native_surface_target_fenced
+            && self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| resources.render_target_retirement.is_some())
+        {
+            self.timing
+                .native_surface_target_retirement_deadline
+                .get_or_insert_with(Instant::now);
+        }
+    }
+
+    pub(super) fn wake_native_surface_target_retirement_maintenance(&mut self) {
+        if self.is_running()
+            && self.window.native_surface_target_fenced
+            && self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| resources.render_target_retirement.is_some())
+        {
+            self.timing.native_surface_target_retirement_deadline = Some(Instant::now());
+        }
+    }
+
+    pub(super) fn maintain_native_surface_target_retirement_if_due_with_turn(
+        &mut self,
+        now: Instant,
+        current_adapter_generation: NativeAdapterGeneration,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) {
+        if !self.native_surface_target_retirement_is_due(now) {
+            return;
+        }
+        if !self.is_running()
+            || self.has_terminal_cause()
+            || !self.window.native_surface_target_fenced
+            || self.validated_pending_resize().is_none()
+            || !self
+                .window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| {
+                    resources.generation == current_adapter_generation
+                        && resources.render_target_retirement.is_some()
+                })
+        {
+            self.timing.native_surface_target_retirement_deadline = None;
+            return;
+        }
+        let target_retirement_removed = self.window.maintain_native_surface_target_retirement(turn);
+        let target_retirement_pending = self
+            .window
+            .native_resources
+            .as_ref()
+            .is_some_and(|resources| resources.render_target_retirement.is_some());
+        let pending_resize = self.validated_pending_resize().is_some();
+        if target_retirement_removed && pending_resize {
+            self.timing.native_surface_target_retirement_deadline = None;
+            if self.window.native_surface_target_fenced {
+                self.request_redraw_for_recovery();
+            } else {
+                self.request_pending_surface_resize_retry();
+            }
+        } else if self.window.native_surface_target_fenced
+            && target_retirement_pending
+            && pending_resize
+        {
+            self.timing.native_surface_target_retirement_deadline = Some(
+                now + super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL,
+            );
+        } else {
+            self.timing.native_surface_target_retirement_deadline = None;
+        }
+    }
+
     fn normal_native_resource_maintenance_eligible(
         &self,
         adapter_generation: NativeAdapterGeneration,
@@ -1966,6 +2067,7 @@ where
         now: Instant,
         key: &FrameScheduleKey,
         adapter_generation: NativeAdapterGeneration,
+        turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
         if !self.frame_stage_owner.owns_key(key)
             || !self.normal_native_resource_maintenance_eligible(adapter_generation)
@@ -1996,15 +2098,17 @@ where
             self.defer_normal_native_resource_maintenance(now);
             return false;
         }
-        let mut maintenance_turn = NativeResourceMaintenanceTurn::new();
-        let Some(quarantine_removed) = self
-            .window
-            .maintain_native_resource_slot(binding, &mut maintenance_turn)
+        let Some(quarantine_removed) = self.window.maintain_native_resource_slot(binding, turn)
         else {
             let _ = self.frame_stage_owner.veto_maintenance(ticket);
             self.defer_normal_native_resource_maintenance(now);
             return false;
         };
+        let target_retirement_removed = binding.render_target_retirement().is_some()
+            && self
+                .window
+                .native_resource_maintenance_binding(binding.slot())
+                .is_none_or(|current| current.render_target_retirement().is_none());
         let mut adapter = self.adapter.take();
         if let Some(adapter) = adapter.as_mut() {
             self.refresh_atlas_residency_account(adapter);
@@ -2022,6 +2126,9 @@ where
         self.window
             .advance_native_resource_maintenance_cursor(binding.slot(), quarantine_removed);
         self.defer_normal_native_resource_maintenance(now);
+        if target_retirement_removed {
+            self.request_pending_surface_resize_retry();
+        }
         true
     }
 
@@ -2829,7 +2936,7 @@ where
         }
         if let Some(window) = self.window.window.as_ref() {
             let size = window.inner_size();
-            if !adapter.resize_surface(
+            if !adapter.resize_unpublished_recovery_candidate_surface(
                 &mut primary.render_surface,
                 size.width.max(1),
                 size.height.max(1),
@@ -3108,6 +3215,16 @@ where
     pub(super) fn request_redraw_for_recovery(&mut self) {
         self.arm_requested_recovery_redraw();
         self.request_redraw_for_frame_work(FrameWork::None);
+    }
+
+    fn request_pending_surface_resize_retry(&mut self) {
+        if self.validated_pending_resize().is_some() {
+            let reason = self
+                .timing
+                .pending_surface_resize_reason
+                .unwrap_or(FrameWorkReason::NativeResize);
+            self.request_redraw_for_frame_work(FrameWork::ResizeSurface { reason });
+        }
     }
 
     fn redraw_marker_is_available(&self) -> bool {
@@ -4509,7 +4626,7 @@ mod tests {
         NativeLifecycleStageEvidence, NativeLifecycleTransitionKind, NativeResourceMaintenanceTurn,
         NativeTargetGeneration, NativeWindowAtlasResidencySnapshots,
         NativeWindowCustomShaderResidencySnapshots, NativeWindowSignalResidencySnapshots,
-        TimedFrameCadence, recovery_completion_is_admissible,
+        TimedFrameCadence, recovery_completion_is_admissible, select_due_admitted_auxiliary_index,
     };
     use crate::{
         application::empty,
@@ -4534,6 +4651,15 @@ mod tests {
         time::{Duration, Instant},
     };
     use winit::window::WindowId;
+
+    #[test]
+    fn due_admitted_auxiliary_selection_round_robins() {
+        let due = [true, true];
+
+        assert_eq!(select_due_admitted_auxiliary_index(0, &due), Some(0));
+        assert_eq!(select_due_admitted_auxiliary_index(1, &due), Some(1));
+        assert_eq!(select_due_admitted_auxiliary_index(2, &due), Some(0));
+    }
 
     struct EmptyBridge;
 

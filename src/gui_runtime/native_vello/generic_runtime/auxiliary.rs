@@ -532,6 +532,35 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Retiring)
     }
 
+    pub(super) fn native_surface_target_retirement_deadline(&self) -> Option<Instant> {
+        self.is_admitted()
+            .then(|| self.runner.native_surface_target_retirement_deadline())
+            .flatten()
+    }
+
+    pub(super) fn wake_native_surface_target_retirement_maintenance(&mut self) {
+        if self.is_admitted() {
+            self.runner
+                .wake_native_surface_target_retirement_maintenance();
+        }
+    }
+
+    pub(super) fn maintain_native_surface_target_retirement_if_due_with_turn(
+        &mut self,
+        now: Instant,
+        parent_adapter_generation: NativeAdapterGeneration,
+        turn: &mut NativeResourceMaintenanceTurn,
+    ) {
+        if self.is_admitted() {
+            self.runner
+                .maintain_native_surface_target_retirement_if_due_with_turn(
+                    now,
+                    parent_adapter_generation,
+                    turn,
+                );
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn install_retiring_resource_test(&mut self) {
         assert!(self.is_retiring());
@@ -1071,6 +1100,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &mut self,
         adapter: &mut GenericNativeAdapterOwner,
         now: Instant,
+        turn: &mut NativeResourceMaintenanceTurn,
     ) -> bool {
         let Some(parent_generation) = adapter.capture_generation() else {
             return false;
@@ -1086,6 +1116,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             now,
             &FrameScheduleKey::Auxiliary(self.key.clone()),
             parent_generation,
+            turn,
         );
         if admitted {
             self.runner.refresh_atlas_residency_account(adapter);

@@ -177,8 +177,11 @@ fn project_composited_base_residency(
 struct NativeRenderProfileTargetResidency {
     generation_known: Option<bool>,
     generation_serial: Option<u64>,
+    // Keep the existing profile field names as the active-target aliases.
     resident_count: Option<usize>,
     requested_rgba8_bytes: Option<u64>,
+    predecessor_object_count: Option<usize>,
+    predecessor_requested_rgba8_bytes: Option<u64>,
 }
 
 fn project_target_residency(
@@ -187,8 +190,11 @@ fn project_target_residency(
     NativeRenderProfileTargetResidency {
         generation_known: snapshot.map(GpuSurfaceTargetResidencySnapshot::generation_known),
         generation_serial: snapshot.and_then(GpuSurfaceTargetResidencySnapshot::generation_serial),
-        resident_count: snapshot.map(|snapshot| snapshot.resident_count),
-        requested_rgba8_bytes: snapshot.and_then(|snapshot| snapshot.requested_rgba8_bytes),
+        resident_count: snapshot.map(|snapshot| snapshot.active_object_count),
+        requested_rgba8_bytes: snapshot.and_then(|snapshot| snapshot.active_requested_rgba8_bytes),
+        predecessor_object_count: snapshot.map(|snapshot| snapshot.predecessor_object_count),
+        predecessor_requested_rgba8_bytes: snapshot
+            .and_then(|snapshot| snapshot.predecessor_requested_rgba8_bytes),
     }
 }
 
@@ -434,16 +440,28 @@ pub(super) fn maybe_log_render_profile(
         gpu_surface_target_texture_active_resident_count = active_target.resident_count,
         gpu_surface_target_texture_active_requested_rgba8_bytes =
             active_target.requested_rgba8_bytes,
+        gpu_surface_target_texture_active_predecessor_object_count =
+            active_target.predecessor_object_count,
+        gpu_surface_target_texture_active_predecessor_requested_rgba8_bytes =
+            active_target.predecessor_requested_rgba8_bytes,
         gpu_surface_target_texture_q0_generation_known = quarantine_0_target.generation_known,
         gpu_surface_target_texture_q0_generation_serial = quarantine_0_target.generation_serial,
         gpu_surface_target_texture_q0_resident_count = quarantine_0_target.resident_count,
         gpu_surface_target_texture_q0_requested_rgba8_bytes =
             quarantine_0_target.requested_rgba8_bytes,
+        gpu_surface_target_texture_q0_predecessor_object_count =
+            quarantine_0_target.predecessor_object_count,
+        gpu_surface_target_texture_q0_predecessor_requested_rgba8_bytes =
+            quarantine_0_target.predecessor_requested_rgba8_bytes,
         gpu_surface_target_texture_q1_generation_known = quarantine_1_target.generation_known,
         gpu_surface_target_texture_q1_generation_serial = quarantine_1_target.generation_serial,
         gpu_surface_target_texture_q1_resident_count = quarantine_1_target.resident_count,
         gpu_surface_target_texture_q1_requested_rgba8_bytes =
             quarantine_1_target.requested_rgba8_bytes,
+        gpu_surface_target_texture_q1_predecessor_object_count =
+            quarantine_1_target.predecessor_object_count,
+        gpu_surface_target_texture_q1_predecessor_requested_rgba8_bytes =
+            quarantine_1_target.predecessor_requested_rgba8_bytes,
         "radiant native render profile target texture residency"
     );
     info!(
@@ -1015,6 +1033,8 @@ mod tests {
                 generation_serial: Some(71),
                 resident_count: Some(1),
                 requested_rgba8_bytes: Some(921_600),
+                predecessor_object_count: Some(0),
+                predecessor_requested_rgba8_bytes: None,
             }
         );
         assert_eq!(
@@ -1024,6 +1044,8 @@ mod tests {
                 generation_serial: Some(72),
                 resident_count: Some(1),
                 requested_rgba8_bytes: Some(256_000),
+                predecessor_object_count: Some(0),
+                predecessor_requested_rgba8_bytes: None,
             }
         );
         assert_eq!(
@@ -1033,6 +1055,8 @@ mod tests {
                 generation_serial: Some(73),
                 resident_count: Some(1),
                 requested_rgba8_bytes: Some(4),
+                predecessor_object_count: Some(0),
+                predecessor_requested_rgba8_bytes: None,
             }
         );
         assert_eq!(
@@ -1045,15 +1069,19 @@ mod tests {
     fn target_profile_projection_suppresses_unknown_and_exhausted_generation_serials() {
         let unknown = GpuSurfaceTargetResidencySnapshot {
             generation: NativeAdapterGeneration::unknown(),
-            resident_count: 1,
-            requested_rgba8_bytes: Some(4),
+            active_object_count: 1,
+            predecessor_object_count: 0,
+            active_requested_rgba8_bytes: Some(4),
+            predecessor_requested_rgba8_bytes: None,
         };
         let mut exhausted_generation = NativeAdapterGeneration::from_test_serial(u64::MAX);
         assert!(!exhausted_generation.advance());
         let exhausted = GpuSurfaceTargetResidencySnapshot {
             generation: exhausted_generation,
-            resident_count: 1,
-            requested_rgba8_bytes: Some(8),
+            active_object_count: 1,
+            predecessor_object_count: 0,
+            active_requested_rgba8_bytes: Some(8),
+            predecessor_requested_rgba8_bytes: None,
         };
 
         for snapshot in [unknown, exhausted] {
@@ -1063,9 +1091,27 @@ mod tests {
             assert_eq!(projection.resident_count, Some(1));
             assert_eq!(
                 projection.requested_rgba8_bytes,
-                snapshot.requested_rgba8_bytes
+                snapshot.active_requested_rgba8_bytes
             );
+            assert_eq!(projection.predecessor_object_count, Some(0));
+            assert_eq!(projection.predecessor_requested_rgba8_bytes, None);
         }
+    }
+
+    #[test]
+    fn target_profile_projection_preserves_predecessor_diagnostics() {
+        let projection = project_target_residency(Some(GpuSurfaceTargetResidencySnapshot {
+            generation: NativeAdapterGeneration::from_test_serial(74),
+            active_object_count: 1,
+            predecessor_object_count: 1,
+            active_requested_rgba8_bytes: Some(921_600),
+            predecessor_requested_rgba8_bytes: Some(1_024),
+        }));
+
+        assert_eq!(projection.resident_count, Some(1));
+        assert_eq!(projection.requested_rgba8_bytes, Some(921_600));
+        assert_eq!(projection.predecessor_object_count, Some(1));
+        assert_eq!(projection.predecessor_requested_rgba8_bytes, Some(1_024));
     }
 
     #[test]

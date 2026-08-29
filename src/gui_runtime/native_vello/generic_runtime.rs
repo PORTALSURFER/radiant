@@ -230,8 +230,10 @@ impl GpuSurfaceCompositedBaseResidencySnapshot {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct GpuSurfaceTargetResidencySnapshot {
     generation: adapter::NativeAdapterGeneration,
-    pub(super) resident_count: usize,
-    pub(super) requested_rgba8_bytes: Option<u64>,
+    pub(super) active_object_count: usize,
+    pub(super) predecessor_object_count: usize,
+    pub(super) active_requested_rgba8_bytes: Option<u64>,
+    pub(super) predecessor_requested_rgba8_bytes: Option<u64>,
 }
 
 impl GpuSurfaceTargetResidencySnapshot {
@@ -246,8 +248,10 @@ impl GpuSurfaceTargetResidencySnapshot {
             .filter(|bytes| *bytes > 0);
         Self {
             generation,
-            resident_count: 1,
-            requested_rgba8_bytes,
+            active_object_count: 1,
+            predecessor_object_count: 0,
+            active_requested_rgba8_bytes: requested_rgba8_bytes,
+            predecessor_requested_rgba8_bytes: None,
         }
     }
 
@@ -314,6 +318,7 @@ mod native_file_open;
 mod native_immediate_transient_stage;
 mod native_lifecycle_stage;
 mod native_pointer;
+mod native_render_target;
 mod native_resource_maintenance;
 #[cfg(target_os = "macos")]
 mod native_semantic_accessibility;

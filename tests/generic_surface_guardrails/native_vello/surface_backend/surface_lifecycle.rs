@@ -38,7 +38,8 @@ fn native_surface_backend_policy_stays_in_focused_module() {
             && surface.contains("GenericNativeAdapterOwner")
             && surface.contains("adapter\n            .instance()")
             && surface.contains("adapter\n            .create_render_surface")
-            && surface.contains("adapter.resize_surface")
+            && surface.contains("adapter.replace_render_surface_targets(")
+            && !surface.contains("resize_unpublished_recovery_candidate_surface")
             && !surface.contains("fn wgpu_backends")
             && !surface.contains("InstanceDescriptor")
             && !surface.contains("RenderContext"),

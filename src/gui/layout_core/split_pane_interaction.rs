@@ -74,6 +74,14 @@ pub(crate) struct SplitPaneCaptureWitness {
     pub(crate) divider_extent: f32,
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SplitPaneRatioAdjustment {
+    Applied(f32),
+    Unchanged,
+    Vetoed,
+}
+
 pub(crate) struct SplitPaneDividerInteraction<Message> {
     policy: SplitPanePolicy,
     initial_ratio: f32,
@@ -94,6 +102,86 @@ impl<Message> SplitPaneDividerInteraction<Message> {
             on_ratio_settled,
         }
     }
+}
+
+/// Apply one backend-neutral logical-axis ratio adjustment to an already
+/// validated runtime-owned split state.
+///
+/// The helper is deliberately side-effect free until the candidate is known to
+/// change the quantized geometry. It shares the split resolver, minima, and
+/// collapse bookkeeping used by the pointer interaction, but leaves runtime
+/// authority, queueing, and output ordering to `SurfaceRuntime`.
+#[allow(dead_code)]
+pub(crate) fn apply_split_pane_ratio_delta(
+    state: &mut SplitPaneRuntimeState,
+    descriptor: SplitPaneDividerDescriptor,
+    bounds: Rect,
+    divider_bounds: Rect,
+    delta: f32,
+) -> SplitPaneRatioAdjustment {
+    if !delta.is_finite()
+        || !bounds.has_finite_positive_area()
+        || !divider_bounds.has_finite_positive_area()
+        || state.ownership != SplitPaneRuntimeOwnership::RuntimeOwned
+        || !state.ratio.is_finite()
+        || !(0.0..=1.0).contains(&state.ratio)
+        || state.resize.is_resizing()
+        || !descriptor.first_min_extent.is_finite()
+        || descriptor.first_min_extent < 0.0
+        || !descriptor.second_min_extent.is_finite()
+        || descriptor.second_min_extent < 0.0
+        || !descriptor.divider_extent.is_finite()
+        || descriptor.divider_extent <= 0.0
+        || descriptor.first_child == descriptor.second_child
+    {
+        return SplitPaneRatioAdjustment::Vetoed;
+    }
+
+    let parts = SplitPaneLayoutParts {
+        bounds,
+        axis: descriptor.axis,
+        ratio: state.ratio,
+        divider_extent: descriptor.divider_extent,
+        first_min_extent: descriptor.first_min_extent,
+        second_min_extent: descriptor.second_min_extent,
+    };
+    let resolved = SplitPaneLayout::from_parts(parts);
+    if !resolved.minima_satisfied {
+        return SplitPaneRatioAdjustment::Vetoed;
+    }
+    let total_extent = axis_extent(bounds, descriptor.axis);
+    let divider_extent = resolved.divider_extent.min(total_extent);
+    let movable_extent = total_extent - divider_extent;
+    if !movable_extent.is_finite() || movable_extent <= 0.0 {
+        return SplitPaneRatioAdjustment::Vetoed;
+    }
+
+    let requested_ratio = state.ratio + delta / movable_extent;
+    if !requested_ratio.is_finite() {
+        return SplitPaneRatioAdjustment::Vetoed;
+    }
+    let minimum = resolved.first_min_extent / movable_extent;
+    let maximum = 1.0 - resolved.second_min_extent / movable_extent;
+    let next_ratio = requested_ratio.clamp(minimum, maximum);
+    if !next_ratio.is_finite() {
+        return SplitPaneRatioAdjustment::Vetoed;
+    }
+
+    let next = SplitPaneLayout::from_parts(SplitPaneLayoutParts {
+        ratio: next_ratio,
+        ..parts
+    });
+    if next_ratio.to_bits() == state.ratio.to_bits()
+        || quantized_split_pane_rects(resolved) == quantized_split_pane_rects(next)
+    {
+        return SplitPaneRatioAdjustment::Unchanged;
+    }
+
+    let constraints = PanelResizeConstraints::new(PanelResizeEdge::Right, 0.0, 1.0);
+    state.resize.set_size(next_ratio, constraints);
+    state.ratio = next_ratio;
+    remember_expanded_ratio_for_parts(state, parts, next_ratio);
+    SplitPaneRatioAdjustment::Applied(next_ratio)
 }
 
 pub(crate) fn runtime_owned_split_pane_capabilities<Message: 'static>(
@@ -360,6 +448,27 @@ fn remember_expanded_ratio<Message>(
     }
 }
 
+fn remember_expanded_ratio_for_parts(
+    state: &mut SplitPaneRuntimeState,
+    parts: SplitPaneLayoutParts,
+    ratio: f32,
+) {
+    let Some(collapse_policy) = state.policy_revision.collapse_policy else {
+        return;
+    };
+    let Some(target) = split_pane_collapse_target(parts, collapse_policy) else {
+        return;
+    };
+    let selected_extent =
+        ratio_selected_extent_from_parts(SplitPaneLayoutParts { ratio, ..parts }, collapse_policy);
+    if selected_extent > target.selected_extent {
+        state.last_expanded_ratio = Some(ratio);
+        state.collapsed_policy = None;
+    } else if selected_extent.to_bits() == target.selected_extent.to_bits() {
+        state.collapsed_policy = Some(collapse_policy);
+    }
+}
+
 fn collapse_target(
     context: &LayoutEventContext<impl Sized>,
     policy: SplitPanePolicy,
@@ -439,6 +548,18 @@ fn ratio_selected_extent(
         SplitPaneCollapsePolicy::SecondPane => axis_extent(second, policy.axis),
     };
     selected_extent.is_finite().then_some(selected_extent)
+}
+
+fn ratio_selected_extent_from_parts(
+    parts: SplitPaneLayoutParts,
+    collapse_policy: SplitPaneCollapsePolicy,
+) -> f32 {
+    let resolved = SplitPaneLayout::from_parts(parts);
+    let (first, _divider, second) = quantized_split_pane_rects(resolved);
+    match collapse_policy {
+        SplitPaneCollapsePolicy::FirstPane => axis_extent(first, parts.axis),
+        SplitPaneCollapsePolicy::SecondPane => axis_extent(second, parts.axis),
+    }
 }
 
 fn ratio_for_pointer(

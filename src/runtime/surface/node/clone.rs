@@ -44,6 +44,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             hoverable: self.hoverable,
             layout_capabilities: self.layout_capabilities.clone(),
             split_pane_runtime: self.split_pane_runtime,
+            split_pane_ratio_settled: self.split_pane_ratio_settled.clone(),
             virtual_layout: self.virtual_layout.clone(),
             scroll_message: self.scroll_message.clone(),
             children: self.children.clone(),

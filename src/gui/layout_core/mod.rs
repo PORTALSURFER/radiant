@@ -138,7 +138,7 @@ pub use row_helpers::{
 };
 pub(crate) use split_pane_interaction::{
     SPLIT_PANE_DIVIDER_REGION_ID, SplitPaneCaptureWitness, SplitPaneDividerDescriptor,
-    runtime_owned_split_pane_capabilities,
+    SplitPaneRatioAdjustment, apply_split_pane_ratio_delta, runtime_owned_split_pane_capabilities,
     runtime_owned_split_pane_capabilities_with_ratio_settled,
 };
 pub(crate) use split_pane_state::{

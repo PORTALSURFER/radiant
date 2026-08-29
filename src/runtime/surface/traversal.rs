@@ -7,8 +7,8 @@ mod stats;
 
 pub(in crate::runtime) use index::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord,
-    SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex, SurfaceWidgetTraversalRecord,
-    WheelHitTarget,
+    SurfaceSplitPaneFocusOrderCandidate, SurfaceSplitPaneRatioActionCandidate,
+    SurfaceTraversalIndex, SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 pub(in crate::runtime) use stats::SurfaceTraversalStats;
 

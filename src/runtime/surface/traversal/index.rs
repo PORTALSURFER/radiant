@@ -20,7 +20,8 @@ mod tests;
 
 pub(in crate::runtime) use records::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord,
-    SurfaceSplitPaneFocusOrderCandidate, SurfaceWidgetTraversalRecord, WheelHitTarget,
+    SurfaceSplitPaneFocusOrderCandidate, SurfaceSplitPaneRatioActionCandidate,
+    SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 
 pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
@@ -44,6 +45,8 @@ pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
     pub(in crate::runtime) layout_interactions: Vec<SurfaceLayoutInteractionRecord<Message>>,
     pub(in crate::runtime) split_pane_runtime: Vec<SplitPaneRuntimeStateInput>,
     pub(in crate::runtime) split_pane_dividers: Vec<SplitPaneDividerDescriptor>,
+    pub(in crate::runtime) split_pane_ratio_action_candidates:
+        Vec<SurfaceSplitPaneRatioActionCandidate<Message>>,
     pub(in crate::runtime) virtual_layout_registrations:
         Vec<super::super::VirtualLayoutRegistration<Message>>,
 }
@@ -72,6 +75,9 @@ impl<Message> SurfaceTraversalIndex<Message> {
             layout_interactions: Vec::with_capacity(stats.max_depth),
             split_pane_runtime: Vec::with_capacity(stats.max_depth),
             split_pane_dividers: Vec::with_capacity(stats.max_depth),
+            split_pane_ratio_action_candidates: Vec::with_capacity(
+                stats.split_pane_focus_order_candidates,
+            ),
             virtual_layout_registrations: Vec::with_capacity(stats.max_depth),
         }
     }
@@ -124,6 +130,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
         self.layout_interactions.clear();
         self.split_pane_runtime.clear();
         self.split_pane_dividers.clear();
+        self.split_pane_ratio_action_candidates.clear();
         self.virtual_layout_registrations.clear();
     }
 
@@ -147,6 +154,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
         self.layout_interactions.clear();
         self.split_pane_runtime.clear();
         self.split_pane_dividers.clear();
+        self.split_pane_ratio_action_candidates.clear();
         self.virtual_layout_registrations.clear();
     }
 }

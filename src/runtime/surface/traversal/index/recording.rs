@@ -30,6 +30,10 @@ impl<Message> SurfaceTraversalIndex<Message> {
         if let Some(split_pane_divider) = record.split_pane_divider {
             self.split_pane_dividers.push(split_pane_divider);
         }
+        if let Some(split_pane_ratio_action) = record.split_pane_ratio_action {
+            self.split_pane_ratio_action_candidates
+                .push(split_pane_ratio_action);
+        }
         if let Some(registration) = record.virtual_layout {
             self.virtual_layout_registrations.push(registration);
         }

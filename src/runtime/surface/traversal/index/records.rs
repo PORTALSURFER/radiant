@@ -42,6 +42,23 @@ pub(in crate::runtime) struct SurfaceSplitPaneFocusOrderCandidate {
     pub(in crate::runtime) policy_revision: SplitPaneRuntimePolicyRevision,
 }
 
+/// Non-authorizing source evidence for one runtime-owned split ratio action.
+///
+/// This deliberately remains separate from the observational separator
+/// projection and from the focus-order candidate. The controller pairs it
+/// with one exact committed layout target and mounted state before creating an
+/// action authority.
+pub(in crate::runtime) struct SurfaceSplitPaneRatioActionCandidate<Message> {
+    pub(in crate::runtime) target: LayoutTargetIdentity,
+    pub(in crate::runtime) state_id: ContainerStateId,
+    pub(in crate::runtime) descriptor: SplitPaneDividerDescriptor,
+    pub(in crate::runtime) ownership: SplitPaneRuntimeOwnership,
+    pub(in crate::runtime) contract_version: u16,
+    pub(in crate::runtime) state_schema_version: u16,
+    pub(in crate::runtime) policy_revision: SplitPaneRuntimePolicyRevision,
+    pub(in crate::runtime) on_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
+}
+
 pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a, Message> {
     pub(in crate::runtime) id: NodeId,
     pub(in crate::runtime) clipped_by: &'a [NodeId],
@@ -50,6 +67,8 @@ pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a, Message> {
     pub(in crate::runtime) layout_interaction: Option<SurfaceLayoutInteractionRecord<Message>>,
     pub(in crate::runtime) split_pane_runtime: Option<SplitPaneRuntimeStateInput>,
     pub(in crate::runtime) split_pane_divider: Option<SplitPaneDividerDescriptor>,
+    pub(in crate::runtime) split_pane_ratio_action:
+        Option<SurfaceSplitPaneRatioActionCandidate<Message>>,
     pub(in crate::runtime) virtual_layout:
         Option<super::super::super::VirtualLayoutRegistration<Message>>,
 }

@@ -524,6 +524,21 @@ impl NativeVisualRequestMailbox {
     }
 
     #[cfg(test)]
+    pub(super) fn begin_for_test(&mut self, window_id: WindowId) -> NativeVisualRequestBegin {
+        self.begin(window_id, true)
+    }
+
+    #[cfg(test)]
+    pub(super) fn finish_for_test(
+        &mut self,
+        window_id: WindowId,
+        packet: NativeVisualRequestPacket,
+        disposition: NativeVisualRequestDisposition,
+    ) -> NativeVisualRequestFinish {
+        self.finish(window_id, packet, disposition)
+    }
+
+    #[cfg(test)]
     fn requested_revision(&self) -> Option<u64> {
         self.requested
             .as_ref()

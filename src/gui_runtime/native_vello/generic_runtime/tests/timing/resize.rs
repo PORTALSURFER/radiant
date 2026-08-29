@@ -1,7 +1,21 @@
 use super::super::super::runner_state::{
     NativeSurfaceAcquireFailure, SurfaceAcquirePolicy, surface_acquire_policy,
 };
+use super::super::super::{
+    adapter::NativeAdapterGeneration,
+    native_render_target::{
+        NativeRenderTargetReplacementContext, NativeRenderTargetReplacementEvidence,
+        NativeRenderTargetReplacementMode, NativeRenderTargetReplacementOutcome,
+        NativeRenderTargetReplacementRequest, replacement_preflight,
+    },
+    native_visual_packet::{
+        NativeVisualRequestBegin, NativeVisualRequestDisposition, NativeVisualRequestEnqueue,
+        NativeVisualRequestFinish, NativeVisualRequestMailbox,
+    },
+    runner_state::NativeTargetGeneration,
+};
 use super::{fixtures::*, shared::*};
+use winit::window::WindowId;
 
 #[test]
 fn deferred_surface_resize_keeps_latest_nonzero_size() {
@@ -63,6 +77,87 @@ fn surface_acquire_policy_distinguishes_recovery_and_fence_states() {
         ),
         SurfaceAcquirePolicy::ConservativeFence
     );
+}
+
+#[test]
+fn same_size_recovery_preserves_target_boundary_and_reissues_once() {
+    let resource_generation = NativeAdapterGeneration::from_test_serial(1);
+    let target_generation = NativeTargetGeneration::from_test_serial(4);
+    let evidence = NativeRenderTargetReplacementEvidence::new(
+        resource_generation,
+        target_generation,
+        super::super::super::submission_completion::NativeSubmissionCompletionIdentity::never_submitted(
+            resource_generation,
+        ),
+    );
+    let context = NativeRenderTargetReplacementContext {
+        surface_device_id: 7,
+        selected_device_id: Some(7),
+        selected_generation: Some(resource_generation),
+    };
+
+    for failure in [
+        NativeSurfaceAcquireFailure::Lost,
+        NativeSurfaceAcquireFailure::Outdated,
+    ] {
+        assert_eq!(
+            surface_acquire_policy(failure, PhysicalSize::new(640, 360)),
+            SurfaceAcquirePolicy::ReconfigureAndRetry
+        );
+        assert_eq!(
+            replacement_preflight(
+                NativeRenderTargetReplacementRequest {
+                    mode: NativeRenderTargetReplacementMode::Recovery,
+                    current_width: 640,
+                    current_height: 360,
+                    width: 640,
+                    height: 360,
+                    predecessor_occupied: true,
+                    evidence: Some(evidence),
+                },
+                context,
+            ),
+            NativeRenderTargetReplacementOutcome::Noop,
+            "same-descriptor recovery must not replace the target or predecessor"
+        );
+        assert_eq!(
+            target_generation,
+            NativeTargetGeneration::from_test_serial(4)
+        );
+
+        let window_id = WindowId::from(17);
+        let mut mailbox = NativeVisualRequestMailbox::new();
+        assert!(mailbox.bind_window(window_id));
+        assert_eq!(
+            mailbox.enqueue_for_test(FrameWork::None),
+            NativeVisualRequestEnqueue::Issued
+        );
+        let packet = match mailbox.begin_for_test(window_id) {
+            NativeVisualRequestBegin::Requested(packet) => packet,
+            other => panic!("unexpected begin result: {other:?}"),
+        };
+        assert_eq!(
+            mailbox.enqueue_for_test(FrameWork::None),
+            NativeVisualRequestEnqueue::Queued
+        );
+        assert_eq!(
+            mailbox.finish_for_test(
+                window_id,
+                packet,
+                NativeVisualRequestDisposition::DropPacket,
+            ),
+            NativeVisualRequestFinish::Reissued
+        );
+        let retry = match mailbox.begin_for_test(window_id) {
+            NativeVisualRequestBegin::Requested(packet) => packet,
+            other => panic!("expected one fresh recovery packet, got {other:?}"),
+        };
+        assert_eq!(
+            mailbox.finish_for_test(window_id, retry, NativeVisualRequestDisposition::DropPacket,),
+            NativeVisualRequestFinish::Completed
+        );
+        assert!(!mailbox.has_work());
+    }
 }
 
 #[test]

@@ -446,6 +446,42 @@ where
             .pending_surface_resize
             .filter(|pending| pending.width > 0 && pending.height > 0)
             .unwrap_or(size);
+
+        // A Lost/Outdated surface with the same active target descriptor only
+        // needs WGPU surface reconfiguration. Keep the target pair and its
+        // evidence intact; the replacement path below remains the fenced,
+        // evidence-driven path for a real descriptor change.
+        let same_descriptor_recovery =
+            self.window
+                .native_resources
+                .as_ref()
+                .is_some_and(|resources| {
+                    !self.window.native_surface_target_fenced
+                        && target_generation.is_known()
+                        && !surface_size_changed(
+                            resources.render_surface.config.width,
+                            resources.render_surface.config.height,
+                            requested_size,
+                        )
+                });
+        if same_descriptor_recovery {
+            let reconfigured = self
+                .window
+                .native_resources
+                .as_mut()
+                .is_some_and(|resources| {
+                    adapter.reconfigure_render_surface_in_place(&mut resources.render_surface)
+                });
+            if reconfigured {
+                self.timing.pending_surface_recovery_replacement_evidence = None;
+                self.clear_pending_surface_resize_if_snapshot_matches(
+                    pending_surface_resize,
+                    pending_surface_resize_reason,
+                );
+                return true;
+            }
+        }
+
         let (replacement_evidence, predecessor_occupied, evidence_current, viewport_resize_needed) = {
             let Some(resources) = self.window.native_resources.as_ref() else {
                 self.timing.pending_surface_recovery_replacement_evidence = None;

@@ -1,10 +1,11 @@
 use super::super::source::SourceMetadata;
 use super::{LayerKind, SurfaceLayer, SurfaceLayerChildKind, SurfaceNode};
-use crate::layout::NodeId;
+use crate::{UiAffinity, layout::NodeId};
 use std::rc::Rc;
 
 /// A root scene with base content plus typed transient layers.
 pub struct SurfaceScene<Message> {
+    pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
     pub(in crate::runtime::surface) id: NodeId,
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
@@ -15,6 +16,7 @@ impl<Message> SurfaceScene<Message> {
     /// Build a surface scene.
     pub fn new(id: NodeId, base: SurfaceNode<Message>, layers: Vec<SurfaceLayer<Message>>) -> Self {
         Self {
+            _ui_affinity: UiAffinity::new(),
             id,
             base: Box::new(base),
             layers,

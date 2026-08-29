@@ -7,6 +7,7 @@ use super::super::{
     SurfaceRuntime,
 };
 use crate::{
+    UiAffinity,
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
     runtime::{
@@ -44,6 +45,7 @@ where
             ..RuntimeScratch::default()
         };
         let mut runtime = Self {
+            _ui_affinity: UiAffinity::new(),
             bridge,
             host_capabilities,
             viewport,

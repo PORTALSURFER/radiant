@@ -1,5 +1,7 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
+use crate::UiAffinity;
+
 mod builders;
 mod dispatch;
 mod focus;
@@ -63,7 +65,25 @@ pub(in crate::runtime) use revision::{
 };
 
 /// Top-level immutable UI surface projected by a generic Radiant host.
+///
+/// A surface is owned by its UI runtime and cannot be moved into a worker
+/// thread. Its marker is zero-sized and does not affect surface storage.
+///
+/// ```compile_fail
+/// use radiant::{
+///     layout::ContainerPolicy,
+///     runtime::{SurfaceNode, UiSurface},
+/// };
+///
+/// let surface = UiSurface::new(SurfaceNode::<()>::container(
+///     1,
+///     ContainerPolicy::default(),
+///     Vec::new(),
+/// ));
+/// std::thread::spawn(move || drop(surface));
+/// ```
 pub struct UiSurface<Message> {
+    _ui_affinity: UiAffinity,
     root: SurfaceNode<Message>,
     window_environment: crate::runtime::WindowEnvironment,
 }

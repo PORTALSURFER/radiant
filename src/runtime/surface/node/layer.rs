@@ -1,6 +1,8 @@
 use super::super::source::SourceMetadata;
 use super::{SurfaceContainer, SurfaceNode};
-use crate::{gui::types::Rect, layout::NodeId, runtime::PaintText, widgets::WidgetStyle};
+use crate::{
+    UiAffinity, gui::types::Rect, layout::NodeId, runtime::PaintText, widgets::WidgetStyle,
+};
 use std::rc::Rc;
 
 /// Stable category for one scene layer.
@@ -83,6 +85,7 @@ pub(in crate::runtime) enum SurfaceLayerChildKind {
 /// Non-interactive floating overlay descriptor.
 #[derive(Clone)]
 pub struct SurfaceOverlay {
+    pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
     pub(in crate::runtime::surface) id: NodeId,
     pub(in crate::runtime::surface) rect: Rect,
     pub(in crate::runtime::surface) label: Option<PaintText>,
@@ -92,6 +95,7 @@ pub struct SurfaceOverlay {
 
 /// One floating child tree with explicit layout placement and input policy.
 pub struct SurfaceFloatingLayer<Message> {
+    pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
     pub(in crate::runtime::surface) container: SurfaceContainer<Message>,
     pub(in crate::runtime::surface) interactive: bool,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
@@ -124,6 +128,7 @@ mod tests {
     fn floating_layer_owns_one_fill_child() {
         let child = SurfaceNode::<()>::container(2, ContainerPolicy::default(), Vec::new());
         let layer = SurfaceFloatingLayer {
+            _ui_affinity: UiAffinity::new(),
             container: SurfaceContainer::new(
                 1,
                 ContainerPolicy::default(),

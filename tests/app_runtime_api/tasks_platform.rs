@@ -41,6 +41,33 @@ fn business_run_accepts_ui_local_mapper_capture() {
 }
 
 #[test]
+fn business_worker_result_maps_to_non_send_ui_message() {
+    let mapped = std::rc::Rc::new(std::cell::RefCell::new(0_usize));
+    let mapper_state = std::rc::Rc::clone(&mapped);
+    let message_state = std::rc::Rc::clone(&mapped);
+    let mut context: radiant::prelude::UiUpdateContext<std::rc::Rc<std::cell::RefCell<usize>>> =
+        radiant::prelude::UiUpdateContext::default();
+    context.business().background("ui-local-result").run(
+        |_| 7_u32,
+        move |output| {
+            *mapper_state.borrow_mut() = output as usize;
+            std::rc::Rc::clone(&message_state)
+        },
+    );
+
+    let command = context.into_command();
+    assert!(matches!(
+        &command,
+        radiant::runtime::Command::PerformWorker(_)
+    ));
+    assert_eq!(
+        command.business_task_priority("ui-local-result"),
+        Some(radiant::prelude::TaskPriority::Background)
+    );
+    assert_eq!(*mapped.borrow(), 0);
+}
+
+#[test]
 fn business_admission_receipt_is_pending_until_controller_admission() {
     let mut context = radiant::prelude::UiUpdateContext::default();
     let receipt = context

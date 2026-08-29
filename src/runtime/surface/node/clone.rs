@@ -38,6 +38,7 @@ impl<Message> Clone for SurfaceContainerParts<Message> {
 impl<Message> Clone for SurfaceContainer<Message> {
     fn clone(&self) -> Self {
         Self {
+            _ui_affinity: self._ui_affinity,
             id: self.id,
             policy: self.policy.clone(),
             style: self.style,
@@ -66,6 +67,7 @@ impl<Message> Clone for SurfaceLayer<Message> {
 impl<Message> Clone for SurfaceScene<Message> {
     fn clone(&self) -> Self {
         Self {
+            _ui_affinity: self._ui_affinity,
             id: self.id,
             base: self.base.clone(),
             layers: self.layers.clone(),
@@ -77,6 +79,7 @@ impl<Message> Clone for SurfaceScene<Message> {
 impl<Message> Clone for SurfaceFloatingLayer<Message> {
     fn clone(&self) -> Self {
         Self {
+            _ui_affinity: self._ui_affinity,
             container: self.container.clone(),
             interactive: self.interactive,
             source: self.source.clone(),

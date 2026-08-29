@@ -1,9 +1,11 @@
 use super::{SurfaceNode, UiSurface};
+use crate::UiAffinity;
 use crate::layout::LayoutNode;
 
 impl<Message> Clone for UiSurface<Message> {
     fn clone(&self) -> Self {
         Self {
+            _ui_affinity: self._ui_affinity,
             root: self.root.clone(),
             window_environment: self.window_environment,
         }
@@ -14,6 +16,7 @@ impl<Message> UiSurface<Message> {
     /// Build a top-level UI surface from one declarative root node.
     pub fn new(root: SurfaceNode<Message>) -> Self {
         Self {
+            _ui_affinity: UiAffinity::new(),
             root,
             window_environment: crate::runtime::WindowEnvironment::default(),
         }

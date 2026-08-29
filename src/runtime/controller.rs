@@ -75,6 +75,7 @@ use super::{
     UiUpdateHandlerDiagnosticsPolicy, WidgetDispatchResult, WidgetPath, WindowEnvironment,
 };
 use crate::{
+    UiAffinity,
     gui::layout_core::{
         LayoutAuthorityEvidence, LayoutStateAuthorityOwner, MountedLayoutSourceAuthorityOwner,
         RootLayoutAuthorityOwner,
@@ -116,10 +117,29 @@ pub enum FocusTraversal {
 /// 4. map widget output into a host-defined message
 /// 5. reduce that message into host state
 /// 6. project the next immutable surface snapshot
+///
+/// The runtime controller and its lifecycle state are owned by the UI runtime
+/// and cannot be moved into a worker thread.
+///
+/// ```compile_fail
+/// use radiant::{
+///     layout::{ContainerPolicy, Vector2},
+///     runtime::{SurfaceNode, SurfaceRuntime, UiSurface},
+/// };
+///
+/// let runtime = SurfaceRuntime::new_declarative_owned(
+///     (),
+///     Vector2::new(1.0, 1.0),
+///     |_| UiSurface::new(SurfaceNode::container(1, ContainerPolicy::default(), Vec::new())),
+///     |_, _| {},
+/// );
+/// std::thread::spawn(move || drop(runtime));
+/// ```
 pub struct SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    _ui_affinity: UiAffinity,
     bridge: Bridge,
     host_capabilities: super::RuntimeHostCapabilities<Bridge, Message>,
     viewport: Rect,

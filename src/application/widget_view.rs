@@ -1,4 +1,5 @@
 use crate::{
+    UiAffinity,
     layout::{NodeId, Vector2},
     runtime::{SurfaceNode, WidgetMessageMapper},
     widgets::{
@@ -13,7 +14,18 @@ use std::{rc::Rc, sync::Arc};
 /// Implementors usually call [`WidgetViewContext::apply_to`] before returning a
 /// [`SurfaceNode`]. That keeps generated IDs, explicit sizing, styling, and
 /// input-only chrome behavior consistent across built-in and custom widgets.
+/// The context is owned by the UI lowering path and cannot be sent to a worker
+/// thread.
+///
+/// ```compile_fail
+/// use radiant::application::WidgetViewContext;
+///
+/// fn move_context_to_worker(context: WidgetViewContext) {
+///     std::thread::spawn(move || drop(context));
+/// }
+/// ```
 pub struct WidgetViewContext {
+    pub(in crate::application) _ui_affinity: UiAffinity,
     /// Stable runtime id assigned by the view tree.
     pub id: NodeId,
     pub(in crate::application) sizing: Option<WidgetSizing>,

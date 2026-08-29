@@ -67,6 +67,9 @@ where
             .bind_committed_mounted_state_ids(&self.interaction.layout_state);
         self.traversal
             .containers
+            .rebuild_split_pane_ratio_action_authorities(&self.interaction.layout_state);
+        self.traversal
+            .containers
             .rebuild_split_pane_separator_projections(&self.interaction.layout_state);
         self.traversal
             .rebuild_mixed_focus_order(self.lifecycle_phase(), &self.interaction.layout_state);

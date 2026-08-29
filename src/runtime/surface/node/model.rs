@@ -62,6 +62,7 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) layout_capabilities: Option<LayoutCapabilities<Message>>,
     pub(in crate::runtime::surface) split_pane_runtime:
         Option<crate::gui::layout_core::SplitPaneRuntimeMode>,
+    pub(in crate::runtime::surface) split_pane_ratio_settled: Option<Rc<dyn Fn(f32) -> Message>>,
     pub(in crate::runtime::surface) virtual_layout:
         Option<super::super::VirtualLayoutRegistration<Message>>,
     pub(in crate::runtime::surface) scroll_message:
@@ -92,6 +93,7 @@ impl<Message> SurfaceContainer<Message> {
             hoverable: false,
             layout_capabilities: parts.layout_capabilities,
             split_pane_runtime: None,
+            split_pane_ratio_settled: None,
             virtual_layout: None,
             scroll_message: None,
             children: parts.children,
@@ -139,6 +141,14 @@ impl<Message> SurfaceContainer<Message> {
         registration: super::super::VirtualLayoutRegistration<Message>,
     ) -> Self {
         self.virtual_layout = Some(registration);
+        self
+    }
+
+    pub(crate) fn with_split_pane_ratio_settled(
+        mut self,
+        map: Option<Rc<dyn Fn(f32) -> Message>>,
+    ) -> Self {
+        self.split_pane_ratio_settled = map;
         self
     }
 
@@ -204,6 +214,19 @@ impl<Message> SurfaceNode<Message> {
         match self {
             Self::Container(mut container) => {
                 container.split_pane_runtime = mode;
+                Self::Container(container)
+            }
+            node => node,
+        }
+    }
+
+    pub(crate) fn with_split_pane_ratio_settled(
+        self,
+        map: Option<Rc<dyn Fn(f32) -> Message>>,
+    ) -> Self {
+        match self {
+            Self::Container(mut container) => {
+                container = container.with_split_pane_ratio_settled(map);
                 Self::Container(container)
             }
             node => node,

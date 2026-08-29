@@ -1,7 +1,7 @@
 use super::{
     SourceTraversalIndex, SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode,
-    SurfaceScene, SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex,
-    SurfaceTraversalStats, UiSurface,
+    SurfaceScene, SurfaceSplitPaneFocusOrderCandidate, SurfaceSplitPaneRatioActionCandidate,
+    SurfaceTraversalIndex, SurfaceTraversalStats, UiSurface,
 };
 use super::{SurfaceWidget, SurfaceWidgetTraversalRecord};
 use crate::layout::supports_layout_capabilities_contract;
@@ -371,6 +371,51 @@ fn visit_container_children<Message>(
 fn split_pane_focus_order_candidate<Message>(
     container: &SurfaceContainer<Message>,
 ) -> Option<SurfaceSplitPaneFocusOrderCandidate> {
+    let (state_id, descriptor, policy_revision, contract_version) =
+        runtime_owned_split_pane_source_evidence(container)?;
+    Some(SurfaceSplitPaneFocusOrderCandidate {
+        widget_index: 0,
+        target: crate::layout::LayoutTargetIdentity::new(
+            container.id,
+            crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID,
+        ),
+        state_id,
+        descriptor,
+        ownership: crate::gui::layout_core::SplitPaneRuntimeOwnership::RuntimeOwned,
+        contract_version,
+        state_schema_version: state_id.schema_version(),
+        policy_revision,
+    })
+}
+
+fn split_pane_ratio_action_candidate<Message>(
+    container: &SurfaceContainer<Message>,
+) -> Option<SurfaceSplitPaneRatioActionCandidate<Message>> {
+    let (state_id, descriptor, policy_revision, contract_version) =
+        runtime_owned_split_pane_source_evidence(container)?;
+    Some(SurfaceSplitPaneRatioActionCandidate {
+        target: crate::layout::LayoutTargetIdentity::new(
+            container.id,
+            crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID,
+        ),
+        state_id,
+        descriptor,
+        ownership: crate::gui::layout_core::SplitPaneRuntimeOwnership::RuntimeOwned,
+        contract_version,
+        state_schema_version: state_id.schema_version(),
+        policy_revision,
+        on_ratio_settled: container.split_pane_ratio_settled.clone(),
+    })
+}
+
+fn runtime_owned_split_pane_source_evidence<Message>(
+    container: &SurfaceContainer<Message>,
+) -> Option<(
+    crate::gui::layout_core::ContainerStateId,
+    crate::gui::layout_core::SplitPaneDividerDescriptor,
+    crate::gui::layout_core::SplitPaneRuntimePolicyRevision,
+    u16,
+)> {
     let Some(crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned { collapse_policy }) =
         container.split_pane_runtime
     else {
@@ -399,22 +444,11 @@ fn split_pane_focus_order_candidate<Message>(
         policy_revision,
     }
     .state_id();
-    Some(SurfaceSplitPaneFocusOrderCandidate {
-        widget_index: 0,
-        target: crate::layout::LayoutTargetIdentity::new(
-            container.id,
-            crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID,
-        ),
-        state_id,
-        descriptor,
-        ownership: crate::gui::layout_core::SplitPaneRuntimeOwnership::RuntimeOwned,
-        contract_version: container
-            .layout_capabilities
-            .as_ref()
-            .map_or(0, |capabilities| capabilities.contract_version),
-        state_schema_version: state_id.schema_version(),
-        policy_revision,
-    })
+    let contract_version = container
+        .layout_capabilities
+        .as_ref()
+        .map_or(0, |capabilities| capabilities.contract_version);
+    Some((state_id, descriptor, policy_revision, contract_version))
 }
 
 fn begin_container_runtime<Message>(
@@ -500,6 +534,7 @@ fn begin_container_runtime<Message>(
             )
         })
         .flatten(),
+        split_pane_ratio_action: split_pane_ratio_action_candidate(container),
         virtual_layout: container.virtual_layout.clone(),
     });
     if is_scroll {

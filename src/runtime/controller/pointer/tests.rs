@@ -1,13 +1,17 @@
 use super::super::{
-    FocusTraversal,
+    FocusTraversal, SplitPaneRatioAdjustmentDisposition,
     focus::{FocusTransition, SequentialFocusTraversalDisposition},
-    interaction_state::RuntimeFocusOwner,
+    interaction_state::{RuntimeFocusOwner, RuntimeSplitPaneSeparatorFocusOwner},
 };
 use super::*;
 use crate::{
     gui::automation::AutomationRole,
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
-    gui::layout_core::SplitPaneRuntimeState,
+    gui::layout_core::{
+        SplitPaneDividerDescriptor, SplitPaneRatioAdjustment, SplitPaneRuntimeMode,
+        SplitPaneRuntimePolicyRevision, SplitPaneRuntimeState, SplitPaneRuntimeStateInput,
+        apply_split_pane_ratio_delta,
+    },
     gui::types::{Point, Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, ContainerStateDeclaration,
@@ -1300,6 +1304,12 @@ enum SplitSettledMessage {
     Settled { mapper: u8, ratio: f32 },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SplitSettledEvent {
+    Mapped { mapper: u8, ratio: f32 },
+    Reduced { mapper: u8, ratio: f32 },
+}
+
 struct SettledSplitInteractionBridge {
     mode: SplitInteractionMode,
     policy: SplitPanePolicy,
@@ -1309,6 +1319,10 @@ struct SettledSplitInteractionBridge {
     mapper: u8,
     mounted: bool,
     messages: Rc<RefCell<Vec<SplitSettledMessage>>>,
+    action_events: Option<Rc<RefCell<Vec<SplitSettledEvent>>>>,
+    remove_on_settle: bool,
+    replace_axis_on_settle: Option<SplitPaneAxis>,
+    refresh_on_settle: bool,
 }
 
 impl SettledSplitInteractionBridge {
@@ -1328,6 +1342,10 @@ impl SettledSplitInteractionBridge {
             mapper: 1,
             mounted: true,
             messages,
+            action_events: None,
+            remove_on_settle: false,
+            replace_axis_on_settle: None,
+            refresh_on_settle: false,
         }
     }
 
@@ -1338,6 +1356,23 @@ impl SettledSplitInteractionBridge {
 
     fn with_axis(mut self, axis: SplitPaneAxis) -> Self {
         self.policy.axis = axis;
+        self
+    }
+
+    fn with_action_events(mut self, events: Rc<RefCell<Vec<SplitSettledEvent>>>) -> Self {
+        self.action_events = Some(events);
+        self
+    }
+
+    fn with_remove_on_settle(mut self) -> Self {
+        self.remove_on_settle = true;
+        self.refresh_on_settle = true;
+        self
+    }
+
+    fn with_replace_axis_on_settle(mut self, axis: SplitPaneAxis) -> Self {
+        self.replace_axis_on_settle = Some(axis);
+        self.refresh_on_settle = true;
         self
     }
 
@@ -1374,6 +1409,7 @@ impl SettledSplitInteractionBridge {
             SplitInteractionMode::Static => {}
             SplitInteractionMode::RuntimeOwned => {
                 let mapper = self.mapper;
+                let action_events = self.action_events.clone();
                 split = split
                     .with_split_pane_runtime_mode(Some(
                         crate::gui::layout_core::SplitPaneRuntimeMode::RuntimeOwned {
@@ -1389,6 +1425,14 @@ impl SettledSplitInteractionBridge {
                             })),
                         ),
                     );
+                split = split.with_split_pane_ratio_settled(Some(Rc::new(move |ratio| {
+                    if let Some(events) = &action_events {
+                        events
+                            .borrow_mut()
+                            .push(SplitSettledEvent::Mapped { mapper, ratio });
+                    }
+                    SplitSettledMessage::Settled { mapper, ratio }
+                })));
             }
             SplitInteractionMode::Controlled => {
                 split = split.with_split_pane_runtime_mode(Some(
@@ -1409,6 +1453,25 @@ impl RuntimeBridge<SplitSettledMessage> for SettledSplitInteractionBridge {
 
     fn reduce_message(&mut self, message: SplitSettledMessage) {
         self.messages.borrow_mut().push(message);
+        let SplitSettledMessage::Settled { mapper, ratio } = message;
+        if let Some(events) = &self.action_events {
+            events
+                .borrow_mut()
+                .push(SplitSettledEvent::Reduced { mapper, ratio });
+        }
+        if self.remove_on_settle {
+            self.mounted = false;
+        }
+        if let Some(axis) = self.replace_axis_on_settle {
+            self.policy.axis = axis;
+        }
+    }
+
+    fn update(&mut self, message: SplitSettledMessage) -> Command<SplitSettledMessage> {
+        self.reduce_message(message);
+        self.refresh_on_settle
+            .then_some(Command::RequestLayoutRefresh)
+            .unwrap_or_else(Command::none)
     }
 }
 
@@ -6925,4 +6988,517 @@ fn runtime_owned_split_same_identity_refresh_preserves_mounted_ratio() {
         PointerModifiers::default(),
     ));
     assert_eq!(messages.borrow().len(), 1);
+}
+
+#[test]
+fn focused_ratio_action_applies_each_axis_and_keeps_noop_work_free() {
+    for (axis, viewport) in [
+        (SplitPaneAxis::Horizontal, Vector2::new(200.0, 80.0)),
+        (SplitPaneAxis::Vertical, Vector2::new(80.0, 200.0)),
+    ] {
+        let mut runtime = SurfaceRuntime::new(
+            SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_axis(axis),
+            viewport,
+        );
+        let projection = runtime
+            .split_pane_separator_projections()
+            .first()
+            .copied()
+            .expect("runtime-owned separator projection");
+        assert_eq!(
+            runtime.request_split_pane_separator_focus(projection),
+            FocusTransition::Changed
+        );
+        runtime.take_repaint_requested();
+        let before = runtime.refresh_counters();
+        assert_eq!(
+            runtime.adjust_focused_split_pane_ratio(16.0),
+            SplitPaneRatioAdjustmentDisposition::Applied {
+                ratio: 0.25 + 16.0 / 192.0,
+            }
+        );
+        let state = runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+            .expect("mounted split state after adjustment");
+        assert_eq!(state.ratio, 0.25 + 16.0 / 192.0);
+        assert_eq!(runtime.refresh_counters().layout, before.layout);
+        assert!(runtime.pending_current_surface_relayout);
+        assert!(runtime.repaint_requested());
+    }
+
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("runtime-owned separator projection");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    runtime.take_repaint_requested();
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("mounted split state before no-op");
+    let before = runtime.refresh_counters();
+    for delta in [0.0, 0.001] {
+        assert_eq!(
+            runtime.adjust_focused_split_pane_ratio(delta),
+            SplitPaneRatioAdjustmentDisposition::Unchanged
+        );
+    }
+    assert_eq!(runtime.refresh_counters(), before);
+    assert!(!runtime.pending_current_surface_relayout);
+    assert!(!runtime.repaint_requested());
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+}
+
+#[test]
+fn focused_ratio_action_reports_no_destination_and_vetoes_rejected_paths() {
+    let mut no_focus = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    no_focus.take_repaint_requested();
+    assert_eq!(
+        no_focus.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::NoDestination
+    );
+    assert!(!no_focus.pending_current_surface_relayout);
+    assert!(!no_focus.repaint_requested());
+
+    let mut widget_focus = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_focusable_panes(),
+        Vector2::new(200.0, 80.0),
+    );
+    assert!(widget_focus.focus_widget(2));
+    widget_focus.take_repaint_requested();
+    assert_eq!(
+        widget_focus.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::NoDestination
+    );
+
+    for mode in [
+        SplitInteractionMode::Static,
+        SplitInteractionMode::Controlled,
+    ] {
+        let mut runtime =
+            SurfaceRuntime::new(SplitInteractionBridge::new(mode), Vector2::new(200.0, 80.0));
+        runtime.take_repaint_requested();
+        assert_eq!(
+            runtime.adjust_focused_split_pane_ratio(16.0),
+            SplitPaneRatioAdjustmentDisposition::NoDestination
+        );
+    }
+
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("veto separator projection");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    runtime.take_repaint_requested();
+    let before = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("mounted split state before veto");
+    assert_eq!(
+        runtime.adjust_focused_split_pane_ratio(f32::NAN),
+        SplitPaneRatioAdjustmentDisposition::Vetoed
+    );
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before)
+    );
+    assert!(!runtime.pending_current_surface_relayout);
+    assert!(!runtime.repaint_requested());
+
+    let mut capture = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = capture
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("capture separator projection");
+    capture.dispatch_event(Event::primary_press(projection.divider_bounds.center()));
+    capture.take_repaint_requested();
+    assert_eq!(
+        capture.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Vetoed
+    );
+    assert_eq!(capture.layout_pointer_capture(), Some(projection.target));
+    assert!(!capture.pending_current_surface_relayout);
+    assert!(!capture.repaint_requested());
+
+    let mut capacity = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = capacity
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("capacity separator projection");
+    assert_eq!(
+        capacity.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    capacity.take_repaint_requested();
+    capacity
+        .traversal
+        .containers
+        .split_pane_ratio_action_capacity_exhausted = true;
+    assert_eq!(
+        capacity.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Vetoed
+    );
+    assert!(matches!(
+        capacity.interaction.focus.owner,
+        Some(RuntimeFocusOwner::SplitPaneSeparator(_))
+    ));
+}
+
+#[test]
+fn ratio_action_geometry_covers_minima_quantization_zero_extent_and_collapse() {
+    let state_for = |policy: SplitPanePolicy, collapse_policy| {
+        let mode = SplitPaneRuntimeMode::RuntimeOwned { collapse_policy };
+        SplitPaneRuntimeState::from_input(SplitPaneRuntimeStateInput {
+            container_id: 1,
+            initial_ratio: policy.initial_ratio,
+            mode,
+            policy_revision: SplitPaneRuntimePolicyRevision::new(policy, collapse_policy),
+        })
+    };
+    let descriptor =
+        |axis, divider_extent, first_min_extent, second_min_extent| SplitPaneDividerDescriptor {
+            container_id: 1,
+            first_child: 2,
+            second_child: 3,
+            axis,
+            first_min_extent,
+            second_min_extent,
+            divider_extent,
+        };
+
+    for axis in [SplitPaneAxis::Horizontal, SplitPaneAxis::Vertical] {
+        let policy = SplitPanePolicy {
+            axis,
+            initial_ratio: 0.5,
+            divider_extent: 8.0,
+            first_min_extent: 60.0,
+            second_min_extent: 60.0,
+        };
+        let mut state = state_for(policy, None);
+        let before = state;
+        let bounds = if axis == SplitPaneAxis::Horizontal {
+            Rect::from_size(100.0, 80.0)
+        } else {
+            Rect::from_size(80.0, 100.0)
+        };
+        let divider = if axis == SplitPaneAxis::Horizontal {
+            Rect::from_xy_size(46.0, 0.0, 8.0, 80.0)
+        } else {
+            Rect::from_xy_size(0.0, 46.0, 80.0, 8.0)
+        };
+        assert_eq!(
+            apply_split_pane_ratio_delta(
+                &mut state,
+                descriptor(axis, 8.0, 60.0, 60.0),
+                bounds,
+                divider,
+                16.0,
+            ),
+            SplitPaneRatioAdjustment::Vetoed
+        );
+        assert_eq!(state, before);
+    }
+
+    let mut quantized = state_for(SplitPanePolicy::default(), None);
+    let quantized_before = quantized;
+    assert_eq!(
+        apply_split_pane_ratio_delta(
+            &mut quantized,
+            descriptor(SplitPaneAxis::Horizontal, 8.0, 0.0, 0.0),
+            Rect::from_size(200.0, 80.0),
+            Rect::from_xy_size(48.0, 0.0, 8.0, 80.0),
+            0.001,
+        ),
+        SplitPaneRatioAdjustment::Unchanged
+    );
+    assert_eq!(quantized, quantized_before);
+
+    let mut zero_extent = state_for(
+        SplitPanePolicy {
+            divider_extent: 100.0,
+            ..SplitPanePolicy::default()
+        },
+        None,
+    );
+    let zero_before = zero_extent;
+    assert_eq!(
+        apply_split_pane_ratio_delta(
+            &mut zero_extent,
+            descriptor(SplitPaneAxis::Horizontal, 100.0, 0.0, 0.0),
+            Rect::from_size(100.0, 80.0),
+            Rect::from_size(100.0, 80.0),
+            16.0,
+        ),
+        SplitPaneRatioAdjustment::Vetoed
+    );
+    assert_eq!(zero_extent, zero_before);
+
+    let policy = SplitPanePolicy {
+        initial_ratio: 0.5,
+        divider_extent: 8.0,
+        first_min_extent: 40.0,
+        second_min_extent: 60.0,
+        ..SplitPanePolicy::default()
+    };
+    let collapse_policy = Some(SplitPaneCollapsePolicy::FirstPane);
+    let mut collapsed = state_for(policy, collapse_policy);
+    assert_eq!(
+        apply_split_pane_ratio_delta(
+            &mut collapsed,
+            descriptor(SplitPaneAxis::Horizontal, 8.0, 40.0, 60.0),
+            Rect::from_size(200.0, 80.0),
+            Rect::from_xy_size(100.0, 0.0, 8.0, 80.0),
+            -56.0,
+        ),
+        SplitPaneRatioAdjustment::Applied(40.0 / 192.0)
+    );
+    assert_eq!(
+        collapsed.collapsed_policy,
+        Some(SplitPaneCollapsePolicy::FirstPane)
+    );
+    assert_eq!(
+        apply_split_pane_ratio_delta(
+            &mut collapsed,
+            descriptor(SplitPaneAxis::Horizontal, 8.0, 40.0, 60.0),
+            Rect::from_size(200.0, 80.0),
+            Rect::from_xy_size(40.0, 0.0, 8.0, 80.0),
+            16.0,
+        ),
+        SplitPaneRatioAdjustment::Applied(56.0 / 192.0)
+    );
+    assert_eq!(collapsed.collapsed_policy, None);
+}
+
+#[test]
+fn focused_ratio_action_invalidates_stale_duplicates_and_does_not_select_nested_successor() {
+    let mut stale = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = stale
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("stale separator projection");
+    assert_eq!(
+        stale.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    let owner = match stale.interaction.focus.owner {
+        Some(RuntimeFocusOwner::SplitPaneSeparator(owner)) => owner,
+        _ => panic!("separator owner admitted"),
+    };
+    stale.interaction.focus.owner = Some(RuntimeFocusOwner::SplitPaneSeparator(
+        RuntimeSplitPaneSeparatorFocusOwner {
+            mounted_state_id: crate::gui::layout_core::MountedContainerStateId::new(
+                projection.state_id,
+                std::num::NonZeroU64::new(2).expect("stale generation"),
+            ),
+            ..owner
+        },
+    ));
+    stale.take_repaint_requested();
+    assert_eq!(
+        stale.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Invalidated
+    );
+    assert_eq!(stale.interaction.focus.owner, None);
+
+    let mut duplicate = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = duplicate
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("duplicate separator projection");
+    assert_eq!(
+        duplicate.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    let authority = duplicate
+        .traversal
+        .containers
+        .split_pane_ratio_action_authorities
+        .first()
+        .cloned()
+        .expect("action authority");
+    duplicate
+        .traversal
+        .containers
+        .split_pane_ratio_action_authorities
+        .push(authority);
+    duplicate.take_repaint_requested();
+    assert_eq!(
+        duplicate.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Invalidated
+    );
+    assert_eq!(duplicate.interaction.focus.owner, None);
+
+    let mut nested = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_nested(),
+        Vector2::new(200.0, 120.0),
+    );
+    let outer = nested
+        .split_pane_separator_projections()
+        .iter()
+        .find(|projection| projection.target.container_id == 1)
+        .copied()
+        .expect("outer separator projection");
+    let inner = nested
+        .split_pane_separator_projections()
+        .iter()
+        .find(|projection| projection.target.container_id == 4)
+        .copied()
+        .expect("inner separator projection");
+    assert_eq!(
+        nested.request_split_pane_separator_focus(outer),
+        FocusTransition::Changed
+    );
+    let inner_before = nested
+        .interaction
+        .layout_state
+        .lookup_current_state_view(inner.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("inner state");
+    nested
+        .traversal
+        .containers
+        .split_pane_ratio_action_authorities
+        .retain(|authority| authority.target != outer.target);
+    nested.take_repaint_requested();
+    assert_eq!(
+        nested.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Invalidated
+    );
+    assert_eq!(nested.interaction.focus.owner, None);
+    assert_eq!(
+        nested
+            .interaction
+            .layout_state
+            .lookup_current_state_view(inner.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(inner_before)
+    );
+}
+
+#[test]
+fn focused_ratio_action_revalidates_after_reentrant_remove_and_replacement_once() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let mut removed = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        )
+        .with_action_events(Rc::clone(&events))
+        .with_remove_on_settle(),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = removed
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("reentrant separator projection");
+    assert_eq!(
+        removed.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    let ratio = 0.25 + 16.0 / 192.0;
+    assert_eq!(
+        removed.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Applied { ratio }
+    );
+    assert_eq!(
+        events.borrow().as_slice(),
+        &[
+            SplitSettledEvent::Mapped { mapper: 1, ratio },
+            SplitSettledEvent::Reduced { mapper: 1, ratio },
+        ]
+    );
+    assert_eq!(messages.borrow().len(), 1);
+    assert_eq!(removed.interaction.focus.owner, None);
+    assert!(removed.split_pane_separator_projections().is_empty());
+
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let mut replaced = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        )
+        .with_action_events(Rc::clone(&events))
+        .with_replace_axis_on_settle(SplitPaneAxis::Vertical),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = replaced
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("replacement separator projection");
+    assert_eq!(
+        replaced.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    assert_eq!(
+        replaced.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Applied { ratio }
+    );
+    assert_eq!(events.borrow().len(), 2);
+    assert_eq!(messages.borrow().len(), 1);
+    assert_eq!(replaced.interaction.focus.owner, None);
+    assert_eq!(
+        replaced
+            .split_pane_separator_projections()
+            .first()
+            .expect("replacement projection")
+            .axis,
+        SplitPaneAxis::Vertical
+    );
 }

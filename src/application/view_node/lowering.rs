@@ -206,6 +206,8 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     container = container.with_scroll_message_local(scroll_message);
                 }
                 container = container.with_split_pane_runtime_mode(split_pane_runtime);
+                container =
+                    container.with_split_pane_ratio_settled(split_pane_ratio_settled.clone());
                 if let Some((policy, collapse_policy)) = runtime_split_policy {
                     let capabilities = match split_pane_ratio_settled.clone() {
                         Some(map) => crate::gui::layout_core::

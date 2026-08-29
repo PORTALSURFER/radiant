@@ -1,6 +1,7 @@
 //! Traversal indexes and lookup caches derived from the projected surface tree.
 
 use super::{ClipAncestors, WidgetPath, hit_order::HitOrderIndex};
+use crate::runtime::surface::SurfaceSplitPaneRatioActionCandidate;
 use crate::{
     gui::layout_core::{SplitPaneRuntimeOwnership, SplitPaneRuntimeState},
     layout::{
@@ -103,6 +104,11 @@ pub(super) struct RuntimeContainerTraversal<Message = ()> {
     pub(super) layout_interactions: Vec<SurfaceLayoutInteractionRecord<Message>>,
     pub(super) split_pane_runtime: Vec<crate::gui::layout_core::SplitPaneRuntimeStateInput>,
     pub(super) split_pane_dividers: Vec<crate::gui::layout_core::SplitPaneDividerDescriptor>,
+    pub(super) split_pane_ratio_action_candidates:
+        Vec<SurfaceSplitPaneRatioActionCandidate<Message>>,
+    pub(super) split_pane_ratio_action_authorities:
+        Vec<super::split_pane_ratio_action::SplitPaneRatioActionAuthority<Message>>,
+    pub(super) split_pane_ratio_action_capacity_exhausted: bool,
     pub(super) virtual_layout_registrations:
         Vec<crate::runtime::surface::VirtualLayoutRegistration<Message>>,
     pub(super) layout_targets: Vec<RuntimeLayoutHitTarget<Message>>,
@@ -135,6 +141,9 @@ impl<Message> Default for RuntimeContainerTraversal<Message> {
             layout_interactions: Vec::new(),
             split_pane_runtime: Vec::new(),
             split_pane_dividers: Vec::new(),
+            split_pane_ratio_action_candidates: Vec::new(),
+            split_pane_ratio_action_authorities: Vec::new(),
+            split_pane_ratio_action_capacity_exhausted: false,
             virtual_layout_registrations: Vec::new(),
             layout_targets: Vec::new(),
             split_pane_separator_projections: Vec::new(),
@@ -495,6 +504,155 @@ impl<Message> RuntimeContainerTraversal<Message> {
             {
                 self.split_pane_separator_projections.push(projection);
             }
+        }
+    }
+
+    pub(super) fn rebuild_split_pane_ratio_action_authorities(
+        &mut self,
+        state_store: &super::layout_state::RuntimeLayoutContainerStateStore,
+    ) {
+        use crate::gui::layout_core::{
+            LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION, SPLIT_PANE_DIVIDER_REGION_ID,
+            SplitPaneRuntimeOwnership, SplitPaneRuntimeState,
+        };
+
+        const MAX_AUTHORITIES: usize =
+            super::split_pane_ratio_action::MAX_SPLIT_PANE_RATIO_ACTION_AUTHORITIES;
+        self.split_pane_ratio_action_authorities.clear();
+        self.split_pane_ratio_action_capacity_exhausted =
+            self.split_pane_ratio_action_candidates.len() > MAX_AUTHORITIES;
+        if self.split_pane_ratio_action_capacity_exhausted {
+            return;
+        }
+        let desired_capacity = self.split_pane_ratio_action_candidates.len();
+        if self.split_pane_ratio_action_authorities.capacity() < desired_capacity {
+            self.split_pane_ratio_action_authorities.reserve_exact(
+                desired_capacity - self.split_pane_ratio_action_authorities.capacity(),
+            );
+        }
+
+        for candidate in &self.split_pane_ratio_action_candidates {
+            if self
+                .split_pane_ratio_action_candidates
+                .iter()
+                .filter(|previous| previous.target == candidate.target)
+                .count()
+                != 1
+                || candidate.ownership != SplitPaneRuntimeOwnership::RuntimeOwned
+                || candidate.target.region_id != SPLIT_PANE_DIVIDER_REGION_ID
+                || candidate.target.container_id != candidate.state_id.container_id()
+                || candidate.target.container_id != candidate.descriptor.container_id
+                || !candidate.state_id.is::<SplitPaneRuntimeState>()
+                || candidate.state_schema_version != candidate.state_id.schema_version()
+                || candidate.contract_version != LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION
+                || candidate.descriptor.axis != candidate.policy_revision.axis
+                || candidate.descriptor.first_child == candidate.descriptor.second_child
+                || !candidate.descriptor.first_min_extent.is_finite()
+                || candidate.descriptor.first_min_extent < 0.0
+                || !candidate.descriptor.second_min_extent.is_finite()
+                || candidate.descriptor.second_min_extent < 0.0
+                || !candidate.descriptor.divider_extent.is_finite()
+                || candidate.descriptor.divider_extent <= 0.0
+            {
+                continue;
+            }
+
+            let target_count = self
+                .layout_targets
+                .iter()
+                .filter(|target| target.target.identity() == candidate.target)
+                .count();
+            if target_count != 1 {
+                continue;
+            }
+            let Some(target) = self
+                .layout_targets
+                .iter()
+                .find(|target| target.target.identity() == candidate.target)
+            else {
+                continue;
+            };
+            if target.target.region_id != SPLIT_PANE_DIVIDER_REGION_ID
+                || target.state_id != Some(candidate.state_id)
+                || target.contract_version != candidate.contract_version
+                || !target.revision.is_exact()
+                || target.target_bounds != Some(target.target.bounds)
+                || !target
+                    .container_bounds
+                    .is_some_and(crate::gui::types::Rect::has_finite_positive_area)
+                || !target
+                    .target_bounds
+                    .is_some_and(crate::gui::types::Rect::has_finite_positive_area)
+                || !target
+                    .divider_bounds
+                    .is_some_and(crate::gui::types::Rect::has_finite_positive_area)
+            {
+                continue;
+            }
+
+            let descriptor_count = self
+                .split_pane_dividers
+                .iter()
+                .filter(|descriptor| descriptor.container_id == candidate.target.container_id)
+                .count();
+            if descriptor_count != 1
+                || self
+                    .split_pane_dividers
+                    .iter()
+                    .find(|descriptor| descriptor.container_id == candidate.target.container_id)
+                    .copied()
+                    != Some(candidate.descriptor)
+            {
+                continue;
+            }
+
+            let Some(mounted_state_id) = target.mounted_state_id else {
+                continue;
+            };
+            if state_store.current_mounted_state_id(candidate.state_id) != Some(mounted_state_id) {
+                continue;
+            }
+            let Some(committed) = state_store.lookup_current_state_view(mounted_state_id) else {
+                continue;
+            };
+            let Some(state) = committed.downcast_ref::<SplitPaneRuntimeState>() else {
+                continue;
+            };
+            if state.ownership != SplitPaneRuntimeOwnership::RuntimeOwned
+                || !state.ratio.is_finite()
+                || !(0.0..=1.0).contains(&state.ratio)
+                || !state
+                    .policy_revision
+                    .runtime_state_compatible(candidate.policy_revision)
+            {
+                continue;
+            }
+
+            let (Some(container_bounds), Some(target_bounds), Some(divider_bounds)) = (
+                target.container_bounds,
+                target.target_bounds,
+                target.divider_bounds,
+            ) else {
+                continue;
+            };
+
+            self.split_pane_ratio_action_authorities.push(
+                super::split_pane_ratio_action::SplitPaneRatioActionAuthority {
+                    target: candidate.target,
+                    state_id: candidate.state_id,
+                    mounted_state_id,
+                    descriptor: candidate.descriptor,
+                    ownership: candidate.ownership,
+                    axis: candidate.descriptor.axis,
+                    contract_version: candidate.contract_version,
+                    state_schema_version: candidate.state_schema_version,
+                    policy_revision: candidate.policy_revision,
+                    container_bounds,
+                    target_bounds,
+                    divider_bounds,
+                    on_ratio_settled: candidate.on_ratio_settled.clone(),
+                },
+            );
         }
     }
 

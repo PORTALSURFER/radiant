@@ -30,6 +30,7 @@ mod scratch;
 mod scroll;
 mod semantic_coordinate;
 mod semantic_demand;
+mod split_pane_ratio_action;
 mod split_pane_semantics;
 mod split_pane_separator;
 mod state;
@@ -39,6 +40,8 @@ mod virtual_layout;
 mod work;
 
 pub(crate) use focus::SequentialFocusTraversalDisposition;
+#[allow(unused_imports)]
+pub(crate) use split_pane_ratio_action::SplitPaneRatioAdjustmentDisposition;
 
 #[cfg(target_os = "macos")]
 pub(crate) use automation_compositor::{

@@ -7287,6 +7287,9 @@ fn ratio_action_geometry_covers_minima_quantization_zero_extent_and_collapse() {
     };
     let collapse_policy = Some(SplitPaneCollapsePolicy::FirstPane);
     let mut collapsed = state_for(policy, collapse_policy);
+    let movable_extent = 200.0_f32 - 8.0_f32;
+    let collapsed_ratio = 0.5_f32 + (-56.0_f32 / movable_extent);
+    let expanded_ratio = collapsed_ratio + 16.0_f32 / movable_extent;
     assert_eq!(
         apply_split_pane_ratio_delta(
             &mut collapsed,
@@ -7295,7 +7298,7 @@ fn ratio_action_geometry_covers_minima_quantization_zero_extent_and_collapse() {
             Rect::from_xy_size(100.0, 0.0, 8.0, 80.0),
             -56.0,
         ),
-        SplitPaneRatioAdjustment::Applied(40.0 / 192.0)
+        SplitPaneRatioAdjustment::Applied(collapsed_ratio)
     );
     assert_eq!(
         collapsed.collapsed_policy,
@@ -7309,7 +7312,7 @@ fn ratio_action_geometry_covers_minima_quantization_zero_extent_and_collapse() {
             Rect::from_xy_size(40.0, 0.0, 8.0, 80.0),
             16.0,
         ),
-        SplitPaneRatioAdjustment::Applied(56.0 / 192.0)
+        SplitPaneRatioAdjustment::Applied(expanded_ratio)
     );
     assert_eq!(collapsed.collapsed_policy, None);
 }

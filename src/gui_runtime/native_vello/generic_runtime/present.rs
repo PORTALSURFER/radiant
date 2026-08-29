@@ -9,10 +9,10 @@ use super::{
     CpuFrameStage, GenericNativeAdapterOwner, GenericNativeVelloRunner,
     NativeAdapterAtlasResidencyProfile, NativeAdapterCustomShaderResidencyProfile,
     NativeAdapterRenderCanvasUploadProfile, NativeAdapterSignalResidencyProfile,
-    NativeRenderProfileGpuSurface, RenderFrameProfile, RenderSurfacePixelSize,
-    hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
-    post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
-    slow_render_profile_enabled,
+    NativeAdapterTargetResidencyProfile, NativeRenderProfileGpuSurface, RenderFrameProfile,
+    RenderSurfacePixelSize, hide_window_after_first_present, maybe_log_render_profile,
+    maybe_log_slow_render_profile, post_gpu_overlay, render_profile_enabled,
+    reveal_window_after_first_present, slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -316,6 +316,8 @@ where
                 self.capture_signal_residency_profile(adapter, profile_enabled);
             let application_custom_shader_residency =
                 self.capture_custom_shader_residency_profile(adapter, profile_enabled);
+            let application_target_residency =
+                self.capture_target_residency_profile(adapter, profile_enabled);
             let application_render_canvas_uploads =
                 self.capture_render_canvas_upload_profile(adapter, profile_enabled);
             self.finish_direct_resize_present(
@@ -328,6 +330,7 @@ where
                 application_atlas_residency,
                 application_signal_residency,
                 application_custom_shader_residency,
+                application_target_residency,
                 application_render_canvas_uploads,
             );
             return Ok(NativeVisualRequestDisposition::Presented);
@@ -502,6 +505,8 @@ where
             self.capture_signal_residency_profile(adapter, profile_enabled);
         let application_custom_shader_residency =
             self.capture_custom_shader_residency_profile(adapter, profile_enabled);
+        let application_target_residency =
+            self.capture_target_residency_profile(adapter, profile_enabled);
         let Some(ticket) = ticket.take() else {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
@@ -587,6 +592,7 @@ where
                     application_atlas_residency,
                     application_signal_residency,
                     application_custom_shader_residency,
+                    application_target_residency,
                     application_render_canvas_uploads,
                 },
                 since_last_present,
@@ -708,6 +714,7 @@ where
         application_atlas_residency: NativeAdapterAtlasResidencyProfile,
         application_signal_residency: NativeAdapterSignalResidencyProfile,
         application_custom_shader_residency: NativeAdapterCustomShaderResidencyProfile,
+        application_target_residency: NativeAdapterTargetResidencyProfile,
         application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
     ) {
         let text_stats = if profile_enabled || diagnostics_requested {
@@ -735,6 +742,7 @@ where
                     application_atlas_residency,
                     application_signal_residency,
                     application_custom_shader_residency,
+                    application_target_residency,
                     application_render_canvas_uploads,
                 },
                 since_last_present,

@@ -260,6 +260,7 @@ where
         self.refresh_atlas_residency_account(adapter);
         self.refresh_signal_residency_account(adapter);
         self.refresh_custom_shader_residency_account(adapter);
+        self.refresh_target_residency_account(adapter);
         self.refresh_render_canvas_upload_account(adapter);
         self.window.id = Some(window.id());
         self.window.window = Some(Arc::clone(&window));
@@ -401,6 +402,7 @@ where
                 self.timing.pending_surface_recovery_replacement_evidence = None;
                 self.window.target_generation = next_target_generation;
                 self.complete_target_transition();
+                self.refresh_target_residency_account(adapter);
                 self.defer_viewport_resize_with_reason(
                     logical_viewport_for_size(size, self.window.dpi_scale),
                     reason,
@@ -511,6 +513,7 @@ where
                 self.timing.pending_surface_recovery_replacement_evidence = None;
                 self.window.target_generation = next_target_generation;
                 self.complete_target_transition();
+                self.refresh_target_residency_account(adapter);
                 if viewport_resize_needed {
                     self.defer_viewport_resize_with_reason(
                         logical_viewport_for_size(requested_size, self.window.dpi_scale),
@@ -871,6 +874,7 @@ where
             self.refresh_atlas_residency_account(adapter);
             self.refresh_signal_residency_account(adapter);
             self.refresh_custom_shader_residency_account(adapter);
+            self.refresh_target_residency_account(adapter);
             self.refresh_render_canvas_upload_account(adapter);
             self.fence_native_surface_target();
             return false;
@@ -889,6 +893,7 @@ where
         self.refresh_atlas_residency_account(adapter);
         self.refresh_signal_residency_account(adapter);
         self.refresh_custom_shader_residency_account(adapter);
+        self.refresh_target_residency_account(adapter);
         self.refresh_render_canvas_upload_account(adapter);
         self.fence_native_surface_target();
         false

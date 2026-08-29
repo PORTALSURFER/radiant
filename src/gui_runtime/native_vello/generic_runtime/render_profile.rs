@@ -10,8 +10,8 @@ use super::{
     GpuSurfaceCustomShaderResidencySnapshot, GpuSurfaceSignalResidencySnapshot,
     GpuSurfaceTargetResidencySnapshot, NativeAdapterAtlasResidencyProfile,
     NativeAdapterCustomShaderResidencyProfile, NativeAdapterRenderCanvasUploadProfile,
-    NativeAdapterSignalResidencyProfile, RetainedSurfaceEncodeStats,
-    gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+    NativeAdapterSignalResidencyProfile, NativeAdapterTargetResidencyProfile,
+    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
 use crate::runtime::NativeWindowDiagnosticIdentity;
@@ -68,6 +68,7 @@ pub(super) struct NativeRenderProfileGpuSurface {
     pub(super) application_atlas_residency: NativeAdapterAtlasResidencyProfile,
     pub(super) application_signal_residency: NativeAdapterSignalResidencyProfile,
     pub(super) application_custom_shader_residency: NativeAdapterCustomShaderResidencyProfile,
+    pub(super) application_target_residency: NativeAdapterTargetResidencyProfile,
     pub(super) application_render_canvas_uploads: NativeAdapterRenderCanvasUploadProfile,
 }
 
@@ -220,6 +221,7 @@ pub(super) fn maybe_log_render_profile(
         application_atlas_residency,
         application_signal_residency,
         application_custom_shader_residency,
+        application_target_residency,
         application_render_canvas_uploads,
     } = gpu_surface;
     let active_atlas = project_atlas_residency(atlas_residency.active);
@@ -462,6 +464,30 @@ pub(super) fn maybe_log_render_profile(
             quarantine_1_target.predecessor_object_count,
         gpu_surface_target_texture_q1_predecessor_requested_rgba8_bytes =
             quarantine_1_target.predecessor_requested_rgba8_bytes,
+        gpu_surface_target_texture_application_adapter_generation_known =
+            application_target_residency
+                .adapter_generation
+                .map(|generation| generation.is_known()),
+        gpu_surface_target_texture_application_adapter_generation_serial =
+            application_target_residency
+                .adapter_generation
+                .and_then(|generation| generation.known_serial()),
+        gpu_surface_target_texture_application_active_object_count =
+            application_target_residency.active_object_count,
+        gpu_surface_target_texture_application_active_requested_rgba8_bytes =
+            application_target_residency.active_requested_rgba8_bytes,
+        gpu_surface_target_texture_application_active_predecessor_object_count =
+            application_target_residency.active_predecessor_object_count,
+        gpu_surface_target_texture_application_active_predecessor_requested_rgba8_bytes =
+            application_target_residency.active_predecessor_requested_rgba8_bytes,
+        gpu_surface_target_texture_application_quarantined_object_count =
+            application_target_residency.quarantined_object_count,
+        gpu_surface_target_texture_application_quarantined_requested_rgba8_bytes =
+            application_target_residency.quarantined_requested_rgba8_bytes,
+        gpu_surface_target_texture_application_quarantined_predecessor_object_count =
+            application_target_residency.quarantined_predecessor_object_count,
+        gpu_surface_target_texture_application_quarantined_predecessor_requested_rgba8_bytes =
+            application_target_residency.quarantined_predecessor_requested_rgba8_bytes,
         "radiant native render profile target texture residency"
     );
     info!(

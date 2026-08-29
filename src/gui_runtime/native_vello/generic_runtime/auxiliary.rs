@@ -550,14 +550,22 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         now: Instant,
         parent_adapter_generation: NativeAdapterGeneration,
         turn: &mut NativeResourceMaintenanceTurn,
-    ) {
+        adapter: &mut GenericNativeAdapterOwner,
+    ) -> bool {
         if self.is_admitted() {
-            self.runner
+            let removed = self
+                .runner
                 .maintain_native_surface_target_retirement_if_due_with_turn(
                     now,
                     parent_adapter_generation,
                     turn,
                 );
+            if removed {
+                self.runner.refresh_target_residency_account(adapter);
+            }
+            removed
+        } else {
+            false
         }
     }
 
@@ -757,6 +765,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.refresh_atlas_residency_account(adapter);
         self.runner.refresh_signal_residency_account(adapter);
         self.runner.refresh_custom_shader_residency_account(adapter);
+        self.runner.refresh_target_residency_account(adapter);
         self.runner.refresh_render_canvas_upload_account(adapter);
         true
     }
@@ -861,6 +870,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.refresh_atlas_residency_account(adapter);
         self.runner.refresh_signal_residency_account(adapter);
         self.runner.refresh_custom_shader_residency_account(adapter);
+        self.runner.refresh_target_residency_account(adapter);
         self.runner.refresh_render_canvas_upload_account(adapter);
         self.runner.complete_native_recovery_target_transition();
         self.runner.frame.invalidate_native_resources_for_recovery();
@@ -956,20 +966,34 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     }
                 }
             }
+            let target_snapshots_before = self.runner.window.target_residency_snapshots();
             let empty = self.runner.retire_native_resources_with_turn(turn);
+            let target_snapshots_changed =
+                target_snapshots_before != self.runner.window.target_residency_snapshots();
             if let Some(adapter) = adapter {
                 self.runner.refresh_atlas_residency_account(adapter);
                 self.runner.refresh_signal_residency_account(adapter);
                 self.runner.refresh_custom_shader_residency_account(adapter);
+                if target_snapshots_changed
+                    || (empty && self.runner.target_residency_account.is_some())
+                {
+                    self.runner.refresh_target_residency_account(adapter);
+                }
                 self.runner.refresh_render_canvas_upload_account(adapter);
             }
             return empty;
         }
+        let target_snapshots_before = self.runner.window.target_residency_snapshots();
         self.runner.maintain_native_resources_with_turn(turn);
+        let target_snapshots_changed =
+            target_snapshots_before != self.runner.window.target_residency_snapshots();
         if let Some(adapter) = adapter {
             self.runner.refresh_atlas_residency_account(adapter);
             self.runner.refresh_signal_residency_account(adapter);
             self.runner.refresh_custom_shader_residency_account(adapter);
+            if target_snapshots_changed {
+                self.runner.refresh_target_residency_account(adapter);
+            }
             self.runner.refresh_render_canvas_upload_account(adapter);
         }
         false
@@ -1112,16 +1136,22 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         {
             return false;
         }
+        let target_snapshots_before = self.runner.window.target_residency_snapshots();
         let admitted = self.runner.admit_native_resource_maintenance(
             now,
             &FrameScheduleKey::Auxiliary(self.key.clone()),
             parent_generation,
             turn,
         );
+        let target_snapshots_changed =
+            target_snapshots_before != self.runner.window.target_residency_snapshots();
         if admitted {
             self.runner.refresh_atlas_residency_account(adapter);
             self.runner.refresh_signal_residency_account(adapter);
             self.runner.refresh_custom_shader_residency_account(adapter);
+            if target_snapshots_changed {
+                self.runner.refresh_target_residency_account(adapter);
+            }
             self.runner.refresh_render_canvas_upload_account(adapter);
         }
         admitted

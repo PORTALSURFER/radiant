@@ -813,12 +813,15 @@ where
                     })
                     .collect::<Vec<_>>(),
             ) {
-                self.auxiliary_windows[index]
-                    .maintain_native_surface_target_retirement_if_due_with_turn(
-                        now,
-                        current_generation,
-                        &mut maintenance,
-                    );
+                if let Some(adapter) = self.adapter.as_mut() {
+                    self.auxiliary_windows[index]
+                        .maintain_native_surface_target_retirement_if_due_with_turn(
+                            now,
+                            current_generation,
+                            &mut maintenance,
+                            adapter,
+                        );
+                }
                 self.timing.auxiliary_surface_target_retirement_cursor =
                     if self.auxiliary_windows.is_empty() {
                         0

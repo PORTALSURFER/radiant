@@ -425,9 +425,9 @@ where
         if !self.admit_native_resources(adapter) {
             return false;
         }
-        // A Lost/Outdated surface is a resource-failure boundary, not an
-        // ordinary deferred resize. Fence the claimed packet before
-        // reconfiguration so recovery cannot finish stale work.
+        // A descriptor-changing Lost/Outdated recovery is a resource-failure
+        // boundary. Fence the claimed packet before replacement so recovery
+        // cannot finish stale work.
         if self.window.native_resources.is_none() {
             return false;
         }
@@ -807,9 +807,7 @@ where
                     {
                         self.window.surface_recovery.record_completed_reconfigure();
                         self.window.surface_recovery.record_retry_request();
-                        if requested_packet {
-                            self.request_redraw_for_recovery();
-                        }
+                        self.request_redraw_for_recovery();
                     }
                     SurfaceAcquirePolicy::Defer => {
                         self.window.surface_recovery.record_zero_size_deferral();

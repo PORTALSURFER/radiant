@@ -161,6 +161,41 @@ fn same_size_recovery_preserves_target_boundary_and_reissues_once() {
 }
 
 #[test]
+fn unsolicited_recovery_drop_reissues_one_packet() {
+    let window_id = WindowId::from(18);
+    let mut mailbox = NativeVisualRequestMailbox::new();
+    assert!(mailbox.bind_window(window_id));
+
+    let packet = match mailbox.begin_for_test(window_id) {
+        NativeVisualRequestBegin::UnsolicitedFallback(packet) => packet,
+        other => panic!("expected unsolicited fallback, got {other:?}"),
+    };
+    assert_eq!(
+        mailbox.enqueue_for_test(FrameWork::None),
+        NativeVisualRequestEnqueue::Queued,
+        "successful recovery must enqueue a successor behind the fallback packet"
+    );
+    assert_eq!(
+        mailbox.finish_for_test(
+            window_id,
+            packet,
+            NativeVisualRequestDisposition::DropPacket,
+        ),
+        NativeVisualRequestFinish::Reissued
+    );
+
+    let retry = match mailbox.begin_for_test(window_id) {
+        NativeVisualRequestBegin::Requested(packet) => packet,
+        other => panic!("expected one recovery retry packet, got {other:?}"),
+    };
+    assert_eq!(
+        mailbox.finish_for_test(window_id, retry, NativeVisualRequestDisposition::DropPacket,),
+        NativeVisualRequestFinish::Completed
+    );
+    assert!(!mailbox.has_work());
+}
+
+#[test]
 fn unbound_resources_preserve_pending_resize_without_native_work_or_retry() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

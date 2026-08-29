@@ -1469,9 +1469,11 @@ impl RuntimeBridge<SplitSettledMessage> for SettledSplitInteractionBridge {
 
     fn update(&mut self, message: SplitSettledMessage) -> Command<SplitSettledMessage> {
         self.reduce_message(message);
-        self.refresh_on_settle
-            .then_some(Command::RequestLayoutRefresh)
-            .unwrap_or_else(Command::none)
+        if self.refresh_on_settle {
+            Command::RequestLayoutRefresh
+        } else {
+            Command::none()
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 use super::{ExtractedLayerRoot, ViewNode, ViewNodeKind};
 use crate::{
+    UiAffinity,
     application::{
         DeclarativeSourceContext, IdGenerator, IntoView, ROOT_KEY_SCOPE, SourceIdentitySeed,
         ViewProjection, WidgetViewContext, ids::StructuralRole, launch::SceneProjection,
@@ -56,6 +57,7 @@ where
 }
 
 pub(super) struct ViewLowering<'a, Message> {
+    _ui_affinity: UiAffinity,
     ids: &'a mut IdGenerator,
     scene: &'a mut SceneProjection<Message>,
     source_context: DeclarativeSourceContext,
@@ -65,6 +67,7 @@ pub(super) struct ViewLowering<'a, Message> {
 impl<'a, Message: 'static> ViewLowering<'a, Message> {
     pub(super) fn new(ids: &'a mut IdGenerator, scene: &'a mut SceneProjection<Message>) -> Self {
         Self {
+            _ui_affinity: UiAffinity::new(),
             ids,
             scene,
             source_context: DeclarativeSourceContext::default(),
@@ -276,6 +279,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 crate::runtime::lower_public_virtual_layout(id, parts)
             }
             ViewNodeKind::Widget(widget) => widget.into_surface_node(WidgetViewContext {
+                _ui_affinity: UiAffinity::new(),
                 id,
                 sizing: node.sizing,
                 style,

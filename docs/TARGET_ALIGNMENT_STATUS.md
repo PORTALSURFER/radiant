@@ -3,12 +3,12 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~100% |
-| Broad end-to-end target coverage | ~87% |
+| Broad end-to-end target coverage | ~88% |
 
 | Category | Estimate |
 | --- | ---: |
-| Public API and module boundaries | 94% |
-| Declarative model, identity, reconciliation | 78% |
+| Public API and module boundaries | 95% |
+| Declarative model, identity, reconciliation | 79% |
 | Input, provenance, and edit lifecycle | 95% |
 | Layout, composition, virtualization | 72% |
 | Text, focus, and selection | ~72% |

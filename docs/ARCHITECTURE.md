@@ -61,6 +61,14 @@ competing framework. They exist for custom hosts, tests, advanced widgets,
 diagnostics, and embedded integration where the application needs to drive a
 surface without the native window runner.
 
+Declarative view nodes, widget-view contexts, projected surfaces and nodes,
+installed widgets, and the generic runtime lifecycle/controller are UI-affine.
+They carry private zero-sized `Rc`-backed marker evidence, so the compiler
+rejects moving those owners to a worker even when a particular visible payload
+is otherwise transferable. `Message` and mapper storage keep their existing
+local bounds, while worker and effect boundaries retain explicit `Send`
+requirements for owned transfer payloads.
+
 ### Prelude Export Hygiene
 
 `src/prelude.rs` is only the small facade for common application imports. It

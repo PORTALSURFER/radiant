@@ -1,6 +1,7 @@
 use super::super::source::SourceMetadata;
 use super::{SurfaceFloatingLayer, SurfaceOverlay, SurfaceScene};
 use crate::{
+    UiAffinity,
     gui::automation::{
         AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
         AutomationRole,
@@ -55,6 +56,7 @@ impl<Message> SurfaceChild<Message> {
 
 /// A generic declarative container node built on top of public layout policy.
 pub struct SurfaceContainer<Message> {
+    pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
     pub(in crate::runtime::surface) id: NodeId,
     pub(in crate::runtime::surface) policy: ContainerPolicy,
     pub(in crate::runtime::surface) style: Option<WidgetStyle>,
@@ -87,6 +89,7 @@ impl<Message> SurfaceContainer<Message> {
     /// Build a generic container node from runtime-internal named parts.
     pub(in crate::runtime) fn from_parts(parts: SurfaceContainerParts<Message>) -> Self {
         Self {
+            _ui_affinity: UiAffinity::new(),
             id: parts.id,
             policy: parts.policy,
             style: None,
@@ -193,6 +196,16 @@ impl<Message> SurfaceContainer<Message> {
 }
 
 /// One node in a generic declarative [`crate::runtime::UiSurface`].
+///
+/// Surface nodes are UI-affine, including nodes built directly through the
+/// public constructors.
+///
+/// ```compile_fail
+/// use radiant::{layout::ContainerPolicy, runtime::SurfaceNode};
+///
+/// let node = SurfaceNode::<()>::container(1, ContainerPolicy::default(), Vec::new());
+/// std::thread::spawn(move || drop(node));
+/// ```
 pub enum SurfaceNode<Message> {
     /// A root scene with base content plus typed transient layers.
     Scene(SurfaceScene<Message>),

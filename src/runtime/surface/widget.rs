@@ -1,5 +1,6 @@
 use super::source::SourceMetadata;
 use crate::{
+    UiAffinity,
     gui::types::{Point, Rect},
     layout::LayoutNode,
     widgets::{
@@ -19,7 +20,25 @@ pub use mapper::{
 pub(crate) use mapper::{MapperDescriptor, MapperRelation};
 
 /// One widget leaf inside a generic declarative [`UiSurface`](super::UiSurface).
+///
+/// Installed widgets remain owned by the UI runtime and cannot be sent to a
+/// worker thread.
+///
+/// ```compile_fail
+/// use radiant::{
+///     layout::Vector2,
+///     runtime::{SurfaceWidget, WidgetMessageMapper},
+///     widgets::{TextWidget, WidgetSizing},
+/// };
+///
+/// let widget = SurfaceWidget::new(
+///     TextWidget::new(1, "UI-local", WidgetSizing::fixed(Vector2::new(80.0, 20.0))),
+///     WidgetMessageMapper::none(),
+/// );
+/// std::thread::spawn(move || drop(widget));
+/// ```
 pub struct SurfaceWidget<Message> {
+    _ui_affinity: UiAffinity,
     widget: Box<dyn Widget>,
     messages: WidgetMessageMapper<Message>,
     accepts_native_file_drop: bool,
@@ -77,6 +96,7 @@ impl SurfaceWidgetRevisionEvidence {
 impl<Message> Clone for SurfaceWidget<Message> {
     fn clone(&self) -> Self {
         Self {
+            _ui_affinity: self._ui_affinity,
             widget: self.widget.clone(),
             messages: self.messages.clone(),
             accepts_native_file_drop: self.accepts_native_file_drop,
@@ -111,6 +131,7 @@ impl<Message> SurfaceWidget<Message> {
     fn from_boxed(widget: Box<dyn Widget>, messages: WidgetMessageMapper<Message>) -> Self {
         let revision_evidence = SurfaceWidgetRevisionEvidence::capture(widget.as_ref());
         Self {
+            _ui_affinity: UiAffinity::new(),
             widget,
             messages,
             accepts_native_file_drop: false,

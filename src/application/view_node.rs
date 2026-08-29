@@ -27,6 +27,7 @@ use slot::SlotBehavior;
 
 use crate::gui::layout_core::SplitPaneRuntimeMode;
 use crate::{
+    UiAffinity,
     application::{Overlays, PointerTarget, TextContent, WidgetView},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{
@@ -89,7 +90,18 @@ pub enum LayerInputPolicy {
 }
 
 /// Application view node with generated identity and default sizing.
+///
+/// A view node belongs to the UI runtime that lowers it and is not transferable
+/// to a worker thread.
+///
+/// ```compile_fail
+/// use radiant::prelude::*;
+///
+/// let view = text::<()>("UI-local");
+/// std::thread::spawn(move || drop(view));
+/// ```
 pub struct ViewNode<Message> {
+    _ui_affinity: UiAffinity,
     kind: ViewNodeKind<Message>,
     id: Option<NodeId>,
     key: Option<identity::ContinuityKey>,
@@ -164,6 +176,7 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
 impl<Message> ViewNode<Message> {
     pub(in crate::application) fn new(kind: ViewNodeKind<Message>) -> Self {
         Self {
+            _ui_affinity: UiAffinity::new(),
             kind,
             id: None,
             key: None,

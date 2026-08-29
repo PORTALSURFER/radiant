@@ -4486,6 +4486,14 @@ payloads explicitly `Send` (and `Sync` where required); their completion/output
 mappers run later on the owning UI thread and may produce ordinary UI-local
 messages.
 
+The declarative owner records are UI-affine too: `ViewNode`,
+`WidgetViewContext`, `UiSurface`, `SurfaceNode`, installed `SurfaceWidget`
+values, and `SurfaceRuntime` carry private zero-sized affinity evidence and
+cannot be moved into `std::thread::spawn`. This does not add fields to public
+literal-constructed records such as `WidgetCommon`, change mapper storage, or
+require `Message` or mapper types to implement `Send`; worker/effect boundaries
+retain their explicit transfer bounds.
+
 The application builder uses the same ownership model through `WidgetView`.
 Any `Widget + Clone + 'static` is a non-emitting `WidgetView`, so it can be
 placed directly with prelude `widget(my_widget)`. Interactive application

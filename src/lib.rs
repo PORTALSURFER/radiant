@@ -62,6 +62,9 @@
 pub mod application;
 /// Shared environment-flag parsing helpers used by runtime internals.
 mod env_flags;
+/// Internal marker for values owned by one UI runtime.
+mod ui_affinity;
+pub(crate) use ui_affinity::UiAffinity;
 /// Reusable static guardrails for Radiant host application tests.
 pub mod guardrails;
 /// Backend-agnostic GUI primitives.

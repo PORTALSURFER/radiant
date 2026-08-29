@@ -20,6 +20,7 @@ impl<Message> SurfaceNode<Message> {
         style: WidgetStyle,
     ) -> Self {
         Self::Overlay(SurfaceOverlay {
+            _ui_affinity: crate::UiAffinity::new(),
             id,
             rect,
             label: Some(label.into()),
@@ -31,6 +32,7 @@ impl<Message> SurfaceNode<Message> {
     /// Build a non-interactive floating overlay marker in surface coordinates.
     pub fn overlay_marker(id: NodeId, rect: Rect, style: WidgetStyle) -> Self {
         Self::Overlay(SurfaceOverlay {
+            _ui_affinity: crate::UiAffinity::new(),
             id,
             rect,
             label: None,
@@ -79,6 +81,7 @@ impl<Message> SurfaceNode<Message> {
             ..ContainerPolicy::default()
         };
         Self::FloatingLayer(SurfaceFloatingLayer {
+            _ui_affinity: crate::UiAffinity::new(),
             container: SurfaceContainer::new(
                 id,
                 policy,

@@ -1,3 +1,4 @@
+use crate::UiAffinity;
 use std::collections::VecDeque;
 
 /// Maximum number of lifecycle transitions retained in one runtime snapshot.
@@ -64,6 +65,7 @@ impl Default for RuntimeLifecycleDiagnostics {
 
 #[derive(Debug)]
 pub(crate) struct RuntimeLifecycleController {
+    _ui_affinity: UiAffinity,
     phase: RuntimeLifecyclePhase,
     transition_count: u64,
     history: VecDeque<RuntimeLifecycleTransition>,
@@ -72,6 +74,7 @@ pub(crate) struct RuntimeLifecycleController {
 impl RuntimeLifecycleController {
     pub(crate) fn starting() -> Self {
         Self {
+            _ui_affinity: UiAffinity::new(),
             phase: RuntimeLifecyclePhase::Starting,
             transition_count: 0,
             history: VecDeque::with_capacity(RUNTIME_LIFECYCLE_HISTORY_CAPACITY),
@@ -122,6 +125,7 @@ impl RuntimeLifecycleController {
 impl Default for RuntimeLifecycleController {
     fn default() -> Self {
         Self {
+            _ui_affinity: UiAffinity::new(),
             phase: RuntimeLifecyclePhase::Unknown,
             transition_count: 0,
             history: VecDeque::with_capacity(RUNTIME_LIFECYCLE_HISTORY_CAPACITY),

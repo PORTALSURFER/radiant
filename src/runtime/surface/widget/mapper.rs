@@ -274,6 +274,16 @@ pub type ScrollMessageMapper<Message> = Rc<dyn Fn(ScrollUpdate) -> Option<Messag
 pub type NativeFileDropMessageMapper<Message> = MessageMapper<NativeFileDrop, Message>;
 
 /// Message bindings that turn widget output payloads into host-defined messages.
+///
+/// Mappers stay on the owning UI runtime and are not transferable to worker
+/// threads.
+///
+/// ```compile_fail
+/// use radiant::runtime::WidgetMessageMapper;
+///
+/// let mapper = WidgetMessageMapper::<()>::none();
+/// std::thread::spawn(move || drop(mapper));
+/// ```
 #[derive(Default)]
 pub struct WidgetMessageMapper<Message> {
     map: Option<OutputMapper<Message>>,

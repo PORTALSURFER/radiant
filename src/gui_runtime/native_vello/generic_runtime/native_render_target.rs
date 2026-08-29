@@ -144,7 +144,7 @@ pub(super) fn replacement_preflight(
     context: NativeRenderTargetReplacementContext,
 ) -> NativeRenderTargetReplacementOutcome {
     let NativeRenderTargetReplacementRequest {
-        mode,
+        mode: _,
         current_width,
         current_height,
         width,
@@ -158,10 +158,7 @@ pub(super) fn replacement_preflight(
         selected_generation,
     } = context;
 
-    if mode == NativeRenderTargetReplacementMode::Ordinary
-        && current_width == width
-        && current_height == height
-    {
+    if current_width == width && current_height == height {
         return NativeRenderTargetReplacementOutcome::Noop;
     }
     if width == 0 || height == 0 || predecessor_occupied {
@@ -307,15 +304,15 @@ mod tests {
     }
 
     #[test]
-    fn recovery_replacement_advances_generation_even_for_same_size() {
+    fn same_size_replacement_is_always_a_noop_without_target_creation_evidence() {
         assert_eq!(
             replacement_preflight(
                 request(
                     NativeRenderTargetReplacementMode::Recovery,
                     (640, 360),
                     (640, 360),
-                    false,
-                    Some(evidence(1, 4)),
+                    true,
+                    None,
                 ),
                 context(
                     7,
@@ -323,9 +320,7 @@ mod tests {
                     Some(NativeAdapterGeneration::from_test_serial(1)),
                 ),
             ),
-            NativeRenderTargetReplacementOutcome::Committed {
-                next_target_generation: NativeTargetGeneration::from_test_serial(5),
-            }
+            NativeRenderTargetReplacementOutcome::Noop
         );
     }
 

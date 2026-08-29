@@ -2264,6 +2264,19 @@ impl GenericNativeAdapterOwner {
             .flatten()
     }
 
+    /// Reconfigure the selected WGPU surface without replacing the target
+    /// texture/view owned by its render surface.
+    pub(super) fn reconfigure_render_surface_in_place(
+        &self,
+        surface: &mut RenderSurface<'_>,
+    ) -> bool {
+        let Some(device) = self.device_handle_for_surface(surface) else {
+            return false;
+        };
+        surface.surface.configure(&device.device, &surface.config);
+        true
+    }
+
     /// Resize a recovery candidate before it is published.  The candidate has
     /// no active resource bundle yet, so it intentionally has no retirement
     /// owner or completion evidence to pass to the active replacement path.

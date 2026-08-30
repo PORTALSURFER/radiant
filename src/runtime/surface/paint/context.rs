@@ -62,6 +62,9 @@ impl<'a> SurfacePaintContext<'a> {
     }
 
     pub(super) fn should_paint_node(&self, node_id: NodeId) -> bool {
+        if self.layout.is_omitted(node_id) {
+            return false;
+        }
         let Some(clip_rect) = self.clip_rect else {
             return true;
         };

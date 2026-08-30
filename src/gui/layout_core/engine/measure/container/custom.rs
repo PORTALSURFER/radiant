@@ -73,12 +73,24 @@ pub(super) fn measure_custom(
 }
 
 fn bounded_constraints(requested: Constraints, slot: Constraints) -> Constraints {
-    Constraints::new(
-        requested.min_w.max(slot.min_w),
-        requested.max_w.min(slot.max_w),
-        requested.min_h.max(slot.min_h),
-        requested.max_h.min(slot.max_h),
-    )
+    let (min_w, max_w) = bounded_axis(requested.min_w, requested.max_w, slot.min_w, slot.max_w);
+    let (min_h, max_h) = bounded_axis(requested.min_h, requested.max_h, slot.min_h, slot.max_h);
+    Constraints::new(min_w, max_w, min_h, max_h)
+}
+
+fn bounded_axis(
+    requested_min: f32,
+    requested_max: f32,
+    slot_min: f32,
+    slot_max: f32,
+) -> (f32, f32) {
+    if requested_max < slot_min {
+        (slot_min, slot_min)
+    } else if requested_min > slot_max {
+        (slot_max, slot_max)
+    } else {
+        (requested_min.max(slot_min), requested_max.min(slot_max))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

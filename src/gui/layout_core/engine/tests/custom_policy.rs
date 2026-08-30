@@ -3,7 +3,7 @@ use crate::gui::layout_core::{
     LayoutPolicyPlacementError, SizeHint, SlotChild, SlotParams, Vector2,
 };
 use crate::gui::types::{Point, Rect};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 struct CountingPolicy {
@@ -107,5 +107,102 @@ fn custom_policy_does_not_replace_first_accepted_placement() {
     assert!(output.diagnostics.iter().any(|diagnostic| {
         diagnostic.code
             == crate::gui::layout_core::LayoutDiagnosticCode::CustomLayoutInvalidChildIndex
+    }));
+}
+
+#[test]
+fn custom_policy_child_measurement_stays_within_disjoint_slot_bounds() {
+    struct RecordingPolicy {
+        observed: Rc<RefCell<Vec<Constraints>>>,
+    }
+
+    impl LayoutPolicy for RecordingPolicy {
+        fn measure(
+            &self,
+            _children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            constraints: Constraints,
+        ) -> SizeHint {
+            self.observed.borrow_mut().push(constraints);
+            SizeHint::preferred(Vector2::new(1.0, 1.0))
+        }
+
+        fn place(&self, _children: &mut crate::gui::layout_core::PlaceChildren<'_>, _bounds: Rect) {
+        }
+    }
+
+    struct DisjointRequestPolicy;
+
+    impl LayoutPolicy for DisjointRequestPolicy {
+        fn measure(
+            &self,
+            children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            _constraints: Constraints,
+        ) -> SizeHint {
+            children
+                .measure(
+                    0,
+                    Constraints {
+                        min_w: 80.0,
+                        max_w: 100.0,
+                        min_h: 80.0,
+                        max_h: 100.0,
+                    },
+                )
+                .expect("the only child should measure");
+            SizeHint::preferred(Vector2::new(10.0, 10.0))
+        }
+
+        fn place(&self, children: &mut crate::gui::layout_core::PlaceChildren<'_>, bounds: Rect) {
+            children
+                .place(0, bounds)
+                .expect("the only child should place");
+        }
+    }
+
+    let observed = Rc::new(RefCell::new(Vec::new()));
+    let slot = Constraints {
+        min_w: 0.0,
+        max_w: 40.0,
+        min_h: 0.0,
+        max_h: 40.0,
+    };
+    let root = LayoutNode::custom_container(
+        20,
+        DisjointRequestPolicy,
+        vec![SlotChild::new(
+            SlotParams {
+                constraints: slot,
+                ..SlotParams::fill()
+            },
+            LayoutNode::custom_container(
+                21,
+                RecordingPolicy {
+                    observed: Rc::clone(&observed),
+                },
+                Vec::new(),
+            ),
+        )],
+    );
+
+    let _ = crate::gui::layout_core::layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(120.0, 120.0)),
+    );
+
+    let observed = observed.borrow();
+    assert_eq!(
+        observed.as_slice(),
+        &[Constraints {
+            min_w: 0.0,
+            max_w: 40.0,
+            min_h: 0.0,
+            max_h: 40.0,
+        }]
+    );
+    assert!(observed.iter().all(|request| {
+        request.min_w >= slot.min_w
+            && request.max_w <= slot.max_w
+            && request.min_h >= slot.min_h
+            && request.max_h <= slot.max_h
     }));
 }

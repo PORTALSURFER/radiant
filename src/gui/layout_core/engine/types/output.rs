@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct LayoutOutput {
     /// Final rounded rectangles by node id.
     pub rects: BTreeMap<NodeId, Rect>,
+    omitted_nodes: BTreeSet<NodeId>,
     /// Node ids that overflowed available space.
     pub overflowed: BTreeSet<NodeId>,
     /// Per-node overflow metadata.
@@ -27,6 +28,7 @@ pub struct LayoutOutput {
 impl LayoutOutput {
     pub(in crate::gui::layout_core) fn clear_reusing_storage(&mut self) {
         self.rects.clear();
+        self.omitted_nodes.clear();
         self.overflowed.clear();
         self.overflow_flags.clear();
         self.diagnostics.clear();
@@ -44,5 +46,13 @@ impl LayoutOutput {
     /// Return one resolved node rectangle clamped inside `bounds`.
     pub fn rect_for_clamped(&self, node_id: NodeId, fallback: Rect, bounds: Rect) -> Rect {
         self.rect_for(node_id, fallback).clamp_to(bounds)
+    }
+
+    pub(crate) fn record_omitted_node(&mut self, node_id: NodeId) {
+        self.omitted_nodes.insert(node_id);
+    }
+
+    pub(crate) fn is_omitted(&self, node_id: NodeId) -> bool {
+        self.omitted_nodes.contains(&node_id)
     }
 }

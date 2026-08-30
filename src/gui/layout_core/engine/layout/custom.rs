@@ -51,12 +51,17 @@ pub(super) fn layout_custom(
             Some(ChildDisposition::Placed(rect)) => {
                 super::layout_node(&child.child, round_rect(rect), context);
             }
-            Some(ChildDisposition::Omitted(_)) => {}
-            None => context.push_diagnostic(
-                container.id,
-                crate::gui::layout_core::engine::LayoutDiagnosticCode::CustomLayoutChildUnresolved,
-                "custom layout policy did not resolve a declared child",
-            ),
+            Some(ChildDisposition::Omitted(_)) => {
+                context.record_omitted_node(child.child.id());
+            }
+            None => {
+                context.record_omitted_node(child.child.id());
+                context.push_diagnostic(
+                    container.id,
+                    crate::gui::layout_core::engine::LayoutDiagnosticCode::CustomLayoutChildUnresolved,
+                    "custom layout policy did not resolve a declared child",
+                );
+            }
         }
     }
 }

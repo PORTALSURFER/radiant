@@ -107,6 +107,7 @@ where
             update_handler_diagnostics_policy: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),
             virtual_layout: Default::default(),
+            pending_auxiliary_focus_requests: Vec::new(),
             declarative_owner: Default::default(),
             declarative_owner_ledger: Default::default(),
         };
@@ -214,6 +215,7 @@ where
         &mut self,
         owner: &super::super::owner::AuxiliaryWindowOwner,
     ) -> bool {
+        self.discard_pending_auxiliary_focus_requests_for(owner);
         let matches_current = self
             .auxiliary_effect_owners
             .get(owner.key())
@@ -259,6 +261,7 @@ where
         self.effect_owner.cancel();
         self.worker_effects.shutdown();
         self.auxiliary_effect_owners.clear();
+        self.clear_pending_auxiliary_focus_requests();
         self.timer_effects.shutdown();
         self.runtime_work.fence_all();
         self.shutdown_platform_services();

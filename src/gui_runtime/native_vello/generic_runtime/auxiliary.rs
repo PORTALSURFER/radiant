@@ -32,6 +32,9 @@ use super::{
 };
 use crate::gui::input::InputTimestamp;
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
+use crate::runtime::{
+    AuxiliaryFocusRequest, AuxiliaryWindowOwner, FrameGpuTimingSample, RuntimeAnimationActivity,
+};
 #[cfg(test)]
 use crate::runtime::{
     AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
@@ -41,7 +44,6 @@ use crate::runtime::{
 use crate::runtime::{
     AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
 };
-use crate::runtime::{AuxiliaryWindowOwner, FrameGpuTimingSample, RuntimeAnimationActivity};
 use crate::runtime::{ExternalDragIdentity, ExternalDragOutcome};
 pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
@@ -193,6 +195,38 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn effect_owner(&self) -> AuxiliaryWindowOwner {
         self.owner.clone()
+    }
+
+    fn can_apply_auxiliary_focus_request(&self, request: &AuxiliaryFocusRequest) -> bool {
+        self.is_admitted()
+            && self.active
+            && self.runner.is_running()
+            && request.owner().is_open()
+            && self.owner.is_open()
+            && self.owner.is_same_generation(request.owner())
+    }
+
+    fn execute_auxiliary_focus_request(
+        &mut self,
+        request: AuxiliaryFocusRequest,
+    ) -> GenericRouteOutcome {
+        let outcome = self
+            .runner
+            .core
+            .runtime
+            .execute_command(request.into_command());
+        self.runner.core.route_command_outcome(outcome)
+    }
+
+    fn apply_auxiliary_focus_request(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        request: AuxiliaryFocusRequest,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        let outcome = self.execute_auxiliary_focus_request(request);
+        self.runner
+            .handle_route_outcome_with_adapter(event_loop, outcome, adapter, None);
     }
 
     pub(super) fn take_cpu_frame_observation_capture(&mut self) -> CpuFrameObservationCapture {
@@ -2057,7 +2091,11 @@ where
             if window.is_admitted()
                 && !auxiliary_projection_contains_key(&projections, window.key())
             {
+                let owner = window.effect_owner();
                 window.hide();
+                self.core
+                    .runtime
+                    .discard_pending_auxiliary_focus_requests_for(&owner);
             }
         }
         for projection in projections {
@@ -2066,7 +2104,14 @@ where
                 .iter_mut()
                 .find(|window| window.is_admitted() && window.key() == projection.key)
             {
+                let was_active = window.active;
+                let owner = window.effect_owner();
                 window.update_projection(projection);
+                if !was_active {
+                    self.core
+                        .runtime
+                        .discard_pending_auxiliary_focus_requests_for(&owner);
+                }
             } else if auxiliary_key_is_suppressed_for_sync(
                 &self.auxiliary_windows,
                 &retired_keys_removed_this_sync,
@@ -2118,7 +2163,58 @@ where
             self.recovery_auxiliary_followup_pending = false;
             self.recovery_cause.take();
         }
+        self.apply_pending_auxiliary_focus_requests(event_loop, adapter);
         Ok(())
+    }
+
+    fn auxiliary_focus_request_target_index(
+        &self,
+        request: &AuxiliaryFocusRequest,
+    ) -> Option<usize> {
+        if !self
+            .core
+            .runtime
+            .auxiliary_effect_owner_is_active(request.owner())
+        {
+            return None;
+        }
+
+        let mut target = None;
+        for (index, window) in self.auxiliary_windows.iter().enumerate() {
+            if !window.can_apply_auxiliary_focus_request(request) {
+                continue;
+            }
+            if target.replace(index).is_some() {
+                return None;
+            }
+        }
+        target
+    }
+
+    fn apply_pending_auxiliary_focus_requests(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter: &mut GenericNativeAdapterOwner,
+    ) {
+        self.for_each_pending_auxiliary_focus_request(|window, request| {
+            window.apply_auxiliary_focus_request(event_loop, request, adapter);
+        });
+    }
+
+    fn for_each_pending_auxiliary_focus_request(
+        &mut self,
+        mut apply: impl FnMut(&mut AuxiliaryNativeWindow<Message>, AuxiliaryFocusRequest),
+    ) {
+        let requests = self.core.runtime.take_pending_auxiliary_focus_requests();
+        for request in requests {
+            let Some(index) = self.auxiliary_focus_request_target_index(&request) else {
+                continue;
+            };
+            let Some(window) = self.auxiliary_windows.get_mut(index) else {
+                continue;
+            };
+            apply(window, request);
+        }
     }
 
     pub(super) fn defer_auxiliary_window_sync(&mut self) {
@@ -2249,9 +2345,12 @@ mod tests {
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
-            AuxiliaryWindow, NativeFrameDiagnostics, NativeWindowDiagnosticIdentity,
-            RuntimeFrameDiagnosticsHost,
+            AuxiliaryFocusCommand, AuxiliaryFocusRequest, AuxiliaryWindow, AuxiliaryWindowOwner,
+            Command, NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeBridge,
+            RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, SurfaceNode, UiSurface,
+            WidgetMessageMapper,
         },
+        widgets::{InteractiveRowWidget, WidgetSizing},
     };
     use native_lifecycle_stage::{NativeLifecycleStageEvidence, NativeLifecycleTransitionKind};
     use std::{
@@ -2360,6 +2459,302 @@ mod tests {
 
     fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
         auxiliary_window_with_diagnostics(cache_on_close, false)
+    }
+
+    fn focusable_auxiliary_projection(key: &str, widget_id: u64) -> AuxiliaryWindow<i32> {
+        let surface = crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            InteractiveRowWidget::new(widget_id, WidgetSizing::fixed(Vector2::new(160.0, 28.0))),
+            WidgetMessageMapper::none(),
+        )));
+        AuxiliaryWindow::new(key, NativeRunOptions::default(), surface)
+    }
+
+    fn focusable_auxiliary_window(
+        key: &str,
+        owner: AuxiliaryWindowOwner,
+        widget_id: u64,
+    ) -> AuxiliaryNativeWindow<i32> {
+        AuxiliaryNativeWindow::new_with_owner(
+            focusable_auxiliary_projection(key, widget_id),
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+            false,
+            owner,
+        )
+    }
+
+    struct FocusParentBridge;
+
+    impl RuntimeBridge<i32> for FocusParentBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<i32>> {
+            crate::runtime::test_arc_surface(empty::<i32>().into_surface())
+        }
+
+        fn update(&mut self, message: i32) -> Command<i32> {
+            match message {
+                1 => Command::focus(43),
+                2 => Command::clear_focus(),
+                3 => Command::batch([
+                    Command::focus(43),
+                    Command::clear_focus(),
+                    Command::focus(43),
+                ]),
+                _ => Command::none(),
+            }
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, i32> {
+            RuntimeHostCapabilities::new()
+        }
+    }
+
+    fn auxiliary_focus_parent() -> GenericNativeVelloRunner<FocusParentBridge, i32> {
+        GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            FocusParentBridge,
+            Vector2::new(1280.0, 720.0),
+        )
+    }
+
+    fn execute_pending_auxiliary_focus_for_test<Bridge>(
+        parent: &mut GenericNativeVelloRunner<Bridge, i32>,
+    ) where
+        Bridge: RuntimeBridge<i32>,
+    {
+        parent.for_each_pending_auxiliary_focus_request(|window, request| {
+            let _ = window.execute_auxiliary_focus_request(request);
+        });
+    }
+
+    #[test]
+    fn auxiliary_focus_targets_exact_child_after_projection_sync() {
+        let mut parent = auxiliary_focus_parent();
+        let settings_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("settings");
+        let inspector_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("inspector");
+        let mut settings = focusable_auxiliary_window("settings", settings_owner.clone(), 43);
+        settings.update_projection(focusable_auxiliary_projection("settings", 43));
+        parent.auxiliary_windows.push(settings);
+        parent
+            .auxiliary_windows
+            .push(focusable_auxiliary_window("inspector", inspector_owner, 43));
+
+        let reduced = parent.reduce_auxiliary_messages(Some(settings_owner.clone()), vec![1]);
+        assert!(reduced.routed);
+        execute_pending_auxiliary_focus_for_test(&mut parent);
+
+        assert_eq!(
+            parent.auxiliary_focus_request_target_index(&AuxiliaryFocusRequest::new(
+                settings_owner,
+                AuxiliaryFocusCommand::Focus(43),
+            )),
+            Some(0),
+            "the generation fence must select the exact projected child"
+        );
+        assert_eq!(
+            parent.auxiliary_windows[0]
+                .runner
+                .core
+                .runtime
+                .focused_widget(),
+            Some(43)
+        );
+        assert_eq!(
+            parent.auxiliary_windows[1]
+                .runner
+                .core
+                .runtime
+                .focused_widget(),
+            None
+        );
+        assert_eq!(parent.core.runtime.focused_widget(), None);
+    }
+
+    #[test]
+    fn auxiliary_clear_focus_isolated_by_generation_with_duplicate_widget_ids() {
+        let mut parent = auxiliary_focus_parent();
+        let settings_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("settings");
+        let inspector_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("inspector");
+        parent.auxiliary_windows.push(focusable_auxiliary_window(
+            "settings",
+            settings_owner.clone(),
+            43,
+        ));
+        parent.auxiliary_windows.push(focusable_auxiliary_window(
+            "inspector",
+            inspector_owner.clone(),
+            43,
+        ));
+
+        parent.auxiliary_windows[0]
+            .runner
+            .core
+            .runtime
+            .focus_widget(43);
+        parent.auxiliary_windows[1]
+            .runner
+            .core
+            .runtime
+            .focus_widget(43);
+        parent
+            .core
+            .runtime
+            .enqueue_auxiliary_focus_request(settings_owner, AuxiliaryFocusCommand::Clear);
+        execute_pending_auxiliary_focus_for_test(&mut parent);
+
+        assert_eq!(
+            parent.auxiliary_windows[0]
+                .runner
+                .core
+                .runtime
+                .focused_widget(),
+            None
+        );
+        assert_eq!(
+            parent.auxiliary_windows[1]
+                .runner
+                .core
+                .runtime
+                .focused_widget(),
+            Some(43)
+        );
+    }
+
+    #[test]
+    fn auxiliary_focus_requests_preserve_order_and_fail_closed_for_invalid_lifecycle() {
+        let mut parent = auxiliary_focus_parent();
+        let owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("settings");
+        parent
+            .auxiliary_windows
+            .push(focusable_auxiliary_window("settings", owner.clone(), 43));
+
+        let reduced = parent.reduce_auxiliary_messages(Some(owner.clone()), vec![3]);
+        assert!(reduced.routed);
+        execute_pending_auxiliary_focus_for_test(&mut parent);
+        assert_eq!(
+            parent.auxiliary_windows[0]
+                .runner
+                .core
+                .runtime
+                .focused_widget(),
+            Some(43),
+            "Focus/Clear/Focus must execute in queue order"
+        );
+
+        let missing_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("missing");
+        parent
+            .core
+            .runtime
+            .enqueue_auxiliary_focus_request(missing_owner, AuxiliaryFocusCommand::Focus(43));
+        parent.auxiliary_windows[0]
+            .runner
+            .core
+            .runtime
+            .clear_focus();
+        parent
+            .core
+            .runtime
+            .enqueue_auxiliary_focus_request(owner.clone(), AuxiliaryFocusCommand::Focus(999));
+        execute_pending_auxiliary_focus_for_test(&mut parent);
+        assert_eq!(
+            parent.auxiliary_windows[0]
+                .runner
+                .core
+                .runtime
+                .focused_widget(),
+            None,
+            "missing and invalid requests must fail closed"
+        );
+
+        parent.auxiliary_windows[0]
+            .runner
+            .core
+            .runtime
+            .focus_widget(43);
+        parent.auxiliary_windows[0].hide();
+        parent
+            .core
+            .runtime
+            .enqueue_auxiliary_focus_request(owner, AuxiliaryFocusCommand::Clear);
+        execute_pending_auxiliary_focus_for_test(&mut parent);
+        assert_eq!(
+            parent.auxiliary_windows[0]
+                .runner
+                .core
+                .runtime
+                .focused_widget(),
+            Some(43),
+            "hidden requests must not reach a child"
+        );
+        assert!(
+            parent
+                .core
+                .runtime
+                .take_pending_auxiliary_focus_requests()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn stale_generation_and_retiring_or_sibling_children_are_not_fallback_targets() {
+        let mut parent = auxiliary_focus_parent();
+        let old_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("settings");
+        parent.auxiliary_windows.push(focusable_auxiliary_window(
+            "settings",
+            old_owner.clone(),
+            43,
+        ));
+        assert!(
+            parent
+                .core
+                .runtime
+                .retire_auxiliary_effect_owner(&old_owner)
+        );
+        let replacement_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("settings");
+        parent.auxiliary_windows.push(focusable_auxiliary_window(
+            "settings",
+            replacement_owner.clone(),
+            43,
+        ));
+        let sibling_owner = parent
+            .core
+            .runtime
+            .acquire_auxiliary_effect_owner("inspector");
+
+        let stale = AuxiliaryFocusRequest::new(old_owner, AuxiliaryFocusCommand::Focus(43));
+        let sibling = AuxiliaryFocusRequest::new(sibling_owner, AuxiliaryFocusCommand::Focus(43));
+        assert_eq!(parent.auxiliary_focus_request_target_index(&stale), None);
+        assert_eq!(parent.auxiliary_focus_request_target_index(&sibling), None);
+
+        parent.auxiliary_windows[1].begin_retiring();
+        let retiring =
+            AuxiliaryFocusRequest::new(replacement_owner, AuxiliaryFocusCommand::Focus(43));
+        assert_eq!(parent.auxiliary_focus_request_target_index(&retiring), None);
     }
 
     #[test]

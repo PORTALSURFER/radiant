@@ -1,4 +1,6 @@
-use super::super::{effects::WorkerEffectMappingMode, owner::EffectOrigin};
+use super::super::{
+    auxiliary_focus::AuxiliaryFocusCommand, effects::WorkerEffectMappingMode, owner::EffectOrigin,
+};
 use super::{CommandOutcome, SurfaceRuntime};
 use crate::application::runtime::update_context::business::admission::{
     BusinessTaskAdmission, resolve as resolve_admission,
@@ -225,7 +227,10 @@ where
             outcome.surface_refresh_applied = false;
         }
         let repaint_scope = command.repaint_scope().unwrap_or(RepaintScope::Surface);
-        let requires_fresh_surface = command.requires_fresh_surface_before_dispatch();
+        let auxiliary_focus_only = matches!(&origin, EffectOrigin::Auxiliary(_))
+            && command_contains_only_auxiliary_focus(&command);
+        let requires_fresh_surface =
+            command.requires_fresh_surface_before_dispatch() && !auxiliary_focus_only;
         let effective_scope = if requires_fresh_surface {
             RepaintScope::Surface
         } else {
@@ -342,6 +347,17 @@ where
         }
         if !self.effect_origin_is_active(&origin) {
             return;
+        }
+        if let EffectOrigin::Auxiliary(owner) = &origin {
+            let focus_command = match &command {
+                Command::Focus(widget_id) => Some(AuxiliaryFocusCommand::Focus(*widget_id)),
+                Command::ClearFocus => Some(AuxiliaryFocusCommand::Clear),
+                _ => None,
+            };
+            if let Some(focus_command) = focus_command {
+                self.enqueue_auxiliary_focus_request(owner.clone(), focus_command);
+                return;
+            }
         }
         if !refresh_surface
             && outcome.surface_refresh_requested
@@ -554,5 +570,13 @@ where
                 }
             }
         }
+    }
+}
+
+fn command_contains_only_auxiliary_focus<Message>(command: &Command<Message>) -> bool {
+    match command {
+        Command::None | Command::Focus(_) | Command::ClearFocus => true,
+        Command::Batch(commands) => commands.iter().all(command_contains_only_auxiliary_focus),
+        _ => false,
     }
 }

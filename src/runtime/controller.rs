@@ -6,6 +6,7 @@
 
 mod accessibility;
 mod automation_compositor;
+mod auxiliary_focus;
 mod commands;
 mod composition;
 mod context;
@@ -39,6 +40,9 @@ mod traversal_state;
 mod virtual_layout;
 mod work;
 
+#[cfg(test)]
+pub(crate) use auxiliary_focus::AuxiliaryFocusCommand;
+pub(crate) use auxiliary_focus::AuxiliaryFocusRequest;
 pub(crate) use focus::SequentialFocusTraversalDisposition;
 #[allow(unused_imports)]
 pub(crate) use split_pane_ratio_action::SplitPaneRatioAdjustmentDisposition;
@@ -197,6 +201,7 @@ where
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
     pub(in crate::runtime) virtual_layout: virtual_layout::RuntimeVirtualLayoutState<Message>,
+    pending_auxiliary_focus_requests: Vec<auxiliary_focus::AuxiliaryFocusRequest>,
     declarative_owner: DeclarativeOwnerProjection,
     declarative_owner_ledger: DeclarativeOwnerLedger,
 }

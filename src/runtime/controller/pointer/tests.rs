@@ -7007,6 +7007,32 @@ fn focused_ratio_action_applies_each_axis_and_keeps_noop_work_free() {
             .first()
             .copied()
             .expect("runtime-owned separator projection");
+        let candidate_policy_revision = runtime
+            .traversal
+            .containers
+            .split_pane_ratio_action_candidates
+            .first()
+            .expect("runtime-owned ratio-action candidate")
+            .policy_revision;
+        let target = runtime
+            .traversal
+            .containers
+            .layout_targets
+            .iter()
+            .find(|target| target.target.identity() == projection.target)
+            .expect("runtime-owned divider target");
+        assert_eq!(
+            target.revision,
+            LayoutInteractionRevision::exact(candidate_policy_revision)
+        );
+        assert_eq!(
+            runtime
+                .traversal
+                .containers
+                .split_pane_ratio_action_authorities
+                .len(),
+            1
+        );
         assert_eq!(
             runtime.request_split_pane_separator_focus(projection),
             FocusTransition::Changed
@@ -7068,6 +7094,134 @@ fn focused_ratio_action_applies_each_axis_and_keeps_noop_work_free() {
             .lookup_current_state_view(projection.mounted_state_id)
             .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
         Some(before_state)
+    );
+}
+
+#[test]
+fn focused_ratio_action_authority_rejects_unrelated_exact_revisions() {
+    for wrong_type in [true, false] {
+        let mut runtime = SurfaceRuntime::new(
+            SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+            Vector2::new(200.0, 80.0),
+        );
+        let candidate_policy_revision = runtime
+            .traversal
+            .containers
+            .split_pane_ratio_action_candidates
+            .first()
+            .expect("runtime-owned ratio-action candidate")
+            .policy_revision;
+        let target_revision = if wrong_type {
+            LayoutInteractionRevision::exact("wrong-type")
+        } else {
+            let mut wrong_value = candidate_policy_revision;
+            wrong_value.initial_ratio = wrong_value.initial_ratio.wrapping_add(1);
+            LayoutInteractionRevision::exact(wrong_value)
+        };
+        runtime
+            .traversal
+            .containers
+            .layout_targets
+            .iter_mut()
+            .find(|target| {
+                target.target.region_id == crate::gui::layout_core::SPLIT_PANE_DIVIDER_REGION_ID
+            })
+            .expect("runtime-owned divider target")
+            .revision = target_revision;
+        runtime
+            .traversal
+            .containers
+            .rebuild_split_pane_ratio_action_authorities(&runtime.interaction.layout_state);
+
+        assert!(
+            runtime
+                .traversal
+                .containers
+                .split_pane_ratio_action_authorities
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn focused_ratio_action_invalidates_changed_revision_without_side_effects() {
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        SettledSplitInteractionBridge::new(
+            SplitInteractionMode::RuntimeOwned,
+            Rc::clone(&messages),
+        ),
+        Vector2::new(200.0, 80.0),
+    );
+    let projection = runtime
+        .split_pane_separator_projections()
+        .first()
+        .copied()
+        .expect("runtime-owned separator projection");
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(projection),
+        FocusTransition::Changed
+    );
+    runtime.take_repaint_requested();
+    let before_state = runtime
+        .interaction
+        .layout_state
+        .lookup_current_state_view(projection.mounted_state_id)
+        .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied())
+        .expect("mounted split state before revision invalidation");
+    let before_counters = runtime.refresh_counters();
+    let before_authorities = runtime
+        .traversal
+        .containers
+        .split_pane_ratio_action_authorities
+        .len();
+    assert_eq!(before_authorities, 1);
+
+    let mut changed_policy_revision = runtime
+        .traversal
+        .containers
+        .split_pane_ratio_action_candidates
+        .first()
+        .expect("runtime-owned ratio-action candidate")
+        .policy_revision;
+    changed_policy_revision.initial_ratio = changed_policy_revision.initial_ratio.wrapping_add(1);
+    runtime
+        .traversal
+        .containers
+        .layout_targets
+        .iter_mut()
+        .find(|target| target.target.identity() == projection.target)
+        .expect("runtime-owned divider target")
+        .revision = LayoutInteractionRevision::exact(changed_policy_revision);
+
+    assert_eq!(
+        runtime.adjust_focused_split_pane_ratio(16.0),
+        SplitPaneRatioAdjustmentDisposition::Invalidated
+    );
+    assert_eq!(runtime.interaction.focus.owner, None);
+    assert_eq!(
+        runtime
+            .interaction
+            .layout_state
+            .lookup_current_state_view(projection.mounted_state_id)
+            .and_then(|read| read.downcast_ref::<SplitPaneRuntimeState>().copied()),
+        Some(before_state)
+    );
+    assert_eq!(runtime.refresh_counters(), before_counters);
+    assert_eq!(
+        runtime
+            .traversal
+            .containers
+            .split_pane_ratio_action_authorities
+            .len(),
+        before_authorities
+    );
+    assert!(messages.borrow().is_empty());
+    assert!(!runtime.pending_current_surface_relayout);
+    assert!(!runtime.repaint_requested());
+    assert_eq!(
+        runtime.take_pending_input_command_outcome(),
+        CommandOutcome::default()
     );
 }
 

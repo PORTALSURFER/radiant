@@ -11,7 +11,9 @@ use crate::{
         SplitPaneDividerDescriptor, SplitPaneRatioAdjustment, SplitPaneRuntimeOwnership,
         SplitPaneRuntimePolicyRevision, SplitPaneRuntimeState, apply_split_pane_ratio_delta,
     },
-    layout::{LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION, LayoutTargetIdentity},
+    layout::{
+        LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION, LayoutInteractionRevision, LayoutTargetIdentity,
+    },
     runtime::{RuntimeBridge, RuntimeLifecyclePhase},
 };
 use std::rc::Rc;
@@ -232,7 +234,7 @@ where
             || target.state_id != Some(authority.state_id)
             || target.contract_version != LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION
             || target.contract_version != authority.contract_version
-            || !target.revision.is_exact()
+            || target.revision != LayoutInteractionRevision::exact(candidate.policy_revision)
             || target.target_bounds != Some(target.target.bounds)
             || target.container_bounds != Some(authority.container_bounds)
             || target.target_bounds != Some(authority.target_bounds)

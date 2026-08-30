@@ -575,7 +575,7 @@ impl<Message> RuntimeContainerTraversal<Message> {
             if target.target.region_id != SPLIT_PANE_DIVIDER_REGION_ID
                 || target.state_id != Some(candidate.state_id)
                 || target.contract_version != candidate.contract_version
-                || !target.revision.is_exact()
+                || target.revision != LayoutInteractionRevision::exact(candidate.policy_revision)
                 || target.target_bounds != Some(target.target.bounds)
                 || !target
                     .container_bounds

@@ -43,7 +43,11 @@ where
         self.traversal.containers.layout_hit_region_diagnostics
     }
 
-    /// Return the first projected widget whose laid-out bounds contain `point`.
+    /// Return the first projected widget admitted by event-aware hit testing
+    /// for a synthetic `PointerMove` at `point`.
+    ///
+    /// This is not a bounds-only query: a widget whose bounds contain the
+    /// point may return `PassThrough` for that event and be skipped.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
         self.widget_at_for_input(point, &WidgetInput::pointer_move(point))
     }

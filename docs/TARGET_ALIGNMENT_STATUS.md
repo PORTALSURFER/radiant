@@ -17,4 +17,4 @@
 | Rendering, invalidation, retained GPU surfaces | ~89% |
 | Platform, windowing, and host boundaries | 67% |
 | Diagnostics, profiling, and performance validation | ~94% |
-| Examples, documentation, and CI guardrails | 96% |
+| Examples, documentation, and CI guardrails | 96.5% |

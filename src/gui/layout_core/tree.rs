@@ -5,10 +5,15 @@ mod derived;
 use super::{
     SplitPaneRuntimeMode,
     model::{ContainerPolicy, SlotParams},
+    policy::LayoutPolicy,
 };
 use crate::gui::types::Vector2;
 use derived::container_derived_state;
-use std::hash::{Hash, Hasher};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 /// Stable node identifier for layout cache keys and output maps.
 pub type NodeId = u64;
@@ -47,7 +52,6 @@ impl SlotChild {
 }
 
 /// A container node with deterministic layout policy and slot children.
-#[derive(Clone, Debug, PartialEq)]
 pub struct ContainerNode {
     /// Stable node id.
     pub id: NodeId,
@@ -55,6 +59,8 @@ pub struct ContainerNode {
     pub policy: ContainerPolicy,
     /// Ordered slot children.
     pub children: Vec<SlotChild>,
+    pub(crate) layout_policy: Option<Rc<dyn LayoutPolicy>>,
+    pub(crate) contains_layout_policy: bool,
     pub(crate) split_pane_runtime: Option<SplitPaneRuntimeMode>,
     /// Version used by persistent layout caches.
     pub(crate) state_version: u64,
@@ -83,10 +89,16 @@ impl ContainerNode {
     /// Construct a container node from named parts.
     pub fn from_parts(parts: ContainerNodeParts) -> Self {
         let derived = container_derived_state(parts.id, &parts.policy, &parts.children);
+        let contains_layout_policy = parts
+            .children
+            .iter()
+            .any(|child| child.child.contains_layout_policy());
         Self {
             id: parts.id,
             policy: parts.policy,
             children: parts.children,
+            layout_policy: None,
+            contains_layout_policy,
             split_pane_runtime: None,
             state_version: derived.state_version,
             known_main_extent_horizontal: derived.horizontal_metrics.extent,
@@ -103,6 +115,98 @@ impl ContainerNode {
             policy,
             children,
         })
+    }
+
+    pub(crate) fn with_layout_policy(
+        id: NodeId,
+        policy: ContainerPolicy,
+        children: Vec<SlotChild>,
+        layout_policy: Rc<dyn LayoutPolicy>,
+    ) -> Self {
+        let mut container = Self::from_parts(ContainerNodeParts {
+            id,
+            policy,
+            children,
+        });
+        container.layout_policy = Some(layout_policy);
+        container.contains_layout_policy = true;
+        container
+    }
+
+    pub(crate) fn layout_policy(&self) -> Option<&dyn LayoutPolicy> {
+        self.layout_policy.as_deref()
+    }
+}
+
+impl Clone for ContainerNode {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            policy: self.policy.clone(),
+            children: self.children.clone(),
+            layout_policy: self.layout_policy.clone(),
+            contains_layout_policy: self.contains_layout_policy,
+            split_pane_runtime: self.split_pane_runtime,
+            state_version: self.state_version,
+            known_main_extent_horizontal: self.known_main_extent_horizontal,
+            known_main_extent_vertical: self.known_main_extent_vertical,
+            known_uniform_main_horizontal: self.known_uniform_main_horizontal,
+            known_uniform_main_vertical: self.known_uniform_main_vertical,
+        }
+    }
+}
+
+impl fmt::Debug for ContainerNode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ContainerNode")
+            .field("id", &self.id)
+            .field("policy", &self.policy)
+            .field("children", &self.children)
+            .field(
+                "layout_policy",
+                &self.layout_policy.as_ref().map(|_| "custom"),
+            )
+            .field("contains_layout_policy", &self.contains_layout_policy)
+            .field("split_pane_runtime", &self.split_pane_runtime)
+            .field("state_version", &self.state_version)
+            .field(
+                "known_main_extent_horizontal",
+                &self.known_main_extent_horizontal,
+            )
+            .field(
+                "known_main_extent_vertical",
+                &self.known_main_extent_vertical,
+            )
+            .field(
+                "known_uniform_main_horizontal",
+                &self.known_uniform_main_horizontal,
+            )
+            .field(
+                "known_uniform_main_vertical",
+                &self.known_uniform_main_vertical,
+            )
+            .finish()
+    }
+}
+
+impl PartialEq for ContainerNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.policy == other.policy
+            && self.children == other.children
+            && match (&self.layout_policy, &other.layout_policy) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Rc::ptr_eq(left, right),
+                _ => false,
+            }
+            && self.contains_layout_policy == other.contains_layout_policy
+            && self.split_pane_runtime == other.split_pane_runtime
+            && self.state_version == other.state_version
+            && self.known_main_extent_horizontal == other.known_main_extent_horizontal
+            && self.known_main_extent_vertical == other.known_main_extent_vertical
+            && self.known_uniform_main_horizontal == other.known_uniform_main_horizontal
+            && self.known_uniform_main_vertical == other.known_uniform_main_vertical
     }
 }
 
@@ -151,6 +255,7 @@ fn widget_state_version(intrinsic: Vector2) -> u64 {
 }
 
 /// A layout node in the strict slot-based tree.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutNode {
     /// A container that owns slots and lays out child nodes.
@@ -200,11 +305,38 @@ impl LayoutNode {
         Self::Container(ContainerNode::from_parts(parts))
     }
 
+    /// Construct a container driven by an object-safe custom measure/place
+    /// policy.
+    pub fn custom_container<Policy: LayoutPolicy>(
+        id: NodeId,
+        policy: Policy,
+        children: Vec<SlotChild>,
+    ) -> Self {
+        let layout_policy: Rc<dyn LayoutPolicy> = Rc::new(policy);
+        Self::Container(ContainerNode::with_layout_policy(
+            id,
+            ContainerPolicy::default(),
+            children,
+            layout_policy,
+        ))
+    }
+
     /// Construct a container with an internal runtime-owned split-pane mode.
+    #[cfg(test)]
     pub(crate) fn container_with_split_pane_runtime_mode(
         id: NodeId,
         policy: ContainerPolicy,
         children: Vec<SlotChild>,
+        split_pane_runtime: Option<SplitPaneRuntimeMode>,
+    ) -> Self {
+        Self::container_with_layout_policy_mode(id, policy, children, None, split_pane_runtime)
+    }
+
+    pub(crate) fn container_with_layout_policy_mode(
+        id: NodeId,
+        policy: ContainerPolicy,
+        children: Vec<SlotChild>,
+        layout_policy: Option<Rc<dyn LayoutPolicy>>,
         split_pane_runtime: Option<SplitPaneRuntimeMode>,
     ) -> Self {
         let mut container = ContainerNode::from_parts(ContainerNodeParts {
@@ -212,7 +344,17 @@ impl LayoutNode {
             policy,
             children,
         });
+        container.layout_policy = layout_policy;
+        container.contains_layout_policy =
+            container.contains_layout_policy || container.layout_policy.is_some();
         container.split_pane_runtime = split_pane_runtime;
         Self::Container(container)
+    }
+
+    pub(crate) fn contains_layout_policy(&self) -> bool {
+        match self {
+            Self::Container(container) => container.contains_layout_policy,
+            Self::Widget(_) => false,
+        }
     }
 }

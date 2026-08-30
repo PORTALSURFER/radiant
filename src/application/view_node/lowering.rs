@@ -6,7 +6,10 @@ use crate::{
         ViewProjection, WidgetViewContext, ids::StructuralRole, launch::SceneProjection,
         view_node::lowering_defaults::ViewNodeContainerDefaults,
     },
-    layout::{ContainerKind, ContainerPolicy, NodeId, VirtualizationAxis, VirtualizationPolicy},
+    layout::{
+        ContainerKind, ContainerPolicy, LayoutPolicy, NodeId, VirtualizationAxis,
+        VirtualizationPolicy,
+    },
     runtime::{
         KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
         SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface,
@@ -191,7 +194,10 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
             ViewNodeContainerDefaults::new(node.padding, node.align_main, node.align_cross, style);
         let base_policy = || defaults.base_policy();
         let styled_container =
-            |lowering: &mut Self, policy: ContainerPolicy, children: Vec<SurfaceChild<Message>>| {
+            |lowering: &mut Self,
+             policy: ContainerPolicy,
+             layout_policy: Option<Rc<dyn LayoutPolicy>>,
+             children: Vec<SurfaceChild<Message>>| {
                 let runtime_split_policy = (policy.kind == ContainerKind::SplitPane)
                     .then(|| {
                         split_pane_runtime.and_then(|mode| {
@@ -204,7 +210,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     })
                     .flatten();
                 let mut container =
-                    lowering.lower_container(id, policy, style, hoverable, children);
+                    lowering.lower_container(id, policy, layout_policy, style, hoverable, children);
                 if let Some(scroll_message) = scroll_message.clone() {
                     container = container.with_scroll_message_local(scroll_message);
                 }
@@ -312,7 +318,12 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     };
                     self.lower_slot_children(children, child_scope, parent_horizontal)
                 };
-                styled_container(self, policy, children)
+                styled_container(self, policy, None, children)
+            }
+            ViewNodeKind::CustomLayout { policy, children } => {
+                let policy_metadata = base_policy();
+                let children = self.lower_slot_children(children, child_scope, false);
+                styled_container(self, policy_metadata, Some(policy), children)
             }
             ViewNodeKind::Scroll { child } => {
                 let policy = ContainerPolicy {
@@ -322,7 +333,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 };
                 let children =
                     vec![self.lower_fill_child(*child, child_scope, StructuralRole::ScrollChild)];
-                styled_container(self, policy, children)
+                styled_container(self, policy, None, children)
             }
             ViewNodeKind::VirtualScroll { child, overscan_px } => {
                 let policy = ContainerPolicy {
@@ -340,7 +351,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     child_scope,
                     StructuralRole::VirtualScrollChild,
                 )];
-                styled_container(self, policy, children)
+                styled_container(self, policy, None, children)
             }
             ViewNodeKind::OverlayPanel { rect, label } => {
                 if let Some(label) = label {

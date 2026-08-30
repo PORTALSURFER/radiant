@@ -160,6 +160,7 @@ fn api_docs_map_examples_to_target_areas() {
         "background_loading",
         "status_bar",
         "layout_rows_columns",
+        "custom_layout",
         "grid_gallery",
         "scroll",
         "sizing",

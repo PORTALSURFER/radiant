@@ -2,14 +2,15 @@ use super::*;
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{
-        ContainerKind, ContainerPolicy, DebugPrimitiveKind, LayoutDebugPrimitive, LayoutOutput,
-        NodeId,
+        Constraints, ContainerKind, ContainerPolicy, DebugPrimitiveKind, LayoutDebugPrimitive,
+        LayoutOmissionReason, LayoutOutput, LayoutPolicy, MeasureChildren, NodeId, PlaceChildren,
+        SizeHint,
     },
     runtime::{PaintPrimitive, SurfaceChild, SurfaceContainer, SurfaceNode, UiSurface},
     theme::ThemeTokens,
     widgets::{
         TextWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetPaintContext,
-        WidgetSizing,
+        WidgetSizing, WidgetStyle,
     },
 };
 use std::sync::{Arc, Mutex};
@@ -298,6 +299,60 @@ fn layout_debug_strokes_for_children_stay_inside_parent_clip_scope() {
 
     assert!(parent_clip_start < child_debug_stroke);
     assert!(child_debug_stroke < parent_clip_end);
+}
+
+#[test]
+fn omitted_overlay_panel_is_absent_from_runtime_paint_plan() {
+    struct OmitOverlayPolicy;
+
+    impl LayoutPolicy for OmitOverlayPolicy {
+        fn measure(
+            &self,
+            children: &mut MeasureChildren<'_>,
+            constraints: Constraints,
+        ) -> SizeHint {
+            children
+                .measure(0, constraints)
+                .expect("the first overlay child should measure");
+            children
+                .measure(1, constraints)
+                .expect("the second overlay child should measure");
+            SizeHint::preferred(Vector2::new(40.0, 30.0))
+        }
+
+        fn place(&self, children: &mut PlaceChildren<'_>, _bounds: Rect) {
+            children
+                .omit(0, LayoutOmissionReason::Conditional)
+                .expect("the overlay child should be omitted");
+        }
+    }
+
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::layout(
+        1,
+        OmitOverlayPolicy,
+        vec![
+            SurfaceChild::fill(SurfaceNode::overlay_panel(
+                2,
+                Rect::from_xy_size(10.0, 12.0, 30.0, 20.0),
+                "omitted",
+                WidgetStyle::default(),
+            )),
+            SurfaceChild::fill(SurfaceNode::overlay_panel(
+                3,
+                Rect::from_xy_size(20.0, 22.0, 30.0, 20.0),
+                "unresolved",
+                WidgetStyle::default(),
+            )),
+        ],
+    ));
+
+    let frame = surface.frame_at_size_with_default_theme(Vector2::new(100.0, 80.0));
+
+    assert!(!frame.layout.rects.contains_key(&2));
+    assert!(!frame.layout.rects.contains_key(&3));
+    assert!(!frame.paint_plan.primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::OverlayPanel(panel) if panel.widget_id == 2 || panel.widget_id == 3)
+    ));
 }
 
 #[test]

@@ -6,7 +6,7 @@ use crate::{
         AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
         AutomationRole,
     },
-    layout::{ContainerPolicy, LayoutCapabilities, NodeId, SlotParams},
+    layout::{ContainerPolicy, LayoutCapabilities, LayoutPolicy, NodeId, SlotParams},
     runtime::{
         DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsWidgetSnapshot,
         surface::widget::{EventMapper, ScrollMessageMapper, SurfaceWidget},
@@ -59,6 +59,7 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
     pub(in crate::runtime::surface) id: NodeId,
     pub(in crate::runtime::surface) policy: ContainerPolicy,
+    pub(in crate::runtime::surface) layout_policy: Option<Rc<dyn LayoutPolicy>>,
     pub(in crate::runtime::surface) style: Option<WidgetStyle>,
     pub(in crate::runtime::surface) hoverable: bool,
     pub(in crate::runtime::surface) layout_capabilities: Option<LayoutCapabilities<Message>>,
@@ -92,6 +93,7 @@ impl<Message> SurfaceContainer<Message> {
             _ui_affinity: UiAffinity::new(),
             id: parts.id,
             policy: parts.policy,
+            layout_policy: None,
             style: None,
             hoverable: false,
             layout_capabilities: parts.layout_capabilities,
@@ -112,6 +114,22 @@ impl<Message> SurfaceContainer<Message> {
             layout_capabilities: None,
             children,
         })
+    }
+
+    /// Build a generic container driven by an object-safe custom layout policy.
+    pub fn new_with_layout_policy<Policy: LayoutPolicy>(
+        id: NodeId,
+        policy: Policy,
+        children: Vec<SurfaceChild<Message>>,
+    ) -> Self {
+        let mut container = Self::new(id, ContainerPolicy::default(), children);
+        container.layout_policy = Some(Rc::new(policy));
+        container
+    }
+
+    pub(crate) fn with_layout_policy_erased(mut self, policy: Rc<dyn LayoutPolicy>) -> Self {
+        self.layout_policy = Some(policy);
+        self
     }
 
     /// Return this container with explicit chrome styling.
@@ -228,6 +246,15 @@ impl<Message> SurfaceNode<Message> {
             Self::Container(mut container) => {
                 container.split_pane_runtime = mode;
                 Self::Container(container)
+            }
+            node => node,
+        }
+    }
+
+    pub(crate) fn with_layout_policy_erased(self, policy: Rc<dyn LayoutPolicy>) -> Self {
+        match self {
+            Self::Container(container) => {
+                Self::Container(container.with_layout_policy_erased(policy))
             }
             node => node,
         }

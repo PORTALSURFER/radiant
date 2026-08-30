@@ -26,6 +26,20 @@ pub enum LayoutDiagnosticCode {
     SplitPaneChildCountMismatch,
     /// A split-pane container could not satisfy both requested pane minima.
     SplitPaneMinimumsUnsatisfied,
+    /// A custom layout policy returned a non-finite size-hint value.
+    CustomLayoutHintNonFinite,
+    /// A custom layout policy returned a negative size-hint value.
+    CustomLayoutHintNegative,
+    /// A custom layout policy returned contradictory size-hint values.
+    CustomLayoutHintContradictory,
+    /// A custom layout policy addressed an invalid child index.
+    CustomLayoutInvalidChildIndex,
+    /// A custom layout policy supplied an invalid child rectangle.
+    CustomLayoutInvalidPlacement,
+    /// A custom layout policy supplied more than one disposition for a child.
+    CustomLayoutDuplicatePlacement,
+    /// A custom layout policy did not resolve a child.
+    CustomLayoutChildUnresolved,
 }
 
 /// Layout diagnostic emitted when invalid states are normalized.

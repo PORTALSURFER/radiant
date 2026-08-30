@@ -289,7 +289,8 @@ impl<Message> ViewNode<Message> {
                     )?;
                 }
             }
-            ViewNodeKind::Container { children, .. } => {
+            ViewNodeKind::Container { children, .. }
+            | ViewNodeKind::CustomLayout { children, .. } => {
                 for (index, child) in children.iter().enumerate() {
                     child.collect_explicit_identity_collisions_at(
                         child_scope,
@@ -405,7 +406,8 @@ impl<Message> ViewNode<Message> {
                     )?;
                 }
             }
-            ViewNodeKind::Container { children, .. } => {
+            ViewNodeKind::Container { children, .. }
+            | ViewNodeKind::CustomLayout { children, .. } => {
                 for (index, child) in children.iter().enumerate() {
                     child.collect_keyed_collisions_at(
                         child_scope,
@@ -525,7 +527,8 @@ impl<Message> ViewNode<Message> {
                     );
                 }
             }
-            ViewNodeKind::Container { children, .. } => {
+            ViewNodeKind::Container { children, .. }
+            | ViewNodeKind::CustomLayout { children, .. } => {
                 reserve_child_identity_capacity(children, ids);
                 for (index, child) in children.iter().enumerate() {
                     child.collect_reserved_ids_at(
@@ -591,7 +594,8 @@ impl<Message> ViewNode<Message> {
                     layer.view.collect_overlay_layers(layers);
                 }
             }
-            ViewNodeKind::Container { children, .. } => {
+            ViewNodeKind::Container { children, .. }
+            | ViewNodeKind::CustomLayout { children, .. } => {
                 for child in children {
                     child.collect_overlay_layers(layers);
                 }
@@ -680,7 +684,9 @@ impl<Message> ViewNode<Message> {
             ViewNodeKind::Runtime(_) => StructuralKind::Runtime,
             ViewNodeKind::VirtualLayout(_) => StructuralKind::VirtualLayout,
             ViewNodeKind::Widget(_) => StructuralKind::Widget,
-            ViewNodeKind::Container { .. } => StructuralKind::Container,
+            ViewNodeKind::Container { .. } | ViewNodeKind::CustomLayout { .. } => {
+                StructuralKind::Container
+            }
             ViewNodeKind::Scroll { .. } => StructuralKind::Scroll,
             ViewNodeKind::VirtualScroll { .. } => StructuralKind::VirtualScroll,
             ViewNodeKind::OverlayPanel { .. } => StructuralKind::Overlay,

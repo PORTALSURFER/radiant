@@ -32,7 +32,7 @@ use crate::{
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{
         ContainerPolicy, CrossAlign, FloatingLayerHorizontalOverflow,
-        FloatingLayerVerticalOverflow, Insets, MainAlign, NodeId, Vector2,
+        FloatingLayerVerticalOverflow, Insets, LayoutPolicy, MainAlign, NodeId, Vector2,
     },
     runtime::{
         LayerKind, NativeFileDrop, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceNode,
@@ -144,6 +144,10 @@ pub(in crate::application) enum ViewNodeKind<Message> {
     Widget(Box<dyn WidgetView<Message>>),
     Container {
         policy: ContainerPolicy,
+        children: Vec<ViewNode<Message>>,
+    },
+    CustomLayout {
+        policy: Rc<dyn LayoutPolicy>,
         children: Vec<ViewNode<Message>>,
     },
     Scroll {
@@ -435,7 +439,8 @@ impl<Message> ViewNode<Message> {
                     layers,
                 );
             }
-            ViewNodeKind::Container { children, .. } => {
+            ViewNodeKind::Container { children, .. }
+            | ViewNodeKind::CustomLayout { children, .. } => {
                 for (index, child) in children.iter_mut().enumerate() {
                     child.drain_overlay_layers_in_declaration_order(
                         node_scope,

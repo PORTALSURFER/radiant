@@ -95,6 +95,10 @@ impl<'a> LayoutContext<'a> {
         self.output.stats.materialized_nodes += 1;
     }
 
+    pub(crate) fn record_omitted_node(&mut self, node_id: NodeId) {
+        self.output.record_omitted_node(node_id);
+    }
+
     pub(crate) fn record_measure_miss(&mut self) {
         self.output.stats.measured_nodes += 1;
     }

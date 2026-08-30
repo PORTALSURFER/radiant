@@ -205,6 +205,16 @@ new focused export leaf or a module split, not a formatting workaround.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,
   panels, lists, selection, shortcuts, text-line placement, visualization
   helpers, automation snapshots, and visual snapshots.
+- The shipped custom layout extension keeps `LayoutPolicy` in the qualified
+  `radiant::layout` facade and stores it as UI-local `Rc<dyn LayoutPolicy>`.
+  The two-pass layout engine gives the policy normalized child measurement and
+  bounded top-down placement contexts. Each child must be placed or explicitly
+  omitted exactly once; malformed requests and unresolved children produce
+  diagnostics and conservative output. This first slice is measure/place only:
+  custom chrome, environment/appearance, interaction, semantics, alternate
+  reading order, animation, virtualization attachment, exact policy revisions,
+  and custom cache reuse remain outside the boundary. Built-in
+  `ContainerPolicy`/`ContainerKind` dispatch is unchanged.
 - `src/gui_runtime` owns native runtime integration and renderer adapters. The
   current native Vello runtime is the macOS implementation path; the target
   adds native Wayland and Windows host adapters behind the same Radiant-owned

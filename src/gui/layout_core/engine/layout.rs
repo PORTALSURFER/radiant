@@ -1,6 +1,7 @@
 //! Layout pass implementation for strict slot-based layout trees.
 
 mod boxes;
+mod custom;
 mod grid;
 mod linear;
 mod scroll;
@@ -27,6 +28,10 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
     let policy = &container.policy;
     let content = content_rect(rounded, policy.padding);
     context.record_content_bounds(node.id(), content);
+    if let Some(layout_policy) = container.layout_policy() {
+        custom::layout_custom(container, layout_policy, content, context);
+        return;
+    }
     match policy.kind {
         ContainerKind::Row => linear::layout_linear(container, content, true, context),
         ContainerKind::Column => linear::layout_linear(container, content, false, context),

@@ -1,4 +1,5 @@
 use super::*;
+use radiant::widgets::WidgetPointerMotion;
 
 #[test]
 fn piano_roll_drag_paints_new_note_length_before_commit() {
@@ -28,7 +29,9 @@ fn piano_roll_drag_paints_new_note_length_before_commit() {
         Some(PianoRollMessage::SetCursor { beat: 6.0 })
     );
     assert!(move_output.is_none());
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

@@ -6,7 +6,10 @@ use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, clamp_fraction};
-use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetPointerMotion, WidgetPointerMotionRevision,
+    WidgetSizing,
+};
 use crate::widgets::interaction::{ScrollbarMessage, WidgetInput, WidgetOutput};
 
 mod builders;
@@ -111,6 +114,16 @@ impl ScrollbarWidget {
     }
 }
 
+impl WidgetPointerMotion for ScrollbarWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 impl Widget for ScrollbarWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -124,8 +137,8 @@ impl Widget for ScrollbarWidget {
         ScrollbarWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::new().pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

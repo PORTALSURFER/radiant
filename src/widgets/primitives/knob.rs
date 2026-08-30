@@ -20,7 +20,8 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintStrokePolyline};
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
     KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture,
@@ -360,6 +361,12 @@ impl WidgetSemantics for KnobWidget {
     }
 }
 
+impl WidgetPointerMotion for KnobWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl Widget for KnobWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -387,16 +394,14 @@ impl Widget for KnobWidget {
         self.state.gesture_origin = previous.state.gesture_origin;
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
     fn accepts_wheel_input(&self) -> bool {
         true
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().semantics(self)
+        WidgetCapabilities::new()
+            .semantics(self)
+            .pointer_motion(self)
     }
 
     fn append_paint(

@@ -9,8 +9,8 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         ButtonMessage, FocusBehavior, IconButtonWidget, Widget, WidgetCapabilities, WidgetCommon,
-        WidgetInput, WidgetOutput, WidgetProminence, WidgetSemantics, WidgetSemanticsRevision,
-        WidgetSizing, WidgetStyle,
+        WidgetInput, WidgetOutput, WidgetPointerMotion, WidgetPointerMotionRevision,
+        WidgetProminence, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -74,6 +74,16 @@ impl WidgetSemantics for LabeledIconButtonWidget {
     }
 }
 
+impl WidgetPointerMotion for LabeledIconButtonWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotion::revision(&self.widget)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        WidgetPointerMotion::accepts_pointer_move(&self.widget)
+    }
+}
+
 impl Widget for LabeledIconButtonWidget {
     fn common(&self) -> &WidgetCommon {
         self.widget.common()
@@ -87,10 +97,6 @@ impl Widget for LabeledIconButtonWidget {
         self.widget.handle_input(bounds, input)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        self.widget.accepts_pointer_move()
-    }
-
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.widget.synchronize_from_previous(&previous.widget);
@@ -98,7 +104,9 @@ impl Widget for LabeledIconButtonWidget {
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().semantics(self)
+        WidgetCapabilities::new()
+            .semantics(self)
+            .pointer_motion(self)
     }
 
     fn append_paint(

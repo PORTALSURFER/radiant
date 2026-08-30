@@ -41,7 +41,8 @@ use crate::{
         NumericWheelPolicy, PointerButton, PointerModifiers, PointerPressAdmission, TextAlign,
         TextBackgroundRole, TextColorRole, TextInputChrome, TextInputState, TextInputWidget,
         TextWrap, WheelPhase, WheelSample, Widget, WidgetCapabilities, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetSemantics, WidgetSizing,
+        WidgetOutput, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics,
+        WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -1641,6 +1642,39 @@ where
     fn automation_value_text(&self) -> Option<String> {
         self.text_input.automation_value_text()
     }
+
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        self.accessibility_action_handler.as_ref()?;
+        let mut actions = Vec::with_capacity(4);
+        if self.text_input.common.focus != crate::widgets::FocusBehavior::None
+            && !self.text_input.common.state.disabled
+        {
+            actions.push(crate::gui::automation::AUTOMATION_ACTION_FOCUS.to_owned());
+        }
+        if !self.text_input.common.state.read_only && !self.text_input.common.state.disabled {
+            actions.extend([
+                crate::gui::automation::AUTOMATION_ACTION_INCREMENT.to_owned(),
+                crate::gui::automation::AUTOMATION_ACTION_DECREMENT.to_owned(),
+                crate::gui::automation::AUTOMATION_ACTION_SET_TEXT.to_owned(),
+            ]);
+        }
+        Some(actions)
+    }
+}
+
+impl<T, C, A> WidgetPointerMotion for NumericInputWidget<T, C, A>
+where
+    T: Clone + PartialEq + 'static,
+    C: NumericCodec<T> + 'static,
+    A: NumericAdjustment<T> + 'static,
+{
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
 }
 
 impl<T, C, A> Widget for NumericInputWidget<T, C, A>
@@ -1685,24 +1719,6 @@ where
                     | NumericAccessibilityAction::Decrement
                     | NumericAccessibilityAction::SetValueText(_)
             )
-    }
-
-    fn automation_available_actions(&self) -> Option<Vec<String>> {
-        self.accessibility_action_handler.as_ref()?;
-        let mut actions = Vec::with_capacity(4);
-        if self.text_input.common.focus != crate::widgets::FocusBehavior::None
-            && !self.text_input.common.state.disabled
-        {
-            actions.push(crate::gui::automation::AUTOMATION_ACTION_FOCUS.to_owned());
-        }
-        if !self.text_input.common.state.read_only && !self.text_input.common.state.disabled {
-            actions.extend([
-                crate::gui::automation::AUTOMATION_ACTION_INCREMENT.to_owned(),
-                crate::gui::automation::AUTOMATION_ACTION_DECREMENT.to_owned(),
-                crate::gui::automation::AUTOMATION_ACTION_SET_TEXT.to_owned(),
-            ]);
-        }
-        Some(actions)
     }
 
     fn accessibility_action_owner(&self) -> Option<NumericAccessibilityBlockOwner> {
@@ -2153,12 +2169,10 @@ where
         }
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().semantics(self)
+        WidgetCapabilities::new()
+            .semantics(self)
+            .pointer_motion(self)
     }
 
     fn selected_text_slice(&self) -> Option<&str> {

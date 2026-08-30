@@ -11,12 +11,16 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        contract::{Widget, WidgetCapabilities, WidgetSemantics},
+        contract::{
+            Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision,
+            WidgetSemantics,
+        },
         interaction::{
             EditEvent, InteractionProvenance, KnobDomainCancellationReason, KnobDomainError,
             KnobDomainKeyboardGesture, KnobDomainMappingAttempt, KnobDomainMessage,
             KnobDomainWheelGesture, KnobKeyboardMetadata, KnobPointerMetadata, KnobWheelMetadata,
-            PointerButton, PointerModifiers, ValueFormat, WidgetInput, WidgetKey, WidgetOutput,
+            NumericAdjustment, PointerButton, PointerModifiers, ValueFormat, WidgetInput,
+            WidgetKey, WidgetOutput,
         },
     },
 };
@@ -466,6 +470,15 @@ where
     }
 }
 
+impl<A> WidgetPointerMotion for RetainedKnobDomainWidget<A>
+where
+    A: NumericAdjustment<f32>,
+{
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl<A> Widget for RetainedKnobDomainWidget<A>
 where
     A: crate::widgets::NumericAdjustment<f32> + 'static,
@@ -523,16 +536,14 @@ where
         }
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
     fn accepts_wheel_input(&self) -> bool {
         true
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().semantics(self)
+        WidgetCapabilities::new()
+            .semantics(self)
+            .pointer_motion(self)
     }
 
     fn append_paint(

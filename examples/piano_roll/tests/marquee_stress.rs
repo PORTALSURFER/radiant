@@ -1,4 +1,5 @@
 use super::*;
+use radiant::widgets::WidgetPointerMotion;
 
 #[test]
 fn piano_roll_stress_mode_generates_thousands_of_notes_for_marquee_selection() {
@@ -38,7 +39,9 @@ fn piano_roll_marquee_selects_thousands_of_notes_with_paint_only_preview() {
 
     assert!(press_output.is_none());
     assert!(move_output.is_none());
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

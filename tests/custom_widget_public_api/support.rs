@@ -4,7 +4,9 @@ use radiant::{
     runtime::{PaintPrimitive, SurfacePaintPlan},
     theme::ThemeTokens,
     widgets::{
-        PointerButton, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        PointerButton, Widget, WidgetCapabilities, WidgetCommon, WidgetHitTest,
+        WidgetHitTestRevision, WidgetInput, WidgetKey, WidgetOutput, WidgetPointerMotion,
+        WidgetPointerMotionRevision, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
     },
 };
 
@@ -46,6 +48,38 @@ impl CustomStatusWidget {
     }
 }
 
+impl WidgetSemantics for CustomStatusWidget {
+    fn revision(&self) -> WidgetSemanticsRevision {
+        WidgetSemanticsRevision::exact(self.label)
+    }
+
+    fn automation_role(&self) -> radiant::gui::automation::AutomationRole {
+        radiant::gui::automation::AutomationRole::Button
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.label.to_owned())
+    }
+
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        Some(vec![
+            radiant::gui::automation::AUTOMATION_ACTION_PRESS.to_owned(),
+        ])
+    }
+}
+
+impl WidgetPointerMotion for CustomStatusWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
+impl WidgetHitTest for CustomStatusWidget {
+    fn revision(&self) -> WidgetHitTestRevision {
+        WidgetHitTestRevision::exact(())
+    }
+}
+
 impl Widget for CustomStatusWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -53,6 +87,13 @@ impl Widget for CustomStatusWidget {
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
         &mut self.common
+    }
+
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new()
+            .semantics(self)
+            .hit_test(self)
+            .pointer_motion(self)
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {

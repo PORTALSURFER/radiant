@@ -48,6 +48,30 @@ impl ModifierWheelWidget {
     }
 }
 
+impl crate::widgets::WidgetHitTest for ModifierWheelWidget {
+    fn revision(&self) -> crate::widgets::WidgetHitTestRevision {
+        crate::widgets::WidgetHitTestRevision::exact(())
+    }
+
+    fn hit_test(
+        &self,
+        _bounds: crate::layout::Rect,
+        _point: crate::gui::types::Point,
+        input: &WidgetInput,
+    ) -> crate::widgets::WidgetHitTestResult {
+        matches!(
+            input,
+            WidgetInput::Wheel {
+                modifiers,
+                timestamp: None,
+                ..
+            } if modifiers.shift
+        )
+        .then_some(crate::widgets::WidgetHitTestResult::Opaque)
+        .unwrap_or(crate::widgets::WidgetHitTestResult::PassThrough)
+    }
+}
+
 impl Widget for ModifierWheelWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -73,15 +97,8 @@ impl Widget for ModifierWheelWidget {
         }
     }
 
-    fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
-        matches!(
-            input,
-            WidgetInput::Wheel {
-                modifiers,
-                timestamp: None,
-                ..
-            } if modifiers.shift
-        )
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::new().hit_test(self)
     }
 
     fn accepts_wheel_input(&self) -> bool {

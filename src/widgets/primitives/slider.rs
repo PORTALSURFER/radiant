@@ -16,7 +16,8 @@ use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, clamp_fraction};
 use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{SliderMessage, WidgetInput, WidgetOutput};
 
@@ -123,6 +124,12 @@ impl WidgetSemantics for SliderWidget {
     }
 }
 
+impl WidgetPointerMotion for SliderWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl Widget for SliderWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -136,12 +143,10 @@ impl Widget for SliderWidget {
         SliderWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().semantics(self)
+        WidgetCapabilities::new()
+            .semantics(self)
+            .pointer_motion(self)
     }
 
     fn append_paint(

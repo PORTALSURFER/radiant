@@ -7,7 +7,10 @@ use crate::gui::types::{Point, Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::{PaintFillRect, PaintPrimitive};
 use crate::theme::ThemeTokens;
-use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetPointerMotion, WidgetPointerMotionRevision,
+    WidgetSizing,
+};
 use crate::widgets::interaction::{
     ActivationInputPolicy, WidgetInput, WidgetOutput, handle_activation_input,
 };
@@ -95,6 +98,16 @@ impl ProgressBarWidget {
     }
 }
 
+impl WidgetPointerMotion for ProgressBarWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(self.props.interactive)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        self.props.interactive
+    }
+}
+
 impl Widget for ProgressBarWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -115,8 +128,8 @@ impl Widget for ProgressBarWidget {
         self.common.state = previous.common.state;
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        self.props.interactive
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::new().pointer_motion(self)
     }
 
     fn needs_state_synchronization(&self) -> bool {

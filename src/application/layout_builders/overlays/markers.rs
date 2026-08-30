@@ -3,7 +3,10 @@ use crate::gui::types::{Point, Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::{PaintPrimitive, push_visible_fill_rect};
 use crate::theme::ThemeTokens;
-use crate::widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing};
+use crate::widgets::{
+    Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSizing,
+};
 
 /// Build a floating drop marker in surface coordinates.
 pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode<Message> {
@@ -57,6 +60,16 @@ impl LocalDropMarkerWidget {
     }
 }
 
+impl WidgetPointerMotion for LocalDropMarkerWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 impl Widget for LocalDropMarkerWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -74,8 +87,8 @@ impl Widget for LocalDropMarkerWidget {
         false
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().pointer_motion(self)
     }
 
     fn append_paint(

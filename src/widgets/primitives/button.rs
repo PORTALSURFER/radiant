@@ -20,8 +20,9 @@ use super::support::{
 };
 use crate::widgets::TextAlign;
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics,
-    WidgetSemanticsRevision, WidgetSizing,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision,
+    WidgetSizing,
 };
 use crate::widgets::interaction::{ButtonMessage, WidgetInput, WidgetOutput};
 
@@ -154,6 +155,16 @@ impl WidgetSemantics for ButtonWidget {
     }
 }
 
+impl WidgetPointerMotion for ButtonWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ButtonPaintRevision {
     common: CommonPaintRevision,
@@ -249,12 +260,10 @@ impl Widget for ButtonWidget {
         self.state.press_position = previous.state.press_position;
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().semantics(self)
+        WidgetCapabilities::new()
+            .semantics(self)
+            .pointer_motion(self)
     }
 
     fn needs_state_synchronization(&self) -> bool {

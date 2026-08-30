@@ -14,7 +14,10 @@ mod paint;
 use radiant::layout::{LayoutOutput, Rect, Vector2};
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
-use radiant::widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing};
+use radiant::widgets::{
+    Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSizing,
+};
 
 pub(super) use geometry::TimelineGeometry;
 
@@ -89,6 +92,24 @@ impl ArrangementTimelineWidget {
     }
 }
 
+impl WidgetPointerMotion for ArrangementTimelineWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
+
 impl Widget for ArrangementTimelineWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -108,12 +129,8 @@ impl Widget for ArrangementTimelineWidget {
         None
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

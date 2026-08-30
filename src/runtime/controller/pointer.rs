@@ -101,13 +101,13 @@ where
         let repaint_requested = self.take_repaint_requested();
         let exit_requested = self.take_exit_requested();
         let pointer_captured = self.interaction.pointer.capture.is_some();
-        let target_prefers_paint_only =
-            target.is_some_and(|widget_id| self.widget_prefers_pointer_move_paint_only(widget_id));
+        let target_can_paint_only = !hover_changed
+            && target.is_some_and(|widget_id| self.widget_pointer_move_overlay_is_valid(widget_id));
         let drag_preview_can_paint_only =
-            self.drag_session_active() && !hover_changed && !dispatch.emitted_output;
+            self.drag_preview_overlay_is_valid() && !hover_changed && !dispatch.emitted_output;
         let paint_only_requested = repaint_requested
             && !dispatch.emitted_output
-            && (target_prefers_paint_only || drag_preview_can_paint_only);
+            && (target_can_paint_only || drag_preview_can_paint_only);
         PointerMoveOutcome {
             target,
             hover_changed,
@@ -629,6 +629,22 @@ where
     /// Return whether a runtime-owned drag preview session is active.
     pub fn drag_session_active(&self) -> bool {
         self.interaction.drag.session.is_some()
+    }
+
+    /// Return whether the runtime-owned drag preview has a valid transient
+    /// overlay for paint-only pointer presentation.
+    ///
+    /// Unlike a widget-local overlay, this validity evidence comes from the
+    /// framework painter: a visible [`DragSession`](crate::runtime::DragSession)
+    /// always has bounded preview primitives. It is kept separate from widget
+    /// capability admission so the generic drag-preview authority remains
+    /// explicit and testable.
+    pub(crate) fn drag_preview_overlay_is_valid(&self) -> bool {
+        self.interaction
+            .drag
+            .session
+            .as_ref()
+            .is_some_and(|session| session.visible)
     }
 
     /// Return the widget under a native file-drop pointer position.

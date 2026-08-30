@@ -4602,17 +4602,18 @@ paint order, omitted records, and truncated paths without formatting concrete
 widget type names. `IdentityAudit` is available from `radiant::runtime`, not the
 common prelude.
 Pointer-driven custom widgets should keep transient hover and cursor state local
-when the state is only paint chrome. Leave `Widget::accepts_pointer_move()`
-enabled for widgets such as timelines, canvases, and editors that need stable
-pointer moves after hover has already entered the widget. Those stable
-`PointerMove` events request repaint even when `handle_input` returns `None`,
-so a snapped cursor, clip hover, or resize-handle preview can refresh smoothly
-without emitting host messages or forcing the app reducer to run for every mouse
-move. Captured drag motion follows the same contract: if the active widget only
-changes local preview chrome, it can repaint locally without a host message.
-Emit a `WidgetOutput` only when the host-owned model changes, such as seek,
-create, move, resize, or delete.
-Use `Widget::pointer_capture_policy()` for widgets that need to control pointer
+when the state is only paint chrome. Export a `WidgetPointerMotion` capability
+for widgets such as timelines, canvases, and editors that need stable pointer
+moves after hover has already entered the widget. Its
+`WidgetPointerMotion::accepts_pointer_move()` decision controls whether those
+stable `PointerMove` events are admitted. Admitted events request repaint even when `handle_input` returns `None`, so a snapped cursor, clip hover, or
+resize-handle preview can refresh smoothly without emitting host messages or
+forcing the app reducer to run for every mouse move. Captured drag motion
+follows the same contract: if the active widget only changes local preview
+chrome, it can repaint locally without a host message. Emit a `WidgetOutput`
+only when the host-owned model changes, such as seek, create, move, resize, or
+delete.
+Use `WidgetPointerMotion::pointer_capture_policy()` for widgets that need to control pointer
 motion while they own capture. `PointerCapturePolicy::Exclusive` is for
 splitters, resize handles, and similar controls that should not activate hover
 or pointer-motion behavior on unrelated widgets before release. During retained
@@ -4620,9 +4621,7 @@ surface refreshes, exclusive capture also clears copied hover state from
 non-captured widgets while preserving durable widget state. The default
 `PointerCapturePolicy::PassThrough` keeps drag-source behavior where widgets
 under the pointer can still receive live feedback while the source remains
-captured. Older custom widgets that only override
-`Widget::allows_captured_pointer_pass_through()` keep the same behavior through
-the default policy implementation.
+captured.
 Native focus loss and external drag handoff cancel pointer capture without
 routing a synthetic release to the host. Radiant clears the captured widget's
 transient retained state through the widget input path and requests repaint
@@ -4634,20 +4633,28 @@ message, while pointer-capture cancellation remains suppressed. Hosts should mod
 durable drag/drop results as messages, but they should not duplicate generic
 pressed, capture, or focus-loss cleanup in application reducers.
 Custom widgets must still be pointer hit-test eligible before pointer hooks can
-run. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip, cursor,
-or paint-only overlay widgets that should skip keyboard traversal, or
+run. Export `WidgetHitTest` when a widget needs event-aware opaque or
+pass-through classification or a cursor choice; `WidgetHitTest::hit_test(...)`
+is called after bounds and clip culling, and it cannot reorder traversal or own
+capture. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip,
+cursor, or paint-only overlay widgets that should skip keyboard traversal, or
 `WidgetCommon::with_keyboard_focus()` when the same custom surface also handles
 keyboard input.
 High-frequency editor widgets can go further with
-`Widget::prefers_pointer_move_paint_only()` and
-`Widget::append_runtime_overlay_paint(...)`. Put pointer-following visuals such
+`WidgetPointerMotion::prefers_pointer_move_paint_only()` and
+`Widget::append_runtime_overlay_paint(...)`. Pair that preference with
+`WidgetPointerMotion::pointer_move_overlay_is_valid()` only when the overlay
+callback fully represents the transient state. Put pointer-following visuals such
 as timeline cursor lines, hover outlines, captured drag previews, and resize
 handles in the runtime overlay hook, then keep the stable base widget paint free
 of those transient states. The native Vello runtime can then present those
 overlay rectangles over the cached scene on stable pointer motion and captured
 paint-only drag motion instead of rebuilding the Vello scene for every
 mouse-move event. Widgets that paint pointer-motion state in `append_paint(...)`
-should not opt into the paint-only pointer path.
+or cannot prove a valid overlay should not opt into the paint-only pointer path;
+the runtime falls back to full-scene repaint when the descriptor is absent,
+unsupported, or ambiguous. Semantics-only v1 descriptors and unknown capability
+versions advertise no optional behavior.
 
 ## Message And Runtime Follow-Up
 

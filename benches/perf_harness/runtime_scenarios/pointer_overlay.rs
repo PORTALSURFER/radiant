@@ -7,7 +7,10 @@ use radiant::{
         UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
-    widgets::{ButtonWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
+    widgets::{
+        ButtonWidget, Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSizing,
+    },
 };
 use std::{hint::black_box, sync::Arc};
 
@@ -138,6 +141,20 @@ impl PointerOverlayProbeWidget {
     }
 }
 
+impl WidgetPointerMotion for PointerOverlayProbeWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
+
 impl Widget for PointerOverlayProbeWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -147,8 +164,8 @@ impl Widget for PointerOverlayProbeWidget {
         &mut self.common
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().pointer_motion(self)
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {

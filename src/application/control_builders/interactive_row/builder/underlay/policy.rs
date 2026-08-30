@@ -150,7 +150,7 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
 mod tests {
     use super::super::interactive_row_underlay;
     use super::*;
-    use crate::{application::text, widgets::Widget};
+    use crate::{application::text, widgets::WidgetPointerMotion};
 
     #[test]
     fn dense_row_policy_preserves_drag_session_motion_after_drop_candidate_policy() {
@@ -166,6 +166,6 @@ mod tests {
         assert!(!row.props.drop_hover);
         assert!(!row.props.clear_drop_on_hover);
         assert!(row.props.pointer_motion_active);
-        assert!(row.accepts_pointer_move());
+        assert!(WidgetPointerMotion::accepts_pointer_move(&row));
     }
 }

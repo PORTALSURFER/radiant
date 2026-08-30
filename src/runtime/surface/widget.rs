@@ -1,12 +1,14 @@
 use super::source::SourceMetadata;
 use crate::{
     UiAffinity,
+    gui::automation::AutomationNodeSemantics,
     gui::types::{Point, Rect},
     layout::LayoutNode,
     widgets::{
         CompositionSample, FocusBehavior, PointerCapturePolicy, PointerPressAdmission, WheelSample,
-        Widget, WidgetCursor, WidgetId, WidgetInput, WidgetOutput, WidgetRevision,
-        WidgetSemanticsRevision,
+        Widget, WidgetCursor, WidgetHitTestResult, WidgetId, WidgetInput, WidgetOutput,
+        WidgetPointerMotionRevision, WidgetRevision, WidgetSemanticsRevision,
+        resolve_automation_semantics,
     },
 };
 use std::rc::Rc;
@@ -62,6 +64,8 @@ pub(crate) struct SurfaceWidgetRevisionEvidence {
 pub(crate) struct WidgetCapabilityEvidence {
     pub(crate) contract_version: u16,
     pub(crate) semantics_revision: Option<WidgetSemanticsRevision>,
+    pub(crate) hit_test_revision: Option<crate::widgets::WidgetHitTestRevision>,
+    pub(crate) pointer_motion_revision: Option<WidgetPointerMotionRevision>,
 }
 
 impl WidgetCapabilityEvidence {
@@ -70,6 +74,8 @@ impl WidgetCapabilityEvidence {
         Self {
             contract_version: capabilities.contract_version,
             semantics_revision: capabilities.semantics_revision(),
+            hit_test_revision: capabilities.hit_test_revision(),
+            pointer_motion_revision: capabilities.pointer_motion_revision(),
         }
     }
 
@@ -77,6 +83,8 @@ impl WidgetCapabilityEvidence {
         Self {
             contract_version: 0,
             semantics_revision: None,
+            hit_test_revision: None,
+            pointer_motion_revision: None,
         }
     }
 }
@@ -276,11 +284,38 @@ impl<Message> SurfaceWidget<Message> {
     }
 
     pub(in crate::runtime) fn accepts_pointer_move(&self) -> bool {
-        !self.widget.common().state.disabled && self.widget.accepts_pointer_move()
+        if self.widget.common().state.disabled {
+            return false;
+        }
+        let capabilities = self.widget.capabilities();
+        if capabilities.has_pointer_motion() {
+            capabilities
+                .pointer_motion
+                .is_some_and(|motion| motion.accepts_pointer_move())
+        } else {
+            true
+        }
     }
 
-    pub(in crate::runtime) fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
-        !self.widget.common().state.disabled && self.widget.accepts_pointer_input(input)
+    pub(in crate::runtime) fn hit_test(
+        &self,
+        bounds: Rect,
+        point: Point,
+        input: &WidgetInput,
+    ) -> WidgetHitTestResult {
+        if self.widget.common().state.disabled {
+            return WidgetHitTestResult::PassThrough;
+        }
+        let capabilities = self.widget.capabilities();
+        if capabilities.has_hit_test() {
+            capabilities
+                .hit_test
+                .map_or(WidgetHitTestResult::Opaque, |hit_test| {
+                    hit_test.hit_test(bounds, point, input)
+                })
+        } else {
+            WidgetHitTestResult::Opaque
+        }
     }
 
     pub(in crate::runtime) fn preflight_pointer_press(
@@ -295,15 +330,34 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.retains_managed_pointer_capture()
     }
 
-    pub(in crate::runtime) fn prefers_pointer_move_paint_only(&self) -> bool {
-        !self.widget.common().state.disabled && self.widget.prefers_pointer_move_paint_only()
+    pub(in crate::runtime) fn pointer_move_overlay_is_valid(&self) -> bool {
+        if self.widget.common().state.disabled {
+            return false;
+        }
+        let capabilities = self.widget.capabilities();
+        if capabilities.has_pointer_motion() {
+            capabilities.pointer_motion.is_some_and(|motion| {
+                motion.prefers_pointer_move_paint_only() && motion.pointer_move_overlay_is_valid()
+            })
+        } else {
+            false
+        }
     }
 
     pub(in crate::runtime) fn pointer_capture_policy(&self) -> PointerCapturePolicy {
         if self.widget.common().state.disabled {
             PointerCapturePolicy::Exclusive
         } else {
-            self.widget.pointer_capture_policy()
+            let capabilities = self.widget.capabilities();
+            if capabilities.has_pointer_motion() {
+                capabilities
+                    .pointer_motion
+                    .map_or(PointerCapturePolicy::PassThrough, |motion| {
+                        motion.pointer_capture_policy()
+                    })
+            } else {
+                PointerCapturePolicy::PassThrough
+            }
         }
     }
 
@@ -312,9 +366,25 @@ impl<Message> SurfaceWidget<Message> {
         bounds: Rect,
         point: Point,
     ) -> Option<WidgetCursor> {
-        (!self.widget.common().state.disabled)
-            .then(|| self.widget.cursor_for_point(bounds, point))
-            .flatten()
+        if self.widget.common().state.disabled {
+            return None;
+        }
+        let capabilities = self.widget.capabilities();
+        if capabilities.has_hit_test() {
+            capabilities
+                .hit_test
+                .and_then(|hit_test| hit_test.cursor_for_point(bounds, point))
+        } else {
+            None
+        }
+    }
+
+    pub(in crate::runtime::surface) fn automation_semantics(&self) -> AutomationNodeSemantics {
+        resolve_automation_semantics(self.widget.common(), self.widget.capabilities())
+    }
+
+    pub(in crate::runtime::surface) fn automation_available_actions(&self) -> Option<Vec<String>> {
+        crate::widgets::automation_available_actions(self.widget.capabilities())
     }
 
     pub(in crate::runtime) fn needs_state_synchronization(&self) -> bool {

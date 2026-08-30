@@ -1,14 +1,32 @@
 //! Optional semantic capability for public widgets.
 
+use super::{
+    hit_test::{WidgetHitTest, WidgetHitTestRevision},
+    pointer_motion::{WidgetPointerMotion, WidgetPointerMotionRevision},
+};
 use crate::gui::automation::{AutomationLiveRegion, AutomationNodeSemantics, AutomationRole};
 use crate::widgets::{WidgetCommon, contract::FocusBehavior};
 use std::{any::Any, collections::BTreeMap, fmt, rc::Rc};
 
-/// Contract revision for [`WidgetCapabilities`].
+/// The original semantics-only [`WidgetCapabilities`] contract.
+pub const WIDGET_CAPABILITIES_V1_CONTRACT_VERSION: u16 = 1;
+
+/// Current [`WidgetCapabilities`] contract with optional behavior descriptors.
 ///
 /// A descriptor with a different revision is treated as having no optional
 /// capabilities by the runtime until the descriptor contract is updated.
-pub const WIDGET_CAPABILITIES_CONTRACT_VERSION: u16 = 1;
+pub const WIDGET_CAPABILITIES_CONTRACT_VERSION: u16 = 2;
+
+pub(crate) const fn supports_semantics_contract(version: u16) -> bool {
+    matches!(
+        version,
+        WIDGET_CAPABILITIES_V1_CONTRACT_VERSION | WIDGET_CAPABILITIES_CONTRACT_VERSION
+    )
+}
+
+pub(crate) const fn supports_extended_capabilities(version: u16) -> bool {
+    version == WIDGET_CAPABILITIES_CONTRACT_VERSION
+}
 
 /// Preserve the historical neutral semantics for widgets that export no
 /// optional semantic capability.
@@ -187,6 +205,15 @@ pub trait WidgetSemantics {
         BTreeMap::new()
     }
 
+    /// Advertise explicit automation action names when role-derived defaults
+    /// do not fully describe this widget's interaction policy.
+    ///
+    /// Advertisement is observational only. Runtime action dispatch still
+    /// revalidates the live widget's separate accessibility-action contract.
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        None
+    }
+
     /// Resolve backend-neutral automation semantics against shared widget state.
     fn resolve_automation_semantics(&self, common: &WidgetCommon) -> AutomationNodeSemantics {
         let focusable = common.focus != FocusBehavior::None && !common.state.disabled;
@@ -220,6 +247,10 @@ pub struct WidgetCapabilities<'a> {
     pub contract_version: u16,
     /// Optional automation semantics capability.
     pub semantics: Option<&'a dyn WidgetSemantics>,
+    /// Optional event-aware hit-test and cursor capability.
+    pub hit_test: Option<&'a dyn WidgetHitTest>,
+    /// Optional stable pointer-motion and capture-routing capability.
+    pub pointer_motion: Option<&'a dyn WidgetPointerMotion>,
 }
 
 impl<'a> WidgetCapabilities<'a> {
@@ -228,6 +259,8 @@ impl<'a> WidgetCapabilities<'a> {
         Self {
             contract_version: WIDGET_CAPABILITIES_CONTRACT_VERSION,
             semantics: None,
+            hit_test: None,
+            pointer_motion: None,
         }
     }
 
@@ -242,9 +275,31 @@ impl<'a> WidgetCapabilities<'a> {
         self
     }
 
+    /// Add an event-aware hit-test and cursor capability to this descriptor.
+    pub fn hit_test(mut self, hit_test: &'a dyn WidgetHitTest) -> Self {
+        self.hit_test = Some(hit_test);
+        self
+    }
+
+    /// Add a stable pointer-motion capability to this descriptor.
+    pub fn pointer_motion(mut self, pointer_motion: &'a dyn WidgetPointerMotion) -> Self {
+        self.pointer_motion = Some(pointer_motion);
+        self
+    }
+
     /// Return whether this descriptor exports automation semantics.
     pub const fn has_semantics(&self) -> bool {
-        self.semantics.is_some()
+        supports_semantics_contract(self.contract_version) && self.semantics.is_some()
+    }
+
+    /// Return whether this descriptor exports event-aware hit testing.
+    pub const fn has_hit_test(&self) -> bool {
+        supports_extended_capabilities(self.contract_version) && self.hit_test.is_some()
+    }
+
+    /// Return whether this descriptor exports stable pointer-motion behavior.
+    pub const fn has_pointer_motion(&self) -> bool {
+        supports_extended_capabilities(self.contract_version) && self.pointer_motion.is_some()
     }
 
     /// Return revision evidence for the optional semantics capability.
@@ -252,7 +307,53 @@ impl<'a> WidgetCapabilities<'a> {
     /// The revision hook is queried without evaluating any semantic-output
     /// methods such as role, label, value, or metadata accessors.
     pub fn semantics_revision(&self) -> Option<WidgetSemanticsRevision> {
-        self.semantics.map(WidgetSemantics::revision)
+        if self.has_semantics() {
+            self.semantics.map(WidgetSemantics::revision)
+        } else {
+            None
+        }
+    }
+
+    /// Return revision evidence for the optional hit-test capability.
+    pub fn hit_test_revision(&self) -> Option<WidgetHitTestRevision> {
+        if self.has_hit_test() {
+            self.hit_test.map(WidgetHitTest::revision)
+        } else {
+            None
+        }
+    }
+
+    /// Return revision evidence for the optional pointer-motion capability.
+    pub fn pointer_motion_revision(&self) -> Option<WidgetPointerMotionRevision> {
+        if self.has_pointer_motion() {
+            self.pointer_motion.map(WidgetPointerMotion::revision)
+        } else {
+            None
+        }
+    }
+}
+
+pub(crate) fn resolve_automation_semantics(
+    common: &WidgetCommon,
+    capabilities: WidgetCapabilities<'_>,
+) -> AutomationNodeSemantics {
+    if capabilities.has_semantics()
+        && let Some(semantics) = capabilities.semantics
+    {
+        return semantics.resolve_automation_semantics(common);
+    }
+    fallback_automation_semantics(common)
+}
+
+pub(crate) fn automation_available_actions(
+    capabilities: WidgetCapabilities<'_>,
+) -> Option<Vec<String>> {
+    if capabilities.has_semantics() {
+        capabilities
+            .semantics
+            .and_then(WidgetSemantics::automation_available_actions)
+    } else {
+        None
     }
 }
 
@@ -268,6 +369,8 @@ impl std::fmt::Debug for WidgetCapabilities<'_> {
             .debug_struct("WidgetCapabilities")
             .field("contract_version", &self.contract_version)
             .field("semantics", &self.semantics.is_some())
+            .field("hit_test", &self.hit_test.is_some())
+            .field("pointer_motion", &self.pointer_motion.is_some())
             .finish()
     }
 }

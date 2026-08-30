@@ -1,4 +1,5 @@
 use radiant::prelude::*;
+use radiant::widgets::{WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision};
 
 use super::ArrangementOverviewWidget;
 use crate::arrangement_shell::{
@@ -7,6 +8,20 @@ use crate::arrangement_shell::{
     paint::{push_rect, push_stroke},
     widget_paint::{append_clip, append_grid, append_hover_guides},
 };
+
+impl WidgetPointerMotion for ArrangementOverviewWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
 
 impl Widget for ArrangementOverviewWidget {
     fn common(&self) -> &WidgetCommon {
@@ -42,8 +57,8 @@ impl Widget for ArrangementOverviewWidget {
         }
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().pointer_motion(self)
     }
 
     fn supports_prepared_state_synchronization(&self) -> bool {

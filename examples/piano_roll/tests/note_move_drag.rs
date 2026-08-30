@@ -1,4 +1,5 @@
 use super::*;
+use radiant::widgets::WidgetPointerMotion;
 
 #[test]
 fn piano_roll_drag_routes_move_message() {
@@ -27,7 +28,9 @@ fn piano_roll_drag_routes_move_message() {
     );
 
     assert!(output.is_none());
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

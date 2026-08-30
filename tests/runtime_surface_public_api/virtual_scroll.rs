@@ -2,12 +2,13 @@ use super::DemoMessage;
 use radiant::{
     layout::{Point, Rect, Vector2, VirtualizationAxis},
     runtime::{
-        PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
-        declarative_runtime_bridge,
+        Event, PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
+        WidgetMessageMapper, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
-        TextWidget, WheelDelta, WheelSample, Widget, WidgetCommon, WidgetInput, WidgetSizing,
+        TextWidget, WheelDelta, WheelSample, Widget, WidgetCapabilities, WidgetCommon,
+        WidgetHitTest, WidgetHitTestResult, WidgetHitTestRevision, WidgetInput, WidgetSizing,
     },
 };
 
@@ -27,6 +28,24 @@ impl CustomWheelHitWidget {
     }
 }
 
+impl WidgetHitTest for CustomWheelHitWidget {
+    fn revision(&self) -> WidgetHitTestRevision {
+        WidgetHitTestRevision::exact(())
+    }
+
+    fn hit_test(&self, _bounds: Rect, point: Point, input: &WidgetInput) -> WidgetHitTestResult {
+        if matches!(input, WidgetInput::PointerMove { .. }) {
+            WidgetHitTestResult::PassThrough
+        } else if (self.common.id == 1 && point.x < 60.0)
+            || (self.common.id != 1 && point.x >= 60.0)
+        {
+            WidgetHitTestResult::Opaque
+        } else {
+            WidgetHitTestResult::PassThrough
+        }
+    }
+}
+
 impl Widget for CustomWheelHitWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -41,12 +60,18 @@ impl Widget for CustomWheelHitWidget {
         _bounds: Rect,
         input: WidgetInput,
     ) -> Option<radiant::widgets::WidgetOutput> {
-        matches!(input, WidgetInput::Wheel { .. })
-            .then(|| radiant::widgets::WidgetOutput::typed(DemoMessage::Increment))
+        matches!(
+            input,
+            WidgetInput::Wheel { .. }
+                | WidgetInput::PointerPress { .. }
+                | WidgetInput::PointerDrop { .. }
+                | WidgetInput::PointerRelease { .. }
+        )
+        .then(|| radiant::widgets::WidgetOutput::typed(DemoMessage::Increment))
     }
 
-    fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
-        input.pointer_position().is_some_and(|point| point.x < 60.0)
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().hit_test(self)
     }
 
     fn accepts_wheel_input(&self) -> bool {
@@ -85,6 +110,60 @@ fn wheel_routing_honors_custom_pointer_hit_policy() {
     assert_eq!(*runtime.bridge().state(), 1);
     assert!(!runtime.wheel_or_scroll_at(Point::new(90.0, 20.0), Vector2::new(0.0, -40.0)));
     assert_eq!(*runtime.bridge().state(), 1);
+}
+
+#[test]
+fn release_and_drop_use_event_specific_hit_test_inputs() {
+    let bridge = declarative_runtime_bridge(
+        0_usize,
+        |_state: &mut usize| {
+            crate::arc_surface(UiSurface::new(SurfaceNode::stack(
+                10,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::custom_widget(
+                        CustomWheelHitWidget::new(1),
+                        WidgetMessageMapper::typed(|message: DemoMessage| message),
+                    )),
+                    SurfaceChild::fill(SurfaceNode::custom_widget(
+                        CustomWheelHitWidget::new(2),
+                        WidgetMessageMapper::typed(|message: DemoMessage| message),
+                    )),
+                ],
+            )))
+        },
+        |count: &mut usize, message| {
+            if message == DemoMessage::Increment {
+                *count += 1;
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+    let press_point = Point::new(30.0, 20.0);
+    let release_point = Point::new(90.0, 20.0);
+
+    assert_eq!(runtime.widget_at(press_point), None);
+    assert_eq!(runtime.widget_at(release_point), None);
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: press_point,
+            button: radiant::widgets::PointerButton::Primary,
+            modifiers: Default::default(),
+            timestamp: None,
+        }),
+        Some(1)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(1));
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: release_point,
+            button: radiant::widgets::PointerButton::Primary,
+            modifiers: Default::default(),
+            timestamp: None,
+        }),
+        Some(1)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(*runtime.bridge().state(), 3);
 }
 
 #[test]

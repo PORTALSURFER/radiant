@@ -372,23 +372,21 @@ where
             self.rearm_tooltip_hover_intent();
             return None;
         }
+        let release_input =
+            WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp);
+        let drop_input =
+            WidgetInput::pointer_drop_with_timestamp(position, button, modifiers, timestamp);
         let captured = self.interaction.pointer.capture.take();
         let drop_target = captured.and_then(|captured_id| {
-            self.widget_at(position)
+            self.widget_at_for_input(position, &drop_input)
                 .filter(|target_id| *target_id != captured_id)
         });
         if let Some(drop_target) = drop_target {
-            let _ = self.dispatch_input(
-                drop_target,
-                WidgetInput::pointer_drop_with_timestamp(position, button, modifiers, timestamp),
-            );
+            let _ = self.dispatch_input(drop_target, drop_input);
         }
-        let widget_id = captured.or_else(|| self.widget_at(position))?;
+        let widget_id = captured.or_else(|| self.widget_at_for_input(position, &release_input))?;
         self.interaction.pointer.capture_state = None;
-        let routed = self.dispatch_input(
-            widget_id,
-            WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp),
-        );
+        let routed = self.dispatch_input(widget_id, release_input);
         if captured.is_some() {
             self.reconcile_pointer_hover_after_capture_release(position);
         }

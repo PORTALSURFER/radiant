@@ -7,11 +7,21 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        contract::Widget,
+        contract::{Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision},
         interaction::{WidgetInput, WidgetOutput},
         primitives::support::{WidgetCommon, push_control_chrome},
     },
 };
+
+impl WidgetPointerMotion for InteractiveRowWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact((self.props, self.common.state.pressed))
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        self.accepts_stable_pointer_move()
+    }
+}
 
 impl Widget for InteractiveRowWidget {
     fn common(&self) -> &WidgetCommon {
@@ -26,8 +36,8 @@ impl Widget for InteractiveRowWidget {
         InteractiveRowWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        self.accepts_stable_pointer_move()
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

@@ -52,8 +52,9 @@ impl WidgetCommon {
     ///
     /// Pointer and keyboard focus both make a widget eligible for pointer hit
     /// testing. Custom widgets that implement pointer-motion affordances should
-    /// use [`Self::with_pointer_focus`] or [`Self::with_keyboard_focus`] instead
-    /// of relying only on `Widget::accepts_pointer_move()`.
+    /// use [`Self::with_pointer_focus`] or [`Self::with_keyboard_focus`] and
+    /// explicitly export [`crate::widgets::WidgetPointerMotion`] when the
+    /// widget needs stable pointer-motion behavior.
     pub fn with_focus(mut self, focus: FocusBehavior) -> Self {
         self.focus = focus;
         self

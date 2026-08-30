@@ -1,5 +1,6 @@
 use super::super::panel::MixerDragTarget;
 use super::*;
+use radiant::widgets::WidgetPointerMotion;
 
 #[test]
 fn mixer_panel_hover_uses_paint_only_runtime_overlay() {
@@ -12,7 +13,9 @@ fn mixer_panel_hover_uses_paint_only_runtime_overlay() {
 
     assert!(output.is_none());
     assert_eq!(widget.interaction.hover_channel, Some(2));
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,
@@ -53,7 +56,9 @@ fn mixer_panel_fader_drag_routes_gain_change() {
             selection: Some(ListSelectionModifiers::new()),
         })
     );
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
 }
 
 #[test]

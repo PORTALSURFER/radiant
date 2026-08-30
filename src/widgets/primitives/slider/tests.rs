@@ -1,4 +1,5 @@
 use super::{geometry::value_for_position, *};
+use crate::widgets::WidgetPointerMotion;
 use crate::{
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
     gui::types::{Point, Vector2},
@@ -382,7 +383,7 @@ fn slider_pointer_drag_emits_clamped_values() {
 fn slider_accepts_runtime_pointer_move_for_live_dragging() {
     let slider = SliderWidget::new(9, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
 
-    assert!(slider.accepts_pointer_move());
+    assert!(WidgetPointerMotion::accepts_pointer_move(&slider));
 }
 
 #[test]

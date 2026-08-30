@@ -16,7 +16,10 @@ use crate::layout::{
 };
 use crate::runtime::RepaintScope;
 use crate::widgets::WidgetStyle;
-use crate::widgets::{WidgetId, WidgetRevision, WidgetRevisionComponents};
+use crate::widgets::{
+    WidgetHitTestRevision, WidgetId, WidgetPointerMotionRevision, WidgetRevision,
+    WidgetRevisionComponents, WidgetSemanticsRevision,
+};
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -246,24 +249,71 @@ fn classify_widget_capabilities(
     previous: crate::widgets::WidgetCapabilities<'_>,
     current: crate::widgets::WidgetCapabilities<'_>,
 ) -> WidgetRevisionEffect {
-    if previous.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
-        || current.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+    if previous.contract_version != current.contract_version
+        || !crate::widgets::supports_semantics_contract(previous.contract_version)
     {
         return WidgetRevisionEffect::Structural;
     }
-    if previous.has_semantics() != current.has_semantics() {
-        return WidgetRevisionEffect::Structural;
-    }
-    if !previous.has_semantics() {
-        return WidgetRevisionEffect::Unchanged;
-    }
+    let semantics = classify_optional_capability(
+        previous.semantics_revision(),
+        current.semantics_revision(),
+        WidgetSemanticsRevision::is_exact,
+    );
+    let hit_test = classify_optional_capability(
+        previous.hit_test_revision(),
+        current.hit_test_revision(),
+        WidgetHitTestRevision::is_exact,
+    );
+    let pointer_motion = classify_optional_capability(
+        previous.pointer_motion_revision(),
+        current.pointer_motion_revision(),
+        WidgetPointerMotionRevision::is_exact,
+    );
+    combine_widget_revision_effect(semantics, hit_test, pointer_motion)
+}
 
-    let (Some(previous), Some(current)) =
-        (previous.semantics_revision(), current.semantics_revision())
-    else {
+fn classify_cached_widget_capabilities(
+    previous: &WidgetCapabilityEvidence,
+    current: &WidgetCapabilityEvidence,
+) -> WidgetRevisionEffect {
+    if previous.contract_version != current.contract_version
+        || !crate::widgets::supports_semantics_contract(previous.contract_version)
+    {
         return WidgetRevisionEffect::Structural;
+    }
+    let semantics = classify_optional_capability(
+        previous.semantics_revision.clone(),
+        current.semantics_revision.clone(),
+        WidgetSemanticsRevision::is_exact,
+    );
+    let hit_test = classify_optional_capability(
+        previous.hit_test_revision.clone(),
+        current.hit_test_revision.clone(),
+        WidgetHitTestRevision::is_exact,
+    );
+    let pointer_motion = classify_optional_capability(
+        previous.pointer_motion_revision.clone(),
+        current.pointer_motion_revision.clone(),
+        WidgetPointerMotionRevision::is_exact,
+    );
+    combine_widget_revision_effect(semantics, hit_test, pointer_motion)
+}
+
+fn classify_optional_capability<T>(
+    previous: Option<T>,
+    current: Option<T>,
+    is_exact: impl Fn(&T) -> bool,
+) -> WidgetRevisionEffect
+where
+    T: PartialEq,
+{
+    if previous.is_some() != current.is_some() {
+        return WidgetRevisionEffect::Structural;
+    }
+    let (Some(previous), Some(current)) = (previous, current) else {
+        return WidgetRevisionEffect::Unchanged;
     };
-    if !previous.is_exact() || !current.is_exact() {
+    if !is_exact(&previous) || !is_exact(&current) {
         WidgetRevisionEffect::Structural
     } else if previous == current {
         WidgetRevisionEffect::Unchanged
@@ -272,31 +322,20 @@ fn classify_widget_capabilities(
     }
 }
 
-fn classify_cached_widget_capabilities(
-    previous: &WidgetCapabilityEvidence,
-    current: &WidgetCapabilityEvidence,
+fn combine_widget_revision_effect(
+    effects: WidgetRevisionEffect,
+    rest: WidgetRevisionEffect,
+    last: WidgetRevisionEffect,
 ) -> WidgetRevisionEffect {
-    if previous.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
-        || current.contract_version != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
-    {
-        return WidgetRevisionEffect::Structural;
-    }
-    if previous.semantics_revision.is_some() != current.semantics_revision.is_some() {
-        return WidgetRevisionEffect::Structural;
-    }
-    let (Some(previous), Some(current)) = (
-        previous.semantics_revision.as_ref(),
-        current.semantics_revision.as_ref(),
-    ) else {
-        return WidgetRevisionEffect::Unchanged;
-    };
-    if !previous.is_exact() || !current.is_exact() {
-        WidgetRevisionEffect::Structural
-    } else if previous == current {
-        WidgetRevisionEffect::Unchanged
-    } else {
-        WidgetRevisionEffect::Interaction
-    }
+    [effects, rest, last]
+        .into_iter()
+        .find(|effect| *effect == WidgetRevisionEffect::Structural)
+        .or_else(|| {
+            [effects, rest, last]
+                .into_iter()
+                .find(|effect| *effect == WidgetRevisionEffect::Interaction)
+        })
+        .unwrap_or(WidgetRevisionEffect::Unchanged)
 }
 
 fn classify_exact_components(
@@ -1381,10 +1420,12 @@ fn compare_widget<Message>(
         || !current_evidence.valid
         || previous_evidence.revision.exact_components().is_none()
         || current_evidence.revision.exact_components().is_none()
-        || previous_evidence.capabilities.contract_version
-            != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
-        || current_evidence.capabilities.contract_version
-            != crate::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+        || !crate::widgets::supports_semantics_contract(
+            previous_evidence.capabilities.contract_version,
+        )
+        || !crate::widgets::supports_semantics_contract(
+            current_evidence.capabilities.contract_version,
+        )
     {
         delta.record_conservative();
     }
@@ -1927,6 +1968,8 @@ mod tests {
                 WidgetCapabilities {
                     contract_version: WIDGET_CAPABILITIES_CONTRACT_VERSION + 1,
                     semantics: None,
+                    hit_test: None,
+                    pointer_motion: None,
                 },
                 WidgetCapabilities::none(),
             ),

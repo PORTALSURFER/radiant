@@ -12,8 +12,7 @@ use crate::{
         WidgetRevision,
         interaction::{
             CompositionSample, CompositionStartContext, NumericAccessibilityAction,
-            NumericAccessibilityBlockOwner, WheelSample, WidgetCursor, WidgetInput, WidgetKey,
-            WidgetOutput,
+            NumericAccessibilityBlockOwner, WheelSample, WidgetInput, WidgetKey, WidgetOutput,
         },
         primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
@@ -23,9 +22,7 @@ use std::time::Instant;
 
 use super::{
     paint::WidgetPaintContext,
-    semantics::{
-        WIDGET_CAPABILITIES_CONTRACT_VERSION, WidgetCapabilities, fallback_automation_semantics,
-    },
+    semantics::{WidgetCapabilities, resolve_automation_semantics},
 };
 use crate::gui::automation::AutomationNodeSemantics;
 
@@ -378,37 +375,6 @@ pub trait Widget: WidgetClone + Any {
         false
     }
 
-    /// Return whether this widget needs pointer-move events after hover state is stable.
-    ///
-    /// Widgets that only use pointer motion to maintain hover/pressed state can
-    /// return `false`; the runtime still routes enter, leave, and captured drag
-    /// motion. Custom widgets default to `true` so richer pointer-driven
-    /// behavior is preserved unless a widget explicitly opts out.
-    ///
-    /// Keep this enabled when a widget updates local paint state from pointer
-    /// motion, such as a snapped timeline cursor, canvas hover highlight, or
-    /// resize handle preview. Stable pointer moves routed through this hook,
-    /// and captured drag moves routed to the active widget, request repaint
-    /// even when `handle_input` returns `None`, so widgets do not need to emit
-    /// host messages merely to refresh transient hover or drag chrome.
-    /// In short: request repaint even when `handle_input` returns `None` for
-    /// widget-local pointer preview state.
-    /// Widget-local pointer state does not need to emit host messages.
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    /// Return whether this widget can be selected as the target for a direct pointer input.
-    ///
-    /// The default is permissive so existing interactive widgets keep their
-    /// previous hit-testing behavior. Widgets that expose explicit event
-    /// policies, such as transparent pointer shields, can return `false` for
-    /// disabled pointer event kinds so stacked input layers do not shadow
-    /// lower layers that are intended to handle those events.
-    fn accepts_pointer_input(&self, _input: &WidgetInput) -> bool {
-        true
-    }
-
     /// Return optional capabilities intentionally exported by this widget.
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::none()
@@ -421,69 +387,7 @@ pub trait Widget: WidgetClone + Any {
     /// through that descriptor; widgets that export no capability retain the
     /// neutral custom-widget fallback semantics.
     fn automation_semantics(&self) -> AutomationNodeSemantics {
-        let common = self.common();
-        let capabilities = self.capabilities();
-        if capabilities.contract_version == WIDGET_CAPABILITIES_CONTRACT_VERSION
-            && let Some(semantics) = capabilities.semantics
-        {
-            return semantics.resolve_automation_semantics(common);
-        }
-        fallback_automation_semantics(common)
-    }
-
-    /// Return explicit automation action names when this widget's interaction
-    /// policy is richer than the role-derived defaults.
-    ///
-    /// The default keeps the snapshot contract role-derived. Runtime dispatch
-    /// still treats this list as advertisement only and revalidates the live
-    /// widget capability before invoking an action.
-    fn automation_available_actions(&self) -> Option<Vec<String>> {
-        None
-    }
-
-    /// Return whether other widgets under the pointer may receive pointer-move
-    /// events while this widget owns pointer capture.
-    ///
-    /// Keep this enabled for drag sources that need live drop-target hover
-    /// feedback. Disable it for exclusive controls such as splitters and resize
-    /// handles where moving away from the handle should not activate unrelated
-    /// hover surfaces before release.
-    fn allows_captured_pointer_pass_through(&self) -> bool {
-        true
-    }
-
-    /// Return this widget's pointer routing behavior while it owns capture.
-    ///
-    /// Implement this for new widgets. The default preserves the older
-    /// [`Self::allows_captured_pointer_pass_through`] contract so existing
-    /// custom widgets keep their current behavior.
-    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
-        if self.allows_captured_pointer_pass_through() {
-            PointerCapturePolicy::PassThrough
-        } else {
-            PointerCapturePolicy::Exclusive
-        }
-    }
-
-    /// Return the cursor this widget wants at `point` inside `bounds`.
-    ///
-    /// Returning `None` lets the runtime continue with the default cursor.
-    /// Implementations should compute this directly from widget state and
-    /// geometry; the runtime may call it on every pointer move.
-    fn cursor_for_point(&self, _bounds: Rect, _point: Point) -> Option<WidgetCursor> {
-        None
-    }
-
-    /// Return whether stable pointer motion can redraw this widget through
-    /// [`Self::append_runtime_overlay_paint`] without rebuilding the base scene.
-    ///
-    /// Use this for editor affordances whose pointer-following visuals are
-    /// fully transient, such as timeline cursors, hover handles, captured drag
-    /// previews, or small selection markers. Widgets that paint pointer-motion
-    /// state in [`Self::append_paint`] should keep the default `false` so the
-    /// runtime rebuilds the scene when local pointer state changes.
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        false
+        resolve_automation_semantics(self.common(), self.capabilities())
     }
 
     /// Return the selected text for focused text-editing widgets as a borrowed slice.

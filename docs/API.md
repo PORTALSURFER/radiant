@@ -2856,8 +2856,8 @@ still collapse line/pixel or phase evidence before this exact seam remain a
 separate platform alignment gap; that fallback is not used as evidence for
 exact-sample behavior.
 Exact unit and phase preservation is limited to qualified widget/policy
-routing. Ordinary native scroll-container fallback uses the coalesced
-single-axis logical-pixel `ScrollUpdate` contract described above.
+routing. The native coalesced scroll-container fallback uses the single-axis
+logical-pixel `ScrollUpdate` contract defined in the `Event And Focus` section.
 
 The target-equivalent shapes are:
 

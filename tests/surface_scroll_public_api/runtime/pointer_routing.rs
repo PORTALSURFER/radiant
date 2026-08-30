@@ -78,6 +78,41 @@ fn surface_runtime_routes_scroll_delta_to_scroll_view_under_pointer() {
 }
 
 #[test]
+fn surface_runtime_direct_exact_sample_scroll_fallback_delivers_diagonal_delta() {
+    let surface = crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+        31,
+        SurfaceNode::text(
+            32,
+            "Long content",
+            WidgetSizing::fixed(Vector2::new(220.0, 160.0)),
+        ),
+    )));
+    let bridge = ScrollObserverBridge {
+        surface,
+        updates: 0,
+        last_update: None,
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 80.0));
+    let diagonal = Vector2::new(12.0, 18.0);
+    let sample = radiant::widgets::WheelSample::new(
+        radiant::widgets::WheelDelta::pixels(diagonal).expect("finite pixel sample"),
+        Some(radiant::widgets::WheelPhase::Changed),
+        Default::default(),
+    )
+    .expect("finite exact sample");
+
+    assert!(runtime.wheel_or_scroll_at_with_sample(Point::new(20.0, 20.0), sample));
+
+    let update = runtime
+        .bridge()
+        .last_update
+        .expect("direct exact-sample fallback should report a scroll update");
+    assert_eq!(runtime.bridge().updates, 1);
+    assert_eq!(update.delta, diagonal);
+    assert_eq!(update.offset, diagonal);
+}
+
+#[test]
 fn surface_runtime_does_not_hit_scrolled_content_outside_scroll_viewport() {
     let bridge = declarative_runtime_bridge(
         crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::column(

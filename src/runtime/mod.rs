@@ -106,11 +106,11 @@ pub use command::{
     SurfaceRevisions, TaskPriority,
 };
 pub(crate) use command::{EffectId, WorkerEffectSink};
-pub(crate) use controller::AuxiliaryWindowOwner;
 pub(crate) use controller::BasePaintPlanContext;
 pub(crate) use controller::PreparedSurfaceRefresh;
 pub(crate) use controller::SequentialFocusTraversalDisposition;
 pub(crate) use controller::WheelOrScrollRoute;
+pub(crate) use controller::{AuxiliaryFocusCommand, AuxiliaryFocusIntent, AuxiliaryWindowOwner};
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
     FocusTraversal, IdentityAudit, PointerClickOutcome, PointerMoveOutcome, RuntimeContext,

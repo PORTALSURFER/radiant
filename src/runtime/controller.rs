@@ -39,6 +39,7 @@ mod traversal_state;
 mod virtual_layout;
 mod work;
 
+pub(crate) use commands::{AuxiliaryFocusCommand, AuxiliaryFocusIntent};
 pub(crate) use focus::SequentialFocusTraversalDisposition;
 #[allow(unused_imports)]
 pub(crate) use split_pane_ratio_action::SplitPaneRatioAdjustmentDisposition;
@@ -181,6 +182,7 @@ where
     pending_input_command_outcome: CommandOutcome,
     effect_owner: RuntimeOwner,
     auxiliary_effect_owners: HashMap<String, AuxiliaryWindowOwner>,
+    auxiliary_focus_intents: Vec<commands::AuxiliaryFocusIntent>,
     runtime_work: RuntimeWorkQueues<Message>,
     platform_registry: PlatformCompletionRegistry<Message>,
     platform_results: std::sync::Arc<std::sync::Mutex<PlatformResultIngress>>,

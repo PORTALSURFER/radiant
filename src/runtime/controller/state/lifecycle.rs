@@ -88,6 +88,7 @@ where
             pending_input_command_outcome: CommandOutcome::default(),
             effect_owner: effect_owner.clone(),
             auxiliary_effect_owners: std::collections::HashMap::new(),
+            auxiliary_focus_intents: Vec::new(),
             runtime_work: RuntimeWorkQueues::default(),
             platform_registry: PlatformCompletionRegistry::new(effect_owner.clone()),
             platform_results: std::sync::Arc::new(std::sync::Mutex::new(
@@ -259,6 +260,7 @@ where
         self.effect_owner.cancel();
         self.worker_effects.shutdown();
         self.auxiliary_effect_owners.clear();
+        self.auxiliary_focus_intents.clear();
         self.timer_effects.shutdown();
         self.runtime_work.fence_all();
         self.shutdown_platform_services();

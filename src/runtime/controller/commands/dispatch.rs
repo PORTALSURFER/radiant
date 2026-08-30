@@ -1,5 +1,5 @@
 use super::super::{effects::WorkerEffectMappingMode, owner::EffectOrigin};
-use super::{CommandOutcome, SurfaceRuntime};
+use super::{AuxiliaryFocusCommand, CommandOutcome, SurfaceRuntime};
 use crate::application::runtime::update_context::business::admission::{
     BusinessTaskAdmission, resolve as resolve_admission,
 };
@@ -219,6 +219,14 @@ where
         if !self.lifecycle_accepts_work() || !self.effect_origin_is_active(&origin) {
             return;
         }
+        if let EffectOrigin::Auxiliary(owner) = &origin
+            && is_auxiliary_focus_only(&command)
+        {
+            let commands = auxiliary_focus_commands(command)
+                .expect("focus-only auxiliary command preflight should succeed");
+            self.stage_auxiliary_focus_intents(owner.clone(), commands);
+            return;
+        }
         let refresh_before = outcome.surface_refresh_requested;
         if !refresh_surface {
             *deferred_surface_is_fresh = false;
@@ -341,6 +349,14 @@ where
             return;
         }
         if !self.effect_origin_is_active(&origin) {
+            return;
+        }
+        if let EffectOrigin::Auxiliary(owner) = &origin
+            && is_auxiliary_focus_only(&command)
+        {
+            let commands = auxiliary_focus_commands(command)
+                .expect("focus-only auxiliary command preflight should succeed");
+            self.stage_auxiliary_focus_intents(owner.clone(), commands);
             return;
         }
         if !refresh_surface
@@ -554,5 +570,45 @@ where
                 }
             }
         }
+    }
+}
+
+fn auxiliary_focus_commands<Message>(
+    command: Command<Message>,
+) -> Option<Vec<AuxiliaryFocusCommand>> {
+    if !is_auxiliary_focus_only(&command) {
+        return None;
+    }
+    let mut commands = Vec::new();
+    auxiliary_focus_commands_into(command, &mut commands);
+    Some(commands)
+}
+
+fn is_auxiliary_focus_only<Message>(command: &Command<Message>) -> bool {
+    match command {
+        Command::None | Command::Focus(_) | Command::ClearFocus => true,
+        Command::Batch(nested) => nested.iter().all(is_auxiliary_focus_only),
+        _ => false,
+    }
+}
+
+fn auxiliary_focus_commands_into<Message>(
+    command: Command<Message>,
+    commands: &mut Vec<AuxiliaryFocusCommand>,
+) {
+    match command {
+        Command::Focus(widget_id) => {
+            commands.push(AuxiliaryFocusCommand::Focus(widget_id));
+        }
+        Command::ClearFocus => {
+            commands.push(AuxiliaryFocusCommand::ClearFocus);
+        }
+        Command::None => {}
+        Command::Batch(nested) => {
+            for command in nested {
+                auxiliary_focus_commands_into(command, commands);
+            }
+        }
+        _ => unreachable!("auxiliary focus command was preflighted as focus-only"),
     }
 }

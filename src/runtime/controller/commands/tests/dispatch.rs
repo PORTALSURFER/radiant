@@ -2,7 +2,7 @@ use super::{
     super::*,
     fixtures::{
         DeferredFocusBridge, DeferredPlatformFallbackBridge, DeferredScrollBridge,
-        DeferredScrollFocusBridge,
+        DeferredScrollFocusBridge, OrderedFocusBridge,
     },
 };
 use crate::runtime::{
@@ -137,6 +137,107 @@ fn deferred_message_dispatch_refreshes_before_focus_followup() {
         2,
         "deferred dispatch should refresh only when a follow-up command needs fresh traversal"
     );
+    assert!(outcome.surface_refresh_requested);
+    assert!(outcome.surface_repaint_requested);
+}
+
+#[test]
+fn auxiliary_focus_dispatch_stages_without_mutating_or_refreshing_primary() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));
+    let owner = runtime.acquire_auxiliary_effect_owner("settings");
+
+    let outcome = runtime.dispatch_message_from_auxiliary(1, owner.clone());
+
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(runtime.bridge().project_count, 1);
+    assert_eq!(
+        outcome,
+        CommandOutcome {
+            messages_dispatched: 1,
+            ..CommandOutcome::default()
+        }
+    );
+    let intents = runtime.take_auxiliary_focus_intents();
+    assert_eq!(intents.len(), 1);
+    assert!(intents[0].owner().is_same_generation(&owner));
+    assert_eq!(intents[0].command(), AuxiliaryFocusCommand::Focus(42));
+    assert!(runtime.take_auxiliary_focus_intents().is_empty());
+}
+
+#[test]
+fn auxiliary_focus_batch_preserves_order_and_drains_once() {
+    let mut runtime = SurfaceRuntime::new(
+        OrderedFocusBridge {
+            command: Some(Command::batch([
+                Command::focus(11),
+                Command::clear_focus(),
+                Command::focus(12),
+            ])),
+            ..OrderedFocusBridge::default()
+        },
+        Vector2::new(160.0, 40.0),
+    );
+    let owner = runtime.acquire_auxiliary_effect_owner("settings");
+
+    let outcome = runtime.dispatch_message_from_auxiliary(0, owner);
+
+    assert_eq!(outcome.messages_dispatched, 1);
+    let intents = runtime.take_auxiliary_focus_intents();
+    assert_eq!(
+        intents
+            .iter()
+            .map(|intent| intent.command())
+            .collect::<Vec<_>>(),
+        [
+            AuxiliaryFocusCommand::Focus(11),
+            AuxiliaryFocusCommand::ClearFocus,
+            AuxiliaryFocusCommand::Focus(12),
+        ]
+    );
+    assert!(runtime.take_auxiliary_focus_intents().is_empty());
+}
+
+#[test]
+fn auxiliary_focus_in_mixed_batch_never_targets_primary() {
+    let mut runtime = SurfaceRuntime::new(
+        OrderedFocusBridge {
+            command: Some(Command::batch([
+                Command::request_repaint(),
+                Command::focus(11),
+                Command::clear_focus(),
+            ])),
+            ..OrderedFocusBridge::default()
+        },
+        Vector2::new(160.0, 40.0),
+    );
+    let owner = runtime.acquire_auxiliary_effect_owner("settings");
+
+    let _ = runtime.dispatch_message_from_auxiliary(0, owner);
+
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime
+            .take_auxiliary_focus_intents()
+            .into_iter()
+            .map(|intent| intent.command())
+            .collect::<Vec<_>>(),
+        [
+            AuxiliaryFocusCommand::Focus(11),
+            AuxiliaryFocusCommand::ClearFocus,
+        ]
+    );
+}
+
+#[test]
+fn application_origin_focus_keeps_primary_refresh_and_focus_fallback() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));
+
+    let outcome = runtime.dispatch_message(1);
+
+    assert_eq!(runtime.focused_widget(), Some(42));
+    assert_eq!(runtime.bridge().project_count, 2);
     assert!(outcome.surface_refresh_requested);
     assert!(outcome.surface_repaint_requested);
 }

@@ -32,6 +32,10 @@ use super::{
 };
 use crate::gui::input::InputTimestamp;
 use crate::gui_runtime::native_vello::{select_present_mode, startup_renderer_options};
+use crate::runtime::{
+    AuxiliaryFocusCommand, AuxiliaryFocusIntent, AuxiliaryWindowOwner, FrameGpuTimingSample,
+    RuntimeAnimationActivity,
+};
 #[cfg(test)]
 use crate::runtime::{
     AuxiliaryWindow, NativeFrameDiagnostics, NativeRunOptions, NativeWindowDiagnosticIdentity,
@@ -41,7 +45,6 @@ use crate::runtime::{
 use crate::runtime::{
     AuxiliaryWindow, NativeRunOptions, NativeWindowDiagnosticIdentity, RuntimeBridge,
 };
-use crate::runtime::{AuxiliaryWindowOwner, FrameGpuTimingSample, RuntimeAnimationActivity};
 use crate::runtime::{ExternalDragIdentity, ExternalDragOutcome};
 pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
@@ -193,6 +196,35 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn effect_owner(&self) -> AuxiliaryWindowOwner {
         self.owner.clone()
+    }
+
+    pub(super) fn can_apply_focus_intent(&self, intent: &AuxiliaryFocusIntent) -> bool {
+        self.is_admitted()
+            && self.active
+            && self.owner.is_open()
+            && self.owner.is_same_generation(intent.owner())
+            && self.runner.is_running()
+            && !self.runner.has_terminal_cause()
+    }
+
+    pub(super) fn apply_focus_intent(
+        &mut self,
+        intent: &AuxiliaryFocusIntent,
+    ) -> Option<GenericRouteOutcome> {
+        if !self.can_apply_focus_intent(intent) {
+            return None;
+        }
+        let routed = match intent.command() {
+            AuxiliaryFocusCommand::Focus(widget_id) => {
+                self.runner.core.runtime.focus_widget(widget_id)
+            }
+            AuxiliaryFocusCommand::ClearFocus => {
+                let had_focus = self.runner.core.runtime.focused_widget().is_some();
+                self.runner.core.runtime.clear_focus();
+                had_focus
+            }
+        };
+        Some(self.runner.core.route_outcome(routed))
     }
 
     pub(super) fn take_cpu_frame_observation_capture(&mut self) -> CpuFrameObservationCapture {
@@ -1795,6 +1827,56 @@ where
         outcome
     }
 
+    fn apply_auxiliary_focus_intents(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        adapter: &mut GenericNativeAdapterOwner,
+        intents: Vec<AuxiliaryFocusIntent>,
+    ) {
+        for intent in intents {
+            if !self.should_admit_auxiliary_sync() {
+                return;
+            }
+            if !self
+                .core
+                .runtime
+                .auxiliary_effect_owner_is_active(intent.owner())
+            {
+                continue;
+            }
+            let Some(index) = self
+                .auxiliary_windows
+                .iter()
+                .position(|window| window.can_apply_focus_intent(&intent))
+            else {
+                continue;
+            };
+            let Some(child_outcome) = self.auxiliary_windows[index].apply_focus_intent(&intent)
+            else {
+                continue;
+            };
+            self.auxiliary_windows[index]
+                .runner
+                .handle_route_outcome_with_adapter(event_loop, child_outcome, adapter, None);
+            let messages = self.auxiliary_windows[index].take_messages();
+            if messages.is_empty() {
+                continue;
+            }
+            let owner = self.auxiliary_windows[index].effect_owner();
+            let outcome = self.reduce_auxiliary_messages(Some(owner), messages);
+            self.handle_route_outcome_with_adapter_without_timed_frame(
+                event_loop, outcome, adapter, None,
+            );
+        }
+        if self.core.runtime.auxiliary_focus_intents_pending() {
+            // A child output may have changed the parent projection while it
+            // staged another focus command. Leave that command for the next
+            // synchronization, which refreshes the exact child first.
+            self.defer_auxiliary_window_sync();
+            self.request_redraw_for_frame_work(FrameWork::None);
+        }
+    }
+
     fn apply_auxiliary_native_discrete_input_resolution(
         &mut self,
         outcome: GenericRouteOutcome,
@@ -2018,6 +2100,7 @@ where
         if !self.should_admit_auxiliary_sync() {
             return Ok(());
         }
+        let focus_intents = self.core.runtime.take_auxiliary_focus_intents();
         let retiring_keys_before_maintenance = self
             .auxiliary_windows
             .iter()
@@ -2114,6 +2197,7 @@ where
                 }
             }
         }
+        self.apply_auxiliary_focus_intents(event_loop, adapter, focus_intents);
         if recovery_followup_pending {
             self.recovery_auxiliary_followup_pending = false;
             self.recovery_cause.take();
@@ -2249,8 +2333,13 @@ mod tests {
         gui_runtime::NativeRunOptions,
         prelude::IntoView,
         runtime::{
-            AuxiliaryWindow, NativeFrameDiagnostics, NativeWindowDiagnosticIdentity,
-            RuntimeFrameDiagnosticsHost,
+            AuxiliaryFocusCommand, AuxiliaryFocusIntent, AuxiliaryWindow, NativeFrameDiagnostics,
+            NativeWindowDiagnosticIdentity, RuntimeFrameDiagnosticsHost, SurfaceNode, UiSurface,
+            WidgetMessageMapper,
+        },
+        widgets::{
+            FocusBehavior, FocusLossDecision, InteractiveRowWidget, Widget, WidgetCommon,
+            WidgetInput, WidgetOutput, WidgetSizing,
         },
     };
     use native_lifecycle_stage::{NativeLifecycleStageEvidence, NativeLifecycleTransitionKind};
@@ -2360,6 +2449,180 @@ mod tests {
 
     fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
         auxiliary_window_with_diagnostics(cache_on_close, false)
+    }
+
+    fn focus_surface(widget_id: u64) -> Arc<UiSurface<i32>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            InteractiveRowWidget::new(widget_id, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
+            WidgetMessageMapper::none(),
+        )))
+    }
+
+    #[derive(Clone)]
+    struct VetoFocusWidget {
+        common: WidgetCommon,
+        veto: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl VetoFocusWidget {
+        fn new(veto: Arc<std::sync::atomic::AtomicBool>) -> Self {
+            Self {
+                common: WidgetCommon::fixed(42, 120.0, 22.0)
+                    .with_focus(FocusBehavior::Keyboard)
+                    .without_default_chrome(),
+                veto,
+            }
+        }
+    }
+
+    impl Widget for VetoFocusWidget {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn prepare_focus_loss(&mut self) -> FocusLossDecision {
+            if self.veto.load(std::sync::atomic::Ordering::Relaxed) {
+                FocusLossDecision::Veto
+            } else {
+                FocusLossDecision::Allow
+            }
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: crate::gui::types::Rect,
+            input: WidgetInput,
+        ) -> Option<WidgetOutput> {
+            if let WidgetInput::FocusChanged(focused) = input {
+                self.common.state.focused = focused;
+            }
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: crate::gui::types::Rect,
+            _layout: &crate::layout::LayoutOutput,
+            _theme: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    fn veto_focus_surface(veto: Arc<std::sync::atomic::AtomicBool>) -> Arc<UiSurface<i32>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            VetoFocusWidget::new(veto),
+            WidgetMessageMapper::none(),
+        )))
+    }
+
+    #[test]
+    fn auxiliary_focus_intent_refreshes_exact_child_before_focus() {
+        let mut window = auxiliary_window(false);
+        let owner = window.effect_owner();
+        window.update_projection(AuxiliaryWindow::new(
+            "settings",
+            NativeRunOptions::default(),
+            focus_surface(42),
+        ));
+
+        let intent = AuxiliaryFocusIntent::new(owner, AuxiliaryFocusCommand::Focus(42));
+        let outcome = window
+            .apply_focus_intent(&intent)
+            .expect("refreshed admitted child should accept its exact focus intent");
+
+        assert_eq!(window.runner.core.runtime.focused_widget(), Some(42));
+        assert!(outcome.routed);
+    }
+
+    #[test]
+    fn auxiliary_focus_intent_targets_exact_generation_when_widget_ids_repeat() {
+        let mut settings = AuxiliaryNativeWindow::new(
+            AuxiliaryWindow::new("settings", NativeRunOptions::default(), focus_surface(42)),
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+        let mut inspector = AuxiliaryNativeWindow::new(
+            AuxiliaryWindow::new("inspector", NativeRunOptions::default(), focus_surface(42)),
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+        let intent =
+            AuxiliaryFocusIntent::new(settings.effect_owner(), AuxiliaryFocusCommand::Focus(42));
+
+        assert!(settings.apply_focus_intent(&intent).is_some());
+        assert!(inspector.apply_focus_intent(&intent).is_none());
+        assert_eq!(settings.runner.core.runtime.focused_widget(), Some(42));
+        assert_eq!(inspector.runner.core.runtime.focused_widget(), None);
+    }
+
+    #[test]
+    fn auxiliary_clear_focus_is_child_local_and_honors_focus_loss_veto() {
+        let veto = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut window = AuxiliaryNativeWindow::new(
+            AuxiliaryWindow::new(
+                "settings",
+                NativeRunOptions::default(),
+                veto_focus_surface(Arc::clone(&veto)),
+            ),
+            &NativeRunOptions::default(),
+            None,
+            false,
+            false,
+        );
+        let owner = window.effect_owner();
+        let focus = AuxiliaryFocusIntent::new(owner.clone(), AuxiliaryFocusCommand::Focus(42));
+        let _ = window
+            .apply_focus_intent(&focus)
+            .expect("admitted child focus should apply");
+        assert_eq!(window.runner.core.runtime.focused_widget(), Some(42));
+
+        veto.store(true, std::sync::atomic::Ordering::Relaxed);
+        let clear = AuxiliaryFocusIntent::new(owner, AuxiliaryFocusCommand::ClearFocus);
+        let outcome = window
+            .apply_focus_intent(&clear)
+            .expect("focus-loss veto is still a valid child-local transition");
+
+        assert_eq!(window.runner.core.runtime.focused_widget(), Some(42));
+        assert!(outcome.needs_redraw());
+
+        veto.store(false, std::sync::atomic::Ordering::Relaxed);
+        let clear =
+            AuxiliaryFocusIntent::new(window.effect_owner(), AuxiliaryFocusCommand::ClearFocus);
+        let _ = window
+            .apply_focus_intent(&clear)
+            .expect("clearing the child focus should remain child-local");
+        assert_eq!(window.runner.core.runtime.focused_widget(), None);
+    }
+
+    #[test]
+    fn auxiliary_focus_intent_fails_closed_for_missing_stale_cached_and_retired_children() {
+        let mut cached = auxiliary_window(true);
+        let stale = AuxiliaryFocusIntent::new(
+            super::AuxiliaryWindowOwner::new("settings"),
+            AuxiliaryFocusCommand::Focus(42),
+        );
+        assert!(cached.apply_focus_intent(&stale).is_none());
+
+        let current =
+            AuxiliaryFocusIntent::new(cached.effect_owner(), AuxiliaryFocusCommand::Focus(42));
+        cached.hide();
+        assert!(cached.apply_focus_intent(&current).is_none());
+
+        cached.show();
+        cached.begin_retiring();
+        assert!(cached.apply_focus_intent(&current).is_none());
+
+        let mut replacement = auxiliary_window(false);
+        assert!(replacement.apply_focus_intent(&stale).is_none());
     }
 
     #[test]

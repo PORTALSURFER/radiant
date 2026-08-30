@@ -28,6 +28,12 @@ pub(super) struct DeferredFocusBridge {
 }
 
 #[derive(Default)]
+pub(super) struct OrderedFocusBridge {
+    pub(super) command: Option<Command<usize>>,
+    pub(super) project_count: usize,
+}
+
+#[derive(Default)]
 pub(super) struct DeferredPlatformFallbackBridge {
     pub(super) show_fallback_target: bool,
     pub(super) project_count: usize,
@@ -128,6 +134,21 @@ impl RuntimeBridge<usize> for DeferredFocusBridge {
             }
             _ => Command::none(),
         }
+    }
+}
+
+impl RuntimeBridge<usize> for OrderedFocusBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        self.project_count += 1;
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update(&mut self, _message: usize) -> Command<usize> {
+        self.command.take().unwrap_or_default()
     }
 }
 

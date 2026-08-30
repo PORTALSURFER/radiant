@@ -1,7 +1,8 @@
 use super::SurfaceRuntime;
 use super::declarative_owner::DeclarativeOwnerRequest;
-use super::owner::EffectOrigin;
+use super::owner::{AuxiliaryWindowOwner, EffectOrigin};
 use crate::runtime::{Command, RuntimeBridge};
+use crate::widgets::WidgetId;
 
 #[cfg(test)]
 pub(super) use crate::{
@@ -17,6 +18,36 @@ mod outcome;
 mod scrolling;
 
 pub use outcome::CommandOutcome;
+
+/// One focus command staged by an auxiliary-origin message.
+///
+/// The owner is retained alongside the command so the native synchronization
+/// boundary can reject a retired generation without looking up a replacement
+/// by key alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AuxiliaryFocusCommand {
+    Focus(WidgetId),
+    ClearFocus,
+}
+
+pub(crate) struct AuxiliaryFocusIntent {
+    owner: AuxiliaryWindowOwner,
+    command: AuxiliaryFocusCommand,
+}
+
+impl AuxiliaryFocusIntent {
+    pub(crate) fn new(owner: AuxiliaryWindowOwner, command: AuxiliaryFocusCommand) -> Self {
+        Self { owner, command }
+    }
+
+    pub(crate) fn owner(&self) -> &AuxiliaryWindowOwner {
+        &self.owner
+    }
+
+    pub(crate) const fn command(&self) -> AuxiliaryFocusCommand {
+        self.command
+    }
+}
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -41,6 +72,26 @@ where
             EffectOrigin::Auxiliary(owner),
         );
         self.finish_command_outcome(outcome)
+    }
+
+    pub(crate) fn take_auxiliary_focus_intents(&mut self) -> Vec<AuxiliaryFocusIntent> {
+        std::mem::take(&mut self.auxiliary_focus_intents)
+    }
+
+    pub(crate) fn auxiliary_focus_intents_pending(&self) -> bool {
+        !self.auxiliary_focus_intents.is_empty()
+    }
+
+    fn stage_auxiliary_focus_intents(
+        &mut self,
+        owner: AuxiliaryWindowOwner,
+        commands: impl IntoIterator<Item = AuxiliaryFocusCommand>,
+    ) {
+        self.auxiliary_focus_intents.extend(
+            commands
+                .into_iter()
+                .map(|command| AuxiliaryFocusIntent::new(owner.clone(), command)),
+        );
     }
 
     /// Reduce one message under an explicit private declarative owner request.

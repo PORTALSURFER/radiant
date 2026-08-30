@@ -41,6 +41,12 @@ fn extend_pending_sequence_range(
     }
 }
 
+/// Native coalesced wheel work for one selected axis.
+///
+/// The accumulated `delta` is already in logical pixels and intentionally has
+/// the orthogonal component removed. The newest modifiers and timestamp are
+/// retained; a sequence range spans the contributing samples when all samples
+/// provide one. Phase is not stored by this coalesced path.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingGpuSurfaceWheel {
     pub(super) position: Point,
@@ -232,6 +238,11 @@ where
         sequence_range: Option<InputSequenceRange>,
         apply_route_effects: bool,
     ) -> DeferredWheelRouteEffects {
+        // Ordinary fallback has already crossed the native unit boundary.
+        // Select horizontal only for a strict magnitude win; ties stay
+        // vertical, and the orthogonal component is deliberately discarded.
+        // The queued result is therefore one logical-pixel, phase-less delta;
+        // metadata remains observational and is carried separately.
         let axis = GpuSurfaceWheelAxis::from_delta(delta);
         let delta = axis.semantic_delta(delta);
         let mut deferred = DeferredWheelRouteEffects::default();

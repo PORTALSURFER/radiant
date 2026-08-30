@@ -2855,6 +2855,9 @@ but selected-widget dispatch preserves supplied metadata. Native adapters that
 still collapse line/pixel or phase evidence before this exact seam remain a
 separate platform alignment gap; that fallback is not used as evidence for
 exact-sample behavior.
+Exact unit and phase preservation is limited to qualified widget/policy
+routing. The native coalesced scroll-container fallback uses the single-axis
+logical-pixel `ScrollUpdate` contract defined in the `Event And Focus` section.
 
 The target-equivalent shapes are:
 
@@ -5456,6 +5459,24 @@ backend-neutral runtime event surface for resize, pointer, keyboard, focus
 traversal, and focus-clear operations; `SurfaceRuntime::dispatch_event` is the
 primary event-routing entry point for backend adapters. Focus behavior is
 declared by widget contracts rather than by host-domain code.
+Scroll input uses one backend-neutral offset-direction contract across
+`Event::Scroll`, `WidgetInput::Wheel`, `CanvasGestureEvent::Wheel`,
+`ScrollUpdate::delta`, `WheelDelta`, and the wheel/scroll routing APIs: positive
+`x`/`y` increases the logical horizontal/vertical scroll offset, reveals content
+right/down, and causes layout to render that content left/up. The controller
+applies `current + delta` and clamps the resulting offset; layout places scroll
+content at `origin - offset`. Native adapters are the single sign/unit boundary:
+AppKit/winit content-direction deltas are negated once, line deltas retain the
+40 logical-pixels-per-line rule, pixel deltas receive the existing DPI
+conversion, and generic routing performs no coordinate-origin flip or second
+sign conversion. Exact unit and phase preservation is limited to qualified
+widget/policy routing. Ordinary native scroll-container coalescing projects
+each sample to logical pixels, selects horizontal only when `|x| > |y|` and
+vertical otherwise (including ties), drops the orthogonal component, and emits
+a phase-less `ScrollUpdate`. It retains the newest modifiers and timestamp;
+when available, the sequence range spans the first through newest contributing
+sample, and an axis change flushes the prior pending sample before queueing the
+new axis.
 `radiant::gui::input::logical_point_to_u16_coords` provides the shared
 clamp/round contract for adapters that must project logical pointer positions
 into compact integer coordinates.

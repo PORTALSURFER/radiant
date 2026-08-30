@@ -325,3 +325,68 @@ fn wheel_scroll_fallback_preserves_metadata_and_programmatic_scroll_defaults() {
         crate::runtime::ScrollUpdateMetadata::default()
     );
 }
+
+#[test]
+fn scroll_event_delta_advances_and_clamps_offset_and_paint() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredScrollBridge::default(), Vector2::new(120.0, 40.0));
+    let point = Point::new(10.0, 10.0);
+    let theme = crate::theme::ThemeTokens::default();
+    let initial_layout = runtime
+        .layout()
+        .rects
+        .get(&30)
+        .copied()
+        .expect("child rect");
+    let initial_paint = runtime
+        .paint_plan(&theme)
+        .first_widget_rect(30)
+        .expect("painted child rect");
+
+    assert_eq!(
+        runtime.dispatch_event(crate::runtime::Event::scroll(
+            point,
+            Vector2::new(0.0, 30.0),
+        )),
+        None
+    );
+    let positive_layout = runtime
+        .layout()
+        .rects
+        .get(&30)
+        .copied()
+        .expect("child rect");
+    let positive_paint = runtime
+        .paint_plan(&theme)
+        .first_widget_rect(30)
+        .expect("painted child rect");
+    assert_eq!(
+        runtime.layout_state.scroll_offset(10),
+        Vector2::new(0.0, 30.0)
+    );
+    assert_eq!(positive_layout.min.x, initial_layout.min.x);
+    assert_eq!(positive_layout.min.y, initial_layout.min.y - 30.0);
+    assert_eq!(positive_paint.min.x, initial_paint.min.x);
+    assert_eq!(positive_paint.min.y, initial_paint.min.y - 30.0);
+
+    assert_eq!(
+        runtime.dispatch_event(crate::runtime::Event::scroll(
+            point,
+            Vector2::new(0.0, -100.0),
+        )),
+        None
+    );
+    let clamped_layout = runtime
+        .layout()
+        .rects
+        .get(&30)
+        .copied()
+        .expect("child rect");
+    let clamped_paint = runtime
+        .paint_plan(&theme)
+        .first_widget_rect(30)
+        .expect("painted child rect");
+    assert_eq!(runtime.layout_state.scroll_offset(10), Vector2::default());
+    assert_eq!(clamped_layout, initial_layout);
+    assert_eq!(clamped_paint, initial_paint);
+}

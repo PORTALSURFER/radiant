@@ -6,7 +6,8 @@ use crate::gui::{
     types::Vector2,
 };
 
-/// Logical pixels represented by one validated wheel line.
+/// Logical pixels represented by one validated wheel line in scroll-offset
+/// direction.
 pub const WHEEL_LINE_EQUIVALENCE_PIXELS: f32 = 40.0;
 
 /// Error returned when a wheel delta cannot preserve finite unit evidence.
@@ -19,9 +20,15 @@ pub enum WheelDeltaError {
 /// Unit-qualified wheel displacement.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WheelDelta {
-    /// A signed displacement expressed in logical lines.
+    /// A signed displacement expressed in logical lines in scroll-offset
+    /// direction.
+    ///
+    /// Positive components increase the corresponding logical scroll offset.
     Lines(Vector2),
-    /// A signed displacement expressed in logical pixels.
+    /// A signed displacement expressed in logical pixels in scroll-offset
+    /// direction.
+    ///
+    /// Positive components increase the corresponding logical scroll offset.
     Pixels(Vector2),
 }
 
@@ -74,7 +81,8 @@ impl WheelDelta {
         }
     }
 
-    /// Project this delta into the legacy logical-pixel wheel contract.
+    /// Project this delta into the legacy logical-pixel wheel contract without
+    /// changing its scroll-offset direction.
     pub fn to_logical_pixels(self) -> Option<Vector2> {
         self.is_valid().then(|| match self {
             Self::Lines(delta) => Vector2::new(
@@ -124,6 +132,12 @@ pub enum WheelSampleError {
 }
 
 /// Backend-neutral wheel input with exact unit and phase evidence.
+///
+/// Its delta is already expressed in logical scroll-offset direction: native
+/// adapters negate platform content-direction deltas exactly once. The exact
+/// evidence remains available to qualified widget or policy routing; an
+/// ordinary scroll-container fallback may project it to one logical-pixel axis
+/// and does not retain the phase.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WheelSample {
     delta: WheelDelta,

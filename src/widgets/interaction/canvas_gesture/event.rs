@@ -84,7 +84,9 @@ pub enum CanvasGestureEvent {
     Wheel {
         /// Pointer information at wheel time.
         pointer: CanvasPointer,
-        /// Logical scroll delta. Positive values move content right/down.
+        /// Logical scroll-offset delta. Positive `x`/`y` increases the
+        /// horizontal/vertical offset, revealing content right/down; layout
+        /// therefore renders the content left/up.
         delta: Vector2,
         /// Normalized input provenance for this wheel sample.
         metadata: CanvasGestureMetadata,

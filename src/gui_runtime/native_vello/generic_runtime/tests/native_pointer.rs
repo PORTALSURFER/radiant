@@ -431,6 +431,64 @@ fn scroll_coalescing_preserves_modifier_sensitive_wheel_ownership() {
     ));
 }
 
+fn assert_phaseful_scroll_container_fallback(raw_delta: MouseScrollDelta, expected_delta: Vector2) {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelScrollBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner.input.last_cursor = Some(Point::new(40.0, 20.0));
+    runner.timing.redraw_requested = false;
+    runner.timing.redraw_requested_at = None;
+
+    // Moved is the native Changed phase. Ordinary scroll fallback coalesces
+    // it into one logical-pixel, single-axis, phase-less ScrollUpdate.
+    let route = runner.route_native_mouse_wheel_with_phase(raw_delta, TouchPhase::Moved);
+    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Coalesced);
+    let pending = runner
+        .input
+        .pending_scroll_container_wheel
+        .expect("ordinary scroll fallback should be pending");
+    assert_eq!(pending.delta, expected_delta);
+    assert!(pending.delta.x == 0.0 || pending.delta.y == 0.0);
+    assert!(pending.timestamp.is_some());
+    assert!(pending.sequence_range.is_some());
+
+    runner.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+
+    let bridge = runner.core.runtime.bridge();
+    assert_eq!(bridge.scroll_updates.len(), 1);
+    let update = bridge.scroll_updates[0];
+    assert_eq!(update.delta, expected_delta);
+    assert!(update.metadata.timestamp.is_some());
+    assert!(update.metadata.sequence_range.is_some());
+}
+
+#[test]
+fn native_changed_scroll_container_vertical_dominant_diagonal_drops_horizontal() {
+    assert_phaseful_scroll_container_fallback(
+        MouseScrollDelta::LineDelta(1.0, -2.0),
+        Vector2::new(0.0, 80.0),
+    );
+}
+
+#[test]
+fn native_changed_scroll_container_horizontal_dominant_diagonal_drops_vertical() {
+    assert_phaseful_scroll_container_fallback(
+        MouseScrollDelta::PixelDelta(PhysicalPosition::new(-30.0, 10.0)),
+        Vector2::new(30.0, 0.0),
+    );
+}
+
+#[test]
+fn native_changed_scroll_container_tied_diagonal_selects_vertical() {
+    assert_phaseful_scroll_container_fallback(
+        MouseScrollDelta::PixelDelta(PhysicalPosition::new(20.0, -20.0)),
+        Vector2::new(0.0, 20.0),
+    );
+}
+
 #[test]
 fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
     let mut runner = GenericNativeVelloRunner::new(
@@ -447,7 +505,7 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
     assert!(!runner.timing.redraw_requested);
 
     let first = runner.route_native_mouse_wheel_with_phase(
-        MouseScrollDelta::LineDelta(0.0, -1.0),
+        MouseScrollDelta::LineDelta(1.0, -2.0),
         TouchPhase::Moved,
     );
     assert_eq!(first.diagnostic.result, NativePointerRouteResult::Coalesced);
@@ -456,7 +514,7 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
         .pending_scroll_container_wheel
         .expect("phaseful ordinary scroll should be pending");
     assert_eq!(first_pending.position, first_position);
-    assert_eq!(first_pending.delta, Vector2::new(0.0, 40.0));
+    assert_eq!(first_pending.delta, Vector2::new(0.0, 80.0));
     assert_eq!(first_pending.modifiers, PointerModifiers::default());
     let first_sequence = first_pending
         .sequence_range
@@ -469,7 +527,7 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
     runner.input.last_cursor = Some(newest_position);
     runner.input.modifiers = ModifiersState::SHIFT;
     let second = runner.route_native_mouse_wheel_with_phase(
-        MouseScrollDelta::PixelDelta(PhysicalPosition::new(0.0, -10.0)),
+        MouseScrollDelta::PixelDelta(PhysicalPosition::new(-5.0, -10.0)),
         TouchPhase::Moved,
     );
     assert_eq!(
@@ -483,7 +541,7 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
         .pending_scroll_container_wheel
         .expect("phaseful ordinary burst should remain coalesced");
     assert_eq!(pending.position, newest_position);
-    assert_eq!(pending.delta, Vector2::new(0.0, 50.0));
+    assert_eq!(pending.delta, Vector2::new(0.0, 90.0));
     assert_eq!(
         pending.modifiers,
         PointerModifiers {
@@ -511,7 +569,7 @@ fn native_phaseful_scroll_container_burst_coalesces_delta_and_metadata() {
     assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
     let update = runner.core.runtime.bridge().scroll_updates[0];
     assert_eq!(update.position, newest_position);
-    assert_eq!(update.delta, Vector2::new(0.0, 50.0));
+    assert_eq!(update.delta, Vector2::new(0.0, 90.0));
     assert_eq!(update.metadata.modifiers, pending.modifiers);
     assert_eq!(update.metadata.timestamp, Some(newest_timestamp));
     assert_eq!(update.metadata.sequence_range, Some(pending_sequence));

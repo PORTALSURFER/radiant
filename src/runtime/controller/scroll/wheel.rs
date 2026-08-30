@@ -1,4 +1,13 @@
 //! Wheel routing for scrollable and wheel-aware runtime surfaces.
+//!
+//! Deltas reaching this module use logical scroll-offset direction. Native
+//! adapters perform platform sign and unit conversion once before routing;
+//! generic widget, controller, and layout paths do not flip the axes again.
+//! Exact unit and phase evidence is retained only when a qualified widget or
+//! policy route consumes a `WheelSample`; the native coalesced scroll-container
+//! fallback projects to one selected logical-pixel axis before controller
+//! routing. Direct exact-sample routing can retain both projected logical-pixel
+//! components.
 
 use super::super::CommandOutcome;
 use super::{ScrollUpdateMetadata, SurfaceRuntime};
@@ -60,13 +69,16 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    /// Route a legacy phase-less logical-pixel wheel input to a widget, then a
-    /// scroll container.
+    /// Route a legacy phase-less logical-pixel offset delta to a widget, then
+    /// a scroll container.
+    ///
+    /// Positive `x`/`y` increases the corresponding logical scroll offset.
     pub fn wheel_or_scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
         self.wheel_or_scroll_at_with_metadata(point, delta, PointerModifiers::default(), None, None)
     }
 
-    /// Route a legacy modified phase-less logical-pixel wheel input.
+    /// Route a legacy modified phase-less logical-pixel offset delta.
+    /// Positive `x`/`y` increases the corresponding logical scroll offset.
     pub fn wheel_or_scroll_at_with_modifiers(
         &mut self,
         point: Point,
@@ -76,7 +88,12 @@ where
         self.wheel_or_scroll_at_with_metadata(point, delta, modifiers, None, None)
     }
 
-    /// Route one exact unit- and phase-qualified wheel sample.
+    /// Route one exact unit- and phase-qualified wheel sample whose delta is
+    /// already in logical scroll-offset direction. Exact unit and phase
+    /// evidence is retained for a qualified widget or policy consumer. The
+    /// native coalesced scroll-container fallback receives one selected
+    /// logical-pixel axis without phase or unit evidence; direct exact-sample
+    /// routing can retain both projected logical-pixel components.
     pub fn wheel_or_scroll_at_with_sample(&mut self, point: Point, sample: WheelSample) -> bool {
         self.wheel_or_scroll_route_with_sample(point, sample, true, true)
             != WheelOrScrollRoute::NotRouted
@@ -124,6 +141,10 @@ where
     }
 
     /// Route an exact wheel sample while deferring host-surface refresh.
+    /// Qualified widget or policy consumers retain its unit and phase. The
+    /// native coalesced scroll-container fallback receives one selected
+    /// logical-pixel axis without phase or unit evidence; direct exact-sample
+    /// routing can retain both projected logical-pixel components.
     pub fn wheel_or_scroll_at_deferred_refresh_with_sample(
         &mut self,
         point: Point,

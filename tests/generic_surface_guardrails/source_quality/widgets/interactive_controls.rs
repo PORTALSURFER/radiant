@@ -191,7 +191,8 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
     );
     assert!(
         widget_impl.contains("impl Widget for InteractiveRowWidget")
-            && widget_impl.contains("fn accepts_pointer_move(&self)")
+            && widget_impl.contains("impl WidgetPointerMotion for InteractiveRowWidget")
+            && widget_impl.contains("fn capabilities(&self)")
             && widget_impl.contains("push_control_chrome"),
         "interactive-row widget trait implementation should live in widget_impl.rs"
     );

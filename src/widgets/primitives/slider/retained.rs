@@ -4,7 +4,9 @@ use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
-use crate::widgets::contract::{Widget, WidgetCapabilities, WidgetSemantics};
+use crate::widgets::contract::{
+    Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics,
+};
 use crate::widgets::interaction::{
     EditEvent, NumericAdjustment, PointerButton, SliderDomainError, SliderDomainMessage,
     SliderEditBatch, ValueFormat, WidgetInput, WidgetOutput,
@@ -181,6 +183,12 @@ impl WidgetSemantics for RetainedSliderWidget {
     }
 }
 
+impl WidgetPointerMotion for RetainedSliderWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl<A> WidgetSemantics for RetainedSliderDomainWidget<A>
 where
     A: NumericAdjustment<f32>,
@@ -204,6 +212,15 @@ where
         } else {
             Some(fallback())
         }
+    }
+}
+
+impl<A> WidgetPointerMotion for RetainedSliderDomainWidget<A>
+where
+    A: NumericAdjustment<f32>,
+{
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
     }
 }
 
@@ -245,12 +262,12 @@ impl Widget for RetainedSliderWidget {
         }
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(
@@ -294,12 +311,12 @@ where
         self.slider.synchronize_from_previous(&previous.slider);
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

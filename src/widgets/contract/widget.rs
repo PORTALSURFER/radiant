@@ -24,7 +24,8 @@ use std::time::Instant;
 use super::{
     paint::WidgetPaintContext,
     semantics::{
-        WIDGET_CAPABILITIES_CONTRACT_VERSION, WidgetCapabilities, fallback_automation_semantics,
+        WidgetCapabilities, WidgetCapabilitiesV2, automation_available_actions,
+        resolve_automation_semantics,
     },
 };
 use crate::gui::automation::AutomationNodeSemantics;
@@ -378,85 +379,74 @@ pub trait Widget: WidgetClone + Any {
         false
     }
 
-    /// Return whether this widget needs pointer-move events after hover state is stable.
+    /// Return whether this widget wants stable pointer-motion delivery and
+    /// transient pointer-state repaint opportunities.
     ///
-    /// Widgets that only use pointer motion to maintain hover/pressed state can
-    /// return `false`; the runtime still routes enter, leave, and captured drag
-    /// motion. Custom widgets default to `true` so richer pointer-driven
-    /// behavior is preserved unless a widget explicitly opts out.
-    ///
-    /// Keep this enabled when a widget updates local paint state from pointer
-    /// motion, such as a snapped timeline cursor, canvas hover highlight, or
-    /// resize handle preview. Stable pointer moves routed through this hook,
-    /// and captured drag moves routed to the active widget, request repaint
-    /// even when `handle_input` returns `None`, so widgets do not need to emit
-    /// host messages merely to refresh transient hover or drag chrome.
-    /// In short: request repaint even when `handle_input` returns `None` for
-    /// widget-local pointer preview state.
-    /// Widget-local pointer state does not need to emit host messages.
+    /// Stable pointer moves routed through this hook, and captured drag moves
+    /// routed to the active widget, request repaint even when `handle_input`
+    /// returns `None`, so widgets do not need to emit host messages merely to
+    /// refresh transient hover or drag chrome. The default preserves the
+    /// historical admission behavior.
     fn accepts_pointer_move(&self) -> bool {
         true
     }
 
-    /// Return whether this widget can be selected as the target for a direct pointer input.
+    /// Return whether this widget can be selected as the target for a direct
+    /// pointer input.
     ///
     /// The default is permissive so existing interactive widgets keep their
-    /// previous hit-testing behavior. Widgets that expose explicit event
-    /// policies, such as transparent pointer shields, can return `false` for
-    /// disabled pointer event kinds so stacked input layers do not shadow
-    /// lower layers that are intended to handle those events.
+    /// historical hit-testing behavior. Event-aware descriptors may provide a
+    /// more specific decision for individual input kinds.
     fn accepts_pointer_input(&self, _input: &WidgetInput) -> bool {
         true
     }
 
-    /// Return optional capabilities intentionally exported by this widget.
+    /// Return optional semantics intentionally exported by this widget through
+    /// the source-compatible v1 descriptor.
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::none()
     }
 
+    /// Return the additive v2 descriptor set for optional interaction behavior.
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::none()
+    }
+
     /// Return backend-neutral automation semantics for this widget.
     ///
-    /// This compatibility query dispatches through [`Self::capabilities`].
-    /// New custom widgets should implement [`super::semantics::WidgetSemantics`] and export it
-    /// through that descriptor; widgets that export no capability retain the
-    /// neutral custom-widget fallback semantics.
+    /// This compatibility query first observes the supported v2 semantics
+    /// descriptor, then the source-compatible v1 semantics descriptor. A
+    /// widget may override this virtual method when its automation snapshot is
+    /// not descriptor-derived.
     fn automation_semantics(&self) -> AutomationNodeSemantics {
-        let common = self.common();
-        let capabilities = self.capabilities();
-        if capabilities.contract_version == WIDGET_CAPABILITIES_CONTRACT_VERSION
-            && let Some(semantics) = capabilities.semantics
-        {
-            return semantics.resolve_automation_semantics(common);
-        }
-        fallback_automation_semantics(common)
+        resolve_automation_semantics(self.common(), self.capabilities(), self.capabilities_v2())
     }
 
     /// Return explicit automation action names when this widget's interaction
-    /// policy is richer than the role-derived defaults.
+    /// policy is richer than role-derived defaults.
     ///
-    /// The default keeps the snapshot contract role-derived. Runtime dispatch
-    /// still treats this list as advertisement only and revalidates the live
-    /// widget capability before invoking an action.
+    /// The default resolves v2 semantics first and then valid v1 semantics.
+    /// Advertisement is observational only; runtime action dispatch remains a
+    /// separate authority boundary.
     fn automation_available_actions(&self) -> Option<Vec<String>> {
-        None
+        automation_available_actions(self.capabilities(), self.capabilities_v2())
     }
 
     /// Return whether other widgets under the pointer may receive pointer-move
     /// events while this widget owns pointer capture.
     ///
     /// Keep this enabled for drag sources that need live drop-target hover
-    /// feedback. Disable it for exclusive controls such as splitters and resize
-    /// handles where moving away from the handle should not activate unrelated
-    /// hover surfaces before release.
+    /// feedback. Disable it for exclusive controls such as splitters and
+    /// resize handles. The v2 pointer-motion descriptor takes precedence when
+    /// it is supported and present.
     fn allows_captured_pointer_pass_through(&self) -> bool {
         true
     }
 
     /// Return this widget's pointer routing behavior while it owns capture.
     ///
-    /// Implement this for new widgets. The default preserves the older
-    /// [`Self::allows_captured_pointer_pass_through`] contract so existing
-    /// custom widgets keep their current behavior.
+    /// The default preserves the historical boolean hook semantics so existing
+    /// custom widgets retain their behavior.
     fn pointer_capture_policy(&self) -> PointerCapturePolicy {
         if self.allows_captured_pointer_pass_through() {
             PointerCapturePolicy::PassThrough
@@ -468,20 +458,18 @@ pub trait Widget: WidgetClone + Any {
     /// Return the cursor this widget wants at `point` inside `bounds`.
     ///
     /// Returning `None` lets the runtime continue with the default cursor.
-    /// Implementations should compute this directly from widget state and
-    /// geometry; the runtime may call it on every pointer move.
+    /// The v2 hit-test descriptor takes precedence when it is supported and
+    /// present.
     fn cursor_for_point(&self, _bounds: Rect, _point: Point) -> Option<WidgetCursor> {
         None
     }
 
-    /// Return whether stable pointer motion can redraw this widget through
-    /// [`Self::append_runtime_overlay_paint`] without rebuilding the base scene.
+    /// Return whether stable pointer motion may repaint only through
+    /// [`Self::append_runtime_overlay_paint`].
     ///
-    /// Use this for editor affordances whose pointer-following visuals are
-    /// fully transient, such as timeline cursors, hover handles, captured drag
-    /// previews, or small selection markers. Widgets that paint pointer-motion
-    /// state in [`Self::append_paint`] should keep the default `false` so the
-    /// runtime rebuilds the scene when local pointer state changes.
+    /// The runtime additionally requires valid v2 overlay evidence before it
+    /// takes the paint-only path. The legacy hook remains the fallback when no
+    /// supported v2 pointer-motion descriptor is present.
     fn prefers_pointer_move_paint_only(&self) -> bool {
         false
     }

@@ -1,4 +1,8 @@
 use radiant::prelude::*;
+use radiant::widgets::{
+    WidgetCapabilities, WidgetHitTest, WidgetHitTestRevision, WidgetPointerMotion,
+    WidgetPointerMotionRevision,
+};
 
 use super::super::{
     PianoRollMessage,
@@ -13,6 +17,40 @@ use super::super::{
         append_velocity_lane,
     },
 };
+
+impl WidgetPointerMotion for PianoRollWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
+
+impl WidgetHitTest for PianoRollWidget {
+    fn revision(&self) -> WidgetHitTestRevision {
+        WidgetHitTestRevision::conservative()
+    }
+
+    fn cursor_for_point(&self, bounds: Rect, point: Point) -> Option<WidgetCursor> {
+        match self.drag.as_ref() {
+            Some(PianoDrag::ResizeStart { .. }) => return Some(WidgetCursor::ResizeLeft),
+            Some(PianoDrag::ResizeEnd { .. }) => return Some(WidgetCursor::ResizeRight),
+            _ => {}
+        }
+        let grid = self.editor_rect(bounds);
+        match self.note_resize_edge_at_position(grid, point) {
+            Some((_, super::NoteResizeEdge::Start)) => Some(WidgetCursor::ResizeLeft),
+            Some((_, super::NoteResizeEdge::End)) => Some(WidgetCursor::ResizeRight),
+            None => None,
+        }
+    }
+}
 
 impl Widget for PianoRollWidget {
     fn common(&self) -> &WidgetCommon {
@@ -106,26 +144,18 @@ impl Widget for PianoRollWidget {
         }
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
-    }
-
     fn accepts_wheel_input(&self) -> bool {
         true
     }
 
-    fn cursor_for_point(&self, bounds: Rect, point: Point) -> Option<WidgetCursor> {
-        match self.drag.as_ref() {
-            Some(PianoDrag::ResizeStart { .. }) => return Some(WidgetCursor::ResizeLeft),
-            Some(PianoDrag::ResizeEnd { .. }) => return Some(WidgetCursor::ResizeRight),
-            _ => {}
-        }
-        let grid = self.editor_rect(bounds);
-        match self.note_resize_edge_at_position(grid, point) {
-            Some((_, super::NoteResizeEdge::Start)) => Some(WidgetCursor::ResizeLeft),
-            Some((_, super::NoteResizeEdge::End)) => Some(WidgetCursor::ResizeRight),
-            None => None,
-        }
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+        radiant::widgets::WidgetCapabilitiesV2::new()
+            .with_pointer_motion(self)
+            .with_hit_test(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

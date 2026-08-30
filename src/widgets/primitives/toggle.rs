@@ -18,8 +18,9 @@ use super::support::{
     },
 };
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics,
-    WidgetSemanticsRevision, WidgetSizing,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision,
+    WidgetSizing,
 };
 use crate::widgets::interaction::{
     InteractionProvenance, ToggleMessage, WidgetInput, WidgetOutput,
@@ -118,6 +119,16 @@ impl WidgetSemantics for ToggleWidget {
     }
 }
 
+impl WidgetPointerMotion for ToggleWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TogglePaintRevision {
     common: CommonPaintRevision,
@@ -182,12 +193,12 @@ impl Widget for ToggleWidget {
         ToggleWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

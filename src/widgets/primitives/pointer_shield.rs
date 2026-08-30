@@ -1,10 +1,14 @@
 //! Transparent pointer interception primitive for modal and loading overlays.
 
-use crate::gui::types::Rect;
+use crate::gui::types::{Point, Rect};
 use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
-use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetHitTest, WidgetHitTestResult,
+    WidgetHitTestRevision, WidgetId, WidgetPointerMotion, WidgetPointerMotionRevision,
+    WidgetSizing,
+};
 use crate::widgets::interaction::{PointerShieldMessage, WidgetInput, WidgetOutput};
 use crate::widgets::primitives::support::WidgetCommon;
 
@@ -219,24 +223,32 @@ impl PointerShieldWidget {
     }
 }
 
-impl Widget for PointerShieldWidget {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
+impl WidgetHitTest for PointerShieldWidget {
+    fn revision(&self) -> WidgetHitTestRevision {
+        WidgetHitTestRevision::exact(self.props)
     }
 
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
+    fn hit_test(&self, _bounds: Rect, _point: Point, input: &WidgetInput) -> WidgetHitTestResult {
+        if self.allows_pointer_event(input) {
+            WidgetHitTestResult::Opaque
+        } else {
+            WidgetHitTestResult::PassThrough
+        }
     }
+}
 
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        PointerShieldWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+impl WidgetPointerMotion for PointerShieldWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact((self.props.active, self.props.pointer_move))
     }
 
     fn accepts_pointer_move(&self) -> bool {
         self.props.active && self.props.pointer_move
     }
+}
 
-    fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
+impl PointerShieldWidget {
+    fn allows_pointer_event(&self, input: &WidgetInput) -> bool {
         if !self.props.active {
             return false;
         }
@@ -254,6 +266,30 @@ impl Widget for PointerShieldWidget {
             | WidgetInput::Character { .. }
             | WidgetInput::TextEdit { .. } => true,
         }
+    }
+}
+
+impl Widget for PointerShieldWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        PointerShieldWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new()
+            .with_hit_test(self)
+            .with_pointer_motion(self)
     }
 
     fn accepts_wheel_input(&self) -> bool {

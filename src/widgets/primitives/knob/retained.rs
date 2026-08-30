@@ -4,7 +4,9 @@ use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
-use crate::widgets::contract::{Widget, WidgetCapabilities, WidgetSemantics};
+use crate::widgets::contract::{
+    Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics,
+};
 use crate::widgets::interaction::{
     EditEvent, KnobEditBatch, ValueFormat, WidgetInput, WidgetOutput,
 };
@@ -70,6 +72,12 @@ impl WidgetSemantics for RetainedKnobWidget {
     }
 }
 
+impl WidgetPointerMotion for RetainedKnobWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl Widget for RetainedKnobWidget {
     fn common(&self) -> &WidgetCommon {
         &self.knob.common
@@ -112,16 +120,16 @@ impl Widget for RetainedKnobWidget {
         }
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
     fn accepts_wheel_input(&self) -> bool {
         true
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

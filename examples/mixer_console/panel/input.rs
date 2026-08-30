@@ -2,10 +2,26 @@ use super::super::MixerPanelMessage;
 use super::super::paint::push_stroke;
 use super::{MixerDragTarget, MixerPanelWidget};
 use radiant::prelude::*;
-use radiant::widgets::PointerModifiers;
+use radiant::widgets::{
+    PointerModifiers, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision,
+};
 
 #[path = "input/press.rs"]
 mod press;
+
+impl WidgetPointerMotion for MixerPanelWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
 
 impl Widget for MixerPanelWidget {
     fn common(&self) -> &WidgetCommon {
@@ -45,8 +61,12 @@ impl Widget for MixerPanelWidget {
         }
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+        radiant::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

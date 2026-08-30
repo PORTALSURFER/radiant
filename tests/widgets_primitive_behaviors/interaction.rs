@@ -1,4 +1,5 @@
 use super::*;
+use radiant::widgets::WidgetPointerMotion;
 
 fn programmatic_activation() -> InteractiveRowMessage {
     InteractiveRowMessage::Activate {
@@ -430,14 +431,14 @@ fn interactive_row_can_report_active_drag_source_motion_after_refresh() {
 fn interactive_row_can_limit_pointer_motion_to_active_interactions() {
     let mut row = InteractiveRowWidget::new(40, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
         .with_pointer_motion_during_interaction();
-    assert!(!row.accepts_pointer_move());
+    assert!(!WidgetPointerMotion::accepts_pointer_move(&row));
 
     row.common.state.pressed = true;
-    assert!(row.accepts_pointer_move());
+    assert!(WidgetPointerMotion::accepts_pointer_move(&row));
 
     row.common.state.pressed = false;
     row = row.with_pointer_motion_active(true);
-    assert!(row.accepts_pointer_move());
+    assert!(WidgetPointerMotion::accepts_pointer_move(&row));
 }
 
 #[test]
@@ -620,7 +621,7 @@ fn pointer_shield_stays_quiet_when_inactive_or_outside_bounds() {
     let inactive = PointerShieldWidget::fill(false);
     let active = PointerShieldWidget::fill(true);
 
-    assert!(!inactive.accepts_pointer_move());
+    assert!(!WidgetPointerMotion::accepts_pointer_move(&inactive));
     assert!(inactive.common.state.disabled);
     assert_eq!(
         inactive.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 8.0)),),

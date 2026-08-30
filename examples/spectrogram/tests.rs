@@ -1,5 +1,6 @@
 use super::*;
 use radiant::runtime::{RuntimeBridge, SurfaceRuntime};
+use radiant::widgets::WidgetPointerMotion;
 
 #[test]
 fn spectrogram_tick_scrolls_synthetic_columns_without_dsp() {
@@ -81,7 +82,7 @@ fn spectrogram_hover_uses_paint_only_widget_local_state() {
     assert!(output.is_none());
     assert_eq!(widget.hover_column, Some(model::COLUMNS / 2));
     assert!(
-        widget.prefers_pointer_move_paint_only(),
+        WidgetPointerMotion::prefers_pointer_move_paint_only(&widget),
         "spectrogram hover should stay on the runtime-local paint-only path"
     );
     let mut overlay = Vec::new();

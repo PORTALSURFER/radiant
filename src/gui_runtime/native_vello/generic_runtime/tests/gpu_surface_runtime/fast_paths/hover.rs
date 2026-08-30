@@ -357,6 +357,16 @@ impl TestPassivePointerHitWidget {
     }
 }
 
+impl crate::widgets::WidgetPointerMotion for TestPassivePointerHitWidget {
+    fn revision(&self) -> crate::widgets::WidgetPointerMotionRevision {
+        crate::widgets::WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 impl Widget for TestPassivePointerHitWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -371,8 +381,12 @@ impl Widget for TestPassivePointerHitWidget {
             .then_some(WidgetOutput::typed(GpuHoverExitMessage))
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(
@@ -394,6 +408,12 @@ impl TestPointerMoveWidget {
     }
 }
 
+impl crate::widgets::WidgetPointerMotion for TestPointerMoveWidget {
+    fn revision(&self) -> crate::widgets::WidgetPointerMotionRevision {
+        crate::widgets::WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl Widget for TestPointerMoveWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -408,8 +428,12 @@ impl Widget for TestPointerMoveWidget {
             .then(|| WidgetOutput::typed(GpuHoverExitMessage))
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

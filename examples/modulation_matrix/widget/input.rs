@@ -1,4 +1,5 @@
 use radiant::prelude::*;
+use radiant::widgets::{WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision};
 
 use super::super::{
     DESTINATION_COUNT, MatrixCell, MatrixMessage, SOURCE_COUNT,
@@ -7,6 +8,20 @@ use super::super::{
     widget_paint::{append_activity_pulses, append_cell, append_labels, append_overlay_guides},
 };
 use super::ModulationMatrixWidget;
+
+impl WidgetPointerMotion for ModulationMatrixWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(self.drag_cell.is_none())
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        self.drag_cell.is_none()
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        self.drag_cell.is_none()
+    }
+}
 
 impl Widget for ModulationMatrixWidget {
     fn common(&self) -> &WidgetCommon {
@@ -52,8 +67,12 @@ impl Widget for ModulationMatrixWidget {
         }
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        self.drag_cell.is_none()
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+        radiant::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

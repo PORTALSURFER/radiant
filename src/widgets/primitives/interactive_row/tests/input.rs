@@ -1,5 +1,6 @@
 use super::*;
 use crate::gui::input::{InputSequence, InputSequenceRange, InputTimestamp};
+use crate::widgets::WidgetPointerMotion;
 
 #[test]
 fn accessors_expose_identity_and_common_contract_for_custom_row_wrappers() {
@@ -393,7 +394,7 @@ fn synthetic_pointer_move_and_non_move_messages_use_default_metadata() {
 fn ordinary_hover_does_not_keep_stable_pointer_motion_routed_by_default() {
     let mut row = InteractiveRowWidget::new(19, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
 
-    assert!(!row.accepts_pointer_move());
+    assert!(!WidgetPointerMotion::accepts_pointer_move(&row));
     assert_eq!(
         row.handle_input(
             Rect::from_size(120.0, 22.0),
@@ -409,7 +410,7 @@ fn explicit_hover_messages_keep_stable_pointer_motion_routed() {
     let row = InteractiveRowWidget::new(20, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
         .with_hover_messages(true);
 
-    assert!(row.accepts_pointer_move());
+    assert!(WidgetPointerMotion::accepts_pointer_move(&row));
 }
 
 #[test]
@@ -424,10 +425,10 @@ fn inert_drag_active_rows_do_not_accept_stable_pointer_motion() {
         InteractiveRowWidget::new(24, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
             .with_tracked_drop_candidate(true, false, false, false);
 
-    assert!(!drag_active.accepts_pointer_move());
-    assert!(!drag_source.accepts_pointer_move());
-    assert!(!drop_only.accepts_pointer_move());
-    assert!(!non_candidate.accepts_pointer_move());
+    assert!(!WidgetPointerMotion::accepts_pointer_move(&drag_active));
+    assert!(!WidgetPointerMotion::accepts_pointer_move(&drag_source));
+    assert!(!WidgetPointerMotion::accepts_pointer_move(&drop_only));
+    assert!(!WidgetPointerMotion::accepts_pointer_move(&non_candidate));
 }
 
 #[test]
@@ -441,9 +442,9 @@ fn active_drag_work_keeps_stable_pointer_motion_routed() {
     let drop_clear = InteractiveRowWidget::new(27, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
         .with_tracked_drop_candidate(true, false, false, true);
 
-    assert!(source_motion.accepts_pointer_move());
-    assert!(drop_hover.accepts_pointer_move());
-    assert!(drop_clear.accepts_pointer_move());
+    assert!(WidgetPointerMotion::accepts_pointer_move(&source_motion));
+    assert!(WidgetPointerMotion::accepts_pointer_move(&drop_hover));
+    assert!(WidgetPointerMotion::accepts_pointer_move(&drop_clear));
 }
 
 #[test]

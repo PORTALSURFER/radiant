@@ -5,12 +5,15 @@ fn pointer_move_repaint_contract_is_documented() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("Radiant API docs should be readable");
-    let contract = fs::read_to_string(manifest_dir.join("src/widgets/contract/widget.rs"))
-        .expect("Radiant widget trait contract should be readable");
+    let contract = fs::read_to_string(manifest_dir.join("src/widgets/contract/pointer_motion.rs"))
+        .expect("Radiant pointer-motion capability contract should be readable");
 
     for required in [
-        "Widget::accepts_pointer_move()",
-        "Widget::prefers_pointer_move_paint_only()",
+        "WidgetPointerMotion::accepts_pointer_move()",
+        "WidgetPointerMotion::prefers_pointer_move_paint_only()",
+        "WidgetPointerMotion::pointer_capture_policy()",
+        "WidgetPointerMotion::pointer_move_overlay_is_valid()",
+        "WidgetHitTest::hit_test(...)",
         "Widget::append_runtime_overlay_paint(...)",
         "WidgetCommon::with_pointer_focus()",
         "WidgetCommon::with_keyboard_focus()",
@@ -32,7 +35,7 @@ fn pointer_move_repaint_contract_is_documented() {
     ] {
         assert!(
             contract.contains(required),
-            "Widget contract should explain local pointer-move repaint behavior with `{required}`"
+            "WidgetPointerMotion contract should explain local pointer-move repaint behavior with `{required}`"
         );
     }
 }

@@ -4831,10 +4831,10 @@ path may derive or explicitly supply separate structure, geometry, paint, and
 interaction components. Reconciliation compares those components with the
 prior widget of the same generated runtime identity and selects the
 corresponding safe invalidation path. Public widgets never request raw repaint
-scopes. The interaction component includes the exact exported
-`WidgetCapabilities` descriptor and each capability's revision, so a changed
-semantic role, hit shape, text-editing behavior, overlay behavior, or animation
-contract never leaves stale interaction state active.
+scopes. The interaction component includes the exact exported v1/v2 widget
+capability descriptors and each capability's revision, so a changed semantic
+role, hit shape, text-editing behavior, overlay behavior, or animation contract
+never leaves stale interaction state active.
 
 Revision components are exact comparable typed values. Hashes may be used as a
 fast rejection prefilter, but a matching hash never by itself proves unchanged
@@ -4873,31 +4873,51 @@ classDiagram
 Containers do not move into the widget trait merely to achieve a uniform type
 hierarchy. Custom widgets remain supported through a stable extension point.
 
-Optional widget behavior is declared through one defaulted descriptor method,
-before the widget is erased into the runtime entry. The ordinary widget path
-returns no capabilities and pays no configuration cost.
+Optional widget behavior is declared through defaulted descriptor methods before
+the widget is erased into the runtime entry. The ordinary widget path returns
+no capabilities and pays no configuration cost. `WidgetCapabilities<'a>` is the
+historical source-compatible v1 descriptor: it is semantics-only, retains its
+two public fields (`contract_version` and `semantics`), and is returned by
+`Widget::capabilities()`. Existing two-field literals and semantics-only custom
+widgets therefore remain valid.
+
+`WidgetCapabilitiesV2<'a>` is the additive optional-behavior descriptor set.
+Its fields are private and its borrowed, `Copy`, object-safe builders and
+accessors cover optional `WidgetSemantics`, `WidgetHitTest`, and
+`WidgetPointerMotion` capabilities. It is returned by the defaulted
+`Widget::capabilities_v2()` method. Supported v2 descriptors take precedence
+over the corresponding legacy pointer-motion, hit-input, capture-policy,
+cursor, and paint-only hooks. An absent or unsupported v2 descriptor falls back
+to those legacy hooks and their historical defaults; supported v2 semantics and
+automation actions fall back to valid v1 semantics/actions and then neutral
+defaults. Unknown v1 versions do not enable v1 semantics or actions.
 
 ```rust
-trait Widget<Message> {
+trait Widget {
     // measure, input, and paint core omitted
 
-    fn capabilities(&self) -> WidgetCapabilities<'_, Message> {
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::none()
     }
 }
 ```
 
-`WidgetCapabilities` contains explicit optional references to capabilities such
-as `WidgetSemantics`, `WidgetHitTest`, text editing, overlay paint, or
-`Animatable`. Radiant obtains that short-lived descriptor through the widget's
-object-safe method whenever it needs a capability; the concrete widget remains
-owned by the erased entry for that call. It does not attempt unsupported runtime
-trait discovery on an erased `dyn Widget<Message>` or retain self-referential
-capability references. `capabilities()` is pure, allocation-free, and returns a
-compact descriptor; the runtime calls it only after normal visibility, clip, or
-input-candidate culling has selected the node. A custom extension therefore
-cannot turn a pointer move, semantic query, or paint pass into hidden setup
-work.
+`WidgetCapabilities` contains only the explicit v1 semantics reference.
+`WidgetCapabilitiesV2` contains the explicit v2 references to `WidgetSemantics`,
+`WidgetHitTest`, and `WidgetPointerMotion`. Radiant obtains each short-lived
+descriptor through the widget's object-safe method whenever it needs a
+capability; the concrete widget remains owned by the erased entry for that
+call. It does not attempt unsupported runtime trait discovery on an erased
+`dyn Widget` or retain self-referential capability references. Both descriptor
+methods are pure, allocation-free, and queried only after normal visibility,
+clip, or input-candidate culling has selected the node. A custom extension
+therefore cannot turn a pointer move, semantic query, or paint pass into hidden
+setup work or acquire focus, capture, scheduling, renderer, or application
+authority.
 
 An interactive custom widget opts into the focused `WidgetSemantics` capability
 when it contributes accessibility information. That capability appends typed
@@ -4927,8 +4947,14 @@ impl Widget<Message> for MeterWidget {
         // Paint only inside assigned bounds; no layout or renderer-cache access.
     }
 
-    fn capabilities(&self) -> WidgetCapabilities<'_, Message> {
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::new()
+            .with_hit_test(self)
+            .with_pointer_motion(self)
     }
 }
 ```

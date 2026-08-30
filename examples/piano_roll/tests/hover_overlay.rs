@@ -1,4 +1,5 @@
 use super::*;
+use radiant::widgets::{WidgetHitTest, WidgetPointerMotion};
 
 #[test]
 fn piano_roll_hover_uses_paint_only_runtime_overlay() {
@@ -15,7 +16,9 @@ fn piano_roll_hover_uses_paint_only_runtime_overlay() {
 
     assert!(output.is_none());
     assert_eq!(widget.hover_note, Some(2));
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,
@@ -89,7 +92,8 @@ fn piano_roll_hover_paints_left_resize_bracket_cursor() {
 
     assert_eq!(widget.hover_note_resize_edge, Some(NoteResizeEdge::Start));
     assert_eq!(
-        widget.cursor_for_point(
+        WidgetHitTest::cursor_for_point(
+            &widget,
             bounds,
             Point::new(note_rect.min.x + 2.0, note_rect.center().y)
         ),
@@ -132,7 +136,8 @@ fn piano_roll_hover_paints_right_resize_bracket_cursor() {
 
     assert_eq!(widget.hover_note_resize_edge, Some(NoteResizeEdge::End));
     assert_eq!(
-        widget.cursor_for_point(
+        WidgetHitTest::cursor_for_point(
+            &widget,
             bounds,
             Point::new(note_rect.max.x - 2.0, note_rect.center().y)
         ),
@@ -164,7 +169,9 @@ fn piano_roll_hover_lights_left_keyboard_note_row() {
 
     assert!(output.is_none());
     assert_eq!(widget.hover_pitch, Some(pitch));
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

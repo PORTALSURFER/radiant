@@ -5,6 +5,7 @@ use super::{
 };
 use radiant::prelude::*;
 use radiant::runtime::{RuntimeBridge, SurfaceRuntime};
+use radiant::widgets::WidgetPointerMotion;
 
 #[test]
 fn modulation_matrix_tick_advances_synthetic_activity_without_synth_or_dsp() {
@@ -79,7 +80,9 @@ fn modulation_matrix_drag_routes_bipolar_amount_change() {
             amount: widget.amount_for_position(rect, Point::new(rect.center().x, rect.min.y + 1.0))
         })
     );
-    assert!(!widget.prefers_pointer_move_paint_only());
+    assert!(!WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
 }
 
 #[test]
@@ -101,7 +104,9 @@ fn modulation_matrix_hover_uses_paint_only_runtime_overlay() {
 
     assert!(output.is_none());
     assert_eq!(widget.hover_cell, Some(cell));
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

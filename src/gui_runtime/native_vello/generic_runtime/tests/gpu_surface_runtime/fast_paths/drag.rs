@@ -18,6 +18,10 @@ fn active_runtime_drag_moves_through_transient_overlay_without_scene_rebuild() {
             DragPreview::sized("Loops", Vector2::new(150.0, 24.0)),
             Point::new(30.0, 20.0),
         )));
+    assert!(
+        runner.core.runtime.drag_preview_overlay_is_valid(),
+        "framework drag previews must prove a valid transient overlay before paint-only routing"
+    );
 
     runner.rebuild_scene();
     assert!(

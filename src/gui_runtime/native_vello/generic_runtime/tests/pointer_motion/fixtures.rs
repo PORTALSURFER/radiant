@@ -171,6 +171,20 @@ impl PaintOnlyPointerMoveWidget {
     }
 }
 
+impl crate::widgets::WidgetPointerMotion for PaintOnlyPointerMoveWidget {
+    fn revision(&self) -> crate::widgets::WidgetPointerMotionRevision {
+        crate::widgets::WidgetPointerMotionRevision::exact(true)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
+
 impl Widget for PaintOnlyPointerMoveWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -180,8 +194,12 @@ impl Widget for PaintOnlyPointerMoveWidget {
         &mut self.common
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {

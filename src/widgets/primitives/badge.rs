@@ -7,7 +7,8 @@ use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+    FocusBehavior, Widget, WidgetId, WidgetPointerMotion, WidgetPointerMotionRevision,
+    WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{BadgeMessage, WidgetInput, WidgetOutput};
 
@@ -90,6 +91,16 @@ impl BadgeWidget {
     }
 }
 
+impl WidgetPointerMotion for BadgeWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 impl Widget for BadgeWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -103,8 +114,12 @@ impl Widget for BadgeWidget {
         BadgeWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

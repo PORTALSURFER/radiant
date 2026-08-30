@@ -27,9 +27,9 @@ use radiant::{
         ButtonWidget, CanvasMessage, DragHandleMessage, DragHandleMetadata, DragHandleWidget,
         FocusLossDecision, GpuSurfaceMessage, GpuSurfaceWidget, PointerButton, PointerModifiers,
         RetainedSurfaceDescriptor, TextEditCommand, TextInputWidget, TextWidget, Widget,
-        WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence,
-        WidgetSemantics, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
-        resolve_widget_visual_tokens,
+        WidgetCapabilities, WidgetCommon, WidgetCursor, WidgetHitTest, WidgetHitTestRevision,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetProminence, WidgetSemantics, WidgetSizing,
+        WidgetState, WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
     },
 };
 use std::sync::{Arc, Mutex};
@@ -688,6 +688,17 @@ fn surface_runtime_resolves_widget_cursor_at_hit_tested_point() {
         common: WidgetCommon,
     }
 
+    impl WidgetHitTest for CursorWidget {
+        fn revision(&self) -> WidgetHitTestRevision {
+            WidgetHitTestRevision::exact(())
+        }
+
+        fn cursor_for_point(&self, bounds: Rect, point: Point) -> Option<WidgetCursor> {
+            (bounds.contains(point) && point.x <= bounds.center().x)
+                .then_some(WidgetCursor::ResizeLeft)
+        }
+    }
+
     impl Widget for CursorWidget {
         fn common(&self) -> &WidgetCommon {
             &self.common
@@ -701,9 +712,12 @@ fn surface_runtime_resolves_widget_cursor_at_hit_tested_point() {
             None
         }
 
-        fn cursor_for_point(&self, bounds: Rect, point: Point) -> Option<WidgetCursor> {
-            (bounds.contains(point) && point.x <= bounds.center().x)
-                .then_some(WidgetCursor::ResizeLeft)
+        fn capabilities(&self) -> WidgetCapabilities<'_> {
+            WidgetCapabilities::none()
+        }
+
+        fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+            radiant::widgets::WidgetCapabilitiesV2::new().with_hit_test(self)
         }
 
         fn append_paint(

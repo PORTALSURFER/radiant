@@ -7,11 +7,36 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        contract::Widget,
+        contract::{Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision},
         interaction::{InteractiveRowMessage, WidgetInput, WidgetOutput},
         primitives::support::WidgetCommon,
     },
 };
+
+impl<T> WidgetPointerMotion for T
+where
+    T: EmbeddedInteractiveRowWidget,
+{
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotion::revision(self.interactive_row())
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        WidgetPointerMotion::accepts_pointer_move(self.interactive_row())
+    }
+
+    fn pointer_capture_policy(&self) -> crate::widgets::PointerCapturePolicy {
+        WidgetPointerMotion::pointer_capture_policy(self.interactive_row())
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        WidgetPointerMotion::prefers_pointer_move_paint_only(self.interactive_row())
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        WidgetPointerMotion::pointer_move_overlay_is_valid(self.interactive_row())
+    }
+}
 
 /// Custom widget contract for widgets built around an embedded interactive row.
 ///
@@ -78,8 +103,12 @@ where
             .map(WidgetOutput::typed)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        self.interactive_row().accepts_pointer_move()
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

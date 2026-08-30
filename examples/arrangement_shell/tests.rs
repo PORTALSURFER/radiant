@@ -5,6 +5,7 @@ use super::{
 };
 use radiant::prelude::*;
 use radiant::runtime::{RuntimeBridge, SurfaceRuntime};
+use radiant::widgets::WidgetPointerMotion;
 
 #[test]
 fn arrangement_shell_tick_advances_playhead_and_meters_without_audio_or_dsp() {
@@ -141,7 +142,9 @@ fn arrangement_shell_hover_uses_paint_only_runtime_overlay() {
 
     assert!(output.is_none());
     assert_eq!(widget.hover_clip, Some(2));
-    assert!(widget.prefers_pointer_move_paint_only());
+    assert!(WidgetPointerMotion::prefers_pointer_move_paint_only(
+        &widget
+    ));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,

@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{
-    FocusBehavior, PointerCapturePolicy, Widget, WidgetId, WidgetSizing,
+    FocusBehavior, PointerCapturePolicy, Widget, WidgetId, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSizing,
 };
 use crate::widgets::interaction::{DragHandleMessage, WidgetInput, WidgetOutput};
 
@@ -100,6 +101,20 @@ impl DragHandleWidget {
     }
 }
 
+impl WidgetPointerMotion for DragHandleWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact((false, PointerCapturePolicy::Exclusive))
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
+    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
+        PointerCapturePolicy::Exclusive
+    }
+}
+
 impl Widget for DragHandleWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -145,16 +160,12 @@ impl Widget for DragHandleWidget {
         true
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
     }
 
-    fn allows_captured_pointer_pass_through(&self) -> bool {
-        false
-    }
-
-    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
-        PointerCapturePolicy::Exclusive
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

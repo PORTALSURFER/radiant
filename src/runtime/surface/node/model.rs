@@ -419,7 +419,7 @@ impl<Message> SurfaceNode<Message> {
             self.automation_semantics(),
         );
         if let Self::Widget(widget) = self
-            && let Some(actions) = widget.widget().automation_available_actions()
+            && let Some(actions) = widget.automation_available_actions()
         {
             snapshot.available_actions = actions;
         }
@@ -433,7 +433,7 @@ impl<Message> SurfaceNode<Message> {
                 AutomationNodeSemantics::new(AutomationRole::Group)
             }
             Self::Overlay(_) => AutomationNodeSemantics::new(AutomationRole::Panel),
-            Self::Widget(widget) => widget.widget().automation_semantics(),
+            Self::Widget(widget) => widget.automation_semantics(),
         }
     }
 
@@ -494,7 +494,7 @@ impl<Message> SurfaceNode<Message> {
             accepts_pointer_move: widget.accepts_pointer_move(),
             captured: pointer_capture == Some(widget.id()),
             state: common.state,
-            semantics: widget.widget().automation_semantics(),
+            semantics: widget.automation_semantics(),
         })
     }
 

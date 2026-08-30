@@ -146,6 +146,12 @@ impl HoverTargetWidget {
     }
 }
 
+impl crate::widgets::WidgetPointerMotion for HoverTargetWidget {
+    fn revision(&self) -> crate::widgets::WidgetPointerMotionRevision {
+        crate::widgets::WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl Widget for HoverTargetWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -160,8 +166,12 @@ impl Widget for HoverTargetWidget {
             .then_some(WidgetOutput::typed(DropMessage::TargetHover))
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(
@@ -238,6 +248,12 @@ impl DropTargetWidget {
     }
 }
 
+impl crate::widgets::WidgetPointerMotion for DropTargetWidget {
+    fn revision(&self) -> crate::widgets::WidgetPointerMotionRevision {
+        crate::widgets::WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl Widget for DropTargetWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -255,8 +271,12 @@ impl Widget for DropTargetWidget {
         }
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

@@ -2,11 +2,14 @@ use super::super::{DemoMessage, widget_ref};
 use radiant::{
     layout::{Point, Rect, Vector2},
     runtime::{
-        Event, PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
+        Event, PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
         WidgetMessageMapper, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
-    widgets::{PointerButton, Widget, WidgetCommon, WidgetInput, WidgetSizing},
+    widgets::{
+        PointerButton, Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetPointerMotion,
+        WidgetPointerMotionRevision, WidgetSizing,
+    },
 };
 use std::sync::Arc;
 
@@ -108,6 +111,7 @@ pub(crate) struct PointerMotionProbeWidget {
     continuous_pointer_move: bool,
     paint_only_pointer_move: bool,
     pub(crate) moves: usize,
+    last_position: Option<Point>,
 }
 
 impl PointerMotionProbeWidget {
@@ -135,7 +139,29 @@ impl PointerMotionProbeWidget {
             continuous_pointer_move,
             paint_only_pointer_move,
             moves: 0,
+            last_position: None,
         }
+    }
+}
+
+impl WidgetPointerMotion for PointerMotionProbeWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact((
+            self.continuous_pointer_move,
+            self.paint_only_pointer_move,
+        ))
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        self.continuous_pointer_move
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        self.paint_only_pointer_move
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        self.paint_only_pointer_move
     }
 }
 
@@ -148,12 +174,12 @@ impl Widget for PointerMotionProbeWidget {
         &mut self.common
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        self.continuous_pointer_move
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        self.paint_only_pointer_move
+    fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+        radiant::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn handle_input(
@@ -164,6 +190,7 @@ impl Widget for PointerMotionProbeWidget {
         match input {
             WidgetInput::PointerMove { position, .. } => {
                 self.moves += 1;
+                self.last_position = Some(position);
                 self.common.state.hovered = bounds.contains(position);
             }
             WidgetInput::PointerPress { position, .. } => {
@@ -186,5 +213,26 @@ impl Widget for PointerMotionProbeWidget {
         _layout: &radiant::layout::LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+    }
+
+    fn append_runtime_overlay_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        let Some(position) = self.last_position else {
+            return;
+        };
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(
+                Point::new(position.x - 1.0, bounds.min.y),
+                Point::new(position.x + 1.0, bounds.max.y),
+            )
+            .clamp_to(bounds),
+            color: theme.highlight_orange,
+        }));
     }
 }

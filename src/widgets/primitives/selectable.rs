@@ -7,7 +7,8 @@ use crate::theme::ThemeTokens;
 
 use super::{ColorMarkerProps, support::WidgetCommon};
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{SelectableMessage, WidgetInput, WidgetOutput};
 
@@ -98,6 +99,16 @@ impl WidgetSemantics for SelectableWidget {
     }
 }
 
+impl WidgetPointerMotion for SelectableWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 impl Widget for SelectableWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -111,12 +122,12 @@ impl Widget for SelectableWidget {
         SelectableWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

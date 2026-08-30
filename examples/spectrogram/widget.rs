@@ -1,6 +1,8 @@
 use radiant::gui::visualization::HorizontalValueAxis;
 use radiant::prelude::*;
-use radiant::widgets::PaintBounds;
+use radiant::widgets::{
+    PaintBounds, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision,
+};
 
 #[path = "widget/paint.rs"]
 mod paint;
@@ -50,6 +52,20 @@ impl SpectrogramWidget {
     }
 }
 
+impl WidgetPointerMotion for SpectrogramWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
+
 impl Widget for SpectrogramWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -81,8 +97,12 @@ impl Widget for SpectrogramWidget {
         }
     }
 
-    fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+        radiant::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

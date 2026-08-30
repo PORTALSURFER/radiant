@@ -4,7 +4,10 @@ use crate::gui::{svg::SvgIcon, types::Rect};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, inset_rect};
 use crate::theme::ThemeTokens;
-use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetPointerMotion, WidgetPointerMotionRevision,
+    WidgetSizing,
+};
 use crate::widgets::interaction::{
     ActivationInputPolicy, ButtonMessage, InteractionProvenance, WidgetInput, WidgetOutput,
     handle_activation_input,
@@ -81,6 +84,12 @@ impl IconButtonWidget {
     }
 }
 
+impl WidgetPointerMotion for IconButtonWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
 impl Widget for IconButtonWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -109,8 +118,12 @@ impl Widget for IconButtonWidget {
         })
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        true
+    fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

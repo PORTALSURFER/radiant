@@ -8,7 +8,8 @@ use crate::{
     runtime::{PaintPrimitive, push_fill_rect},
     theme::ThemeTokens,
     widgets::{
-        PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing, WidgetStyle,
+        PaintBounds, Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -269,6 +270,16 @@ impl TreeGuideOverlay {
     }
 }
 
+impl WidgetPointerMotion for TreeGuideOverlay {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 impl Widget for TreeGuideOverlay {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -286,8 +297,12 @@ impl Widget for TreeGuideOverlay {
         false
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

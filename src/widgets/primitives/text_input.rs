@@ -7,7 +7,8 @@ use crate::theme::ThemeTokens;
 
 use super::WidgetCommon;
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetSemantics, WidgetSizing,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
     CompositionRange, CompositionSample, CompositionStartContext, TextInputMessage, WidgetInput,
@@ -133,6 +134,16 @@ impl WidgetSemantics for TextInputWidget {
     }
 }
 
+impl WidgetPointerMotion for TextInputWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(false)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+}
+
 impl Widget for TextInputWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -208,12 +219,12 @@ impl Widget for TextInputWidget {
         self.accepts_editing_input()
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn selected_text_slice(&self) -> Option<&str> {

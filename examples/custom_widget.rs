@@ -1,7 +1,12 @@
 //! User-authored widget object integrated through Radiant's application builder.
 
+use radiant::gui::automation::{AUTOMATION_ACTION_TOGGLE, AutomationRole};
 use radiant::prelude::*;
 use radiant::runtime::{PaintFillRect, PaintTextAlign, PaintTextRun};
+use radiant::widgets::{
+    WidgetCapabilities, WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestRevision,
+    WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics, WidgetSemanticsRevision,
+};
 
 #[derive(Default)]
 struct DemoState {
@@ -27,6 +32,40 @@ impl StatusChip {
     }
 }
 
+impl WidgetSemantics for StatusChip {
+    fn revision(&self) -> WidgetSemanticsRevision {
+        WidgetSemanticsRevision::exact(self.active)
+    }
+
+    fn automation_role(&self) -> AutomationRole {
+        AutomationRole::Toggle
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some("Status chip".to_owned())
+    }
+
+    fn automation_checked(&self) -> Option<bool> {
+        Some(self.active)
+    }
+
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        Some(vec![AUTOMATION_ACTION_TOGGLE.to_owned()])
+    }
+}
+
+impl WidgetPointerMotion for StatusChip {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(true)
+    }
+}
+
+impl WidgetHitTest for StatusChip {
+    fn revision(&self) -> WidgetHitTestRevision {
+        WidgetHitTestRevision::exact(())
+    }
+}
+
 impl Widget for StatusChip {
     fn common(&self) -> &WidgetCommon {
         &self.common
@@ -34,6 +73,16 @@ impl Widget for StatusChip {
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
         &mut self.common
+    }
+
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::new()
+            .with_hit_test(self)
+            .with_pointer_motion(self)
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -108,6 +157,46 @@ fn main() -> radiant::Result {
 mod tests {
     use super::*;
     use radiant::runtime::SurfaceRuntime;
+    use radiant::widgets::WidgetHitTestResult;
+
+    #[test]
+    fn custom_widget_exports_explicit_capability_descriptors() {
+        let widget = StatusChip::new(false);
+        let capabilities = widget.capabilities();
+
+        assert_eq!(
+            capabilities.contract_version,
+            radiant::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
+        );
+        assert!(capabilities.has_semantics());
+        assert_eq!(
+            capabilities.semantics_revision(),
+            Some(WidgetSemanticsRevision::exact(false))
+        );
+        let capabilities_v2 = widget.capabilities_v2();
+        assert!(capabilities_v2.has_hit_test());
+        assert!(capabilities_v2.has_pointer_motion());
+        assert_eq!(
+            capabilities_v2.pointer_motion_revision(),
+            Some(WidgetPointerMotionRevision::exact(true))
+        );
+        assert_eq!(
+            capabilities
+                .semantics
+                .expect("custom widget semantics")
+                .automation_available_actions(),
+            Some(vec![AUTOMATION_ACTION_TOGGLE.to_owned()])
+        );
+        let hit_test: &dyn WidgetHitTest = capabilities_v2.hit_test().expect("hit-test");
+        assert_eq!(
+            hit_test.hit_test(
+                Rect::default(),
+                Point::default(),
+                &WidgetInput::pointer_move(Point::default()),
+            ),
+            WidgetHitTestResult::Opaque
+        );
+    }
 
     #[test]
     fn custom_widget_routes_typed_output_through_application_runtime() {

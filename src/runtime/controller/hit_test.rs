@@ -4,7 +4,7 @@ use crate::{
     layout::NodeId,
     layout::{LayoutHitRegionDiagnostics, LayoutHitTarget},
     runtime::{RuntimeBridge, SurfaceWidget},
-    widgets::{PointerCapturePolicy, WidgetCursor, WidgetId, WidgetInput},
+    widgets::{PointerCapturePolicy, WidgetCursor, WidgetHitTestResult, WidgetId, WidgetInput},
 };
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -43,16 +43,13 @@ where
         self.traversal.containers.layout_hit_region_diagnostics
     }
 
-    /// Return the first projected widget whose laid-out bounds contain `point`.
+    /// Return the first projected widget admitted by event-aware hit testing
+    /// for a synthetic `PointerMove` at `point`.
+    ///
+    /// This is not a bounds-only query: a widget whose bounds contain the
+    /// point may return `PassThrough` for that event and be skipped.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.traversal
-            .widgets
-            .pointer
-            .visible()
-            .iter()
-            .rev()
-            .copied()
-            .find(|widget_id| self.widget_contains_point(*widget_id, point))
+        self.widget_at_for_input(point, &WidgetInput::pointer_move(point))
     }
 
     pub(super) fn widget_at_for_input(
@@ -67,10 +64,7 @@ where
             .iter()
             .rev()
             .copied()
-            .find(|widget_id| {
-                self.widget_contains_point(*widget_id, point)
-                    && self.widget_accepts_pointer_input(*widget_id, input)
-            })
+            .find(|widget_id| self.widget_accepts_pointer_input_at(*widget_id, point, input))
     }
 
     pub(super) fn pointer_widget_at_for_move(&self, point: Point) -> Option<WidgetId> {
@@ -156,8 +150,10 @@ where
         widget_id: WidgetId,
         input: &WidgetInput,
     ) -> bool {
-        self.surface_widget(widget_id)
-            .is_some_and(|widget| widget.accepts_pointer_input(input))
+        let Some(point) = input.pointer_position() else {
+            return true;
+        };
+        self.widget_accepts_pointer_input_at(widget_id, point, input)
     }
 
     pub(super) fn widget_allows_captured_pointer_pass_through(&self, widget_id: WidgetId) -> bool {
@@ -173,9 +169,9 @@ where
             .unwrap_or(PointerCapturePolicy::Exclusive)
     }
 
-    pub(crate) fn widget_prefers_pointer_move_paint_only(&self, widget_id: WidgetId) -> bool {
+    pub(crate) fn widget_pointer_move_overlay_is_valid(&self, widget_id: WidgetId) -> bool {
         self.surface_widget(widget_id)
-            .is_some_and(SurfaceWidget::prefers_pointer_move_paint_only)
+            .is_some_and(SurfaceWidget::pointer_move_overlay_is_valid)
     }
 
     fn stable_hovered_widget_at(&self, point: Point, input: &WidgetInput) -> Option<WidgetId> {
@@ -190,10 +186,7 @@ where
             .iter()
             .rev()
             .copied()
-            .find(|widget_id| {
-                self.widget_contains_point(*widget_id, point)
-                    && self.widget_accepts_pointer_input(*widget_id, input)
-            })
+            .find(|widget_id| self.widget_accepts_pointer_input_at(*widget_id, point, input))
             .or_else(|| {
                 self.widget_accepts_pointer_input(hovered, input)
                     .then_some(hovered)
@@ -210,6 +203,26 @@ where
             .get(&widget_id)
             .is_some_and(|rect| rect.contains(point))
             && self.widget_clip_contains_point(widget_id, point)
+    }
+
+    fn widget_accepts_pointer_input_at(
+        &self,
+        widget_id: WidgetId,
+        point: Point,
+        input: &WidgetInput,
+    ) -> bool {
+        if !self.widget_contains_point(widget_id, point) {
+            return false;
+        }
+        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
+            return false;
+        };
+        self.surface_widget(widget_id).is_some_and(|widget| {
+            matches!(
+                widget.hit_test(bounds, point, input),
+                WidgetHitTestResult::Opaque
+            )
+        })
     }
 
     fn container_contains_point(&self, node_id: NodeId, point: Point) -> bool {

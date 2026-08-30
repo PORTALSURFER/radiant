@@ -5456,6 +5456,17 @@ backend-neutral runtime event surface for resize, pointer, keyboard, focus
 traversal, and focus-clear operations; `SurfaceRuntime::dispatch_event` is the
 primary event-routing entry point for backend adapters. Focus behavior is
 declared by widget contracts rather than by host-domain code.
+Scroll input uses one backend-neutral offset-direction contract across
+`Event::Scroll`, `WidgetInput::Wheel`, `CanvasGestureEvent::Wheel`,
+`ScrollUpdate::delta`, `WheelDelta`, and the wheel/scroll routing APIs: positive
+`x`/`y` increases the logical horizontal/vertical scroll offset, reveals content
+right/down, and causes layout to render that content left/up. The controller
+applies `current + delta` and clamps the resulting offset; layout places scroll
+content at `origin - offset`. Native adapters are the single sign/unit boundary:
+AppKit/winit content-direction deltas are negated once, line deltas retain the
+40 logical-pixels-per-line rule, pixel deltas receive the existing DPI
+conversion, and generic routing performs no coordinate-origin flip or second
+sign conversion.
 `radiant::gui::input::logical_point_to_u16_coords` provides the shared
 clamp/round contract for adapters that must project logical pointer positions
 into compact integer coordinates.

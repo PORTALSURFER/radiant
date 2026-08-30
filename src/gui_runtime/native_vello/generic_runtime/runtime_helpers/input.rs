@@ -14,6 +14,8 @@ pub(in crate::gui_runtime::native_vello) fn native_wheel_sample(
     timestamp: Option<InputTimestamp>,
     sequence_range: Option<InputSequenceRange>,
 ) -> Result<WheelSample, WheelSampleError> {
+    // Winit reports content-direction deltas here. Negate them once at the
+    // native boundary; generic routing and layout use offset direction.
     let delta = match delta {
         MouseScrollDelta::LineDelta(x, y) => {
             WheelDelta::lines(Vector2::new(-x, -y)).map_err(WheelSampleError::Delta)?
@@ -37,6 +39,8 @@ pub(in crate::gui_runtime::native_vello) fn scroll_delta_to_logical(
     delta: MouseScrollDelta,
     dpi_scale: DpiScale,
 ) -> Vector2 {
+    // This legacy phase-less adapter is the same one-time platform boundary:
+    // lines use 40 logical pixels and pixels use one DPI conversion.
     match delta {
         MouseScrollDelta::LineDelta(x, y) => Vector2::new(
             -(finite_scroll_component(x) * 40.0),
@@ -129,6 +133,49 @@ mod tests {
                 Some(expected)
             );
         }
+    }
+
+    #[test]
+    fn native_scroll_conversion_negates_once_for_lines_and_pixels() {
+        let line_delta = MouseScrollDelta::LineDelta(1.25, -2.0);
+        assert_eq!(
+            scroll_delta_to_logical(line_delta, DpiScale::new(2.0)),
+            Vector2::new(-50.0, 80.0)
+        );
+        assert_eq!(
+            native_wheel_sample(
+                line_delta,
+                TouchPhase::Moved,
+                DpiScale::new(2.0),
+                PointerModifiers::default(),
+                None,
+                None,
+            )
+            .expect("finite line sample")
+            .delta()
+            .to_logical_pixels(),
+            Some(Vector2::new(-50.0, 80.0))
+        );
+
+        let pixel_delta = MouseScrollDelta::PixelDelta(PhysicalPosition::new(30.0, -60.0));
+        assert_eq!(
+            scroll_delta_to_logical(pixel_delta, DpiScale::new(2.0)),
+            Vector2::new(-15.0, 30.0)
+        );
+        assert_eq!(
+            native_wheel_sample(
+                pixel_delta,
+                TouchPhase::Moved,
+                DpiScale::new(2.0),
+                PointerModifiers::default(),
+                None,
+                None,
+            )
+            .expect("finite pixel sample")
+            .delta()
+            .to_logical_pixels(),
+            Some(Vector2::new(-15.0, 30.0))
+        );
     }
 
     #[test]

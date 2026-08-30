@@ -75,7 +75,9 @@ pub enum WidgetInput {
     Wheel {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
-        /// Logical scroll delta. Positive values move content right/down.
+        /// Logical scroll-offset delta. Positive `x`/`y` increases the
+        /// horizontal/vertical offset, revealing content right/down; layout
+        /// therefore renders the content left/up.
         delta: Vector2,
         /// Modifier state at wheel time.
         modifiers: PointerModifiers,

@@ -3759,13 +3759,14 @@ still collapse line/pixel or phase evidence before this exact seam remain a
 separate platform alignment gap; that fallback is not evidence for exact-sample
 behavior.
 
-The current native path converts native line and pixel wheel variants into the
-same logical `Vector2` before current routing and does not retain the native
-wheel phase. That line/pixel collapse and discarded phase are implementation
-gaps, not evidence that this target contract or its fields are currently
-available. The target contract preserves the unit-bearing delta until policy
-conversion and treats the current fallback path as the conservative behavior
-until a later runtime implementation supplies the missing evidence.
+The generic winit adapter converts native line and pixel variants at the native
+boundary exactly once: line samples retain `WheelDelta::Lines` and pixel
+samples retain `WheelDelta::Pixels` after one DPI conversion, with platform
+content-direction signs negated into offset direction. Phase-qualified samples
+preserve that unit and phase evidence through routing. The legacy phase-less
+path intentionally projects to logical pixels and omits phase, while retaining
+the same sign contract; controller and layout do not convert or negate it
+again.
 
 The illustrative target vocabulary is:
 
@@ -5054,6 +5055,15 @@ it never discards precision or guesses a scroll unit. Containers opt into
 scroll chaining and zoom policies, while interactive editor widgets may declare
 pan, pinch, rotate, selection, and pen behavior without interpreting raw
 platform events.
+The backend-neutral delta in `Event::Scroll`, `WidgetInput::Wheel`,
+`CanvasGestureEvent::Wheel`, `ScrollUpdate`, `WheelDelta`, and routing APIs is a
+scroll-offset delta: positive `x`/`y` increases the logical horizontal/vertical
+offset, reveals content right/down, and makes layout render content left/up.
+The controller owns `current + delta` followed by clamping, while layout uses
+`origin - offset`. AppKit/winit adapters negate platform content-direction
+deltas exactly once; line deltas use 40 logical pixels per line and pixel
+deltas use the existing DPI conversion. No generic coordinate-origin flip or
+second sign conversion is part of this contract.
 
 ```rust
 arrange_view(state)

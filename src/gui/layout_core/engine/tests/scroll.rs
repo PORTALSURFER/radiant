@@ -99,3 +99,33 @@ fn scroll_offset_is_clamped_and_reported() {
             .any(|item| item.code == LayoutDiagnosticCode::InvalidScrollOffsetClamped)
     );
 }
+
+#[test]
+fn positive_scroll_offsets_translate_content_left_and_up_on_both_axes() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: intrinsic_slot(),
+            child: LayoutNode::widget(2, Vector2::new(300.0, 200.0)),
+        }],
+    );
+
+    let mut state = LayoutState::default();
+    state.scroll_offsets.insert(1, Vector2::new(40.0, 25.0));
+    let output = layout_tree_with_state(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+        &state,
+        LayoutDebugOptions::default(),
+    );
+
+    assert_eq!(
+        output.rects.get(&2).expect("scroll content rect").min,
+        Point::new(-40.0, -25.0)
+    );
+}

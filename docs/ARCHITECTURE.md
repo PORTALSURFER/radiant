@@ -257,6 +257,18 @@ new focused export leaf or a module split, not a formatting workaround.
 - `tests` owns public API, behavior, source-quality, example, and documentation
   guardrails.
 
+### Scroll-offset direction boundary
+
+The backend-neutral scroll contract is expressed as an offset delta across
+`Event::Scroll`, `WidgetInput::Wheel`, `CanvasGestureEvent::Wheel`,
+`ScrollUpdate`, `WheelDelta`, and routing APIs. Positive horizontal/vertical
+components increase the corresponding logical offset, reveal content right/down,
+and render content left/up. The controller applies `current + delta` with
+clamping; layout places content at `origin - offset`. AppKit/winit adapters own
+the only platform conversion, negating content-direction deltas once, applying
+40 logical pixels per line or one DPI conversion for pixels, and passing the
+normalized result through generic routing without an origin flip.
+
 ## Virtual Layout Semantic Provider Boundary
 
 The current private `SurfaceRuntime` virtual-layout registration and semantic

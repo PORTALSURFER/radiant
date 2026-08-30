@@ -99,11 +99,14 @@ pub enum Event {
     TraverseFocus(FocusTraversal),
     /// Clear current runtime focus ownership.
     ClearFocus,
-    /// Scroll the scrollable container under the pointer by logical pixels.
+    /// Scroll the scrollable container under the pointer by a logical
+    /// scroll-offset delta.
     Scroll {
         /// Pointer position in surface logical coordinates.
         position: Point,
-        /// Logical scroll delta. Positive values move content right/down.
+        /// Logical scroll-offset delta. Positive `x`/`y` increases the
+        /// horizontal/vertical offset, revealing content right/down; layout
+        /// therefore renders the content left/up.
         delta: Vector2,
         /// Modifier state captured with this scroll sample.
         modifiers: PointerModifiers,

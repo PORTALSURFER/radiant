@@ -33,7 +33,8 @@ pub struct ScrollUpdate {
     pub node_id: NodeId,
     /// Pointer position that selected the scroll container.
     pub position: Point,
-    /// Requested logical scroll delta.
+    /// Requested logical scroll-offset delta. Positive `x`/`y` increases the
+    /// corresponding offset, so layout renders content left/up.
     pub delta: Vector2,
     /// Scroll offset before the movement.
     pub previous_offset: Vector2,
@@ -49,9 +50,11 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    /// Scroll the topmost scroll container under `point`.
+    /// Scroll the topmost scroll container under `point` by an offset delta.
     ///
-    /// Returns `true` when a scroll container accepted the delta.
+    /// Positive `x`/`y` increases the corresponding logical offset. The
+    /// controller applies `current + delta` and clamps the result through
+    /// layout. Returns `true` when a scroll container accepted the delta.
     pub fn scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
         self.scroll_at_with_refresh_and_metadata(
             point,

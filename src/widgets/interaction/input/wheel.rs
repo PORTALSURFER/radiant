@@ -134,7 +134,10 @@ pub enum WheelSampleError {
 /// Backend-neutral wheel input with exact unit and phase evidence.
 ///
 /// Its delta is already expressed in logical scroll-offset direction: native
-/// adapters negate platform content-direction deltas exactly once.
+/// adapters negate platform content-direction deltas exactly once. The exact
+/// evidence remains available to qualified widget or policy routing; an
+/// ordinary scroll-container fallback may project it to one logical-pixel axis
+/// and does not retain the phase.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WheelSample {
     delta: WheelDelta,

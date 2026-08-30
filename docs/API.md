@@ -2855,6 +2855,9 @@ but selected-widget dispatch preserves supplied metadata. Native adapters that
 still collapse line/pixel or phase evidence before this exact seam remain a
 separate platform alignment gap; that fallback is not used as evidence for
 exact-sample behavior.
+Exact unit and phase preservation is limited to qualified widget/policy
+routing. Ordinary native scroll-container fallback uses the coalesced
+single-axis logical-pixel `ScrollUpdate` contract described above.
 
 The target-equivalent shapes are:
 
@@ -5466,7 +5469,14 @@ content at `origin - offset`. Native adapters are the single sign/unit boundary:
 AppKit/winit content-direction deltas are negated once, line deltas retain the
 40 logical-pixels-per-line rule, pixel deltas receive the existing DPI
 conversion, and generic routing performs no coordinate-origin flip or second
-sign conversion.
+sign conversion. Exact unit and phase preservation is limited to qualified
+widget/policy routing. Ordinary native scroll-container coalescing projects
+each sample to logical pixels, selects horizontal only when `|x| > |y|` and
+vertical otherwise (including ties), drops the orthogonal component, and emits
+a phase-less `ScrollUpdate`. It retains the newest modifiers and timestamp;
+when available, the sequence range spans the first through newest contributing
+sample, and an axis change flushes the prior pending sample before queueing the
+new axis.
 `radiant::gui::input::logical_point_to_u16_coords` provides the shared
 clamp/round contract for adapters that must project logical pointer positions
 into compact integer coordinates.

@@ -3752,7 +3752,8 @@ managed routing foundation are shipped, and complete-mode NumericInput consumes
 them when an explicit `NumericWheelPolicy` is attached. The public policy is a
 zero-state opt-in; unit conversion, ownership, and lifecycle state remain
 inside the generic widget/runtime seam. Exact samples preserve line/pixel unit,
-phase, modifiers, timestamp, and sequence-range evidence through policy output.
+phase, modifiers, timestamp, and sequence-range evidence through qualified
+widget/policy output.
 Legacy phase-less dispatch remains compatible: hit testing is metadata-neutral,
 but selected-widget dispatch preserves supplied metadata. Native adapters that
 still collapse line/pixel or phase evidence before this exact seam remain a
@@ -3763,10 +3764,15 @@ The generic winit adapter converts native line and pixel variants at the native
 boundary exactly once: line samples retain `WheelDelta::Lines` and pixel
 samples retain `WheelDelta::Pixels` after one DPI conversion, with platform
 content-direction signs negated into offset direction. Phase-qualified samples
-preserve that unit and phase evidence through routing. The legacy phase-less
-path intentionally projects to logical pixels and omits phase, while retaining
-the same sign contract; controller and layout do not convert or negate it
-again.
+preserve that unit and phase evidence through qualified widget/policy routing.
+When ordinary scroll-container fallback is eligible, its coalescer projects
+each sample to logical pixels, selects horizontal only when `|x| > |y|` and
+vertical otherwise including ties, drops the orthogonal component, and emits a
+phase-less update. It retains newest modifiers and timestamp, carries the
+first-through-newest sequence range when available, and flushes the prior
+pending sample on an axis change. The legacy phase-less path uses the same
+single-axis logical-pixel fallback; controller and layout do not convert or
+negate the result again.
 
 The illustrative target vocabulary is:
 
@@ -5051,10 +5057,12 @@ transfers.
 Radiant normalizes mouse, trackpad, touch, pen, and native scroll input into
 typed logical-coordinate events with timestamps, modifiers, device kind, and
 capture lifetime. It distinguishes line scrolling from pixel-precise scrolling;
-it never discards precision or guesses a scroll unit. Containers opt into
-scroll chaining and zoom policies, while interactive editor widgets may declare
-pan, pinch, rotate, selection, and pen behavior without interpreting raw
-platform events.
+qualified widget/policy routing retains that unit and phase evidence. Ordinary
+native scroll-container/GPU-surface coalescing is a fallback: it projects to
+logical pixels, selects one dominant axis (vertical on ties), drops the
+orthogonal component, and omits phase. Containers opt into scroll chaining and
+zoom policies, while interactive editor widgets may declare pan, pinch, rotate,
+selection, and pen behavior without interpreting raw platform events.
 The backend-neutral delta in `Event::Scroll`, `WidgetInput::Wheel`,
 `CanvasGestureEvent::Wheel`, `ScrollUpdate`, `WheelDelta`, and routing APIs is a
 scroll-offset delta: positive `x`/`y` increases the logical horizontal/vertical
@@ -5063,7 +5071,14 @@ The controller owns `current + delta` followed by clamping, while layout uses
 `origin - offset`. AppKit/winit adapters negate platform content-direction
 deltas exactly once; line deltas use 40 logical pixels per line and pixel
 deltas use the existing DPI conversion. No generic coordinate-origin flip or
-second sign conversion is part of this contract.
+second sign conversion is part of this contract. Ordinary native
+scroll-container coalescing projects each sample to logical pixels, selects
+horizontal only when `|x| > |y|` and vertical otherwise including ties, drops
+the orthogonal component, and emits a phase-less update. It preserves the
+newest modifiers and timestamp, carries the first-through-newest sequence
+range when available, and flushes the prior pending sample when the selected
+axis changes. Exact unit/phase preservation is limited to qualified
+widget/policy routing.
 
 ```rust
 arrange_view(state)

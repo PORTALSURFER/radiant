@@ -33,8 +33,10 @@ pub struct ScrollUpdate {
     pub node_id: NodeId,
     /// Pointer position that selected the scroll container.
     pub position: Point,
-    /// Requested logical scroll-offset delta. Positive `x`/`y` increases the
-    /// corresponding offset, so layout renders content left/up.
+    /// Requested logical scroll-offset delta for the components delivered by
+    /// this update. Positive `x`/`y` increases the corresponding offset, so
+    /// layout renders content left/up. Ordinary native coalesced fallback
+    /// reports one selected logical-pixel axis and has no phase or unit field.
     pub delta: Vector2,
     /// Scroll offset before the movement.
     pub previous_offset: Vector2,

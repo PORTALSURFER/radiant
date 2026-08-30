@@ -3,6 +3,9 @@
 //! Deltas reaching this module use logical scroll-offset direction. Native
 //! adapters perform platform sign and unit conversion once before routing;
 //! generic widget, controller, and layout paths do not flip the axes again.
+//! Exact unit and phase evidence is retained only when a qualified widget or
+//! policy route consumes a `WheelSample`; ordinary scroll-container fallback
+//! projects to one selected logical-pixel axis before controller routing.
 
 use super::super::CommandOutcome;
 use super::{ScrollUpdateMetadata, SurfaceRuntime};
@@ -84,7 +87,10 @@ where
     }
 
     /// Route one exact unit- and phase-qualified wheel sample whose delta is
-    /// already in logical scroll-offset direction.
+    /// already in logical scroll-offset direction. Exact unit and phase
+    /// evidence is retained for a qualified widget or policy consumer; an
+    /// ordinary scroll-container fallback receives one selected logical-pixel
+    /// axis without phase or unit evidence.
     pub fn wheel_or_scroll_at_with_sample(&mut self, point: Point, sample: WheelSample) -> bool {
         self.wheel_or_scroll_route_with_sample(point, sample, true, true)
             != WheelOrScrollRoute::NotRouted
@@ -132,6 +138,9 @@ where
     }
 
     /// Route an exact wheel sample while deferring host-surface refresh.
+    /// Qualified widget or policy consumers retain its unit and phase; an
+    /// ordinary scroll-container fallback receives one selected logical-pixel
+    /// axis without phase or unit evidence.
     pub fn wheel_or_scroll_at_deferred_refresh_with_sample(
         &mut self,
         point: Point,

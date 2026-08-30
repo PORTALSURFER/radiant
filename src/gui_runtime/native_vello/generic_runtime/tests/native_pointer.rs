@@ -98,7 +98,11 @@ impl Widget for ModifierWheelWidget {
     }
 
     fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
-        crate::widgets::WidgetCapabilities::new().hit_test(self)
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_hit_test(self)
     }
 
     fn accepts_wheel_input(&self) -> bool {

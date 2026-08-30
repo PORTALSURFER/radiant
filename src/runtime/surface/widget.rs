@@ -8,7 +8,6 @@ use crate::{
         CompositionSample, FocusBehavior, PointerCapturePolicy, PointerPressAdmission, WheelSample,
         Widget, WidgetCursor, WidgetHitTestResult, WidgetId, WidgetInput, WidgetOutput,
         WidgetPointerMotionRevision, WidgetRevision, WidgetSemanticsRevision,
-        resolve_automation_semantics,
     },
 };
 use std::rc::Rc;
@@ -62,8 +61,12 @@ pub(crate) struct SurfaceWidgetRevisionEvidence {
 
 #[derive(Clone, Default)]
 pub(crate) struct WidgetCapabilityEvidence {
+    /// Source-compatible v1 contract version and semantics evidence.
     pub(crate) contract_version: u16,
     pub(crate) semantics_revision: Option<WidgetSemanticsRevision>,
+    /// Additive v2 contract version and optional-behavior evidence.
+    pub(crate) v2_contract_version: u16,
+    pub(crate) v2_semantics_revision: Option<WidgetSemanticsRevision>,
     pub(crate) hit_test_revision: Option<crate::widgets::WidgetHitTestRevision>,
     pub(crate) pointer_motion_revision: Option<WidgetPointerMotionRevision>,
 }
@@ -71,11 +74,14 @@ pub(crate) struct WidgetCapabilityEvidence {
 impl WidgetCapabilityEvidence {
     fn capture(widget: &dyn Widget) -> Self {
         let capabilities = widget.capabilities();
+        let capabilities_v2 = widget.capabilities_v2();
         Self {
             contract_version: capabilities.contract_version,
             semantics_revision: capabilities.semantics_revision(),
-            hit_test_revision: capabilities.hit_test_revision(),
-            pointer_motion_revision: capabilities.pointer_motion_revision(),
+            v2_contract_version: capabilities_v2.contract_version(),
+            v2_semantics_revision: capabilities_v2.semantics_revision(),
+            hit_test_revision: capabilities_v2.hit_test_revision(),
+            pointer_motion_revision: capabilities_v2.pointer_motion_revision(),
         }
     }
 
@@ -83,9 +89,28 @@ impl WidgetCapabilityEvidence {
         Self {
             contract_version: 0,
             semantics_revision: None,
+            v2_contract_version: 0,
+            v2_semantics_revision: None,
             hit_test_revision: None,
             pointer_motion_revision: None,
         }
+    }
+
+    pub(crate) fn needs_conservative_fallback(&self) -> bool {
+        !crate::widgets::supports_semantics_contract(self.contract_version)
+            || !crate::widgets::supports_capabilities_v2_contract(self.v2_contract_version)
+            || self
+                .v2_semantics_revision
+                .as_ref()
+                .is_some_and(|revision| !revision.is_exact())
+            || self
+                .hit_test_revision
+                .as_ref()
+                .is_some_and(|revision| !revision.is_exact())
+            || self
+                .pointer_motion_revision
+                .as_ref()
+                .is_some_and(|revision| !revision.is_exact())
     }
 }
 
@@ -287,14 +312,18 @@ impl<Message> SurfaceWidget<Message> {
         if self.widget.common().state.disabled {
             return false;
         }
-        let capabilities = self.widget.capabilities();
+        let capabilities = self.widget.capabilities_v2();
         if capabilities.has_pointer_motion() {
             capabilities
-                .pointer_motion
+                .pointer_motion()
                 .is_some_and(|motion| motion.accepts_pointer_move())
         } else {
-            true
+            self.widget.accepts_pointer_move()
         }
+    }
+
+    pub(in crate::runtime) fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
+        !self.widget.common().state.disabled && self.widget.accepts_pointer_input(input)
     }
 
     pub(in crate::runtime) fn hit_test(
@@ -306,15 +335,17 @@ impl<Message> SurfaceWidget<Message> {
         if self.widget.common().state.disabled {
             return WidgetHitTestResult::PassThrough;
         }
-        let capabilities = self.widget.capabilities();
+        let capabilities = self.widget.capabilities_v2();
         if capabilities.has_hit_test() {
             capabilities
-                .hit_test
+                .hit_test()
                 .map_or(WidgetHitTestResult::Opaque, |hit_test| {
                     hit_test.hit_test(bounds, point, input)
                 })
-        } else {
+        } else if self.accepts_pointer_input(input) {
             WidgetHitTestResult::Opaque
+        } else {
+            WidgetHitTestResult::PassThrough
         }
     }
 
@@ -334,13 +365,13 @@ impl<Message> SurfaceWidget<Message> {
         if self.widget.common().state.disabled {
             return false;
         }
-        let capabilities = self.widget.capabilities();
+        let capabilities = self.widget.capabilities_v2();
         if capabilities.has_pointer_motion() {
-            capabilities.pointer_motion.is_some_and(|motion| {
+            capabilities.pointer_motion().is_some_and(|motion| {
                 motion.prefers_pointer_move_paint_only() && motion.pointer_move_overlay_is_valid()
             })
         } else {
-            false
+            self.widget.prefers_pointer_move_paint_only()
         }
     }
 
@@ -348,15 +379,15 @@ impl<Message> SurfaceWidget<Message> {
         if self.widget.common().state.disabled {
             PointerCapturePolicy::Exclusive
         } else {
-            let capabilities = self.widget.capabilities();
+            let capabilities = self.widget.capabilities_v2();
             if capabilities.has_pointer_motion() {
                 capabilities
-                    .pointer_motion
+                    .pointer_motion()
                     .map_or(PointerCapturePolicy::PassThrough, |motion| {
                         motion.pointer_capture_policy()
                     })
             } else {
-                PointerCapturePolicy::PassThrough
+                self.widget.pointer_capture_policy()
             }
         }
     }
@@ -369,22 +400,22 @@ impl<Message> SurfaceWidget<Message> {
         if self.widget.common().state.disabled {
             return None;
         }
-        let capabilities = self.widget.capabilities();
+        let capabilities = self.widget.capabilities_v2();
         if capabilities.has_hit_test() {
             capabilities
-                .hit_test
+                .hit_test()
                 .and_then(|hit_test| hit_test.cursor_for_point(bounds, point))
         } else {
-            None
+            self.widget.cursor_for_point(bounds, point)
         }
     }
 
     pub(in crate::runtime::surface) fn automation_semantics(&self) -> AutomationNodeSemantics {
-        resolve_automation_semantics(self.widget.common(), self.widget.capabilities())
+        self.widget.automation_semantics()
     }
 
     pub(in crate::runtime::surface) fn automation_available_actions(&self) -> Option<Vec<String>> {
-        crate::widgets::automation_available_actions(self.widget.capabilities())
+        self.widget.automation_available_actions()
     }
 
     pub(in crate::runtime) fn needs_state_synchronization(&self) -> bool {

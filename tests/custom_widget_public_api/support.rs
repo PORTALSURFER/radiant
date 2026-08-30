@@ -1,14 +1,17 @@
 use radiant::{
+    gui::automation::{AutomationNodeSemantics, AutomationRole},
     gui::types::Rgba8,
     layout::Rect,
     runtime::{PaintPrimitive, SurfacePaintPlan},
     theme::ThemeTokens,
     widgets::{
-        PointerButton, Widget, WidgetCapabilities, WidgetCommon, WidgetHitTest,
-        WidgetHitTestRevision, WidgetInput, WidgetKey, WidgetOutput, WidgetPointerMotion,
-        WidgetPointerMotionRevision, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
+        PointerButton, PointerCapturePolicy, Widget, WidgetCapabilities, WidgetCapabilitiesV2,
+        WidgetCommon, WidgetCursor, WidgetHitTest, WidgetHitTestResult, WidgetHitTestRevision,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetPointerMotion, WidgetPointerMotionRevision,
+        WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
     },
 };
+use std::{cell::Cell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum DemoMessage {
@@ -31,6 +34,68 @@ pub(super) struct CustomStatusWidget {
     pub(super) common: WidgetCommon,
     label: &'static str,
     pub(super) activation_count: usize,
+}
+
+#[derive(Clone)]
+pub(super) struct LegacyHooksWidget {
+    pub(super) common: WidgetCommon,
+    unsupported_v2: bool,
+}
+
+impl LegacyHooksWidget {
+    pub(super) fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(
+                id,
+                WidgetSizing::fixed(radiant::layout::Vector2::new(80.0, 24.0)),
+            )
+            .with_pointer_focus(),
+            unsupported_v2: false,
+        }
+    }
+
+    pub(super) fn with_unsupported_v2(id: u64) -> Self {
+        Self {
+            unsupported_v2: true,
+            ..Self::new(id)
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct DescriptorPrecedenceWidget {
+    pub(super) common: WidgetCommon,
+    pub(super) moves: Rc<Cell<u32>>,
+}
+
+impl DescriptorPrecedenceWidget {
+    pub(super) fn with_moves(id: u64, moves: Rc<Cell<u32>>) -> Self {
+        Self {
+            common: WidgetCommon::new(
+                id,
+                WidgetSizing::fixed(radiant::layout::Vector2::new(80.0, 24.0)),
+            )
+            .with_pointer_focus(),
+            moves,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct DirectAutomationWidget {
+    pub(super) common: WidgetCommon,
+}
+
+impl DirectAutomationWidget {
+    pub(super) fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(
+                id,
+                WidgetSizing::fixed(radiant::layout::Vector2::new(80.0, 24.0)),
+            )
+            .with_keyboard_focus(),
+        }
+    }
 }
 
 impl CustomStatusWidget {
@@ -90,10 +155,13 @@ impl Widget for CustomStatusWidget {
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new()
-            .semantics(self)
-            .hit_test(self)
-            .pointer_motion(self)
+        WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::new()
+            .with_hit_test(self)
+            .with_pointer_motion(self)
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -157,6 +225,197 @@ impl Widget for CustomStatusWidget {
             align: radiant::runtime::PaintTextAlign::Center,
             wrap: radiant::widgets::TextWrap::None,
         }));
+    }
+}
+
+impl Widget for LegacyHooksWidget {
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
+    fn accepts_pointer_input(&self, _input: &WidgetInput) -> bool {
+        true
+    }
+
+    fn allows_captured_pointer_pass_through(&self) -> bool {
+        false
+    }
+
+    fn cursor_for_point(
+        &self,
+        _bounds: Rect,
+        _point: radiant::layout::Point,
+    ) -> Option<WidgetCursor> {
+        Some(WidgetCursor::ResizeLeft)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        if self.unsupported_v2 {
+            WidgetCapabilitiesV2::new().with_contract_version(99)
+        } else {
+            WidgetCapabilitiesV2::none()
+        }
+    }
+
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+impl WidgetHitTest for DescriptorPrecedenceWidget {
+    fn revision(&self) -> WidgetHitTestRevision {
+        WidgetHitTestRevision::exact(())
+    }
+
+    fn hit_test(
+        &self,
+        _bounds: Rect,
+        _point: radiant::layout::Point,
+        _input: &WidgetInput,
+    ) -> WidgetHitTestResult {
+        WidgetHitTestResult::Opaque
+    }
+
+    fn cursor_for_point(
+        &self,
+        _bounds: Rect,
+        _point: radiant::layout::Point,
+    ) -> Option<WidgetCursor> {
+        Some(WidgetCursor::ResizeRight)
+    }
+}
+
+impl WidgetPointerMotion for DescriptorPrecedenceWidget {
+    fn revision(&self) -> WidgetPointerMotionRevision {
+        WidgetPointerMotionRevision::exact(())
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
+    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
+        PointerCapturePolicy::Exclusive
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn pointer_move_overlay_is_valid(&self) -> bool {
+        true
+    }
+}
+
+impl Widget for DescriptorPrecedenceWidget {
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn accepts_pointer_input(&self, _input: &WidgetInput) -> bool {
+        true
+    }
+
+    fn allows_captured_pointer_pass_through(&self) -> bool {
+        true
+    }
+
+    fn cursor_for_point(
+        &self,
+        _bounds: Rect,
+        _point: radiant::layout::Point,
+    ) -> Option<WidgetCursor> {
+        Some(WidgetCursor::ResizeLeft)
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        false
+    }
+
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn capabilities(&self) -> WidgetCapabilities<'_> {
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::new()
+            .with_hit_test(self)
+            .with_pointer_motion(self)
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        if matches!(_input, WidgetInput::PointerMove { .. }) {
+            self.moves.set(self.moves.get().saturating_add(1));
+        }
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+impl Widget for DirectAutomationWidget {
+    fn automation_semantics(&self) -> AutomationNodeSemantics {
+        AutomationNodeSemantics::new(AutomationRole::Readout).with_label("direct override")
+    }
+
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        Some(vec![String::from("direct-action")])
+    }
+
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
     }
 }
 

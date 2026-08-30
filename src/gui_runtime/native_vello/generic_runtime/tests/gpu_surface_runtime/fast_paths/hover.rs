@@ -382,7 +382,11 @@ impl Widget for TestPassivePointerHitWidget {
     }
 
     fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
-        crate::widgets::WidgetCapabilities::new().pointer_motion(self)
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(
@@ -425,7 +429,11 @@ impl Widget for TestPointerMoveWidget {
     }
 
     fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
-        crate::widgets::WidgetCapabilities::new().pointer_motion(self)
+        crate::widgets::WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

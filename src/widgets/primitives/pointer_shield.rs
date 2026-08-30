@@ -283,9 +283,13 @@ impl Widget for PointerShieldWidget {
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new()
-            .hit_test(self)
-            .pointer_motion(self)
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new()
+            .with_hit_test(self)
+            .with_pointer_motion(self)
     }
 
     fn accepts_wheel_input(&self) -> bool {

@@ -71,7 +71,11 @@ impl Widget for CustomWheelHitWidget {
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().hit_test(self)
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+        radiant::widgets::WidgetCapabilitiesV2::new().with_hit_test(self)
     }
 
     fn accepts_wheel_input(&self) -> bool {

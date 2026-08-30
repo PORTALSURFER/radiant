@@ -149,9 +149,13 @@ impl Widget for PianoRollWidget {
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new()
-            .pointer_motion(self)
-            .hit_test(self)
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+        radiant::widgets::WidgetCapabilitiesV2::new()
+            .with_pointer_motion(self)
+            .with_hit_test(self)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

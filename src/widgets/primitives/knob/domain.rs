@@ -541,9 +541,11 @@ where
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new()
-            .semantics(self)
-            .pointer_motion(self)
+        WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
+        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn append_paint(

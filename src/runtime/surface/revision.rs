@@ -17,8 +17,8 @@ use crate::layout::{
 use crate::runtime::RepaintScope;
 use crate::widgets::WidgetStyle;
 use crate::widgets::{
-    WidgetHitTestRevision, WidgetId, WidgetPointerMotionRevision, WidgetRevision,
-    WidgetRevisionComponents, WidgetSemanticsRevision,
+    WidgetCapabilities, WidgetCapabilitiesV2, WidgetHitTestRevision, WidgetId,
+    WidgetPointerMotionRevision, WidgetRevision, WidgetRevisionComponents, WidgetSemanticsRevision,
 };
 use std::collections::HashSet;
 use std::time::Duration;
@@ -238,19 +238,56 @@ fn classify_cached_widget_revision(
     classify_exact_components(previous, current)
 }
 
-/// Classify the optional semantic capability without evaluating semantic
-/// output methods such as role, label, value, or metadata accessors.
+/// Classify the v1 and v2 capability descriptors without evaluating
+/// behavioral output methods such as role, label, value, hit testing, cursor,
+/// or pointer-motion policy.
 ///
-/// Capability presence and unsupported descriptor contracts are structural.
-/// A conservative or unavailable revision is also structural; two exact
-/// revisions compare by typed equality, with a changed or type-mismatched
-/// value taking the interaction path.
+/// The v1 descriptor remains the semantics-only compatibility contract. The v2
+/// descriptor is a separate contract. An absent v2 capability on both sides is
+/// unchanged and preserves legacy fallback; a presence transition or a
+/// present conservative revision widens structurally.
 fn classify_widget_capabilities(
-    previous: crate::widgets::WidgetCapabilities<'_>,
-    current: crate::widgets::WidgetCapabilities<'_>,
+    previous: WidgetCapabilities<'_>,
+    current: WidgetCapabilities<'_>,
+) -> WidgetRevisionEffect {
+    classify_v1_widget_capabilities(previous, current)
+}
+
+fn classify_widget_capability_sets(
+    previous: WidgetCapabilities<'_>,
+    current: WidgetCapabilities<'_>,
+    previous_v2: WidgetCapabilitiesV2<'_>,
+    current_v2: WidgetCapabilitiesV2<'_>,
+) -> WidgetRevisionEffect {
+    let v1 = classify_v1_widget_capabilities(previous, current);
+    let v2 = classify_v2_widget_capabilities(previous_v2, current_v2);
+    combine_widget_revision_effect(v1, v2, WidgetRevisionEffect::Unchanged)
+}
+
+fn classify_v1_widget_capabilities(
+    previous: WidgetCapabilities<'_>,
+    current: WidgetCapabilities<'_>,
 ) -> WidgetRevisionEffect {
     if previous.contract_version != current.contract_version
         || !crate::widgets::supports_semantics_contract(previous.contract_version)
+        || !crate::widgets::supports_semantics_contract(current.contract_version)
+    {
+        return WidgetRevisionEffect::Structural;
+    }
+    classify_optional_capability(
+        previous.semantics_revision(),
+        current.semantics_revision(),
+        WidgetSemanticsRevision::is_exact,
+    )
+}
+
+fn classify_v2_widget_capabilities(
+    previous: WidgetCapabilitiesV2<'_>,
+    current: WidgetCapabilitiesV2<'_>,
+) -> WidgetRevisionEffect {
+    if previous.contract_version() != current.contract_version()
+        || !crate::widgets::supports_capabilities_v2_contract(previous.contract_version())
+        || !crate::widgets::supports_capabilities_v2_contract(current.contract_version())
     {
         return WidgetRevisionEffect::Structural;
     }
@@ -259,12 +296,12 @@ fn classify_widget_capabilities(
         current.semantics_revision(),
         WidgetSemanticsRevision::is_exact,
     );
-    let hit_test = classify_optional_capability(
+    let hit_test = classify_required_v2_capability(
         previous.hit_test_revision(),
         current.hit_test_revision(),
         WidgetHitTestRevision::is_exact,
     );
-    let pointer_motion = classify_optional_capability(
+    let pointer_motion = classify_required_v2_capability(
         previous.pointer_motion_revision(),
         current.pointer_motion_revision(),
         WidgetPointerMotionRevision::is_exact,
@@ -278,6 +315,10 @@ fn classify_cached_widget_capabilities(
 ) -> WidgetRevisionEffect {
     if previous.contract_version != current.contract_version
         || !crate::widgets::supports_semantics_contract(previous.contract_version)
+        || !crate::widgets::supports_semantics_contract(current.contract_version)
+        || previous.v2_contract_version != current.v2_contract_version
+        || !crate::widgets::supports_capabilities_v2_contract(previous.v2_contract_version)
+        || !crate::widgets::supports_capabilities_v2_contract(current.v2_contract_version)
     {
         return WidgetRevisionEffect::Structural;
     }
@@ -286,17 +327,37 @@ fn classify_cached_widget_capabilities(
         current.semantics_revision.clone(),
         WidgetSemanticsRevision::is_exact,
     );
-    let hit_test = classify_optional_capability(
+    let v2_semantics = classify_optional_capability(
+        previous.v2_semantics_revision.clone(),
+        current.v2_semantics_revision.clone(),
+        WidgetSemanticsRevision::is_exact,
+    );
+    let hit_test = classify_required_v2_capability(
         previous.hit_test_revision.clone(),
         current.hit_test_revision.clone(),
         WidgetHitTestRevision::is_exact,
     );
-    let pointer_motion = classify_optional_capability(
+    let pointer_motion = classify_required_v2_capability(
         previous.pointer_motion_revision.clone(),
         current.pointer_motion_revision.clone(),
         WidgetPointerMotionRevision::is_exact,
     );
-    combine_widget_revision_effect(semantics, hit_test, pointer_motion)
+    combine_widget_revision_effect(
+        semantics,
+        v2_semantics,
+        combine_widget_revision_effect(hit_test, pointer_motion, WidgetRevisionEffect::Unchanged),
+    )
+}
+
+fn classify_required_v2_capability<T>(
+    previous: Option<T>,
+    current: Option<T>,
+    is_exact: impl Fn(&T) -> bool,
+) -> WidgetRevisionEffect
+where
+    T: PartialEq,
+{
+    classify_optional_capability(previous, current, is_exact)
 }
 
 fn classify_optional_capability<T>(
@@ -1426,6 +1487,8 @@ fn compare_widget<Message>(
         || !crate::widgets::supports_semantics_contract(
             current_evidence.capabilities.contract_version,
         )
+        || previous_evidence.capabilities.needs_conservative_fallback()
+        || current_evidence.capabilities.needs_conservative_fallback()
     {
         delta.record_conservative();
     }
@@ -1824,13 +1887,15 @@ fn compare_layer_pair<Message>(
 #[cfg(test)]
 mod tests {
     use super::{
-        WidgetRevisionEffect, WidgetRevisionSnapshot, classify_widget_capabilities,
-        classify_widget_revision,
+        WidgetCapabilityEvidence, WidgetRevisionEffect, WidgetRevisionSnapshot,
+        classify_widget_capabilities, classify_widget_capability_sets, classify_widget_revision,
     };
     use crate::layout::Vector2;
     use crate::widgets::{
-        TextWidget, WIDGET_CAPABILITIES_CONTRACT_VERSION, Widget, WidgetCapabilities,
-        WidgetRevision, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
+        TextWidget, WIDGET_CAPABILITIES_CONTRACT_VERSION, WIDGET_CAPABILITIES_V2_CONTRACT_VERSION,
+        Widget, WidgetCapabilities, WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestRevision,
+        WidgetPointerMotion, WidgetPointerMotionRevision, WidgetRevision, WidgetSemantics,
+        WidgetSemanticsRevision, WidgetSizing,
     };
 
     const KIND: &str = "test::Widget";
@@ -1948,9 +2013,46 @@ mod tests {
         }
     }
 
+    struct TestHitTest {
+        revision: WidgetHitTestRevision,
+    }
+
+    impl WidgetHitTest for TestHitTest {
+        fn revision(&self) -> WidgetHitTestRevision {
+            self.revision.clone()
+        }
+    }
+
+    struct TestPointerMotion {
+        revision: WidgetPointerMotionRevision,
+    }
+
+    impl WidgetPointerMotion for TestPointerMotion {
+        fn revision(&self) -> WidgetPointerMotionRevision {
+            self.revision.clone()
+        }
+    }
+
     fn capabilities(semantics: Option<&TestSemantics>) -> WidgetCapabilities<'_> {
         semantics.map_or_else(WidgetCapabilities::none, |semantics| {
             WidgetCapabilities::new().semantics(semantics)
+        })
+    }
+
+    fn capabilities_v2<'a>(
+        semantics: Option<&'a TestSemantics>,
+        hit_test: Option<&'a TestHitTest>,
+        pointer_motion: Option<&'a TestPointerMotion>,
+    ) -> WidgetCapabilitiesV2<'a> {
+        let capabilities = WidgetCapabilitiesV2::new();
+        let capabilities = semantics.map_or(capabilities, |semantics| {
+            capabilities.with_semantics(semantics)
+        });
+        let capabilities = hit_test.map_or(capabilities, |hit_test| {
+            capabilities.with_hit_test(hit_test)
+        });
+        pointer_motion.map_or(capabilities, |pointer_motion| {
+            capabilities.with_pointer_motion(pointer_motion)
         })
     }
 
@@ -1968,8 +2070,6 @@ mod tests {
                 WidgetCapabilities {
                     contract_version: WIDGET_CAPABILITIES_CONTRACT_VERSION + 1,
                     semantics: None,
-                    hit_test: None,
-                    pointer_motion: None,
                 },
                 WidgetCapabilities::none(),
             ),
@@ -2020,6 +2120,102 @@ mod tests {
             ),
             WidgetRevisionEffect::Interaction
         );
+    }
+
+    #[test]
+    fn v2_capability_revisions_are_typed_and_conservative_when_missing() {
+        let semantics = TestSemantics {
+            revision: WidgetSemanticsRevision::exact("label"),
+        };
+        let hit_test = TestHitTest {
+            revision: WidgetHitTestRevision::exact("shape"),
+        };
+        let pointer_motion = TestPointerMotion {
+            revision: WidgetPointerMotionRevision::exact("motion"),
+        };
+        let v1 = capabilities(Some(&semantics));
+        let exact_v2 = capabilities_v2(Some(&semantics), Some(&hit_test), Some(&pointer_motion));
+
+        assert_eq!(
+            classify_widget_capability_sets(v1, v1, exact_v2, exact_v2),
+            WidgetRevisionEffect::Unchanged
+        );
+
+        let changed_pointer_motion = TestPointerMotion {
+            revision: WidgetPointerMotionRevision::exact("changed"),
+        };
+        assert_eq!(
+            classify_widget_capability_sets(
+                v1,
+                v1,
+                exact_v2,
+                capabilities_v2(
+                    Some(&semantics),
+                    Some(&hit_test),
+                    Some(&changed_pointer_motion),
+                ),
+            ),
+            WidgetRevisionEffect::Interaction
+        );
+
+        let conservative_pointer_motion = TestPointerMotion {
+            revision: WidgetPointerMotionRevision::conservative(),
+        };
+        assert_eq!(
+            classify_widget_capability_sets(
+                v1,
+                v1,
+                exact_v2,
+                capabilities_v2(
+                    Some(&semantics),
+                    Some(&hit_test),
+                    Some(&conservative_pointer_motion),
+                ),
+            ),
+            WidgetRevisionEffect::Structural
+        );
+        let absent_v2 = WidgetCapabilitiesV2::none();
+        assert_eq!(
+            classify_widget_capability_sets(v1, v1, absent_v2, absent_v2),
+            WidgetRevisionEffect::Unchanged
+        );
+        assert_eq!(
+            classify_widget_capability_sets(
+                v1,
+                v1,
+                exact_v2,
+                capabilities_v2(Some(&semantics), None, Some(&pointer_motion)),
+            ),
+            WidgetRevisionEffect::Structural
+        );
+        assert_eq!(
+            classify_widget_capability_sets(
+                v1,
+                v1,
+                WidgetCapabilitiesV2::new().with_contract_version(99),
+                exact_v2,
+            ),
+            WidgetRevisionEffect::Structural
+        );
+    }
+
+    #[test]
+    fn absent_v2_capability_evidence_does_not_widen_conservatively() {
+        let absent = WidgetCapabilityEvidence {
+            contract_version: WIDGET_CAPABILITIES_CONTRACT_VERSION,
+            semantics_revision: None,
+            v2_contract_version: WIDGET_CAPABILITIES_V2_CONTRACT_VERSION,
+            v2_semantics_revision: None,
+            hit_test_revision: None,
+            pointer_motion_revision: None,
+        };
+        assert!(!absent.needs_conservative_fallback());
+
+        let conservative_motion = WidgetCapabilityEvidence {
+            pointer_motion_revision: Some(WidgetPointerMotionRevision::conservative()),
+            ..absent.clone()
+        };
+        assert!(conservative_motion.needs_conservative_fallback());
     }
 
     #[test]

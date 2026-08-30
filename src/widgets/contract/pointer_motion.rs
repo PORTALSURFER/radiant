@@ -6,6 +6,8 @@
 //! request repaint even when `handle_input` returns `None`; its overlay remains
 //! local and must not emit host messages. The runtime uses the descriptor only
 //! after culling and otherwise falls back to rebuilding the base scene.
+//! When the supported v2 descriptor is absent or unsupported, the runtime uses
+//! the restored legacy `Widget` hooks and their historical defaults.
 
 use super::widget::PointerCapturePolicy;
 use std::{any::Any, fmt, rc::Rc};

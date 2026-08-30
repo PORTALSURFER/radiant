@@ -713,7 +713,11 @@ fn surface_runtime_resolves_widget_cursor_at_hit_tested_point() {
         }
 
         fn capabilities(&self) -> WidgetCapabilities<'_> {
-            WidgetCapabilities::new().hit_test(self)
+            WidgetCapabilities::none()
+        }
+
+        fn capabilities_v2(&self) -> radiant::widgets::WidgetCapabilitiesV2<'_> {
+            radiant::widgets::WidgetCapabilitiesV2::new().with_hit_test(self)
         }
 
         fn append_paint(

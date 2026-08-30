@@ -64,15 +64,15 @@ mod theme;
 pub use contract::{
     FocusBehavior, FocusLossDecision, PaintBounds, PaintContract, PointerCapturePolicy,
     PointerPressAdmission, WIDGET_CAPABILITIES_CONTRACT_VERSION,
-    WIDGET_CAPABILITIES_V1_CONTRACT_VERSION, Widget, WidgetCapabilities, WidgetHitTest,
-    WidgetHitTestResult, WidgetHitTestRevision, WidgetId, WidgetPaintContext, WidgetPointerMotion,
+    WIDGET_CAPABILITIES_V1_CONTRACT_VERSION, WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, Widget,
+    WidgetCapabilities, WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestResult,
+    WidgetHitTestRevision, WidgetId, WidgetPaintContext, WidgetPointerMotion,
     WidgetPointerMotionRevision, WidgetProminence, WidgetRevision, WidgetSemantics,
     WidgetSemanticsRevision, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
     stable_widget_id, stable_widget_id_u64,
 };
 pub(crate) use contract::{
-    WidgetRevisionComponents, automation_available_actions, resolve_automation_semantics,
-    supports_semantics_contract,
+    WidgetRevisionComponents, supports_capabilities_v2_contract, supports_semantics_contract,
 };
 pub(crate) use interaction::CompositionSelectionState;
 pub use interaction::{

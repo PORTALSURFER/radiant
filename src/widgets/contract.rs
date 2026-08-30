@@ -24,11 +24,10 @@ pub use revision::WidgetRevision;
 pub(crate) use revision::WidgetRevisionComponents;
 pub use semantics::{
     WIDGET_CAPABILITIES_CONTRACT_VERSION, WIDGET_CAPABILITIES_V1_CONTRACT_VERSION,
-    WidgetCapabilities, WidgetSemantics, WidgetSemanticsRevision,
+    WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, WidgetCapabilities, WidgetCapabilitiesV2,
+    WidgetSemantics, WidgetSemanticsRevision,
 };
-pub(crate) use semantics::{
-    automation_available_actions, resolve_automation_semantics, supports_semantics_contract,
-};
+pub(crate) use semantics::{supports_capabilities_v2_contract, supports_semantics_contract};
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};
 pub use style::{WidgetProminence, WidgetStyle, WidgetTone};

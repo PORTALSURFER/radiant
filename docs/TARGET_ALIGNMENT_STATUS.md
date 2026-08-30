@@ -7,7 +7,7 @@
 
 | Category | Estimate |
 | --- | ---: |
-| Public API and module boundaries | 99% |
+| Public API and module boundaries | 99.5% |
 | Declarative model, identity, reconciliation | 82% |
 | Input, provenance, and edit lifecycle | 98.5% |
 | Layout, composition, virtualization | 72% |
@@ -17,4 +17,4 @@
 | Rendering, invalidation, retained GPU surfaces | ~89% |
 | Platform, windowing, and host boundaries | 67% |
 | Diagnostics, profiling, and performance validation | ~94% |
-| Examples, documentation, and CI guardrails | 93.5% |
+| Examples, documentation, and CI guardrails | 96% |

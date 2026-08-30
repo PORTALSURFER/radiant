@@ -4580,17 +4580,31 @@ component ownership. This foundation hook still does not enable refresh or
 repaint optimization, and widgets should exclude stable identity and mutable
 runtime state from their immutable evidence. Advanced hosts should keep using
 the conservative default when any affected input is unavailable or ambiguous.
+The source-compatible v1 `WidgetCapabilities` descriptor is deliberately
+semantics-only: its public shape remains the two fields `contract_version` and
+`semantics`, and `WIDGET_CAPABILITIES_CONTRACT_VERSION` remains `1`. Historical
+two-field struct literals therefore continue to compile. The additive
+`WidgetCapabilitiesV2` descriptor has private fields and contract version `2`;
+its borrowed, `Copy`, object-safe builders and accessors cover `WidgetSemantics`,
+`WidgetHitTest`, and `WidgetPointerMotion`. `Widget::capabilities()` remains the
+v1 seam, while `Widget::capabilities_v2()` is the defaulted v2 seam.
+
 The optional `WidgetSemantics` capability has the same conservative posture:
 its default `WidgetSemantics::revision()` returns
 `WidgetSemanticsRevision::conservative()`. A custom capability may return
 `WidgetSemanticsRevision::exact(value)` with one UI-local `Eq + 'static` value;
 `WidgetCapabilities::semantics_revision()` exposes that evidence without
-evaluating role, label, value, or metadata output methods. Capability presence,
-unsupported descriptor contract versions, and conservative evidence take the
-structural fallback. Changed or type-mismatched exact semantic evidence is an
-interaction change, while equal exact evidence is unchanged. Existing custom
-`WidgetSemantics` and `Widget` implementations remain source-compatible through
-the default hook.
+evaluating role, label, value, or metadata output methods. Supported v2
+semantics and its advertised automation actions take precedence over valid v1
+semantics; absent or unsupported v2 falls back to v1 and then neutral defaults.
+Unknown v1 contract versions do not enable semantics or actions. Capability
+presence changes, unsupported descriptor contract versions, and conservative
+evidence take the structural/full-scene fallback. An optional v2 capability
+absent on both sides is unchanged, preserving legacy fallback without
+spurious structural invalidation. Changed or type-mismatched exact semantic
+evidence is an interaction change, while equal exact evidence is unchanged.
+Existing custom `WidgetSemantics` and `Widget` implementations remain
+source-compatible through the default hooks.
 Hosts that want deterministic test failures can configure
 `SurfaceRuntime::set_identity_audit(IdentityAudit::strict())`. The default
 `IdentityAudit` policy is observational: every replacement completes cleanup and
@@ -4613,6 +4627,11 @@ follows the same contract: if the active widget only changes local preview
 chrome, it can repaint locally without a host message. Emit a `WidgetOutput`
 only when the host-owned model changes, such as seek, create, move, resize, or
 delete.
+The supported v2 descriptor takes precedence over the restored legacy
+`Widget::accepts_pointer_move()` hook; an absent or unsupported v2 descriptor
+uses that legacy hook and its historical default. The descriptor remains a
+read-only, UI-local observation called after culling: it cannot own capture,
+focus, scheduling, renderer, or application authority.
 Use `WidgetPointerMotion::pointer_capture_policy()` for widgets that need to control pointer
 motion while they own capture. `PointerCapturePolicy::Exclusive` is for
 splitters, resize handles, and similar controls that should not activate hover
@@ -4636,7 +4655,12 @@ Custom widgets must still be pointer hit-test eligible before pointer hooks can
 run. Export `WidgetHitTest` when a widget needs event-aware opaque or
 pass-through classification or a cursor choice; `WidgetHitTest::hit_test(...)`
 is called after bounds and clip culling, and it cannot reorder traversal or own
-capture. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip,
+capture. `WidgetHitTest::Opaque` selects the front-most admitted target, while
+`WidgetHitTest::PassThrough` continues front-to-back traversal. A cursor applies
+only to an admitted opaque target or capture owner. An absent or unsupported v2
+hit-test descriptor falls back to the legacy `Widget::accepts_pointer_input()`
+hook and the historical opaque rectangular default. Use
+`WidgetCommon::with_pointer_focus()` for hover, drag, tooltip,
 cursor, or paint-only overlay widgets that should skip keyboard traversal, or
 `WidgetCommon::with_keyboard_focus()` when the same custom surface also handles
 keyboard input.
@@ -4651,8 +4675,11 @@ of those transient states. The native Vello runtime can then present those
 overlay rectangles over the cached scene on stable pointer motion and captured
 paint-only drag motion instead of rebuilding the Vello scene for every
 mouse-move event. Widgets that paint pointer-motion state in `append_paint(...)`
-or cannot prove a valid overlay should not opt into the paint-only pointer path;
-the runtime falls back to full-scene repaint when the descriptor is absent,
+or cannot prove a valid overlay should not opt into the paint-only pointer path.
+The v2 paint-only path requires both the preference and valid overlay evidence;
+the restored `Widget::prefers_pointer_move_paint_only()` hook is used only when
+v2 pointer-motion evidence is absent or unsupported. The runtime falls back to
+full-scene repaint when the descriptor is absent,
 unsupported, or ambiguous. Semantics-only v1 descriptors and unknown capability
 versions advertise no optional behavior.
 

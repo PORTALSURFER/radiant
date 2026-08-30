@@ -4,8 +4,8 @@ use radiant::gui::automation::{AUTOMATION_ACTION_TOGGLE, AutomationRole};
 use radiant::prelude::*;
 use radiant::runtime::{PaintFillRect, PaintTextAlign, PaintTextRun};
 use radiant::widgets::{
-    WidgetCapabilities, WidgetHitTest, WidgetHitTestRevision, WidgetPointerMotion,
-    WidgetPointerMotionRevision, WidgetSemantics, WidgetSemanticsRevision,
+    WidgetCapabilities, WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestRevision,
+    WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics, WidgetSemanticsRevision,
 };
 
 #[derive(Default)]
@@ -76,10 +76,13 @@ impl Widget for StatusChip {
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new()
-            .semantics(self)
-            .hit_test(self)
-            .pointer_motion(self)
+        WidgetCapabilities::new().semantics(self)
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::new()
+            .with_hit_test(self)
+            .with_pointer_motion(self)
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -154,6 +157,7 @@ fn main() -> radiant::Result {
 mod tests {
     use super::*;
     use radiant::runtime::SurfaceRuntime;
+    use radiant::widgets::WidgetHitTestResult;
 
     #[test]
     fn custom_widget_exports_explicit_capability_descriptors() {
@@ -165,14 +169,15 @@ mod tests {
             radiant::widgets::WIDGET_CAPABILITIES_CONTRACT_VERSION
         );
         assert!(capabilities.has_semantics());
-        assert!(capabilities.has_hit_test());
-        assert!(capabilities.has_pointer_motion());
         assert_eq!(
             capabilities.semantics_revision(),
             Some(WidgetSemanticsRevision::exact(false))
         );
+        let capabilities_v2 = widget.capabilities_v2();
+        assert!(capabilities_v2.has_hit_test());
+        assert!(capabilities_v2.has_pointer_motion());
         assert_eq!(
-            capabilities.pointer_motion_revision(),
+            capabilities_v2.pointer_motion_revision(),
             Some(WidgetPointerMotionRevision::exact(true))
         );
         assert_eq!(
@@ -181,6 +186,15 @@ mod tests {
                 .expect("custom widget semantics")
                 .automation_available_actions(),
             Some(vec![AUTOMATION_ACTION_TOGGLE.to_owned()])
+        );
+        let hit_test: &dyn WidgetHitTest = capabilities_v2.hit_test().expect("hit-test");
+        assert_eq!(
+            hit_test.hit_test(
+                Rect::default(),
+                Point::default(),
+                &WidgetInput::pointer_move(Point::default()),
+            ),
+            WidgetHitTestResult::Opaque
         );
     }
 

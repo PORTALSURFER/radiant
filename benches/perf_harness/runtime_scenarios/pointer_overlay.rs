@@ -8,8 +8,8 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonWidget, Widget, WidgetCapabilities, WidgetCommon, WidgetInput, WidgetOutput,
-        WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSizing,
+        ButtonWidget, Widget, WidgetCapabilities, WidgetCapabilitiesV2, WidgetCommon, WidgetInput,
+        WidgetOutput, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSizing,
     },
 };
 use std::{hint::black_box, sync::Arc};
@@ -165,7 +165,11 @@ impl Widget for PointerOverlayProbeWidget {
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::new().pointer_motion(self)
+        WidgetCapabilities::none()
+    }
+
+    fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
+        WidgetCapabilitiesV2::new().with_pointer_motion(self)
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {

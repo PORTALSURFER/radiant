@@ -38,6 +38,10 @@ Do not attempt to implement every goal in one large rewrite. Use this document a
 
 When making changes, prefer incremental improvements that move Radiant closer to this target while keeping the library compiling, examples working, and the public API coherent.
 
+Only canonical merged source counts for shipped status; branch, draft,
+acceptance-only, and unverified evidence do not. X11 and product-specific
+behavior remain explicit non-goals for Radiant.
+
 The target architecture matters more than cosmetic cleanup. Avoid large rewrites unless they clearly reduce complexity, improve the public API, unlock important performance work, or remove architectural blockers.
 
 ## Core Product Goals
@@ -484,6 +488,11 @@ incompatible, stale, same-update, host, capacity, and closing admissions reject
 without spawn, mapping, retry, or `Application` fallback. Keyed-latest resource ownership, `ResourceTasks`, platform ownership, renderer, scheduler,
 native, and product wiring remain deferred.
 
+Current shipped effect boundary: the private `EffectOrigin` model and
+application-owned `ResourceTasks` are the current ownership split;
+`runtime/effects` is not complete. The remaining effect-ownership boundaries
+are future work tracked by OPT-1387, OPT-1390, and OPT-1370.
+
 The cancellable latest-task owner routes are
 `CancellableBusinessLatestRequest::run_for_owner_with_receipt(owner, work, map)`,
 `CancellableBusinessLatestRequest::stream_for_owner_with_receipt(owner, work,
@@ -704,6 +713,11 @@ authoritative for virtual materialization and unsupported paths.
 `WindowStageOwner` now admits private Deadline work plus this synchronous
 Projection-to-Layout-to-PaintPlan handoff. Diagnostics and timing remain
 observational and non-authoritative.
+
+Current shipped boundary: prepared refresh constructs the Projection, layout,
+and paint-plan candidate synchronously, then uses a later no-yield publication
+gate. Independently schedulable Reconciliation, Layout, and Paint stages remain
+future work under OPT-1389.
 
 ### Native visual request packet handoff (private native-window contract)
 
@@ -1253,6 +1267,12 @@ A waveform view, for example, should be a Radiant widget. Internally it may use 
 
 Custom GPU rendering should be used for clear performance, visual, or architectural reasons, not as a default replacement for normal Vello-rendered UI.
 
+Current shipped boundary: `RenderCanvas` vocabulary is a compatibility-alias
+surface over `GpuSurface` vocabulary and emits `PaintPrimitive::GpuSurface`.
+The target `CanvasProgram`/`CanvasGraph` contract remains future work: OPT-1407
+owns the compatibility decision and OPT-1408 owns its implementation. This
+target does not choose a new RenderCanvas compatibility or deprecation policy.
+
 ## Layout System
 
 Radiant should have a clear, flexible, predictable, and performant layout system.
@@ -1291,6 +1311,15 @@ The layout system should support:
 - Debug tooling for layout issues
 
 Layout behavior should be easy to reason about and easy to inspect when something goes wrong.
+
+Current shipped custom-layout boundary (OPT-1272): `LayoutPolicy` is limited
+to measure/place and remains separate from the built-in `ContainerPolicy`.
+OPT-1272 is Done; this wording does not reopen that slice.
+
+Current shipped virtual-layout boundary: public declarative attachment and
+mounted runtime registration are shipped. The first-class production
+consumer/collection family remains future work, sequenced by OPT-1362 and then
+OPT-1400, OPT-1398, OPT-1397, OPT-1399, and OPT-1401.
 
 The current split-pane boundary is intentionally narrower than the complete
 input/accessibility target. The public `SplitPaneCollapsePolicy::{FirstPane,
@@ -1465,6 +1494,12 @@ The text system should consider:
 Text handling is often a performance-sensitive and correctness-sensitive part of GUI systems. It should be designed intentionally rather than treated as a small rendering detail.
 
 Full internationalization can be a future concern, but the core text system should avoid obviously fragile assumptions where practical.
+
+Current shipped boundary: the environment exposes only display scale, color
+scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
+shipped. Locale and writing-direction services remain future work under
+OPT-1386; bidi and complex shaping remain future renderer/text-layout work
+under OPT-1402.
 
 ## Accessibility
 

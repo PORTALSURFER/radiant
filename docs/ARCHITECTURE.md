@@ -12,6 +12,10 @@ module ownership and the migration seams between it and that target; a boundary
 described here is not evidence that every target-state node, scheduling, or
 renderer contract is already implemented.
 
+Only canonical merged source counts for shipped status; branch, draft,
+acceptance-only, and unverified evidence do not. X11 and product-specific
+behavior remain explicit non-goals for Radiant.
+
 Radiant's architecture should keep one external mental model while allowing
 focused internal modules. The main ownership rule is:
 
@@ -214,7 +218,8 @@ new focused export leaf or a module split, not a formatting workaround.
   custom chrome, environment/appearance, interaction, semantics, alternate
   reading order, animation, virtualization attachment, exact policy revisions,
   and custom cache reuse remain outside the boundary. Built-in
-  `ContainerPolicy`/`ContainerKind` dispatch is unchanged.
+  `ContainerPolicy`/`ContainerKind` dispatch is unchanged. OPT-1272 is Done;
+  this measure/place-only boundary does not reopen that issue.
 - `src/gui_runtime` owns native runtime integration and renderer adapters. The
   current native Vello runtime is the macOS implementation path; the target
   adds native Wayland and Windows host adapters behind the same Radiant-owned
@@ -259,11 +264,16 @@ new focused export leaf or a module split, not a formatting workaround.
 
 ## Virtual Layout Semantic Provider Boundary
 
-The current private `SurfaceRuntime` virtual-layout registration and semantic
+The current mounted `SurfaceRuntime` virtual-layout registration and semantic
 demand/publication kernel are implementation evidence. The qualified public
-declarative provider path is normative and shipped at the Logical boundary,
-with the bounded custom-coordinate attachment defined fully in
+declarative attachment is normative and shipped at the Logical boundary, with
+the bounded custom-coordinate attachment defined fully in
 [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md).
+
+Current shipped boundary: public declarative attachment and mounted runtime
+registration/two-pass bridging are shipped. The first-class production
+consumer/collection family remains future work, sequenced by OPT-1362 and then
+OPT-1400, OPT-1398, OPT-1397, OPT-1399, and OPT-1401.
 
 The only public declarative attachment capability is
 `radiant::application::VirtualLayoutParts<Message>` with
@@ -292,8 +302,7 @@ fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
 numeric action, bounded set-value, and restart acceptance for this bounded
 primary-window consumer. VoiceOver-specific acceptance remains unperformed;
 repeated negative-geometry AppKit runtime diagnostics remain a separate
-unverified follow-up if reproducible. Estimates remain unchanged and no estimate
-credit, including Platform credit, is awarded. The value is immutable
+unverified follow-up if reproducible. The value is immutable
 declaration evidence, not a callback or demand; `None` is unknown/unsupported,
 exact zero is supported, the count is not capped at 1024, and it never allocates
 proportional storage.
@@ -354,8 +363,7 @@ activated Computer Use/AppKit evidence verifies discoverability and numeric
 action, bounded set-value, and restart acceptance for this bounded primary-window
 consumer. VoiceOver-specific acceptance remains unperformed; repeated
 negative-geometry AppKit runtime diagnostics remain a separate unverified
-follow-up if reproducible. Estimates remain unchanged and no estimate credit,
-including Platform credit, is awarded.
+follow-up if reproducible.
 
 ## Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
@@ -423,8 +431,7 @@ container and a settable stepper at `42.00`; Increment and Decrement produced
 fresh reads showing normal app-owned Begin/Update/Commit events, and a fresh
 restarted instance exposed the same tree. VoiceOver-specific acceptance remains
 unperformed. Repeated negative-geometry AppKit runtime diagnostics remain a
-separate unverified follow-up if reproducible. Estimates remain unchanged and
-no estimate credit, including Platform credit, is awarded.
+separate unverified follow-up if reproducible.
 
 The first native consumer accepts `Logical` registrations unchanged and admits
 `Custom(identity)` only with the matching current transform attachment, exact
@@ -649,9 +656,8 @@ and symmetric retirement. Exact fresh-bundle activated Computer Use/AppKit
 evidence verifies discoverability and numeric action, bounded set-value, and
 restart acceptance for this bounded primary-window consumer. VoiceOver-specific
 acceptance remains unperformed. Repeated negative-geometry AppKit runtime
-diagnostics remain a separate unverified follow-up if reproducible. Alignment
-estimates remain unchanged and no estimate credit, including Platform credit, is
-awarded. Wayland, Windows, non-qualified/virtual native actions, new native AX
+diagnostics remain a separate unverified follow-up if reproducible. Wayland,
+Windows, non-qualified/virtual native actions, new native AX
 native focus setter/transfer or focus exposure beyond the ordinary materialized-target
 contract, scrolling, product policy,
 direct native custom-resolver invocation/reconstruction, scheduler, and renderer
@@ -668,6 +674,12 @@ existing auxiliary path or an explicit declarative owner consumer supplies a
 live declarative origin. The private `EffectOrigin` model in
 `src/runtime/controller/owner.rs` now distinguishes `Application`, `Auxiliary`
 generations, and live declarative tokens.
+
+Current shipped ownership is narrower than this target model: the private
+`EffectOrigin` boundary and application-owned `ResourceTasks` are the current
+ownership split; `runtime/effects` is not complete. The remaining
+effect-ownership boundaries are future work tracked by OPT-1387, OPT-1390,
+and OPT-1370.
 
 That private auxiliary generation is already carried through the existing
 worker, timer, and platform-completion registries in
@@ -832,6 +844,12 @@ The public application model should not split into separate "Vello apps" and
 participates in layout, input routing, paint planning, diagnostics, and normal
 runtime invalidation.
 
+Current shipped boundary: `RenderCanvas` is a compatibility alias over
+`GpuSurface` vocabulary and emits `PaintPrimitive::GpuSurface`.
+`CanvasProgram`/`CanvasGraph` remains future work: OPT-1407 owns the
+compatibility decision and OPT-1408 owns the implementation. This boundary
+does not choose a new RenderCanvas compatibility or deprecation policy.
+
 Built-in GPU-surface payloads cover atlas and signal rendering. Advanced shader
 surfaces use a backend-neutral custom shader descriptor for stable shader
 identity, optional WGSL source, explicit vertex/fragment entry points, and
@@ -988,6 +1006,11 @@ authoritative for virtual materialization and unsupported paths.
 `WindowStageOwner` now admits private Deadline work plus this synchronous
 Projection-to-Layout-to-PaintPlan handoff. Diagnostics and timing remain
 observational and non-authoritative.
+
+Current shipped boundary: prepared refresh constructs the Projection, layout,
+and paint-plan candidate synchronously, then uses a later no-yield publication
+gate. Independently schedulable Reconciliation, Layout, and Paint stages remain
+future work under OPT-1389.
 
 ### Native visual request packet handoff (private native-window contract)
 
@@ -1419,6 +1442,12 @@ separate:
 Application code should configure portable font policy through
 `NativeTextOptions` and `EmbeddedFont` instead of depending on installed fonts
 or renderer internals.
+
+Current shipped boundary: the environment exposes only display scale, color
+scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
+shipped. Locale and writing-direction services remain future work under
+OPT-1386; bidi and complex shaping remain future renderer/text-layout work
+under OPT-1402.
 
 ## Platform Boundary
 

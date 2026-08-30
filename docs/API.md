@@ -27,6 +27,10 @@ and incremental-delivery direction. When a target example uses a name that is
 not yet shipped, this document's current API spelling and migration note take
 precedence for code that must compile today.
 
+Only canonical merged source counts for shipped status; branch, draft,
+acceptance-only, and unverified evidence do not. X11 and product-specific
+behavior remain explicit non-goals for Radiant.
+
 ## Dependency Boundary
 
 The dependency direction is host application to Radiant. Radiant default builds
@@ -718,11 +722,13 @@ common paint primitives without app-local exhaustive primitive matches.
 ## Large Virtual Lists
 
 The future keyed virtualization/materialization contract is defined in
-[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The query-only qualified
-`radiant::layout::VirtualLayoutPolicy` and `VirtualLayoutQueryExecutor` APIs are
-shipped without a public constructor, prelude entry, or runtime registration. A
-crate-private coordinator now provides bounded accepted-window, key-continuity,
-fallback, and anchor evidence internally. The crate-private runtime bridge
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). Current shipped virtual
+layout includes the qualified query-only `radiant::layout::VirtualLayoutPolicy`
+and `VirtualLayoutQueryExecutor` APIs, the public declarative attachment, and
+mounted `SurfaceRuntime` registration. They remain without a public constructor
+or prelude entry. A crate-private coordinator now provides bounded
+accepted-window, key-continuity, fallback, and anchor evidence internally. The
+crate-private runtime bridge
 inside `SurfaceRuntime` now contains private
 semantic-demand/provider-attempt/retention, semantic/materialization
 classification, and atomic whole-surface logical publication/composition
@@ -733,15 +739,16 @@ only the bounded selected snapshot through explicit `SurfaceRuntime` operations.
 A separate crate-private materialization/recycling correctness kernel is shipped
 for accepted-commit evidence and explicit private projector/lifecycle tests; it
 does not expose a public constructor or prelude entry, register through
-`LayoutCapabilities`, project concrete surfaces, own focus/accessibility pins,
-schedule work, or serve product collections. Runtime registration, concrete
-surface projection, focus/accessibility pins, scheduling, and product consumers
-remain future. In this slice, an explicit anchor is corrected only when its
-same key is present in both accepted bounded windows; bounded absence leaves it
-unresolved without deletion or successor/predecessor inference. Authoritative
-required-key found/not_found evidence for removal replacement remains a later
-prerequisite. The APIs in this section are the currently shipped fixed-row host
-projection path and retain their existing ownership and compatibility behavior.
+`LayoutCapabilities`, project product surfaces, own focus/accessibility pins,
+schedule work, or serve product collections. The first-class production
+consumer/collection family remains future work, sequenced by OPT-1362 and then
+OPT-1400, OPT-1398, OPT-1397, OPT-1399, and OPT-1401. In this slice, an explicit
+anchor is corrected only when its same key is present in both accepted bounded
+windows; bounded absence leaves it unresolved without deletion or
+successor/predecessor inference. Authoritative required-key found/not_found
+evidence for removal replacement remains a later prerequisite. The APIs in
+this section are the currently shipped fixed-row host projection path and
+retain their existing ownership and compatibility behavior.
 
 ### Next production consumer: semantic automation session (normative; generic logical implementation shipped)
 
@@ -830,17 +837,14 @@ consumes only the compositor's complete normalized logical-window bounds and
 the sidecar's exact transform witness/publication fences, then performs the
 existing logical content-view to AppKit screen conversion. It never invokes or
 reconstructs the custom resolver, assumes an affine mapping, maps corners,
-inverts, or uses identity fallback. This bounded native consumer does not
-change the estimates: generic ~97%, Declarative identity 71%, layout 97%, and
-broad coverage `903 / 11` (~82.09%). Product consumer implementations,
+inverts, or uses identity fallback. Product consumer implementations,
 scheduler/backoff/fairness, and multiple active ranges per container remain
 outside this evidence point. Automated AppKit boundary evidence remains shipped;
 exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverability
 and numeric action, bounded set-value, and restart acceptance for this bounded
 primary-window consumer. VoiceOver-specific acceptance remains unperformed;
 repeated negative-geometry AppKit runtime diagnostics remain a separate
-unverified follow-up if reproducible. Estimates remain unchanged and no estimate
-credit, including Platform credit, is awarded.
+unverified follow-up if reproducible.
 
 ### Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
@@ -908,8 +912,7 @@ container and a settable stepper at `42.00`; Increment and Decrement produced
 fresh reads showing normal app-owned Begin/Update/Commit events, and a fresh
 restarted instance exposed the same tree. VoiceOver-specific acceptance remains
 unperformed. Repeated negative-geometry AppKit runtime diagnostics remain a
-separate unverified follow-up if reproducible. Estimates remain unchanged and
-no estimate credit, including Platform credit, is awarded.
+separate unverified follow-up if reproducible.
 
 The first native consumer accepts `Logical` registrations unchanged and admits
 `Custom(identity)` only with the matching current transform attachment, exact
@@ -1029,8 +1032,7 @@ Computer Use/AppKit evidence verifies discoverability and numeric action,
 bounded set-value, and restart acceptance for this bounded primary-window
 consumer. VoiceOver-specific acceptance remains unperformed; repeated
 negative-geometry AppKit runtime diagnostics remain a separate unverified
-follow-up if reproducible. No public API is added; estimates remain unchanged
-and no estimate credit, including Platform credit, is awarded.
+follow-up if reproducible. No public API is added.
 
 Cardinality is immutable declaration evidence. It is not a callback, demand, or
 provider availability signal. `None` means unknown or unsupported; an exact zero
@@ -1163,9 +1165,8 @@ and symmetric retirement. Exact fresh-bundle activated Computer Use/AppKit
 evidence verifies discoverability and numeric action, bounded set-value, and
 restart acceptance for this bounded primary-window consumer. VoiceOver-specific
 acceptance remains unperformed. Repeated negative-geometry AppKit runtime
-diagnostics remain a separate unverified follow-up if reproducible. Alignment
-estimates remain unchanged and no estimate credit, including Platform credit, is
-awarded. Wayland, Windows, non-qualified/virtual native actions, native focus
+diagnostics remain a separate unverified follow-up if reproducible. Wayland,
+Windows, non-qualified/virtual native actions, native focus
 setter/transfer or focus exposure beyond the ordinary materialized-target
 contract, scrolling, product policy,
 direct native custom-resolver invocation/reconstruction, scheduler, and
@@ -1202,8 +1203,7 @@ exact fresh-bundle activated Computer Use/AppKit evidence verifies discoverabili
 and numeric action, bounded set-value, and restart acceptance for this bounded
 primary-window consumer. VoiceOver-specific acceptance remains unperformed;
 repeated negative-geometry AppKit runtime diagnostics remain a separate
-unverified follow-up if reproducible. Estimates remain unchanged and no estimate
-credit, including Platform credit, is awarded.
+unverified follow-up if reproducible.
 Cardinality is immutable
 declaration evidence, not a callback or demand; its exact count is independent
 of the one-range and one-required-item slots and of the 1024 per-query/aggregate
@@ -4230,6 +4230,13 @@ The former `gpu_surface*` builders and `GpuSurface*` construction names remain
 available only through explicit application or runtime module imports as
 transitional compatibility APIs; they are not part of the common prelude.
 
+Current shipped boundary: the `RenderCanvas` vocabulary is a compatibility
+alias over `GpuSurface` vocabulary and its paint output is
+`PaintPrimitive::GpuSurface`. `CanvasProgram` and `CanvasGraph` remain future
+work: OPT-1407 owns the compatibility decision and OPT-1408 owns the
+implementation. This API reference does not choose a new compatibility or
+deprecation policy.
+
 ## Soft-Deprecated First-Use Boilerplate
 
 The old explicit first-use path is soft-deprecated:
@@ -4291,6 +4298,12 @@ object-safe trait callers keep the same behavior. The projection is lossless:
 it carries display scale, optional color scheme, contrast, and reduced-motion
 preference without choosing fallbacks or changing layout, theme, or animation
 semantics.
+
+Current shipped boundary: the environment exposes only display scale, color
+scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
+shipped. Locale and writing-direction services remain future work under
+OPT-1386; bidi and complex shaping remain future renderer/text-layout work
+under OPT-1402.
 
 Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
 resolves light, dark, and high-contrast tokens from the current window snapshot;
@@ -4461,10 +4474,13 @@ should prove selection/caret behavior still operates on the underlying logical
 value. Native IME composition belongs at the platform adapter boundary, which
 should translate platform preedit/commit/cancel events into backend-neutral
 composition state and final text commits; the widget model should own the
-logical composition range once that generic event exists. Bidirectional text and
-complex shaping belong to renderer text layout and cursor-stop mapping, while
-`TextInputState` continues to store logical Unicode-scalar positions instead of
-renderer glyph positions.
+logical composition range once that generic event exists. Unicode-scalar editing
+is shipped. Locale and writing-direction services remain future work under
+OPT-1386. Future target: Bidirectional text and complex shaping belong to
+renderer text layout and cursor-stop mapping; they remain future work under
+OPT-1402, while `TextInputState`
+continues to store logical Unicode-scalar positions instead of renderer glyph
+positions.
 
 Implement `Widget` directly when a downstream application needs a new focusable
 leaf with its own input handling, host-routable output payload, or
@@ -4804,6 +4820,12 @@ fallback. Late owner wakes and worker completions are fenced before mapping.
 No general effect ownership, semantic demand/refresh/provider budget, scheduler,
 custom-coordinate, platform, or product wiring API is promised.
 
+Current shipped ownership is narrower than the target model: the private
+`EffectOrigin` boundary supplies application, auxiliary, and selected
+declarative provenance, while `ResourceTasks` remains application-owned.
+`runtime/effects` is not complete. The remaining effect-ownership boundaries
+are future work tracked by OPT-1387, OPT-1390, and OPT-1370.
+
 The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers and business work remain application-owned, and an invalid selection is rejected without fallback. Ordinary ordered and coalesced owner-scoped streaming, the cancellable ordinary ordered owner stream, ordered and coalesced latest-task owner streaming, and the application-owned `KeyedLatestTasks` one-shot, ordered-stream, and coalesced-stream routes are shipped. The coalesced keyed-latest route retains the exact host key, keyed ticket, replacement transaction, owner generation, and receipt; keeps only the newest pending intermediate payload before UI drain; delivers the uncoalesced final exactly once after the retained event; and passes exact `KeyedTaskCompletion<Key, _>` values to UI-local/non-`Send` mappers. Keyed supersession and owner retirement independently fence worker, mapping, and reduction. Invalid, removed, ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and same-update admissions fail closed without `Application` fallback and restore only the affected key's predecessor; sibling keys remain unchanged. The cancellable ordinary ordered owner-stream route reuses the same accepted surface, owner-generation ledger, worker registry, bounded FIFO ingress, and controller-composed cancellation probe. Callers clone `request.token()` before consuming the request. Token cancellation and declarative owner retirement are independent OR-composed fences for cooperative work, events, final delivery, mapping, and reduction, including later entries already queued for one UI drain; the admission receipt does not change after it resolves. Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host, capacity, and closing admissions reject atomically without spawn, mapping, retry, or `Application` fallback, and event/final mappers stay UI-local/non-`Send`. `ResourceTasks` ownership, platform ownership, and shared-resource semantics remain outside this public slice.
 
 The cancellable latest-task one-shot and ordered/coalesced owner streams are
@@ -5001,7 +5023,8 @@ This slice is deliberately limited to measure and place. It does not add custom
 chrome, environment or appearance contexts, interaction or semantics
 capabilities, alternate reading order, animation, virtualization attachment,
 exact custom-policy revisions, or custom cache reuse. Built-in
-`ContainerPolicy`/`ContainerKind` behavior remains unchanged.
+`ContainerPolicy`/`ContainerKind` behavior remains unchanged. OPT-1272 is Done;
+this boundary does not reopen that issue.
 
 Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
@@ -6257,8 +6280,7 @@ for this bounded primary-window consumer: the stepper moved from `42.00` to
 `57.25` with fresh reads showing normal app-owned Begin/Update/Commit events,
 and a fresh restarted instance exposed the same tree. VoiceOver-specific
 acceptance remains unperformed; repeated negative-geometry AppKit runtime
-diagnostics remain a separate unverified follow-up if reproducible. Estimates
-remain unchanged and no estimate credit, including Platform credit, is awarded.
+diagnostics remain a separate unverified follow-up if reproducible.
 Current Linux/Windows validation remains limited to portable build, compile,
 and test evidence.
 
@@ -7205,6 +7227,11 @@ authoritative for virtual materialization and unsupported paths.
 `WindowStageOwner` now admits private Deadline work plus this synchronous
 Projection-to-Layout-to-PaintPlan handoff. Diagnostics and timing remain
 observational and non-authoritative.
+
+Current shipped boundary: prepared refresh constructs the Projection, layout,
+and paint-plan candidate synchronously, then uses a later no-yield publication
+gate. Independently schedulable Reconciliation, Layout, and Paint stages remain
+future work under OPT-1389.
 
 ### Native visual request packet handoff (private native-window contract)
 

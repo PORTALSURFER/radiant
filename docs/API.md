@@ -4532,7 +4532,8 @@ paths as built-ins.
 `SurfaceNode::stack` overlays children in slot order so hosts can compose a card
 background with nested rows, columns, labels, and controls. Lower-level
 `SurfaceNode::container` plus `ContainerPolicy` and `SlotParams` remains
-available for custom layout policy.
+available for explicit runtime composition, while `SurfaceNode::layout` offers
+the same bounded custom measure/place policy boundary at that layer.
 `SurfaceNode::scroll_area` wraps one content child in a generic scroll viewport;
 `SurfaceNode::virtual_scroll_area` adds a `VirtualizationPolicy` for large
 linear lists without tying the framework API to any host content-list model.
@@ -4984,6 +4985,23 @@ renderer backend.
 `LayoutOutput::rect_for` and `LayoutOutput::rect_for_clamped` provide the
 shared measured-rectangle lookup contract for adapters that need stable
 fallback bounds after a layout pass.
+
+The first declarative custom-container extension is the qualified
+`radiant::layout::{LayoutPolicy, SizeHint, MeasureChildren, PlaceChildren}`
+boundary. The application `layout(policy, children)` builder accepts an
+immutable UI-local policy and ordinary `ViewNode` children without application
+supplied runtime IDs. Measurement receives only normalized, child-bounded
+constraints; placement receives the resolved container bounds and must place or
+explicitly omit every declared child exactly once. Non-finite or contradictory
+size hints, invalid child requests, invalid rectangles, duplicate dispositions,
+and unresolved children are diagnosed; unresolved children are conservatively
+absent from `LayoutOutput`.
+
+This slice is deliberately limited to measure and place. It does not add custom
+chrome, environment or appearance contexts, interaction or semantics
+capabilities, alternate reading order, animation, virtualization attachment,
+exact custom-policy revisions, or custom cache reuse. Built-in
+`ContainerPolicy`/`ContainerKind` behavior remains unchanged.
 
 Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
@@ -6286,7 +6304,7 @@ manual validation:
 | --- | --- |
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
-| Layout, scrolling, and virtualization | `layout_rows_columns`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
+| Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
@@ -6634,6 +6652,8 @@ labels and optional trailing progress/action content but should not rebuild the
 status-row chrome locally.
 Run `cargo run --example layout_rows_columns` for a compact row/column layout
 sandbox with padding and fill sizing.
+Run `cargo run --example custom_layout` for a small external-style measure/place
+policy with ordinary declarative children.
 Run `cargo run --example split_pane_static` for a product-neutral static
 two-pane geometry sandbox that inspects the public `split_pane(...)` builder.
 Run `cargo run --example split_pane_runtime` for a deterministic runtime-owned

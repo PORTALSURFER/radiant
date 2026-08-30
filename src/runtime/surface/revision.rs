@@ -11,8 +11,8 @@ use super::widget::{
 use crate::gui::layout_core::SplitPaneRuntimeMode;
 use crate::gui::types::Rect;
 use crate::layout::{
-    ContainerPolicy, LayoutCapabilities, LayoutInteractionRevision, LayoutOutput, NodeId,
-    SlotParams, supports_layout_capabilities_contract,
+    ContainerPolicy, LayoutCapabilities, LayoutInteractionRevision, LayoutOutput, LayoutPolicy,
+    NodeId, SlotParams, supports_layout_capabilities_contract,
 };
 use crate::runtime::RepaintScope;
 use crate::widgets::WidgetStyle;
@@ -33,6 +33,7 @@ pub(crate) struct SurfaceChildRevision<'a, Message> {
 /// Borrowed revision inputs for one surface container.
 pub(crate) struct SurfaceContainerRevision<'a, Message> {
     pub(crate) policy: &'a ContainerPolicy,
+    pub(crate) layout_policy: Option<&'a dyn LayoutPolicy>,
     pub(crate) split_pane_runtime: Option<SplitPaneRuntimeMode>,
     pub(crate) style: Option<&'a WidgetStyle>,
     pub(crate) hoverable: bool,
@@ -58,6 +59,10 @@ pub(crate) struct SurfaceSceneRevision<'a, Message> {
 impl<'a, Message> SurfaceContainerRevision<'a, Message> {
     fn policy_changed(&self, other: &Self) -> bool {
         self.policy != other.policy
+    }
+
+    fn custom_layout_policy_present(&self) -> bool {
+        self.layout_policy.is_some()
     }
 
     fn split_pane_runtime_changed(&self, other: &Self) -> bool {
@@ -143,6 +148,7 @@ impl<Message> super::SurfaceContainer<Message> {
     pub(crate) fn revision(&self) -> SurfaceContainerRevision<'_, Message> {
         SurfaceContainerRevision {
             policy: &self.policy,
+            layout_policy: self.layout_policy.as_deref(),
             split_pane_runtime: self.split_pane_runtime,
             style: self.style.as_ref(),
             hoverable: self.hoverable,
@@ -452,6 +458,7 @@ pub(crate) enum ViewDeltaCause {
     SceneLayerCount,
     SceneLayerInput,
     LayoutCapabilities,
+    CustomLayoutPolicy,
     OverlayRect,
     OverlayLabel,
     OverlayStyle,
@@ -913,6 +920,7 @@ fn mismatch_for_event(
             return None;
         }
         ViewDeltaCause::ContainerPolicy
+        | ViewDeltaCause::CustomLayoutPolicy
         | ViewDeltaCause::SplitPaneRuntimeMode
         | ViewDeltaCause::ChildSlot
         | ViewDeltaCause::OverlayRect => ReconciliationMismatch::GeometryEvidence,
@@ -1570,6 +1578,16 @@ fn compare_container<Message>(
         delta.record(
             ViewDeltaEffect::Geometry,
             ViewDeltaCause::ContainerPolicy,
+            path.path,
+        );
+    }
+    if previous_revision.custom_layout_policy_present()
+        || current_revision.custom_layout_policy_present()
+    {
+        delta.record_conservative();
+        delta.record(
+            ViewDeltaEffect::Geometry,
+            ViewDeltaCause::CustomLayoutPolicy,
             path.path,
         );
     }

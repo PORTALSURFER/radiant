@@ -4,8 +4,8 @@ use super::super::{
 };
 use crate::{
     layout::{
-        ContainerKind, ContainerPolicy, GridPolicy, LayoutCapabilities, NodeId, OverflowPolicy,
-        VirtualizationAxis, VirtualizationPolicy,
+        ContainerKind, ContainerPolicy, GridPolicy, LayoutCapabilities, LayoutPolicy, NodeId,
+        OverflowPolicy, VirtualizationAxis, VirtualizationPolicy,
     },
     widgets::WidgetStyle,
 };
@@ -32,6 +32,16 @@ impl<Message> SurfaceNode<Message> {
             layout_capabilities: None,
             children,
         })
+    }
+
+    /// Build a container driven by an object-safe custom measure/place policy.
+    pub fn layout<Policy: LayoutPolicy>(
+        id: NodeId,
+        policy: Policy,
+        children: Vec<SurfaceChild<Message>>,
+    ) -> Self {
+        Self::container(id, ContainerPolicy::default(), children)
+            .with_layout_policy_erased(std::rc::Rc::new(policy))
     }
 
     /// Build a container node from runtime-internal named parts.

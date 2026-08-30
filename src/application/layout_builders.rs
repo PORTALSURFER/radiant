@@ -16,7 +16,7 @@ mod toolbar;
 pub use collection::{Children, Keyed, children, for_each, for_each_by};
 pub use containers::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key, grid,
-    grid_with_gaps, row, row_key, stack, stack_layers, wrap,
+    grid_with_gaps, layout, row, row_key, stack, stack_layers, wrap,
 };
 pub use lists::{
     BoundedScrollColumnParts, MaterializedVirtualListBuilder, VirtualListBuilder,

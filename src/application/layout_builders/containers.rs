@@ -3,8 +3,9 @@
 use super::collection::collect_children;
 use crate::{
     application::{ViewNode, ViewNodeKind, empty},
-    layout::{ContainerKind, ContainerPolicy, GridPolicy, WrapPolicy},
+    layout::{ContainerKind, ContainerPolicy, GridPolicy, LayoutPolicy, WrapPolicy},
 };
+use std::rc::Rc;
 
 /// Default main-axis gap for Radiant application row containers.
 pub const DEFAULT_ROW_SPACING: f32 = 4.0;
@@ -14,6 +15,19 @@ pub const DEFAULT_COLUMN_SPACING: f32 = 4.0;
 
 /// Default gap for Radiant application grid containers.
 pub const DEFAULT_GRID_GAP: f32 = 4.0;
+
+/// Build a container driven by a custom measure/place layout policy.
+pub fn layout<Message, Policy: LayoutPolicy>(
+    policy: Policy,
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+) -> ViewNode<Message> {
+    let (children, has_reserved_descendant_identity) = collect_children(children);
+    ViewNode::new(ViewNodeKind::CustomLayout {
+        policy: Rc::new(policy),
+        children,
+    })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
+}
 
 /// Build a row container with fill-slot children.
 pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {

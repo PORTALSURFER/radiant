@@ -76,6 +76,9 @@ impl<'a> SurfacePaintContext<'a> {
         container: &SurfaceContainer<Message>,
         child_id: NodeId,
     ) -> bool {
+        if container.layout_policy.is_some() {
+            return false;
+        }
         let Some(clip_rect) = self.clip_rect else {
             return false;
         };

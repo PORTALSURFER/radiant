@@ -1,6 +1,7 @@
 //! Container measurement strategies for the layout engine.
 
 mod boxes;
+mod custom;
 mod grid;
 mod linear;
 mod scroll;
@@ -26,23 +27,27 @@ pub(super) fn measure_container(
             policy.padding.vertical() * 0.5,
         ),
     );
-    let measured_inner = match policy.kind {
-        ContainerKind::Row => {
-            linear::measure_linear(true, &container.children, inner, policy.spacing, context)
+    let measured_inner = if let Some(layout_policy) = container.layout_policy() {
+        custom::measure_custom(container, layout_policy, inner, context)
+    } else {
+        match policy.kind {
+            ContainerKind::Row => {
+                linear::measure_linear(true, &container.children, inner, policy.spacing, context)
+            }
+            ContainerKind::Column => {
+                linear::measure_linear(false, &container.children, inner, policy.spacing, context)
+            }
+            ContainerKind::Stack | ContainerKind::AlignBox | ContainerKind::PaddingBox => {
+                boxes::measure_stack(&container.children, inner, context)
+            }
+            ContainerKind::AspectBox => boxes::measure_aspect_box(container, inner, context),
+            ContainerKind::Grid => grid::measure_grid(container, inner, context),
+            ContainerKind::ScrollView => scroll::measure_scroll_view(container, inner, context),
+            ContainerKind::Wrap => wrap::measure_wrap(container, inner, context),
+            ContainerKind::SwitchLayout => boxes::measure_switch_layout(container, inner, context),
+            ContainerKind::FloatingLayer => boxes::measure_floating_layer(container, context),
+            ContainerKind::SplitPane => split_pane::measure_split_pane(container, inner, context),
         }
-        ContainerKind::Column => {
-            linear::measure_linear(false, &container.children, inner, policy.spacing, context)
-        }
-        ContainerKind::Stack | ContainerKind::AlignBox | ContainerKind::PaddingBox => {
-            boxes::measure_stack(&container.children, inner, context)
-        }
-        ContainerKind::AspectBox => boxes::measure_aspect_box(container, inner, context),
-        ContainerKind::Grid => grid::measure_grid(container, inner, context),
-        ContainerKind::ScrollView => scroll::measure_scroll_view(container, inner, context),
-        ContainerKind::Wrap => wrap::measure_wrap(container, inner, context),
-        ContainerKind::SwitchLayout => boxes::measure_switch_layout(container, inner, context),
-        ContainerKind::FloatingLayer => boxes::measure_floating_layer(container, context),
-        ContainerKind::SplitPane => split_pane::measure_split_pane(container, inner, context),
     };
 
     Vector2::new(

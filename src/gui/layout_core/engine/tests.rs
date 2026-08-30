@@ -5,6 +5,7 @@ use crate::gui::layout_core::{
     model::{SizeModeCross, SizeModeMain, SlotParams},
 };
 
+mod custom_policy;
 mod debug;
 mod diagnostics;
 mod layout;

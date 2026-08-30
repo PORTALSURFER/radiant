@@ -90,6 +90,7 @@ mod constraints;
 mod controlled;
 mod engine;
 mod model;
+mod policy;
 mod row_helpers;
 mod split_pane_interaction;
 mod split_pane_state;
@@ -127,6 +128,11 @@ pub use model::{
     FloatingLayerPolicy, FloatingLayerVerticalOverflow, GridPolicy, Insets, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams, SplitPanePolicy, SwitchBreakpoint,
     VirtualizationAxis, VirtualizationPolicy, WrapPolicy,
+};
+pub use policy::{
+    LayoutOmissionReason, LayoutPolicy, LayoutPolicyOmissionReason, LayoutPolicyPlacementError,
+    MeasureChildError, MeasureChildren, MeasureChildrenError, PlaceChildren, PlaceChildrenError,
+    SizeHint,
 };
 pub use row_helpers::{
     StackedLayoutCursor, StackedLayoutItem, StackedRowRectsParts, fixed_width_group_width,

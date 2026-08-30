@@ -74,6 +74,18 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         &["row([", "column([", ".padding(", ".fill_width()"],
     ),
     (
+        "custom_layout",
+        &[
+            "use radiant::application::layout;",
+            "use radiant::prelude::*;",
+            "impl LayoutPolicy for TwoColumn",
+            "children.measure(0, constraints)",
+            ".place(",
+            "layout(TwoColumn",
+            ".view_layout(",
+        ],
+    ),
+    (
         "grid_gallery",
         &[
             "grid_with_gaps(",

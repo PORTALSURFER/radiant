@@ -90,10 +90,11 @@ impl<Message> SurfaceNode<Message> {
             Self::Scene(scene) => scene_layout_node(scene, |_, child| child.layout_node()),
             Self::Container(container) => {
                 let children = container_layout_children(container, |_, child| child.layout_node());
-                LayoutNode::container_with_split_pane_runtime_mode(
+                LayoutNode::container_with_layout_policy_mode(
                     container.id,
                     container.policy.clone(),
                     children,
+                    container.layout_policy.clone(),
                     container.split_pane_runtime,
                 )
             }
@@ -102,7 +103,13 @@ impl<Message> SurfaceNode<Message> {
             Self::FloatingLayer(layer) => {
                 let children =
                     container_layout_children(&layer.container, |_, child| child.layout_node());
-                LayoutNode::container(layer.container.id, layer.container.policy.clone(), children)
+                LayoutNode::container_with_layout_policy_mode(
+                    layer.container.id,
+                    layer.container.policy.clone(),
+                    children,
+                    layer.container.layout_policy.clone(),
+                    None,
+                )
             }
         }
     }
@@ -144,10 +151,11 @@ impl<Message> SurfaceNode<Message> {
                     layout
                 });
                 end_container_runtime(is_scroll, scroll_stack);
-                LayoutNode::container_with_split_pane_runtime_mode(
+                LayoutNode::container_with_layout_policy_mode(
                     container.id,
                     container.policy.clone(),
                     children,
+                    container.layout_policy.clone(),
                     container.split_pane_runtime,
                 )
             }
@@ -175,20 +183,24 @@ impl<Message> SurfaceNode<Message> {
                             layout
                         });
                     end_container_runtime(is_scroll, scroll_stack);
-                    LayoutNode::container(
+                    LayoutNode::container_with_layout_policy_mode(
                         layer.container.id,
                         layer.container.policy.clone(),
                         children,
+                        layer.container.layout_policy.clone(),
+                        None,
                     )
                 } else {
                     let children = container_layout_children(&layer.container, |_, child| {
                         child.collect_source_traversal(source);
                         child.layout_node()
                     });
-                    LayoutNode::container(
+                    LayoutNode::container_with_layout_policy_mode(
                         layer.container.id,
                         layer.container.policy.clone(),
                         children,
+                        layer.container.layout_policy.clone(),
+                        None,
                     )
                 }
             }

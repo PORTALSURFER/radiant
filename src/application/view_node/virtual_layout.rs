@@ -237,6 +237,10 @@ fn guard_widget_views<Message: 'static>(mut node: ViewNode<Message>) -> ViewNode
             policy,
             children: children.into_iter().map(guard_widget_views).collect(),
         },
+        ViewNodeKind::CustomLayout { policy, children } => ViewNodeKind::CustomLayout {
+            policy,
+            children: children.into_iter().map(guard_widget_views).collect(),
+        },
         ViewNodeKind::Scroll { child } => ViewNodeKind::Scroll {
             child: Box::new(guard_widget_views(*child)),
         },
@@ -303,7 +307,7 @@ fn validate_item<Message>(node: &ViewNode<Message>) -> Result<(), VirtualLayoutV
         | ViewNodeKind::FloatingLayer { .. } => {
             Err(VirtualLayoutViewAdmissionError::UnsupportedSceneEffects)
         }
-        ViewNodeKind::Container { children, .. } => {
+        ViewNodeKind::Container { children, .. } | ViewNodeKind::CustomLayout { children, .. } => {
             for child in children {
                 validate_item(child)?;
             }

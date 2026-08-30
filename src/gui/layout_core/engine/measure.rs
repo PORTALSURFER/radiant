@@ -15,7 +15,10 @@ pub(super) fn measure_node(
     let normalized = context.normalize_constraints(node.id(), constraints);
     let key = MeasureCacheKey::new(node, normalized);
     let is_container = matches!(node, LayoutNode::Container(_));
-    if let Some(size) = context.cached_measure(key, node.id(), is_container) {
+    let contains_custom_policy = node.contains_layout_policy();
+    if !contains_custom_policy
+        && let Some(size) = context.cached_measure(key, node.id(), is_container)
+    {
         context.record_measured_size(node.id(), size);
         return size;
     }
@@ -30,6 +33,10 @@ pub(super) fn measure_node(
             container::measure_container(container, normalized, context)
         }
     };
-    context.remember_measure(key, measured);
+    if contains_custom_policy {
+        context.record_measured_size(node.id(), measured);
+    } else {
+        context.remember_measure(key, measured);
+    }
     measured
 }

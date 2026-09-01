@@ -19,7 +19,7 @@ arboard = "3.6.1"
 winit = "0.30.12"
 raw-window-handle = "0.6"
 pollster = "0.4.0"
-vello = { git = "https://github.com/PORTALSURFER/vello.git", rev = "a08d1c11641908414e5e273d18e50f0f367095a1", version = "0.9.0" }
+vello = "0.9.0"
 kurbo = "0.13.0"
 lyon_tessellation = "1.0"
 skrifa = "0.42.1"
@@ -30,9 +30,6 @@ roxmltree = "0.21.1"
 vello_svg = { version = "0.10.0", default-features = false }
 rfd = "0.16.0"
 open = "5.3.3"
-
-[patch.crates-io]
-vello = { git = "https://github.com/PORTALSURFER/vello.git", rev = "a08d1c11641908414e5e273d18e50f0f367095a1" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5.2"

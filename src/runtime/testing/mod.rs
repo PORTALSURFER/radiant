@@ -929,13 +929,6 @@ where
         &self.runtime
     }
 
-    /// Mutably borrow the production runtime controller.
-    pub fn runtime_mut(
-        &mut self,
-    ) -> &mut SurfaceRuntime<DeterministicBridge<Bridge, Message>, Message> {
-        &mut self.runtime
-    }
-
     /// Borrow the wrapped application bridge.
     pub fn bridge(&self) -> &Bridge {
         self.runtime.bridge().inner()

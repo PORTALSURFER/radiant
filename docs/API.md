@@ -4966,7 +4966,9 @@ focus, overlay projection, layout, automation, paint-plan generation, and
 invalidation continue through the production runtime controller.
 
 `advance_time(...)` moves only the host's virtual `Duration` clock and releases
-opaque timer wakes. `complete_worker(...)` is the explicit action that runs one
+opaque timer wakes; the same virtual instant drives production tooltip and
+delayed-widget repaint deadlines. Wall-clock update-handler timing diagnostics
+are disabled for this host. `complete_worker(...)` is the explicit action that runs one
 stored worker closure, and `complete_platform_request(...)` sends one neutral
 platform result to its runtime-owned sink. Neither action invokes an
 application mapper or reducer; the result is admitted only by a later

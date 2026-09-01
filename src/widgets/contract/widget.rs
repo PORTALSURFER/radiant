@@ -195,6 +195,20 @@ pub trait Widget: WidgetClone + Any {
     /// Route one backend-neutral input event into this widget.
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
 
+    /// Route a focus transition with the runtime's current monotonic clock.
+    ///
+    /// The default preserves the existing [`WidgetInput::FocusChanged`] path.
+    /// Widgets with delayed focus-loss visuals can override this additive seam
+    /// to consume the supplied clock without adding host-specific state.
+    fn handle_focus_changed_at(
+        &mut self,
+        bounds: Rect,
+        focused: bool,
+        _now: Instant,
+    ) -> Option<WidgetOutput> {
+        self.handle_input(bounds, WidgetInput::FocusChanged(focused))
+    }
+
     /// Route one exact wheel sample into this widget.
     ///
     /// The default projects the sample into the existing logical-pixel
@@ -231,6 +245,18 @@ pub trait Widget: WidgetClone + Any {
     fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
         let _ = self.handle_input(bounds, WidgetInput::FocusChanged(false));
         None
+    }
+
+    /// Cancel pointer-capture state with the runtime's current monotonic clock.
+    ///
+    /// The default preserves the existing cancellation contract. Widgets with
+    /// delayed cancellation visuals can override this additive seam.
+    fn handle_pointer_capture_cancelled_at(
+        &mut self,
+        bounds: Rect,
+        _now: Instant,
+    ) -> Option<WidgetOutput> {
+        self.handle_pointer_capture_cancelled(bounds)
     }
 
     /// Reconcile retained widget-local state from the previous projected widget.

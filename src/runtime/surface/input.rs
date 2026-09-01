@@ -9,6 +9,7 @@ use crate::{
     widgets::{CompositionSample, WidgetId, WidgetInput, WidgetOutput},
 };
 use std::collections::HashMap;
+use std::time::Instant;
 
 pub(in crate::runtime) enum WidgetDispatchResult<Message> {
     NoOutput,
@@ -247,6 +248,19 @@ impl<Message> SurfaceNode<Message> {
             .map(|widget| widget.dispatch_input(widget_id, bounds, input))
     }
 
+    pub(super) fn dispatch_focus_changed_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: Rect,
+        focused: bool,
+        now: Instant,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .map(|widget| widget.dispatch_focus_changed_at(widget_id, bounds, focused, now))
+    }
+
     pub(super) fn dispatch_composition_sample_at_path(
         &mut self,
         widget_id: WidgetId,
@@ -270,15 +284,31 @@ impl<Message> SurfaceNode<Message> {
             .map(|widget| widget.dispatch_hidden_composition_update(widget_id, preedit, timestamp))
     }
 
+    #[allow(dead_code)]
     pub(super) fn dispatch_pointer_capture_cancelled_at_path(
         &mut self,
         widget_id: WidgetId,
         child_path: &[usize],
         bounds: Rect,
     ) -> Option<WidgetDispatchResult<Message>> {
+        self.dispatch_pointer_capture_cancelled_at_path_with_clock(
+            widget_id,
+            child_path,
+            bounds,
+            Instant::now(),
+        )
+    }
+
+    pub(super) fn dispatch_pointer_capture_cancelled_at_path_with_clock(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: Rect,
+        now: Instant,
+    ) -> Option<WidgetDispatchResult<Message>> {
         self.find_widget_mut_at_path(child_path)
             .filter(|widget| widget.id() == widget_id)
-            .map(|widget| widget.dispatch_pointer_capture_cancelled(widget_id, bounds))
+            .map(|widget| widget.dispatch_pointer_capture_cancelled_at(widget_id, bounds, now))
     }
 
     pub(super) fn dispatch_output(

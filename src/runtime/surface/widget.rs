@@ -11,6 +11,7 @@ use crate::{
     },
 };
 use std::rc::Rc;
+use std::time::Instant;
 
 mod mapper;
 
@@ -456,13 +457,33 @@ impl<Message> SurfaceWidget<Message> {
             .flatten()
     }
 
-    pub(in crate::runtime) fn dispatch_pointer_capture_cancelled(
+    pub(in crate::runtime) fn dispatch_pointer_capture_cancelled_at(
         &mut self,
         widget_id: WidgetId,
         bounds: Rect,
+        now: Instant,
     ) -> super::WidgetDispatchResult<Message> {
         let Some(output) = (self.id() == widget_id)
-            .then(|| self.widget.handle_pointer_capture_cancelled(bounds))
+            .then(|| self.widget.handle_pointer_capture_cancelled_at(bounds, now))
+            .flatten()
+        else {
+            return super::WidgetDispatchResult::NoOutput;
+        };
+        self.messages
+            .map_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
+    pub(in crate::runtime) fn dispatch_focus_changed_at(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        focused: bool,
+        now: Instant,
+    ) -> super::WidgetDispatchResult<Message> {
+        let Some(output) = (self.id() == widget_id)
+            .then(|| self.widget.handle_focus_changed_at(bounds, focused, now))
             .flatten()
         else {
             return super::WidgetDispatchResult::NoOutput;

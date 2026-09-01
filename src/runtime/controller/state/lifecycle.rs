@@ -123,6 +123,7 @@ where
             base_paint_plan_reuse_eligible: false,
             identity_audit: super::super::IdentityAudit::default(),
             update_handler_diagnostics_policy: Default::default(),
+            timed_repaint_clock: None,
             devtools_overlay: DevtoolsOverlayOptions::default(),
             virtual_layout: Default::default(),
             pending_auxiliary_focus_requests: Vec::new(),

@@ -13,7 +13,10 @@
 //! native presentation backend.
 
 use crate::{
-    gui::types::{Point, Rect, Vector2},
+    gui::{
+        input::InputTimestamp,
+        types::{Point, Rect, Vector2},
+    },
     layout::{LayoutDiagnosticCode, MainAlign, OverflowPolicy},
     runtime::{
         Command, CommandOutcome, Event, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
@@ -22,8 +25,8 @@ use crate::{
         RuntimePlatformResultSink, RuntimeQueueHost, RuntimeQueueItem, RuntimeTaskHost,
         SurfaceIdentityDiagnostics, SurfaceIdentityPath, SurfaceIdentityReplacement,
         SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
-        SurfaceRefreshDiagnostics, SurfaceRuntime, TaskPriority, UiSurface, WindowColorScheme,
-        WindowEnvironment,
+        SurfaceRefreshDiagnostics, SurfaceRuntime, TaskPriority, UiSurface,
+        UiUpdateHandlerDiagnosticsPolicy, WindowColorScheme, WindowEnvironment,
     },
     theme::DpiScale,
 };
@@ -852,11 +855,14 @@ where
     ) -> Result<Self, DeterministicHostError> {
         config.validate()?;
         let environment = config.environment();
-        let runtime = SurfaceRuntime::new_with_environment(
+        let instant_origin = Instant::now();
+        let mut runtime = SurfaceRuntime::new_with_environment(
             DeterministicBridge::new(bridge, config.into()),
             config.viewport(),
             environment,
         );
+        runtime.set_timed_repaint_clock(Some(instant_origin));
+        runtime.set_update_handler_diagnostics_policy(UiUpdateHandlerDiagnosticsPolicy::disabled());
         let published_snapshot = build_normalized_snapshot(
             &runtime,
             Duration::ZERO,
@@ -868,7 +874,7 @@ where
             runtime,
             config,
             virtual_time: Duration::ZERO,
-            instant_origin: Instant::now(),
+            instant_origin,
             turn: 0,
             pending_outcome: CommandOutcome::default(),
             last_outcome: CommandOutcome::default(),
@@ -972,6 +978,8 @@ where
     ) -> Result<Option<crate::widgets::WidgetId>, DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
         validate_event(event)?;
+        let now = self.prepare_runtime_operation()?;
+        let event = with_virtual_timestamp(event, InputTimestamp::from_instant(now));
         let target = self.runtime.dispatch_event(event);
         self.pending_outcome
             .merge(self.runtime.take_pending_input_command_outcome());
@@ -984,6 +992,7 @@ where
         message: Message,
     ) -> Result<CommandOutcome, DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         let outcome = self.runtime.dispatch_message(message);
         self.pending_outcome.merge(outcome);
         self.finish_adapter_operation(outcome)
@@ -995,6 +1004,7 @@ where
         command: Command<Message>,
     ) -> Result<CommandOutcome, DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         let outcome = self.runtime.execute_command(command);
         self.pending_outcome.merge(outcome);
         self.finish_adapter_operation(outcome)
@@ -1003,6 +1013,7 @@ where
     /// Queue a message for a later production runtime turn.
     pub fn enqueue_message(&mut self, message: Message) -> Result<(), DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         let result = self.runtime.bridge_mut().enqueue_message(message);
         self.finish_adapter_operation(result?)
     }
@@ -1013,6 +1024,7 @@ where
         command: Command<Message>,
     ) -> Result<(), DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         let result = self.runtime.bridge_mut().enqueue_command(command);
         self.finish_adapter_operation(result?)
     }
@@ -1029,6 +1041,7 @@ where
             .checked_add(next)
             .ok_or(DeterministicHostError::TimeOverflow)?;
         self.virtual_time = next;
+        self.runtime.set_timed_repaint_clock(Some(instant));
         self.runtime.bridge_mut().set_now(next);
         if self.runtime.advance_timed_repaints(instant) {
             self.pending_outcome.repaint_requested = true;
@@ -1040,6 +1053,7 @@ where
     /// Explicitly execute one worker task; its mapped message waits for a later turn.
     pub fn complete_worker(&mut self, id: WorkerTaskId) -> Result<(), DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         let result = self.runtime.bridge_mut().complete_worker(id);
         self.finish_adapter_operation(result?)
     }
@@ -1051,6 +1065,7 @@ where
         result: PlatformResult,
     ) -> Result<(), DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         let result = self
             .runtime
             .bridge_mut()
@@ -1061,6 +1076,7 @@ where
     /// Run exactly one bounded production runtime drain and atomically publish its snapshot.
     pub fn turn(&mut self) -> Result<NormalizedSnapshot, DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         let outcome = self.runtime.drain_runtime_messages();
         // A command admitted during the production drain may attempt to
         // schedule work after the host-side admission methods have returned.
@@ -1095,6 +1111,7 @@ where
     /// Refresh the current production surface without publishing until a later turn.
     pub fn refresh(&mut self) -> Result<(), DeterministicHostError> {
         self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
         self.runtime.refresh();
         self.finish_adapter_operation(())
     }
@@ -1143,6 +1160,18 @@ where
             || self.last_outcome.runtime_work_remaining
     }
 
+    fn current_instant(&self) -> Result<Instant, DeterministicHostError> {
+        self.instant_origin
+            .checked_add(self.virtual_time)
+            .ok_or(DeterministicHostError::TimeOverflow)
+    }
+
+    fn prepare_runtime_operation(&mut self) -> Result<Instant, DeterministicHostError> {
+        let now = self.current_instant()?;
+        self.runtime.set_timed_repaint_clock(Some(now));
+        Ok(now)
+    }
+
     fn ensure_runtime_accepts_work(&self) -> Result<(), DeterministicHostError> {
         if matches!(
             self.runtime.runtime_diagnostics().lifecycle.phase,
@@ -1159,6 +1188,93 @@ where
             return Err(error);
         }
         Ok(value)
+    }
+}
+
+fn with_virtual_timestamp(event: Event, timestamp: InputTimestamp) -> Event {
+    match event {
+        Event::Resize { .. } | Event::TraverseFocus(_) | Event::ClearFocus => event,
+        Event::PointerMove {
+            position,
+            modifiers,
+            sequence_range,
+            ..
+        } => Event::PointerMove {
+            position,
+            modifiers,
+            timestamp: Some(timestamp),
+            sequence_range,
+        },
+        Event::PointerModifiersChanged { modifiers, .. } => Event::PointerModifiersChanged {
+            modifiers,
+            timestamp: Some(timestamp),
+        },
+        Event::PointerPress {
+            position,
+            button,
+            modifiers,
+            ..
+        } => Event::PointerPress {
+            position,
+            button,
+            modifiers,
+            timestamp: Some(timestamp),
+        },
+        Event::PointerDoubleClick {
+            position,
+            button,
+            modifiers,
+            ..
+        } => Event::PointerDoubleClick {
+            position,
+            button,
+            modifiers,
+            timestamp: Some(timestamp),
+        },
+        Event::PointerRelease {
+            position,
+            button,
+            modifiers,
+            ..
+        } => Event::PointerRelease {
+            position,
+            button,
+            modifiers,
+            timestamp: Some(timestamp),
+        },
+        Event::KeyPress {
+            key,
+            modifiers,
+            repeat,
+            ..
+        } => Event::KeyPress {
+            key,
+            modifiers,
+            repeat,
+            timestamp: Some(timestamp),
+        },
+        Event::KeyRelease { key, modifiers, .. } => Event::KeyRelease {
+            key,
+            modifiers,
+            timestamp: Some(timestamp),
+        },
+        Event::Character { character, .. } => Event::Character {
+            character,
+            timestamp: Some(timestamp),
+        },
+        Event::Scroll {
+            position,
+            delta,
+            modifiers,
+            sequence_range,
+            ..
+        } => Event::Scroll {
+            position,
+            delta,
+            modifiers,
+            timestamp: Some(timestamp),
+            sequence_range,
+        },
     }
 }
 
@@ -2316,7 +2432,7 @@ mod tests {
             DeclarativeOwnedRuntimeBridge, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode,
             WidgetMessageMapper,
         },
-        widgets::{ButtonWidget, WidgetSizing, WidgetStyle},
+        widgets::{ButtonWidget, DragHandleWidget, WidgetSizing, WidgetStyle},
     };
 
     fn empty_surface<Message>() -> UiSurface<Message> {
@@ -2389,6 +2505,130 @@ mod tests {
         assert_eq!(snapshot.focus.focused_widget, Some(10));
         assert!(snapshot.paint.total > 0);
         assert_eq!(host.paint_plan().stats().total, snapshot.paint.total);
+    }
+
+    #[test]
+    fn tooltip_reveals_at_exact_virtual_delay_and_repeated_hosts_match_bytes() {
+        let make_host = || {
+            let bridge = DeclarativeOwnedRuntimeBridge::new(
+                (),
+                |_| {
+                    let mut button = ButtonWidget::new(
+                        10,
+                        "Hinted",
+                        WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                    );
+                    button.common.tooltip = Some(String::from("Exact tooltip"));
+                    UiSurface::new(SurfaceNode::widget(button, WidgetMessageMapper::none()))
+                },
+                |_, _: ()| {},
+            );
+            DeterministicHost::new(bridge, config()).expect("host construction")
+        };
+
+        let mut first = make_host();
+        first
+            .dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)))
+            .expect("hover dispatch");
+        first
+            .advance_time(Duration::from_millis(499))
+            .expect("pre-deadline advance");
+        assert!(!first.paint_plan().contains_text("Exact tooltip"));
+        first
+            .advance_time(Duration::from_millis(1))
+            .expect("exact tooltip deadline");
+        assert!(first.paint_plan().contains_text("Exact tooltip"));
+        first.turn().expect("publish tooltip snapshot");
+
+        let mut second = make_host();
+        second
+            .dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)))
+            .expect("repeated hover dispatch");
+        second
+            .advance_time(Duration::from_millis(500))
+            .expect("repeated exact tooltip deadline");
+        second.turn().expect("publish repeated tooltip snapshot");
+
+        assert_eq!(
+            first.snapshot_bytes().expect("first tooltip bytes"),
+            second.snapshot_bytes().expect("second tooltip bytes")
+        );
+    }
+
+    #[test]
+    fn hover_only_drag_handle_reveals_at_exact_virtual_delay_and_matches_bytes() {
+        let make_host = || {
+            let bridge = DeclarativeOwnedRuntimeBridge::new(
+                (),
+                |_| {
+                    UiSurface::new(SurfaceNode::widget(
+                        DragHandleWidget::new(10, WidgetSizing::fixed(Vector2::new(24.0, 24.0)))
+                            .with_hover_chrome_only(),
+                        WidgetMessageMapper::none(),
+                    ))
+                },
+                |_, _: ()| {},
+            );
+            DeterministicHost::new(bridge, config()).expect("host construction")
+        };
+
+        let mut first = make_host();
+        first
+            .dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)))
+            .expect("hover dispatch");
+        assert_eq!(first.paint_plan().stats().strokes, 0);
+        first
+            .advance_time(Duration::from_millis(99))
+            .expect("pre-deadline advance");
+        assert_eq!(first.paint_plan().stats().strokes, 0);
+        first
+            .advance_time(Duration::from_millis(1))
+            .expect("exact handle deadline");
+        assert!(first.paint_plan().stats().strokes > 0);
+        first.turn().expect("publish handle snapshot");
+
+        let mut second = make_host();
+        second
+            .dispatch_event(Event::pointer_move(Point::new(12.0, 12.0)))
+            .expect("repeated hover dispatch");
+        second
+            .advance_time(Duration::from_millis(100))
+            .expect("repeated exact handle deadline");
+        second.turn().expect("publish repeated handle snapshot");
+
+        assert_eq!(
+            first.snapshot_bytes().expect("first handle bytes"),
+            second.snapshot_bytes().expect("second handle bytes")
+        );
+    }
+
+    #[test]
+    fn focused_drag_handle_cancellation_uses_the_virtual_clock() {
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            (),
+            |_| {
+                UiSurface::new(SurfaceNode::widget(
+                    DragHandleWidget::new(10, WidgetSizing::fixed(Vector2::new(24.0, 24.0)))
+                        .with_hover_chrome_only(),
+                    WidgetMessageMapper::none(),
+                ))
+            },
+            |_, _: ()| {},
+        );
+        let mut host = DeterministicHost::new(bridge, config()).expect("host construction");
+        let point = Point::new(12.0, 12.0);
+
+        host.dispatch_event(Event::pointer_move(point))
+            .expect("hover dispatch");
+        host.dispatch_event(Event::primary_press(point))
+            .expect("press dispatch");
+        host.dispatch_event(Event::clear_focus())
+            .expect("focus clear dispatch");
+        assert_eq!(host.paint_plan().stats().strokes, 0);
+
+        host.advance_time(Duration::from_millis(100))
+            .expect("exact cancellation hover deadline");
+        assert!(host.paint_plan().stats().strokes > 0);
     }
 
     #[test]

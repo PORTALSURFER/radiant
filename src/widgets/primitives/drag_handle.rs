@@ -128,6 +128,35 @@ impl Widget for DragHandleWidget {
         DragHandleWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn handle_focus_changed_at(
+        &mut self,
+        bounds: Rect,
+        focused: bool,
+        now: Instant,
+    ) -> Option<WidgetOutput> {
+        input::handle_drag_handle_input_at(
+            self,
+            bounds,
+            WidgetInput::FocusChanged(focused),
+            Some(now),
+        )
+        .map(WidgetOutput::typed)
+    }
+
+    fn handle_pointer_capture_cancelled_at(
+        &mut self,
+        bounds: Rect,
+        now: Instant,
+    ) -> Option<WidgetOutput> {
+        let _ = input::handle_drag_handle_input_at(
+            self,
+            bounds,
+            WidgetInput::FocusChanged(false),
+            Some(now),
+        );
+        None
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             return;

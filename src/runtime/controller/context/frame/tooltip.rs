@@ -7,7 +7,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::WidgetId,
 };
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const TOOLTIP_OVERLAY_ID: WidgetId = u64::MAX - 2_048;
 const TOOLTIP_HOVER_DELAY: Duration = Duration::from_millis(500);
@@ -52,7 +52,8 @@ where
             return;
         }
         self.interaction.tooltip.target = Some(widget_id);
-        self.interaction.tooltip.deadline = Instant::now().checked_add(TOOLTIP_HOVER_DELAY);
+        self.interaction.tooltip.deadline =
+            self.timed_repaint_now().checked_add(TOOLTIP_HOVER_DELAY);
     }
 
     pub(in crate::runtime::controller) fn rearm_tooltip_hover_intent(&mut self) {

@@ -269,7 +269,10 @@ it does not duplicate event routing, command dispatch, mapper invocation,
 reduction, refresh, layout, automation, focus, invalidation, or paint
 projection.
 
-Worker closures and platform result sinks are retained as explicit host
+The host installs its current virtual instant at the production timed-interaction
+boundary; native runtimes retain their wall-clock fallback. Update-handler
+elapsed-time diagnostics are disabled for this test host so normalized output
+cannot depend on host scheduling. Worker closures and platform result sinks are retained as explicit host
 actions. A completion action may execute worker-only work or enqueue one
 opaque platform result, but it cannot map or reduce an application message.
 Only a later `turn()` drains the production runtime ingress. The host preserves

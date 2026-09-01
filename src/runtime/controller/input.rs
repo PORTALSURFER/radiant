@@ -15,6 +15,9 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<WidgetDispatchResult<Message>> {
+        if let WidgetInput::FocusChanged(focused) = input {
+            return self.dispatch_surface_focus_changed(widget_id, bounds, focused);
+        }
         let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
             return self
                 .surface
@@ -22,6 +25,23 @@ where
         };
         self.surface
             .dispatch_widget_input_message_at_path(widget_id, child_path, bounds, input)
+    }
+
+    fn dispatch_surface_focus_changed(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        focused: bool,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        let now = self.timed_repaint_now();
+        let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
+            return self
+                .surface
+                .dispatch_widget_focus_changed_message_at(widget_id, bounds, focused, now);
+        };
+        self.surface.dispatch_widget_focus_changed_message_at_path(
+            widget_id, child_path, bounds, focused, now,
+        )
     }
 
     pub(super) fn dispatch_surface_composition_sample(
@@ -60,14 +80,15 @@ where
         widget_id: WidgetId,
         bounds: Rect,
     ) -> Option<WidgetDispatchResult<Message>> {
+        let now = self.timed_repaint_now();
         let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
             return self
                 .surface
-                .dispatch_widget_pointer_capture_cancelled_message(widget_id, bounds);
+                .dispatch_widget_pointer_capture_cancelled_message_at(widget_id, bounds, now);
         };
         self.surface
-            .dispatch_widget_pointer_capture_cancelled_message_at_path(
-                widget_id, child_path, bounds,
+            .dispatch_widget_pointer_capture_cancelled_message_at_path_with_clock(
+                widget_id, child_path, bounds, now,
             )
     }
 

@@ -24,13 +24,31 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     /// Build a generic runtime controller for the provided viewport.
-    pub fn new(mut bridge: Bridge, viewport: Vector2) -> Self {
+    pub fn new(bridge: Bridge, viewport: Vector2) -> Self {
+        Self::new_with_environment(
+            bridge,
+            viewport,
+            crate::runtime::WindowEnvironment::default(),
+        )
+    }
+
+    /// Build a generic runtime controller with an explicit initial environment.
+    ///
+    /// This crate-visible seam lets qualified deterministic hosts install the
+    /// shipped environment snapshot before the first projection. Public hosts
+    /// should continue to use [`Self::new`] unless they own an equivalent
+    /// environment boundary.
+    pub(crate) fn new_with_environment(
+        mut bridge: Bridge,
+        viewport: Vector2,
+        initial_environment: crate::runtime::WindowEnvironment,
+    ) -> Self {
         let viewport = normalized_viewport(viewport);
-        let initial_environment = crate::runtime::WindowEnvironment::default();
-        // Give environment-aware bridges a deterministic value before their
-        // first projection, matching the runtime-owned default snapshot.
+        // Give environment-aware bridges the runtime-owned value before their
+        // first projection.
         bridge.set_window_environment(initial_environment);
-        let surface = bridge.pull_surface();
+        let mut surface = bridge.pull_surface();
+        surface.set_window_environment(initial_environment);
         // The initial projection lets declarative hosts discover scene-provided
         // capabilities before this immutable dispatch table is cached.
         let host_capabilities = bridge.host_capabilities();

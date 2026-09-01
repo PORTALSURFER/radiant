@@ -5188,6 +5188,66 @@ fn scrollbar_capture_ignores_mismatched_release_and_routes_normally() {
 }
 
 #[test]
+fn scrollbar_capture_ignores_secondary_press_or_double_click_and_keeps_primary_release_terminal() {
+    for double_click in [false, true] {
+        let state = Rc::new(RefCell::new(LayoutProbeState {
+            handled: true,
+            ..LayoutProbeState::default()
+        }));
+        let mut runtime = SurfaceRuntime::new(
+            LayoutProbeBridge {
+                scroll: true,
+                ..LayoutProbeBridge::new(Rc::clone(&state))
+            },
+            Vector2::new(100.0, 50.0),
+        );
+        let scrollbar_point = (0..100)
+            .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+            .find(|point| runtime.scroll_affordance_at(*point).is_some())
+            .expect("overflow surface should expose a scrollbar thumb");
+        let competing_event = if double_click {
+            Event::pointer_double_click(
+                scrollbar_point,
+                PointerButton::Secondary,
+                PointerModifiers::default(),
+            )
+        } else {
+            Event::secondary_press(scrollbar_point)
+        };
+
+        assert_eq!(
+            runtime.dispatch_event(Event::primary_press(scrollbar_point)),
+            None
+        );
+        assert_eq!(
+            runtime
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .map(|capture| capture.button),
+            Some(PointerButton::Primary)
+        );
+
+        assert_eq!(runtime.dispatch_event(competing_event), None);
+        assert!(runtime.scrollbar_drag_active());
+        assert_eq!(
+            runtime
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .map(|capture| capture.button),
+            Some(PointerButton::Primary)
+        );
+
+        assert_eq!(
+            runtime.dispatch_event(Event::primary_release(scrollbar_point)),
+            None
+        );
+        assert!(!runtime.scrollbar_drag_active());
+    }
+}
+
+#[test]
 fn numeric_legacy_pointer_capture_cancellation_preserves_text_edit_focus_and_output() {
     let mut runtime =
         SurfaceRuntime::new(NumericTextEditBridge::default(), Vector2::new(200.0, 80.0));
@@ -6467,6 +6527,67 @@ fn legacy_capture_ignores_mismatched_release_and_retains_capture() {
             .borrow()
             .contains(&ManagedPointerEvent::Release(PointerButton::Primary,))
     );
+}
+
+#[test]
+fn legacy_capture_ignores_secondary_press_or_double_click_and_routes_primary_release_to_incumbent()
+{
+    for (first_id, second_id, double_click) in [(111, 112, false), (113, 114, true)] {
+        let first = ManagedPointerFixture::legacy(first_id);
+        let first_events = Rc::clone(&first.events);
+        let second = ManagedPointerFixture::legacy(second_id).with_double_click_handler(true);
+        let second_events = Rc::clone(&second.events);
+        let mut runtime = SurfaceRuntime::new(
+            ManagedPointerBridge::pair(first, second),
+            Vector2::new(180.0, 70.0),
+        );
+        let first_point = Point::new(12.0, 12.0);
+        let second_point = Point::new(12.0, 40.0);
+        let competing_event = if double_click {
+            Event::pointer_double_click(
+                second_point,
+                PointerButton::Secondary,
+                PointerModifiers::default(),
+            )
+        } else {
+            Event::secondary_press(second_point)
+        };
+
+        assert_eq!(
+            runtime.dispatch_event(Event::primary_press(first_point)),
+            Some(first_id)
+        );
+        assert_eq!(runtime.pointer_capture(), Some(first_id));
+
+        assert_eq!(runtime.dispatch_event(competing_event), None);
+        assert_eq!(runtime.pointer_capture(), Some(first_id));
+        assert_eq!(
+            runtime.interaction.pointer.capture_button,
+            Some(PointerButton::Primary)
+        );
+        assert!(!second_events.borrow().iter().any(|event| {
+            matches!(
+                event,
+                ManagedPointerEvent::Press(_) | ManagedPointerEvent::DoubleClick(_)
+            )
+        }));
+
+        assert_eq!(
+            runtime.dispatch_event(Event::primary_release(second_point)),
+            Some(first_id)
+        );
+        assert_eq!(runtime.pointer_capture(), None);
+        assert!(
+            first_events
+                .borrow()
+                .contains(&ManagedPointerEvent::Release(PointerButton::Primary))
+        );
+        assert!(
+            !second_events
+                .borrow()
+                .contains(&ManagedPointerEvent::Release(PointerButton::Primary))
+        );
+    }
 }
 
 #[test]

@@ -26,6 +26,9 @@ where
         {
             return None;
         }
+        if self.pointer_capture_blocks_other_button(button) {
+            return None;
+        }
         if self.scroll_affordance_at(position).is_some()
             && self.clear_focus_with_transition() == FocusTransition::Vetoed
         {
@@ -145,6 +148,9 @@ where
         if self.interaction.pointer.managed_capture.is_some()
             && self.validate_managed_pointer_capture_authority()
         {
+            return None;
+        }
+        if self.pointer_capture_blocks_other_button(button) {
             return None;
         }
         if self.scroll_affordance_at(position).is_some()
@@ -312,6 +318,18 @@ where
             }
             PointInputDispatch::Blocked => None,
         }
+    }
+
+    fn pointer_capture_blocks_other_button(&self, button: PointerButton) -> bool {
+        self.interaction
+            .pointer
+            .capture_button
+            .is_some_and(|captured_button| captured_button != button)
+            || self
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .is_some_and(|capture| capture.button != button)
     }
 
     pub(in crate::runtime::controller::events) fn dispatch_pointer_release_event(

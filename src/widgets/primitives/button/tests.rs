@@ -441,6 +441,46 @@ fn draggable_button_focus_loss_cancels_drag() {
 }
 
 #[test]
+fn draggable_button_capture_cancellation_cancels_drag_without_losing_focus() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
+    let mut button =
+        ButtonWidget::new(17, "Folder", WidgetSizing::fixed(Vector2::new(80.0, 28.0))).with_drag();
+    let press_point = Point::new(10.0, 10.0);
+    let move_point = Point::new(30.0, 10.0);
+
+    assert!(
+        button
+            .handle_input(bounds, WidgetInput::primary_press(press_point))
+            .is_none()
+    );
+    assert!(
+        button
+            .handle_input(bounds, WidgetInput::pointer_move(move_point))
+            .is_some()
+    );
+
+    let output = Widget::handle_pointer_capture_cancelled(&mut button, bounds)
+        .expect("capture cancellation should emit the existing drag rollback");
+    assert_eq!(
+        output.typed_cloned::<ButtonMessage>(),
+        Some(ButtonMessage::Drag(DragHandleMessage::Cancelled {
+            position: press_point,
+        }))
+    );
+    assert!(button.common.state.focused);
+    assert!(!button.common.state.pressed);
+    assert!(!button.common.state.active);
+    assert!(!button.state.armed);
+    assert!(!button.state.dragged);
+    assert!(button.state.press_position.is_none());
+    assert!(
+        button
+            .handle_input(bounds, WidgetInput::primary_release(move_point))
+            .is_none()
+    );
+}
+
+#[test]
 fn button_message_helpers_classify_common_outputs() {
     let secondary_position = Point::new(10.0, 12.0);
     let drag_position = Point::new(18.0, 20.0);

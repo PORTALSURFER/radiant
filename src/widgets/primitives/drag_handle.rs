@@ -143,18 +143,16 @@ impl Widget for DragHandleWidget {
         .map(WidgetOutput::typed)
     }
 
+    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_pointer_capture_cancelled(self, bounds).map(WidgetOutput::typed)
+    }
+
     fn handle_pointer_capture_cancelled_at(
         &mut self,
         bounds: Rect,
         now: Instant,
     ) -> Option<WidgetOutput> {
-        let _ = input::handle_drag_handle_input_at(
-            self,
-            bounds,
-            WidgetInput::FocusChanged(false),
-            Some(now),
-        );
-        None
+        input::handle_pointer_capture_cancelled_at(self, bounds, now).map(WidgetOutput::typed)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
@@ -435,5 +433,29 @@ mod tests {
             delayed.fill_rects().next().map(|fill| fill.color),
             Some(theme.border_emphasis)
         );
+    }
+
+    #[test]
+    fn pointer_capture_cancellation_clears_drag_without_losing_focus() {
+        let mut handle = DragHandleWidget::new(13, WidgetSizing::fixed(Vector2::new(24.0, 16.0)));
+        let bounds = Rect::from_size(24.0, 16.0);
+        handle.common.state.focused = true;
+        assert!(
+            handle
+                .handle_input(bounds, WidgetInput::primary_press(Point::new(8.0, 6.0)))
+                .is_some()
+        );
+
+        let output = Widget::handle_pointer_capture_cancelled(&mut handle, bounds)
+            .expect("capture cancellation should emit the existing drag rollback");
+        assert_eq!(
+            output.typed_cloned::<crate::widgets::DragHandleMessage>(),
+            Some(crate::widgets::DragHandleMessage::Cancelled {
+                position: bounds.center(),
+            })
+        );
+        assert!(handle.common.state.focused);
+        assert!(!handle.common.state.pressed);
+        assert!(!handle.common.state.active);
     }
 }

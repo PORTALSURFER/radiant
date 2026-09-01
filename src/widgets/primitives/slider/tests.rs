@@ -763,6 +763,7 @@ fn slider_focus_and_capture_cancellation_restore_start_without_commit() {
     assert_eq!(phases(cancel), vec![EditPhase::Cancel]);
     assert_eq!(slider.slider.state.value, 0.25);
     assert!(!slider.slider.common.state.pressed);
+    assert!(slider.slider.common.state.focused);
     assert_eq!(
         slider.handle_edit_input(
             bounds,

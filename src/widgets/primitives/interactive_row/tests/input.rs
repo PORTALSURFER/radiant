@@ -642,6 +642,42 @@ fn focus_loss_preserves_started_row_drag() {
 }
 
 #[test]
+fn pointer_capture_cancellation_cancels_row_drag_without_losing_focus() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut row =
+        InteractiveRowWidget::new(14, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+    let start = Point::new(8.0, 6.0);
+    let moved = Point::new(16.0, 12.0);
+
+    assert!(
+        row.handle_input(bounds, WidgetInput::primary_press(start))
+            .is_none()
+    );
+    assert!(
+        row.handle_input(bounds, WidgetInput::pointer_move(moved))
+            .is_some()
+    );
+
+    let output = Widget::handle_pointer_capture_cancelled(&mut row, bounds)
+        .expect("capture cancellation should emit the existing drag rollback");
+    assert_eq!(
+        output.typed_cloned::<InteractiveRowMessage>(),
+        Some(InteractiveRowMessage::Drag(DragHandleMessage::Cancelled {
+            position: start,
+        }))
+    );
+    assert!(row.common.state.focused);
+    assert!(!row.common.state.pressed);
+    assert!(!row.dragged);
+    assert!(!row.double_activated);
+    assert!(row.pressed_position.is_none());
+    assert!(
+        row.handle_input(bounds, WidgetInput::primary_release(moved))
+            .is_none()
+    );
+}
+
+#[test]
 fn focus_loss_clears_pressed_row_before_drag_starts() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut row =

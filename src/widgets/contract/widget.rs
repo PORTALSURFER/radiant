@@ -236,14 +236,14 @@ pub trait Widget: WidgetClone + Any {
         false
     }
 
-    /// Cancel widget-local pointer-capture state without delivering a legacy
-    /// focus-loss output to the host.
+    /// Cancel widget-local pointer-capture state without changing focus or
+    /// delivering a legacy focus-loss output to the host.
     ///
-    /// The default routes the existing focus-loss cleanup through
-    /// [`Self::handle_input`] and discards any output. Widgets with an explicit
-    /// typed capture-cancellation contract may override this hook.
-    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
-        let _ = self.handle_input(bounds, WidgetInput::FocusChanged(false));
+    /// The default clears only the universally shared pressed state. Widgets
+    /// with richer pointer gesture state or an explicit typed
+    /// capture-cancellation contract may override this hook.
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        self.common_mut().state.pressed = false;
         None
     }
 

@@ -225,6 +225,21 @@ impl InteractiveRowWidget {
     }
 }
 
+pub(super) fn handle_pointer_capture_cancelled(
+    row: &mut InteractiveRowWidget,
+    bounds: Rect,
+) -> Option<InteractiveRowMessage> {
+    let cancel_drag = row.dragged || row.props.drag_source;
+    let position = row.pressed_position.unwrap_or_else(|| bounds.center());
+    row.common.state.pressed = false;
+    row.pressed_position = None;
+    row.dragged = false;
+    row.double_activated = false;
+    cancel_drag.then_some(InteractiveRowMessage::Drag(DragHandleMessage::Cancelled {
+        position,
+    }))
+}
+
 fn drag_start_threshold_met(start: Option<Point>, current: Point) -> bool {
     let Some(start) = start else {
         return true;

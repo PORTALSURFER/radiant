@@ -28,11 +28,12 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         ButtonWidget, DragHandleWidget, EditPhase, FocusBehavior, FocusLossDecision,
-        InteractionSource, InteractiveRowWidget, KeyboardModifiers, NumericAdjustment, NumericStep,
-        NumericStepDirection, PointerButton, PointerModifiers, PointerPressAdmission,
+        InteractionSource, InteractiveRowWidget, KeyboardModifiers, NumericAdjustment,
+        NumericCodec, NumericInputInteractionBatch, NumericInputWidget, NumericParseResult,
+        NumericStep, NumericStepDirection, PointerButton, PointerModifiers, PointerPressAdmission,
         PointerShieldMessage, PointerShieldWidget, RetainedSliderDomainWidget, SliderDomainError,
-        SliderDomainMessage, SliderEditBatch, SliderWidget, TextInputWidget, TextWidget, Widget,
-        WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        SliderDomainMessage, SliderEditBatch, SliderWidget, TextEditCommand, TextInputWidget,
+        TextWidget, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::{
@@ -77,18 +78,105 @@ impl RuntimeBridge<usize> for FocusTestBridge {
 #[derive(Default)]
 struct FocusLossOutputBridge {
     dispatched: Vec<usize>,
+    focus_changes: Rc<RefCell<Vec<bool>>>,
 }
 
 impl RuntimeBridge<usize> for FocusLossOutputBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        let focus_changes = Rc::clone(&self.focus_changes);
         crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
-            FocusLossOutputWidget::new(30),
+            FocusLossOutputWidget::new(30, focus_changes),
             WidgetMessageMapper::typed(|message: usize| message),
         )))
     }
 
     fn reduce_message(&mut self, message: usize) {
         self.dispatched.push(message);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PointerCancelNumericCodec;
+
+impl NumericCodec<u32> for PointerCancelNumericCodec {
+    type Error = ();
+
+    fn parse(&self, text: &str) -> NumericParseResult<u32> {
+        text.parse()
+            .map_or(NumericParseResult::Invalid, NumericParseResult::Valid)
+    }
+
+    fn format_editable(&self, value: &u32, output: &mut dyn std::fmt::Write) -> Result<(), ()> {
+        write!(output, "{value}").map_err(|_| ())
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PointerCancelNumericAdjustment;
+
+impl NumericAdjustment<u32> for PointerCancelNumericAdjustment {
+    type Error = ();
+
+    fn normalized_to_value(&self, normalized: f32) -> Result<u32, ()> {
+        Ok((normalized.clamp(0.0, 1.0) * 100.0).round() as u32)
+    }
+
+    fn value_to_normalized(&self, value: &u32) -> Result<f32, ()> {
+        Ok(*value as f32 / 100.0)
+    }
+
+    fn step(
+        &self,
+        value: &u32,
+        direction: NumericStepDirection,
+        step: NumericStep,
+    ) -> Result<u32, ()> {
+        let amount = match step {
+            NumericStep::Base => 1,
+            NumericStep::Fine => 2,
+            NumericStep::Coarse => 10,
+        };
+        Ok(match direction {
+            NumericStepDirection::Decrease => value.saturating_sub(amount),
+            NumericStepDirection::Increase => value.saturating_add(amount).min(100),
+        })
+    }
+
+    fn scrub(&self, value: &u32, _delta: f32, _step: NumericStep) -> Result<u32, ()> {
+        Ok(*value)
+    }
+
+    fn wheel(&self, value: &u32, _delta: f32, _step: NumericStep) -> Result<u32, ()> {
+        Ok(*value)
+    }
+}
+
+#[derive(Default)]
+struct NumericTextEditBridge {
+    mapped: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for NumericTextEditBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        let mut input = NumericInputWidget::try_new(
+            7,
+            PointerCancelNumericCodec,
+            PointerCancelNumericAdjustment,
+            WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
+        )
+        .expect("numeric pointer-cancellation fixture should construct");
+        input.set_complete_output_mode();
+        crate::runtime::test_arc_surface(UiSurface::new(
+            SurfaceNode::widget(
+                input,
+                WidgetMessageMapper::typed(|_: NumericInputInteractionBatch<u32, (), ()>| 1usize),
+            )
+            .with_id(30),
+        ))
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.mapped.push(message);
     }
 }
 
@@ -997,13 +1085,18 @@ impl RuntimeBridge<()> for PointerSnapshotBridge {
 #[derive(Clone)]
 struct FocusLossOutputWidget {
     common: WidgetCommon,
+    focus_changes: Rc<RefCell<Vec<bool>>>,
 }
 
 impl FocusLossOutputWidget {
-    fn new(id: u64) -> Self {
+    fn new(id: u64, focus_changes: Rc<RefCell<Vec<bool>>>) -> Self {
         let mut common = WidgetCommon::fixed(id, 160.0, 28.0).without_default_chrome();
+        common.focus = FocusBehavior::Pointer;
         common.paint.suppresses_container_hover = true;
-        Self { common }
+        Self {
+            common,
+            focus_changes,
+        }
     }
 }
 
@@ -1026,9 +1119,15 @@ impl Widget for FocusLossOutputWidget {
                 self.common.state.pressed = true;
                 None
             }
-            WidgetInput::FocusChanged(false) => {
-                self.common.state.pressed = false;
-                Some(WidgetOutput::typed(99_usize))
+            WidgetInput::FocusChanged(focused) => {
+                self.focus_changes.borrow_mut().push(focused);
+                if focused {
+                    self.common.state.focused = true;
+                    None
+                } else {
+                    self.common.state.pressed = false;
+                    Some(WidgetOutput::typed(99_usize))
+                }
             }
             _ => None,
         }
@@ -2778,8 +2877,10 @@ fn layout_capture_rebinds_only_on_exact_revision_and_cancels_once_otherwise() {
         LayoutProbeBridge::new(Rc::clone(&state)),
         Vector2::new(200.0, 40.0),
     );
+    assert!(runtime.focus_widget(10));
     runtime.dispatch_event(Event::primary_press(Point::new(150.0, 20.0)));
     assert!(runtime.layout_pointer_capture().is_some());
+    assert_eq!(runtime.focused_widget(), Some(10));
 
     runtime.refresh();
     assert!(runtime.layout_pointer_capture().is_some());
@@ -2796,12 +2897,47 @@ fn layout_capture_rebinds_only_on_exact_revision_and_cancels_once_otherwise() {
     runtime.bridge_mut().revision = LayoutProbeRevision::Exact("changed");
     runtime.refresh();
     assert_eq!(runtime.layout_pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), Some(10));
     assert_eq!(
         state
             .borrow()
             .events
             .iter()
             .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(Point::new(150.0, 20.0))),
+        None
+    );
+    assert_eq!(
+        state
+            .borrow()
+            .events
+            .iter()
+            .filter(|(_, input)| {
+                matches!(
+                    input,
+                    LayoutInput::PointerRelease {
+                        button: PointerButton::Secondary,
+                        ..
+                    }
+                )
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(Point::new(150.0, 20.0))),
+        None
+    );
+    assert_eq!(
+        state
+            .borrow()
+            .events
+            .iter()
+            .filter(|(_, input)| matches!(input, LayoutInput::PointerRelease { .. }))
             .count(),
         1
     );
@@ -2837,6 +2973,113 @@ fn layout_capture_rebinds_only_on_exact_revision_and_cancels_once_otherwise() {
             .filter(|(_, input)| matches!(input, LayoutInput::PointerCaptureCancelled { .. }))
             .count(),
         1
+    );
+}
+
+#[test]
+fn scrollbar_capture_cancellation_tombstones_only_the_initiating_button() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            scroll: true,
+            ..LayoutProbeBridge::new(Rc::clone(&state))
+        },
+        Vector2::new(100.0, 50.0),
+    );
+    let scrollbar_point = (0..100)
+        .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+        .find(|point| runtime.scroll_affordance_at(*point).is_some())
+        .expect("overflow surface should expose a scrollbar thumb");
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(scrollbar_point)),
+        None
+    );
+    assert!(runtime.scrollbar_drag_active());
+    assert_eq!(
+        runtime
+            .interaction
+            .pointer
+            .scroll_drag_capture
+            .map(|capture| capture.button),
+        Some(PointerButton::Primary)
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_capture_cancelled()),
+        None
+    );
+    assert!(!runtime.scrollbar_drag_active());
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(
+        runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+    assert!(
+        !runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Secondary)
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(scrollbar_point)),
+        None
+    );
+    assert!(
+        runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(scrollbar_point)),
+        None
+    );
+    assert!(
+        !runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+    let events = state.borrow();
+    assert_eq!(
+        events
+            .events
+            .iter()
+            .filter(|(_, input)| {
+                matches!(
+                    input,
+                    LayoutInput::PointerRelease {
+                        button: PointerButton::Secondary,
+                        ..
+                    }
+                )
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .events
+            .iter()
+            .filter(|(_, input)| {
+                matches!(
+                    input,
+                    LayoutInput::PointerRelease {
+                        button: PointerButton::Primary,
+                        ..
+                    }
+                )
+            })
+            .count(),
+        0
     );
 }
 
@@ -4847,6 +5090,7 @@ fn cancel_pointer_capture_does_not_dispatch_focus_loss_output() {
         timestamp: None,
     });
     assert_eq!(runtime.pointer_capture(), Some(30));
+    assert_eq!(runtime.focused_widget(), Some(30));
     assert!(
         runtime
             .surface()
@@ -4861,7 +5105,9 @@ fn cancel_pointer_capture_does_not_dispatch_focus_loss_output() {
     runtime.cancel_pointer_capture();
 
     assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), Some(30));
     assert_eq!(runtime.bridge().dispatched, Vec::<usize>::new());
+    assert_eq!(*runtime.bridge().focus_changes.borrow(), vec![true]);
     assert!(
         !runtime
             .surface()
@@ -4875,6 +5121,67 @@ fn cancel_pointer_capture_does_not_dispatch_focus_loss_output() {
 
     assert!(runtime.dispatch_input(30, WidgetInput::FocusChanged(false)));
     assert_eq!(runtime.bridge().dispatched, vec![99]);
+    assert_eq!(
+        runtime
+            .bridge()
+            .focus_changes
+            .borrow()
+            .iter()
+            .filter(|focused| !**focused)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn numeric_legacy_pointer_capture_cancellation_preserves_text_edit_focus_and_output() {
+    let mut runtime =
+        SurfaceRuntime::new(NumericTextEditBridge::default(), Vector2::new(200.0, 80.0));
+
+    assert!(runtime.focus_widget(30));
+    assert!(runtime.dispatch_input(30, WidgetInput::text_edit(TextEditCommand::SelectAll),));
+    assert!(runtime.dispatch_input(
+        30,
+        WidgetInput::text_edit(TextEditCommand::InsertText("8".to_owned())),
+    ));
+    assert!(runtime.bridge().mapped.is_empty());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(12.0, 12.0))),
+        Some(30)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(30));
+    assert_eq!(runtime.focused_widget(), Some(30));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(30)
+            .expect("numeric input exists")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+
+    runtime.bridge_mut().mapped.clear();
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_capture_cancelled()),
+        None
+    );
+
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), Some(30));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(30)
+            .expect("numeric input exists")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
+    assert!(runtime.bridge().mapped.is_empty());
 }
 
 #[test]
@@ -4898,7 +5205,10 @@ fn cancel_pointer_capture_delivers_slider_cancel_before_clearing_capture() {
             .collect::<Vec<_>>(),
         [EditPhase::Begin, EditPhase::Update]
     );
-    runtime.cancel_pointer_capture();
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_capture_cancelled()),
+        None
+    );
 
     assert_eq!(runtime.pointer_capture(), None);
     assert_eq!(runtime.bridge().batches.len(), 2);
@@ -5966,9 +6276,16 @@ fn managed_pointer_cancellation_is_once_and_focus_veto_preserves_authority() {
             .contains(&ManagedPointerEvent::FocusChanged(false))
     );
 
-    runtime.cancel_pointer_capture();
-    runtime.cancel_pointer_capture();
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_capture_cancelled()),
+        None
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_capture_cancelled()),
+        None
+    );
     assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), Some(81));
     assert_eq!(
         owner_events
             .borrow()
@@ -5976,6 +6293,12 @@ fn managed_pointer_cancellation_is_once_and_focus_veto_preserves_authority() {
             .filter(|event| **event == ManagedPointerEvent::Cancel)
             .count(),
         1
+    );
+    assert!(
+        !owner_events
+            .borrow()
+            .iter()
+            .any(|event| matches!(event, ManagedPointerEvent::Release(_)))
     );
     assert_eq!(
         runtime.dispatch_event(Event::PointerRelease {
@@ -5985,6 +6308,61 @@ fn managed_pointer_cancellation_is_once_and_focus_veto_preserves_authority() {
             timestamp: None,
         }),
         None
+    );
+}
+
+#[test]
+fn legacy_pointer_cancellation_tombstones_matching_late_release() {
+    let legacy = ManagedPointerFixture::legacy(80);
+    let events = Rc::clone(&legacy.events);
+    let mut runtime = SurfaceRuntime::new(
+        ManagedPointerBridge::single(legacy),
+        Vector2::new(180.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(12.0, 12.0))),
+        Some(80)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(80));
+    assert_eq!(runtime.focused_widget(), Some(80));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_capture_cancelled()),
+        None
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.focused_widget(), Some(80));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(Point::new(12.0, 12.0))),
+        None
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(Point::new(12.0, 12.0))),
+        Some(80)
+    );
+    let events = events.borrow();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| **event == ManagedPointerEvent::Cancel)
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| **event == ManagedPointerEvent::Release(PointerButton::Primary))
+            .count(),
+        0
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| **event == ManagedPointerEvent::Release(PointerButton::Secondary))
+            .count(),
+        1
     );
 }
 

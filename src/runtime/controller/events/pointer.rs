@@ -34,11 +34,13 @@ where
             return None;
         }
         if self.interaction.pointer.managed_capture.is_none()
-            && self.start_scrollbar_drag_at(position)
+            && self.start_scrollbar_drag_at(position, button)
         {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
+            self.clear_pointer_release_tombstone_for_new_press(button);
             self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
@@ -103,6 +105,7 @@ where
                 return None;
             }
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
             self.interaction.pointer.scroll_drag_capture = None;
             self.reset_tooltip_hover_intent();
@@ -152,11 +155,13 @@ where
             return None;
         }
         if self.interaction.pointer.managed_capture.is_none()
-            && self.start_scrollbar_drag_at(position)
+            && self.start_scrollbar_drag_at(position, button)
         {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
+            self.clear_pointer_release_tombstone_for_new_press(button);
             self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
@@ -227,6 +232,7 @@ where
                 return None;
             }
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
             self.reset_tooltip_hover_intent();
             self.clear_focus();
@@ -247,12 +253,14 @@ where
                 return None;
             }
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
             self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
         };
         self.interaction.pointer.capture = Some(widget_id);
+        self.interaction.pointer.capture_button = Some(button);
         self.reset_tooltip_hover_intent();
         let routed = self.dispatch_input_at_target_output(
             widget_id,
@@ -326,7 +334,7 @@ where
         if self.interaction.pointer.managed_capture.is_some() {
             return None;
         }
-        if self.consume_managed_pointer_release_tombstone(button) {
+        if self.consume_pointer_release_tombstone(button) {
             return None;
         }
         if self
@@ -377,6 +385,7 @@ where
         let drop_input =
             WidgetInput::pointer_drop_with_timestamp(position, button, modifiers, timestamp);
         let captured = self.interaction.pointer.capture.take();
+        self.interaction.pointer.capture_button = None;
         let drop_target = captured.and_then(|captured_id| {
             self.widget_at_for_input(position, &drop_input)
                 .filter(|target_id| *target_id != captured_id)

@@ -72,3 +72,8 @@ pub(super) fn handle_toggle_input(
         _ => None,
     }
 }
+
+pub(super) fn handle_pointer_capture_cancelled(toggle: &mut ToggleWidget) {
+    toggle.common.state.pressed = false;
+    toggle.state.armed = false;
+}

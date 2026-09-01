@@ -15,7 +15,7 @@ use crate::{
         LayoutTargetIdentity, supports_layout_input_contract, supports_layout_state_input_contract,
     },
     runtime::RuntimeBridge,
-    widgets::PointerModifiers,
+    widgets::{PointerButton, PointerModifiers},
 };
 use std::rc::Rc;
 
@@ -81,6 +81,17 @@ fn layout_input_metadata(
             timestamp,
             ..
         } => (position, modifiers, timestamp, None),
+    }
+}
+
+fn layout_input_button(input: LayoutInput) -> Option<PointerButton> {
+    match input {
+        LayoutInput::PointerPress { button, .. }
+        | LayoutInput::PointerDoubleClick { button, .. } => Some(button),
+        LayoutInput::PointerMove { .. }
+        | LayoutInput::PointerModifiersChanged { .. }
+        | LayoutInput::PointerRelease { .. }
+        | LayoutInput::PointerCaptureCancelled { .. } => None,
     }
 }
 
@@ -177,6 +188,9 @@ where
         let Some(capture) = self.interaction.layout_capture.take() else {
             return false;
         };
+        if let Some(button) = capture.button {
+            self.interaction.pointer.set_release_tombstone(button, true);
+        }
         let binding = LayoutTargetBinding {
             identity: capture.identity,
             contract_version: capture.contract_version,
@@ -215,6 +229,9 @@ where
         };
         let Some(current) = self.layout_target_binding_for_identity(capture.identity) else {
             self.interaction.layout_capture = None;
+            if let Some(button) = capture.button {
+                self.interaction.pointer.set_release_tombstone(button, true);
+            }
             let _ = self.dispatch_layout_binding(
                 LayoutTargetBinding {
                     identity: capture.identity,
@@ -265,6 +282,9 @@ where
         }
 
         self.interaction.layout_capture = None;
+        if let Some(button) = capture.button {
+            self.interaction.pointer.set_release_tombstone(button, true);
+        }
         let _ = self.dispatch_layout_binding(
             LayoutTargetBinding {
                 identity: capture.identity,
@@ -330,6 +350,9 @@ where
             binding.target_bounds,
             binding.divider_bounds,
         );
+        if let Some(button) = layout_input_button(input) {
+            self.clear_pointer_release_tombstone_for_new_press(button);
+        }
         if !matches!(input, LayoutInput::PointerCaptureCancelled { .. }) {
             let fallback_position = self
                 .interaction
@@ -376,7 +399,12 @@ where
             input,
             LayoutInput::PointerRelease { .. } | LayoutInput::PointerCaptureCancelled { .. }
         );
-        if allow_capture && !terminal_input && context.handled() && context.capture_requested() {
+        if allow_capture
+            && !terminal_input
+            && context.handled()
+            && context.capture_requested()
+            && let Some(button) = layout_input_button(input)
+        {
             let fallback_position = self
                 .interaction
                 .pointer
@@ -384,18 +412,13 @@ where
                 .unwrap_or_else(|| Point::new(0.0, 0.0));
             let (position, modifiers, timestamp, sequence_range) =
                 layout_input_metadata(input, fallback_position);
-            let button = if let LayoutInput::PointerPress { button, .. } = input {
-                Some(button)
-            } else {
-                None
-            };
             self.interaction.layout_capture = Some(RuntimeLayoutPointerCapture {
                 identity: binding.identity,
                 contract_version: binding.contract_version,
                 state_id: binding.state_id,
                 revision: binding.revision.clone(),
                 interaction: Rc::clone(&binding.interaction),
-                button,
+                button: Some(button),
                 container_bounds: binding.container_bounds,
                 target_bounds: binding.target_bounds,
                 divider_bounds: binding.divider_bounds,
@@ -406,6 +429,7 @@ where
                 last_sequence_range: sequence_range,
             });
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
         }
         if context.release_requested()

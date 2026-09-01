@@ -121,7 +121,6 @@ where
     pub(super) fn handle_pointer_capture_cancelled(
         &mut self,
     ) -> Option<KnobDomainMessage<A::Error>> {
-        self.knob.common.state.focused = false;
         self.cancel_active(
             KnobDomainCancellationReason::PointerCaptureLoss,
             pointer_provenance_empty(),

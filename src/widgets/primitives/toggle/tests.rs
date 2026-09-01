@@ -311,3 +311,31 @@ fn toggle_focus_loss_cancels_pointer_activation() {
     assert!(!toggle.state.checked);
     assert_eq!(toggle.common.state.active, toggle.state.checked);
 }
+
+#[test]
+fn pointer_capture_cancellation_clears_toggle_press_without_losing_focus() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(88.0, 28.0));
+    let mut toggle = ToggleWidget::new(17, "Snap", WidgetSizing::fixed(Vector2::new(88.0, 28.0)))
+        .with_checked(true);
+
+    assert!(
+        toggle
+            .handle_input(bounds, WidgetInput::primary_press(Point::new(12.0, 12.0)))
+            .is_none()
+    );
+    assert!(toggle.common.state.focused);
+    assert!(toggle.common.state.pressed);
+    assert!(toggle.state.armed);
+
+    assert!(Widget::handle_pointer_capture_cancelled(&mut toggle, bounds).is_none());
+    assert!(toggle.common.state.focused);
+    assert!(!toggle.common.state.pressed);
+    assert!(!toggle.state.armed);
+    assert!(toggle.state.checked);
+    assert!(toggle.common.state.active);
+    assert!(
+        toggle
+            .handle_input(bounds, WidgetInput::primary_release(Point::new(12.0, 12.0)))
+            .is_none()
+    );
+}

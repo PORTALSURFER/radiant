@@ -380,6 +380,13 @@ impl Widget for KnobWidget {
         KnobWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        self.common.state.pressed = false;
+        self.state.fine_adjustment = false;
+        self.state.gesture_origin = None;
+        None
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             return;

@@ -194,11 +194,12 @@ where
         {
             return PointInputDispatch::Miss;
         }
-        if matches!(input, WidgetInput::PointerPress { .. })
-            && install_legacy_capture
+        if install_legacy_capture
             && admission == PointerPressAdmission::Legacy
+            && let WidgetInput::PointerPress { button, .. } = &input
         {
             self.interaction.pointer.capture = Some(widget_id);
+            self.interaction.pointer.capture_button = Some(*button);
             self.reset_tooltip_hover_intent();
         }
         if focus_press
@@ -234,7 +235,7 @@ where
             return PointInputDispatch::Miss;
         }
         if let WidgetInput::PointerPress { button, .. } = &input {
-            self.clear_managed_pointer_release_tombstone_for_new_press(*button);
+            self.clear_pointer_release_tombstone_for_new_press(*button);
         }
         let routed = self.dispatch_input_output(widget_id, input);
         if let Some(button) = managed_press {
@@ -327,10 +328,11 @@ where
             return false;
         }
         self.interaction.pointer.capture = None;
+        self.interaction.pointer.capture_button = None;
         self.interaction.pointer.capture_state = None;
         self.interaction
             .pointer
-            .set_managed_release_tombstone(button, false);
+            .set_release_tombstone(button, false);
         self.interaction.pointer.managed_capture = Some(RuntimeManagedPointerCapture {
             widget_id,
             button,
@@ -368,6 +370,7 @@ where
             state: RuntimeManagedPointerCaptureState::Active,
         });
         self.interaction.pointer.capture = Some(widget_id);
+        self.interaction.pointer.capture_button = Some(button);
         self.reset_tooltip_hover_intent();
         if self.validate_managed_pointer_capture_authority() {
             self.capture_pointer_capture_state(widget_id);
@@ -419,11 +422,12 @@ where
         }
         if self.interaction.pointer.capture == Some(capture.widget_id) {
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
         }
         self.interaction
             .pointer
-            .set_managed_release_tombstone(capture.button, true);
+            .set_release_tombstone(capture.button, true);
         self.reset_tooltip_hover_intent();
     }
 
@@ -441,27 +445,21 @@ where
         true
     }
 
-    fn clear_managed_pointer_release_tombstone_for_new_press(&mut self, button: PointerButton) {
+    pub(super) fn clear_pointer_release_tombstone_for_new_press(&mut self, button: PointerButton) {
         self.interaction
             .pointer
-            .set_managed_release_tombstone(button, false);
+            .set_release_tombstone(button, false);
     }
 
-    pub(super) fn consume_managed_pointer_release_tombstone(
-        &mut self,
-        button: PointerButton,
-    ) -> bool {
-        if !self.interaction.pointer.has_any_managed_release_tombstone()
-            || !self
-                .interaction
-                .pointer
-                .has_managed_release_tombstone(button)
+    pub(super) fn consume_pointer_release_tombstone(&mut self, button: PointerButton) -> bool {
+        if !self.interaction.pointer.has_any_release_tombstone()
+            || !self.interaction.pointer.has_release_tombstone(button)
         {
             return false;
         }
         self.interaction
             .pointer
-            .set_managed_release_tombstone(button, false);
+            .set_release_tombstone(button, false);
         true
     }
 
@@ -498,11 +496,12 @@ where
         }
         if self.interaction.pointer.capture == Some(capture.widget_id) {
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
         }
         self.interaction
             .pointer
-            .set_managed_release_tombstone(capture.button, true);
+            .set_release_tombstone(capture.button, true);
         self.reset_tooltip_hover_intent();
     }
 
@@ -523,6 +522,7 @@ where
         self.interaction.pointer.managed_capture = None;
         if self.interaction.pointer.capture == Some(widget_id) {
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
         }
         true
@@ -621,6 +621,7 @@ where
             return;
         }
         self.interaction.pointer.capture = None;
+        self.interaction.pointer.capture_button = None;
         self.interaction.pointer.capture_state = None;
         self.interaction.pointer.scroll_drag_capture = None;
         self.reset_tooltip_hover_intent();
@@ -714,6 +715,8 @@ where
         let managed_record_present = self.interaction.pointer.managed_capture.is_some();
         let managed_owner = self.begin_managed_pointer_capture_cancellation();
         let captured = self.interaction.pointer.capture.take();
+        let captured_button = self.interaction.pointer.capture_button.take();
+        let scroll_capture = self.interaction.pointer.scroll_drag_capture.take();
         let cancellation_owner = if managed_record_present {
             managed_owner
         } else {
@@ -722,9 +725,19 @@ where
         if let Some(widget_id) = cancellation_owner {
             self.cancel_captured_widget_state(widget_id);
         }
+        if !managed_record_present
+            && captured.is_some()
+            && let Some(button) = captured_button
+        {
+            self.interaction.pointer.set_release_tombstone(button, true);
+        }
         self.interaction.pointer.capture = None;
         self.interaction.pointer.capture_state = None;
-        self.interaction.pointer.scroll_drag_capture = None;
+        if let Some(capture) = scroll_capture {
+            self.interaction
+                .pointer
+                .set_release_tombstone(capture.button, true);
+        }
         if managed_record_present {
             self.finish_managed_pointer_capture_cancellation();
         }

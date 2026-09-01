@@ -212,6 +212,7 @@ fn retained_knob_cancellation_rolls_back_on_focus_and_capture_loss() {
     assert_eq!(cancel.value_change(), Some(0.5));
     assert_eq!(knob.knob.state.value, 0.5);
     assert!(!knob.knob.common.state.pressed);
+    assert!(knob.knob.common.state.focused);
     assert_eq!(
         knob.handle_edit_input(bounds, WidgetInput::primary_release(Point::new(20.0, 10.0))),
         None

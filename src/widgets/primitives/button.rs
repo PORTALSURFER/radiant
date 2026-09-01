@@ -244,6 +244,10 @@ impl Widget for ButtonWidget {
         ButtonWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_button_pointer_capture_cancelled(self).map(WidgetOutput::typed)
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             return;

@@ -64,6 +64,11 @@ pub(super) fn handle_scrollbar_input(
     }
 }
 
+pub(super) fn handle_pointer_capture_cancelled(scrollbar: &mut ScrollbarWidget) {
+    scrollbar.common.state.pressed = false;
+    scrollbar.state.drag_grip_fraction = None;
+}
+
 fn handle_key_input(scrollbar: &mut ScrollbarWidget, key: WidgetKey) -> Option<ScrollbarMessage> {
     let delta = if key == leading_arrow_for_axis(scrollbar.props.axis) {
         Some(-scrollbar.props.step_fraction)

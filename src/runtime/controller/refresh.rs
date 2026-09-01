@@ -4157,6 +4157,7 @@ where
         if pointer_capture {
             self.clear_managed_pointer_capture_for_widget(widget_id);
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
         }
         if hover {

@@ -335,6 +335,7 @@ where
                 .contains_key(&widget_id)
         }) {
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
         }
         if self
             .interaction

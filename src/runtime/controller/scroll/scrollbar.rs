@@ -8,6 +8,7 @@ use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::NodeId,
     runtime::{RuntimeBridge, paint::resolve_scroll_affordance},
+    widgets::PointerButton,
 };
 
 #[cfg(test)]
@@ -20,9 +21,18 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(in crate::runtime::controller) fn start_scrollbar_drag_at(&mut self, point: Point) -> bool {
-        let Some(capture) = self.scrollbar_drag_capture_at(point) else {
+    pub(in crate::runtime::controller) fn start_scrollbar_drag_at(
+        &mut self,
+        point: Point,
+        button: PointerButton,
+    ) -> bool {
+        let Some((node_id, grip_fraction)) = self.scrollbar_drag_capture_at(point) else {
             return false;
+        };
+        let capture = ScrollDragCapture {
+            node_id,
+            grip_fraction,
+            button,
         };
         self.interaction.pointer.scroll_drag_capture = Some(capture);
         self.interaction.hover.scroll_affordance = Some(capture.node_id);
@@ -102,14 +112,14 @@ where
         point: Point,
     ) -> Option<NodeId> {
         self.scrollbar_drag_capture_at(point)
-            .map(|capture| capture.node_id)
+            .map(|(node_id, _)| node_id)
     }
 
     pub(crate) fn scrollbar_drag_active(&self) -> bool {
         self.interaction.pointer.scroll_drag_capture.is_some()
     }
 
-    fn scrollbar_drag_capture_at(&self, point: Point) -> Option<ScrollDragCapture> {
+    fn scrollbar_drag_capture_at(&self, point: Point) -> Option<(NodeId, f32)> {
         self.traversal
             .containers
             .scroll
@@ -137,10 +147,7 @@ where
                 let grip_fraction = ((point.y - affordance.thumb.min.y)
                     / affordance.thumb.height())
                 .clamp(0.0, 1.0);
-                Some(ScrollDragCapture {
-                    node_id,
-                    grip_fraction,
-                })
+                Some((node_id, grip_fraction))
             })
     }
 }

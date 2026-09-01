@@ -873,6 +873,7 @@ where
     turn: u64,
     pending_outcome: CommandOutcome,
     last_outcome: CommandOutcome,
+    completion_turn_pending: bool,
     application_observation: Option<Value>,
     published_snapshot: NormalizedSnapshot,
 }
@@ -911,6 +912,7 @@ where
             turn: 0,
             pending_outcome: CommandOutcome::default(),
             last_outcome: CommandOutcome::default(),
+            completion_turn_pending: false,
             application_observation: None,
             published_snapshot,
         })
@@ -1081,7 +1083,9 @@ where
         self.ensure_runtime_accepts_work()?;
         self.prepare_runtime_operation()?;
         let result = self.runtime.bridge_mut().complete_worker(id);
-        self.finish_adapter_operation(result?)
+        self.finish_adapter_operation(result?)?;
+        self.completion_turn_pending = true;
+        Ok(())
     }
 
     /// Explicitly complete one platform request; its mapper waits for a later turn.
@@ -1096,7 +1100,9 @@ where
             .runtime
             .bridge_mut()
             .complete_platform_request(id, result);
-        self.finish_adapter_operation(result?)
+        self.finish_adapter_operation(result?)?;
+        self.completion_turn_pending = true;
+        Ok(())
     }
 
     /// Run exactly one bounded production runtime drain and atomically publish its snapshot.
@@ -1165,6 +1171,7 @@ where
     fn publish_snapshot(&mut self) -> Result<NormalizedSnapshot, DeterministicHostError> {
         let candidate = self.build_snapshot()?;
         self.published_snapshot = candidate.clone();
+        self.completion_turn_pending = false;
         Ok(candidate)
     }
 
@@ -1183,6 +1190,7 @@ where
         self.runtime.bridge().queue_item_count() != 0
             || diagnostics.queue.current_pending_messages != 0
             || diagnostics.queue.current_pending_controller_completions != 0
+            || self.completion_turn_pending
             || self.last_outcome.runtime_work_remaining
     }
 
@@ -2916,13 +2924,13 @@ mod tests {
         host.complete_worker(first_id)
             .expect("stale completion action");
         assert!(host.bridge().messages.is_empty());
-        host.turn().expect("stale completion turn");
+        host.run_until_idle().expect("stale completion turn");
         assert!(host.bridge().messages.is_empty());
 
         host.complete_worker(second_id)
             .expect("current completion action");
         assert!(host.bridge().messages.is_empty());
-        host.turn().expect("current completion turn");
+        host.run_until_idle().expect("current completion turn");
         assert_eq!(host.bridge().messages, vec![2]);
     }
 
@@ -2988,7 +2996,7 @@ mod tests {
         host.complete_platform_request(request_id, Ok(PlatformResponse::Text("ok".to_owned())))
             .expect("platform completion");
         assert!(host.bridge().messages.is_empty());
-        host.turn().expect("platform completion turn");
+        host.run_until_idle().expect("platform completion turn");
         assert_eq!(host.bridge().messages, vec![8, 4]);
         assert!(matches!(
             host.complete_platform_request(

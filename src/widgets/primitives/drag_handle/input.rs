@@ -155,6 +155,28 @@ pub(super) fn handle_drag_handle_input_at(
     }
 }
 
+pub(super) fn handle_pointer_capture_cancelled(
+    handle: &mut DragHandleWidget,
+    bounds: Rect,
+) -> Option<DragHandleMessage> {
+    handle_pointer_capture_cancelled_at(handle, bounds, Instant::now())
+}
+
+pub(super) fn handle_pointer_capture_cancelled_at(
+    handle: &mut DragHandleWidget,
+    bounds: Rect,
+    now: Instant,
+) -> Option<DragHandleMessage> {
+    let cancel_drag = handle.common.state.active;
+    handle.common.state.pressed = false;
+    handle.common.state.active = false;
+    handle.hover_started_at = handle.common.state.hovered.then_some(now);
+    handle.hover_highlight_revealed = handle.hover_highlight_delay.is_zero();
+    cancel_drag.then_some(DragHandleMessage::Cancelled {
+        position: bounds.center(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

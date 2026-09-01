@@ -211,6 +211,13 @@ fn cancel_active_pointer_edit(
     previous.cancel(provenance).map(SliderEditBatch::rollback)
 }
 
+pub(super) fn handle_pointer_capture_cancelled(
+    slider: &mut SliderWidget,
+    active_edit: &mut Option<EditEvent<f32>>,
+) -> Option<SliderEditBatch> {
+    cancel_active_pointer_edit(slider, active_edit)
+}
+
 fn set_value_if_changed(slider: &mut SliderWidget, value: f32) -> bool {
     if (slider.state.value - value).abs() <= f32::EPSILON {
         return false;

@@ -362,6 +362,7 @@ fn domain_focus_capture_and_disabled_cancellation_are_explicit_and_restore_start
         } if (previous_value - 30.0).abs() < 0.0001
     ));
     assert_eq!(capture_loss.domain_value, 20.0);
+    assert!(capture_loss.knob.common.state.focused);
 
     let mut disabled = domain_knob(TestAdjustment::linear());
     let _ =

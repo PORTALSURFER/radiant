@@ -61,3 +61,8 @@ pub(super) fn handle_badge_input(
         _ => None,
     }
 }
+
+pub(super) fn handle_pointer_capture_cancelled(badge: &mut BadgeWidget) {
+    badge.common.state.pressed = false;
+    badge.state.armed = false;
+}

@@ -65,6 +65,8 @@ pub enum Event {
         /// Optional timestamp captured at the native input boundary.
         timestamp: Option<InputTimestamp>,
     },
+    /// Pointer capture was cancelled without routing a pointer release.
+    PointerCaptureCancelled,
     /// One non-text key intent should route to the focused widget.
     KeyPress {
         /// Normalized key identity.
@@ -276,6 +278,11 @@ impl Event {
         )
     }
 
+    /// Build a pointer-capture cancellation event.
+    pub fn pointer_capture_cancelled() -> Self {
+        Self::PointerCaptureCancelled
+    }
+
     /// Build a focused key-press event.
     pub fn key_press(key: WidgetKey) -> Self {
         Self::key_press_with_timestamp(key, None)
@@ -404,6 +411,14 @@ mod tests {
                 timestamp: None,
                 sequence_range: None,
             }
+        );
+    }
+
+    #[test]
+    fn public_pointer_capture_cancellation_constructor_is_unit_event() {
+        assert_eq!(
+            Event::pointer_capture_cancelled(),
+            Event::PointerCaptureCancelled
         );
     }
 

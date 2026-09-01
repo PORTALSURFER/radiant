@@ -61,3 +61,32 @@ fn scrollbar_track_click_centers_thumb() {
         })
     );
 }
+
+#[test]
+fn pointer_capture_cancellation_clears_scrollbar_drag_without_losing_focus() {
+    let mut scrollbar = ScrollbarWidget::new(
+        11,
+        ScrollbarAxis::Vertical,
+        WidgetSizing::fixed(Vector2::new(12.0, 120.0)),
+    );
+    scrollbar.props.viewport_fraction = 0.25;
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(12.0, 120.0));
+    let thumb = scrollbar.thumb_rect(bounds);
+    let position = Point::new(6.0, thumb.min.y + thumb.height() * 0.5);
+
+    assert!(
+        scrollbar
+            .handle_input(bounds, WidgetInput::primary_press(position))
+            .is_none()
+    );
+    assert!(scrollbar.common.state.focused);
+    assert!(scrollbar.common.state.pressed);
+    assert!(scrollbar.state.drag_grip_fraction.is_some());
+    let offset_before_cancel = scrollbar.state.offset_fraction;
+
+    assert!(Widget::handle_pointer_capture_cancelled(&mut scrollbar, bounds).is_none());
+    assert!(scrollbar.common.state.focused);
+    assert!(!scrollbar.common.state.pressed);
+    assert!(scrollbar.state.drag_grip_fraction.is_none());
+    assert_eq!(scrollbar.state.offset_fraction, offset_before_cancel);
+}

@@ -137,6 +137,11 @@ impl Widget for ScrollbarWidget {
         ScrollbarWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_pointer_capture_cancelled(self);
+        None
+    }
+
     fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
         crate::widgets::WidgetCapabilities::none()
     }

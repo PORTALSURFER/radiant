@@ -243,9 +243,10 @@ pub(super) struct RuntimeTooltipState {
 pub(super) struct RuntimePointerState {
     pub(super) current_position: Option<Point>,
     pub(super) capture: Option<WidgetId>,
+    pub(super) capture_button: Option<PointerButton>,
     pub(super) capture_state: Option<(WidgetId, WidgetState)>,
     pub(super) managed_capture: Option<RuntimeManagedPointerCapture>,
-    pub(super) managed_release_tombstones: [bool; POINTER_BUTTON_COUNT],
+    pub(super) release_tombstones: [bool; POINTER_BUTTON_COUNT],
     pub(super) scroll_drag_capture: Option<ScrollDragCapture>,
 }
 
@@ -273,18 +274,16 @@ pub(super) enum RuntimeManagedPointerCaptureState {
 }
 
 impl RuntimePointerState {
-    pub(super) fn has_managed_release_tombstone(&self, button: PointerButton) -> bool {
-        self.managed_release_tombstones[pointer_button_index(button)]
+    pub(super) fn has_release_tombstone(&self, button: PointerButton) -> bool {
+        self.release_tombstones[pointer_button_index(button)]
     }
 
-    pub(super) fn set_managed_release_tombstone(&mut self, button: PointerButton, value: bool) {
-        self.managed_release_tombstones[pointer_button_index(button)] = value;
+    pub(super) fn set_release_tombstone(&mut self, button: PointerButton, value: bool) {
+        self.release_tombstones[pointer_button_index(button)] = value;
     }
 
-    pub(super) fn has_any_managed_release_tombstone(&self) -> bool {
-        self.managed_release_tombstones
-            .iter()
-            .any(|tombstone| *tombstone)
+    pub(super) fn has_any_release_tombstone(&self) -> bool {
+        self.release_tombstones.iter().any(|tombstone| *tombstone)
     }
 }
 
@@ -300,6 +299,7 @@ fn pointer_button_index(button: PointerButton) -> usize {
 pub(super) struct ScrollDragCapture {
     pub(super) node_id: NodeId,
     pub(super) grip_fraction: f32,
+    pub(super) button: PointerButton,
 }
 
 pub(super) struct RuntimeDragState<Message> {

@@ -36,6 +36,10 @@ impl Widget for InteractiveRowWidget {
         InteractiveRowWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
+        super::input::handle_pointer_capture_cancelled(self, bounds).map(WidgetOutput::typed)
+    }
+
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::none()
     }

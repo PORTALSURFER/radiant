@@ -2160,11 +2160,11 @@ where
         self.pointer.is_some()
     }
 
-    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
         if self.pointer.is_some() {
             self.cancel_pointer_scrub(Self::default_pointer_provenance())
         } else {
-            let _ = self.handle_input(bounds, WidgetInput::FocusChanged(false));
+            self.text_input.common.state.pressed = false;
             None
         }
     }

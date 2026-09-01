@@ -156,6 +156,23 @@ pub(super) fn handle_button_input(
     }
 }
 
+pub(super) fn handle_button_pointer_capture_cancelled(
+    button: &mut ButtonWidget,
+) -> Option<ButtonMessage> {
+    let cancel_drag = button.props.drag
+        && (button.state.dragged || button.common.state.active)
+        && button.state.press_position.is_some();
+    let position = button.state.press_position.unwrap_or_default();
+    button.common.state.pressed = false;
+    button.common.state.active = false;
+    button.state.armed = false;
+    button.state.dragged = false;
+    button.state.press_position = None;
+    cancel_drag.then_some(ButtonMessage::Drag(DragHandleMessage::Cancelled {
+        position,
+    }))
+}
+
 fn drag_slop_exceeded(
     origin: crate::gui::types::Point,
     position: crate::gui::types::Point,

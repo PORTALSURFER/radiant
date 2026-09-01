@@ -210,7 +210,6 @@ pub(super) fn handle_pointer_capture_cancelled(
     knob: &mut KnobWidget,
     active_edit: &mut Option<EditEvent<f32>>,
 ) -> Option<KnobEditBatch> {
-    knob.common.state.focused = false;
     cancel_active_pointer_edit(
         knob,
         active_edit,

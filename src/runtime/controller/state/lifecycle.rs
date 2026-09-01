@@ -326,22 +326,26 @@ where
 
     pub(in crate::runtime::controller) fn clear_stale_interaction_state(&mut self) {
         self.revalidate_focus_owner();
-        if self.interaction.pointer.capture.is_some_and(|widget_id| {
-            !self
+        if let Some(widget_id) = self.interaction.pointer.capture
+            && !self
                 .traversal
                 .widgets
                 .paths
                 .current
                 .contains_key(&widget_id)
-        }) {
-            self.interaction.pointer.capture = None;
-        }
-        if self
-            .interaction
-            .pointer
-            .scroll_drag_capture
-            .is_some_and(|capture| !self.traversal.containers.scroll.contains(capture.node_id))
         {
+            if let Some(button) = self.interaction.pointer.capture_button {
+                self.interaction.pointer.set_release_tombstone(button, true);
+            }
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
+        }
+        if let Some(capture) = self.interaction.pointer.scroll_drag_capture
+            && !self.traversal.containers.scroll.contains(capture.node_id)
+        {
+            self.interaction
+                .pointer
+                .set_release_tombstone(capture.button, true);
             self.interaction.pointer.scroll_drag_capture = None;
         }
         if self

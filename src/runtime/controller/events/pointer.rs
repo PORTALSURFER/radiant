@@ -26,6 +26,9 @@ where
         {
             return None;
         }
+        if self.pointer_capture_blocks_other_button(button) {
+            return None;
+        }
         if self.scroll_affordance_at(position).is_some()
             && self.clear_focus_with_transition() == FocusTransition::Vetoed
         {
@@ -34,11 +37,13 @@ where
             return None;
         }
         if self.interaction.pointer.managed_capture.is_none()
-            && self.start_scrollbar_drag_at(position)
+            && self.start_scrollbar_drag_at(position, button)
         {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
+            self.clear_pointer_release_tombstone_for_new_press(button);
             self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
@@ -103,6 +108,7 @@ where
                 return None;
             }
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
             self.interaction.pointer.scroll_drag_capture = None;
             self.reset_tooltip_hover_intent();
@@ -144,6 +150,9 @@ where
         {
             return None;
         }
+        if self.pointer_capture_blocks_other_button(button) {
+            return None;
+        }
         if self.scroll_affordance_at(position).is_some()
             && self.clear_focus_with_transition() == FocusTransition::Vetoed
         {
@@ -152,11 +161,13 @@ where
             return None;
         }
         if self.interaction.pointer.managed_capture.is_none()
-            && self.start_scrollbar_drag_at(position)
+            && self.start_scrollbar_drag_at(position, button)
         {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
+            self.clear_pointer_release_tombstone_for_new_press(button);
             self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
@@ -227,6 +238,7 @@ where
                 return None;
             }
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
             self.reset_tooltip_hover_intent();
             self.clear_focus();
@@ -247,12 +259,14 @@ where
                 return None;
             }
             self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;
             self.reset_tooltip_hover_intent();
             self.clear_focus();
             return None;
         };
         self.interaction.pointer.capture = Some(widget_id);
+        self.interaction.pointer.capture_button = Some(button);
         self.reset_tooltip_hover_intent();
         let routed = self.dispatch_input_at_target_output(
             widget_id,
@@ -306,6 +320,18 @@ where
         }
     }
 
+    fn pointer_capture_blocks_other_button(&self, button: PointerButton) -> bool {
+        self.interaction
+            .pointer
+            .capture_button
+            .is_some_and(|captured_button| captured_button != button)
+            || self
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .is_some_and(|capture| capture.button != button)
+    }
+
     pub(in crate::runtime::controller::events) fn dispatch_pointer_release_event(
         &mut self,
         position: Point,
@@ -326,15 +352,24 @@ where
         if self.interaction.pointer.managed_capture.is_some() {
             return None;
         }
-        if self.consume_managed_pointer_release_tombstone(button) {
+        if self.consume_pointer_release_tombstone(button) {
             return None;
         }
-        if self
+        // A scrollbar drag belongs to its initiating button. A release from
+        // another button must continue through ordinary layout/widget routing
+        // while leaving the active drag intact.
+        let scroll_capture_matches_button = self
             .interaction
             .pointer
             .scroll_drag_capture
-            .take()
-            .is_some()
+            .is_some_and(|capture| capture.button == button);
+        if scroll_capture_matches_button
+            && self
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .take()
+                .is_some()
         {
             self.cancel_layout_pointer_capture();
             self.reset_tooltip_hover_intent();
@@ -376,7 +411,21 @@ where
             WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp);
         let drop_input =
             WidgetInput::pointer_drop_with_timestamp(position, button, modifiers, timestamp);
-        let captured = self.interaction.pointer.capture.take();
+        // Keep legacy capture until the exact initiating button is released;
+        // mismatched releases are ordinary hit-tested input.
+        let capture_matches_button = self
+            .interaction
+            .pointer
+            .capture_button
+            .is_some_and(|captured_button| captured_button == button);
+        let captured = if capture_matches_button {
+            self.interaction.pointer.capture.take()
+        } else {
+            None
+        };
+        if capture_matches_button {
+            self.interaction.pointer.capture_button = None;
+        }
         let drop_target = captured.and_then(|captured_id| {
             self.widget_at_for_input(position, &drop_input)
                 .filter(|target_id| *target_id != captured_id)
@@ -385,7 +434,9 @@ where
             let _ = self.dispatch_input(drop_target, drop_input);
         }
         let widget_id = captured.or_else(|| self.widget_at_for_input(position, &release_input))?;
-        self.interaction.pointer.capture_state = None;
+        if capture_matches_button {
+            self.interaction.pointer.capture_state = None;
+        }
         let routed = self.dispatch_input(widget_id, release_input);
         if captured.is_some() {
             self.reconcile_pointer_hover_after_capture_release(position);

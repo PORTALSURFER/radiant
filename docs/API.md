@@ -5492,10 +5492,12 @@ delegation.
 
 Backend input is normalized into Radiant input primitives such as
 `Event`, `WidgetInput`, `PointerButton`, and `WidgetKey`. The runtime performs
-hit testing, pointer capture, focus changes, pointer press/release routing,
+hit testing, pointer capture and cancellation, focus changes, pointer
+press/release routing,
 keyboard routing to the focused widget, and message mapping. `Event` is the
 backend-neutral runtime event surface for resize, pointer, keyboard, focus
-traversal, and focus-clear operations; `SurfaceRuntime::dispatch_event` is the
+traversal, focus-clear, and pointer-capture-cancellation operations;
+`SurfaceRuntime::dispatch_event` is the
 primary event-routing entry point for backend adapters. Focus behavior is
 declared by widget contracts rather than by host-domain code.
 Scroll input uses one backend-neutral offset-direction contract across
@@ -5629,6 +5631,12 @@ capture, mapping, or host output. The NumericInput PointerScrub and wheel
 consumers are shipped separately; their policy, output, failure, geometry, and
 continuity contracts remain generic and backend-neutral. Native unit/phase
 translation remains a separate platform boundary.
+`Event::pointer_capture_cancelled()` uses the same runtime cancellation path for
+host or lifecycle boundaries: it clears managed, widget, layout, and scrollbar
+drag capture, delivers at most one cancellation to the captured owner, leaves
+keyboard focus unchanged, and does not synthesize a release or commit. A later
+matching release is ignored through the existing button-specific orphan-release
+tombstone.
 Tests, automation, and embedded hosts that need ordinary pointer activation can
 use `SurfaceRuntime::dispatch_pointer_click(...)` or
 `dispatch_primary_click(...)` / `dispatch_secondary_click(...)`; the returned
@@ -5639,6 +5647,7 @@ Runtime event tests, automation, and embedded hosts can use `Event::resize(...)`
 `pointer_move(...)`, `pointer_press(...)`, `primary_press(...)`,
 `secondary_press(...)`, `pointer_double_click(...)`, `primary_double_click(...)`,
 `pointer_release(...)`, `primary_release(...)`, `secondary_release(...)`,
+`pointer_capture_cancelled()`,
 `key_press(...)`, `character(...)`, `traverse_focus(...)`, `clear_focus(...)`,
 and `scroll(...)` instead of repeating backend-neutral event struct literals.
 `Event::PointerMove` and `WidgetInput::PointerMove` also carry observational

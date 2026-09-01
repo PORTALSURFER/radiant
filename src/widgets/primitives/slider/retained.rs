@@ -120,6 +120,27 @@ where
         }
     }
 
+    pub(super) fn handle_pointer_capture_cancelled(
+        &mut self,
+    ) -> Option<SliderDomainMessage<A::Error>> {
+        let previous_value = self.slider.slider.state.value;
+        let batch = input::handle_pointer_capture_cancelled(
+            &mut self.slider.slider,
+            &mut self.slider.active_edit,
+        )?;
+        let normalized = batch.value_change()?;
+        match self.map_normalized(normalized) {
+            Ok(value) => {
+                self.domain_value = value;
+                Some(SliderDomainMessage::ValueChanged { value })
+            }
+            Err(error) => {
+                self.slider.slider.state.value = previous_value;
+                Some(SliderDomainMessage::MappingFailed { normalized, error })
+            }
+        }
+    }
+
     fn map_normalized(&self, normalized: f32) -> Result<f32, SliderDomainError<A::Error>> {
         validate_normalized(normalized)?;
         let value = self
@@ -238,8 +259,8 @@ impl Widget for RetainedSliderWidget {
             .map(WidgetOutput::typed)
     }
 
-    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
-        self.handle_edit_input(bounds, WidgetInput::FocusChanged(false))
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_pointer_capture_cancelled(&mut self.slider, &mut self.active_edit)
             .map(WidgetOutput::typed)
     }
 
@@ -299,8 +320,8 @@ where
             .map(WidgetOutput::typed)
     }
 
-    fn handle_pointer_capture_cancelled(&mut self, bounds: Rect) -> Option<WidgetOutput> {
-        self.handle_domain_input(bounds, WidgetInput::FocusChanged(false))
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        self.handle_pointer_capture_cancelled()
             .map(WidgetOutput::typed)
     }
 

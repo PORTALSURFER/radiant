@@ -170,6 +170,7 @@ fn domain_knob_surface_routes_explicit_pointer_capture_cancellation() {
         .expect("domain Knob type is retained");
     assert_eq!(widget.domain_value, 20.0);
     assert!(!widget.knob.common.state.pressed);
+    assert!(widget.knob.common.state.focused);
 }
 
 #[test]
@@ -200,6 +201,15 @@ fn slider_capture_cancellation_routes_typed_cancel_while_knob_default_stays_supp
     assert_eq!(cancel.events().len(), 1);
     assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
     assert_eq!(cancel.value_change(), Some(0.25));
+    assert!(
+        slider
+            .find_widget_at_path(&[])
+            .expect("Slider exists")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
 
     let mut knob = mapped_knob(0.5, false);
     assert!(matches!(
@@ -230,6 +240,7 @@ fn slider_capture_cancellation_routes_typed_cancel_while_knob_default_stays_supp
         .expect("knob type is retained");
     assert!(!knob.common.state.pressed);
     assert_eq!(knob.state.gesture_origin, None);
+    assert!(knob.common.state.focused);
 }
 
 #[test]
@@ -270,6 +281,14 @@ fn knob_typed_surface_routes_pointer_transaction_and_capture_cancellation() {
     };
     assert_eq!(cancel.events()[0].phase, EditPhase::Cancel);
     assert_eq!(cancel.value_change(), Some(0.5));
+    assert!(
+        root.find_widget_at_path(&[])
+            .expect("Knob exists")
+            .widget()
+            .common()
+            .state
+            .focused
+    );
     assert_eq!(
         root.find_widget_at_path(&[])
             .expect("Knob exists")

@@ -14,8 +14,8 @@ where
     /// Route one backend-neutral runtime event.
     ///
     /// Returns the targeted widget id when the event routes to a widget. Events
-    /// that only update runtime state, such as resize or focus clearing, return
-    /// `None`.
+    /// that only update runtime state, such as resize, focus clearing, or
+    /// pointer-capture cancellation, return `None`.
     pub fn dispatch_event(&mut self, event: Event) -> Option<WidgetId> {
         if event_pointer_position(&event).is_some_and(|position| !position.is_finite()) {
             return None;
@@ -70,6 +70,10 @@ where
             } => {
                 self.observe_pointer_position(position);
                 self.dispatch_pointer_release_event(position, button, modifiers, timestamp)
+            }
+            Event::PointerCaptureCancelled => {
+                self.cancel_pointer_capture();
+                None
             }
             Event::KeyPress {
                 key,

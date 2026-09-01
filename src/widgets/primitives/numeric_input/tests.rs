@@ -2184,6 +2184,46 @@ fn valid_focus_loss_commits_and_invalid_focus_loss_vetoes_idempotently() {
 }
 
 #[test]
+fn legacy_pointer_capture_cancellation_preserves_active_text_edit_state() {
+    let bounds = Rect::from_size(120.0, 28.0);
+    let mut input = complete_u32_input();
+    replace_u32(&mut input, "8");
+    input.text_input.state.caret = 0;
+    input.text_input.state.selection_anchor = 1;
+
+    assert!(matches!(
+        input
+            .active
+            .as_ref()
+            .and_then(|active| active.draft_result.as_ref()),
+        Some(NumericParseResult::Valid(8))
+    ));
+    assert!(input.text_input.common.state.focused);
+
+    assert!(
+        Widget::handle_input(
+            &mut input,
+            bounds,
+            WidgetInput::primary_press(Point::new(12.0, 12.0)),
+        )
+        .is_none()
+    );
+    assert!(input.active.is_some());
+    let text_after_press = input.text_input.state.clone();
+    let value_before_cancel = input.value;
+    let owner_before_cancel = input.interaction_gate.incumbent();
+
+    assert!(Widget::handle_pointer_capture_cancelled(&mut input, bounds).is_none());
+
+    assert_eq!(input.text_input.state, text_after_press);
+    assert_eq!(input.value, value_before_cancel);
+    assert_eq!(input.interaction_gate.incumbent(), owner_before_cancel);
+    assert!(input.active.is_some());
+    assert!(input.text_input.common.state.focused);
+    assert!(!input.text_input.common.state.pressed);
+}
+
+#[test]
 fn escape_emits_begin_cancel_and_restores_starting_value_and_draft() {
     let mut input = u32_input();
     replace_u32(&mut input, "8");

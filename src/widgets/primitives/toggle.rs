@@ -193,6 +193,11 @@ impl Widget for ToggleWidget {
         ToggleWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn handle_pointer_capture_cancelled(&mut self, _bounds: Rect) -> Option<WidgetOutput> {
+        input::handle_pointer_capture_cancelled(self);
+        None
+    }
+
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
     }

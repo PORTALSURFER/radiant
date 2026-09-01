@@ -60,11 +60,17 @@ where
             .get(&capture.node_id)
             .copied()
         else {
+            self.interaction
+                .pointer
+                .set_release_tombstone(capture.button, true);
             self.interaction.pointer.scroll_drag_capture = None;
             return false;
         };
         let Some(affordance) = resolve_scroll_affordance(capture.node_id, content_id, &self.layout)
         else {
+            self.interaction
+                .pointer
+                .set_release_tombstone(capture.button, true);
             self.interaction.pointer.scroll_drag_capture = None;
             return false;
         };

@@ -350,9 +350,6 @@ where
             binding.target_bounds,
             binding.divider_bounds,
         );
-        if let Some(button) = layout_input_button(input) {
-            self.clear_pointer_release_tombstone_for_new_press(button);
-        }
         if !matches!(input, LayoutInput::PointerCaptureCancelled { .. }) {
             let fallback_position = self
                 .interaction
@@ -386,6 +383,15 @@ where
         }
         if has_layout_state_input {
             self.note_mounted_layout_source_mutation(false);
+        }
+
+        // A release tombstone represents an already-retired capture. It is
+        // cleared only after a fresh press/double-click was admitted by the
+        // layout target, rather than merely because a target was hit.
+        if context.handled()
+            && let Some(button) = layout_input_button(input)
+        {
+            self.clear_pointer_release_tombstone_for_new_press(button);
         }
 
         if context.repaint_requested() || context.work_requested() {

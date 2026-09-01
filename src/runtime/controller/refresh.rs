@@ -4156,6 +4156,9 @@ where
         }
         if pointer_capture {
             self.clear_managed_pointer_capture_for_widget(widget_id);
+            if let Some(button) = self.interaction.pointer.capture_button {
+                self.interaction.pointer.set_release_tombstone(button, true);
+            }
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_button = None;
             self.interaction.pointer.capture_state = None;

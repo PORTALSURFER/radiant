@@ -234,7 +234,9 @@ where
         {
             return PointInputDispatch::Miss;
         }
-        if let WidgetInput::PointerPress { button, .. } = &input {
+        if let WidgetInput::PointerPress { button, .. }
+        | WidgetInput::PointerDoubleClick { button, .. } = &input
+        {
             self.clear_pointer_release_tombstone_for_new_press(*button);
         }
         let routed = self.dispatch_input_output(widget_id, input);

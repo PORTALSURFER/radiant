@@ -5134,6 +5134,60 @@ fn cancel_pointer_capture_does_not_dispatch_focus_loss_output() {
 }
 
 #[test]
+fn scrollbar_capture_ignores_mismatched_release_and_routes_normally() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            scroll: true,
+            ..LayoutProbeBridge::new(Rc::clone(&state))
+        },
+        Vector2::new(100.0, 50.0),
+    );
+    let scrollbar_point = (0..100)
+        .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+        .find(|point| runtime.scroll_affordance_at(*point).is_some())
+        .expect("overflow surface should expose a scrollbar thumb");
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(scrollbar_point)),
+        None
+    );
+    assert!(runtime.scrollbar_drag_active());
+
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(scrollbar_point)),
+        None
+    );
+    assert!(runtime.scrollbar_drag_active());
+    assert_eq!(
+        runtime
+            .interaction
+            .pointer
+            .scroll_drag_capture
+            .map(|capture| capture.button),
+        Some(PointerButton::Primary)
+    );
+    assert!(state.borrow().events.iter().any(|(_, input)| {
+        matches!(
+            input,
+            LayoutInput::PointerRelease {
+                button: PointerButton::Secondary,
+                ..
+            }
+        )
+    }));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(scrollbar_point)),
+        None
+    );
+    assert!(!runtime.scrollbar_drag_active());
+}
+
+#[test]
 fn numeric_legacy_pointer_capture_cancellation_preserves_text_edit_focus_and_output() {
     let mut runtime =
         SurfaceRuntime::new(NumericTextEditBridge::default(), Vector2::new(200.0, 80.0));
@@ -6364,6 +6418,229 @@ fn legacy_pointer_cancellation_tombstones_matching_late_release() {
             .count(),
         1
     );
+}
+
+#[test]
+fn legacy_capture_ignores_mismatched_release_and_retains_capture() {
+    let first = ManagedPointerFixture::legacy(105);
+    let first_events = Rc::clone(&first.events);
+    let second = ManagedPointerFixture::legacy(106);
+    let second_events = Rc::clone(&second.events);
+    let mut runtime = SurfaceRuntime::new(
+        ManagedPointerBridge::pair(first, second),
+        Vector2::new(180.0, 70.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(12.0, 12.0))),
+        Some(105)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(105));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(Point::new(12.0, 40.0))),
+        Some(106)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(105));
+    assert_eq!(
+        runtime.interaction.pointer.capture_button,
+        Some(PointerButton::Primary)
+    );
+    assert!(
+        !first_events
+            .borrow()
+            .contains(&ManagedPointerEvent::Release(PointerButton::Secondary,))
+    );
+    assert!(
+        second_events
+            .borrow()
+            .contains(&ManagedPointerEvent::Release(PointerButton::Secondary,))
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(Point::new(12.0, 40.0))),
+        Some(105)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(
+        first_events
+            .borrow()
+            .contains(&ManagedPointerEvent::Release(PointerButton::Primary,))
+    );
+}
+
+#[test]
+fn legacy_double_click_admission_clears_matching_release_tombstone() {
+    let fixture = ManagedPointerFixture::legacy(107).with_double_click_handler(true);
+    let events = Rc::clone(&fixture.events);
+    let mut runtime = SurfaceRuntime::new(
+        ManagedPointerBridge::single(fixture),
+        Vector2::new(180.0, 40.0),
+    );
+    runtime
+        .interaction
+        .pointer
+        .set_release_tombstone(PointerButton::Primary, true);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerDoubleClick {
+            position: Point::new(12.0, 12.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        }),
+        Some(107)
+    );
+    assert!(
+        !runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+    assert!(
+        events
+            .borrow()
+            .contains(&ManagedPointerEvent::DoubleClick(None))
+    );
+}
+
+#[test]
+fn refresh_retirement_tombstones_legacy_capture_button() {
+    let first = ManagedPointerFixture::legacy(108);
+    let first_events = Rc::clone(&first.events);
+    let first_present = Rc::clone(&first.present);
+    let second = ManagedPointerFixture::legacy(109);
+    let second_events = Rc::clone(&second.events);
+    let mut runtime = SurfaceRuntime::new(
+        ManagedPointerBridge::pair(first, second),
+        Vector2::new(180.0, 70.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(12.0, 12.0))),
+        Some(108)
+    );
+    first_present.set(false);
+    runtime.refresh();
+
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(
+        runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(Point::new(12.0, 12.0))),
+        Some(109)
+    );
+    assert!(
+        second_events
+            .borrow()
+            .contains(&ManagedPointerEvent::Release(PointerButton::Secondary,))
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(Point::new(12.0, 12.0))),
+        None
+    );
+    assert!(
+        !runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+    assert!(
+        !first_events
+            .borrow()
+            .contains(&ManagedPointerEvent::Release(PointerButton::Primary,))
+    );
+}
+
+#[test]
+fn lifecycle_stale_cleanup_tombstones_legacy_capture_button() {
+    let fixture = ManagedPointerFixture::legacy(110);
+    let events = Rc::clone(&fixture.events);
+    let mut runtime = SurfaceRuntime::new(
+        ManagedPointerBridge::single(fixture),
+        Vector2::new(180.0, 40.0),
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(Point::new(12.0, 12.0))),
+        Some(110)
+    );
+    runtime.traversal.widgets.paths.current.remove(&110);
+    runtime.clear_stale_interaction_state();
+
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(
+        runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(Point::new(12.0, 12.0))),
+        None
+    );
+    assert!(
+        !events
+            .borrow()
+            .contains(&ManagedPointerEvent::Release(PointerButton::Primary,))
+    );
+}
+
+#[test]
+fn lifecycle_stale_cleanup_tombstones_scrollbar_capture_button() {
+    let state = Rc::new(RefCell::new(LayoutProbeState {
+        handled: true,
+        ..LayoutProbeState::default()
+    }));
+    let mut runtime = SurfaceRuntime::new(
+        LayoutProbeBridge {
+            scroll: true,
+            ..LayoutProbeBridge::new(Rc::clone(&state))
+        },
+        Vector2::new(100.0, 50.0),
+    );
+    let scrollbar_point = (0..100)
+        .flat_map(|x| (0..50).map(move |y| Point::new(x as f32 + 0.5, y as f32 + 0.5)))
+        .find(|point| runtime.scroll_affordance_at(*point).is_some())
+        .expect("overflow surface should expose a scrollbar thumb");
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(scrollbar_point)),
+        None
+    );
+    assert!(runtime.scrollbar_drag_active());
+
+    let scroll_order = runtime.traversal.containers.scroll.take_order();
+    runtime.traversal.containers.scroll.set_order(Vec::new());
+    runtime.clear_stale_interaction_state();
+
+    assert!(!runtime.scrollbar_drag_active());
+    assert!(
+        runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(scrollbar_point)),
+        None
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(scrollbar_point)),
+        None
+    );
+    assert!(
+        !runtime
+            .interaction
+            .pointer
+            .has_release_tombstone(PointerButton::Primary)
+    );
+
+    runtime.traversal.containers.scroll.set_order(scroll_order);
 }
 
 #[test]

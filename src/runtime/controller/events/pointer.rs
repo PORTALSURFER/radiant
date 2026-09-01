@@ -337,12 +337,21 @@ where
         if self.consume_pointer_release_tombstone(button) {
             return None;
         }
-        if self
+        // A scrollbar drag belongs to its initiating button. A release from
+        // another button must continue through ordinary layout/widget routing
+        // while leaving the active drag intact.
+        let scroll_capture_matches_button = self
             .interaction
             .pointer
             .scroll_drag_capture
-            .take()
-            .is_some()
+            .is_some_and(|capture| capture.button == button);
+        if scroll_capture_matches_button
+            && self
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .take()
+                .is_some()
         {
             self.cancel_layout_pointer_capture();
             self.reset_tooltip_hover_intent();
@@ -384,8 +393,21 @@ where
             WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp);
         let drop_input =
             WidgetInput::pointer_drop_with_timestamp(position, button, modifiers, timestamp);
-        let captured = self.interaction.pointer.capture.take();
-        self.interaction.pointer.capture_button = None;
+        // Keep legacy capture until the exact initiating button is released;
+        // mismatched releases are ordinary hit-tested input.
+        let capture_matches_button = self
+            .interaction
+            .pointer
+            .capture_button
+            .is_some_and(|captured_button| captured_button == button);
+        let captured = if capture_matches_button {
+            self.interaction.pointer.capture.take()
+        } else {
+            None
+        };
+        if capture_matches_button {
+            self.interaction.pointer.capture_button = None;
+        }
         let drop_target = captured.and_then(|captured_id| {
             self.widget_at_for_input(position, &drop_input)
                 .filter(|target_id| *target_id != captured_id)
@@ -394,7 +416,9 @@ where
             let _ = self.dispatch_input(drop_target, drop_input);
         }
         let widget_id = captured.or_else(|| self.widget_at_for_input(position, &release_input))?;
-        self.interaction.pointer.capture_state = None;
+        if capture_matches_button {
+            self.interaction.pointer.capture_state = None;
+        }
         let routed = self.dispatch_input(widget_id, release_input);
         if captured.is_some() {
             self.reconcile_pointer_hover_after_capture_release(position);

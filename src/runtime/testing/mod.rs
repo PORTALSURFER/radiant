@@ -562,8 +562,17 @@ where
         self.queue_items.len().saturating_add(self.commands.len())
     }
 
+    fn queue_reservation_count(&self) -> usize {
+        self.queue_item_count().saturating_add(self.timers.len())
+    }
+
+    fn can_admit_queue_reservation(&self, additional: usize) -> bool {
+        self.queue_reservation_count().saturating_add(additional)
+            <= self.limits.max_pending_queue_items
+    }
+
     fn enqueue_message(&mut self, message: Message) -> Result<(), DeterministicHostError> {
-        if self.queue_item_count() >= self.limits.max_pending_queue_items {
+        if !self.can_admit_queue_reservation(1) {
             return Err(DeterministicHostError::Capacity {
                 lane: DeterministicLane::Queue,
                 limit: self.limits.max_pending_queue_items,
@@ -575,7 +584,7 @@ where
     }
 
     fn enqueue_command(&mut self, command: Command<Message>) -> Result<(), DeterministicHostError> {
-        if self.queue_item_count() >= self.limits.max_pending_queue_items {
+        if !self.can_admit_queue_reservation(1) {
             return Err(DeterministicHostError::Capacity {
                 lane: DeterministicLane::Queue,
                 limit: self.limits.max_pending_queue_items,
@@ -720,6 +729,13 @@ where
             self.record_failure(AdapterFailure::Capacity {
                 lane: DeterministicLane::Timers,
                 limit: self.limits.max_pending_timers,
+            });
+            return false;
+        }
+        if !self.can_admit_queue_reservation(1) {
+            self.record_failure(AdapterFailure::Capacity {
+                lane: DeterministicLane::Queue,
+                limit: self.limits.max_pending_queue_items,
             });
             return false;
         }
@@ -2508,6 +2524,53 @@ mod tests {
                 }
             ))
         ));
+    }
+
+    #[test]
+    fn pending_timers_reserve_queue_capacity_from_queued_work() {
+        let bounded_config = config()
+            .with_max_pending_timers(1)
+            .with_max_pending_queue_items(1);
+        let bridge = RecordingBridge {
+            messages: Vec::new(),
+        };
+        let mut timer_first =
+            DeterministicHost::new(bridge, bounded_config).expect("host construction");
+        timer_first
+            .execute_command(Command::after(Duration::ZERO, 9))
+            .expect("timer admission");
+        assert!(matches!(
+            timer_first.enqueue_message(1),
+            Err(DeterministicHostError::Capacity {
+                lane: DeterministicLane::Queue,
+                limit: 1,
+            })
+        ));
+        timer_first
+            .advance_time(Duration::ZERO)
+            .expect("timer release");
+        timer_first
+            .run_until_idle()
+            .expect("timer delivery after the later turn");
+        assert_eq!(timer_first.bridge().messages, vec![9]);
+
+        let bridge = RecordingBridge {
+            messages: Vec::new(),
+        };
+        let mut queue_first =
+            DeterministicHost::new(bridge, bounded_config).expect("host construction");
+        queue_first.enqueue_message(1).expect("queue admission");
+        assert!(matches!(
+            queue_first.execute_command(Command::after(Duration::ZERO, 9)),
+            Err(DeterministicHostError::Capacity {
+                lane: DeterministicLane::Queue,
+                limit: 1,
+            })
+        ));
+        queue_first
+            .run_until_idle()
+            .expect("queued message delivery");
+        assert_eq!(queue_first.bridge().messages, vec![1]);
     }
 
     #[test]

@@ -267,7 +267,9 @@ worker tasks, platform requests, timer registrations, and queue items. The
 adapter enables only the task, queue, and result-only platform capabilities;
 it does not duplicate event routing, command dispatch, mapper invocation,
 reduction, refresh, layout, automation, focus, invalidation, or paint
-projection.
+projection. Configuration rejects a timer bound larger than the queue bound,
+and each pending timer reserves a queue slot so due wakeups cannot be stranded
+behind ordinary queued work.
 
 The host installs its current virtual instant at the production timed-interaction
 boundary; native runtimes retain their wall-clock fallback. Update-handler

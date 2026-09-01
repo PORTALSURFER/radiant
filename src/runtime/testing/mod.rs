@@ -2520,6 +2520,63 @@ mod tests {
     }
 
     #[test]
+    fn step_budget_rejects_unbounded_turn_work() {
+        let bridge = RecordingBridge {
+            messages: Vec::new(),
+        };
+        assert!(matches!(
+            DeterministicHost::new(bridge, config().with_step_budget(0)),
+            Err(DeterministicHostError::InvalidConfiguration(
+                DeterministicHostConfigError::ZeroStepBudget
+            ))
+        ));
+
+        let bridge = RecordingBridge {
+            messages: Vec::new(),
+        };
+        let mut host = DeterministicHost::new(
+            bridge,
+            config()
+                .with_max_pending_queue_items(65)
+                .with_step_budget(1),
+        )
+        .expect("host construction");
+        for message in 0..65 {
+            host.enqueue_message(message)
+                .expect("bounded message admission");
+        }
+
+        assert_eq!(
+            host.run_until_idle(),
+            Err(DeterministicHostError::StepBudgetExceeded { budget: 1 })
+        );
+        assert_eq!(host.turn_count(), 1);
+        assert_eq!(host.bridge().messages.len(), 64);
+    }
+
+    #[test]
+    fn time_and_identifier_overflow_fail_without_publishing() {
+        let mut time_host = recording_host();
+        let before = time_host.published_snapshot().clone();
+        time_host.virtual_time = Duration::new(u64::MAX, 999_999_999);
+        assert_eq!(
+            time_host.advance_time(Duration::from_nanos(1)),
+            Err(DeterministicHostError::TimeOverflow)
+        );
+        assert_eq!(time_host.published_snapshot(), &before);
+
+        let mut identifier_host = recording_host();
+        let before = identifier_host.published_snapshot().clone();
+        identifier_host.runtime.bridge_mut().next_timer_sequence = u64::MAX;
+        assert_eq!(
+            identifier_host.execute_command(Command::after(Duration::ZERO, 1)),
+            Err(DeterministicHostError::IdentifierOverflow)
+        );
+        assert_eq!(identifier_host.published_snapshot(), &before);
+        assert_eq!(identifier_host.pending_timer_count(), 0);
+    }
+
+    #[test]
     fn pending_timers_reserve_queue_capacity_from_queued_work() {
         let bounded_config = config()
             .with_max_pending_timers(1)

@@ -4963,7 +4963,9 @@ headless host for one production `SurfaceRuntime`. Its
 `WindowEnvironment`; the host enables only the task, queue, and result-only
 platform capabilities needed by deterministic tests. Input, messages, commands,
 focus, overlay projection, layout, automation, paint-plan generation, and
-invalidation continue through the production runtime controller.
+invalidation continue through the production runtime controller. Configuration
+validation also requires the timer-registration bound to fit within the queue
+bound, so a fully due timer batch cannot permanently wedge the host.
 
 `advance_time(...)` moves only the host's virtual `Duration` clock and releases
 opaque timer wakes; the same virtual instant drives production tooltip and

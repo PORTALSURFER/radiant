@@ -85,6 +85,13 @@ pub enum DeterministicHostConfigError {
         /// Lane whose capacity was invalid.
         lane: DeterministicLane,
     },
+    /// The queue cannot admit every registered timer if they become due together.
+    TimerQueueCapacityMismatch {
+        /// Maximum number of timer registrations that may be pending.
+        timers: usize,
+        /// Maximum number of pending queue items.
+        queue: usize,
+    },
     /// The configured `run_until_idle` budget was zero.
     ZeroStepBudget,
 }
@@ -97,6 +104,10 @@ impl fmt::Display for DeterministicHostConfigError {
                 formatter.write_str("display scale must be finite and positive")
             }
             Self::ZeroCapacity { lane } => write!(formatter, "{lane} capacity must be positive"),
+            Self::TimerQueueCapacityMismatch { timers, queue } => write!(
+                formatter,
+                "timer capacity ({timers}) must not exceed queue capacity ({queue})"
+            ),
             Self::ZeroStepBudget => formatter.write_str("step budget must be positive"),
         }
     }
@@ -225,6 +236,12 @@ impl DeterministicHostConfig {
         }
         if self.step_budget == 0 {
             return Err(DeterministicHostConfigError::ZeroStepBudget);
+        }
+        if self.max_pending_timers > self.max_pending_queue_items {
+            return Err(DeterministicHostConfigError::TimerQueueCapacityMismatch {
+                timers: self.max_pending_timers,
+                queue: self.max_pending_queue_items,
+            });
         }
         Ok(())
     }
@@ -2464,6 +2481,33 @@ mod tests {
                 lane: DeterministicLane::Workers,
             }
         );
+    }
+
+    #[test]
+    fn config_rejects_unwakeupable_timer_capacity() {
+        let config = config()
+            .with_max_pending_timers(2)
+            .with_max_pending_queue_items(1);
+        assert_eq!(
+            config
+                .validate()
+                .expect_err("every registered timer must fit the queue lane"),
+            DeterministicHostConfigError::TimerQueueCapacityMismatch {
+                timers: 2,
+                queue: 1,
+            }
+        );
+
+        let bridge = DeclarativeOwnedRuntimeBridge::new((), |_| empty_surface(), |_, _: ()| {});
+        assert!(matches!(
+            DeterministicHost::new(bridge, config),
+            Err(DeterministicHostError::InvalidConfiguration(
+                DeterministicHostConfigError::TimerQueueCapacityMismatch {
+                    timers: 2,
+                    queue: 1,
+                }
+            ))
+        ));
     }
 
     #[test]

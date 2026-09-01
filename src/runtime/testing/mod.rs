@@ -1227,7 +1227,10 @@ where
 
 fn with_virtual_timestamp(event: Event, timestamp: InputTimestamp) -> Event {
     match event {
-        Event::Resize { .. } | Event::TraverseFocus(_) | Event::ClearFocus => event,
+        Event::Resize { .. }
+        | Event::PointerCaptureCancelled
+        | Event::TraverseFocus(_)
+        | Event::ClearFocus => event,
         Event::PointerMove {
             position,
             modifiers,

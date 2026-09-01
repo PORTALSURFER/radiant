@@ -3,7 +3,7 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~100% |
-| Broad end-to-end target coverage | ~94% |
+| Broad end-to-end target coverage | ~94.5% |
 
 | Category | Estimate |
 | --- | ---: |
@@ -17,4 +17,4 @@
 | Rendering, invalidation, retained GPU surfaces | ~89% |
 | Platform, windowing, and host boundaries | 67% |
 | Diagnostics, profiling, and performance validation | ~94% |
-| Examples, documentation, and CI guardrails | 98% |
+| Examples, documentation, and CI guardrails | 98.5% |

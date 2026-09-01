@@ -33,6 +33,7 @@ mod paint;
 mod platform;
 mod resource;
 mod surface;
+pub mod testing;
 mod update_snapshot;
 pub mod virtual_layout;
 

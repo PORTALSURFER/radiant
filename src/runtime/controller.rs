@@ -96,6 +96,7 @@ use owner::RuntimeOwner;
 use platform::{PlatformCompletionRegistry, PlatformResultIngress};
 use scratch::RuntimeScratch;
 use std::collections::HashMap;
+use std::time::Instant;
 use timers::TimerEffects;
 use traversal_state::RuntimeTraversalState;
 use work::RuntimeWorkQueues;
@@ -199,6 +200,7 @@ where
     pub(in crate::runtime) base_paint_plan_reuse_eligible: bool,
     identity_audit: IdentityAudit,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
+    timed_repaint_clock: Option<Instant>,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
     pub(in crate::runtime) virtual_layout: virtual_layout::RuntimeVirtualLayoutState<Message>,
     pending_auxiliary_focus_requests: Vec<auxiliary_focus::AuxiliaryFocusRequest>,
@@ -255,6 +257,19 @@ where
             self.surface.timed_repaint_deadline(),
             self.interaction.tooltip.deadline,
         )
+    }
+
+    /// Install the clock used by runtime-owned timed interaction seams.
+    ///
+    /// Native callers leave this unset and retain the wall-clock fallback.
+    /// Qualified deterministic hosts set it for the duration of each host
+    /// operation so tooltip and widget hover deadlines share one virtual clock.
+    pub(crate) fn set_timed_repaint_clock(&mut self, now: Option<Instant>) {
+        self.timed_repaint_clock = now;
+    }
+
+    pub(in crate::runtime::controller) fn timed_repaint_now(&self) -> Instant {
+        self.timed_repaint_clock.unwrap_or_else(Instant::now)
     }
 
     /// Return the private observational delta used at the paint materialization

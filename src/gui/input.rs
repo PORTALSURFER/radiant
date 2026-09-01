@@ -13,9 +13,17 @@ pub use pointer::logical_point_to_u16_coords;
 pub struct InputTimestamp(Instant);
 
 impl InputTimestamp {
+    pub(crate) const fn from_instant(instant: Instant) -> Self {
+        Self(instant)
+    }
+
+    pub(crate) const fn instant(self) -> Instant {
+        self.0
+    }
+
     #[allow(dead_code)]
     pub(crate) fn capture() -> Self {
-        Self(Instant::now())
+        Self::from_instant(Instant::now())
     }
 }
 

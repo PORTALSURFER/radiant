@@ -257,6 +257,36 @@ new focused export leaf or a module split, not a formatting workaround.
 - `tests` owns public API, behavior, source-quality, example, and documentation
   guardrails.
 
+### Qualified deterministic runtime host
+
+`src/runtime/testing` owns the qualified `radiant::runtime::testing` host used
+by headless runtime tests. `DeterministicHost` wraps the production
+`SurfaceRuntime` and supplies a validated logical viewport, the currently
+shipped `WindowEnvironment`, virtual time, and explicit bounded lanes for
+worker tasks, platform requests, timer registrations, and queue items. The
+adapter enables only the task, queue, and result-only platform capabilities;
+it does not duplicate event routing, command dispatch, mapper invocation,
+reduction, refresh, layout, automation, focus, invalidation, or paint
+projection. Configuration rejects a timer bound larger than the queue bound,
+and each pending timer reserves a queue slot so due wakeups cannot be stranded
+behind ordinary queued work.
+
+The host installs its current virtual instant at the production timed-interaction
+boundary; native runtimes retain their wall-clock fallback. Update-handler
+elapsed-time diagnostics are disabled for this test host so normalized output
+cannot depend on host scheduling. Worker closures and platform result sinks are retained as explicit host
+actions. A completion action may execute worker-only work or enqueue one
+opaque platform result, but it cannot map or reduce an application message.
+Only a later `turn()` drains the production runtime ingress. The host preserves
+the runtime's completion-generation and lifecycle fences, uses one admission
+order for timer wakes and queued messages, and publishes a complete normalized
+snapshot only after candidate construction succeeds. Snapshots carry a schema
+version and omit wall-clock/timing fields, native/GPU resources, and
+presentation state; focused tests can request the raw production paint plan,
+while repeated runs compare compact JSON bytes rather than backend output. The
+host is deliberately not a trace-replay engine, native
+window/GPU/IME/accessibility/presentation adapter, or production scheduler.
+
 ### Scroll-offset direction boundary
 
 The backend-neutral scroll contract is expressed as an offset delta across

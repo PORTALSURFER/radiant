@@ -1,5 +1,6 @@
 use super::{UiSurface, WidgetDispatchResult, WidgetPath};
 use crate::widgets::{CompositionSample, WidgetId, WidgetInput, WidgetOutput};
+use std::time::Instant;
 
 impl<Message> UiSurface<Message> {
     /// Map one widget output back into a host-defined message.
@@ -31,6 +32,17 @@ impl<Message> UiSurface<Message> {
             .map(|widget| widget.dispatch_input(widget_id, bounds, input))
     }
 
+    pub(in crate::runtime) fn dispatch_widget_focus_changed_message_at(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: crate::gui::types::Rect,
+        focused: bool,
+        now: Instant,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut(widget_id)
+            .map(|widget| widget.dispatch_focus_changed_at(widget_id, bounds, focused, now))
+    }
+
     pub(in crate::runtime) fn dispatch_widget_input_message_at_path(
         &mut self,
         widget_id: WidgetId,
@@ -40,6 +52,23 @@ impl<Message> UiSurface<Message> {
     ) -> Option<WidgetDispatchResult<Message>> {
         self.root
             .dispatch_input_at_path(widget_id, child_path.as_slice(), bounds, input)
+    }
+
+    pub(in crate::runtime) fn dispatch_widget_focus_changed_message_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &WidgetPath,
+        bounds: crate::gui::types::Rect,
+        focused: bool,
+        now: Instant,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.root.dispatch_focus_changed_at_path(
+            widget_id,
+            child_path.as_slice(),
+            bounds,
+            focused,
+            now,
+        )
     }
 
     pub(in crate::runtime) fn dispatch_widget_composition_sample_message(
@@ -86,25 +115,29 @@ impl<Message> UiSurface<Message> {
         )
     }
 
-    pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message(
+    pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message_at(
         &mut self,
         widget_id: WidgetId,
         bounds: crate::gui::types::Rect,
+        now: Instant,
     ) -> Option<WidgetDispatchResult<Message>> {
         self.find_widget_mut(widget_id)
-            .map(|widget| widget.dispatch_pointer_capture_cancelled(widget_id, bounds))
+            .map(|widget| widget.dispatch_pointer_capture_cancelled_at(widget_id, bounds, now))
     }
 
-    pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message_at_path(
+    pub(in crate::runtime) fn dispatch_widget_pointer_capture_cancelled_message_at_path_with_clock(
         &mut self,
         widget_id: WidgetId,
         child_path: &WidgetPath,
         bounds: crate::gui::types::Rect,
+        now: Instant,
     ) -> Option<WidgetDispatchResult<Message>> {
-        self.root.dispatch_pointer_capture_cancelled_at_path(
-            widget_id,
-            child_path.as_slice(),
-            bounds,
-        )
+        self.root
+            .dispatch_pointer_capture_cancelled_at_path_with_clock(
+                widget_id,
+                child_path.as_slice(),
+                bounds,
+                now,
+            )
     }
 }

@@ -4955,6 +4955,45 @@ transitions are vetoed and do not change the phase, count, or history.
 They are intentionally not common-prelude exports. This generic evidence does
 not add native recovery behavior or scheduler policy.
 
+### Qualified deterministic runtime testing host
+
+`radiant::runtime::testing::DeterministicHost` is the qualified test-facing
+headless host for one production `SurfaceRuntime`. Its
+`DeterministicHostConfig` fixes the logical viewport and the currently shipped
+`WindowEnvironment`; the host enables only the task, queue, and result-only
+platform capabilities needed by deterministic tests. Input, messages, commands,
+focus, overlay projection, layout, automation, paint-plan generation, and
+invalidation continue through the production runtime controller. Configuration
+validation also requires the timer-registration bound to fit within the queue
+bound, and pending timers reserve those queue slots, so a fully due timer batch
+cannot permanently wedge the host.
+
+`advance_time(...)` moves only the host's virtual `Duration` clock and releases
+opaque timer wakes; the same virtual instant drives production tooltip and
+delayed-widget repaint deadlines. Wall-clock update-handler timing diagnostics
+are disabled for this host. `complete_worker(...)` is the explicit action that runs one
+stored worker closure, and `complete_platform_request(...)` sends one neutral
+platform result to its runtime-owned sink. Neither action invokes an
+application mapper or reducer; the result is admitted only by a later
+`DeterministicHost::turn()`. `run_until_idle()` is bounded by the configured
+step budget and never runs an unrequested worker or platform completion.
+
+Each turn builds a complete `NormalizedSnapshot` candidate and publishes it
+only after normalization succeeds. The versioned snapshot includes normalized
+layout, automation, focus, paint summary, invalidation/identity and layout-state
+diagnostics, refresh-stage counters, command outcomes, non-timing runtime
+diagnostics, explicit pending work, repaint state, and an optional caller-owned
+JSON application observation. `DeterministicHost::paint_plan()` additionally
+exposes the current production raw `SurfacePaintPlan` for focused structural
+assertions without introducing a renderer.
+`NormalizedSnapshot::to_json_bytes()` omits `Instant`, elapsed-duration, native,
+GPU-resource, and backend presentation data; its compact field-ordered JSON is
+the byte-comparison artifact for repeated deterministic runs. This first host
+does not provide native windows, GPU rendering, IME, accessibility consumers,
+presentation, trace replay, an expanded environment contract, or production
+scheduler policy; `OPT-1385` owns the later environment expansion and
+`OPT-1384` remains the separate trace consumer.
+
 `SurfaceRuntime::devtools_snapshot()` returns a backend-neutral
 `DevtoolsSnapshot` for in-app inspectors, debug overlays, tests, and embedded
 host diagnostics. The snapshot includes the current viewport, a stable

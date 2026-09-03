@@ -56,21 +56,33 @@ fn malformed_margin_retains_scroll_container_and_omits_descendants() {
             child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
         }],
     );
-    let output = layout_tree(
+    let output = layout_tree_with_state(
         &root,
         Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
     );
     assert!(output.rects.contains_key(&1));
     assert!(!output.rects.contains_key(&2));
-    assert!(!output.viewport_bounds.contains_key(&1));
-    assert_eq!(
-        output
-            .diagnostics
-            .iter()
-            .filter(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
-            .count(),
-        1
-    );
+    assert!(output.viewport_bounds.is_empty());
+    assert!(output.virtual_windows.is_empty());
+    assert!(output.overflowed.is_empty());
+    assert!(output.overflow_flags.is_empty());
+    let diagnostics: Vec<_> = output
+        .diagnostics
+        .iter()
+        .filter(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
+        .collect();
+    assert_eq!(diagnostics.len(), 1);
+    assert!(output.diagnostics.iter().all(|item| {
+        item.node_id == 1 && item.code == LayoutDiagnosticCode::NegativeSizeClamped
+    }));
+    assert!(output.debug_primitives.iter().all(|primitive| {
+        primitive.node_id == 1
+            && primitive.rect.is_finite()
+            && primitive.rect.width() >= 0.0
+            && primitive.rect.height() >= 0.0
+    }));
 }
 
 #[test]

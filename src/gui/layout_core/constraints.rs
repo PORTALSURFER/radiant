@@ -64,10 +64,10 @@ impl Constraints {
 
     /// Return a copy with normalized and clamped ranges.
     pub fn normalized(self) -> Self {
-        let min_w = self.min_w.max(0.0);
-        let min_h = self.min_h.max(0.0);
-        let max_w = self.max_w.max(min_w);
-        let max_h = self.max_h.max(min_h);
+        let (min_w, max_w) =
+            super::validated_geometry::normalize_constraint_axis(self.min_w, self.max_w);
+        let (min_h, max_h) =
+            super::validated_geometry::normalize_constraint_axis(self.min_h, self.max_h);
         Self {
             min_w,
             max_w,

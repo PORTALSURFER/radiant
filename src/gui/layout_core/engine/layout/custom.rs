@@ -1,6 +1,6 @@
 //! Custom layout-policy placement.
 
-use super::super::{LayoutContext, round_rect};
+use super::super::LayoutContext;
 use crate::gui::layout_core::policy::LayoutPolicy;
 use crate::gui::layout_core::policy::{ChildDisposition, PlaceChildren, PlaceChildrenError};
 use crate::gui::layout_core::tree::ContainerNode;
@@ -49,7 +49,7 @@ pub(super) fn layout_custom(
     for (index, child) in container.children.iter().enumerate() {
         match dispositions[index] {
             Some(ChildDisposition::Placed(rect)) => {
-                super::layout_node(&child.child, round_rect(rect), context);
+                super::layout_node(&child.child, rect, context);
             }
             Some(ChildDisposition::Omitted(_)) => {
                 context.record_omitted_node(child.child.id());

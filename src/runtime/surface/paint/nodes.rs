@@ -60,6 +60,9 @@ impl SurfaceOverlay {
         context: &SurfacePaintContext<'_>,
         plan: &mut SurfacePaintPlan,
     ) {
+        if !self.rect.is_finite() || self.rect.width() < 0.0 || self.rect.height() < 0.0 {
+            return;
+        }
         push_overlay_panel(
             &mut plan.primitives,
             self.id,

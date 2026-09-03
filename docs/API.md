@@ -585,6 +585,14 @@ bounds, instead of repeating `Point` plus `Vector2` construction. Dense
 visualizations can use `ColorRamp` and `ColorRampStop` for normalized heatmap
 and intensity palettes without local interpolation helpers.
 
+Layout admission keeps these public geometry signatures unchanged while applying
+one private validation policy: coordinates are finite (negative origins are
+valid), sizes are finite and non-negative (zero is valid), and only an explicit
+positive-infinity constraint maximum remains unbounded. Invalid minima normalize
+to zero; invalid, negative, or contradictory maxima normalize to the minimum.
+Non-finite or overflowing rounded placement is omitted with a stable layout
+diagnostic, and omitted nodes do not dispatch widget or explicit-overlay paint.
+
 Focus-loss veto is an additive advanced widget contract. Import
 `radiant::widgets::{FocusLossDecision, Widget}` explicitly when a custom widget
 needs to participate in focus-release validation. `Widget::prepare_focus_loss`

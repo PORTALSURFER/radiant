@@ -4,6 +4,7 @@ use crate::gui::layout_core::engine::{
     VirtualWindowInfo,
 };
 use crate::gui::layout_core::model::{Insets, OverflowPolicy};
+use crate::gui::layout_core::tree::LayoutNode;
 use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::{Point, Rect};
 use std::borrow::Cow;
@@ -97,6 +98,15 @@ impl<'a> LayoutContext<'a> {
 
     pub(crate) fn record_omitted_node(&mut self, node_id: NodeId) {
         self.output.record_omitted_node(node_id);
+    }
+
+    pub(crate) fn omit_subtree(&mut self, node: &LayoutNode) {
+        self.output.record_omitted_node(node.id());
+        if let LayoutNode::Container(container) = node {
+            for child in &container.children {
+                self.omit_subtree(&child.child);
+            }
+        }
     }
 
     pub(crate) fn record_measure_miss(&mut self) {

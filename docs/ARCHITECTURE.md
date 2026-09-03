@@ -220,6 +220,14 @@ new focused export leaf or a module split, not a formatting workaround.
   and custom cache reuse remain outside the boundary. Built-in
   `ContainerPolicy`/`ContainerKind` dispatch is unchanged. OPT-1272 is Done;
   this measure/place-only boundary does not reopen that issue.
+- Layout geometry crosses one crate-private validated boundary between viewport
+  admission, constraint normalization, measurement/cache keys, rounding,
+  placement, publication, and paint dispatch. It preserves finite coordinates
+  including negative origins, finite non-negative sizes including zero, and
+  explicit positive-infinity constraint maxima only. Invalid geometry is
+  diagnosed and omitted as a node subtree; prepared candidates remain
+  transactional, and missing validated bounds prevent widget and explicit
+  overlay paint hooks.
 - `src/gui_runtime` owns native runtime integration and renderer adapters. The
   current native Vello runtime is the macOS implementation path; the target
   adds native Wayland and Windows host adapters behind the same Radiant-owned

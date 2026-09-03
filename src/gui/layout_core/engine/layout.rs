@@ -12,14 +12,24 @@ mod split_pane;
 mod wrap;
 
 use super::helpers::content_rect;
-use super::{LayoutContext, round_rect};
+use super::{LayoutContext, LayoutDiagnosticCode};
 use crate::gui::layout_core::model::ContainerKind;
 use crate::gui::layout_core::tree::LayoutNode;
 use crate::gui::types::Rect;
 
 pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutContext) {
+    let Some(validated) = crate::gui::layout_core::validated_geometry::ValidatedRect::rounded(rect)
+    else {
+        context.omit_subtree(node);
+        context.push_diagnostic(
+            node.id(),
+            LayoutDiagnosticCode::InvalidGeometry,
+            "layout geometry was invalid and the subtree was omitted",
+        );
+        return;
+    };
     context.record_layout_visit();
-    let rounded = round_rect(rect);
+    let rounded = validated.rect();
     context.output.rects.insert(node.id(), rounded);
     context.record_node_bounds(node.id(), rounded);
     let LayoutNode::Container(container) = node else {

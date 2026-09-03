@@ -40,6 +40,8 @@ pub enum LayoutDiagnosticCode {
     CustomLayoutDuplicatePlacement,
     /// A custom layout policy did not resolve a child.
     CustomLayoutChildUnresolved,
+    /// Computed geometry was non-finite, inverted, or overflowed.
+    InvalidGeometry,
 }
 
 /// Layout diagnostic emitted when invalid states are normalized.

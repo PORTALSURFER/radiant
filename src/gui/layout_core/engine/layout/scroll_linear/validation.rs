@@ -21,14 +21,29 @@ pub(in crate::gui::layout_core::engine::layout) fn metrics_is_valid(
     {
         return false;
     }
-    if let Some(uniform) = metrics.uniform {
-        return uniform.main_size.is_finite()
-            && uniform.main_size >= 0.0
-            && uniform.step.is_finite()
-            && uniform.step >= 0.0;
-    }
-    metrics
-        .spans
+    if !metrics
+        .main_sizes
         .iter()
-        .all(|span| span.start.is_finite() && span.end.is_finite() && span.end >= span.start)
+        .all(|size| size.is_finite() && *size >= 0.0)
+        || !metrics
+            .spans
+            .iter()
+            .all(|span| span.start.is_finite() && span.end.is_finite() && span.end >= span.start)
+    {
+        return false;
+    }
+    if let Some(uniform) = metrics.uniform {
+        if !uniform.main_size.is_finite()
+            || uniform.main_size < 0.0
+            || !uniform.step.is_finite()
+            || uniform.step < 0.0
+        {
+            return false;
+        }
+        return uniform.count == 0
+            || metrics.span(uniform.count - 1).is_some_and(|span| {
+                span.start.is_finite() && span.end.is_finite() && span.end >= span.start
+            });
+    }
+    true
 }

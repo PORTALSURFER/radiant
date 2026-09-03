@@ -9,7 +9,7 @@ use super::scroll_linear::known_linear_main_extent;
 use crate::gui::layout_core::model::{ContainerKind, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode};
 use crate::gui::types::{Point, Rect, Vector2};
-use virtualization::layout_virtualized_child;
+use virtualization::{has_invalid_content_margin, layout_virtualized_child};
 
 /// Layout a scroll container and optionally virtualize large linear child lists.
 pub(super) fn layout_scroll_view(
@@ -24,14 +24,13 @@ pub(super) fn layout_scroll_view(
     let Some(viewport_rect) =
         crate::gui::layout_core::validated_geometry::checked_inset_rect(content, slot.margin)
     else {
-        context.omit_subtree(&child.child);
-        context.push_diagnostic(
-            container.id,
-            LayoutDiagnosticCode::NegativeSizeClamped,
-            "scroll viewport geometry was invalid and descendants were omitted",
-        );
+        omit_invalid_scroll_subtree(container, &child.child, context);
         return;
     };
+    if has_invalid_content_margin(container, &child.child) {
+        omit_invalid_scroll_subtree(container, &child.child, context);
+        return;
+    }
     let viewport_w = viewport_rect.width();
     let viewport_h = viewport_rect.height();
     let measured = virtual_fixed_content_size(container, &child.child, viewport_w, viewport_h)
@@ -83,6 +82,19 @@ pub(super) fn layout_scroll_view(
     }
 }
 
+fn omit_invalid_scroll_subtree(
+    container: &ContainerNode,
+    child: &LayoutNode,
+    context: &mut LayoutContext,
+) {
+    context.omit_subtree(child);
+    context.push_diagnostic(
+        container.id,
+        LayoutDiagnosticCode::NegativeSizeClamped,
+        "scroll viewport geometry was invalid and descendants were omitted",
+    );
+}
+
 fn virtual_fixed_content_size(
     container: &ContainerNode,
     child: &LayoutNode,
@@ -102,6 +114,9 @@ fn virtual_fixed_content_size(
         _ => return None,
     };
     let main = known_linear_main_extent(content, policy.axis)?;
+    if !main.is_finite() {
+        return None;
+    }
     Some(if horizontal {
         Vector2::new(main, viewport_h)
     } else {

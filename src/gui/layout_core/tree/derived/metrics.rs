@@ -2,6 +2,7 @@
 
 use super::super::{LayoutNode, SlotChild};
 use crate::gui::layout_core::model::SizeModeMain;
+use crate::gui::layout_core::validated_geometry::finite_inset_totals;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in crate::gui::layout_core::tree) struct KnownMainMetrics {
@@ -14,7 +15,17 @@ pub(super) fn known_main_metrics(
     spacing: f32,
     children: &[SlotChild],
 ) -> KnownMainMetrics {
+    if children
+        .iter()
+        .any(|child| finite_inset_totals(child.slot.margin).is_none())
+    {
+        return KnownMainMetrics::default();
+    }
+
     let spacing_total = spacing.max(0.0) * children.len().saturating_sub(1) as f32;
+    if !spacing_total.is_finite() {
+        return KnownMainMetrics::default();
+    }
     let mut total = spacing_total;
     let mut uniform_main: Option<f32> = None;
     let mut uniform_valid = true;
@@ -35,11 +46,17 @@ pub(super) fn known_main_metrics(
         } else {
             constraints.clamp_h(size) + child.slot.margin.top + child.slot.margin.bottom
         };
+        if !main.is_finite() {
+            return KnownMainMetrics::default();
+        }
         let item_main = if horizontal {
             constraints.clamp_w(size)
         } else {
             constraints.clamp_h(size)
         };
+        if !item_main.is_finite() {
+            return KnownMainMetrics::default();
+        }
         if has_main_margin {
             uniform_valid = false;
         } else if let Some(expected) = uniform_main {
@@ -50,6 +67,9 @@ pub(super) fn known_main_metrics(
             uniform_main = Some(item_main);
         }
         total += main;
+        if !total.is_finite() {
+            return KnownMainMetrics::default();
+        }
     }
     KnownMainMetrics {
         extent: Some(total),

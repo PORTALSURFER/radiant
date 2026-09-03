@@ -6,8 +6,8 @@ use super::{
 };
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{
-    ContainerKind, ContainerPolicy, OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams,
-    VirtualizationAxis, VirtualizationPolicy, WrapPolicy,
+    ContainerKind, ContainerPolicy, Insets, OverflowPolicy, SizeModeCross, SizeModeMain,
+    SlotParams, VirtualizationAxis, VirtualizationPolicy, WrapPolicy,
 };
 use crate::gui::layout_core::tree::{LayoutNode, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};

@@ -125,6 +125,37 @@ fn container_does_not_mark_margin_rows_as_uniform() {
 }
 
 #[test]
+fn container_does_not_precompute_invalid_margin_metrics() {
+    for margin in [
+        Insets::all(f32::NAN),
+        Insets::all(f32::MAX),
+        Insets::all(-f32::MAX),
+    ] {
+        let container = crate::layout::ContainerNode::new(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::Column,
+                ..ContainerPolicy::default()
+            },
+            vec![SlotChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(24.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin,
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                crate::gui::layout_core::tree::LayoutNode::widget(10, Vector2::new(8.0, 8.0)),
+            )],
+        );
+
+        assert_eq!(container.known_main_extent_vertical, None);
+        assert_eq!(container.known_uniform_main_vertical, None);
+    }
+}
+
+#[test]
 fn widget_state_version_tracks_intrinsic_size() {
     let compact = crate::gui::layout_core::tree::LayoutNode::widget(10, Vector2::new(80.0, 20.0));
     let wide = crate::gui::layout_core::tree::LayoutNode::widget(10, Vector2::new(160.0, 20.0));

@@ -5013,11 +5013,18 @@ exposes the current production raw `SurfacePaintPlan` for focused structural
 assertions without introducing a renderer.
 `NormalizedSnapshot::to_json_bytes()` omits `Instant`, elapsed-duration, native,
 GPU-resource, and backend presentation data; its compact field-ordered JSON is
-the byte-comparison artifact for repeated deterministic runs. This first host
-does not provide native windows, GPU rendering, IME, accessibility consumers,
-presentation, trace replay, an expanded environment contract, or production
-scheduler policy; `OPT-1385` owns the later environment expansion and
-`OPT-1384` remains the separate trace consumer.
+the byte-comparison artifact for repeated deterministic runs. The qualified
+`DeterministicTraceCapture` and `DeterministicTrace` API records exact host
+configuration, caller-supplied state/view identity, caller-decoded normalized
+inputs, virtual-time advances, completion ids/results, and explicit publication
+snapshots. Use `capture_publication(...)` at an actual host publication
+boundary; Radiant does not automatically capture typed application events.
+Decode preflights format, version, canonical encoding, geometry, ordering,
+snapshot, identity/value, and all configured budgets before replay invokes its
+factory; replay uses the existing host completion APIs and reports the first
+bounded JSON-path divergence. Native windows, GPU rendering, IME,
+accessibility consumers, presentation, and production scheduler policy remain
+outside this boundary.
 
 `SurfaceRuntime::devtools_snapshot()` returns a backend-neutral
 `DevtoolsSnapshot` for in-app inspectors, debug overlays, tests, and embedded

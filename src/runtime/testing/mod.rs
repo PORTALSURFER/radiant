@@ -39,6 +39,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod trace;
+
+pub use trace::{
+    DETERMINISTIC_TRACE_FORMAT, DETERMINISTIC_TRACE_VERSION, DeterministicReplayReport,
+    DeterministicTrace, DeterministicTraceCapture, DeterministicTraceError,
+    DeterministicTraceIdentity, DeterministicTraceLimits, TraceDivergence, first_divergence,
+};
+
 /// Version of the normalized deterministic-host snapshot schema.
 pub const NORMALIZED_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 

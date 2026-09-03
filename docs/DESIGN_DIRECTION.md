@@ -666,6 +666,11 @@ the rest of the workspace.
 
 ## Deterministic Testing and Replay
 
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) classifies
+this headless, structured path as lane A. A deterministic result cannot be
+used as native host, compositor, IME, accessibility, GPU, screen-reader, or
+manual/hardware acceptance.
+
 The runtime supports a headless deterministic mode without a native window or
 GPU. Tests may supply fixed viewport, DPI, theme, time, input events, and task
 completions, then inspect structured outputs:
@@ -906,6 +911,10 @@ enforceable rather than advisory.
 
 ### Cross-window CPU frame fairness
 
+The named native workload is interpreted through the
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md); its live
+desktop classification is `N/NOT_RUN` until a qualifying manifest is retained.
+
 When native windows share a UI thread, Radiant uses an application-level CPU
 frame scheduler in addition to each window's local scheduler. Input dispatch,
 transient feedback, and deadline-bound presentation are admitted first. View
@@ -922,6 +931,11 @@ attempt unsafe mid-layout interruption; fairness is achieved at explicit
 projection, layout, and paint-plan boundaries.
 
 ### Next scheduler policy contract
+
+The lane and outcome requirements for this scheduler/workload contract are in
+the [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md). The
+contract below remains normative; its diagnostics and workload description are
+not a native acceptance result by themselves.
 
 - One parent UI/frame scheduler owns one native event-loop owner; stable logical window keys are scheduled; each window keeps its local scheduler; no second event loop or per-window work queue.
 - Non-preemptive order at safe boundaries: lifecycle/generation fences; discrete native input and immediate transient feedback; due presentation, animation, and caret; projection/reconciliation; layout; paint planning, encoding, and presentation; maintenance/background. A selected stage runs to completion and incomplete work is never presented.
@@ -4775,6 +4789,10 @@ is expressed with normal messages, never raw native-window handles.
 
 ## Native Platform Services
 
+Platform-service and native-adapter claims in this section use the
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md), including
+its platform/session baselines and non-silent unavailable/unsupported rules.
+
 Radiant provides a typed, asynchronous platform-service boundary for desktop
 capabilities that are neither widgets nor renderer concerns: application and
 window menus, file/folder dialogs, clipboard, URLs, notifications, cursors,
@@ -6555,6 +6573,11 @@ permitted on the rendering path.
   provide the surrounding decision context needed to diagnose them.
 
 ## Performance and Verification Requirements
+
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) defines
+the evidence lane and artifact boundary for these performance and verification
+requirements. Existing scheduler budgets and machine-specific benchmark
+baselines remain authoritative; this policy adds no timing threshold.
 
 The architecture remains observable. Frame-work changes identify their relevant
 workload and report one or more of:

@@ -21,7 +21,7 @@ fn read_doc(manifest_dir: &Path, relative: &str) -> String {
 #[test]
 fn normative_docs_reject_stale_metrics_and_unmerged_credit() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source = CONTRACT_DOCS[..5]
+    let source = CONTRACT_DOCS
         .iter()
         .map(|path| normalized(&read_doc(&manifest_dir, path)))
         .collect::<Vec<_>>()

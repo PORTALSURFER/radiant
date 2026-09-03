@@ -20,12 +20,11 @@ pub(super) fn measure_container(
     context: &mut LayoutContext,
 ) -> Vector2 {
     let policy = &container.policy;
+    let horizontal_padding = policy.padding.horizontal();
+    let vertical_padding = policy.padding.vertical();
     let inner = context.normalize_constraints(
         container.id,
-        constraints.inset(
-            policy.padding.horizontal() * 0.5,
-            policy.padding.vertical() * 0.5,
-        ),
+        constraints.inset(horizontal_padding * 0.5, vertical_padding * 0.5),
     );
     let measured_inner = if let Some(layout_policy) = container.layout_policy() {
         custom::measure_custom(container, layout_policy, inner, context)
@@ -51,7 +50,31 @@ pub(super) fn measure_container(
     };
 
     Vector2::new(
-        constraints.clamp_w(measured_inner.x + policy.padding.horizontal()),
-        constraints.clamp_h(measured_inner.y + policy.padding.vertical()),
+        finite_padded_extent(
+            measured_inner.x,
+            horizontal_padding,
+            constraints.min_w,
+            constraints.max_w,
+        ),
+        finite_padded_extent(
+            measured_inner.y,
+            vertical_padding,
+            constraints.min_h,
+            constraints.max_h,
+        ),
     )
+}
+
+fn finite_padded_extent(inner: f32, padding: f32, minimum: f32, maximum: f32) -> f32 {
+    let padded = inner + padding;
+    if !padded.is_finite() {
+        return minimum;
+    }
+
+    let clamped = padded.clamp(minimum, maximum);
+    if clamped.is_finite() {
+        clamped
+    } else {
+        minimum
+    }
 }

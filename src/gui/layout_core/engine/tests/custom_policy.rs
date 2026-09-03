@@ -1,7 +1,7 @@
 use crate::gui::layout_core::{
-    Constraints, LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine, LayoutNode,
-    LayoutOmissionReason, LayoutPolicy, LayoutPolicyPlacementError, SizeHint, SlotChild,
-    SlotParams, Vector2,
+    Constraints, DebugPrimitiveKind, LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine,
+    LayoutNode, LayoutOmissionReason, LayoutPolicy, LayoutPolicyPlacementError, SizeHint,
+    SlotChild, SlotParams, Vector2,
 };
 use crate::gui::types::{Point, Rect};
 use std::cell::{Cell, RefCell};
@@ -362,4 +362,56 @@ fn custom_policy_measure_child_requests_do_not_expose_nonfinite_maxima() {
     }));
     assert!(output.rects.contains_key(&40));
     assert!(output.rects.contains_key(&41));
+}
+
+#[test]
+fn malformed_padding_measurement_stays_finite_in_cache_and_debug_output() {
+    for padding in [f32::NAN, f32::MAX] {
+        let root = LayoutNode::container(
+            50,
+            crate::gui::layout_core::model::ContainerPolicy {
+                padding: crate::gui::layout_core::model::Insets::all(padding),
+                ..crate::gui::layout_core::model::ContainerPolicy::default()
+            },
+            vec![SlotChild::new(
+                SlotParams::fill(),
+                LayoutNode::widget(51, Vector2::new(8.0, 8.0)),
+            )],
+        );
+        let mut engine = LayoutEngine::default();
+        let output = engine.layout_with_state(
+            &root,
+            Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+            &crate::gui::layout_core::engine::LayoutState::default(),
+            LayoutDebugOptions::all_enabled(),
+        );
+
+        assert!(output.rects.contains_key(&50));
+        assert!(!output.rects.contains_key(&51));
+        assert_eq!(
+            engine.scratch.measured_by_node.get(&50),
+            Some(&Vector2::new(0.0, 0.0))
+        );
+        assert!(
+            engine
+                .scratch
+                .measured
+                .values()
+                .all(|size| { size.x.is_finite() && size.y.is_finite() })
+        );
+        assert!(
+            engine
+                .measure_cache
+                .values()
+                .all(|size| { size.x.is_finite() && size.y.is_finite() })
+        );
+        assert!(output.debug_primitives.iter().all(|primitive| {
+            primitive.rect.is_finite()
+                && primitive.rect.width() >= 0.0
+                && primitive.rect.height() >= 0.0
+        }));
+        assert!(output.debug_primitives.iter().any(|primitive| {
+            primitive.node_id == 50 && primitive.kind == DebugPrimitiveKind::MeasuredBounds
+        }));
+    }
 }

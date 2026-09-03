@@ -99,6 +99,13 @@ fn inset_maximum(maximum: f32, inset: f32) -> f32 {
         return 0.0;
     }
 
+    if maximum == f32::INFINITY {
+        return f32::INFINITY;
+    }
+    if !maximum.is_finite() {
+        return 0.0;
+    }
+
     let doubled = inset * 2.0;
     if !doubled.is_finite() {
         return if maximum.is_finite() && inset.is_sign_negative() {
@@ -106,12 +113,6 @@ fn inset_maximum(maximum: f32, inset: f32) -> f32 {
         } else {
             0.0
         };
-    }
-    if maximum == f32::INFINITY {
-        return f32::INFINITY;
-    }
-    if !maximum.is_finite() {
-        return 0.0;
     }
 
     let reduced = maximum - doubled;

@@ -42,3 +42,17 @@ fn inset_saturates_overflowing_negative_finite_insets() {
     assert!(inset.max_w.is_finite());
     assert!(inset.max_h.is_finite());
 }
+
+#[test]
+fn inset_preserves_explicit_unbounded_max_for_overflowing_negative_insets() {
+    let inset = Constraints {
+        min_w: 0.0,
+        max_w: f32::INFINITY,
+        min_h: 0.0,
+        max_h: f32::INFINITY,
+    }
+    .inset(-f32::MAX, -f32::MAX);
+
+    assert_eq!(inset.max_w, f32::INFINITY);
+    assert_eq!(inset.max_h, f32::INFINITY);
+}

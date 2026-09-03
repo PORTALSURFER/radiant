@@ -8,10 +8,11 @@ use crate::{
     },
     runtime::{
         AuxiliaryWindow, Command, FrameGpuTimingSample, FrameProfile, NativeFileDrop,
-        NativeFileOpen, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion,
-        PlatformRequest, PlatformResultDelivery, PlatformServiceFallback, RuntimeAnimationActivity,
-        RuntimeBridge, RuntimeDiagnostics, RuntimeHostCapabilities, RuntimePlatformResultSink,
-        RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority, TransientOverlayContext,
+        NativeFileOpen, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformEffect,
+        PlatformFailure, PlatformRequest, PlatformResultDelivery, PlatformServiceFallback,
+        RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics, RuntimeHostCapabilities,
+        RuntimePlatformResultSink, RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority,
+        TransientOverlayContext,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -123,21 +124,48 @@ where
         if !self.lifecycle_accepts_work() {
             return Err(Box::new((request, on_completed)));
         }
-        if self.host_capabilities.platform_result.is_some() {
-            let identity = self.platform_registry.register(on_completed, origin);
+        if request.is_in_process_clipboard() {
+            self.diagnostics
+                .record_platform_owner_kind(origin.platform_owner_kind());
+            let identity =
+                self.platform_registry
+                    .register_legacy_for_request(on_completed, &request, origin);
             let Some(reservation) =
                 crate::runtime::controller::platform::PlatformResultIngress::reserve(
                     &self.platform_results,
                 )
             else {
-                let accepted = self
-                    .platform_results
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .enqueue_overflow(PlatformResultDelivery::Completed {
-                        identity,
-                        result: Err(String::from("platform result ingress is saturated")),
-                    });
+                let accepted =
+                    self.enqueue_platform_result(identity, Err(PlatformFailure::Capacity));
+                if !accepted {
+                    let _ = self.platform_registry.remove(identity);
+                }
+                return Ok(());
+            };
+            let result = self.in_process_clipboard.execute(&request);
+            let accepted =
+                reservation.commit(PlatformResultDelivery::Completed { identity, result });
+            if !accepted {
+                let _ = self.platform_registry.remove(identity);
+            }
+            return Ok(());
+        }
+        if request.validate().is_err() {
+            return Err(Box::new((request, on_completed)));
+        }
+        if self.host_capabilities.platform_result.is_some() {
+            self.diagnostics
+                .record_platform_owner_kind(origin.platform_owner_kind());
+            let identity =
+                self.platform_registry
+                    .register_legacy_for_request(on_completed, &request, origin);
+            let Some(reservation) =
+                crate::runtime::controller::platform::PlatformResultIngress::reserve(
+                    &self.platform_results,
+                )
+            else {
+                let accepted =
+                    self.enqueue_platform_result(identity, Err(PlatformFailure::Capacity));
                 if !accepted {
                     let _ = self.platform_registry.remove(identity);
                 }
@@ -153,13 +181,108 @@ where
                 (capability.request_platform_result)(&mut self.bridge, request, sink)
             {
                 let (_request, sink) = *fallback;
-                sink.send(Err(String::from(
-                    "platform service request was rejected by the runtime host",
-                )));
+                sink.send(Err(PlatformFailure::Unavailable(_request.service())));
             }
             return Ok(());
         }
         Err(Box::new((request, on_completed)))
+    }
+
+    pub(in crate::runtime::controller) fn host_request_platform_effect(
+        &mut self,
+        effect: PlatformEffect<Message>,
+        origin: &EffectOrigin,
+    ) -> bool {
+        let PlatformEffect {
+            request,
+            transaction,
+            lifecycle,
+            map,
+        } = effect;
+        if !origin.is_live() || !transaction.is_active() || (lifecycle.cancellation)() {
+            transaction.reject();
+            return false;
+        }
+        self.diagnostics
+            .record_platform_owner_kind(origin.platform_owner_kind());
+        let identity =
+            self.platform_registry
+                .register_effect(map, &request, origin, &lifecycle, transaction);
+        let Some(reservation) =
+            crate::runtime::controller::platform::PlatformResultIngress::reserve(
+                &self.platform_results,
+            )
+        else {
+            if !self.platform_registry.effect_is_current(identity) {
+                let _ = self.platform_registry.remove(identity);
+                return true;
+            }
+            self.platform_registry.reject_effect(identity);
+            let accepted = self.enqueue_platform_result(identity, Err(PlatformFailure::Capacity));
+            if !accepted {
+                let _ = self.platform_registry.remove(identity);
+            }
+            return true;
+        };
+
+        if !self.platform_registry.effect_is_current(identity) {
+            let _ = self.platform_registry.remove(identity);
+            return true;
+        }
+
+        if request.validate().is_err() {
+            self.platform_registry.reject_effect(identity);
+            if !reservation.commit(PlatformResultDelivery::Completed {
+                identity,
+                result: Err(PlatformFailure::InvalidRequest),
+            }) {
+                let _ = self.platform_registry.remove(identity);
+            }
+            return true;
+        }
+
+        if request.is_in_process_clipboard() {
+            let result = self.in_process_clipboard.execute(&request);
+            self.platform_registry.accept_effect(identity);
+            if !reservation.commit(PlatformResultDelivery::Completed { identity, result }) {
+                let _ = self.platform_registry.remove(identity);
+            }
+            return true;
+        }
+
+        let Some(capability) = self.host_capabilities.platform_result.as_ref() else {
+            self.platform_registry.reject_effect(identity);
+            if !reservation.commit(PlatformResultDelivery::Completed {
+                identity,
+                result: Err(PlatformFailure::Unsupported(request.service())),
+            }) {
+                let _ = self.platform_registry.remove(identity);
+            }
+            return true;
+        };
+        let sink = RuntimePlatformResultSink::new(identity, move |delivery| {
+            let _ = reservation.commit(delivery);
+        });
+        if let Err(fallback) = (capability.request_platform_result)(&mut self.bridge, request, sink)
+        {
+            let (request, sink) = *fallback;
+            self.platform_registry.reject_effect(identity);
+            sink.send(Err(PlatformFailure::Unavailable(request.service())));
+        } else {
+            self.platform_registry.accept_effect(identity);
+        }
+        true
+    }
+
+    fn enqueue_platform_result(
+        &mut self,
+        identity: crate::runtime::PlatformCompletionIdentity,
+        result: crate::runtime::PlatformResult,
+    ) -> bool {
+        self.platform_results
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .enqueue_overflow(PlatformResultDelivery::Completed { identity, result })
     }
 
     /// Poll the cached host animation capability.

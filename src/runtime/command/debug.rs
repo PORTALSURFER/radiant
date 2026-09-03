@@ -88,6 +88,17 @@ where
                 .debug_struct("PlatformRequest")
                 .field("request", request)
                 .finish_non_exhaustive(),
+            Self::PlatformEffect(effect) => {
+                let owner_kind = match effect.lifecycle.owner {
+                    crate::runtime::EffectOwner::Application => "application",
+                    crate::runtime::EffectOwner::Declarative(_) => "declarative",
+                };
+                f.debug_struct("PlatformEffect")
+                    .field("service", &effect.request.service())
+                    .field("transaction_active", &effect.transaction.is_active())
+                    .field("owner_kind", &owner_kind)
+                    .finish_non_exhaustive()
+            }
             Self::EndExternalDrag => f.write_str("EndExternalDrag"),
             Self::EndDrag => f.write_str("EndDrag"),
             Self::Exit => f.write_str("Exit"),

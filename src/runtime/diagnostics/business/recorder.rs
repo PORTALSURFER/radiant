@@ -7,7 +7,7 @@ use std::{
 use super::models::RECENT_BUSINESS_EVENTS;
 use super::{
     BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
-    RuntimeDiagnostics,
+    PlatformOwnerKind, RuntimeDiagnostics,
 };
 use crate::runtime::TaskPriority;
 
@@ -101,6 +101,11 @@ impl RuntimeDiagnosticsRecorder {
     pub(crate) fn record_shared_ingress_coalesced(&self) {
         let mut state = lock_diagnostics_state(&self.state);
         state.snapshot.queue.shared_ingress_coalesced += 1;
+    }
+
+    pub(crate) fn record_platform_owner_kind(&self, owner: PlatformOwnerKind) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.last_platform_owner_kind = Some(owner);
     }
 
     pub(crate) fn record_business_queued(

@@ -148,6 +148,9 @@ pub enum Command<Message> {
         /// Host callback mapped into a message when the request completes.
         on_completed: PlatformCompletion<Message>,
     },
+    /// Request one platform service through the qualified effect lifecycle.
+    #[doc(hidden)]
+    PlatformEffect(PlatformEffect<Message>),
     /// Clear any active native external drag session.
     EndExternalDrag,
     /// Request that the active runtime exits.
@@ -162,6 +165,15 @@ pub struct TimerEffect<Message> {
     pub(crate) owner: Option<DeclarativeEffectOwner>,
     pub(crate) lifecycle: Option<EffectLifecycle>,
     pub(crate) map: Box<dyn FnOnce() -> Message + 'static>,
+}
+
+/// Qualified platform-effect command payload retained by the UI controller.
+#[doc(hidden)]
+pub struct PlatformEffect<Message> {
+    pub(crate) request: PlatformRequest,
+    pub(crate) transaction: LatestTaskTransaction,
+    pub(crate) lifecycle: EffectLifecycle,
+    pub(crate) map: PlatformCompletion<Message>,
 }
 
 /// Opaque worker-effect command payload.
@@ -186,10 +198,11 @@ pub struct WorkerEffect<Message> {
     pub(crate) mapper: WorkerEffectMapper<Message>,
 }
 
-/// Crate-private lifecycle contract shared by the qualified timer and worker
-/// facade commands.  The controller expands this into its lane registration
+/// Crate-private lifecycle contract shared by qualified timer, worker, and
+/// platform facade commands.  The controller expands this into its lane registration
 /// descriptor while the concrete latest-task transaction remains owned by the
 /// command until host admission.
+#[derive(Clone)]
 pub(crate) struct EffectLifecycle {
     pub(crate) identity: EffectId,
     pub(crate) generation: EffectGeneration,

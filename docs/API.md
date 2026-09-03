@@ -4006,8 +4006,13 @@ For host-visible platform services, ordinary reducers should use
 `UiUpdateContext::pick_folder(...)`, `pick_file(...)`, `save_file(...)`, `open_path(...)`,
 `reveal_path(...)`, `open_url(...)`, `copy_text(...)`,
 `copy_file_paths(...)`, `read_text(...)`, `read_file_paths(...)`, or
-`confirm(...)`. Hosts that genuinely need the raw protocol can explicitly
-import `PlatformRequest` and call `UiUpdateContext::platform_request(...)`.
+`confirm(...)`; `notify(...)`, `write_clipboard(...)`, and `read_clipboard(...)`
+cover neutral notifications and the app-instance-owned typed clipboard.
+Hosts that need an owner-qualified, replaceable platform operation can use
+`UiUpdateContext::platform_effect(&mut latest, owner, request, map)` with
+`EffectOwner::Application` or an exact `EffectOwner::Declarative(...)`.
+Hosts that genuinely need the unqualified raw protocol can explicitly import
+`PlatformRequest` and call `UiUpdateContext::platform_request(...)`.
 Custom bridges handle those requests via
 `RuntimeBridge::request_platform_service(...)`; bridges that do not provide a
 platform service return an explicit unsupported error through the normal
@@ -4750,7 +4755,8 @@ immediate messages in a command can use
 `Command::into_messages()` remains the allocating convenience wrapper.
 The qualified `radiant::runtime::Effect<Message>` facade from OPT-1387 is the additive
 construction surface for `Effect::after(...)`, `Effect::worker(...)`,
-`Effect::ordered_stream(...)`, and `Effect::latest_stream(...)`. Each constructor
+`Effect::ordered_stream(...)`, `Effect::latest_stream(...)`, and
+`Effect::platform(...)`. Each constructor
 requires `&mut LatestTask` and an explicit `EffectOwner::Application` or
 `EffectOwner::Declarative(...)`, reserves a `TaskTicket`, and exposes that ticket
 plus a cloned per-effect `CancellationToken`. Declarative owner selection resolves
@@ -4760,9 +4766,12 @@ Worker code transports only owned `Send` output or event values; `Message` and a
 typed `TaskCompletion` mappers remain UI-local and need not be `Send` or `Sync`.
 Convert an effect with `Command::effect(effect)` or `From<Effect<Message>>`; both
 bridges preserve the existing separate timer and worker lanes and the controller's
-common private lifecycle policy. The facade does not migrate platform effects,
-`ResourceTasks`, subscriptions, scheduler/queue/thread ownership, or product state,
-and it does not replace the legacy business/latest/keyed-latest APIs.
+common private lifecycle policy. Platform effects use the existing platform
+registry/controller ingress and later-turn `PlatformResult` delivery; they do
+not add a scheduler or queue. The facade does not migrate `ResourceTasks`,
+subscriptions, scheduler/queue/thread ownership, or product state, and it does
+not replace the legacy business/latest/keyed-latest APIs. External drag remains
+on its separate compatibility lane.
 Tests and diagnostics can use `Command::business_task_priority(...)` to verify
 that a named one-shot or streaming worker effect was queued on the expected
 runtime worker lane without pattern-matching hidden command internals. Worker
@@ -4868,7 +4877,7 @@ custom-coordinate, platform, or product wiring API is promised.
 Current shipped ownership is narrower than the target model: the private
 `EffectOrigin` boundary supplies application, auxiliary, and selected
 declarative provenance, while `ResourceTasks` remains application-owned.
-The qualified `runtime::Effect<Message>` facade is now shipped for explicit
+The qualified `runtime::Effect<Message>` facade is now shipped by OPT-1370 for explicit
 `EffectOwner::Application` or `EffectOwner::Declarative(...)` selection across
 after/worker/ordered-stream/latest-stream construction. Its constructors require
 `&mut LatestTask`, reserve a `TaskTicket`, expose a cloned `CancellationToken`,
@@ -4878,9 +4887,8 @@ without application fallback and restores the predecessor ticket. The existing
 owner-scoped business, latest-task, keyed-latest, and timer routes keep their
 public handles, cancellation, admission, rollback, and stale/late protections.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
-are future work tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions,
-ResourceTasks ownership, platform migration, scheduler policy, and product
-wiring remain outside this slice.
+are future work tracked by OPT-1390 and OPT-1421; subscriptions, ResourceTasks
+ownership, scheduler policy, and product wiring remain outside this slice.
 
 The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped owner-scoped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, and an invalid selection is rejected without fallback. Legacy ordinary timers and business work remain application-owned unless a facade or existing owner-scoped API explicitly selects a declarative owner. Ordinary ordered and coalesced owner-scoped streaming, the cancellable ordinary ordered owner stream, ordered and coalesced latest-task owner streaming, and the application-owned `KeyedLatestTasks` one-shot, ordered-stream, and coalesced-stream routes are shipped. The coalesced keyed-latest route retains the exact host key, keyed ticket, replacement transaction, owner generation, and receipt; keeps only the newest pending intermediate payload before UI drain; delivers the uncoalesced final exactly once after the retained event; and passes exact `KeyedTaskCompletion<Key, _>` values to UI-local/non-`Send` mappers. Keyed supersession and owner retirement independently fence worker, mapping, and reduction. Invalid, removed, ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and same-update admissions fail closed without `Application` fallback and restore only the affected key's predecessor; sibling keys remain unchanged. The cancellable ordinary ordered owner-stream route reuses the same accepted surface, owner-generation ledger, worker registry, bounded FIFO ingress, and controller-composed cancellation probe. Callers clone `request.token()` before consuming the request. Token cancellation and declarative owner retirement are independent OR-composed fences for cooperative work, events, final delivery, mapping, and reduction, including later entries already queued for one UI drain; the admission receipt does not change after it resolves. Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host, capacity, and closing admissions reject atomically without spawn, mapping, retry, or `Application` fallback, and event/final mappers stay UI-local/non-`Send`. `ResourceTasks` ownership, platform ownership, and shared-resource semantics remain outside this public slice.
 
@@ -4921,7 +4929,18 @@ Dynamic unkeyed nodes cannot provide the durable identity required for
 owner-scoped cancellation, so they remain on the application-owned path unless
 a later contract supplies an explicit stable identity.
 
-This is a bounded public timer, one-shot business-worker, cancellable ordinary owner one-shot and ordered owner-stream, ordinary ordered and coalesced owner-scoped stream-consumer, ordered/coalesced latest-task owner-stream, cancellable latest-task one-shot and ordered/coalesced owner-stream, and application-owned `KeyedLatestTasks` one-shot/ordered/coalesced-stream slice, not the complete target effect model. The public surface is limited to DeclarativeEffectOwner, explicit ViewNode/Layer markers, the two UiUpdateContext owner-timer methods, and the business-builder owner-worker methods; Command internals, EffectOrigin, the ledger, and effect registration remain crate-private. It makes no claim about demand/refresh/provider budgets, scheduler budgets/fairness/queue capacity/wake ordering, `ResourceTasks` ownership, platform ownership, custom-coordinate transforms, renderer, or product wiring.
+This is a bounded public timer, one-shot business-worker, qualified platform,
+cancellable ordinary owner one-shot and ordered owner-stream, ordinary ordered
+and coalesced owner-scoped stream-consumer, ordered/coalesced latest-task
+owner-stream, cancellable latest-task one-shot and ordered/coalesced owner-stream,
+and application-owned `KeyedLatestTasks` one-shot/ordered/coalesced-stream
+slice, not the complete target effect model. The public surface is limited to
+the qualified owner/effect methods and typed platform service values described
+above; Command internals, `EffectOrigin`, the ledger, and effect registration
+remain crate-private. It makes no claim about demand/refresh/provider budgets,
+scheduler budgets/fairness/queue capacity/wake ordering, `ResourceTasks`
+ownership, OS notification UI, custom-coordinate transforms, renderer, or
+product wiring.
 
 Owner identity, admission, and retirement defer queue capacity, budgets, fairness,
 priority, wake ordering, and stage ordering to the separately normative [`Next

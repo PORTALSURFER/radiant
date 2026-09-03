@@ -212,6 +212,29 @@ impl<Message> Command<Message> {
         })
     }
 
+    pub(crate) fn platform_effect(
+        identity: super::EffectId,
+        owner: crate::runtime::EffectOwner,
+        _ticket: crate::application::TaskTicket,
+        transaction: crate::application::LatestTaskTransaction,
+        token: crate::application::CancellationToken,
+        request: PlatformRequest,
+        map: impl FnOnce(PlatformResult) -> Message + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        let generation = super::EffectGeneration(transaction.generation());
+        let lifecycle =
+            EffectLifecycle::from_token(identity, generation, Some(&transaction), owner, token);
+        Self::PlatformEffect(super::PlatformEffect {
+            request,
+            transaction,
+            lifecycle,
+            map: Box::new(map),
+        })
+    }
+
     /// Build a worker-only effect whose output is mapped on the UI owner.
     ///
     /// The worker closure never constructs or transports `Message`. The mapper

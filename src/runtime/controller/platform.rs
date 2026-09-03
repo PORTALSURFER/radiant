@@ -1,4 +1,8 @@
-use crate::runtime::{PlatformCompletion, PlatformCompletionIdentity, PlatformResultDelivery};
+use crate::application::LatestTaskTransaction;
+use crate::runtime::command::EffectLifecycle;
+use crate::runtime::{
+    PlatformCompletion, PlatformCompletionIdentity, PlatformRequest, PlatformResultDelivery,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -11,6 +15,20 @@ pub(super) struct PlatformCompletionRegistry<Message> {
     entries: HashMap<PlatformCompletionIdentity, RegisteredPlatformCompletion<Message>>,
     next_id: u64,
     epoch: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PlatformRegistrationState {
+    Pending,
+    Accepted,
+    Rejected,
+}
+
+enum PlatformResultValidation {
+    /// Legacy `Command::platform_request` callbacks receive the host result unchanged.
+    Legacy,
+    /// Qualified `Effect::platform` callbacks require the request's result shape.
+    Qualified(PlatformRequest),
 }
 
 impl<Message> Default for PlatformCompletionRegistry<Message> {
@@ -28,31 +46,210 @@ impl<Message> PlatformCompletionRegistry<Message> {
             epoch: 1,
         }
     }
+    #[cfg(test)]
     pub(super) fn register(
         &mut self,
         completion: PlatformCompletion<Message>,
         origin: &EffectOrigin,
+    ) -> PlatformCompletionIdentity {
+        self.register_inner(
+            completion,
+            PlatformResultValidation::Legacy,
+            origin,
+            None,
+            None,
+        )
+    }
+
+    pub(super) fn register_legacy_for_request(
+        &mut self,
+        completion: PlatformCompletion<Message>,
+        _request: &PlatformRequest,
+        origin: &EffectOrigin,
+    ) -> PlatformCompletionIdentity {
+        self.register_inner(
+            completion,
+            PlatformResultValidation::Legacy,
+            origin,
+            None,
+            None,
+        )
+    }
+
+    pub(super) fn register_effect(
+        &mut self,
+        completion: PlatformCompletion<Message>,
+        request: &PlatformRequest,
+        origin: &EffectOrigin,
+        lifecycle: &EffectLifecycle,
+        transaction: LatestTaskTransaction,
+    ) -> PlatformCompletionIdentity {
+        let transaction_probe = transaction.cancellation_probe();
+        let cancellation = combine_cancellation_probes(
+            Some(Arc::clone(&lifecycle.cancellation)),
+            Some(transaction_probe),
+        );
+        let cancellation = combine_cancellation_probes(cancellation, origin.cancellation_probe());
+        let rejection_cancellation = combine_cancellation_probes(
+            Some(Arc::clone(&lifecycle.cancellation)),
+            origin.cancellation_probe(),
+        );
+        let rejection_cancellation = combine_cancellation_probes(
+            rejection_cancellation,
+            Some(transaction.newer_replacement_probe()),
+        );
+        self.register_inner(
+            completion,
+            PlatformResultValidation::Qualified(request.clone()),
+            origin,
+            Some(RegisteredPlatformEffect {
+                lifecycle: LifecycleDescriptor::new_for_effect(
+                    self.owner.clone(),
+                    self.next_id,
+                    lifecycle,
+                    cancellation,
+                ),
+                rejection_lifecycle: LifecycleDescriptor::new(
+                    self.owner.clone(),
+                    self.next_id,
+                    None,
+                    self.epoch,
+                    rejection_cancellation,
+                ),
+                transaction,
+                identity: lifecycle.identity,
+                generation: lifecycle.generation.0,
+            }),
+            Some(PlatformRegistrationState::Pending),
+        )
+    }
+
+    fn register_inner(
+        &mut self,
+        completion: PlatformCompletion<Message>,
+        validation: PlatformResultValidation,
+        origin: &EffectOrigin,
+        effect: Option<RegisteredPlatformEffect>,
+        state: Option<PlatformRegistrationState>,
     ) -> PlatformCompletionIdentity {
         let identity = PlatformCompletionIdentity {
             id: self.next_id,
             epoch: self.epoch,
         };
         self.next_id = self.next_id.saturating_add(1);
+        let (lifecycle, rejection_lifecycle, transaction, effect_identity, generation) = effect
+            .map_or_else(
+                || {
+                    let lifecycle = LifecycleDescriptor::new(
+                        self.owner.clone(),
+                        identity.id,
+                        None,
+                        identity.epoch,
+                        origin.cancellation_probe(),
+                    );
+                    (lifecycle.clone(), lifecycle, None, None, identity.epoch)
+                },
+                |effect| {
+                    (
+                        effect.lifecycle,
+                        effect.rejection_lifecycle,
+                        Some(effect.transaction),
+                        Some(effect.identity),
+                        effect.generation,
+                    )
+                },
+            );
         self.entries.insert(
             identity,
             RegisteredPlatformCompletion {
                 completion,
-                lifecycle: LifecycleDescriptor::new(
-                    self.owner.clone(),
-                    identity.id,
-                    None,
-                    identity.epoch,
-                    None,
-                ),
+                validation,
                 origin: origin.clone(),
+                lifecycle,
+                rejection_lifecycle,
+                transaction,
+                effect_identity,
+                generation,
+                state: state.unwrap_or(PlatformRegistrationState::Accepted),
             },
         );
         identity
+    }
+
+    pub(super) fn accept_effect(&mut self, identity: PlatformCompletionIdentity) {
+        let Some(effect_identity) = self
+            .entries
+            .get(&identity)
+            .and_then(|entry| entry.effect_identity)
+        else {
+            return;
+        };
+        let admissible = self.entries.get(&identity).is_some_and(|entry| {
+            entry.state == PlatformRegistrationState::Pending
+                && entry.origin.is_live()
+                && entry.lifecycle.admits_effect(
+                    &self.owner,
+                    identity.id,
+                    entry.lifecycle.identity(),
+                    entry.generation,
+                    true,
+                )
+        });
+        if !admissible {
+            let _ = self.entries.remove(&identity);
+            return;
+        }
+        let superseded = self
+            .entries
+            .iter()
+            .filter(|(candidate, entry)| {
+                **candidate != identity
+                    && entry.effect_identity == Some(effect_identity)
+                    && entry.state != PlatformRegistrationState::Rejected
+            })
+            .map(|(candidate, _)| *candidate)
+            .collect::<Vec<_>>();
+        for candidate in superseded {
+            self.entries.remove(&candidate);
+        }
+        if let Some(entry) = self.entries.get_mut(&identity)
+            && entry.state == PlatformRegistrationState::Pending
+        {
+            if let Some(transaction) = entry.transaction.as_ref() {
+                transaction.accept();
+            }
+            entry.state = PlatformRegistrationState::Accepted;
+        }
+    }
+
+    pub(super) fn effect_is_current(&self, identity: PlatformCompletionIdentity) -> bool {
+        self.entries.get(&identity).is_some_and(|entry| {
+            entry.state == PlatformRegistrationState::Pending
+                && entry.origin.is_live()
+                && entry.lifecycle.admits_effect(
+                    &self.owner,
+                    identity.id,
+                    entry.lifecycle.identity(),
+                    entry.generation,
+                    true,
+                )
+        })
+    }
+
+    pub(super) fn reject_effect(&mut self, identity: PlatformCompletionIdentity) {
+        let Some(entry) = self.entries.get_mut(&identity) else {
+            return;
+        };
+        if entry.state != PlatformRegistrationState::Pending {
+            return;
+        }
+        if let Some(transaction) = entry.transaction.take() {
+            transaction.reject();
+        }
+        entry.lifecycle = entry.rejection_lifecycle.clone();
+        entry.generation = identity.epoch;
+        entry.state = PlatformRegistrationState::Rejected;
+        entry.effect_identity = None;
     }
 
     pub(super) fn map_delivery(
@@ -62,21 +259,45 @@ impl<Message> PlatformCompletionRegistry<Message> {
         match delivery {
             PlatformResultDelivery::Completed { identity, result } => {
                 let mapper = self.entries.get(&identity)?;
+                if let PlatformResultValidation::Qualified(request) = &mapper.validation
+                    && request.validate_result(&result).is_err()
+                {
+                    self.entries.remove(&identity);
+                    return None;
+                }
                 let current = mapper.origin.is_live()
-                    && mapper.lifecycle.admits(
-                        &self.owner,
-                        identity.id,
-                        identity.epoch,
-                        mapper.lifecycle.slot().is_none(),
-                    );
+                    && match mapper.state {
+                        PlatformRegistrationState::Pending => false,
+                        PlatformRegistrationState::Accepted => mapper.lifecycle.admits_effect(
+                            &self.owner,
+                            identity.id,
+                            mapper.lifecycle.identity(),
+                            mapper.generation,
+                            true,
+                        ),
+                        PlatformRegistrationState::Rejected => mapper.lifecycle.admits(
+                            &self.owner,
+                            identity.id,
+                            mapper.generation,
+                            true,
+                        ),
+                    };
                 if !current {
                     self.entries.remove(&identity);
                     return None;
                 }
                 let mapper = self.entries.remove(&identity)?;
+                let fence = Some(PlatformMappingFence {
+                    accepted: mapper.state == PlatformRegistrationState::Accepted,
+                    identity,
+                    generation: mapper.generation,
+                    lifecycle: mapper.lifecycle.clone(),
+                    origin: mapper.origin.clone(),
+                });
                 Some(MappedPlatformMessage {
                     message: (mapper.completion)(result),
                     origin: mapper.origin,
+                    fence,
                 })
             }
             PlatformResultDelivery::Discarded { identity } => {
@@ -119,13 +340,63 @@ impl<Message> PlatformCompletionRegistry<Message> {
 
 struct RegisteredPlatformCompletion<Message> {
     completion: PlatformCompletion<Message>,
+    validation: PlatformResultValidation,
     lifecycle: LifecycleDescriptor,
+    rejection_lifecycle: LifecycleDescriptor,
+    transaction: Option<LatestTaskTransaction>,
+    effect_identity: Option<crate::runtime::command::EffectId>,
+    generation: u64,
+    state: PlatformRegistrationState,
     origin: EffectOrigin,
+}
+
+struct RegisteredPlatformEffect {
+    lifecycle: LifecycleDescriptor,
+    rejection_lifecycle: LifecycleDescriptor,
+    transaction: LatestTaskTransaction,
+    identity: crate::runtime::command::EffectId,
+    generation: u64,
 }
 
 pub(super) struct MappedPlatformMessage<Message> {
     pub(super) message: Message,
     pub(super) origin: EffectOrigin,
+    fence: Option<PlatformMappingFence>,
+}
+
+#[derive(Clone)]
+struct PlatformMappingFence {
+    accepted: bool,
+    identity: PlatformCompletionIdentity,
+    generation: u64,
+    lifecycle: LifecycleDescriptor,
+    origin: EffectOrigin,
+}
+
+impl PlatformMappingFence {
+    fn is_current(&self, owner: &RuntimeOwner) -> bool {
+        self.origin.is_live()
+            && if self.accepted {
+                self.lifecycle.admits_effect(
+                    owner,
+                    self.identity.id,
+                    self.lifecycle.identity(),
+                    self.generation,
+                    true,
+                )
+            } else {
+                self.lifecycle
+                    .admits(owner, self.identity.id, self.generation, true)
+            }
+    }
+}
+
+impl<Message> MappedPlatformMessage<Message> {
+    pub(super) fn is_current(&self, owner: &RuntimeOwner) -> bool {
+        self.fence
+            .as_ref()
+            .is_none_or(|fence| fence.is_current(owner))
+    }
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -272,6 +543,17 @@ impl Drop for PlatformResultReservation {
     }
 }
 
+fn combine_cancellation_probes(
+    first: Option<super::owner::CancellationProbe>,
+    second: Option<super::owner::CancellationProbe>,
+) -> Option<super::owner::CancellationProbe> {
+    match (first, second) {
+        (None, None) => None,
+        (Some(probe), None) | (None, Some(probe)) => Some(probe),
+        (Some(first), Some(second)) => Some(Arc::new(move || first() || second())),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,6 +645,71 @@ mod tests {
             Some(1)
         );
         assert!(registry.map_delivery(delivery()).is_none());
+        assert_eq!(*calls.borrow(), 1);
+    }
+
+    #[test]
+    fn malformed_success_is_dropped_before_platform_mapper() {
+        let calls = Rc::new(RefCell::new(0));
+        let calls_for_mapper = Rc::clone(&calls);
+        let request = PlatformRequest::ReadText;
+        let mut registry = PlatformCompletionRegistry::<usize>::default();
+        let mut latest = crate::application::LatestTask::new();
+        let transaction = latest.begin_replacement();
+        let lifecycle = EffectLifecycle::from_token(
+            crate::runtime::command::EffectId(1),
+            crate::runtime::command::EffectGeneration(transaction.generation()),
+            Some(&transaction),
+            crate::runtime::EffectOwner::Application,
+            crate::application::CancellationToken::new(),
+        );
+        let identity = registry.register_effect(
+            Box::new(move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+                1
+            }),
+            &request,
+            &EffectOrigin::Application,
+            &lifecycle,
+            transaction,
+        );
+        registry.accept_effect(identity);
+
+        assert!(
+            registry
+                .map_delivery(PlatformResultDelivery::Completed {
+                    identity,
+                    result: Ok(PlatformResponse::Completed),
+                })
+                .is_none()
+        );
+        assert_eq!(*calls.borrow(), 0);
+    }
+
+    #[test]
+    fn legacy_platform_request_forwards_host_result_to_mapper() {
+        let calls = Rc::new(RefCell::new(0));
+        let calls_for_mapper = Rc::clone(&calls);
+        let request = PlatformRequest::ReadText;
+        let mut registry = PlatformCompletionRegistry::<usize>::default();
+        let identity = registry.register_legacy_for_request(
+            Box::new(move |_| {
+                *calls_for_mapper.borrow_mut() += 1;
+                1
+            }),
+            &request,
+            &EffectOrigin::Application,
+        );
+
+        assert_eq!(
+            registry
+                .map_delivery(PlatformResultDelivery::Completed {
+                    identity,
+                    result: Ok(PlatformResponse::Completed),
+                })
+                .map(|mapped| mapped.message),
+            Some(1)
+        );
         assert_eq!(*calls.borrow(), 1);
     }
 

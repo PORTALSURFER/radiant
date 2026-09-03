@@ -350,7 +350,15 @@ Current shipped ownership is narrower than this target model: the private
 declarative provenance, while `ResourceTasks` remains application-owned.
 The additive qualified `runtime::Effect<Message>` facade from OPT-1387 now covers
 `after`, one-shot `worker`, ordered-stream, and latest-stream construction with
-an explicit `EffectOwner::Application` or `EffectOwner::Declarative(...)`.
+an explicit `EffectOwner::Application` or `EffectOwner::Declarative(...)`, and
+`Effect::platform(...)` now provides the same qualified route for platform
+services. Platform registration reuses the existing effect registry and
+controller ingress: it validates bounded requests, admits the selected owner
+generation before host invocation, defers every result to a later UI turn, and
+revalidates identity, generation, cancellation, and currentness before mapping
+and reduction. Outcomes are typed `PlatformResult` values; notification
+requests use owned bounded data, while in-process clipboard values remain in
+the app-instance UI coordinator and never cross the adapter boundary.
 Constructors require `&mut LatestTask`, reserve a `TaskTicket`, and expose a
 cloned per-effect `CancellationToken`; completion mappers receive typed
 `TaskCompletion` values and remain UI-local. `Command::effect(...)` and the
@@ -364,9 +372,10 @@ selection rejects atomically, restores the predecessor, and never falls back to
 timer routes remain the compatibility and ownership paths, including their
 public handles and UI-local mappers.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
-are future work tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions,
-ResourceTasks ownership, platform effects, native hosts, scheduler/thread
-design, and product wiring remain outside this slice.
+are future work tracked by OPT-1390, OPT-1421, and later product work;
+subscriptions, `ResourceTasks` ownership, native hosts, scheduler/thread
+design, and product wiring remain outside this slice. External drag remains on
+its existing separate lane.
 
 This is a bounded public timer, one-shot business-worker, cancellable ordinary
 owner one-shot, ordinary ordered and coalesced owner-scoped stream-consumer,

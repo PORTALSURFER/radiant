@@ -21,6 +21,7 @@ impl<Message> Command<Message> {
             | Self::BeginExternalDrag { .. }
             | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
+            | Self::PlatformEffect(..)
             | Self::SetDpiScale(_)
             | Self::SetWindowLogicalSize(_)
             | Self::EndExternalDrag
@@ -66,6 +67,7 @@ impl<Message> Command<Message> {
             | Self::BeginExternalDrag { .. }
             | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
+            | Self::PlatformEffect(..)
             | Self::EndExternalDrag
             | Self::EndDrag
             | Self::Exit => None,
@@ -83,6 +85,7 @@ impl<Message> Command<Message> {
             Self::PerformWorker(effect) if effect.owner.is_some() || effect.lifecycle.is_some() => {
                 true
             }
+            Self::PlatformEffect(..) => true,
             Self::Focus(_)
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }

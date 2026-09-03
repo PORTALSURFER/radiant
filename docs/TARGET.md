@@ -498,7 +498,15 @@ Current shipped effect boundary: the private `EffectOrigin` model and
 application-owned `ResourceTasks` are the current ownership split;
 the additive qualified `runtime::Effect<Message>` facade from OPT-1387 now constructs
 `after`, one-shot `worker`, ordered-stream, and latest-stream effects with an
-explicit `EffectOwner::Application` or `EffectOwner::Declarative(...)`.
+explicit `EffectOwner::Application` or `EffectOwner::Declarative(...)`, and
+`Effect::platform(...)` supplies the corresponding qualified platform-service
+route. It reuses the existing platform completion registry and controller
+ingress, validates bounded requests, admits the exact owner generation before
+host invocation, defers synchronous and asynchronous outcomes to a later UI
+turn, and fences mapping/reduction by identity, generation, cancellation, and
+current slot. Platform outcomes are typed `PlatformResult` values; neutral
+notifications carry owned bounded data, and typed in-process clipboard values
+are retained only by the app-instance UI coordinator.
 Constructors require `&mut LatestTask`, reserve a `TaskTicket`, expose a cloned
 per-effect `CancellationToken`, and pass typed `TaskCompletion` values to
 UI-local mappers. Declarative selection resolves against the accepted projection;
@@ -511,9 +519,10 @@ stale/late fences. This facade does not replace the legacy command, timer,
 business, latest-task, or keyed-latest routes and does not expose the private
 registry or owner ledger.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
-are future work tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions,
-ResourceTasks ownership, platform effects, native hosts, scheduler/thread
-design, and product wiring remain outside this slice.
+are future work tracked by OPT-1390, OPT-1421, and later product work;
+subscriptions, `ResourceTasks` ownership, native hosts, scheduler/thread
+design, and product wiring remain outside this slice. External drag remains on
+its existing separate lane.
 
 The cancellable latest-task owner routes are
 `CancellableBusinessLatestRequest::run_for_owner_with_receipt(owner, work, map)`,

@@ -255,6 +255,21 @@ impl LatestTaskTransaction {
         })
     }
 
+    /// Return a probe that becomes cancelled once a newer latest-task
+    /// publication is made, including one that is later rejected.
+    pub(crate) fn newer_replacement_probe(
+        &self,
+    ) -> std::sync::Arc<dyn Fn() -> bool + Send + Sync + 'static> {
+        let state = self.state.clone();
+        let replacement = self.replacement;
+        std::sync::Arc::new(move || {
+            state.upgrade().is_none_or(|state| {
+                let state = lock_state(&state);
+                state.next_id > replacement.id().saturating_add(1)
+            })
+        })
+    }
+
     pub(crate) fn with_rejection_hook(
         mut self,
         hook: Arc<dyn Fn() + Send + Sync + 'static>,

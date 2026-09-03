@@ -50,6 +50,17 @@ pub struct RuntimeMessageQueueDiagnostics {
     pub shared_ingress_rejected: usize,
     /// Number of recurring timer wakes coalesced while an identity was already pending.
     pub shared_ingress_coalesced: usize,
+    /// Most recently admitted platform owner kind, without exposing its handle.
+    pub last_platform_owner_kind: Option<PlatformOwnerKind>,
+}
+
+/// Bounded public diagnostic for the owner selected by a platform request.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PlatformOwnerKind {
+    /// The application runtime owns the request beyond a declarative surface.
+    Application,
+    /// One exact accepted declarative owner generation owns the request.
+    Declarative,
 }
 
 /// Counters and recent events for runtime-managed business work.

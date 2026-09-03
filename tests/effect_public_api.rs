@@ -7,13 +7,18 @@ use radiant::{
     },
     gui::types::Vector2,
     runtime::{
-        BusinessEventSink, Command, Effect, EffectOwner, RepaintScope, RuntimeBridge, SurfaceNode,
-        TaskPriority, UiSurface,
-        testing::{DeterministicHost, DeterministicHostConfig, DeterministicHostError},
+        BusinessEventSink, ClipboardFormat, ClipboardValue, Command, Effect, EffectOwner,
+        NotificationRequest, PlatformFailure, PlatformRequest, PlatformResponse, PlatformResult,
+        PlatformService, RepaintScope, RuntimeBridge, RuntimeHostCapabilities,
+        RuntimePlatformResultHost, SurfaceNode, SurfaceRuntime, TaskPriority, UiSurface,
+        testing::{
+            DeterministicHost, DeterministicHostConfig, DeterministicHostError, DeterministicLane,
+        },
     },
 };
 use std::{
     cell::{Cell, RefCell},
+    path::PathBuf,
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -45,9 +50,372 @@ impl RuntimeBridge<Message> for RecordingBridge {
     }
 }
 
+#[derive(Default)]
+struct ImmediatePlatformBridge {
+    dispatched: Vec<Message>,
+}
+
+impl RuntimeBridge<Message> for ImmediatePlatformBridge {
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn project_surface(&mut self) -> Arc<UiSurface<Message>> {
+        Arc::new(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
+    }
+
+    fn reduce_message(&mut self, message: Message) {
+        self.dispatched.push(message);
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
+        RuntimeHostCapabilities::new().with_platform_results()
+    }
+}
+
+impl RuntimePlatformResultHost for ImmediatePlatformBridge {
+    fn request_platform_result(
+        &mut self,
+        request: PlatformRequest,
+        sink: radiant::runtime::RuntimePlatformResultSink,
+    ) -> Result<(), radiant::runtime::PlatformResultServiceFallback> {
+        let result = match request {
+            PlatformRequest::PickFolder(_)
+            | PlatformRequest::PickFile(_)
+            | PlatformRequest::SaveFile(_) => Ok(PlatformResponse::Canceled),
+            PlatformRequest::ReadText => Ok(PlatformResponse::Text(String::from("sync"))),
+            PlatformRequest::ReadFilePaths => {
+                Ok(PlatformResponse::FilePaths(vec![PathBuf::from("/sync")]))
+            }
+            PlatformRequest::Confirm(_) => Ok(PlatformResponse::Confirmation(
+                radiant::runtime::ConfirmationResponse::Canceled,
+            )),
+            _ => Ok(PlatformResponse::Completed),
+        };
+        sink.send(result);
+        Ok(())
+    }
+}
+
 fn new_host() -> DeterministicHost<RecordingBridge, Message> {
     DeterministicHost::with_default_config(RecordingBridge::default(), Vector2::new(160.0, 80.0))
         .expect("deterministic host construction")
+}
+
+#[test]
+fn facade_platform_effects_defer_typed_results_and_record_bounded_owner_kind() {
+    let mut host = new_host();
+    let results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let mut latest = LatestTask::new();
+    let result_sink = Rc::clone(&results);
+    let effect = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |result| {
+            result_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    );
+
+    host.execute_command(Command::effect(effect))
+        .expect("application platform effect admission");
+    assert_eq!(
+        host.runtime()
+            .runtime_diagnostics()
+            .queue
+            .last_platform_owner_kind,
+        Some(radiant::runtime::PlatformOwnerKind::Application)
+    );
+    let request_id = host.pending_platform_requests()[0].id;
+    assert!(results.borrow().is_empty());
+    host.complete_platform_request(
+        request_id,
+        Ok(PlatformResponse::Text(String::from("hello"))),
+    )
+    .expect("deterministic platform completion");
+    assert!(results.borrow().is_empty(), "completion is later-turn work");
+    host.turn().expect("platform result turn");
+    assert_eq!(
+        results.borrow().as_slice(),
+        &[Ok(PlatformResponse::Text(String::from("hello")))]
+    );
+
+    let notification_results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let notification_sink = Rc::clone(&notification_results);
+    let notification = NotificationRequest::new("Import", "Import completed")
+        .level(radiant::runtime::NotificationLevel::Success);
+    let mut notification_latest = LatestTask::new();
+    let effect = Effect::platform(
+        &mut notification_latest,
+        EffectOwner::Application,
+        PlatformRequest::notify(notification),
+        move |result| {
+            notification_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    );
+    host.execute_command(Command::effect(effect))
+        .expect("notification platform effect admission");
+    assert_eq!(
+        host.pending_platform_requests()[0].request,
+        PlatformRequest::Notify(
+            NotificationRequest::new("Import", "Import completed")
+                .level(radiant::runtime::NotificationLevel::Success,)
+        )
+    );
+    let request_id = host.pending_platform_requests()[0].id;
+    host.complete_platform_request(request_id, Ok(PlatformResponse::Completed))
+        .expect("notification completion");
+    assert!(notification_results.borrow().is_empty());
+    host.turn().expect("notification result turn");
+    assert_eq!(
+        notification_results.borrow().as_slice(),
+        &[Ok(PlatformResponse::Completed)]
+    );
+}
+
+#[test]
+fn facade_platform_effect_defers_synchronous_failure_and_unsupported_outcomes() {
+    let results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let result_sink = Rc::clone(&results);
+    let mut runtime = SurfaceRuntime::new(
+        ImmediatePlatformBridge::default(),
+        Vector2::new(160.0, 80.0),
+    );
+    let mut latest = LatestTask::new();
+    let effect = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::Notify(NotificationRequest::new("Sync", "deferred")),
+        move |result| {
+            result_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    );
+    runtime.execute_command(Command::effect(effect));
+    assert!(results.borrow().is_empty());
+    assert!(runtime.bridge().dispatched.is_empty());
+    runtime.drain_runtime_messages();
+    assert_eq!(
+        results.borrow().as_slice(),
+        &[Ok(PlatformResponse::Completed)]
+    );
+    assert_eq!(runtime.bridge().dispatched, vec![Message::Replace]);
+
+    let results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let result_sink = Rc::clone(&results);
+    let mut runtime = SurfaceRuntime::new(RecordingBridge::default(), Vector2::new(160.0, 80.0));
+    let mut latest = LatestTask::new();
+    let effect = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::Notify(NotificationRequest::new("Unsupported", "typed")),
+        move |result| {
+            result_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    );
+    runtime.execute_command(Command::effect(effect));
+    assert!(results.borrow().is_empty());
+    runtime.drain_runtime_messages();
+    assert_eq!(
+        results.borrow().as_slice(),
+        &[Err(PlatformFailure::Unsupported(
+            PlatformService::Notification
+        ))]
+    );
+}
+
+#[test]
+fn facade_platform_effect_latest_and_cancellation_fences_host_delivery() {
+    let mut host = new_host();
+    let first_calls = Rc::new(Cell::new(0));
+    let second_calls = Rc::new(Cell::new(0));
+    let mut latest = LatestTask::new();
+    let first_sink = Rc::clone(&first_calls);
+    let first = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            first_sink.set(first_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    host.execute_command(Command::effect(first))
+        .expect("first platform effect admission");
+    let second_sink = Rc::clone(&second_calls);
+    let second = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            second_sink.set(second_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    host.execute_command(Command::effect(second))
+        .expect("latest platform effect admission");
+    let requests = host.pending_platform_requests();
+    assert_eq!(requests.len(), 2);
+    for request in requests {
+        host.complete_platform_request(
+            request.id,
+            Ok(PlatformResponse::Text(request.id.get().to_string())),
+        )
+        .expect("latest platform completion");
+    }
+    host.turn().expect("latest platform result turn");
+    assert_eq!(first_calls.get(), 0);
+    assert_eq!(second_calls.get(), 1);
+
+    let mut host = new_host();
+    let cancelled_calls = Rc::new(Cell::new(0));
+    let mut latest = LatestTask::new();
+    let cancelled_sink = Rc::clone(&cancelled_calls);
+    let effect = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            cancelled_sink.set(cancelled_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    let token = effect.token();
+    host.execute_command(Command::effect(effect))
+        .expect("cancellable platform effect admission");
+    let request_id = host.pending_platform_requests()[0].id;
+    host.complete_platform_request(request_id, Ok(PlatformResponse::Text(String::from("late"))))
+        .expect("queued platform completion");
+    token.cancel();
+    host.turn().expect("cancelled platform result turn");
+    assert_eq!(cancelled_calls.get(), 0);
+
+    let mut host = new_host();
+    let before_admission_calls = Rc::new(Cell::new(0));
+    let mut latest = LatestTask::new();
+    let before_admission_sink = Rc::clone(&before_admission_calls);
+    let effect = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            before_admission_sink.set(before_admission_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    let token = effect.token();
+    token.cancel();
+    host.execute_command(Command::effect(effect))
+        .expect("cancelled pre-admission effect");
+    assert!(host.pending_platform_requests().is_empty());
+    host.turn().expect("pre-admission cancellation turn");
+    assert_eq!(before_admission_calls.get(), 0);
+
+    let mapper_calls = Rc::new(Cell::new(0));
+    let mapper_token = Rc::new(RefCell::new(None::<CancellationToken>));
+    let mapper_token_for_mapper = Rc::clone(&mapper_token);
+    let mapper_calls_for_mapper = Rc::clone(&mapper_calls);
+    let mut runtime = SurfaceRuntime::new(
+        ImmediatePlatformBridge::default(),
+        Vector2::new(160.0, 80.0),
+    );
+    let mut latest = LatestTask::new();
+    let effect = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::Notify(NotificationRequest::new("Mapper", "cancel")),
+        move |_| {
+            mapper_calls_for_mapper.set(mapper_calls_for_mapper.get() + 1);
+            mapper_token_for_mapper
+                .borrow()
+                .as_ref()
+                .expect("mapper token installed")
+                .cancel();
+            Message::Replace
+        },
+    );
+    *mapper_token.borrow_mut() = Some(effect.token());
+    runtime.execute_command(Command::effect(effect));
+    runtime.drain_runtime_messages();
+    assert_eq!(mapper_calls.get(), 1);
+    assert!(runtime.bridge().dispatched.is_empty());
+}
+
+#[test]
+fn facade_platform_rejection_is_fenced_by_a_newer_latest_replacement() {
+    let config = DeterministicHostConfig::new(Vector2::new(160.0, 80.0))
+        .with_max_pending_platform_requests(1);
+    let mut host = DeterministicHost::new(RecordingBridge::default(), config)
+        .expect("constrained deterministic host construction");
+    let first_calls = Rc::new(Cell::new(0));
+    let second_calls = Rc::new(Cell::new(0));
+    let third_calls = Rc::new(Cell::new(0));
+    let mut latest = LatestTask::new();
+
+    let first_calls_for_mapper = Rc::clone(&first_calls);
+    let first = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            first_calls_for_mapper.set(first_calls_for_mapper.get() + 1);
+            Message::Replace
+        },
+    );
+    let first_ticket = first.ticket();
+    host.execute_command(Command::effect(first))
+        .expect("accepted A platform effect");
+
+    let second_calls_for_mapper = Rc::clone(&second_calls);
+    let second = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            second_calls_for_mapper.set(second_calls_for_mapper.get() + 1);
+            Message::Replace
+        },
+    );
+    assert!(matches!(
+        host.execute_command(Command::effect(second)),
+        Err(DeterministicHostError::Capacity {
+            lane: DeterministicLane::Platform,
+            limit: 1,
+        })
+    ));
+    assert_eq!(latest.active(), Some(first_ticket));
+
+    let first_id = host.pending_platform_requests()[0].id;
+    host.complete_platform_request(first_id, Ok(PlatformResponse::Text("A".into())))
+        .expect("A completion");
+
+    let third_calls_for_mapper = Rc::clone(&third_calls);
+    let third = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            third_calls_for_mapper.set(third_calls_for_mapper.get() + 1);
+            Message::Replace
+        },
+    );
+    let third_ticket = third.ticket();
+    host.execute_command(Command::effect(third))
+        .expect("accepted C platform effect");
+    assert_eq!(latest.active(), Some(third_ticket));
+
+    let third_id = host.pending_platform_requests()[0].id;
+    host.complete_platform_request(third_id, Ok(PlatformResponse::Text("C".into())))
+        .expect("C completion");
+    assert_eq!(first_calls.get(), 0);
+    assert_eq!(second_calls.get(), 0);
+    assert_eq!(third_calls.get(), 0);
+
+    host.turn().expect("later turn for A, B failure, and C");
+    assert_eq!(first_calls.get(), 0);
+    assert_eq!(second_calls.get(), 0);
+    assert_eq!(third_calls.get(), 1);
+    assert_eq!(host.bridge().messages, vec![Message::Replace]);
 }
 
 #[test]
@@ -743,25 +1111,29 @@ struct OwnerBridge {
     owner: DeclarativeEffectOwner,
     sibling: DeclarativeEffectOwner,
     show_owner: bool,
+    show_sibling: bool,
     retire_on_replace: bool,
     messages: Vec<Message>,
 }
 
 impl OwnerBridge {
     fn surface(&self) -> UiSurface<Message> {
+        let mut children = Vec::new();
         if self.show_owner {
-            column([
+            children.push(
                 text::<Message>("owner")
                     .key("owner")
                     .effect_owner(self.owner),
+            );
+        }
+        if self.show_sibling {
+            children.push(
                 text::<Message>("sibling")
                     .key("sibling")
                     .effect_owner(self.sibling),
-            ])
-            .into_surface()
-        } else {
-            UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new()))
+            );
         }
+        column(children).into_surface()
     }
 }
 
@@ -783,6 +1155,225 @@ impl RuntimeBridge<Message> for OwnerBridge {
 }
 
 #[test]
+fn facade_platform_declarative_owners_refresh_exactly_and_isolate_retirement() {
+    let owner = DeclarativeEffectOwner::new();
+    let sibling = DeclarativeEffectOwner::new();
+    let owner_calls = Rc::new(Cell::new(0));
+    let sibling_calls = Rc::new(Cell::new(0));
+    let mut host = DeterministicHost::with_default_config(
+        OwnerBridge {
+            owner,
+            sibling,
+            show_owner: true,
+            show_sibling: true,
+            retire_on_replace: false,
+            messages: Vec::new(),
+        },
+        Vector2::new(160.0, 80.0),
+    )
+    .expect("owner host construction");
+
+    let owner_sink = Rc::clone(&owner_calls);
+    let mut owner_latest = LatestTask::new();
+    let owner_effect = Effect::platform(
+        &mut owner_latest,
+        EffectOwner::Declarative(owner),
+        PlatformRequest::ReadText,
+        move |_| {
+            owner_sink.set(owner_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    host.execute_command(Command::effect(owner_effect))
+        .expect("owner platform effect admission");
+    assert_eq!(
+        host.runtime()
+            .runtime_diagnostics()
+            .queue
+            .last_platform_owner_kind,
+        Some(radiant::runtime::PlatformOwnerKind::Declarative)
+    );
+
+    let sibling_sink = Rc::clone(&sibling_calls);
+    let mut sibling_latest = LatestTask::new();
+    let sibling_effect = Effect::platform(
+        &mut sibling_latest,
+        EffectOwner::Declarative(sibling),
+        PlatformRequest::ReadText,
+        move |_| {
+            sibling_sink.set(sibling_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    host.execute_command(Command::effect(sibling_effect))
+        .expect("sibling platform effect admission");
+    assert_eq!(host.pending_platform_requests().len(), 2);
+
+    host.bridge_mut().show_owner = false;
+    host.execute_command(Command::repaint(RepaintScope::Projection))
+        .expect("owner retirement refresh");
+    for request in host.pending_platform_requests() {
+        host.complete_platform_request(
+            request.id,
+            Ok(PlatformResponse::Text(String::from("done"))),
+        )
+        .expect("owner platform completion");
+    }
+    host.turn().expect("owner retirement result turn");
+    assert_eq!(owner_calls.get(), 0);
+    assert_eq!(sibling_calls.get(), 1);
+
+    let mut latest = LatestTask::new();
+    let predecessor_calls = Rc::new(Cell::new(0));
+    let predecessor_sink = Rc::clone(&predecessor_calls);
+    let predecessor = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            predecessor_sink.set(predecessor_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    let predecessor_ticket = predecessor.ticket();
+    host.execute_command(Command::effect(predecessor))
+        .expect("predecessor platform admission");
+    let invalid_calls = Rc::new(Cell::new(0));
+    let invalid_sink = Rc::clone(&invalid_calls);
+    let invalid = Effect::platform(
+        &mut latest,
+        EffectOwner::Declarative(owner),
+        PlatformRequest::ReadText,
+        move |_| {
+            invalid_sink.set(invalid_sink.get() + 1);
+            Message::Replace
+        },
+    );
+    host.execute_command(Command::effect(invalid))
+        .expect("retired owner rejection");
+    assert_eq!(latest.active(), Some(predecessor_ticket));
+    assert_eq!(host.pending_platform_requests().len(), 1);
+    let request_id = host.pending_platform_requests()[0].id;
+    host.complete_platform_request(request_id, Ok(PlatformResponse::Text(String::from("keep"))))
+        .expect("predecessor completion");
+    host.turn().expect("predecessor result turn");
+    assert_eq!(predecessor_calls.get(), 1);
+    assert_eq!(invalid_calls.get(), 0);
+}
+
+#[test]
+fn in_process_clipboard_is_local_typed_bounded_and_survives_source_retirement() {
+    let mut host = new_host();
+    let empty_results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let empty_sink = Rc::clone(&empty_results);
+    host.execute_command(Command::platform_request(
+        PlatformRequest::read_clipboard(ClipboardFormat::Text),
+        move |result| {
+            empty_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    ))
+    .expect("empty clipboard read");
+    assert!(host.pending_platform_requests().is_empty());
+    host.turn().expect("empty clipboard result turn");
+    assert_eq!(
+        empty_results.borrow().as_slice(),
+        &[Err(PlatformFailure::ClipboardEmpty)]
+    );
+
+    let value = ClipboardValue::text("local value").expect("bounded clipboard value");
+    let write_results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let write_sink = Rc::clone(&write_results);
+    host.execute_command(Command::platform_request(
+        PlatformRequest::write_clipboard(value.clone()),
+        move |result| {
+            write_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    ))
+    .expect("local clipboard write");
+    assert!(host.pending_platform_requests().is_empty());
+    host.turn().expect("clipboard write result turn");
+    assert_eq!(
+        write_results.borrow().as_slice(),
+        &[Ok(PlatformResponse::Completed)]
+    );
+
+    let mismatch_results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let mismatch_sink = Rc::clone(&mismatch_results);
+    host.execute_command(Command::platform_request(
+        PlatformRequest::read_clipboard(ClipboardFormat::FilePaths),
+        move |result| {
+            mismatch_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    ))
+    .expect("clipboard type mismatch read");
+    host.turn().expect("clipboard mismatch result turn");
+    assert_eq!(
+        mismatch_results.borrow().as_slice(),
+        &[Err(PlatformFailure::ClipboardTypeMismatch {
+            requested: ClipboardFormat::FilePaths,
+            available: ClipboardFormat::Text,
+        })]
+    );
+
+    let owner = DeclarativeEffectOwner::new();
+    let owner_results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let owner_sink = Rc::clone(&owner_results);
+    let mut owner_host = DeterministicHost::with_default_config(
+        OwnerBridge {
+            owner,
+            sibling: DeclarativeEffectOwner::new(),
+            show_owner: true,
+            show_sibling: true,
+            retire_on_replace: false,
+            messages: Vec::new(),
+        },
+        Vector2::new(160.0, 80.0),
+    )
+    .expect("clipboard owner host construction");
+    let replacement = ClipboardValue::text("retained after owner close")
+        .expect("bounded replacement clipboard value");
+    let mut latest = LatestTask::new();
+    let effect = Effect::platform(
+        &mut latest,
+        EffectOwner::Declarative(owner),
+        PlatformRequest::write_clipboard(replacement.clone()),
+        move |result| {
+            owner_sink.borrow_mut().push(result);
+            Message::Replace
+        },
+    );
+    owner_host
+        .execute_command(Command::effect(effect))
+        .expect("owner clipboard write");
+    owner_host.bridge_mut().show_owner = false;
+    owner_host
+        .execute_command(Command::repaint(RepaintScope::Projection))
+        .expect("source owner close refresh");
+    owner_host.turn().expect("retired clipboard write turn");
+    assert!(owner_results.borrow().is_empty());
+
+    let retained_results = Rc::new(RefCell::new(Vec::<PlatformResult>::new()));
+    let retained_sink = Rc::clone(&retained_results);
+    owner_host
+        .execute_command(Command::platform_request(
+            PlatformRequest::read_clipboard(ClipboardFormat::Text),
+            move |result| {
+                retained_sink.borrow_mut().push(result);
+                Message::Replace
+            },
+        ))
+        .expect("retained clipboard read");
+    owner_host.turn().expect("retained clipboard result turn");
+    assert_eq!(
+        retained_results.borrow().as_slice(),
+        &[Ok(PlatformResponse::Clipboard(replacement))]
+    );
+}
+
+#[test]
 fn facade_declarative_siblings_are_selected_exactly_and_retirement_fences_work() {
     let owner = DeclarativeEffectOwner::new();
     let sibling = DeclarativeEffectOwner::new();
@@ -791,6 +1382,7 @@ fn facade_declarative_siblings_are_selected_exactly_and_retirement_fences_work()
             owner,
             sibling,
             show_owner: true,
+            show_sibling: true,
             retire_on_replace: false,
             messages: Vec::new(),
         },
@@ -902,6 +1494,7 @@ fn facade_owner_retirement_during_a_drain_fences_later_owner_mapping() {
             owner,
             sibling,
             show_owner: true,
+            show_sibling: true,
             retire_on_replace: true,
             messages: Vec::new(),
         },

@@ -1,5 +1,14 @@
 use super::*;
 
+use radiant::{
+    gui::types::{ImageRgba, Rect, Vector2},
+    layout::Point,
+    prelude::{IntoView, Rgba8},
+    runtime::{PaintFillRect, PaintPrimitive, RenderCanvasContent, render_canvas},
+    theme::ThemeTokens,
+};
+use std::sync::Arc;
+
 const CONTRACT_DOCS: &[&str] = &[
     "docs/DESIGN_DIRECTION.md",
     "docs/TARGET.md",
@@ -176,6 +185,308 @@ fn normative_docs_reject_stale_metrics_and_unmerged_credit() {
             "missing current/future anchor: `{required}`"
         );
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FixtureCapability {
+    FullscreenRender,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FixturePass {
+    FullscreenRender,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FixtureOperation {
+    DrawFullscreen,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FixtureGraph {
+    TypedFullscreen {
+        pass: FixturePass,
+        operation: FixtureOperation,
+    },
+    Invalid,
+}
+
+impl FixtureGraph {
+    fn valid() -> Self {
+        Self::TypedFullscreen {
+            pass: FixturePass::FullscreenRender,
+            operation: FixtureOperation::DrawFullscreen,
+        }
+    }
+
+    fn is_structurally_valid(self) -> bool {
+        matches!(
+            self,
+            Self::TypedFullscreen {
+                pass: FixturePass::FullscreenRender,
+                operation: FixtureOperation::DrawFullscreen,
+            }
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FixtureDiagnostic {
+    InvalidGraph,
+    UnsupportedContractVersion,
+    MissingCapability,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct FixtureCanvasProgram {
+    contract_version: u16,
+    required_capability: FixtureCapability,
+    graph: FixtureGraph,
+    primitive_fallback: PaintPrimitive,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FixtureAdapter {
+    max_contract_version: u16,
+    capabilities: u8,
+}
+
+impl FixtureAdapter {
+    fn supports(self, capability: FixtureCapability) -> bool {
+        match capability {
+            FixtureCapability::FullscreenRender => self.capabilities & 1 != 0,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum FixtureDecision {
+    Graph,
+    PrimitiveFallback {
+        primitive: PaintPrimitive,
+        diagnostic: FixtureDiagnostic,
+    },
+}
+
+fn select_fixture_decision(
+    program: &FixtureCanvasProgram,
+    adapter: FixtureAdapter,
+    adapter_handoff: &mut bool,
+) -> FixtureDecision {
+    *adapter_handoff = false;
+    if !program.graph.is_structurally_valid() {
+        return FixtureDecision::PrimitiveFallback {
+            primitive: program.primitive_fallback.clone(),
+            diagnostic: FixtureDiagnostic::InvalidGraph,
+        };
+    }
+    if program.contract_version > adapter.max_contract_version {
+        return FixtureDecision::PrimitiveFallback {
+            primitive: program.primitive_fallback.clone(),
+            diagnostic: FixtureDiagnostic::UnsupportedContractVersion,
+        };
+    }
+    if !adapter.supports(program.required_capability) {
+        return FixtureDecision::PrimitiveFallback {
+            primitive: program.primitive_fallback.clone(),
+            diagnostic: FixtureDiagnostic::MissingCapability,
+        };
+    }
+
+    *adapter_handoff = true;
+    FixtureDecision::Graph
+}
+
+fn current_render_canvas_primitive() -> PaintPrimitive {
+    let content = RenderCanvasContent::RgbaAtlas {
+        source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
+        atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid compatibility atlas")),
+    };
+    assert!(content.validate().is_ok());
+
+    let view = render_canvas::<FixtureMessage>(17, 3, content);
+    let surface = view.into_surface();
+    let layout = radiant::layout::layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0)),
+    );
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+
+    plan.primitives
+        .into_iter()
+        .find_map(|primitive| match primitive {
+            primitive @ PaintPrimitive::GpuSurface(_) => Some(primitive),
+            _ => None,
+        })
+        .expect("current render_canvas must lower to PaintPrimitive::GpuSurface")
+}
+
+fn primitive_fallback() -> PaintPrimitive {
+    PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: 17,
+        rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0)),
+        color: Rgba8 {
+            r: 32,
+            g: 40,
+            b: 48,
+            a: 255,
+        },
+    })
+}
+
+struct FixtureMessage;
+
+#[test]
+fn canvas_program_fixture_validates_before_handoff_and_selects_explicit_fallback() {
+    let current_compatibility_primitive = current_render_canvas_primitive();
+    assert!(matches!(
+        current_compatibility_primitive,
+        PaintPrimitive::GpuSurface(_)
+    ));
+
+    let fallback = primitive_fallback();
+    assert!(matches!(fallback, PaintPrimitive::FillRect(_)));
+    let base = FixtureCanvasProgram {
+        contract_version: 1,
+        required_capability: FixtureCapability::FullscreenRender,
+        graph: FixtureGraph::valid(),
+        primitive_fallback: fallback.clone(),
+    };
+    let adapter = FixtureAdapter {
+        max_contract_version: 1,
+        capabilities: 1,
+    };
+
+    let cases = [
+        (
+            "invalid graph",
+            FixtureCanvasProgram {
+                graph: FixtureGraph::Invalid,
+                ..base.clone()
+            },
+            FixtureDiagnostic::InvalidGraph,
+        ),
+        (
+            "unsupported contract version",
+            FixtureCanvasProgram {
+                contract_version: 2,
+                ..base.clone()
+            },
+            FixtureDiagnostic::UnsupportedContractVersion,
+        ),
+        (
+            "missing capability",
+            base.clone(),
+            FixtureDiagnostic::MissingCapability,
+        ),
+    ];
+
+    for (name, program, diagnostic) in cases {
+        let case_adapter = if diagnostic == FixtureDiagnostic::MissingCapability {
+            FixtureAdapter {
+                capabilities: 0,
+                ..adapter
+            }
+        } else {
+            adapter
+        };
+        let mut adapter_handoff = false;
+        assert_eq!(
+            select_fixture_decision(&program, case_adapter, &mut adapter_handoff),
+            FixtureDecision::PrimitiveFallback {
+                primitive: fallback.clone(),
+                diagnostic,
+            },
+            "{name} must choose its typed diagnostic and explicit primitive fallback"
+        );
+        assert!(!adapter_handoff, "{name} must stop before adapter handoff");
+    }
+
+    let mut adapter_handoff = false;
+    assert_eq!(
+        select_fixture_decision(&base, adapter, &mut adapter_handoff),
+        FixtureDecision::Graph
+    );
+    assert!(adapter_handoff);
+}
+
+#[test]
+fn render_canvas_contract_guardrail_keeps_supported_and_target_surfaces_distinct() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let design = read_doc(&manifest_dir, "docs/DESIGN_DIRECTION.md");
+    let target = read_doc(&manifest_dir, "docs/TARGET.md");
+    let api = read_doc(&manifest_dir, "docs/API.md");
+    let architecture = read_doc(&manifest_dir, "docs/ARCHITECTURE.md");
+    let acceptance = read_doc(&manifest_dir, "docs/PLATFORM_ACCEPTANCE.md");
+    let all = [
+        design.as_str(),
+        target.as_str(),
+        api.as_str(),
+        architecture.as_str(),
+        acceptance.as_str(),
+    ]
+    .into_iter()
+    .map(normalized)
+    .collect::<Vec<_>>()
+    .join(" ");
+
+    for required in [
+        "Current supported 0.1.x",
+        "`render_canvas_program(canvas)`",
+        "one-argument `render_canvas(canvas)`",
+        "`PaintPrimitive::RenderCanvas`",
+        "explicit 0.2 breaking boundary after migration evidence",
+        "`CanvasGraph`",
+        "immutable",
+        "typed",
+        "bounded",
+        "graph-lifetime transient resources",
+        "compute/fullscreen-render passes",
+        "no shader source",
+        "loops, pointers, native handles",
+        "mutable application payloads",
+        "Structural validation completes before adapter handoff",
+        "CanvasDiagnostic::InvalidGraph",
+        "UnsupportedContractVersion",
+        "MissingCapability",
+        "CompilationFailed",
+        "RecoveryIdentityMismatch",
+        "retained allocation identity",
+        "adapter/target generations",
+        "Hashes are lookup aids only",
+        "`WgslCanvasProgram`",
+        "`expert-wgsl`",
+        "Render-canvas contract and fallback guardrail",
+    ] {
+        assert!(
+            all.contains(required),
+            "render-canvas contract missing `{required}`"
+        );
+    }
+
+    for (path, heading) in [
+        (
+            "docs/DESIGN_DIRECTION.md",
+            "#### Render-canvas compatibility contract (OPT-1407)",
+        ),
+        (
+            "docs/TARGET.md",
+            "### CanvasProgram and CanvasGraph compatibility contract (OPT-1407)",
+        ),
+    ] {
+        assert!(
+            read_doc(&manifest_dir, path).contains(heading),
+            "{path} must retain the normative render-canvas contract heading"
+        );
+    }
+
+    let builder = read_doc(&manifest_dir, "src/application/builders/leaf/gpu.rs");
+    assert!(builder.contains("pub fn render_canvas<Message: 'static>"));
+    assert!(builder.contains("content: crate::runtime::RenderCanvasContent"));
+
+    let primitive = read_doc(&manifest_dir, "src/runtime/paint/primitives/plan.rs");
+    assert!(primitive.contains("GpuSurface(PaintGpuSurface)"));
+    assert!(!primitive.contains("RenderCanvas(Paint"));
 }
 
 #[test]

@@ -2647,7 +2647,8 @@ the application owns durable transform, selection, snapping, and domain edits.
 
 ```rust
 coordinate_viewport(
-    render_canvas(WaveformCanvas::new(state.waveform.clone())),
+    // Target-only provisional spelling; not shipped in 0.1.x.
+    render_canvas_program(WaveformCanvas::new(state.waveform.clone())),
 )
 .initial_transform(state.waveform_view)
 .on_visible_range_change(Message::WaveformRangeVisible)
@@ -4556,7 +4557,8 @@ stack([
     image(state.cover_art).fit(ContentFit::Cover),
     paint_canvas(WaveformPaint::new(state.waveform.clone()))
         .on_input(Message::WaveformInput),
-    render_canvas(SpectrogramCanvas::new(state.spectrogram.clone())),
+    // Target-only provisional spelling; not shipped in 0.1.x.
+    render_canvas_program(SpectrogramCanvas::new(state.spectrogram.clone())),
 ])
 .clip(Clip::bounds())
 ```
@@ -4567,9 +4569,9 @@ or event system.
 
 Current shipped boundary: `RenderCanvas` vocabulary is a compatibility-alias
 surface over `GpuSurface` vocabulary and emits `PaintPrimitive::GpuSurface`.
-The target `CanvasProgram`/`CanvasGraph` contract remains future work: OPT-1407
-owns the compatibility decision and OPT-1408 owns its implementation. This
-boundary makes no new RenderCanvas compatibility or deprecation choice.
+The resolved target compatibility and migration decision is recorded in the
+[OPT-1407 render-canvas contract](#render-canvas-compatibility-contract-opt-1407);
+it does not change the shipped 0.1.x surface.
 
 ### Layers and transient overlays
 
@@ -5793,7 +5795,8 @@ select a renderer, capability set, fallback, shader backend, or native resource
 policy at a canvas call site or window setup.
 
 ```rust
-render_canvas(SpectrogramCanvas::new(state.spectrogram.tiles))
+// Target-only provisional spelling; not shipped in 0.1.x.
+render_canvas_program(SpectrogramCanvas::new(state.spectrogram.tiles))
 ```
 
 Render-canvas capability matching, fallbacks, and diagnostics are internal
@@ -5816,7 +5819,8 @@ let app = RadiantApp::new(App::update, App::view)
     .register_canvas(SpectrogramProgram::new())
     .register_canvas(ArrangeTimelineProgram::new());
 
-render_canvas(SpectrogramCanvas::new(state.spectrogram.visible_tiles()))
+// Target-only provisional spelling; not shipped in 0.1.x.
+render_canvas_program(SpectrogramCanvas::new(state.spectrogram.visible_tiles()))
 ```
 
 The normal extension contract is data-oriented: a canvas declares its stable
@@ -5828,6 +5832,9 @@ encoder, backend shader API, or per-frame mutable callback. Programs needing
 unusual native techniques are isolated behind an advanced adapter extension with
 an explicit capability declaration and fallback; that boundary is intentionally
 small and does not alter the ordinary application API.
+
+The following trait-shaped example is target-only and is not a current public
+Rust API:
 
 ```rust
 impl RenderCanvas for SpectrogramCanvas {
@@ -5859,25 +5866,174 @@ large editors therefore reuse offscreen tiles and decimation levels instead of
 rebuilding or uploading their entire data set after a small change.
 
 `CanvasUniforms` is a compact typed value, and `CanvasGraph` is a closed,
-validated IR rather than arbitrary backend shader source. Registration validates
-the graph, declared resource limits, fallback, and capability requirements once.
-Adapter compilation and pipeline creation are cached by program identity and
-generation, prepared off the interactive path when possible, and fall back
-visibly rather than stalling a frame on failure.
+validated IR rather than arbitrary backend shader source. Registration performs
+structural validation of the graph, declared resource limits, fallback, and
+capability requirements before any adapter handoff. Adapter compilation and
+pipeline creation are cached by program identity and generation, prepared off
+the interactive path when possible, and fall back visibly rather than stalling a
+frame on failure.
 
 Every `CanvasProgram` declares a `CanvasContractVersion` and typed capability
-set. Registration succeeds only when the selected adapter supports that contract
-version and every required capability. A newer or unsupported program is never
-silently reinterpreted: Radiant selects its declared primitive-paint fallback or
-returns a typed `UnsupportedCanvasContract` diagnostic. Contract versions are
-additive within a compatibility line; a breaking interpretation requires a new
-version and explicit fallback.
+set. After structural validation, admission succeeds only when the selected
+adapter supports that contract version and every required capability. A newer or
+unsupported program is never silently reinterpreted: Radiant selects its
+declared primitive-paint fallback and emits a typed
+`CanvasDiagnostic::UnsupportedContractVersion` diagnostic. Contract versions
+are additive within a compatibility line; a breaking interpretation requires a
+new version and explicit fallback.
 
-Radiant derives updates by exact comparison of the canvas key, program identity,
-payload content identity, uniforms, bounds, and target generation. Hashes can
-accelerate lookup but never alone authorize reuse. An application may update a
-visualization at display cadence without manually invalidating renderer caches
-or managing synchronization primitives.
+Radiant derives updates by exact comparison of the canvas key, program identity
+and program version, contract and payload versions, payload content identity,
+retained allocation identity, typed uniforms, resolved bounds and clip, adapter
+generation, and target generation. Hashes can accelerate lookup but never alone
+authorize reuse. An application may update a visualization at display cadence
+without manually invalidating renderer caches or managing synchronization
+primitives.
+
+#### Render-canvas compatibility contract (OPT-1407)
+
+This is the target authority for the registered renderer-neutral canvas boundary.
+It is a contract record, not a runtime implementation. `OPT-1408` may implement
+the target only after preserving the current API and this validation/fallback
+boundary.
+
+The compatibility line is deliberately explicit:
+
+| Surface | 0.1.x status | Target migration status |
+| --- | --- | --- |
+| `render_canvas(key, revision, RenderCanvasContent::...)` | Current, supported, and unchanged throughout 0.1.x. | Compatibility input until migrated. |
+| `render_canvas_with_capabilities(...)`, `render_canvas_configured_from_parts(...)`, `render_canvas_input(...)`, and their named-parts variants | Current, supported, and unchanged throughout 0.1.x. | Compatibility inputs until migrated. |
+| `GpuSurface*` types/builders, `RenderCanvas*` aliases, `PaintPrimitive::GpuSurface`, and `PaintRenderCanvas` | Current, supported compatibility surface; no removal, rename, or semantic reinterpretation in 0.1.x. | Replaced only at the explicit 0.2 boundary after migration evidence. |
+| `RenderCanvasContent::CustomShader` and `GpuShaderSurfaceDescriptor` | Current, ungated, supported compatibility path. Existing validation and native diagnostics remain in force. | Retained during migration; it is not silently converted to a graph. |
+| `CanvasProgram`, `CanvasGraph`, `CanvasContractVersion`, `CanvasPayloadVersion`, and the target registration vocabulary | Target-only; not a 0.1.x implementation or export promise. | Registered renderer-neutral authority. |
+| `render_canvas_program(canvas)` | Target-only provisional builder spelling. | First target call-site migration step. |
+| one-argument `render_canvas(canvas)` and `PaintPrimitive::RenderCanvas` | Not adopted in 0.1.x. | Canonical only at an explicit 0.2 breaking boundary after migration evidence. |
+| `WgslCanvasProgram` | Not a current compatibility rename. | Target-only arbitrary-WGSL escape hatch behind the `expert-wgsl` feature gate. |
+
+The target registration record is an immutable `CanvasProgram` descriptor. Its
+public target vocabulary is `CanvasProgramId`, `CanvasContractVersion`,
+`CanvasPayloadVersion`, `CanvasGraph`, `CanvasGraphLimits`, `CanvasUniforms`, a
+typed capability set, and a required `PrimitiveFallback`. A registered program
+owns its stable identity, contract/payload versions, graph, uniform schema,
+resource limits, capability requirements, and primitive fallback. A canvas value
+submitted through `render_canvas_program(canvas)` refers to that registered
+program and exposes an immutable payload handle and typed uniforms; it never
+selects an adapter or moves mutable application state into the renderer.
+
+`CanvasGraph` is a closed, typed, bounded intermediate representation (IR). The
+graph is immutable after construction and has no opaque extension slot. Its
+vocabulary is:
+
+| Graph value | Contract |
+| --- | --- |
+| `CanvasInput` | A named, typed, immutable input view of a registered payload, uniform, sampled texture, or read-only storage value. Inputs carry bounded shape/format metadata and never expose application mutation. |
+| `CanvasTransientResource` | A named, typed, graph-lifetime resource with bounded extent, format, byte size, and usage. It is created and retired by the adapter for the submitted graph; it is not an application-owned persistent handle. |
+| `CanvasPass::Compute` | An ordered compute pass with typed reads/writes and bounded dispatch dimensions. |
+| `CanvasPass::FullscreenRender` | An ordered fullscreen-render pass with typed sampled/uniform inputs and a declared color target. |
+| `CanvasOperation` | A closed enum of typed reads, typed samples, typed transient writes, bounded `Dispatch`, `DrawFullscreen`, and typed color/output writes. An operation must match the pass kind and declared value types. |
+
+`CanvasGraphLimits` gives every graph a finite budget for immutable inputs,
+transient resources and bytes, passes, operations per pass and in total,
+uniform bytes, output extent, and dispatch dimensions. The adapter may impose a
+smaller capability limit, but no graph may use an unbounded collection, recursive
+subgraph, or unbounded dispatch. Graph construction contains no shader source,
+loops, pointers, native handles, or mutable application payloads. Arbitrary
+computation is not smuggled into a string, callback, opaque bytecode field, or
+host pointer; the typed operation set is the complete IR authority.
+
+Structural validation is complete before adapter handoff. Registration or
+submission validation must reject unknown/duplicate IDs, unresolved references,
+type-incompatible operations, invalid pass ordering, writes to immutable inputs,
+non-finite or out-of-bounds dimensions, limit violations, and a missing or
+invalid primitive fallback. It also verifies that the graph's typed dependency
+order is finite and that compute/fullscreen-render operations are legal for
+their pass. Validation does not compile shader source and does not call an
+adapter.
+
+Every failure after or at admission has a typed diagnostic and a mandatory
+primitive fallback. The target diagnostic vocabulary includes
+`CanvasDiagnostic::InvalidGraph`, `UnsupportedContractVersion`,
+`MissingCapability`, `CompilationFailed`, and `RecoveryIdentityMismatch`.
+
+| Failure | Required selection and diagnostic |
+| --- | --- |
+| Invalid graph after admission | Select the registered primitive fallback and emit `InvalidGraph`; do not call the adapter. A missing or invalid fallback prevents registration. |
+| Adapter capability or contract-version mismatch | Select the primitive fallback and emit `UnsupportedContractVersion` or `MissingCapability`. |
+| Adapter graph compilation or pipeline preparation failure | Select the primitive fallback and emit `CompilationFailed`. |
+| Retained-resource or recovery identity mismatch | Reject reuse, select the primitive fallback for that frame, and emit `RecoveryIdentityMismatch` until a fresh matching generation is admitted. |
+
+The adapter result is therefore a typed render decision such as
+`CanvasRenderDecision::Graph` or
+`CanvasRenderDecision::PrimitiveFallback { diagnostic, ... }`; it is never an
+optional primitive that can be silently omitted. A fallback is a normal
+Radiant primitive-paint path with the same resolved bounds, clipping, ordering,
+and input ownership as the canvas slot. Failure of the specialized path must
+remain observable even when the fallback paints successfully.
+
+Canvas cache and recovery reuse require exact equality of a complete identity:
+canvas key, program identity and program version, contract version, payload
+version, retained allocation identity, exact typed uniforms, resolved bounds
+and clip, adapter generation, and target generation. The retained allocation
+identity is an owned stable identity, not a pointer or address observation.
+Hashes are lookup aids only; a hash match never authorizes reuse without exact
+field comparison. Any recovery or generation mismatch invalidates specialized
+reuse and takes the mandatory fallback path.
+
+Arbitrary WGSL is not part of `CanvasGraph`. The target keeps it only as the
+separately named `WgslCanvasProgram`, behind the opt-in `expert-wgsl` feature
+gate, with its own capability/version checks, diagnostics, and primitive
+fallback. Until migration evidence exists, today’s ungated
+`RenderCanvasContent::CustomShader` / `GpuShaderSurfaceDescriptor` path remains
+supported throughout 0.1.x. The compatibility path is not retroactively gated,
+removed, or reinterpreted as the closed graph.
+
+The migration examples are intentionally staged:
+
+```rust
+// Current supported 0.1.x API; this remains valid during the whole compatibility line.
+let view = render_canvas::<Message>(key, revision, RenderCanvasContent::RgbaAtlas {
+    source_rect,
+    atlas,
+});
+```
+
+```rust
+// Target-only provisional API; this is not shipped in 0.1.x.
+let app = RadiantApp::new(App::update, App::view)
+    .register_canvas(SpectrogramProgram::new());
+let view = render_canvas_program(SpectrogramCanvas::new(payload));
+```
+
+```rust
+// Target-only 0.2 spelling, adopted only after migration evidence is recorded.
+let view = render_canvas(SpectrogramCanvas::new(payload));
+// The corresponding target paint output is PaintPrimitive::RenderCanvas.
+```
+
+Existing custom-shader consumers first keep their current
+`RenderCanvasContent::CustomShader { descriptor }` construction. A later
+consumer migration either expresses the operation in `CanvasGraph` or, when
+arbitrary WGSL is genuinely required, explicitly opts into
+`WgslCanvasProgram`/`expert-wgsl`. No consumer is forced onto either target-only
+path by a 0.1.x documentation change.
+
+The explicit 0.2 breaking boundary requires migration evidence, not merely a
+new type declaration: maintained examples and public compile fixtures must use
+the target path; known downstream call sites must have a documented replacement
+for keyed/revision and `GpuSurface*` construction; compatibility behavior,
+primitive fallback, version/capability rejection, compilation failure, and
+recovery identity must have deterministic evidence; applicable adapter/platform
+evidence must record its capability-conditional outcomes; and release notes
+must identify the breaking boundary. This ticket records the gate but does not
+claim that the evidence or implementation exists.
+
+Unresolved renderer risks remain explicit: adapters still need a precise
+graph-to-native capability mapping, compile/pipeline failure reporting,
+cross-platform resource-limit behavior, fallback visual equivalence for bounds,
+clip, alpha, and ordering, and generation-safe recovery under device loss.
+GPU acceptance for those behaviors is not established by this documentation or
+by the current generic public-API tests. Vello is unchanged, no graph compiler
+is defined here, and no existing API is removed.
 
 ### Rendering vocabulary
 
@@ -5979,7 +6135,8 @@ Specialized visual content is explicit about what can change independently of ba
 layout and paint:
 
 ```rust
-render_canvas(SpectrogramCanvas::new(state.spectrogram.visible_tiles()))
+// Target-only provisional spelling; not shipped in 0.1.x.
+render_canvas_program(SpectrogramCanvas::new(state.spectrogram.visible_tiles()))
     .on_input(Message::SpectrogramInput)
     .clip(Clip::bounds())
 ```
@@ -6047,7 +6204,8 @@ the shared adapter's cross-window fairness scheduler. A deferred canvas presents
 its last valid frame rather than blocking unrelated UI work.
 
 ```rust
-render_canvas(SpectrogramCanvas::new(state.spectrogram.visible_tiles()))
+// Target-only provisional spelling; not shipped in 0.1.x.
+render_canvas_program(SpectrogramCanvas::new(state.spectrogram.visible_tiles()))
     .importance(CanvasImportance::interactive())
     .update_policy(
         CanvasUpdatePolicy::latest_wins()

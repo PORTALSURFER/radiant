@@ -20,7 +20,7 @@ impl<Event> Clone for BusinessEventSink<Event> {
 }
 
 impl<Event> BusinessEventSink<Event> {
-    pub(super) fn new(emit: impl Fn(Event) -> bool + Send + Sync + 'static) -> Self {
+    pub(crate) fn new(emit: impl Fn(Event) -> bool + Send + Sync + 'static) -> Self {
         Self {
             emit: Arc::new(emit),
         }

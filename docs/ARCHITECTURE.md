@@ -734,9 +734,22 @@ generations, and live declarative tokens.
 
 Current shipped ownership is narrower than this target model: the private
 `EffectOrigin` boundary and application-owned `ResourceTasks` are the current
-ownership split; `runtime/effects` is not complete. The remaining
-effect-ownership boundaries are future work tracked by OPT-1387, OPT-1390,
-and OPT-1370.
+ownership split. The additive qualified `runtime::Effect<Message>` facade from
+OPT-1387 constructs delayed, one-shot worker, ordered-stream, and latest-stream
+effects with an explicit `EffectOwner::Application` or
+`EffectOwner::Declarative(...)`. Each constructor requires `&mut LatestTask`,
+reserves a `TaskTicket`, and exposes a cloned per-effect cancellation token.
+Declarative selection resolves only against the accepted projection; an absent or
+ambiguous owner rejects atomically and restores the predecessor without
+application fallback. `Command::effect(...)` and the `From<Effect<Message>>`
+bridge lower these effects into the existing separate timer/worker lanes. The
+private lifecycle descriptor shared by those controller lanes remains the
+authority for stable identity, generation, transaction, owner, cancellation,
+mapping, admission, rollback, and stale/late fences; legacy command, timer,
+business, latest-task, and keyed-latest routes are unchanged. `runtime/effects`
+is not complete. The remaining effect-ownership boundaries are future work
+tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions, scheduler/thread
+design, native hosts, and product wiring remain deferred.
 
 That private auxiliary generation is already carried through the existing
 worker, timer, and platform-completion registries in

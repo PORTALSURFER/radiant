@@ -27,6 +27,7 @@ where
                 .field("delay", &effect.delay)
                 .field("transaction", &effect.transaction.is_some())
                 .field("owner", &effect.owner)
+                .field("lifecycle", &effect.lifecycle.is_some())
                 .finish(),
             Self::PerformWorker(effect) => f
                 .debug_struct("PerformWorker")
@@ -34,6 +35,7 @@ where
                 .field("priority", &effect.priority)
                 .field("id", &effect.id)
                 .field("generation", &effect.generation)
+                .field("lifecycle", &effect.lifecycle.is_some())
                 .finish(),
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
             Self::ClearFocus => f.write_str("ClearFocus"),

@@ -1,6 +1,7 @@
 //! Shared private lifecycle state for runtime-owned effects.
 
 use super::declarative_owner::DeclarativeOwnerToken;
+use crate::runtime::command::{EffectLifecycle, EffectTransaction};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -149,8 +150,11 @@ pub(super) type CancellationProbe = Arc<dyn Fn() -> bool + Send + Sync + 'static
 pub(super) struct LifecycleDescriptor {
     owner: RuntimeOwner,
     key: u64,
+    identity: u64,
     slot: Option<u64>,
     generation: u64,
+    transaction: Option<EffectTransaction>,
+    facade: bool,
     cancellation: Option<CancellationProbe>,
 }
 
@@ -165,8 +169,29 @@ impl LifecycleDescriptor {
         Self {
             owner,
             key,
+            identity: key,
             slot,
             generation,
+            transaction: None,
+            facade: false,
+            cancellation,
+        }
+    }
+
+    pub(super) fn new_for_effect(
+        owner: RuntimeOwner,
+        key: u64,
+        effect: &EffectLifecycle,
+        cancellation: Option<CancellationProbe>,
+    ) -> Self {
+        Self {
+            owner,
+            key,
+            identity: effect.identity.0,
+            slot: effect.transaction.map(|transaction| transaction.slot),
+            generation: effect.generation.0,
+            transaction: effect.transaction,
+            facade: true,
             cancellation,
         }
     }
@@ -188,6 +213,30 @@ impl LifecycleDescriptor {
 
     pub(super) fn slot(&self) -> Option<u64> {
         self.slot
+    }
+
+    pub(super) fn identity(&self) -> u64 {
+        self.identity
+    }
+
+    pub(super) fn is_facade(&self) -> bool {
+        self.facade
+    }
+
+    pub(super) fn admits_effect(
+        &self,
+        owner: &RuntimeOwner,
+        key: u64,
+        identity: u64,
+        generation: u64,
+        slot_current: bool,
+    ) -> bool {
+        self.admits(owner, key, generation, slot_current)
+            && self.identity == identity
+            && self.transaction.is_none_or(|transaction| {
+                transaction.slot == self.slot.unwrap_or_default()
+                    && transaction.ticket.id() == generation
+            })
     }
 }
 

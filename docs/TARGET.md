@@ -496,8 +496,24 @@ native, and product wiring remain deferred.
 
 Current shipped effect boundary: the private `EffectOrigin` model and
 application-owned `ResourceTasks` are the current ownership split;
+the additive qualified `runtime::Effect<Message>` facade from OPT-1387 now constructs
+`after`, one-shot `worker`, ordered-stream, and latest-stream effects with an
+explicit `EffectOwner::Application` or `EffectOwner::Declarative(...)`.
+Constructors require `&mut LatestTask`, reserve a `TaskTicket`, expose a cloned
+per-effect `CancellationToken`, and pass typed `TaskCompletion` values to
+UI-local mappers. Declarative selection resolves against the accepted projection;
+invalid or ambiguous selection rejects atomically, restores the predecessor, and
+never falls back to `Application`. `Command::effect(...)` and
+`From<Effect<Message>>` lower effects into the existing separate timer and worker
+lanes, which retain the private common worker/timer lifecycle policy and all
+existing owner, generation, transaction, cancellation, admission, rollback, and
+stale/late fences. This facade does not replace the legacy command, timer,
+business, latest-task, or keyed-latest routes and does not expose the private
+registry or owner ledger.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
-are future work tracked by OPT-1387, OPT-1390, and OPT-1370.
+are future work tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions,
+ResourceTasks ownership, platform effects, native hosts, scheduler/thread
+design, and product wiring remain outside this slice.
 
 The cancellable latest-task owner routes are
 `CancellableBusinessLatestRequest::run_for_owner_with_receipt(owner, work, map)`,

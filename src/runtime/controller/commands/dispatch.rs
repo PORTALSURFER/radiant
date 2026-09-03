@@ -5,10 +5,11 @@ use super::{CommandOutcome, SurfaceRuntime};
 use crate::application::runtime::update_context::business::admission::{
     BusinessTaskAdmission, resolve as resolve_admission,
 };
+use crate::runtime::EffectOwner;
 use crate::runtime::RepaintScope;
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
-use crate::runtime::command::WorkerEffectMapper;
+use crate::runtime::command::{EffectMappingPolicy, WorkerEffectMapper};
 use crate::{
     gui::types::Vector2,
     runtime::{Command, DragSession, RuntimeBridge},
@@ -38,25 +39,19 @@ where
         mut effect: crate::runtime::command::TimerEffect<Message>,
         origin: EffectOrigin,
     ) -> bool {
-        let origin = match effect.owner.take() {
-            Some(handle) => {
-                let Some(origin) = self.declarative_owner_origin_for_handle(handle) else {
-                    if let Some(transaction) = effect.transaction.as_ref() {
-                        transaction.reject();
-                    }
-                    return false;
-                };
-                origin
-            }
-            // An unmarked timer keeps an auxiliary dispatch origin so its
-            // wake and any chained command remain fenced by that generation.
-            // Declarative dispatch does not implicitly own an unmarked timer.
-            None => match origin {
-                EffectOrigin::Auxiliary(owner) => EffectOrigin::Auxiliary(owner),
-                EffectOrigin::Application | EffectOrigin::Declarative(_) => {
-                    EffectOrigin::Application
+        let origin = match self.resolve_effect_origin(
+            effect.lifecycle.as_ref().map(|lifecycle| lifecycle.owner),
+            effect.owner.take(),
+            origin,
+            false,
+        ) {
+            Some(origin) => origin,
+            None => {
+                if let Some(transaction) = effect.transaction.as_ref() {
+                    transaction.reject();
                 }
-            },
+                return false;
+            }
         };
         let capability = self.host_capabilities.tasks.as_ref();
         let bridge = &mut self.bridge;
@@ -70,32 +65,79 @@ where
         mut effect: crate::runtime::command::WorkerEffect<Message>,
         origin: EffectOrigin,
     ) -> bool {
-        let mapping_mode = match (&effect.owner, &effect.mapper, effect.is_cancelled.is_some()) {
-            (Some(_), WorkerEffectMapper::Stream { latest: true, .. }, _)
-            | (Some(_), WorkerEffectMapper::Stream { latest: false, .. }, true) => {
+        let owned = effect.owner.is_some() || effect.lifecycle.is_some();
+        let cancellable = effect.is_cancelled.is_some() || effect.lifecycle.is_some();
+        let mapping_policy = effect
+            .lifecycle
+            .as_ref()
+            .map_or(EffectMappingPolicy::Eager, |lifecycle| lifecycle.mapping);
+        let mapping_mode = match (mapping_policy, &effect.mapper, owned, cancellable) {
+            (EffectMappingPolicy::Deferred, WorkerEffectMapper::Stream { .. }, _, _)
+            | (EffectMappingPolicy::Deferred, WorkerEffectMapper::Once(_), _, _) => {
+                match &effect.mapper {
+                    WorkerEffectMapper::Stream { .. } => {
+                        WorkerEffectMappingMode::DeferredOwnerStream
+                    }
+                    WorkerEffectMapper::Once(_) => WorkerEffectMappingMode::DeferredOwnerOneShot,
+                }
+            }
+            (_, WorkerEffectMapper::Stream { latest: true, .. }, true, _)
+            | (_, WorkerEffectMapper::Stream { latest: false, .. }, true, true) => {
                 WorkerEffectMappingMode::DeferredOwnerStream
             }
-            (Some(_), WorkerEffectMapper::Once(_), true) => {
+            (_, WorkerEffectMapper::Once(_), true, true) => {
                 WorkerEffectMappingMode::DeferredOwnerOneShot
             }
             _ => WorkerEffectMappingMode::Eager,
         };
-        let origin = match effect.owner.take() {
-            Some(handle) => {
-                let Some(origin) = self.declarative_owner_origin_for_handle(handle) else {
-                    if let Some(transaction) = effect.transaction.as_ref() {
-                        transaction.reject();
-                    }
-                    if let Some(receipt) = effect.admission_receipt.as_ref() {
-                        resolve_admission(&receipt.0, BusinessTaskAdmission::Rejected);
-                    }
-                    return false;
-                };
-                origin
+        let origin = match self.resolve_effect_origin(
+            effect.lifecycle.as_ref().map(|lifecycle| lifecycle.owner),
+            effect.owner.take(),
+            origin,
+            true,
+        ) {
+            Some(origin) => origin,
+            None => {
+                if let Some(transaction) = effect.transaction.as_ref() {
+                    transaction.reject();
+                }
+                if let Some(receipt) = effect.admission_receipt.as_ref() {
+                    resolve_admission(&receipt.0, BusinessTaskAdmission::Rejected);
+                }
+                return false;
             }
-            None => origin,
         };
         self.submit_worker_effect_with_origin(effect, origin, mapping_mode)
+    }
+
+    fn resolve_effect_origin(
+        &self,
+        selection: Option<EffectOwner>,
+        legacy_owner: Option<crate::application::DeclarativeEffectOwner>,
+        origin: EffectOrigin,
+        preserve_legacy_origin: bool,
+    ) -> Option<EffectOrigin> {
+        if let Some(selection) = selection {
+            return match selection {
+                EffectOwner::Application => Some(EffectOrigin::Application),
+                EffectOwner::Declarative(handle) => {
+                    self.declarative_owner_origin_for_handle(handle)
+                }
+            };
+        }
+        if let Some(handle) = legacy_owner {
+            return self.declarative_owner_origin_for_handle(handle);
+        }
+        if preserve_legacy_origin {
+            return Some(origin);
+        }
+        Some(match origin {
+            // An unmarked timer keeps an auxiliary dispatch origin so its
+            // wake and any chained command remain fenced by that generation.
+            // Declarative dispatch does not implicitly own an unmarked effect.
+            EffectOrigin::Auxiliary(owner) => EffectOrigin::Auxiliary(owner),
+            EffectOrigin::Application | EffectOrigin::Declarative(_) => EffectOrigin::Application,
+        })
     }
 
     pub(in crate::runtime::controller) fn dispatch_message_inner(

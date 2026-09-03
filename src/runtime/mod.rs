@@ -24,6 +24,7 @@ mod controller;
 mod devtools;
 mod diagnostics;
 mod drag;
+mod effect;
 mod environment;
 mod external_drag;
 mod file_drop;
@@ -169,6 +170,7 @@ pub(crate) use diagnostics::{
 };
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragPreviewTextSizing, DragRequest};
+pub use effect::{Effect, EffectOwner};
 pub use environment::{
     ResolvedEnvironment, WindowColorScheme, WindowEnvironment, WindowEnvironmentChange,
 };

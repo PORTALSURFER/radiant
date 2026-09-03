@@ -4,7 +4,7 @@ use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use super::gpu_surface::GpuShaderPresentationUniformUpdate;
 use super::platform::{PlatformCompletion, PlatformRequest};
-use crate::application::{DeclarativeEffectOwner, LatestTaskTransaction};
+use crate::application::{DeclarativeEffectOwner, LatestTaskTransaction, TaskTicket};
 use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
 use std::time::Duration;
 use std::{any::Any, sync::Arc};
@@ -160,6 +160,7 @@ pub struct TimerEffect<Message> {
     pub(crate) delay: Duration,
     pub(crate) transaction: Option<LatestTaskTransaction>,
     pub(crate) owner: Option<DeclarativeEffectOwner>,
+    pub(crate) lifecycle: Option<EffectLifecycle>,
     pub(crate) map: Box<dyn FnOnce() -> Message + 'static>,
 }
 
@@ -177,11 +178,61 @@ pub struct WorkerEffect<Message> {
     pub(crate) id: EffectId,
     pub(crate) generation: EffectGeneration,
     pub(crate) transaction: Option<LatestTaskTransaction>,
+    pub(crate) lifecycle: Option<EffectLifecycle>,
     pub(crate) admission_receipt: Option<
         crate::application::runtime::update_context::business::admission::AdmissionReceiptGuard,
     >,
     pub(crate) work: WorkerEffectWork,
     pub(crate) mapper: WorkerEffectMapper<Message>,
+}
+
+/// Crate-private lifecycle contract shared by the qualified timer and worker
+/// facade commands.  The controller expands this into its lane registration
+/// descriptor while the concrete latest-task transaction remains owned by the
+/// command until host admission.
+pub(crate) struct EffectLifecycle {
+    pub(crate) identity: EffectId,
+    pub(crate) generation: EffectGeneration,
+    pub(crate) transaction: Option<EffectTransaction>,
+    pub(crate) owner: crate::runtime::EffectOwner,
+    pub(crate) cancellation: Arc<dyn Fn() -> bool + Send + Sync + 'static>,
+    pub(crate) mapping: EffectMappingPolicy,
+}
+
+/// Stable, cloneable evidence derived from a latest-task replacement.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct EffectTransaction {
+    pub(crate) slot: u64,
+    pub(crate) ticket: TaskTicket,
+}
+
+/// Mapping policy selected at effect construction time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum EffectMappingPolicy {
+    Eager,
+    Deferred,
+}
+
+impl EffectLifecycle {
+    pub(crate) fn from_token(
+        identity: EffectId,
+        generation: EffectGeneration,
+        transaction: Option<&LatestTaskTransaction>,
+        owner: crate::runtime::EffectOwner,
+        token: crate::application::CancellationToken,
+    ) -> Self {
+        Self {
+            identity,
+            generation,
+            transaction: transaction.map(|transaction| EffectTransaction {
+                slot: transaction.slot(),
+                ticket: transaction.replacement(),
+            }),
+            owner,
+            cancellation: Arc::new(move || token.is_cancelled()),
+            mapping: EffectMappingPolicy::Deferred,
+        }
+    }
 }
 
 pub(crate) type WorkerCancellationProbe = Arc<dyn Fn() -> bool + Send + Sync + 'static>;

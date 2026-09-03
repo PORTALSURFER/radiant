@@ -289,8 +289,13 @@ snapshot only after candidate construction succeeds. Snapshots carry a schema
 version and omit wall-clock/timing fields, native/GPU resources, and
 presentation state; focused tests can request the raw production paint plan,
 while repeated runs compare compact JSON bytes rather than backend output. The
-host is deliberately not a trace-replay engine, native
-window/GPU/IME/accessibility/presentation adapter, or production scheduler.
+The host's qualified trace boundary records versioned operations and complete
+publication snapshots. `DeterministicTrace::replay` preflights the private v1
+schema, reconstructs through the existing host APIs, turns before each
+publication comparison, and stops at the first bounded JSON-path divergence.
+Callers supply typed decoders for caller-owned input and platform results;
+Radiant does not claim automatic typed event capture. It remains separate from native window/GPU/IME/
+accessibility/presentation adapters and production scheduler policy.
 
 ### Scroll-offset direction boundary
 

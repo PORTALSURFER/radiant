@@ -1,7 +1,7 @@
 use super::owner::{AuxiliaryWindowOwner, EffectOrigin, LifecycleDescriptor, RuntimeOwner};
 use crate::application::LatestTimerTransaction;
 use crate::runtime::{RuntimeTimerOwner, RuntimeTimerWake, command::TimerEffect};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 struct Registered<Message> {
     wake: RuntimeTimerWake,
@@ -49,6 +49,7 @@ impl<Message> TimerEffects<Message> {
     ) -> bool {
         let id = self.next_id;
         self.next_id = self.next_id.saturating_add(1);
+        let effect_lifecycle = effect.lifecycle.as_ref();
         let transaction = effect.transaction;
         let slot = transaction.as_ref().map(LatestTimerTransaction::slot);
         // Keep the wake generation's existing latest-ticket meaning. The
@@ -61,7 +62,22 @@ impl<Message> TimerEffects<Message> {
         let cancellation = transaction
             .as_ref()
             .map(LatestTimerTransaction::cancellation_probe);
+        let cancellation = combine_cancellation_probes(
+            cancellation,
+            effect_lifecycle.map(|lifecycle| Arc::clone(&lifecycle.cancellation)),
+        );
+        let cancellation = combine_cancellation_probes(cancellation, origin.cancellation_probe());
         let wake = RuntimeTimerWake::controller(id, generation, self.epoch);
+        let lifecycle = if let Some(effect_lifecycle) = effect_lifecycle {
+            LifecycleDescriptor::new_for_effect(
+                self.owner.clone(),
+                id,
+                effect_lifecycle,
+                cancellation,
+            )
+        } else {
+            LifecycleDescriptor::new(self.owner.clone(), id, slot, generation, cancellation)
+        };
         let previous = slot.and_then(|slot| {
             let old = self.latest.insert(slot, id);
             old.and_then(|old_id| self.registry.remove(&old_id))
@@ -72,13 +88,7 @@ impl<Message> TimerEffects<Message> {
                 wake,
                 transaction,
                 map: Some(effect.map),
-                lifecycle: LifecycleDescriptor::new(
-                    self.owner.clone(),
-                    id,
-                    slot,
-                    generation,
-                    cancellation,
-                ),
+                lifecycle,
                 owner_generation,
                 origin,
             },
@@ -136,9 +146,10 @@ impl<Message> TimerEffects<Message> {
             && transaction_current
             && registered.owner_generation == registered.origin.declarative_generation()
             && registered.origin.is_live()
-            && registered.lifecycle.admits(
+            && registered.lifecycle.admits_effect(
                 &self.owner,
                 wake.id,
+                registered.lifecycle.identity(),
                 wake.generation,
                 latest_slot_current,
             );
@@ -159,10 +170,23 @@ impl<Message> TimerEffects<Message> {
         {
             self.latest.remove(&transaction.slot());
         }
-        registered.map.take().map(|map| MappedTimerMessage {
-            message: map(),
-            origin: registered.origin,
-        })
+        let origin = registered.origin.clone();
+        let message = registered.map.take().map(|map| map())?;
+        let current_after_mapping = wake.epoch == self.epoch
+            && registered.owner_generation == origin.declarative_generation()
+            && registered.origin.is_live()
+            && registered
+                .transaction
+                .as_ref()
+                .is_none_or(LatestTimerTransaction::is_active)
+            && registered.lifecycle.admits_effect(
+                &self.owner,
+                wake.id,
+                registered.lifecycle.identity(),
+                wake.generation,
+                true,
+            );
+        current_after_mapping.then_some(MappedTimerMessage { message, origin })
     }
 
     pub(super) fn retire_origin(&mut self, origin: &EffectOrigin) {
@@ -215,6 +239,17 @@ impl<Message> TimerEffects<Message> {
         self.epoch = self.epoch.saturating_add(1);
         self.registry.clear();
         self.latest.clear();
+    }
+}
+
+fn combine_cancellation_probes(
+    first: Option<super::owner::CancellationProbe>,
+    second: Option<super::owner::CancellationProbe>,
+) -> Option<super::owner::CancellationProbe> {
+    match (first, second) {
+        (None, None) => None,
+        (Some(probe), None) | (None, Some(probe)) => Some(probe),
+        (Some(first), Some(second)) => Some(Arc::new(move || first() || second())),
     }
 }
 
@@ -305,6 +340,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: Some(transaction1),
                 owner: None,
+                lifecycle: None,
                 map: Box::new(move || {
                     first_calls.fetch_add(1, Ordering::SeqCst);
                     1
@@ -322,6 +358,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: Some(transaction2),
                 owner: None,
+                lifecycle: None,
                 map: Box::new(move || {
                     second_calls.fetch_add(1, Ordering::SeqCst);
                     2
@@ -355,6 +392,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: Some(first_transaction),
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 1),
             },
             EffectOrigin::Application,
@@ -369,6 +407,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: Some(replacement_transaction),
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 2),
             },
             EffectOrigin::Application,
@@ -388,6 +427,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 1),
             },
             EffectOrigin::Application,
@@ -411,6 +451,7 @@ mod tests {
                     delay: Duration::ZERO,
                     transaction: None,
                     owner: None,
+                    lifecycle: None,
                     map: Box::new(move || value),
                 },
                 EffectOrigin::Application,
@@ -449,6 +490,7 @@ mod tests {
                     delay: Duration::ZERO,
                     transaction: Some(transaction),
                     owner: None,
+                    lifecycle: None,
                     map: Box::new(move || {
                         let _sentinel = sentinel;
                         1
@@ -481,6 +523,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 7),
             },
             origin.clone(),
@@ -518,6 +561,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 7),
             },
             origin.clone(),
@@ -538,6 +582,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(move || {
                     calls_for_mapper.fetch_add(1, Ordering::SeqCst);
                     8
@@ -571,6 +616,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: Some(transaction),
                 owner: None,
+                lifecycle: None,
                 map: Box::new(move || {
                     let _sentinel = retired_sentinel;
                     1
@@ -588,6 +634,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 2),
             },
             EffectOrigin::Auxiliary(sibling.clone()),
@@ -602,6 +649,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 3),
             },
             EffectOrigin::Application,
@@ -641,6 +689,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: Some(transaction),
                 owner: None,
+                lifecycle: None,
                 map: Box::new(move || {
                     let _sentinel = retired_sentinel;
                     1
@@ -658,6 +707,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 2),
             },
             sibling_origin,
@@ -672,6 +722,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 3),
             },
             EffectOrigin::Application,
@@ -686,6 +737,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 4),
             },
             new_origin,
@@ -722,6 +774,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 1),
             },
             EffectOrigin::Auxiliary(old_owner.clone()),
@@ -738,6 +791,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: None,
                 owner: None,
+                lifecycle: None,
                 map: Box::new(|| 2),
             },
             EffectOrigin::Auxiliary(new_owner.clone()),
@@ -766,6 +820,7 @@ mod tests {
                 delay: Duration::ZERO,
                 transaction: Some(transaction),
                 owner: None,
+                lifecycle: None,
                 map: Box::new(move || {
                     calls_for_mapper.fetch_add(1, Ordering::SeqCst);
                     1

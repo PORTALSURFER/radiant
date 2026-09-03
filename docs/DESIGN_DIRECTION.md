@@ -349,19 +349,24 @@ Current shipped ownership is narrower than this target model: the private
 `EffectOrigin` boundary supplies application, auxiliary, and selected
 declarative provenance, while `ResourceTasks` remains application-owned.
 The additive qualified `runtime::Effect<Message>` facade from OPT-1387 now covers
-application-owned `after`, one-shot `worker`, ordered-stream, and latest-stream
-construction. `Command::effect(...)` and the `From<Effect<Message>>` bridge
-lower those values into the existing timer or worker command lane. The private
-worker/timer lifecycle descriptor remains the single controller policy for
-owner, generation, cancellation, admission, rollback, and stale/late fences;
-the facade does not create a second registry or scheduler. Existing
-owner-scoped business, latest-task, keyed-latest, and timer routes remain the
-compatibility and ownership paths, including their public handles and
-UI-local mappers.
+`after`, one-shot `worker`, ordered-stream, and latest-stream construction with
+an explicit `EffectOwner::Application` or `EffectOwner::Declarative(...)`.
+Constructors require `&mut LatestTask`, reserve a `TaskTicket`, and expose a
+cloned per-effect `CancellationToken`; completion mappers receive typed
+`TaskCompletion` values and remain UI-local. `Command::effect(...)` and the
+`From<Effect<Message>>` bridge lower those values into the existing timer or
+worker command lane. The private worker/timer lifecycle descriptor remains the
+single controller policy for stable identity, generation, transaction, owner,
+cancellation, mapping, admission, rollback, and stale/late fences; the facade
+does not create a second registry or scheduler. Invalid or ambiguous declarative
+selection rejects atomically, restores the predecessor, and never falls back to
+`Application`. Existing owner-scoped business, latest-task, keyed-latest, and
+timer routes remain the compatibility and ownership paths, including their
+public handles and UI-local mappers.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
 are future work tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions,
-ResourceTasks ownership, platform migration, scheduler policy, and product
-wiring remain outside this slice.
+ResourceTasks ownership, platform effects, native hosts, scheduler/thread
+design, and product wiring remain outside this slice.
 
 This is a bounded public timer, one-shot business-worker, cancellable ordinary
 owner one-shot, ordinary ordered and coalesced owner-scoped stream-consumer,

@@ -18,7 +18,7 @@ use std::{
     rc::Rc,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc::{SyncSender, TrySendError},
     },
 };
@@ -190,6 +190,7 @@ struct Registered<Message> {
     generation: EffectGeneration,
     registration_id: u64,
     epoch: u64,
+    fence: Arc<AtomicBool>,
     is_cancelled: Option<Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
     mapper: RegisteredMapper<Message>,
     lifecycle: LifecycleDescriptor,
@@ -345,19 +346,35 @@ impl<Message> WorkerEffects<Message> {
             .as_ref()
             .map(crate::application::LatestTaskTransaction::cancellation_probe);
         let token_probe: Option<CancellationProbe> = effect.is_cancelled.map(Arc::from);
+        let lifecycle_probe = effect
+            .lifecycle
+            .as_ref()
+            .map(|lifecycle| Arc::clone(&lifecycle.cancellation));
         let origin_probe = origin.cancellation_probe();
         let is_cancelled = combine_cancellation_probes(
-            combine_cancellation_probes(token_probe, transaction_probe),
+            combine_cancellation_probes(
+                combine_cancellation_probes(token_probe, transaction_probe),
+                lifecycle_probe,
+            ),
             origin_probe,
         );
         let slot = transaction.as_ref().map(|transaction| transaction.slot());
-        let lifecycle = LifecycleDescriptor::new(
-            self.owner.clone(),
-            id.0,
-            slot,
-            generation.0,
-            is_cancelled.clone().map(|probe| probe as CancellationProbe),
-        );
+        let lifecycle = if let Some(effect_lifecycle) = effect.lifecycle.as_ref() {
+            LifecycleDescriptor::new_for_effect(
+                self.owner.clone(),
+                id.0,
+                effect_lifecycle,
+                is_cancelled.clone().map(|probe| probe as CancellationProbe),
+            )
+        } else {
+            LifecycleDescriptor::new(
+                self.owner.clone(),
+                id.0,
+                slot,
+                generation.0,
+                is_cancelled.clone().map(|probe| probe as CancellationProbe),
+            )
+        };
         let (mapper, stream_latest) = match effect.mapper {
             WorkerEffectMapper::Once(map) => (
                 match mapping_mode {
@@ -399,6 +416,7 @@ impl<Message> WorkerEffects<Message> {
                 origin: origin.clone(),
             })
         });
+        let fence = Arc::new(AtomicBool::new(true));
         let mapper = match mapper {
             RegisteredMapper::Once(map) => RegisteredMapper::Once(map),
             RegisteredMapper::DeferredOnce(map) => RegisteredMapper::DeferredOnce(map),
@@ -422,6 +440,7 @@ impl<Message> WorkerEffects<Message> {
                 generation,
                 registration_id,
                 epoch,
+                fence: Arc::clone(&fence),
                 is_cancelled: is_cancelled.clone(),
                 mapper,
                 lifecycle,
@@ -564,6 +583,7 @@ impl<Message> WorkerEffects<Message> {
             }
         } else if let Some(transaction) = transaction {
             if let Some(previous) = previous {
+                previous.fence.store(false, Ordering::Release);
                 close_registered_mapper(previous.mapper);
             }
             transaction.accept();
@@ -572,6 +592,7 @@ impl<Message> WorkerEffects<Message> {
             }
         } else {
             if let Some(previous) = previous {
+                previous.fence.store(false, Ordering::Release);
                 close_registered_mapper(previous.mapper);
             }
             if let Some(receipt) = effect.admission_receipt.as_ref() {
@@ -588,7 +609,7 @@ impl<Message> WorkerEffects<Message> {
             .filter_map(|mapped| {
                 mapped
                     .resolve(true)
-                    .map(|(message, _origin, _cancellation_probe)| message)
+                    .map(|(message, _origin, _cancellation_probe, _fence)| message)
             })
             .collect()
     }
@@ -708,6 +729,7 @@ impl<Message> WorkerEffects<Message> {
             .collect::<Vec<_>>();
         for id in current_ids {
             if let Some(registered) = self.registry.remove(&id) {
+                registered.fence.store(false, Ordering::Release);
                 close_registered_mapper(registered.mapper);
             }
         }
@@ -750,9 +772,10 @@ impl<Message> WorkerEffects<Message> {
                 && entry.epoch == terminal.epoch
                 && entry.origin == terminal.origin
                 && entry.origin.is_live()
-                && entry.lifecycle.admits(
+                && entry.lifecycle.admits_effect(
                     &self.owner,
                     terminal.id.0,
+                    entry.lifecycle.identity(),
                     terminal.generation.0,
                     terminal.owner.is_same(&self.owner),
                 )
@@ -787,6 +810,7 @@ impl<Message> WorkerEffects<Message> {
                 } = &entry.mapper
                 {
                     let origin = entry.origin.clone();
+                    let fence = MappingFence::from_registered(terminal.id, entry);
                     match mapping_mode {
                         WorkerEffectMappingMode::Eager
                         | WorkerEffectMappingMode::DeferredOwnerOneShot => {
@@ -800,6 +824,7 @@ impl<Message> WorkerEffects<Message> {
                                 output,
                                 origin,
                                 entry.is_cancelled.clone(),
+                                fence,
                             ));
                         }
                     }
@@ -823,6 +848,7 @@ impl<Message> WorkerEffects<Message> {
                         return;
                     };
                     let origin = entry.origin.clone();
+                    let fence = MappingFence::from_registered(terminal.id, entry);
                     match mapping_mode {
                         WorkerEffectMappingMode::Eager
                         | WorkerEffectMappingMode::DeferredOwnerOneShot => {
@@ -836,6 +862,7 @@ impl<Message> WorkerEffects<Message> {
                                 output,
                                 origin,
                                 entry.is_cancelled.clone(),
+                                fence,
                             ));
                         }
                     }
@@ -852,6 +879,7 @@ impl<Message> WorkerEffects<Message> {
                     return;
                 }
                 let origin = entry.origin.clone();
+                let fence = MappingFence::from_registered(terminal.id, &entry);
                 match entry.mapper {
                     RegisteredMapper::Once(map) => {
                         if let Some(message) = map(output) {
@@ -864,6 +892,7 @@ impl<Message> WorkerEffects<Message> {
                             output,
                             origin,
                             cancellation_probe,
+                            fence,
                         ));
                     }
                     RegisteredMapper::Stream {
@@ -883,6 +912,7 @@ impl<Message> WorkerEffects<Message> {
                                 output,
                                 origin,
                                 cancellation_probe,
+                                fence,
                             ));
                         }
                     },
@@ -892,6 +922,7 @@ impl<Message> WorkerEffects<Message> {
                 let Some(entry) = self.registry.remove(&terminal.id) else {
                     return;
                 };
+                entry.fence.store(false, Ordering::Release);
                 if let RegisteredMapper::Stream {
                     latest_state: Some(state),
                     ..
@@ -905,6 +936,7 @@ impl<Message> WorkerEffects<Message> {
                 let Some(entry) = self.registry.remove(&terminal.id) else {
                     return;
                 };
+                entry.fence.store(false, Ordering::Release);
                 if let RegisteredMapper::Stream {
                     latest_state: Some(state),
                     ..
@@ -925,12 +957,16 @@ impl<Message> WorkerEffects<Message> {
                 && entry.origin == terminal.origin
         });
         if matches_terminal && let Some(entry) = self.registry.remove(&terminal.id) {
+            entry.fence.store(false, Ordering::Release);
             close_registered_mapper(entry.mapper);
         }
     }
 
     pub(super) fn shutdown(&mut self) {
         self.epoch = self.epoch.saturating_add(1);
+        for registered in self.registry.values() {
+            registered.fence.store(false, Ordering::Release);
+        }
         self.registry.clear();
         self.pending_registrations.clear();
         self.deferred.clear();
@@ -945,6 +981,51 @@ impl<Message> WorkerEffects<Message> {
 pub(super) struct MappedEffectMessage<Message> {
     mapping: MappedEffect<Message>,
     origin: EffectOrigin,
+    fence: Option<MappingFence>,
+}
+
+#[derive(Clone)]
+pub(super) struct MappingFence {
+    epoch: u64,
+    id: EffectId,
+    generation: EffectGeneration,
+    registration_id: u64,
+    live: Arc<AtomicBool>,
+    lifecycle: LifecycleDescriptor,
+    origin: EffectOrigin,
+}
+
+impl MappingFence {
+    fn from_registered<Message>(id: EffectId, registered: &Registered<Message>) -> Option<Self> {
+        registered.lifecycle.is_facade().then(|| Self {
+            epoch: registered.epoch,
+            id,
+            generation: registered.generation,
+            registration_id: registered.registration_id,
+            live: Arc::clone(&registered.fence),
+            lifecycle: registered.lifecycle.clone(),
+            origin: registered.origin.clone(),
+        })
+    }
+
+    pub(super) fn is_current<Message>(&self, effects: &WorkerEffects<Message>) -> bool {
+        self.live.load(Ordering::Acquire)
+            && self.epoch == effects.epoch
+            && self.origin.is_live()
+            && self.lifecycle.admits_effect(
+                &effects.owner,
+                self.id.0,
+                self.lifecycle.identity(),
+                self.generation.0,
+                true,
+            )
+            && effects.registry.get(&self.id).is_none_or(|entry| {
+                entry.generation == self.generation
+                    && entry.registration_id == self.registration_id
+                    && entry.epoch == self.epoch
+                    && entry.origin == self.origin
+            })
+    }
 }
 
 enum MappedEffect<Message> {
@@ -971,6 +1052,7 @@ impl<Message> MappedEffectMessage<Message> {
         Self {
             mapping: MappedEffect::Ready(message),
             origin,
+            fence: None,
         }
     }
 
@@ -979,6 +1061,7 @@ impl<Message> MappedEffectMessage<Message> {
         output: Box<dyn Any + Send>,
         origin: EffectOrigin,
         cancellation_probe: Option<CancellationProbe>,
+        fence: Option<MappingFence>,
     ) -> Self {
         Self {
             mapping: MappedEffect::Deferred {
@@ -987,6 +1070,7 @@ impl<Message> MappedEffectMessage<Message> {
                 cancellation_probe,
             },
             origin,
+            fence,
         }
     }
 
@@ -995,6 +1079,7 @@ impl<Message> MappedEffectMessage<Message> {
         output: Box<dyn Any + Send>,
         origin: EffectOrigin,
         cancellation_probe: Option<CancellationProbe>,
+        fence: Option<MappingFence>,
     ) -> Self {
         Self {
             mapping: MappedEffect::DeferredOneShot {
@@ -1003,6 +1088,7 @@ impl<Message> MappedEffectMessage<Message> {
                 cancellation_probe,
             },
             origin,
+            fence,
         }
     }
 
@@ -1011,6 +1097,7 @@ impl<Message> MappedEffectMessage<Message> {
         output: Box<dyn Any + Send>,
         origin: EffectOrigin,
         cancellation_probe: Option<CancellationProbe>,
+        fence: Option<MappingFence>,
     ) -> Self {
         Self {
             mapping: MappedEffect::DeferredEvent {
@@ -1019,6 +1106,7 @@ impl<Message> MappedEffectMessage<Message> {
                 cancellation_probe,
             },
             origin,
+            fence,
         }
     }
 
@@ -1026,11 +1114,29 @@ impl<Message> MappedEffectMessage<Message> {
         &self.origin
     }
 
+    pub(in crate::runtime::controller) fn is_current(
+        &self,
+        effects: &WorkerEffects<Message>,
+    ) -> bool {
+        self.fence
+            .as_ref()
+            .is_none_or(|fence| fence.is_current(effects))
+    }
+
     pub(in crate::runtime::controller) fn resolve(
         self,
         allow_deferred: bool,
-    ) -> Option<(Message, EffectOrigin, Option<CancellationProbe>)> {
-        let Self { mapping, origin } = self;
+    ) -> Option<(
+        Message,
+        EffectOrigin,
+        Option<CancellationProbe>,
+        Option<MappingFence>,
+    )> {
+        let Self {
+            mapping,
+            origin,
+            fence,
+        } = self;
         let (message, cancellation_probe) = match mapping {
             MappedEffect::Ready(message) => Some((message, None)),
             MappedEffect::Deferred {
@@ -1070,7 +1176,7 @@ impl<Message> MappedEffectMessage<Message> {
             MappedEffect::DeferredOneShot { .. } => None,
             MappedEffect::DeferredEvent { .. } => None,
         }?;
-        Some((message, origin, cancellation_probe))
+        Some((message, origin, cancellation_probe, fence))
     }
 }
 
@@ -1179,6 +1285,7 @@ mod tests {
                 generation: EffectGeneration(generation),
                 registration_id: 0,
                 epoch: effect.epoch,
+                fence: Arc::new(AtomicBool::new(true)),
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(
                     effect.owner.clone(),
@@ -1209,6 +1316,7 @@ mod tests {
                 generation: EffectGeneration(generation),
                 registration_id,
                 epoch: effect.epoch,
+                fence: Arc::new(AtomicBool::new(true)),
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(
                     effect.owner.clone(),
@@ -1252,6 +1360,7 @@ mod tests {
                 generation: EffectGeneration(1),
                 registration_id,
                 epoch: effect.epoch,
+                fence: Arc::new(AtomicBool::new(true)),
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(effect.owner.clone(), id, None, 1, None),
                 mapper: RegisteredMapper::Stream {
@@ -9192,6 +9301,7 @@ mod tests {
                 generation: EffectGeneration(1),
                 registration_id: 0,
                 epoch: effects.epoch,
+                fence: Arc::new(AtomicBool::new(true)),
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(effects.owner.clone(), 3, None, 1, None),
                 mapper: RegisteredMapper::Once(Box::new({
@@ -9238,6 +9348,7 @@ mod tests {
                 generation: EffectGeneration(1),
                 registration_id: 0,
                 epoch: effects.epoch,
+                fence: Arc::new(AtomicBool::new(true)),
                 is_cancelled: {
                     let cancelled = Arc::clone(&cancelled);
                     Some(Arc::new(move || cancelled.load(Ordering::Acquire)))
@@ -9280,6 +9391,7 @@ mod tests {
                 generation: EffectGeneration(1),
                 registration_id: 0,
                 epoch: effects.epoch,
+                fence: Arc::new(AtomicBool::new(true)),
                 is_cancelled: None,
                 lifecycle: LifecycleDescriptor::new(effects.owner.clone(), 8, None, 1, None),
                 mapper: RegisteredMapper::Once(Box::new(move |output| {

@@ -1,6 +1,6 @@
 use super::{
-    Command, TaskPriority, TimerEffect, WorkerCancellationProbe, WorkerEffectMapper,
-    WorkerEffectSink, WorkerEffectWork,
+    Command, EffectLifecycle, TaskPriority, TimerEffect, WorkerCancellationProbe,
+    WorkerEffectMapper, WorkerEffectSink, WorkerEffectWork,
 };
 
 pub(crate) struct WorkerStreamOptions {
@@ -32,7 +32,10 @@ impl<Message> Command<Message> {
     /// This is an explicit bridge to the existing timer and worker command
     /// lanes. It does not add a third transport or bypass controller
     /// lifecycle checks.
-    pub fn effect(effect: crate::runtime::Effect<Message>) -> Self {
+    pub fn effect(effect: crate::runtime::Effect<Message>) -> Self
+    where
+        Message: 'static,
+    {
         effect.into()
     }
 
@@ -126,6 +129,7 @@ impl<Message> Command<Message> {
             delay,
             transaction: None,
             owner: None,
+            lifecycle: None,
             map: Box::new(move || message),
         })
     }
@@ -142,6 +146,7 @@ impl<Message> Command<Message> {
             delay,
             transaction: None,
             owner: Some(owner),
+            lifecycle: None,
             map: Box::new(move || message),
         })
     }
@@ -159,6 +164,7 @@ impl<Message> Command<Message> {
             delay,
             transaction: Some(transaction),
             owner: None,
+            lifecycle: None,
             map: Box::new(move || map(ticket)),
         })
     }
@@ -177,7 +183,32 @@ impl<Message> Command<Message> {
             delay,
             transaction: Some(transaction),
             owner: Some(owner),
+            lifecycle: None,
             map: Box::new(move || map(ticket)),
+        })
+    }
+
+    pub(crate) fn after_effect(
+        identity: super::EffectId,
+        owner: crate::runtime::EffectOwner,
+        delay: Duration,
+        ticket: crate::application::TaskTicket,
+        transaction: crate::application::LatestTimerTransaction,
+        token: crate::application::CancellationToken,
+        map: impl FnOnce(crate::application::TaskCompletion<()>) -> Message + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        let generation = super::EffectGeneration(transaction.generation());
+        let lifecycle =
+            EffectLifecycle::from_token(identity, generation, Some(&transaction), owner, token);
+        Self::Timer(TimerEffect {
+            delay,
+            transaction: Some(transaction),
+            owner: None,
+            lifecycle: Some(lifecycle),
+            map: Box::new(move || map(crate::application::TaskCompletion { ticket, output: () })),
         })
     }
 
@@ -401,6 +432,7 @@ impl<Message> Command<Message> {
             id,
             generation: super::EffectGeneration(generation),
             transaction,
+            lifecycle: None,
             admission_receipt,
             work: WorkerEffectWork::Once(Box::new(move |cancellation_probe| {
                 Box::new(work(cancellation_probe)) as Box<dyn Any + Send>
@@ -408,6 +440,56 @@ impl<Message> Command<Message> {
             mapper: WorkerEffectMapper::Once(Box::new(move |output| {
                 match output.downcast::<Output>() {
                     Ok(output) => Some(map(*output)),
+                    Err(_) => {
+                        tracing::error!(
+                            effect_name = name,
+                            "Radiant worker effect output type did not match its mapper"
+                        );
+                        None
+                    }
+                }
+            })),
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_effect_for_effect<Output>(
+        identity: super::EffectId,
+        owner: crate::runtime::EffectOwner,
+        name: &'static str,
+        priority: TaskPriority,
+        ticket: crate::application::TaskTicket,
+        transaction: crate::application::LatestTaskTransaction,
+        token: crate::application::CancellationToken,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(crate::application::TaskCompletion<Output>) -> Message + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let generation = super::EffectGeneration(transaction.generation());
+        let lifecycle =
+            EffectLifecycle::from_token(identity, generation, Some(&transaction), owner, token);
+        Self::PerformWorker(super::WorkerEffect {
+            name,
+            priority,
+            is_cancelled: None,
+            owner: None,
+            id: identity,
+            generation,
+            transaction: Some(transaction),
+            lifecycle: Some(lifecycle),
+            admission_receipt: None,
+            work: WorkerEffectWork::Once(Box::new(move |_| {
+                Box::new(work()) as Box<dyn Any + Send>
+            })),
+            mapper: WorkerEffectMapper::Once(Box::new(move |output| {
+                match output.downcast::<Output>() {
+                    Ok(output) => Some(map(crate::application::TaskCompletion {
+                        ticket,
+                        output: *output,
+                    })),
                     Err(_) => {
                         tracing::error!(
                             effect_name = name,
@@ -632,6 +714,7 @@ impl<Message> Command<Message> {
             id,
             generation: super::EffectGeneration(options.generation),
             transaction,
+            lifecycle: None,
             admission_receipt,
             work: WorkerEffectWork::Stream(Box::new(move |sink, cancellation_probe| {
                 Box::new(work(sink, cancellation_probe)) as Box<dyn Any + Send>
@@ -649,6 +732,63 @@ impl<Message> Command<Message> {
                         .downcast::<Output>()
                         .ok()
                         .map(|output| map_final(*output))
+                }),
+            },
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn perform_worker_stream_for_effect<Event, Output>(
+        identity: super::EffectId,
+        owner: crate::runtime::EffectOwner,
+        name: &'static str,
+        priority: TaskPriority,
+        ticket: crate::application::TaskTicket,
+        transaction: crate::application::LatestTaskTransaction,
+        token: crate::application::CancellationToken,
+        latest: bool,
+        work: impl FnOnce(WorkerEffectSink) -> Output + Send + 'static,
+        map_event: impl Fn(crate::application::TaskCompletion<Event>) -> Message + 'static,
+        map_final: impl FnOnce(crate::application::TaskCompletion<Output>) -> Message + 'static,
+    ) -> Self
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let generation = super::EffectGeneration(transaction.generation());
+        let lifecycle =
+            EffectLifecycle::from_token(identity, generation, Some(&transaction), owner, token);
+        Self::PerformWorker(super::WorkerEffect {
+            name,
+            priority,
+            is_cancelled: None,
+            owner: None,
+            id: identity,
+            generation,
+            transaction: Some(transaction),
+            lifecycle: Some(lifecycle),
+            admission_receipt: None,
+            work: WorkerEffectWork::Stream(Box::new(move |sink, _| {
+                Box::new(work(sink)) as Box<dyn Any + Send>
+            })),
+            mapper: WorkerEffectMapper::Stream {
+                latest,
+                map_event: Box::new(move |event| {
+                    event.downcast::<Event>().ok().map(|event| {
+                        map_event(crate::application::TaskCompletion {
+                            ticket,
+                            output: *event,
+                        })
+                    })
+                }),
+                map_final: Box::new(move |output| {
+                    output.downcast::<Output>().ok().map(|output| {
+                        map_final(crate::application::TaskCompletion {
+                            ticket,
+                            output: *output,
+                        })
+                    })
                 }),
             },
         })

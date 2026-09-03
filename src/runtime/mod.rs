@@ -170,7 +170,7 @@ pub(crate) use diagnostics::{
 };
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragPreviewTextSizing, DragRequest};
-pub use effect::Effect;
+pub use effect::{Effect, EffectOwner};
 pub use environment::{
     ResolvedEnvironment, WindowColorScheme, WindowEnvironment, WindowEnvironmentChange,
 };

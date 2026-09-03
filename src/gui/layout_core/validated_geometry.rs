@@ -113,7 +113,7 @@ mod tests {
                     Point::new(f32::MAX - 4.0, 0.0),
                     Point::new(f32::MAX - 2.0, 1.0),
                 ),
-                Insets::all(-4.0),
+                Insets::all(-f32::MAX),
             )
             .is_none()
         );

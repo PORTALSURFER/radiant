@@ -279,3 +279,87 @@ fn custom_policy_place_is_skipped_for_invalid_padding_geometry() {
             && primitive.rect.height() >= 0.0
     }));
 }
+
+#[test]
+fn custom_policy_measure_child_requests_do_not_expose_nonfinite_maxima() {
+    struct RecordingPolicy {
+        observed: Rc<RefCell<Vec<Constraints>>>,
+    }
+
+    impl LayoutPolicy for RecordingPolicy {
+        fn measure(
+            &self,
+            _children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            constraints: Constraints,
+        ) -> SizeHint {
+            self.observed.borrow_mut().push(constraints);
+            SizeHint::preferred(Vector2::new(8.0, 8.0))
+        }
+
+        fn place(&self, _children: &mut crate::gui::layout_core::PlaceChildren<'_>, _bounds: Rect) {
+        }
+    }
+
+    struct RequestingPolicy;
+
+    impl LayoutPolicy for RequestingPolicy {
+        fn measure(
+            &self,
+            children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            _constraints: Constraints,
+        ) -> SizeHint {
+            for (index, maximum) in [f32::NAN, f32::NEG_INFINITY].into_iter().enumerate() {
+                children
+                    .measure(
+                        0,
+                        Constraints {
+                            min_w: 0.0,
+                            max_w: maximum,
+                            min_h: 0.0,
+                            max_h: 10.0 + index as f32,
+                        },
+                    )
+                    .expect("the only child should measure");
+            }
+            SizeHint::preferred(Vector2::new(20.0, 12.0))
+        }
+
+        fn place(&self, children: &mut crate::gui::layout_core::PlaceChildren<'_>, bounds: Rect) {
+            children
+                .place(0, bounds)
+                .expect("the only child should place");
+        }
+    }
+
+    let observed = Rc::new(RefCell::new(Vec::new()));
+    let root = LayoutNode::custom_container(
+        40,
+        RequestingPolicy,
+        vec![SlotChild::new(
+            SlotParams::fill(),
+            LayoutNode::custom_container(
+                41,
+                RecordingPolicy {
+                    observed: Rc::clone(&observed),
+                },
+                Vec::new(),
+            ),
+        )],
+    );
+
+    let output = crate::gui::layout_core::layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+    );
+
+    let observed = observed.borrow();
+    assert_eq!(observed.len(), 2);
+    assert!(observed.iter().all(|constraints| {
+        constraints.max_w.is_finite()
+            && constraints.max_h.is_finite()
+            && constraints.max_w >= constraints.min_w
+            && constraints.max_h >= constraints.min_h
+    }));
+    assert!(output.rects.contains_key(&40));
+    assert!(output.rects.contains_key(&41));
+}

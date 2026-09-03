@@ -2,6 +2,7 @@ use super::LayoutContext;
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::engine::LayoutDiagnosticCode;
 use crate::gui::layout_core::tree::NodeId;
+use crate::gui::layout_core::validated_geometry::normalize_constraint_axis;
 
 impl<'a> LayoutContext<'a> {
     pub(crate) fn normalize_constraints(
@@ -9,37 +10,31 @@ impl<'a> LayoutContext<'a> {
         node_id: NodeId,
         constraints: Constraints,
     ) -> Constraints {
-        let mut min_w = constraints.min_w;
-        let mut max_w = constraints.max_w;
-        let mut min_h = constraints.min_h;
-        let mut max_h = constraints.max_h;
+        let (min_w, max_w) = normalize_constraint_axis(constraints.min_w, constraints.max_w);
+        let (min_h, max_h) = normalize_constraint_axis(constraints.min_h, constraints.max_h);
 
-        if !min_w.is_finite() {
-            min_w = 0.0;
+        if !constraints.min_w.is_finite() {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,
                 "min width was non-finite and was clamped",
             );
         }
-        if !max_w.is_finite() {
-            max_w = f32::INFINITY;
+        if !constraints.max_w.is_finite() && constraints.max_w != f32::INFINITY {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,
                 "max width was non-finite and was clamped",
             );
         }
-        if !min_h.is_finite() {
-            min_h = 0.0;
+        if !constraints.min_h.is_finite() {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,
                 "min height was non-finite and was clamped",
             );
         }
-        if !max_h.is_finite() {
-            max_h = f32::INFINITY;
+        if !constraints.max_h.is_finite() && constraints.max_h != f32::INFINITY {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,
@@ -47,32 +42,28 @@ impl<'a> LayoutContext<'a> {
             );
         }
 
-        if min_w < 0.0 {
-            min_w = 0.0;
+        if constraints.min_w.is_finite() && constraints.min_w < 0.0 {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,
                 "negative minimum width was clamped",
             );
         }
-        if min_h < 0.0 {
-            min_h = 0.0;
+        if constraints.min_h.is_finite() && constraints.min_h < 0.0 {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,
                 "negative minimum height was clamped",
             );
         }
-        if max_w < min_w {
-            max_w = min_w;
+        if constraints.max_w.is_finite() && constraints.max_w < min_w {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::ConstraintContradiction,
                 "width constraints were contradictory and were normalized",
             );
         }
-        if max_h < min_h {
-            max_h = min_h;
+        if constraints.max_h.is_finite() && constraints.max_h < min_h {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::ConstraintContradiction,

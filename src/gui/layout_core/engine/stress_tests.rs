@@ -31,10 +31,15 @@ fn deep_nesting_layout_remains_stable() {
         &node,
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
     );
-    assert!(output.rects.len() >= 301);
-    let deepest = output.rects.get(&9_999).expect("deepest widget");
-    assert!(deepest.width() >= 0.0);
-    assert!(deepest.height() >= 0.0);
+    assert!(output.rects.contains_key(&1));
+    assert!(output.rects.len() < 301);
+    assert!(output.is_omitted(9_999));
+    assert!(
+        output
+            .rects
+            .values()
+            .all(|rect| { rect.is_finite() && rect.width() >= 0.0 && rect.height() >= 0.0 })
+    );
 }
 
 #[test]

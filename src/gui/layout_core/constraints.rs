@@ -88,8 +88,38 @@ impl Constraints {
 
     /// Shrink available space by insets while preserving min <= max.
     pub fn inset(self, inset_x: f32, inset_y: f32) -> Self {
-        let reduced_w = (self.max_w - (inset_x * 2.0)).max(0.0);
-        let reduced_h = (self.max_h - (inset_y * 2.0)).max(0.0);
+        let reduced_w = inset_maximum(self.max_w, inset_x);
+        let reduced_h = inset_maximum(self.max_h, inset_y);
         Self::new(0.0, reduced_w, 0.0, reduced_h)
+    }
+}
+
+fn inset_maximum(maximum: f32, inset: f32) -> f32 {
+    if !inset.is_finite() {
+        return 0.0;
+    }
+
+    let doubled = inset * 2.0;
+    if !doubled.is_finite() {
+        return if maximum.is_finite() && inset.is_sign_negative() {
+            f32::MAX
+        } else {
+            0.0
+        };
+    }
+    if maximum == f32::INFINITY {
+        return f32::INFINITY;
+    }
+    if !maximum.is_finite() {
+        return 0.0;
+    }
+
+    let reduced = maximum - doubled;
+    if reduced.is_finite() {
+        reduced.max(0.0)
+    } else if doubled.is_sign_negative() {
+        f32::MAX
+    } else {
+        0.0
     }
 }

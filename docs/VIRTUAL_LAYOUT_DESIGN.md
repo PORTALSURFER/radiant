@@ -28,8 +28,7 @@ fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
 numeric action, bounded set-value, and restart acceptance for this bounded
 primary-window consumer. VoiceOver-specific acceptance remains unperformed;
 repeated negative-geometry AppKit runtime diagnostics remain a separate
-unverified follow-up if reproducible. Estimates remain unchanged and no estimate
-credit, including Platform credit, is awarded. The
+unverified follow-up if reproducible. The
 public declarative provider attachment contract below is normative and shipped
 as the bounded public-API evidence point; its custom resolver is generic and
 does not itself provide a native/product integration.
@@ -1202,8 +1201,7 @@ AppKit evidence verifies discoverability and numeric action, bounded set-value,
 and restart acceptance for this bounded primary-window consumer. VoiceOver-
 specific acceptance remains unperformed; repeated negative-geometry AppKit
 runtime diagnostics remain a separate unverified follow-up if reproducible.
-Estimates remain unchanged and no estimate credit, including Platform credit, is
-awarded. The private kernel
+The private kernel
 does not add a public
 imperative provider-registration surface; the shipped qualified provider and
 custom-coordinate surface is
@@ -1522,10 +1520,7 @@ activated Computer Use/AppKit evidence verifies discoverability and numeric
 action, bounded set-value, and restart acceptance for this bounded primary-window
 consumer. VoiceOver-specific acceptance remains unperformed; repeated
 negative-geometry AppKit runtime diagnostics remain a separate unverified
-follow-up if reproducible. Estimates remain unchanged and no estimate credit,
-including Platform credit, is awarded. Numeric estimates are generic ~97%,
-Declarative identity 71%, layout 97%, and broad coverage `903 / 11` (~82.09%),
-with Public API 85%. Existing pure public snapshot APIs and the existing non-goals
+follow-up if reproducible. Existing pure public snapshot APIs and the existing non-goals
 remain explicit. Future slices
 MUST preserve this ownership, lifecycle, fence, fallback, coordinate, and
 authority contract.
@@ -1598,8 +1593,8 @@ container and a settable stepper at `42.00`; Increment and Decrement produced
 fresh reads showing normal app-owned Begin/Update/Commit events, and a fresh
 restarted instance exposed the same tree. VoiceOver-specific acceptance remains
 unperformed. Repeated negative-geometry AppKit runtime diagnostics remain a
-separate unverified follow-up if reproducible. Estimates remain unchanged and
-no estimate credit, including Platform credit, is awarded.
+separate unverified follow-up if reproducible. This evidence does not alter the
+current scorecard.
 
 The first native consumer accepts `Logical` registrations unchanged and admits
 `Custom(identity)` only with the matching current transform attachment, exact
@@ -1694,8 +1689,8 @@ activated Computer Use/AppKit evidence verifies discoverability and numeric
 action, bounded set-value, and restart acceptance for this bounded primary-window
 consumer. VoiceOver-specific acceptance remains unperformed; repeated
 negative-geometry AppKit runtime diagnostics remain a separate unverified
-follow-up if reproducible. No public API is added; estimates remain unchanged
-and no estimate credit, including Platform credit, is awarded.
+follow-up if reproducible. No public API is added; this evidence does not alter
+the current scorecard.
 
 Cardinality is immutable declaration evidence. It is not a callback, provider
 availability signal, or demand. `None` means unknown/unsupported; exact zero is
@@ -1902,8 +1897,8 @@ private primary-window platform consumer are implemented outside the prelude.
   action, bounded set-value, and restart acceptance for this bounded
   primary-window consumer. VoiceOver-specific acceptance remains unperformed;
   repeated negative-geometry AppKit runtime diagnostics remain a separate
-  unverified follow-up if reproducible. Estimates remain unchanged and no
-  estimate credit, including Platform credit, is awarded.
+  unverified follow-up if reproducible. This evidence does not alter the
+  current scorecard.
 - Provider-supplied `Unavailable` reasons are only `DataUnavailable` and
   `Unsupported`. `NoProvider` is not provider-supplied: it is synthesized by
   the runtime when the relevant optional slot is absent. Provider `Deferred`
@@ -2217,9 +2212,7 @@ is created only from a validated live `Semantic` pin and has explicit
 materialization, focus/capture transfer, scrolling, paint, hit testing,
 scheduler/renderer work, or product integration. It does not wire
 `AutomationNodeId`, `AutomationTarget`, or `GuiAutomationSnapshot`. The
-evidence moves Declarative identity from 70% to 71% and broad coverage from
-`900 / 11` to `901 / 11` (~81.91%); generic architecture remains ~97% and
-layout remains 97%.
+evidence is private and does not alter the current scorecard.
 
 The private semantic range extension is an exact downstream query over the same
 mounted registration authority. A request is the half-open interval
@@ -2305,9 +2298,8 @@ only the exact generated wrapper being replaced may be displaced. A final ID
 audit and clone-after-preflight staging preserve all-or-nothing behavior and
 leave source/runtime state unchanged on failure. This slice performs no provider
 or resolver invocation, scheduling/demand ownership, focus/action/product
-wiring, public API change, or serialized-schema change. Estimates remain
-unchanged: generic architecture ~97%, Declarative identity 71%, layout 97%,
-and broad coverage `901 / 11` (~81.91%).
+wiring, public API change, or serialized-schema change. It does not alter the
+current scorecard.
 
 The private runtime bridge also ships one bounded required-key admission path.
 An in-crate registration may request one exact stable key; the immutable policy

@@ -12,7 +12,7 @@ mod types;
 use super::MountedContainerStateRead;
 use super::constraints::Constraints;
 use super::tree::{LayoutNode, NodeId};
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::types::{Rect, Vector2};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
@@ -718,7 +718,7 @@ impl LayoutEngine {
             });
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
-            layout::layout_node(root, round_rect(root_rect), &mut context);
+            layout::layout_node(root, root_rect, &mut context);
         }
 
         self.prune_stale_measure_cache();
@@ -803,7 +803,7 @@ impl LayoutEngine {
             });
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
-            layout::layout_node(root, round_rect(root_rect), &mut context);
+            layout::layout_node(root, root_rect, &mut context);
         }
 
         workspace.observe(&storage);
@@ -912,12 +912,10 @@ pub fn layout_tree_with_state(
     engine.layout_with_state(root, root_rect, state, debug)
 }
 
+#[cfg(test)]
 pub(super) fn round_rect(rect: Rect) -> Rect {
-    let min_x = rect.min.x.floor();
-    let min_y = rect.min.y.floor();
-    let width = rect.width().round().max(0.0);
-    let height = rect.height().round().max(0.0);
-    Rect::from_min_size(Point::new(min_x, min_y), Vector2::new(width, height))
+    crate::gui::layout_core::validated_geometry::ValidatedRect::rounded(rect)
+        .map_or_else(Rect::default, |rect| rect.rect())
 }
 #[cfg(test)]
 mod tests;

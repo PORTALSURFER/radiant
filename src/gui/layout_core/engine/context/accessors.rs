@@ -77,6 +77,11 @@ impl<'a> LayoutContext<'a> {
         }
     }
 
+    pub(crate) fn discard_virtual_metrics(&mut self, key: VirtualizationCacheKey) {
+        self.virtual_touched.remove(&key);
+        self.virtual_cache.remove(&key);
+    }
+
     pub(crate) fn record_measured_size(&mut self, node_id: NodeId, value: Vector2) {
         if self.records_measured_bounds() {
             self.measured_by_node.insert(node_id, value);

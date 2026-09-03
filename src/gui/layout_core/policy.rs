@@ -418,7 +418,7 @@ impl<'a> PlaceChildren<'a> {
 }
 
 fn valid_placement_rect(rect: Rect) -> bool {
-    rect.is_finite() && rect.width() >= 0.0 && rect.height() >= 0.0
+    crate::gui::layout_core::validated_geometry::ValidatedRect::new(rect).is_some()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

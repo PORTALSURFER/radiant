@@ -64,10 +64,10 @@ impl Constraints {
 
     /// Return a copy with normalized and clamped ranges.
     pub fn normalized(self) -> Self {
-        let min_w = self.min_w.max(0.0);
-        let min_h = self.min_h.max(0.0);
-        let max_w = self.max_w.max(min_w);
-        let max_h = self.max_h.max(min_h);
+        let (min_w, max_w) =
+            super::validated_geometry::normalize_constraint_axis(self.min_w, self.max_w);
+        let (min_h, max_h) =
+            super::validated_geometry::normalize_constraint_axis(self.min_h, self.max_h);
         Self {
             min_w,
             max_w,
@@ -88,8 +88,39 @@ impl Constraints {
 
     /// Shrink available space by insets while preserving min <= max.
     pub fn inset(self, inset_x: f32, inset_y: f32) -> Self {
-        let reduced_w = (self.max_w - (inset_x * 2.0)).max(0.0);
-        let reduced_h = (self.max_h - (inset_y * 2.0)).max(0.0);
+        let reduced_w = inset_maximum(self.max_w, inset_x);
+        let reduced_h = inset_maximum(self.max_h, inset_y);
         Self::new(0.0, reduced_w, 0.0, reduced_h)
+    }
+}
+
+fn inset_maximum(maximum: f32, inset: f32) -> f32 {
+    if !inset.is_finite() {
+        return 0.0;
+    }
+
+    if maximum == f32::INFINITY {
+        return f32::INFINITY;
+    }
+    if !maximum.is_finite() {
+        return 0.0;
+    }
+
+    let doubled = inset * 2.0;
+    if !doubled.is_finite() {
+        return if maximum.is_finite() && inset.is_sign_negative() {
+            f32::MAX
+        } else {
+            0.0
+        };
+    }
+
+    let reduced = maximum - doubled;
+    if reduced.is_finite() {
+        reduced.max(0.0)
+    } else if doubled.is_sign_negative() {
+        f32::MAX
+    } else {
+        0.0
     }
 }

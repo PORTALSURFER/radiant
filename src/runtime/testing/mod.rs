@@ -2472,7 +2472,10 @@ mod tests {
     use super::*;
     use crate::{
         gui::types::Point,
-        layout::{ContainerPolicy, SlotParams},
+        layout::{
+            Constraints, ContainerPolicy, LayoutPolicy, MeasureChildren, PlaceChildren, SizeHint,
+            SlotParams,
+        },
         runtime::{
             DeclarativeOwnedRuntimeBridge, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode,
             WidgetMessageMapper,
@@ -2681,6 +2684,98 @@ mod tests {
         assert_eq!(snapshot.focus.focused_widget, Some(10));
         assert!(snapshot.paint.total > 0);
         assert_eq!(host.paint_plan().stats().total, snapshot.paint.total);
+    }
+
+    #[test]
+    fn malformed_geometry_fails_closed_through_production_widget_and_overlay_paths() {
+        struct MalformedPlacementPolicy {
+            malformed: bool,
+        }
+
+        impl LayoutPolicy for MalformedPlacementPolicy {
+            fn measure(
+                &self,
+                _children: &mut MeasureChildren<'_>,
+                _constraints: Constraints,
+            ) -> SizeHint {
+                SizeHint::preferred(Vector2::new(80.0, 28.0))
+            }
+
+            fn place(&self, children: &mut PlaceChildren<'_>, bounds: Rect) {
+                let child_bounds = if self.malformed {
+                    Rect::from_xy_size(0.0, 0.0, f32::NAN, 28.0)
+                } else {
+                    bounds
+                };
+                let _ = children.place(0, child_bounds);
+            }
+        }
+
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            false,
+            |malformed| {
+                let base = SurfaceNode::layout(
+                    1,
+                    MalformedPlacementPolicy {
+                        malformed: *malformed,
+                    },
+                    vec![SurfaceChild::fill(SurfaceNode::widget(
+                        ButtonWidget::new(
+                            10,
+                            "Geometry",
+                            WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ))],
+                );
+                UiSurface::new(SurfaceNode::scene(
+                    2,
+                    base,
+                    vec![SurfaceLayer::new(
+                        LayerKind::Floating,
+                        SurfaceNode::overlay_panel(
+                            20,
+                            if *malformed {
+                                Rect::from_xy_size(4.0, 4.0, f32::INFINITY, 20.0)
+                            } else {
+                                Rect::from_xy_size(4.0, 4.0, 40.0, 20.0)
+                            },
+                            "Overlay",
+                            WidgetStyle::default(),
+                        ),
+                    )],
+                ))
+            },
+            |malformed, _: ()| *malformed = true,
+        );
+        let mut host = DeterministicHost::new(bridge, config()).expect("host construction");
+        let published = host.published_snapshot().clone();
+        assert!(published.layout.rects.iter().any(|rect| rect.node_id == 10));
+        assert!(
+            host.paint_plan()
+                .paint_primitives()
+                .any(|primitive| primitive.widget_id() == Some(20))
+        );
+
+        host.dispatch_message(())
+            .expect("malformed surface message");
+        let snapshot = host.turn().expect("fail-closed snapshot publication");
+        assert!(!snapshot.layout.rects.iter().any(|rect| rect.node_id == 10));
+        assert_eq!(snapshot.paint.overlay_panels, 0);
+        assert!(
+            !host
+                .paint_plan()
+                .paint_primitives()
+                .any(|primitive| primitive.widget_id() == Some(10)
+                    || primitive.widget_id() == Some(20))
+        );
+        assert!(
+            snapshot
+                .layout
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "custom_layout_invalid_placement")
+        );
     }
 
     #[test]

@@ -18,6 +18,35 @@ use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
 use crate::gui::types::{Rect, Vector2};
 use std::sync::Arc;
 
+pub(super) fn has_invalid_content_margin(
+    container: &ContainerNode,
+    child: &LayoutNode,
+    available: Rect,
+) -> bool {
+    let Some(policy) = container.policy.virtualization else {
+        return false;
+    };
+    if !policy.enabled {
+        return false;
+    }
+    let LayoutNode::Container(content_container) = child else {
+        return false;
+    };
+    match (content_container.policy.kind, policy.axis) {
+        (ContainerKind::Row, VirtualizationAxis::Horizontal)
+        | (ContainerKind::Column, VirtualizationAxis::Vertical) => {
+            content_container.children.iter().any(|child| {
+                crate::gui::layout_core::validated_geometry::checked_margin_geometry(
+                    available,
+                    child.slot.margin,
+                )
+                .is_none()
+            })
+        }
+        _ => false,
+    }
+}
+
 pub(super) fn layout_virtualized_child(
     container: &ContainerNode,
     child: &SlotChild,
@@ -67,15 +96,16 @@ pub(super) fn layout_virtualized_child(
     } else {
         Constraints::new(0.0, available_cross, 0.0, available_main)
     };
-    let metrics = cached_or_build_metrics(content_container, constraints, policy.axis, context);
-    if !metrics_is_valid(&metrics, content_container.children.len()) {
+    let Some(metrics) =
+        cached_or_build_metrics(content_container, constraints, policy.axis, context)
+    else {
         context.push_diagnostic(
             container.id,
             LayoutDiagnosticCode::VirtualizationSpanResolutionFallback,
             "virtualization spans were invalid and full layout fallback was used",
         );
         return false;
-    }
+    };
 
     let (overscan_px, overscan_clamped) = sanitize_overscan(policy.overscan_px);
     if overscan_clamped {
@@ -161,23 +191,30 @@ fn cached_or_build_metrics(
     constraints: Constraints,
     axis: VirtualizationAxis,
     context: &mut LayoutContext,
-) -> Arc<LinearVirtualMetrics> {
+) -> Option<Arc<LinearVirtualMetrics>> {
+    let expected_len = content.children.len();
     let key = VirtualizationCacheKey::new(
         content.id,
         constraints,
         axis,
-        content.children.len(),
+        expected_len,
         virtualization_policy_fingerprint(content),
     );
     if let Some(metrics) = context.cached_virtual_metrics(key) {
-        return metrics;
+        if metrics_is_valid(&metrics, expected_len) {
+            return Some(metrics);
+        }
+        context.discard_virtual_metrics(key);
     }
 
     let metrics = Arc::new(build_linear_metrics(content, constraints, axis, context));
-    let mut dependencies = Vec::with_capacity(content.children.len().saturating_add(1));
+    if !metrics_is_valid(&metrics, expected_len) {
+        return None;
+    }
+    let mut dependencies = Vec::with_capacity(expected_len.saturating_add(1));
     collect_virtual_metric_dependencies(content, &mut dependencies);
     context.remember_virtual_metrics(key, Arc::clone(&metrics), dependencies);
-    metrics
+    Some(metrics)
 }
 
 fn first_before_margin(children: &[SlotChild], first: usize, horizontal: bool) -> f32 {

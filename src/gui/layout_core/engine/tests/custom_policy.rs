@@ -1,6 +1,7 @@
 use crate::gui::layout_core::{
-    Constraints, LayoutEngine, LayoutNode, LayoutOmissionReason, LayoutPolicy,
-    LayoutPolicyPlacementError, SizeHint, SlotChild, SlotParams, Vector2,
+    Constraints, DebugPrimitiveKind, LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine,
+    LayoutNode, LayoutOmissionReason, LayoutPolicy, LayoutPolicyPlacementError, SizeHint,
+    SlotChild, SlotParams, Vector2,
 };
 use crate::gui::types::{Point, Rect};
 use std::cell::{Cell, RefCell};
@@ -205,4 +206,219 @@ fn custom_policy_child_measurement_stays_within_disjoint_slot_bounds() {
             && request.min_h >= slot.min_h
             && request.max_h <= slot.max_h
     }));
+}
+
+#[test]
+fn custom_policy_place_is_skipped_for_invalid_padding_geometry() {
+    struct PlacementPolicy {
+        place_calls: Rc<Cell<u32>>,
+    }
+
+    impl LayoutPolicy for PlacementPolicy {
+        fn measure(
+            &self,
+            children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            constraints: Constraints,
+        ) -> SizeHint {
+            let _ = children.measure(0, constraints);
+            SizeHint::preferred(Vector2::new(20.0, 12.0))
+        }
+
+        fn place(&self, children: &mut crate::gui::layout_core::PlaceChildren<'_>, bounds: Rect) {
+            self.place_calls.set(self.place_calls.get() + 1);
+            children
+                .place(0, bounds)
+                .expect("the only child should place");
+        }
+    }
+
+    let place_calls = Rc::new(Cell::new(0));
+    let mut root = LayoutNode::custom_container(
+        30,
+        PlacementPolicy {
+            place_calls: Rc::clone(&place_calls),
+        },
+        vec![SlotChild::new(
+            SlotParams::fill(),
+            LayoutNode::widget(31, Vector2::new(8.0, 8.0)),
+        )],
+    );
+    if let LayoutNode::Container(container) = &mut root {
+        container.policy.padding = crate::gui::layout_core::model::Insets::all(f32::NAN);
+    }
+
+    let output = crate::gui::layout_core::engine::layout_tree_with_state(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+        &crate::gui::layout_core::engine::LayoutState::default(),
+        LayoutDebugOptions {
+            enabled: true,
+            show_bounds: true,
+            show_padding: true,
+            show_margins: true,
+            ..LayoutDebugOptions::default()
+        },
+    );
+
+    assert_eq!(place_calls.get(), 0);
+    assert!(output.rects.contains_key(&30));
+    assert!(!output.rects.contains_key(&31));
+    let diagnostics: Vec<_> = output
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == LayoutDiagnosticCode::NegativeSizeClamped)
+        .collect();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics[0].message,
+        "container content geometry was invalid and descendants were omitted"
+    );
+    assert!(output.debug_primitives.iter().all(|primitive| {
+        primitive.rect.is_finite()
+            && primitive.rect.width() >= 0.0
+            && primitive.rect.height() >= 0.0
+    }));
+}
+
+#[test]
+fn custom_policy_measure_child_requests_do_not_expose_nonfinite_maxima() {
+    struct RecordingPolicy {
+        observed: Rc<RefCell<Vec<Constraints>>>,
+    }
+
+    impl LayoutPolicy for RecordingPolicy {
+        fn measure(
+            &self,
+            _children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            constraints: Constraints,
+        ) -> SizeHint {
+            self.observed.borrow_mut().push(constraints);
+            SizeHint::preferred(Vector2::new(8.0, 8.0))
+        }
+
+        fn place(&self, _children: &mut crate::gui::layout_core::PlaceChildren<'_>, _bounds: Rect) {
+        }
+    }
+
+    struct RequestingPolicy;
+
+    impl LayoutPolicy for RequestingPolicy {
+        fn measure(
+            &self,
+            children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            _constraints: Constraints,
+        ) -> SizeHint {
+            for (index, maximum) in [f32::NAN, f32::NEG_INFINITY].into_iter().enumerate() {
+                children
+                    .measure(
+                        0,
+                        Constraints {
+                            min_w: 0.0,
+                            max_w: maximum,
+                            min_h: 0.0,
+                            max_h: 10.0 + index as f32,
+                        },
+                    )
+                    .expect("the only child should measure");
+            }
+            SizeHint::preferred(Vector2::new(20.0, 12.0))
+        }
+
+        fn place(&self, children: &mut crate::gui::layout_core::PlaceChildren<'_>, bounds: Rect) {
+            children
+                .place(0, bounds)
+                .expect("the only child should place");
+        }
+    }
+
+    let observed = Rc::new(RefCell::new(Vec::new()));
+    let root = LayoutNode::custom_container(
+        40,
+        RequestingPolicy,
+        vec![SlotChild::new(
+            SlotParams::fill(),
+            LayoutNode::custom_container(
+                41,
+                RecordingPolicy {
+                    observed: Rc::clone(&observed),
+                },
+                Vec::new(),
+            ),
+        )],
+    );
+
+    let output = crate::gui::layout_core::layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+    );
+
+    let observed = observed.borrow();
+    assert_eq!(observed.len(), 2);
+    assert!(observed.iter().all(|constraints| {
+        constraints.max_w.is_finite()
+            && constraints.max_h.is_finite()
+            && constraints.max_w >= constraints.min_w
+            && constraints.max_h >= constraints.min_h
+    }));
+    assert!(output.rects.contains_key(&40));
+    assert!(output.rects.contains_key(&41));
+}
+
+#[test]
+fn malformed_padding_measurement_stays_finite_in_cache_and_debug_output() {
+    for padding in [f32::NAN, f32::MAX, -f32::MAX] {
+        let root = LayoutNode::container(
+            50,
+            crate::gui::layout_core::model::ContainerPolicy {
+                padding: crate::gui::layout_core::model::Insets::all(padding),
+                ..crate::gui::layout_core::model::ContainerPolicy::default()
+            },
+            vec![SlotChild::new(
+                SlotParams::fill(),
+                LayoutNode::widget(51, Vector2::new(8.0, 8.0)),
+            )],
+        );
+        let mut engine = LayoutEngine::default();
+        let output = engine.layout_with_state(
+            &root,
+            Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+            &crate::gui::layout_core::engine::LayoutState::default(),
+            LayoutDebugOptions::all_enabled(),
+        );
+
+        assert!(output.rects.contains_key(&50));
+        assert!(!output.rects.contains_key(&51));
+        assert_eq!(
+            engine.scratch.measured_by_node.get(&50),
+            Some(&Vector2::new(0.0, 0.0))
+        );
+        assert_eq!(engine.scratch.measured.len(), 1);
+        assert_eq!(engine.measure_cache.len(), 1);
+        assert_eq!(output.diagnostics.len(), 1);
+        assert_eq!(
+            output.diagnostics[0].message,
+            "container content geometry was invalid and descendants were omitted"
+        );
+        assert!(
+            engine
+                .scratch
+                .measured
+                .values()
+                .all(|size| { size.x.is_finite() && size.y.is_finite() })
+        );
+        assert!(
+            engine
+                .measure_cache
+                .values()
+                .all(|size| { size.x.is_finite() && size.y.is_finite() })
+        );
+        assert!(output.debug_primitives.iter().all(|primitive| {
+            primitive.rect.is_finite()
+                && primitive.rect.width() >= 0.0
+                && primitive.rect.height() >= 0.0
+        }));
+        assert!(output.debug_primitives.iter().any(|primitive| {
+            primitive.node_id == 50 && primitive.kind == DebugPrimitiveKind::MeasuredBounds
+        }));
+    }
 }

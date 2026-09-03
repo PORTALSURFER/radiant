@@ -95,6 +95,7 @@ mod row_helpers;
 mod split_pane_interaction;
 mod split_pane_state;
 mod tree;
+mod validated_geometry;
 mod virtual_layout;
 
 pub use crate::gui::panel::{SplitPaneAxis, SplitPaneCollapsePolicy};

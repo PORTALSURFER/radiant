@@ -13,6 +13,8 @@ pub(super) fn measure_scroll_view(
 ) -> Vector2 {
     if container.policy.virtualization.is_none()
         && let Some(child) = container.children.first()
+        && crate::gui::layout_core::validated_geometry::finite_inset_totals(child.slot.margin)
+            .is_some()
     {
         let _ = measure_node(&child.child, child.slot.constraints, context);
     }

@@ -44,6 +44,34 @@ impl LayoutPolicy for PairPolicy {
 
 fn assert_object_safe(_: &dyn LayoutPolicy) {}
 
+fn assert_exhaustive_layout_diagnostic_code(code: LayoutDiagnosticCode) {
+    match code {
+        LayoutDiagnosticCode::NegativeSizeClamped
+        | LayoutDiagnosticCode::ConstraintContradiction
+        | LayoutDiagnosticCode::OverflowPolicyDefaulted
+        | LayoutDiagnosticCode::OverflowOccurred
+        | LayoutDiagnosticCode::InvalidScrollOffsetClamped
+        | LayoutDiagnosticCode::VirtualizationPolicyIgnored
+        | LayoutDiagnosticCode::VirtualizationWindowClamped
+        | LayoutDiagnosticCode::VirtualizationAlignmentFallback
+        | LayoutDiagnosticCode::VirtualizationSpanResolutionFallback
+        | LayoutDiagnosticCode::SplitPaneChildCountMismatch
+        | LayoutDiagnosticCode::SplitPaneMinimumsUnsatisfied
+        | LayoutDiagnosticCode::CustomLayoutHintNonFinite
+        | LayoutDiagnosticCode::CustomLayoutHintNegative
+        | LayoutDiagnosticCode::CustomLayoutHintContradictory
+        | LayoutDiagnosticCode::CustomLayoutInvalidChildIndex
+        | LayoutDiagnosticCode::CustomLayoutInvalidPlacement
+        | LayoutDiagnosticCode::CustomLayoutDuplicatePlacement
+        | LayoutDiagnosticCode::CustomLayoutChildUnresolved => {}
+    }
+}
+
+#[test]
+fn public_layout_diagnostic_code_remains_exhaustive() {
+    assert_exhaustive_layout_diagnostic_code(LayoutDiagnosticCode::NegativeSizeClamped);
+}
+
 #[test]
 fn public_policy_is_object_safe_and_drives_direct_layout() {
     assert_object_safe(&PairPolicy);

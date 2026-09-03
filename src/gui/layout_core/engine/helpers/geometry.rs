@@ -49,10 +49,9 @@ pub(in crate::gui::layout_core::engine) fn place_child_rect(
     )
 }
 
-pub(in crate::gui::layout_core::engine) fn content_rect(rect: Rect, padding: Insets) -> Rect {
-    let min_x = rect.min.x + padding.left;
-    let max_x = (rect.max.x - padding.right).max(min_x);
-    let min_y = rect.min.y + padding.top;
-    let max_y = (rect.max.y - padding.bottom).max(min_y);
-    Rect::from_min_max(Point::new(min_x, min_y), Point::new(max_x, max_y))
+pub(in crate::gui::layout_core::engine) fn content_rect(
+    rect: Rect,
+    padding: Insets,
+) -> Option<Rect> {
+    crate::gui::layout_core::validated_geometry::checked_inset_rect(rect, padding)
 }

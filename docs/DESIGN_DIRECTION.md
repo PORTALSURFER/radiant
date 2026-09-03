@@ -24,6 +24,10 @@ In this normative document, **must** denotes a required contract, **should**
 denotes the expected default unless a documented reason applies, and **may**
 denotes a permitted option.
 
+Only canonical merged source counts for shipped status; branch, draft,
+acceptance-only, and unverified evidence do not. X11 and product-specific
+behavior remain explicit non-goals for Radiant.
+
 The document has six terms that remain consistent throughout:
 
 - **Container:** owns child placement and optional chrome.
@@ -341,6 +345,12 @@ through that node. The conceptual owner kinds are:
 | Overlay | A stable overlay identity within its owning window and compatible overlay kind. The overlay is only an eligible source candidate until ownership is explicitly selected. |
 | Keyed node | A stable keyed identity in its parent/root identity scope and compatible node kind. The keyed node is only an eligible source candidate until ownership is explicitly selected. |
 
+Current shipped ownership is narrower than this target model: the private
+`EffectOrigin` boundary supplies application, auxiliary, and selected
+declarative provenance, while `ResourceTasks` remains application-owned.
+`runtime/effects` is not complete. The remaining effect-ownership boundaries
+are future work tracked by OPT-1387, OPT-1390, and OPT-1370.
+
 This is a bounded public timer, one-shot business-worker, cancellable ordinary
 owner one-shot, ordinary ordered and coalesced owner-scoped stream-consumer,
 cancellable ordinary ordered and coalesced owner-scoped streams,
@@ -565,14 +575,17 @@ display scale and reduced-motion preferences remain separate policies.
 
 ## Locale and System Environment
 
-Radiant exposes immutable, testable environment snapshots at two scopes.
-`ApplicationEnvironment` contains locale, writing direction, system color
+The current shipped environment is deliberately smaller: `WindowEnvironment`
+and `ResolvedEnvironment` expose only display scale, color scheme, contrast,
+and reduced-motion preference. Unicode-scalar editing is shipped. Locale and
+writing-direction services remain future work under OPT-1386, while bidi and
+complex shaping remain future renderer/text-layout work under OPT-1402.
+
+Future target (OPT-1386 and OPT-1402): Radiant may expose immutable, testable
+environment snapshots at application and window scopes. An eventual
+`ApplicationEnvironment` can contain locale, writing direction, system color
 scheme, contrast preference, default reduced-motion preference, and platform
-shortcut presentation. `WindowEnvironment` contains the current display scale,
-monitor color space, pointer/input conventions, per-window accessibility or
-motion overrides, and other native-surface facts. Applications normally follow
-the system or supply an explicit override for a window or test; individual
-widgets do not query platform state.
+shortcut presentation; individual widgets still must not query platform state.
 
 ```rust
 text(localized(TextKey::sample_count(), [state.samples.len().into()]));
@@ -581,15 +594,15 @@ button(localized(TextKey::save(), []))
     .command(CommandId::Save);
 ```
 
-Application-environment changes invalidate all affected windows; window-
-environment changes invalidate only that window's dependent text layout, target,
-and paint resources. Locale, direction, and font fallback changes invalidate
-affected text layout and geometry. Color-scheme and contrast changes invalidate
-resolved style/paint; reduced-motion changes retarget or disable nonessential
-transitions; platform shortcut presentation updates command menus and help
-without changing semantic bindings. Environment changes are delivered as owned
-events, replayable in the deterministic host, and profiled like other
-invalidation causes.
+The future application-environment contract would invalidate all affected
+windows; window-environment changes invalidate only that window's dependent
+target and paint resources. Locale, direction, and font fallback changes would
+invalidate affected text layout and geometry. Color-scheme and contrast changes
+invalidate resolved style/paint; reduced-motion changes retarget or disable
+nonessential transitions; platform shortcut presentation updates command menus
+and help without changing semantic bindings. Environment changes are intended
+to remain owned events, replayable in the deterministic host, and profiled like
+other invalidation causes.
 
 The shipped window subset is available to widget paint as a lossless,
 copyable `ResolvedEnvironment` derived from `WindowEnvironment`. It carries
@@ -1142,6 +1155,10 @@ policies do not express their editor. A custom container is not a `Widget`.
 It is an immutable declarative `LayoutPolicy` projected through the same normal
 container node as every built-in policy.
 
+Current shipped boundary (OPT-1272): `LayoutPolicy` is limited to custom
+measure/place and remains separate from the built-in `ContainerPolicy` and
+`ContainerKind` dispatch. OPT-1272 is Done; this boundary does not reopen it.
+
 ```rust
 layout(
     TimelineLayout::new(state.timeline_zoom),
@@ -1291,8 +1308,9 @@ The complete ownership, identity, revision-fence, lifecycle, and bounded-query
 contract for this future capability is in
 [`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). The query-only qualified
 `radiant::layout::VirtualLayoutPolicy` capability, bounded executor, exact
-fence/diagnostic contract, and crate-private keyed window coordinator are now
-shipped without runtime registration. A separate crate-private accepted-window
+fence/diagnostic contract, crate-private keyed window coordinator, public
+declarative attachment, and mounted `SurfaceRuntime` registration/two-pass
+bridge are shipped. A separate crate-private accepted-window
 materialization/recycling correctness kernel is also shipped behind explicit
 host-projector and lifecycle-adapter seams. It is limited to fenced private
 correctness checks, keyed slot continuity, remove-before-reuse, and atomic
@@ -1311,6 +1329,9 @@ focus/accessibility traversal, and a
 product consumer remain unshipped. Current
 fixed-child and host-projected fixed-row virtualization are
 compatibility paths, not an implementation of those later integrations.
+The first-class production consumer/collection family remains future work,
+sequenced by OPT-1362 and then OPT-1400, OPT-1398, OPT-1397, OPT-1399, and
+OPT-1401.
 
 #### Runtime consumer boundary (private bridge evidence)
 
@@ -1389,9 +1410,6 @@ admission and the ID is not wired into `AutomationTarget` or
 `GuiAutomationSnapshot`; it does not perform
 automation traversal, offscreen materialization, focus/capture transfer,
 scrolling, paint, hit testing, scheduler/renderer work, or product integration.
-The bounded evidence moves Declarative identity from 70% to 71% and broad
-coverage from `900 / 11` to `901 / 11` (~81.91%); generic architecture remains
-~97% and layout remains 97%.
 
 The private semantic path now also admits one exact logical-index range
 `[start_index, start_index + length)`. It rejects zero length, checked-add
@@ -1411,9 +1429,7 @@ expose no partial batch. The projections retain the exact provider ID,
 continues to own lifecycle/authority identity. No path, coordinate-space
 resolution, cross-range deduplication, public API, automation traversal,
 offscreen materialization, focus or capture transfer, scheduler/renderer
-policy, or product wiring shipped. Generic architecture remains ~97%,
-Declarative identity remains 71%, layout remains 97%, and broad coverage
-remains `901 / 11` (~81.91%).
+policy, or product wiring shipped.
 
 The next bounded boundary is also shipped as private synchronous evidence:
 an already-validated `VirtualLayoutSemanticProjectionBatch` can be classified
@@ -1462,8 +1478,7 @@ audit remains mandatory, and failures leave the source snapshot and runtime
 state untouched. This remains a private staged candidate: public APIs and the
 serialized schema are unchanged, and the slice does not invoke providers or
 resolvers, own scheduling/demand, or wire focus, actions, or product
-behavior. Estimates remain unchanged: generic ~97%, Declarative identity 71%,
-layout 97%, and broad coverage `901 / 11` (~81.91%).
+behavior.
 
 The semantic-demand/publication boundary now has a shipped crate-private
 runtime slice. One crate-private semantic-demand owner in each `SurfaceRuntime`
@@ -1600,9 +1615,7 @@ shipped. Direct native custom-resolver invocation/reconstruction, scheduling,
 and other product consumer implementations remain separate; the private
 primary-window
 macOS/AppKit native semantic accessibility query contract is implemented below.
-Estimates are generic ~97%, Declarative identity 71%, layout 97%, and broad
-coverage `903 / 11` (~82.09%). Existing pure ordinary snapshot APIs and
-non-goals remain explicit.
+Existing pure ordinary snapshot APIs and non-goals remain explicit.
 
 ### Native semantic accessibility query consumer (normative; private primary-window macOS/AppKit consumer)
 
@@ -1670,8 +1683,7 @@ container and a settable stepper at `42.00`; Increment and Decrement produced
 fresh reads showing normal app-owned Begin/Update/Commit events, and a fresh
 restarted instance exposed the same tree. VoiceOver-specific acceptance remains
 unperformed. Repeated negative-geometry AppKit runtime diagnostics remain a
-separate unverified follow-up if reproducible. Estimates remain unchanged and
-no estimate credit, including Platform credit, is awarded.
+separate unverified follow-up if reproducible.
 
 The first native consumer accepts `Logical` registrations unchanged and admits
 `Custom(identity)` only with the matching current transform attachment, exact
@@ -1798,8 +1810,7 @@ fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
 numeric action, bounded set-value, and restart acceptance for this bounded
 primary-window consumer. VoiceOver-specific acceptance remains unperformed;
 repeated negative-geometry AppKit runtime diagnostics remain a separate
-unverified follow-up if reproducible. No public API is added; estimates remain
-unchanged and no estimate credit, including Platform credit, is awarded.
+unverified follow-up if reproducible. No public API is added.
 
 Cardinality is immutable declaration evidence, not a callback, provider
 availability signal, or demand. `None` is unknown/unsupported and exact zero is
@@ -1919,9 +1930,8 @@ and symmetric retirement. Exact fresh-bundle activated Computer Use/AppKit
 evidence verifies discoverability and numeric action, bounded set-value, and
 restart acceptance for this bounded primary-window consumer. VoiceOver-specific
 acceptance remains unperformed. Repeated negative-geometry AppKit runtime
-diagnostics remain a separate unverified follow-up if reproducible. Alignment
-estimates remain unchanged and no estimate credit, including Platform credit, is
-awarded. Wayland, Windows, non-qualified/virtual native actions, new native AX
+diagnostics remain a separate unverified follow-up if reproducible. Wayland,
+Windows, non-qualified/virtual native actions, new native AX
 native focus setter/transfer or focus exposure beyond the ordinary materialized-target
 contract, scrolling, product policy,
 direct native custom-resolver invocation/reconstruction, scheduler, and
@@ -1956,8 +1966,7 @@ fresh-bundle activated Computer Use/AppKit evidence verifies discoverability and
 numeric action, bounded set-value, and restart acceptance for this bounded
 primary-window consumer. VoiceOver-specific acceptance remains unperformed;
 repeated negative-geometry AppKit runtime diagnostics remain a separate
-unverified follow-up if reproducible. Estimates remain unchanged and no estimate
-credit, including Platform credit, is awarded. Cardinality is immutable
+unverified follow-up if reproducible. Cardinality is immutable
 declaration evidence, not a callback or demand, and its exact count is
 independent of the one-range, one-required-item, 64-registration, 1024
 per-query, and 1024 aggregate budgets.
@@ -1991,14 +2000,12 @@ rejection/panic/malformed/collision use the conservative baseline. Stale,
 cancelled, and superseded results are inert; publication is whole-surface
 atomic and `Unmaterialized` authority is preserved. The full lifecycle,
 native-boundary, non-goal, and acceptance matrix is in
-[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). This bounded
-attachment moves Public API to 85% and broad coverage to `903 / 11`
-(~82.09%). Exact fresh-bundle activated Computer Use/AppKit evidence verifies
+[`VIRTUAL_LAYOUT_DESIGN.md`](VIRTUAL_LAYOUT_DESIGN.md). Exact fresh-bundle
+activated Computer Use/AppKit evidence verifies
 discoverability and numeric action, bounded set-value, and restart acceptance
 for this bounded primary-window consumer. VoiceOver-specific acceptance remains
 unperformed; repeated negative-geometry AppKit runtime diagnostics remain a
-separate unverified follow-up if reproducible. Estimates remain unchanged and no
-estimate credit, including Platform credit, is awarded.
+separate unverified follow-up if reproducible.
 
 Its non-goals are direct native custom-resolver invocation/reconstruction; native actions for virtual/provider targets; native focus setter/transfer or focus exposure beyond the ordinary materialized-target contract;
 scrolling/materialization; scheduler/backoff/fairness; renderer, paint,
@@ -4544,6 +4551,12 @@ stack([
 specialized route for dense realtime content. Neither creates a parallel layout
 or event system.
 
+Current shipped boundary: `RenderCanvas` vocabulary is a compatibility-alias
+surface over `GpuSurface` vocabulary and emits `PaintPrimitive::GpuSurface`.
+The target `CanvasProgram`/`CanvasGraph` contract remains future work: OPT-1407
+owns the compatibility decision and OPT-1408 owns its implementation. This
+boundary makes no new RenderCanvas compatibility or deprecation choice.
+
 ### Layers and transient overlays
 
 Layers describe visual and input ordering. They are container-level scene
@@ -5140,10 +5153,10 @@ made interactive.
 
 ### Text editing contract
 
-Text controls support Unicode text shaping, bidirectional layout, font fallback,
-logical and visual cursor movement, multiline editing, selections, IME
-pre-edit/commit/cancellation, clipboard, and accessibility semantics. The
-application owns the durable text value and edit history; Radiant owns transient
+Future target: text controls should support Unicode text shaping, bidirectional
+layout, font fallback, logical and visual cursor movement, multiline editing,
+selections, IME pre-edit/commit/cancellation, clipboard, and accessibility
+semantics. The application owns the durable text value and edit history; Radiant owns transient
 caret, composition, selection geometry, scroll-to-caret, and platform text-input
 session state.
 
@@ -5251,6 +5264,11 @@ authoritative for virtual materialization and unsupported paths.
 `WindowStageOwner` now admits private Deadline work plus this synchronous
 Projection-to-Layout-to-PaintPlan handoff. Diagnostics and timing remain
 observational and non-authoritative.
+
+Current shipped boundary: prepared refresh constructs the Projection, layout,
+and paint-plan candidate synchronously, then uses a later no-yield publication
+gate. Independently schedulable Reconciliation, Layout, and Paint stages remain
+future work under OPT-1389.
 
 ### Native visual request packet handoff (private native-window contract)
 

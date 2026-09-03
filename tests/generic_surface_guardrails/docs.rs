@@ -10,6 +10,8 @@ mod performance;
 mod runtime_contracts;
 #[path = "docs/structural_api.rs"]
 mod structural_api;
+#[path = "docs/target_contract.rs"]
+mod target_contract;
 #[path = "docs/text_input.rs"]
 mod text_input;
 #[path = "docs/widget_construction.rs"]

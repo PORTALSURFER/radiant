@@ -126,6 +126,15 @@ impl EffectOrigin {
             Self::Application | Self::Auxiliary(_) => None,
         }
     }
+
+    pub(super) fn platform_owner_kind(&self) -> crate::runtime::PlatformOwnerKind {
+        match self {
+            Self::Declarative(_) => crate::runtime::PlatformOwnerKind::Declarative,
+            Self::Application | Self::Auxiliary(_) => {
+                crate::runtime::PlatformOwnerKind::Application
+            }
+        }
+    }
 }
 
 impl PartialEq for EffectOrigin {

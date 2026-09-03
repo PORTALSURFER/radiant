@@ -746,10 +746,15 @@ bridge lower these effects into the existing separate timer/worker lanes. The
 private lifecycle descriptor shared by those controller lanes remains the
 authority for stable identity, generation, transaction, owner, cancellation,
 mapping, admission, rollback, and stale/late fences; legacy command, timer,
-business, latest-task, and keyed-latest routes are unchanged. `runtime/effects`
-is not complete. The remaining effect-ownership boundaries are future work
-tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions, scheduler/thread
-design, native hosts, and product wiring remain deferred.
+business, latest-task, and keyed-latest routes are unchanged. The qualified
+platform route uses the existing platform registry and deferred result ingress,
+with typed outcomes, bounded adapter data, exact owner-generation admission,
+and pre-map/post-map fences. In-process clipboard coordination stays in the
+application-instance UI runtime; no clipboard payload or native handle crosses
+the adapter boundary. `runtime/effects` is not complete. The remaining
+effect-ownership boundaries are future work tracked by OPT-1390 and OPT-1421;
+subscriptions, scheduler/thread design, native hosts, and product wiring
+remain deferred. External drag remains a separate lane.
 
 That private auxiliary generation is already carried through the existing
 worker, timer, and platform-completion registries in
@@ -775,10 +780,10 @@ owner one-shot, application-owned
 one-shot worker, ordinary ordered and coalesced owner-scoped stream consumers,
 the cancellable ordinary ordered and coalesced owner streams, the cancellable
 latest-task one-shot and ordered/coalesced owner streams,
-ordered/coalesced latest-task owner streams, and coalesced keyed-latest owner
-streams are shipped; `ResourceTasks` ownership,
-platform ownership, and broader product-facing
-demand/refresh/provider ownership remain deferred:
+ordered/coalesced latest-task owner streams, coalesced keyed-latest owner
+streams, and the qualified platform-effect route are shipped;
+`ResourceTasks` ownership and broader product-facing demand/refresh/provider
+ownership remain deferred:
 
 1. Declarative lowering and traversal preserve crate-private source metadata
    alongside stable identity. The metadata may record independent eligible
@@ -1554,11 +1559,16 @@ Core GUI, runtime, widget, layout, and paint-plan code stays platform-neutral.
 X11 is an explicit
 non-goal.
 Platform-specific integration belongs in native runtime/windowing modules or
-explicitly named platform adapters. Platform services such as file dialogs and
-URL opening flow through typed `PlatformRequest` commands and the opt-in
-`RuntimePlatformHost` capability. Application update handlers request those
+explicitly named platform adapters. Platform services such as file dialogs,
+URL opening, and neutral notifications flow through typed `PlatformRequest`
+commands and the opt-in `RuntimePlatformHost` capability. Qualified
+`Effect::platform(...)` requests share the existing platform completion
+registry/controller ingress and select only `Application` or an exact
+declarative owner generation. Application update handlers request those
 services through Radiant context helpers instead of calling platform APIs
-directly. The portable library boundary must compile for all three targets.
+directly. In-process clipboard values are coordinated in the application UI
+runtime and are not adapter payloads. The portable library boundary must
+compile for all three targets.
 Native macOS behavior is validated on the M5 Pro development host. Current
 Linux/Windows repository CI is limited to portable/build/compile/check
 evidence. The target GitHub Actions lanes must eventually add integration and
@@ -1574,9 +1584,10 @@ Current target-specific seams are intentionally narrow:
   worker loop without priority changes.
 - `src/application/runtime/bridge/adapter/platform_services.rs` owns app-runtime
   platform service dispatch for file dialogs, reveal/open, clipboard text and
-  file-list reads/writes, and confirmation prompts. The bridge exposes typed
-  `PlatformRequest` values while target-specific reveal and clipboard behavior
-  stays inside this adapter.
+  file-list reads/writes, confirmation prompts, and the neutral notification
+  request. The bridge exposes typed `PlatformRequest` values while target-specific
+  reveal and external clipboard behavior stays inside this adapter; in-process
+  clipboard reads/writes are handled by the controller-owned app-instance slot.
 - `src/gui_runtime/native_vello/generic_runtime/window/platform.rs` owns native
   window attribute extensions such as Windows drag/drop and popup taskbar
   policy. Non-Windows targets keep the same runtime options and no-op the

@@ -45,6 +45,12 @@ where
         // host completion cannot re-enter execution.
         for delivery in platform_results {
             if let Some(mapped) = self.platform_registry.map_delivery(delivery) {
+                if !mapped.is_current(&self.effect_owner)
+                    || !self.lifecycle_accepts_work()
+                    || !self.effect_origin_is_active(&mapped.origin)
+                {
+                    continue;
+                }
                 self.dispatch_message_inner_with_origin(
                     mapped.message,
                     &mut outcome,
@@ -157,6 +163,12 @@ where
                             Ok(delivery) => {
                                 if let Some(mapped) = self.platform_registry.map_delivery(delivery)
                                 {
+                                    if !mapped.is_current(&self.effect_owner)
+                                        || !self.lifecycle_accepts_work()
+                                        || !self.effect_origin_is_active(&mapped.origin)
+                                    {
+                                        continue;
+                                    }
                                     self.dispatch_message_inner_with_origin(
                                         mapped.message,
                                         &mut outcome,

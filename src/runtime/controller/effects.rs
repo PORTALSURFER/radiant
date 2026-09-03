@@ -9964,7 +9964,7 @@ mod tests {
             .expect("platform completion reservation");
             assert!(reservation.commit(PlatformResultDelivery::Completed {
                 identity,
-                result: Err(String::from("test")),
+                result: Err(crate::runtime::PlatformFailure::transport("test")),
             }));
         }
     }

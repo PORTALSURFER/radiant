@@ -104,8 +104,8 @@ pub use bridge::{
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
 pub(crate) use command::WorkerStreamOptions;
 pub use command::{
-    Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts, SurfaceInvalidation,
-    SurfaceRevisions, TaskPriority,
+    Command, PlatformEffect, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
+    SurfaceInvalidation, SurfaceRevisions, TaskPriority,
 };
 pub(crate) use command::{EffectId, WorkerEffectSink};
 #[cfg(test)]
@@ -159,11 +159,12 @@ pub use diagnostics::{
     NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
     NativeSurfaceRecoveryDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
     NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
-    NativeTransientOverlayTiming, NativeWindowDiagnosticIdentity, ProfilingMode, ProfilingOptions,
-    RUNTIME_LIFECYCLE_HISTORY_CAPACITY, RetainedSurfaceCachePolicy, RuntimeDiagnostics,
-    RuntimeLifecycleDiagnostics, RuntimeLifecyclePhase, RuntimeLifecycleTransition,
-    RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics,
-    UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
+    NativeTransientOverlayTiming, NativeWindowDiagnosticIdentity, PlatformOwnerKind, ProfilingMode,
+    ProfilingOptions, RUNTIME_LIFECYCLE_HISTORY_CAPACITY, RetainedSurfaceCachePolicy,
+    RuntimeDiagnostics, RuntimeLifecycleDiagnostics, RuntimeLifecyclePhase,
+    RuntimeLifecycleTransition, RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE,
+    UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode,
+    UiUpdateHandlerDiagnosticsPolicy,
 };
 pub(crate) use diagnostics::{
     RuntimeDiagnosticsRecorder, RuntimeLifecycleController, elapsed_since,
@@ -217,9 +218,14 @@ pub(crate) use paint::{
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
 };
 pub use platform::{
-    ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
-    ConfirmationResponse, FileDialogFilter, FileDialogRequest, PlatformCompletion, PlatformRequest,
-    PlatformResponse, PlatformResult, PlatformResultExt, PlatformResultServiceFallback,
+    ClipboardContent, ClipboardContentFormat, ClipboardFormat, ClipboardIdentity, ClipboardValue,
+    ClipboardValueError, ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons,
+    ConfirmationLevel, ConfirmationResponse, FileDialogFilter, FileDialogRequest,
+    InProcessClipboardIdentity, MAX_CLIPBOARD_TEXT_BYTES, MAX_NOTIFICATION_BODY_BYTES,
+    MAX_NOTIFICATION_TITLE_BYTES, MAX_PLATFORM_PATH_BYTES, MAX_PLATFORM_PATH_COUNT,
+    MAX_PLATFORM_TEXT_BYTES, NotificationLevel, NotificationRequest, PlatformCompletion,
+    PlatformError, PlatformFailure, PlatformNotificationRequest, PlatformRequest, PlatformResponse,
+    PlatformResult, PlatformResultExt, PlatformResultServiceFallback, PlatformService,
     PlatformServiceFallback, RuntimePlatformResultSink,
 };
 pub(crate) use platform::{PlatformCompletionIdentity, PlatformResultDelivery};

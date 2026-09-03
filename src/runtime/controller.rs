@@ -7,6 +7,7 @@
 mod accessibility;
 mod automation_compositor;
 mod auxiliary_focus;
+mod clipboard;
 mod commands;
 mod composition;
 mod context;
@@ -89,6 +90,7 @@ use crate::{
     runtime::RuntimeLifecyclePhase,
     widgets::{WidgetId, WidgetInput},
 };
+use clipboard::InProcessClipboard;
 use declarative_owner::{DeclarativeOwnerLedger, DeclarativeOwnerProjection};
 use effects::WorkerEffects;
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
@@ -189,6 +191,7 @@ where
     runtime_work: RuntimeWorkQueues<Message>,
     platform_registry: PlatformCompletionRegistry<Message>,
     platform_results: std::sync::Arc<std::sync::Mutex<PlatformResultIngress>>,
+    in_process_clipboard: InProcessClipboard,
     worker_effects: WorkerEffects<Message>,
     timer_effects: TimerEffects<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,

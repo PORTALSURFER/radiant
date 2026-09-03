@@ -208,6 +208,9 @@ impl RuntimePlatformResultHost for SynchronousResultBridge {
         _request: PlatformRequest,
         sink: RuntimePlatformResultSink,
     ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+        // This deliberately models the legacy raw callback's permissive host
+        // sentinel. Qualified `Effect::platform` registrations validate shape
+        // separately before their mapper can run.
         sink.send(Ok(PlatformResponse::Canceled));
         Ok(())
     }
@@ -883,7 +886,7 @@ fn frozen_platform_overflow_precedes_mapper_enqueued_arrival() {
             .expect("new mapper arrival should fit behind frozen work");
             assert!(reservation.commit(PlatformResultDelivery::Completed {
                 identity: enqueued_identity,
-                result: Err(String::from("new")),
+                result: Err(crate::runtime::PlatformFailure::transport("new")),
             }));
             0
         }),
@@ -906,7 +909,7 @@ fn frozen_platform_overflow_precedes_mapper_enqueued_arrival() {
                 .expect("pending platform result reservation");
         assert!(reservation.commit(PlatformResultDelivery::Completed {
             identity,
-            result: Err(String::from("pending")),
+            result: Err(crate::runtime::PlatformFailure::transport("pending")),
         }));
     }
     assert!(
@@ -916,7 +919,7 @@ fn frozen_platform_overflow_precedes_mapper_enqueued_arrival() {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .enqueue_overflow(PlatformResultDelivery::Completed {
                 identity: overflow_identity,
-                result: Err(String::from("overflow")),
+                result: Err(crate::runtime::PlatformFailure::transport("overflow")),
             })
     );
 

@@ -111,6 +111,41 @@ impl<Message: 'static> Effect<Message> {
         }
     }
 
+    /// Build a replaceable, qualified platform-service effect.
+    ///
+    /// The selected owner is checked against the accepted surface before the
+    /// host is invoked. The request result, including synchronous host
+    /// failures, is delivered through the existing deferred platform ingress
+    /// and mapped on a later UI turn.
+    pub fn platform(
+        latest: &mut LatestTask,
+        owner: EffectOwner,
+        request: crate::runtime::PlatformRequest,
+        map: impl FnOnce(crate::runtime::PlatformResult) -> Message + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        let transaction = latest.begin_replacement();
+        let ticket = transaction.replacement();
+        let token = CancellationToken::new();
+        let identity = crate::runtime::command::EffectId(latest.effect_id());
+        let command = crate::runtime::Command::platform_effect(
+            identity,
+            owner,
+            ticket,
+            transaction,
+            token.clone(),
+            request,
+            map,
+        );
+        Self {
+            command,
+            ticket,
+            token,
+        }
+    }
+
     /// Build an ordered worker stream effect.
     ///
     /// The worker can emit owned `Event` values through `events`. Accepted

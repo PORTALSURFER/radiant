@@ -3,8 +3,8 @@ use crate::{
     application::{IntoView, UiUpdateContext},
     runtime::{
         ConfirmationButtons, ConfirmationLevel, ConfirmationResponse, FileDialogRequest,
-        PlatformRequest, PlatformResponse, PlatformResult, PlatformResultServiceFallback,
-        RuntimePlatformResultSink, TaskPriority,
+        PlatformFailure, PlatformRequest, PlatformResponse, PlatformResult,
+        PlatformResultServiceFallback, PlatformService, RuntimePlatformResultSink, TaskPriority,
     },
 };
 
@@ -66,6 +66,12 @@ fn perform_platform_request(request: PlatformRequest) -> PlatformResult {
         PlatformRequest::ReadText => read_text(),
         PlatformRequest::ReadFilePaths => read_file_paths(),
         PlatformRequest::Confirm(request) => confirm(request),
+        PlatformRequest::Notify(_) => {
+            Err(PlatformFailure::Unsupported(PlatformService::Notification))
+        }
+        PlatformRequest::ReadClipboard(_) | PlatformRequest::WriteClipboard(_) => {
+            Err(PlatformFailure::InvalidRequest)
+        }
     }
 }
 
@@ -116,27 +122,32 @@ fn apply_file_dialog_request(
 }
 
 fn open_path(path: std::path::PathBuf) -> PlatformResult {
-    open::that(path).map_err(|err| err.to_string())?;
+    open::that(path).map_err(|err| PlatformFailure::transport(err.to_string()))?;
     Ok(PlatformResponse::Completed)
 }
 
 fn reveal_path(path: std::path::PathBuf) -> PlatformResult {
     if !path.exists() {
-        return Err(format!("Path not found: {}", path.display()));
+        return Err(PlatformFailure::transport(format!(
+            "Path not found: {}",
+            path.display()
+        )));
     }
     #[cfg(target_os = "windows")]
     {
         let status = std::process::Command::new("explorer.exe")
             .arg(format!("/select,{}", windows_explorer_target(&path)))
             .status()
-            .map_err(|err| format!("Failed to launch explorer: {err}"))?;
+            .map_err(|err| {
+                PlatformFailure::transport(format!("Failed to launch explorer: {err}"))
+            })?;
         if status.success() {
             Ok(PlatformResponse::Completed)
         } else {
-            Err(format!(
+            Err(PlatformFailure::transport(format!(
                 "Explorer exited unsuccessfully for {}",
                 path.display()
-            ))
+            )))
         }
     }
     #[cfg(target_os = "macos")]
@@ -145,14 +156,14 @@ fn reveal_path(path: std::path::PathBuf) -> PlatformResult {
             .arg("-R")
             .arg(&path)
             .status()
-            .map_err(|err| format!("Failed to launch Finder: {err}"))?;
+            .map_err(|err| PlatformFailure::transport(format!("Failed to launch Finder: {err}")))?;
         if status.success() {
             Ok(PlatformResponse::Completed)
         } else {
-            Err(format!(
+            Err(PlatformFailure::transport(format!(
                 "Finder exited unsuccessfully for {}",
                 path.display()
-            ))
+            )))
         }
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -161,58 +172,61 @@ fn reveal_path(path: std::path::PathBuf) -> PlatformResult {
             path.as_path()
         } else {
             path.parent()
-                .ok_or_else(|| String::from("Unable to resolve parent directory"))?
+                .ok_or_else(|| PlatformFailure::transport("Unable to resolve parent directory"))?
         };
-        open::that(target)
-            .map_err(|err| format!("Could not reveal path {}: {err}", path.display()))?;
+        open::that(target).map_err(|err| {
+            PlatformFailure::transport(format!("Could not reveal path {}: {err}", path.display()))
+        })?;
         Ok(PlatformResponse::Completed)
     }
 }
 
 fn open_url(url: String) -> PlatformResult {
-    open::that(url).map_err(|err| err.to_string())?;
+    open::that(url).map_err(|err| PlatformFailure::transport(err.to_string()))?;
     Ok(PlatformResponse::Completed)
 }
 
 fn copy_text(text: String) -> PlatformResult {
-    let mut clipboard =
-        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
     clipboard
         .set_text(text)
-        .map_err(|err| format!("Failed to copy text: {err}"))?;
+        .map_err(|err| PlatformFailure::transport(format!("Failed to copy text: {err}")))?;
     Ok(PlatformResponse::Completed)
 }
 
 fn copy_file_paths(paths: Vec<std::path::PathBuf>) -> PlatformResult {
     if paths.is_empty() {
-        return Err(String::from("No file paths to copy"));
+        return Err(PlatformFailure::transport("No file paths to copy"));
     }
-    let mut clipboard =
-        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
     clipboard
         .set()
         .file_list(&paths)
-        .map_err(|err| format!("Failed to copy file paths: {err}"))?;
+        .map_err(|err| PlatformFailure::transport(format!("Failed to copy file paths: {err}")))?;
     Ok(PlatformResponse::Completed)
 }
 
 fn read_text() -> PlatformResult {
-    let mut clipboard =
-        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
     clipboard
         .get_text()
         .map(PlatformResponse::Text)
-        .map_err(|err| format!("Failed to read clipboard text: {err}"))
+        .map_err(|err| PlatformFailure::transport(format!("Failed to read clipboard text: {err}")))
 }
 
 fn read_file_paths() -> PlatformResult {
-    let mut clipboard =
-        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
     clipboard
         .get()
         .file_list()
         .map(PlatformResponse::FilePaths)
-        .map_err(|err| format!("Failed to read clipboard file paths: {err}"))
+        .map_err(|err| {
+            PlatformFailure::transport(format!("Failed to read clipboard file paths: {err}"))
+        })
 }
 
 fn confirm(request: crate::runtime::ConfirmDialogRequest) -> PlatformResult {

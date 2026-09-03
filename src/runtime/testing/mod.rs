@@ -20,13 +20,13 @@ use crate::{
     layout::{LayoutDiagnosticCode, MainAlign, OverflowPolicy},
     runtime::{
         Command, CommandOutcome, Event, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
-        PlatformRequest, PlatformResponse, PlatformResult, RepaintScope, RuntimeBridge,
-        RuntimeDiagnostics, RuntimeLifecyclePhase, RuntimePlatformResultHost,
-        RuntimePlatformResultSink, RuntimeQueueHost, RuntimeQueueItem, RuntimeTaskHost,
-        SurfaceIdentityDiagnostics, SurfaceIdentityPath, SurfaceIdentityReplacement,
-        SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
-        SurfaceRefreshDiagnostics, SurfaceRuntime, TaskPriority, UiSurface,
-        UiUpdateHandlerDiagnosticsPolicy, WindowColorScheme, WindowEnvironment,
+        PlatformRequest, PlatformResult, RepaintScope, RuntimeBridge, RuntimeDiagnostics,
+        RuntimeLifecyclePhase, RuntimePlatformResultHost, RuntimePlatformResultSink,
+        RuntimeQueueHost, RuntimeQueueItem, RuntimeTaskHost, SurfaceIdentityDiagnostics,
+        SurfaceIdentityPath, SurfaceIdentityReplacement, SurfaceLayoutStateDiagnostics,
+        SurfaceLayoutStateReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
+        SurfaceRuntime, TaskPriority, UiSurface, UiUpdateHandlerDiagnosticsPolicy,
+        WindowColorScheme, WindowEnvironment,
     },
     theme::DpiScale,
 };
@@ -1401,27 +1401,7 @@ fn finite_vector(vector: Vector2) -> bool {
 }
 
 fn platform_result_matches(request: &PlatformRequest, result: &PlatformResult) -> bool {
-    let Ok(response) = result else {
-        return true;
-    };
-    match request {
-        PlatformRequest::PickFolder(_)
-        | PlatformRequest::PickFile(_)
-        | PlatformRequest::SaveFile(_) => {
-            matches!(
-                response,
-                PlatformResponse::Path(_) | PlatformResponse::Canceled
-            )
-        }
-        PlatformRequest::OpenPath(_)
-        | PlatformRequest::RevealPath(_)
-        | PlatformRequest::OpenUrl(_)
-        | PlatformRequest::CopyText(_)
-        | PlatformRequest::CopyFilePaths(_) => matches!(response, PlatformResponse::Completed),
-        PlatformRequest::ReadText => matches!(response, PlatformResponse::Text(_)),
-        PlatformRequest::ReadFilePaths => matches!(response, PlatformResponse::FilePaths(_)),
-        PlatformRequest::Confirm(_) => matches!(response, PlatformResponse::Confirmation(_)),
-    }
+    request.validate_result(result).is_ok()
 }
 
 fn repaint_scope_name(scope: RepaintScope) -> String {
@@ -1945,6 +1925,9 @@ fn platform_request_kind(request: &PlatformRequest) -> String {
         PlatformRequest::ReadText => "read_text",
         PlatformRequest::ReadFilePaths => "read_file_paths",
         PlatformRequest::Confirm(_) => "confirm",
+        PlatformRequest::Notify(_) => "notify",
+        PlatformRequest::ReadClipboard(_) => "read_clipboard",
+        PlatformRequest::WriteClipboard(_) => "write_clipboard",
     }
     .to_owned()
 }
@@ -2470,6 +2453,7 @@ pub struct NormalizedPendingPlatform {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::PlatformResponse;
     use crate::{
         gui::types::Point,
         layout::{

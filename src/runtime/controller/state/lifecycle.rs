@@ -111,6 +111,7 @@ where
             platform_results: std::sync::Arc::new(std::sync::Mutex::new(
                 super::super::platform::PlatformResultIngress::default(),
             )),
+            in_process_clipboard: super::super::clipboard::InProcessClipboard::default(),
             worker_effects: super::super::effects::WorkerEffects::new(effect_owner.clone()),
             timer_effects: super::super::timers::TimerEffects::new(effect_owner),
             diagnostics: Default::default(),
@@ -283,6 +284,7 @@ where
         self.clear_pending_auxiliary_focus_requests();
         self.timer_effects.shutdown();
         self.runtime_work.fence_all();
+        self.in_process_clipboard.clear();
         self.shutdown_platform_services();
         true
     }

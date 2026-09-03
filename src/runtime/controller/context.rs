@@ -115,6 +115,7 @@ where
             .queue
             .stream_events_dropped
             .saturating_add(controller.queue.stream_events_dropped);
+        snapshot.queue.last_platform_owner_kind = controller.queue.last_platform_owner_kind;
         snapshot.ui = controller.ui;
         snapshot.lifecycle = self.lifecycle_diagnostics();
         snapshot

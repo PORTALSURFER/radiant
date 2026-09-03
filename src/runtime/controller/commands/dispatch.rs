@@ -487,6 +487,18 @@ where
                     outcome.repaint_requested = true;
                 }
             }
+            Command::PlatformEffect(effect) => {
+                let owner = effect.lifecycle.owner;
+                let Some(effect_origin) =
+                    self.resolve_effect_origin(Some(owner), None, origin, false)
+                else {
+                    effect.transaction.reject();
+                    return;
+                };
+                if self.host_request_platform_effect(effect, &effect_origin) {
+                    outcome.repaint_requested = true;
+                }
+            }
             Command::Focus(widget_id) => {
                 let focused = self.focus_widget(widget_id);
                 outcome.repaint_requested |= focused;
@@ -568,19 +580,29 @@ where
                 if let Err(fallback) =
                     self.host_request_platform_service(request, on_completed, &origin)
                 {
-                    let (_request, on_completed) = *fallback;
-                    let identity = self.platform_registry.register(on_completed, &origin);
+                    let (request, on_completed) = *fallback;
+                    let identity = self.platform_registry.register_legacy_for_request(
+                        on_completed,
+                        &request,
+                        &origin,
+                    );
+                    let result = if request.validate().is_err() {
+                        Err(crate::runtime::PlatformFailure::InvalidRequest)
+                    } else {
+                        Err(crate::runtime::PlatformFailure::Unsupported(
+                            request.service(),
+                        ))
+                    };
                     if let Some(reservation) =
                         crate::runtime::controller::platform::PlatformResultIngress::reserve(
                             &self.platform_results,
                         )
                     {
-                        let _ = reservation.commit(crate::runtime::PlatformResultDelivery::Completed {
-                            identity,
-                            result: Err(String::from(
-                                "platform service requests are not supported by this runtime bridge",
-                            )),
-                        });
+                        let _ =
+                            reservation.commit(crate::runtime::PlatformResultDelivery::Completed {
+                                identity,
+                                result,
+                            });
                     } else {
                         let accepted = self
                             .platform_results
@@ -588,7 +610,7 @@ where
                             .unwrap_or_else(|poisoned| poisoned.into_inner())
                             .enqueue_overflow(crate::runtime::PlatformResultDelivery::Completed {
                                 identity,
-                                result: Err(String::from("platform result ingress is saturated")),
+                                result: Err(crate::runtime::PlatformFailure::Capacity),
                             });
                         if !accepted {
                             let _ = self.platform_registry.remove(identity);

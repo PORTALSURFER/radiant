@@ -14,9 +14,9 @@ mod timing;
 
 pub use business::{
     BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
-    DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, RuntimeDiagnostics, RuntimeMessageQueueDiagnostics,
-    SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic,
-    UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
+    DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, PlatformOwnerKind, RuntimeDiagnostics,
+    RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics,
+    UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
 };
 pub(crate) use business::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub use cache_policy::RetainedSurfaceCachePolicy;

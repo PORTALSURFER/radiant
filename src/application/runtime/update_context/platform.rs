@@ -1,6 +1,7 @@
 use crate::runtime::{
-    Command, ConfirmDialogRequest, DragRequest, ExternalDragOutcome, ExternalDragRequest,
-    FileDialogRequest, PlatformRequest, PlatformResult,
+    ClipboardFormat, ClipboardValue, Command, ConfirmDialogRequest, DragRequest, Effect,
+    EffectOwner, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest, NotificationRequest,
+    PlatformRequest, PlatformResult,
 };
 
 use super::UiUpdateContext;
@@ -87,6 +88,22 @@ impl<Message> UiUpdateContext<Message> {
         self.queue_command(Command::platform_request(request, on_completed));
     }
 
+    /// Queue a replaceable platform effect with an explicit application or
+    /// declarative owner.
+    pub fn platform_effect(
+        &mut self,
+        latest: &mut crate::application::LatestTask,
+        owner: EffectOwner,
+        request: PlatformRequest,
+        map: impl FnOnce(PlatformResult) -> Message + 'static,
+    ) where
+        Message: 'static,
+    {
+        self.queue_command(Command::effect(Effect::platform(
+            latest, owner, request, map,
+        )));
+    }
+
     /// Ask the platform integration to choose a folder.
     pub fn pick_folder(
         &mut self,
@@ -170,6 +187,33 @@ impl<Message> UiUpdateContext<Message> {
         on_completed: impl FnOnce(PlatformResult) -> Message + 'static,
     ) {
         self.platform_request(PlatformRequest::ReadFilePaths, on_completed);
+    }
+
+    /// Ask the adapter to post a neutral transient notification.
+    pub fn notify(
+        &mut self,
+        request: NotificationRequest,
+        on_completed: impl FnOnce(PlatformResult) -> Message + 'static,
+    ) {
+        self.platform_request(PlatformRequest::Notify(request), on_completed);
+    }
+
+    /// Replace this app instance's bounded typed in-process clipboard value.
+    pub fn write_clipboard(
+        &mut self,
+        value: ClipboardValue,
+        on_completed: impl FnOnce(PlatformResult) -> Message + 'static,
+    ) {
+        self.platform_request(PlatformRequest::WriteClipboard(value), on_completed);
+    }
+
+    /// Read a bounded typed value from this app instance's in-process clipboard.
+    pub fn read_clipboard(
+        &mut self,
+        format: ClipboardFormat,
+        on_completed: impl FnOnce(PlatformResult) -> Message + 'static,
+    ) {
+        self.platform_request(PlatformRequest::ReadClipboard(format), on_completed);
     }
 
     /// Ask the platform integration to show a confirmation dialog.

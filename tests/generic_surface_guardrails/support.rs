@@ -50,6 +50,7 @@ pub(crate) const REQUIRED_BEHAVIOR_TESTS: &[&str] = &[
     "application_builder_public_api.rs",
     "custom_widget_public_api.rs",
     "deterministic_trace_replay.rs",
+    "effect_public_api.rs",
     "generic_surface_guardrails.rs",
     "layout_policy_public_api.rs",
     "layout_public_api.rs",

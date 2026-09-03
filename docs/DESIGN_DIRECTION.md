@@ -348,8 +348,20 @@ through that node. The conceptual owner kinds are:
 Current shipped ownership is narrower than this target model: the private
 `EffectOrigin` boundary supplies application, auxiliary, and selected
 declarative provenance, while `ResourceTasks` remains application-owned.
+The additive qualified `runtime::Effect<Message>` facade from OPT-1387 now covers
+application-owned `after`, one-shot `worker`, ordered-stream, and latest-stream
+construction. `Command::effect(...)` and the `From<Effect<Message>>` bridge
+lower those values into the existing timer or worker command lane. The private
+worker/timer lifecycle descriptor remains the single controller policy for
+owner, generation, cancellation, admission, rollback, and stale/late fences;
+the facade does not create a second registry or scheduler. Existing
+owner-scoped business, latest-task, keyed-latest, and timer routes remain the
+compatibility and ownership paths, including their public handles and
+UI-local mappers.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
-are future work tracked by OPT-1387, OPT-1390, and OPT-1370.
+are future work tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions,
+ResourceTasks ownership, platform migration, scheduler policy, and product
+wiring remain outside this slice.
 
 This is a bounded public timer, one-shot business-worker, cancellable ordinary
 owner one-shot, ordinary ordered and coalesced owner-scoped stream-consumer,

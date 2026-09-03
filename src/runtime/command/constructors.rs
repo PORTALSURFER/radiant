@@ -27,6 +27,15 @@ static NEXT_EFFECT_ID: AtomicU64 = AtomicU64::new(1);
 mod scroll;
 
 impl<Message> Command<Message> {
+    /// Build a command from the qualified runtime effect facade.
+    ///
+    /// This is an explicit bridge to the existing timer and worker command
+    /// lanes. It does not add a third transport or bypass controller
+    /// lifecycle checks.
+    pub fn effect(effect: crate::runtime::Effect<Message>) -> Self {
+        effect.into()
+    }
+
     /// Return an empty command.
     pub const fn none() -> Self {
         Self::None

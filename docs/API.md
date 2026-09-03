@@ -4748,6 +4748,17 @@ they should use `UiUpdateContext` capabilities, typed platform services, and
 immediate messages in a command can use
 `Command::into_messages_into(...)` to reuse caller-owned storage, while
 `Command::into_messages()` remains the allocating convenience wrapper.
+The qualified `radiant::runtime::Effect<Message>` facade from OPT-1387 is the additive
+application-owned construction surface for `Effect::after(...)`,
+`Effect::worker(...)`, `Effect::ordered_stream(...)`, and
+`Effect::latest_stream(...)`. Worker code transports only owned `Send` output
+or event values; `Message` and all completion/event mappers remain UI-local and
+need not be `Send` or `Sync`. Convert an effect with `Command::effect(effect)`
+or `From<Effect<Message>>`; both bridges preserve the existing separate timer
+and worker lanes and therefore the controller's common private lifecycle
+policy. The facade does not migrate platform effects, `ResourceTasks`,
+subscriptions, scheduler/queue/thread ownership, or product state, and it does
+not replace the legacy business/latest/keyed-latest APIs.
 Tests and diagnostics can use `Command::business_task_priority(...)` to verify
 that a named one-shot or streaming worker effect was queued on the expected
 runtime worker lane without pattern-matching hidden command internals. Worker
@@ -4853,8 +4864,16 @@ custom-coordinate, platform, or product wiring API is promised.
 Current shipped ownership is narrower than the target model: the private
 `EffectOrigin` boundary supplies application, auxiliary, and selected
 declarative provenance, while `ResourceTasks` remains application-owned.
+The qualified `runtime::Effect<Message>` facade is now shipped only for
+application-owned after/worker/ordered-stream/latest-stream construction; it
+lowers into the existing command lanes and does not expose owner or
+generation handles. The existing owner-scoped business, latest-task,
+keyed-latest, and timer routes keep their public handles, cancellation,
+admission, rollback, and stale/late protections.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
-are future work tracked by OPT-1387, OPT-1390, and OPT-1370.
+are future work tracked by OPT-1390, OPT-1370, and OPT-1421; subscriptions,
+ResourceTasks ownership, platform migration, scheduler policy, and product
+wiring remain outside this slice.
 
 The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, ordinary timers and business work remain application-owned, and an invalid selection is rejected without fallback. Ordinary ordered and coalesced owner-scoped streaming, the cancellable ordinary ordered owner stream, ordered and coalesced latest-task owner streaming, and the application-owned `KeyedLatestTasks` one-shot, ordered-stream, and coalesced-stream routes are shipped. The coalesced keyed-latest route retains the exact host key, keyed ticket, replacement transaction, owner generation, and receipt; keeps only the newest pending intermediate payload before UI drain; delivers the uncoalesced final exactly once after the retained event; and passes exact `KeyedTaskCompletion<Key, _>` values to UI-local/non-`Send` mappers. Keyed supersession and owner retirement independently fence worker, mapping, and reduction. Invalid, removed, ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and same-update admissions fail closed without `Application` fallback and restore only the affected key's predecessor; sibling keys remain unchanged. The cancellable ordinary ordered owner-stream route reuses the same accepted surface, owner-generation ledger, worker registry, bounded FIFO ingress, and controller-composed cancellation probe. Callers clone `request.token()` before consuming the request. Token cancellation and declarative owner retirement are independent OR-composed fences for cooperative work, events, final delivery, mapping, and reduction, including later entries already queued for one UI drain; the admission receipt does not change after it resolves. Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host, capacity, and closing admissions reject atomically without spawn, mapping, retry, or `Application` fallback, and event/final mappers stay UI-local/non-`Send`. `ResourceTasks` ownership, platform ownership, and shared-resource semantics remain outside this public slice.
 

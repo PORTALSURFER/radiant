@@ -510,7 +510,7 @@ fn target_alignment_scorecard_has_current_estimates() {
         "| Overall measure | Estimate |",
         "| --- | ---: |",
         "| Generic architecture-sequence completion | ~100% |",
-        "| Broad end-to-end target coverage | ~88.1% |",
+        "| Broad end-to-end target coverage | ~88.4% |",
         "",
         "| Category | Estimate |",
         "| --- | ---: |",
@@ -539,8 +539,10 @@ fn target_alignment_scorecard_has_current_estimates() {
             .expect("numeric scorecard estimate")
     };
     let lines = status.lines().collect::<Vec<_>>();
+    let category_values = lines[9..20].iter().map(|line| estimate(line));
+    let mean = category_values.sum::<f64>() / 11.0;
     let broad = estimate(lines[5]);
-    assert_eq!(broad, 88.1);
+    assert_eq!(broad, (mean * 10.0).round() / 10.0);
 }
 
 #[test]

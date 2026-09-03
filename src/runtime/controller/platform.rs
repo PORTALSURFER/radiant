@@ -94,6 +94,10 @@ impl<Message> PlatformCompletionRegistry<Message> {
             Some(Arc::clone(&lifecycle.cancellation)),
             origin.cancellation_probe(),
         );
+        let rejection_cancellation = combine_cancellation_probes(
+            rejection_cancellation,
+            Some(transaction.newer_replacement_probe()),
+        );
         self.register_inner(
             completion,
             PlatformResultValidation::Qualified(request.clone()),

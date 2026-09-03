@@ -917,7 +917,7 @@ impl RuntimePlatformResultSink {
         if let Some(callback) = self.callback.take() {
             callback(PlatformResultDelivery::Completed {
                 identity: self.identity,
-                result: result.map_err(PlatformFailure::bounded),
+                result: sanitize_platform_result(result),
             });
         }
     }
@@ -926,7 +926,7 @@ impl RuntimePlatformResultSink {
         self.callback.take();
         PlatformResultDelivery::Completed {
             identity: self.identity,
-            result: result.map_err(PlatformFailure::bounded),
+            result: sanitize_platform_result(result),
         }
     }
 }
@@ -946,6 +946,36 @@ pub type PlatformResultServiceFallback = Box<(PlatformRequest, RuntimePlatformRe
 
 /// Boxed fallback returned when a bridge declines a platform service request.
 pub type PlatformServiceFallback<Message> = Box<(PlatformRequest, PlatformCompletion<Message>)>;
+
+fn sanitize_platform_result(result: PlatformResult) -> PlatformResult {
+    result
+        .and_then(|response| validate_platform_response_bounds(&response).map(|()| response))
+        .map_err(PlatformFailure::bounded)
+}
+
+fn validate_platform_response_bounds(response: &PlatformResponse) -> Result<(), PlatformFailure> {
+    match response {
+        PlatformResponse::Completed
+        | PlatformResponse::Canceled
+        | PlatformResponse::Confirmation(_) => Ok(()),
+        PlatformResponse::Path(path) => {
+            validate_path(path).map_err(|_| PlatformFailure::InvalidResponse)
+        }
+        PlatformResponse::Text(text) => {
+            validate_text(text).map_err(|_| PlatformFailure::InvalidResponse)
+        }
+        PlatformResponse::FilePaths(paths) => {
+            validate_paths(paths, false).map_err(|_| PlatformFailure::InvalidResponse)
+        }
+        PlatformResponse::Clipboard(value) => match value {
+            ClipboardValue::Text(text) if text.len() <= MAX_CLIPBOARD_TEXT_BYTES => Ok(()),
+            ClipboardValue::Text(_) => Err(PlatformFailure::InvalidResponse),
+            ClipboardValue::FilePaths(paths) => {
+                validate_paths(paths, false).map_err(|_| PlatformFailure::InvalidResponse)
+            }
+        },
+    }
+}
 
 fn bounded_string(mut value: String, limit: usize) -> String {
     if value.len() <= limit {
@@ -1169,6 +1199,85 @@ mod tests {
             panic!("expected transport failure");
         };
         assert_eq!(message.len(), MAX_PLATFORM_TEXT_BYTES);
+    }
+
+    fn oversized_successful_responses() -> [PlatformResponse; 4] {
+        [
+            PlatformResponse::Text("x".repeat(MAX_PLATFORM_TEXT_BYTES + 1)),
+            PlatformResponse::Path(PathBuf::from("x".repeat(MAX_PLATFORM_PATH_BYTES + 1))),
+            PlatformResponse::FilePaths(
+                (0..=MAX_PLATFORM_PATH_COUNT)
+                    .map(|index| PathBuf::from(format!("/tmp/{index}")))
+                    .collect(),
+            ),
+            PlatformResponse::Clipboard(ClipboardValue::Text(
+                "x".repeat(MAX_CLIPBOARD_TEXT_BYTES + 1),
+            )),
+        ]
+    }
+
+    #[test]
+    fn result_sink_sanitizes_oversized_successes_before_send_and_into_delivery() {
+        use std::sync::{Arc, Mutex};
+
+        for (index, response) in oversized_successful_responses().into_iter().enumerate() {
+            let observed = Arc::new(Mutex::new(None::<PlatformResult>));
+            let observed_by_sink = Arc::clone(&observed);
+            RuntimePlatformResultSink::new(
+                PlatformCompletionIdentity {
+                    id: index as u64,
+                    epoch: 1,
+                },
+                move |delivery| {
+                    if let PlatformResultDelivery::Completed { result, .. } = delivery {
+                        *observed_by_sink.lock().expect("result lock") = Some(result);
+                    }
+                },
+            )
+            .send(Ok(response));
+
+            assert_eq!(
+                observed.lock().expect("result lock").take(),
+                Some(Err(PlatformFailure::InvalidResponse))
+            );
+        }
+
+        for (index, response) in oversized_successful_responses().into_iter().enumerate() {
+            let delivery = RuntimePlatformResultSink::new(
+                PlatformCompletionIdentity {
+                    id: index as u64,
+                    epoch: 2,
+                },
+                |_| {},
+            )
+            .into_delivery(Ok(response));
+            let PlatformResultDelivery::Completed { result, .. } = delivery else {
+                panic!("into_delivery must return a completed delivery");
+            };
+            assert_eq!(result, Err(PlatformFailure::InvalidResponse));
+        }
+    }
+
+    #[test]
+    fn result_sink_sanitizer_does_not_enforce_response_shape() {
+        use std::sync::{Arc, Mutex};
+
+        let observed = Arc::new(Mutex::new(None::<PlatformResult>));
+        let observed_by_sink = Arc::clone(&observed);
+        RuntimePlatformResultSink::new(
+            PlatformCompletionIdentity { id: 1, epoch: 1 },
+            move |delivery| {
+                if let PlatformResultDelivery::Completed { result, .. } = delivery {
+                    *observed_by_sink.lock().expect("result lock") = Some(result);
+                }
+            },
+        )
+        .send(Ok(PlatformResponse::FilePaths(Vec::new())));
+
+        assert_eq!(
+            observed.lock().expect("result lock").take(),
+            Some(Ok(PlatformResponse::FilePaths(Vec::new())))
+        );
     }
 
     #[test]

@@ -3,7 +3,7 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~100% |
-| Broad end-to-end target coverage | ~88.1% |
+| Broad end-to-end target coverage | ~88.4% |
 
 | Category | Estimate |
 | --- | ---: |

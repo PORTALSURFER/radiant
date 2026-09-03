@@ -11,7 +11,9 @@ use radiant::{
         NotificationRequest, PlatformFailure, PlatformRequest, PlatformResponse, PlatformResult,
         PlatformService, RepaintScope, RuntimeBridge, RuntimeHostCapabilities,
         RuntimePlatformResultHost, SurfaceNode, SurfaceRuntime, TaskPriority, UiSurface,
-        testing::{DeterministicHost, DeterministicHostConfig, DeterministicHostError},
+        testing::{
+            DeterministicHost, DeterministicHostConfig, DeterministicHostError, DeterministicLane,
+        },
     },
 };
 use std::{
@@ -337,6 +339,83 @@ fn facade_platform_effect_latest_and_cancellation_fences_host_delivery() {
     runtime.drain_runtime_messages();
     assert_eq!(mapper_calls.get(), 1);
     assert!(runtime.bridge().dispatched.is_empty());
+}
+
+#[test]
+fn facade_platform_rejection_is_fenced_by_a_newer_latest_replacement() {
+    let config = DeterministicHostConfig::new(Vector2::new(160.0, 80.0))
+        .with_max_pending_platform_requests(1);
+    let mut host = DeterministicHost::new(RecordingBridge::default(), config)
+        .expect("constrained deterministic host construction");
+    let first_calls = Rc::new(Cell::new(0));
+    let second_calls = Rc::new(Cell::new(0));
+    let third_calls = Rc::new(Cell::new(0));
+    let mut latest = LatestTask::new();
+
+    let first_calls_for_mapper = Rc::clone(&first_calls);
+    let first = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            first_calls_for_mapper.set(first_calls_for_mapper.get() + 1);
+            Message::Replace
+        },
+    );
+    let first_ticket = first.ticket();
+    host.execute_command(Command::effect(first))
+        .expect("accepted A platform effect");
+
+    let second_calls_for_mapper = Rc::clone(&second_calls);
+    let second = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            second_calls_for_mapper.set(second_calls_for_mapper.get() + 1);
+            Message::Replace
+        },
+    );
+    assert!(matches!(
+        host.execute_command(Command::effect(second)),
+        Err(DeterministicHostError::Capacity {
+            lane: DeterministicLane::Platform,
+            limit: 1,
+        })
+    ));
+    assert_eq!(latest.active(), Some(first_ticket));
+
+    let first_id = host.pending_platform_requests()[0].id;
+    host.complete_platform_request(first_id, Ok(PlatformResponse::Text("A".into())))
+        .expect("A completion");
+
+    let third_calls_for_mapper = Rc::clone(&third_calls);
+    let third = Effect::platform(
+        &mut latest,
+        EffectOwner::Application,
+        PlatformRequest::ReadText,
+        move |_| {
+            third_calls_for_mapper.set(third_calls_for_mapper.get() + 1);
+            Message::Replace
+        },
+    );
+    let third_ticket = third.ticket();
+    host.execute_command(Command::effect(third))
+        .expect("accepted C platform effect");
+    assert_eq!(latest.active(), Some(third_ticket));
+
+    let third_id = host.pending_platform_requests()[0].id;
+    host.complete_platform_request(third_id, Ok(PlatformResponse::Text("C".into())))
+        .expect("C completion");
+    assert_eq!(first_calls.get(), 0);
+    assert_eq!(second_calls.get(), 0);
+    assert_eq!(third_calls.get(), 0);
+
+    host.turn().expect("later turn for A, B failure, and C");
+    assert_eq!(first_calls.get(), 0);
+    assert_eq!(second_calls.get(), 0);
+    assert_eq!(third_calls.get(), 1);
+    assert_eq!(host.bridge().messages, vec![Message::Replace]);
 }
 
 #[test]

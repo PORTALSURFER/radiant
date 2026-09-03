@@ -592,6 +592,9 @@ positive-infinity constraint maximum remains unbounded. Invalid minima normalize
 to zero; invalid, negative, or contradictory maxima normalize to the minimum.
 Non-finite or overflowing rounded placement is omitted with a stable layout
 diagnostic, and omitted nodes do not dispatch widget or explicit-overlay paint.
+The production-path deterministic runtime host regression covers malformed
+custom-policy widget placement and malformed explicit-overlay geometry; invalid
+bounds are absent from the published snapshot and produce no paint primitives.
 
 Focus-loss veto is an additive advanced widget contract. Import
 `radiant::widgets::{FocusLossDecision, Widget}` explicitly when a custom widget

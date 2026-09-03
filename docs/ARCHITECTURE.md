@@ -224,7 +224,8 @@ new focused export leaf or a module split, not a formatting workaround.
   admission, constraint normalization, measurement/cache keys, rounding,
   placement, publication, and paint dispatch. It preserves finite coordinates
   including negative origins, finite non-negative sizes including zero, and
-  explicit positive-infinity constraint maxima only. Invalid geometry is
+  explicit positive-infinity constraint maxima only. Runtime viewport axes that
+  are not finite and strictly positive normalize to `1.0`. Invalid geometry is
   diagnosed and omitted as a node subtree; prepared candidates remain
   transactional, and missing validated bounds prevent widget and explicit
   overlay paint hooks.

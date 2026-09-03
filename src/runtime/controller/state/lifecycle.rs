@@ -439,8 +439,19 @@ where
 fn normalized_viewport(viewport: Vector2) -> Rect {
     Rect::from_min_size(
         Point::new(0.0, 0.0),
-        Vector2::new(viewport.x.max(1.0), viewport.y.max(1.0)),
+        Vector2::new(
+            normalized_viewport_axis(viewport.x),
+            normalized_viewport_axis(viewport.y),
+        ),
     )
+}
+
+fn normalized_viewport_axis(value: f32) -> f32 {
+    if value.is_finite() && value > 0.0 {
+        value
+    } else {
+        1.0
+    }
 }
 
 fn layout_effective_viewport(viewport: Rect) -> Rect {
@@ -564,6 +575,43 @@ mod tests {
                 to: RuntimeLifecyclePhase::Running,
             }]
         );
+    }
+
+    #[test]
+    fn viewport_normalization_replaces_only_non_finite_and_non_positive_axes() {
+        let cases = [
+            (f32::NAN, 4.0, 1.0, 4.0),
+            (f32::INFINITY, 4.0, 1.0, 4.0),
+            (f32::NEG_INFINITY, 4.0, 1.0, 4.0),
+            (0.0, 4.0, 1.0, 4.0),
+            (-2.0, 4.0, 1.0, 4.0),
+            (3.5, f32::NAN, 3.5, 1.0),
+            (3.5, f32::INFINITY, 3.5, 1.0),
+            (3.5, f32::NEG_INFINITY, 3.5, 1.0),
+            (3.5, 0.0, 3.5, 1.0),
+            (3.5, -2.0, 3.5, 1.0),
+            (3.5, 4.0, 3.5, 4.0),
+        ];
+
+        for (x, y, expected_x, expected_y) in cases {
+            let rect = normalized_viewport(Vector2::new(x, y));
+            assert_eq!(rect.width(), expected_x);
+            assert_eq!(rect.height(), expected_y);
+        }
+    }
+
+    #[test]
+    fn viewport_normalization_controls_effective_viewport_and_relayout() {
+        let mut runtime = SurfaceRuntime::new(LifecycleBridge::default(), Vector2::new(80.4, 40.4));
+        assert_eq!(runtime.context().viewport.width(), 80.4);
+        assert_eq!(runtime.context().viewport.height(), 40.4);
+        assert!(!runtime.set_viewport_and_report_relayout(Vector2::new(80.49, 40.49)));
+        assert!(runtime.set_viewport_and_report_relayout(Vector2::new(81.0, 40.4)));
+        assert_eq!(runtime.context().viewport.width(), 81.0);
+
+        runtime.set_viewport(Vector2::new(f32::NAN, -1.0));
+        assert_eq!(runtime.context().viewport.width(), 1.0);
+        assert_eq!(runtime.context().viewport.height(), 1.0);
     }
 
     #[test]

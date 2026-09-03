@@ -18,7 +18,11 @@ use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
 use crate::gui::types::{Rect, Vector2};
 use std::sync::Arc;
 
-pub(super) fn has_invalid_content_margin(container: &ContainerNode, child: &LayoutNode) -> bool {
+pub(super) fn has_invalid_content_margin(
+    container: &ContainerNode,
+    child: &LayoutNode,
+    available: Rect,
+) -> bool {
     let Some(policy) = container.policy.virtualization else {
         return false;
     };
@@ -32,8 +36,11 @@ pub(super) fn has_invalid_content_margin(container: &ContainerNode, child: &Layo
         (ContainerKind::Row, VirtualizationAxis::Horizontal)
         | (ContainerKind::Column, VirtualizationAxis::Vertical) => {
             content_container.children.iter().any(|child| {
-                crate::gui::layout_core::validated_geometry::finite_inset_totals(child.slot.margin)
-                    .is_none()
+                crate::gui::layout_core::validated_geometry::checked_margin_geometry(
+                    available,
+                    child.slot.margin,
+                )
+                .is_none()
             })
         }
         _ => false,

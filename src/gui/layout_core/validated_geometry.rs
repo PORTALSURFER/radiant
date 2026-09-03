@@ -51,6 +51,22 @@ pub(crate) fn checked_inset_rect(rect: Rect, insets: Insets) -> Option<Rect> {
     ValidatedRect::new(clamped).map(ValidatedRect::rect)
 }
 
+/// Derive both finite rectangles needed to apply or display a slot margin.
+pub(crate) fn checked_margin_geometry(rect: Rect, margin: Insets) -> Option<(Rect, Rect)> {
+    finite_inset_totals(margin)?;
+    let inset = checked_inset_rect(rect, margin)?;
+    let expanded = checked_inset_rect(
+        rect,
+        Insets {
+            left: -margin.left,
+            right: -margin.right,
+            top: -margin.top,
+            bottom: -margin.bottom,
+        },
+    )?;
+    Some((inset, expanded))
+}
+
 /// Return finite horizontal and vertical inset totals without admitting overflow.
 pub(crate) fn finite_inset_totals(insets: Insets) -> Option<(f32, f32)> {
     if ![insets.left, insets.right, insets.top, insets.bottom]
@@ -82,7 +98,8 @@ pub(crate) fn normalize_constraint_axis(minimum: f32, maximum: f32) -> (f32, f32
 #[cfg(test)]
 mod tests {
     use super::{
-        ValidatedRect, checked_inset_rect, finite_inset_totals, normalize_constraint_axis,
+        ValidatedRect, checked_inset_rect, checked_margin_geometry, finite_inset_totals,
+        normalize_constraint_axis,
     };
     use crate::gui::layout_core::model::Insets;
     use crate::gui::types::{Point, Rect, Vector2};
@@ -152,5 +169,41 @@ mod tests {
         assert_eq!(finite_inset_totals(Insets::all(2.0)), Some((4.0, 4.0)));
         assert!(finite_inset_totals(Insets::all(f32::NAN)).is_none());
         assert!(finite_inset_totals(Insets::all(f32::MAX)).is_none());
+    }
+
+    #[test]
+    fn checked_margin_geometry_validates_inset_and_expansion() {
+        let rect = Rect::from_min_size(Point::new(-3.0, -2.0), Vector2::new(4.0, 4.0));
+        assert!(checked_margin_geometry(rect, Insets::all(3.0)).is_some());
+        assert!(
+            checked_margin_geometry(
+                Rect::from_min_size(
+                    Point::new(f32::MAX * 0.5, f32::MAX * 0.5),
+                    Vector2::new(0.0, 0.0),
+                ),
+                Insets {
+                    left: f32::MAX,
+                    right: -f32::MAX,
+                    top: f32::MAX,
+                    bottom: -f32::MAX,
+                },
+            )
+            .is_none()
+        );
+        assert!(
+            checked_margin_geometry(
+                Rect::from_min_size(
+                    Point::new(f32::MAX * 0.5, f32::MAX * 0.5),
+                    Vector2::new(0.0, 0.0),
+                ),
+                Insets {
+                    left: -f32::MAX,
+                    right: f32::MAX,
+                    top: -f32::MAX,
+                    bottom: f32::MAX,
+                },
+            )
+            .is_none()
+        );
     }
 }

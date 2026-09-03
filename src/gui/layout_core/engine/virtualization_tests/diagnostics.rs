@@ -126,6 +126,57 @@ fn invalid_virtualized_descendant_margins_fail_closed_before_scroll_state() {
     }
 }
 
+#[test]
+fn cancelling_extrema_fail_closed_for_boundary_sensitive_virtualized_content() {
+    let viewport = Rect::from_min_size(
+        Point::new(f32::MAX * 0.5, f32::MAX * 0.5),
+        Vector2::new(0.0, 0.0),
+    );
+    let cancelling_margin = Insets {
+        left: f32::MAX,
+        right: -f32::MAX,
+        top: f32::MAX,
+        bottom: -f32::MAX,
+    };
+
+    for (kind, axis) in [
+        (ContainerKind::Row, VirtualizationAxis::Horizontal),
+        (ContainerKind::Column, VirtualizationAxis::Vertical),
+    ] {
+        let valid_root = virtualized_linear_root(kind, axis, Insets::default());
+        let invalid_root = virtualized_linear_root(kind, axis, cancelling_margin);
+        let mut engine = LayoutEngine::default();
+
+        let warmed = engine.layout_with_state(
+            &valid_root,
+            viewport,
+            &LayoutState::default(),
+            LayoutDebugOptions::default(),
+        );
+        assert!(warmed.virtual_windows.contains_key(&1));
+        assert_eq!(engine.virtual_cache.len(), 1);
+
+        let first = engine.layout_with_state(
+            &invalid_root,
+            viewport,
+            &LayoutState::default(),
+            LayoutDebugOptions::all_enabled(),
+        );
+        assert_invalid_virtualized_layout(&first);
+        assert!(engine.virtual_cache.is_empty());
+
+        let second = engine.layout_with_state(
+            &invalid_root,
+            viewport,
+            &LayoutState::default(),
+            LayoutDebugOptions::all_enabled(),
+        );
+        assert_invalid_virtualized_layout(&second);
+        assert_eq!(first.diagnostics, second.diagnostics);
+        assert!(engine.virtual_cache.is_empty());
+    }
+}
+
 fn virtualized_linear_root(
     kind: ContainerKind,
     axis: VirtualizationAxis,

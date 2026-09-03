@@ -27,7 +27,7 @@ pub(super) fn layout_scroll_view(
         omit_invalid_scroll_subtree(container, &child.child, context);
         return;
     };
-    if has_invalid_content_margin(container, &child.child) {
+    if has_invalid_content_margin(container, &child.child, viewport_rect) {
         omit_invalid_scroll_subtree(container, &child.child, context);
         return;
     }

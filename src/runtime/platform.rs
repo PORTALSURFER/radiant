@@ -1,4 +1,8 @@
-use std::{error::Error, fmt, path::PathBuf};
+use std::{
+    error::Error,
+    fmt,
+    path::{Path, PathBuf},
+};
 
 /// Maximum UTF-8 byte length accepted for a platform-owned text value.
 pub const MAX_PLATFORM_TEXT_BYTES: usize = 16 * 1024;
@@ -955,11 +959,11 @@ fn bounded_string(mut value: String, limit: usize) -> String {
     value
 }
 
-fn path_len(path: &PathBuf) -> usize {
+fn path_len(path: &Path) -> usize {
     path.to_string_lossy().len()
 }
 
-fn validate_path(path: &PathBuf) -> Result<(), PlatformFailure> {
+fn validate_path(path: &Path) -> Result<(), PlatformFailure> {
     if path_len(path) > MAX_PLATFORM_PATH_BYTES {
         Err(PlatformFailure::InvalidRequest)
     } else {

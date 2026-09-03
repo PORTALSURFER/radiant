@@ -893,9 +893,32 @@ runtime invalidation.
 
 Current shipped boundary: `RenderCanvas` is a compatibility alias over
 `GpuSurface` vocabulary and emits `PaintPrimitive::GpuSurface`.
-`CanvasProgram`/`CanvasGraph` remains future work: OPT-1407 owns the
-compatibility decision and OPT-1408 owns the implementation. This boundary
-does not choose a new RenderCanvas compatibility or deprecation policy.
+The current 0.1.x keyed/revision builders, `GpuSurface*` construction names,
+`RenderCanvas*` aliases, `PaintRenderCanvas`, and ungated
+`RenderCanvasContent::CustomShader` remain supported without a rename or
+semantic reinterpretation.
+
+The target-only `CanvasProgram`/`CanvasGraph` compatibility contract is owned by
+OPT-1407; implementation remains a later OPT-1408 concern. Its provisional
+builder spelling is `render_canvas_program(canvas)`. The one-argument
+`render_canvas(canvas)` and `PaintPrimitive::RenderCanvas` are reserved for an
+explicit 0.2 breaking boundary after migration evidence. The target graph is a
+closed, immutable, typed, bounded contract containing typed inputs,
+graph-lifetime transient resources, ordered compute/fullscreen-render passes,
+and typed operations. It contains no shader source, loops, pointers, native
+handles, opaque bytecode, or mutable application payloads.
+
+Structural validation completes before adapter handoff. Invalid structure,
+unsupported contract versions or capabilities, compilation failure, and
+retained-resource/recovery identity mismatch all select a mandatory primitive
+fallback and emit a typed diagnostic; no specialized output is silently
+omitted. Exact reuse identity includes program/contract/payload versions,
+retained allocation identity, typed uniforms, bounds/clip, and adapter/target
+generations. Hashes only accelerate lookup and never replace field comparison.
+Arbitrary WGSL remains target-only as `WgslCanvasProgram` behind
+`expert-wgsl`; it does not change the current ungated custom-shader path. This
+contract is documentation and guardrail evidence only: it adds no graph
+compiler, Vello behavior, renderer code, or native acceptance claim.
 
 Built-in GPU-surface payloads cover atlas and signal rendering. Advanced shader
 surfaces use a backend-neutral custom shader descriptor for stable shader

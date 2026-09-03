@@ -1275,9 +1275,85 @@ Custom GPU rendering should be used for clear performance, visual, or architectu
 
 Current shipped boundary: `RenderCanvas` vocabulary is a compatibility-alias
 surface over `GpuSurface` vocabulary and emits `PaintPrimitive::GpuSurface`.
-The target `CanvasProgram`/`CanvasGraph` contract remains future work: OPT-1407
-owns the compatibility decision and OPT-1408 owns its implementation. This
-target does not choose a new RenderCanvas compatibility or deprecation policy.
+The target compatibility decision is recorded in the
+[normative render-canvas contract](DESIGN_DIRECTION.md#render-canvas-compatibility-contract-opt-1407).
+
+### CanvasProgram and CanvasGraph compatibility contract (OPT-1407)
+
+The current 0.1.x API remains supported without a rename or semantic change:
+`render_canvas(key, revision, RenderCanvasContent::...)`, its capability,
+configured-parts, and input helpers, the `GpuSurface*` construction names, the
+`RenderCanvas*` aliases, `PaintPrimitive::GpuSurface`, `PaintRenderCanvas`, and
+the ungated `RenderCanvasContent::CustomShader` path. The current path remains
+the compatibility authority while target implementation work proceeds.
+
+The target is a registered renderer-neutral `CanvasProgram` with stable
+`CanvasProgramId`, `CanvasContractVersion`, `CanvasPayloadVersion`, typed
+`CanvasUniforms`, capability requirements, bounded `CanvasGraphLimits`, and a
+required primitive fallback. The provisional target builder is
+`render_canvas_program(canvas)`; it is target-only and is not a new 0.1.x API.
+The one-argument `render_canvas(canvas)` and `PaintPrimitive::RenderCanvas` are
+target-only until an explicit 0.2 breaking boundary after migration evidence.
+
+`CanvasGraph` is immutable, closed, typed, and bounded. It contains named typed
+immutable inputs, graph-lifetime transient resources, ordered
+`CanvasPass::Compute` and `CanvasPass::FullscreenRender` passes, and a closed
+`CanvasOperation` vocabulary for typed reads/samples, typed transient writes,
+bounded dispatch, fullscreen draw, and typed output writes. Every input,
+resource, pass, operation, uniform byte count, output extent, and dispatch is
+subject to finite graph and adapter limits. The IR excludes shader source,
+loops, pointers, native handles, recursive subgraphs, opaque bytecode, and
+mutable application payloads.
+
+Validation completes before adapter handoff. It rejects unknown or duplicate
+IDs, unresolved references, type or pass mismatches, writes to immutable
+inputs, invalid ordering, non-finite or out-of-bounds dimensions, limit
+violations, and a missing or invalid fallback. Capability/version mismatch,
+compilation failure, and recovery-identity mismatch all select the mandatory
+primitive fallback and emit a typed diagnostic such as
+`CanvasDiagnostic::UnsupportedContractVersion`, `MissingCapability`,
+`CompilationFailed`, or `RecoveryIdentityMismatch`; invalid graphs emit
+`InvalidGraph` before adapter handoff. Specialized output is never silently
+omitted.
+
+Reuse and recovery compare the complete identity: canvas key, program identity
+and version, contract version, payload version, retained allocation identity,
+exact typed uniforms, resolved bounds and clip, and adapter/target generations.
+Hashes are lookup aids only and never authorize reuse without exact field
+comparison. A mismatch takes the fallback path until a fresh matching
+generation is admitted.
+
+Arbitrary WGSL is not a graph operation. The target retains it only as the
+separately named `WgslCanvasProgram` behind `expert-wgsl`, with its own
+capability/version checks and fallback. The current ungated `CustomShader`
+compatibility path remains available throughout 0.1.x until migration evidence
+supports a later boundary.
+
+The staged migration is:
+
+```rust
+// Current supported 0.1.x spelling.
+render_canvas::<Message>(key, revision, RenderCanvasContent::RgbaAtlas {
+    source_rect,
+    atlas,
+});
+
+// Target-only provisional spelling.
+render_canvas_program(SpectrogramCanvas::new(payload));
+
+// Target-only 0.2 spelling after recorded migration evidence.
+render_canvas(SpectrogramCanvas::new(payload));
+```
+
+The 0.2 gate requires maintained examples and public compile fixtures to use
+the target path, known downstream call sites to have documented replacements,
+deterministic fallback/version/capability/compilation/recovery evidence, and
+applicable adapter/platform evidence with its conditional outcomes. This
+target record does not claim that implementation or that evidence exists.
+Unresolved renderer risks are graph-to-adapter capability mapping, native
+compile failure reporting, cross-platform resource limits, fallback equivalence
+for bounds/clip/alpha/order, and generation-safe recovery. This target change
+does not change Vello, add a graph compiler, or remove an API.
 
 ## Layout System
 

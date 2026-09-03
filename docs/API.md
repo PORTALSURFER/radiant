@@ -4236,12 +4236,23 @@ The former `gpu_surface*` builders and `GpuSurface*` construction names remain
 available only through explicit application or runtime module imports as
 transitional compatibility APIs; they are not part of the common prelude.
 
-Current shipped boundary: the `RenderCanvas` vocabulary is a compatibility
-alias over `GpuSurface` vocabulary and its paint output is
-`PaintPrimitive::GpuSurface`. `CanvasProgram` and `CanvasGraph` remain future
-work: OPT-1407 owns the compatibility decision and OPT-1408 owns the
-implementation. This API reference does not choose a new compatibility or
-deprecation policy.
+Current supported 0.1.x boundary: the `RenderCanvas` vocabulary is a
+compatibility alias over `GpuSurface` vocabulary and its paint output is
+`PaintPrimitive::GpuSurface`. The existing keyed/revision builders,
+capability/configured-parts/input helpers, `GpuSurface*` names,
+`RenderCanvas*` aliases, `PaintRenderCanvas`, and ungated
+`RenderCanvasContent::CustomShader` remain supported throughout 0.1.x.
+
+The target-only registered renderer-neutral API introduces `CanvasProgram`,
+`CanvasGraph`, `CanvasContractVersion`, `CanvasPayloadVersion`, typed
+`CanvasUniforms`, bounded `CanvasGraphLimits`, typed capabilities, and a
+required primitive fallback. Its provisional builder is
+`render_canvas_program(canvas)`. The canonical one-argument
+`render_canvas(canvas)` and `PaintPrimitive::RenderCanvas` are not adopted in
+0.1.x; they become valid only at an explicit 0.2 breaking boundary after
+recorded migration evidence. See the [normative OPT-1407 render-canvas contract](DESIGN_DIRECTION.md#render-canvas-compatibility-contract-opt-1407)
+for the closed graph vocabulary, validation/fallback diagnostics, identity
+fences, WGSL feature gate, migration examples, and unresolved renderer risks.
 
 ## Soft-Deprecated First-Use Boilerplate
 
@@ -5372,6 +5383,21 @@ or drag previews in overlays or paint-only repaint paths. This preserves one
 Radiant widget model instead of creating separate Vello and WGPU application
 models.
 
+That keyed/revision contract is the current supported 0.1.x contract. The
+target-only migration path is registered `CanvasProgram` plus immutable,
+typed, bounded `CanvasGraph`, reached provisionally with
+`render_canvas_program(canvas)`. It does not add a second current renderer API
+or reinterpret the existing `GpuSurface` path. The target graph permits only
+typed immutable inputs, typed graph-lifetime transient resources, ordered
+compute/fullscreen-render passes, and closed typed operations. It excludes
+shader source, loops, pointers, native handles, and mutable application
+payloads. Structural validation must finish before adapter handoff; an invalid
+graph, unsupported contract version/capability, compilation failure, or
+recovery mismatch selects a mandatory primitive fallback and emits a typed
+diagnostic, never silent omission. The complete target identity includes
+program/contract/payload versions, retained allocation identity, uniforms,
+bounds, and adapter/target generations; hashes are lookup aids only.
+
 `PaintGpuSurface` supports the built-in v1 content payloads
 `RenderCanvasContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`, plus
 `RenderCanvasContent::CustomShader` for advanced surfaces that need to carry
@@ -5436,8 +5462,23 @@ batched until redraw, and `runtime_overlays.pointer_vertical_line` lets the
 native runtime compose a lightweight pointer-following vertical line. These
 capabilities are part of the GPU-surface
 contract, not side effects inferred from overlays. Custom shader program support
-should extend this descriptor and diagnostics contract rather than adding
-backend-specific runtime special cases.
+should extend this current descriptor and diagnostics contract rather than
+adding backend-specific runtime special cases. In the target contract,
+arbitrary WGSL is reserved for the separately named `WgslCanvasProgram` behind
+the `expert-wgsl` feature gate. The current ungated
+`RenderCanvasContent::CustomShader` compatibility path remains supported until
+migration evidence authorizes a later boundary; it is not silently converted to
+`CanvasGraph`.
+
+The target-only `CanvasDiagnostic` vocabulary includes `InvalidGraph`,
+`UnsupportedContractVersion`, `MissingCapability`, `CompilationFailed`, and
+`RecoveryIdentityMismatch`, each paired with a primitive fallback decision.
+The one-argument `render_canvas(canvas)` and
+`PaintPrimitive::RenderCanvas` remain target-only and may be adopted only in
+0.2 after maintained examples/fixtures, downstream migrations, deterministic
+fallback and identity evidence, and applicable adapter/platform evidence are
+recorded. The current API and native renderer behavior described above are not
+changed by this contract record.
 
 Native runtime entry points return `RuntimeRunReport<Artifacts, Error>` when
 artifact capture is requested. The report envelope is generic: Radiant owns the

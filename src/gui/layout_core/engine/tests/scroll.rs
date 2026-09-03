@@ -5,11 +5,73 @@ use super::intrinsic_slot;
 use crate::gui::{
     layout_core::{
         model::Insets,
-        model::{ContainerKind, ContainerPolicy, OverflowPolicy},
+        model::{ContainerKind, ContainerPolicy, OverflowPolicy, SlotParams},
         tree::{LayoutNode, SlotChild},
     },
     types::{Point, Rect, Vector2},
 };
+
+#[test]
+fn malformed_padding_retains_container_and_omits_descendants() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            padding: Insets::all(f32::NAN),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: SlotParams::fill(),
+            child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
+        }],
+    );
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+    );
+    assert!(output.rects.contains_key(&1));
+    assert!(!output.rects.contains_key(&2));
+    assert_eq!(
+        output
+            .diagnostics
+            .iter()
+            .filter(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn malformed_margin_retains_scroll_container_and_omits_descendants() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: crate::gui::layout_core::model::SlotParams {
+                margin: Insets::all(f32::NAN),
+                ..SlotParams::fill()
+            },
+            child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
+        }],
+    );
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+    );
+    assert!(output.rects.contains_key(&1));
+    assert!(!output.rects.contains_key(&2));
+    assert!(!output.viewport_bounds.contains_key(&1));
+    assert_eq!(
+        output
+            .diagnostics
+            .iter()
+            .filter(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
+            .count(),
+        1
+    );
+}
 
 #[test]
 fn scroll_view_records_overflow_flags() {

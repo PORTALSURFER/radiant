@@ -23,7 +23,7 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         context.omit_subtree(node);
         context.push_diagnostic(
             node.id(),
-            LayoutDiagnosticCode::CustomLayoutInvalidPlacement,
+            LayoutDiagnosticCode::NegativeSizeClamped,
             "layout geometry was invalid and the subtree was omitted",
         );
         return;
@@ -36,7 +36,17 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         return;
     };
     let policy = &container.policy;
-    let content = content_rect(rounded, policy.padding);
+    let Some(content) = content_rect(rounded, policy.padding) else {
+        for child in &container.children {
+            context.omit_subtree(&child.child);
+        }
+        context.push_diagnostic(
+            node.id(),
+            LayoutDiagnosticCode::NegativeSizeClamped,
+            "container content geometry was invalid and descendants were omitted",
+        );
+        return;
+    };
     context.record_content_bounds(node.id(), content);
     if let Some(layout_policy) = container.layout_policy() {
         custom::layout_custom(container, layout_policy, content, context);

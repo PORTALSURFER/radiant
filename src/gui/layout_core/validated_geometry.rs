@@ -1,5 +1,6 @@
 //! Crate-private validation boundary for layout geometry.
 
+use crate::gui::layout_core::model::Insets;
 use crate::gui::types::{Point, Rect, Vector2};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -28,6 +29,22 @@ impl ValidatedRect {
     }
 }
 
+/// Derive a rectangle by applying finite insets to each edge.
+pub(crate) fn checked_inset_rect(rect: Rect, insets: Insets) -> Option<Rect> {
+    if !rect.is_finite()
+        || ![insets.left, insets.right, insets.top, insets.bottom]
+            .iter()
+            .all(|value| value.is_finite())
+    {
+        return None;
+    }
+    let derived = Rect::from_min_max(
+        Point::new(rect.min.x + insets.left, rect.min.y + insets.top),
+        Point::new(rect.max.x - insets.right, rect.max.y - insets.bottom),
+    );
+    ValidatedRect::new(derived).map(ValidatedRect::rect)
+}
+
 pub(crate) fn normalize_constraint_axis(minimum: f32, maximum: f32) -> (f32, f32) {
     let minimum = if minimum.is_finite() && minimum >= 0.0 {
         minimum
@@ -44,7 +61,8 @@ pub(crate) fn normalize_constraint_axis(minimum: f32, maximum: f32) -> (f32, f32
 
 #[cfg(test)]
 mod tests {
-    use super::{ValidatedRect, normalize_constraint_axis};
+    use super::{ValidatedRect, checked_inset_rect, normalize_constraint_axis};
+    use crate::gui::layout_core::model::Insets;
     use crate::gui::types::{Point, Rect, Vector2};
 
     #[test]
@@ -73,6 +91,30 @@ mod tests {
                 Point::new(1.0, 0.0),
                 Point::new(0.0, 1.0),
             ))
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn checked_insets_preserve_zero_sizes_and_reject_bad_derivations() {
+        let rect = Rect::from_min_size(Point::new(-3.0, -2.0), Vector2::new(4.0, 4.0));
+        assert_eq!(
+            checked_inset_rect(rect, Insets::all(2.0)),
+            Some(Rect::from_min_size(
+                Point::new(-1.0, 0.0),
+                Vector2::new(0.0, 0.0)
+            ))
+        );
+        assert!(checked_inset_rect(rect, Insets::all(3.0)).is_none());
+        assert!(checked_inset_rect(rect, Insets::all(f32::NAN)).is_none());
+        assert!(
+            checked_inset_rect(
+                Rect::from_min_max(
+                    Point::new(f32::MAX - 4.0, 0.0),
+                    Point::new(f32::MAX - 2.0, 1.0),
+                ),
+                Insets::all(-4.0),
+            )
             .is_none()
         );
     }

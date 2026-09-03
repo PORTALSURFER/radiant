@@ -6,7 +6,7 @@ use crate::gui::layout_core::engine::{
 use crate::gui::layout_core::model::{Insets, OverflowPolicy};
 use crate::gui::layout_core::tree::LayoutNode;
 use crate::gui::layout_core::tree::NodeId;
-use crate::gui::types::{Point, Rect};
+use crate::gui::types::Rect;
 use std::borrow::Cow;
 
 impl<'a> LayoutContext<'a> {
@@ -61,20 +61,23 @@ impl<'a> LayoutContext<'a> {
         if !self.debug_options.show_margins {
             return;
         }
-        let margin_rect = Rect::from_min_max(
-            Point::new(
-                child_rect.min.x - margin.left,
-                child_rect.min.y - margin.top,
-            ),
-            Point::new(
-                child_rect.max.x + margin.right,
-                child_rect.max.y + margin.bottom,
-            ),
-        );
-        self.record_debug(node_id, DebugPrimitiveKind::SlotMargin, margin_rect);
+        if let Some(margin_rect) = crate::gui::layout_core::validated_geometry::checked_inset_rect(
+            child_rect,
+            Insets {
+                left: -margin.left,
+                right: -margin.right,
+                top: -margin.top,
+                bottom: -margin.bottom,
+            },
+        ) {
+            self.record_debug(node_id, DebugPrimitiveKind::SlotMargin, margin_rect);
+        }
     }
 
     pub(crate) fn record_viewport_bounds(&mut self, node_id: NodeId, rect: Rect) {
+        if crate::gui::layout_core::validated_geometry::ValidatedRect::new(rect).is_none() {
+            return;
+        }
         self.output.viewport_bounds.insert(node_id, rect);
         self.record_debug(node_id, DebugPrimitiveKind::ViewportBounds, rect);
     }
@@ -128,6 +131,9 @@ impl<'a> LayoutContext<'a> {
 
     fn record_debug(&mut self, node_id: NodeId, kind: DebugPrimitiveKind, rect: Rect) {
         if !self.debug_options.enabled {
+            return;
+        }
+        if crate::gui::layout_core::validated_geometry::ValidatedRect::new(rect).is_none() {
             return;
         }
         if let Some(filter) = self.debug_node_filter

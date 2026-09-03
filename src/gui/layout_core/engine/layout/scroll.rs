@@ -21,8 +21,19 @@ pub(super) fn layout_scroll_view(
         return;
     };
     let slot = child.slot;
-    let viewport_w = (content.width() - slot.margin.left - slot.margin.right).max(0.0);
-    let viewport_h = (content.height() - slot.margin.top - slot.margin.bottom).max(0.0);
+    let Some(viewport_rect) =
+        crate::gui::layout_core::validated_geometry::checked_inset_rect(content, slot.margin)
+    else {
+        context.omit_subtree(&child.child);
+        context.push_diagnostic(
+            container.id,
+            LayoutDiagnosticCode::NegativeSizeClamped,
+            "scroll viewport geometry was invalid and descendants were omitted",
+        );
+        return;
+    };
+    let viewport_w = viewport_rect.width();
+    let viewport_h = viewport_rect.height();
     let measured = virtual_fixed_content_size(container, &child.child, viewport_w, viewport_h)
         .unwrap_or_else(|| {
             super::super::measure::measure_node(&child.child, slot.constraints, context)
@@ -49,13 +60,6 @@ pub(super) fn layout_scroll_view(
     let rect = Rect::from_min_size(origin, Vector2::new(width, height));
     context.record_slot_margin(child.child.id(), rect, slot.margin);
 
-    let viewport_rect = Rect::from_min_size(
-        Point::new(
-            content.min.x + slot.margin.left,
-            content.min.y + slot.margin.top,
-        ),
-        Vector2::new(viewport_w, viewport_h),
-    );
     context.record_viewport_bounds(container.id, viewport_rect);
 
     if !layout_virtualized_child(

@@ -31,11 +31,7 @@ impl ValidatedRect {
 
 /// Derive a rectangle by applying finite insets to each edge.
 pub(crate) fn checked_inset_rect(rect: Rect, insets: Insets) -> Option<Rect> {
-    if !rect.is_finite()
-        || ![insets.left, insets.right, insets.top, insets.bottom]
-            .iter()
-            .all(|value| value.is_finite())
-    {
+    if !rect.is_finite() || finite_inset_totals(insets).is_none() {
         return None;
     }
     let derived = Rect::from_min_max(
@@ -43,6 +39,20 @@ pub(crate) fn checked_inset_rect(rect: Rect, insets: Insets) -> Option<Rect> {
         Point::new(rect.max.x - insets.right, rect.max.y - insets.bottom),
     );
     ValidatedRect::new(derived).map(ValidatedRect::rect)
+}
+
+/// Return finite horizontal and vertical inset totals without admitting overflow.
+pub(crate) fn finite_inset_totals(insets: Insets) -> Option<(f32, f32)> {
+    if ![insets.left, insets.right, insets.top, insets.bottom]
+        .iter()
+        .all(|value| value.is_finite())
+    {
+        return None;
+    }
+
+    let horizontal = insets.horizontal();
+    let vertical = insets.vertical();
+    (horizontal.is_finite() && vertical.is_finite()).then_some((horizontal, vertical))
 }
 
 pub(crate) fn normalize_constraint_axis(minimum: f32, maximum: f32) -> (f32, f32) {
@@ -61,7 +71,9 @@ pub(crate) fn normalize_constraint_axis(minimum: f32, maximum: f32) -> (f32, f32
 
 #[cfg(test)]
 mod tests {
-    use super::{ValidatedRect, checked_inset_rect, normalize_constraint_axis};
+    use super::{
+        ValidatedRect, checked_inset_rect, finite_inset_totals, normalize_constraint_axis,
+    };
     use crate::gui::layout_core::model::Insets;
     use crate::gui::types::{Point, Rect, Vector2};
 
@@ -117,5 +129,12 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn finite_inset_totals_reject_nonfinite_and_overflowing_inputs() {
+        assert_eq!(finite_inset_totals(Insets::all(2.0)), Some((4.0, 4.0)));
+        assert!(finite_inset_totals(Insets::all(f32::NAN)).is_none());
+        assert!(finite_inset_totals(Insets::all(f32::MAX)).is_none());
     }
 }

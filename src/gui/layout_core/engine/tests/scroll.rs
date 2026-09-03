@@ -1,5 +1,6 @@
 use super::super::{
-    LayoutDebugOptions, LayoutDiagnosticCode, LayoutState, layout_tree, layout_tree_with_state,
+    LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine, LayoutState, layout_tree,
+    layout_tree_with_state,
 };
 use super::intrinsic_slot;
 use crate::gui::{
@@ -42,47 +43,69 @@ fn malformed_padding_retains_container_and_omits_descendants() {
 
 #[test]
 fn malformed_margin_retains_scroll_container_and_omits_descendants() {
-    let root = LayoutNode::container(
-        1,
-        ContainerPolicy {
-            kind: ContainerKind::ScrollView,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: crate::gui::layout_core::model::SlotParams {
-                margin: Insets::all(f32::NAN),
-                ..SlotParams::fill()
+    for margin in [
+        Insets::all(f32::NAN),
+        Insets::all(f32::MAX),
+        Insets::all(-f32::MAX),
+    ] {
+        let root = LayoutNode::container(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                ..ContainerPolicy::default()
             },
-            child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
-        }],
-    );
-    let output = layout_tree_with_state(
-        &root,
-        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
-        &LayoutState::default(),
-        LayoutDebugOptions::all_enabled(),
-    );
-    assert!(output.rects.contains_key(&1));
-    assert!(!output.rects.contains_key(&2));
-    assert!(output.viewport_bounds.is_empty());
-    assert!(output.virtual_windows.is_empty());
-    assert!(output.overflowed.is_empty());
-    assert!(output.overflow_flags.is_empty());
-    let diagnostics: Vec<_> = output
-        .diagnostics
-        .iter()
-        .filter(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
-        .collect();
-    assert_eq!(diagnostics.len(), 1);
-    assert!(output.diagnostics.iter().all(|item| {
-        item.node_id == 1 && item.code == LayoutDiagnosticCode::NegativeSizeClamped
-    }));
-    assert!(output.debug_primitives.iter().all(|primitive| {
-        primitive.node_id == 1
-            && primitive.rect.is_finite()
-            && primitive.rect.width() >= 0.0
-            && primitive.rect.height() >= 0.0
-    }));
+            vec![SlotChild {
+                slot: crate::gui::layout_core::model::SlotParams {
+                    margin,
+                    ..SlotParams::fill()
+                },
+                child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
+            }],
+        );
+        let mut engine = LayoutEngine::default();
+        let output = engine.layout_with_state(
+            &root,
+            Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+            &LayoutState::default(),
+            LayoutDebugOptions::all_enabled(),
+        );
+        assert!(output.rects.contains_key(&1));
+        assert!(!output.rects.contains_key(&2));
+        assert!(output.viewport_bounds.is_empty());
+        assert!(output.virtual_windows.is_empty());
+        assert!(output.overflowed.is_empty());
+        assert!(output.overflow_flags.is_empty());
+        assert_eq!(engine.scratch.measured.len(), 1);
+        assert_eq!(engine.measure_cache.len(), 1);
+        assert!(
+            engine
+                .scratch
+                .measured
+                .values()
+                .all(|size| { size.x.is_finite() && size.y.is_finite() })
+        );
+        assert!(
+            engine
+                .measure_cache
+                .values()
+                .all(|size| { size.x.is_finite() && size.y.is_finite() })
+        );
+        let diagnostics: Vec<_> = output
+            .diagnostics
+            .iter()
+            .filter(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
+            .collect();
+        assert_eq!(diagnostics.len(), 1);
+        assert!(output.diagnostics.iter().all(|item| {
+            item.node_id == 1 && item.code == LayoutDiagnosticCode::NegativeSizeClamped
+        }));
+        assert!(output.debug_primitives.iter().all(|primitive| {
+            primitive.node_id == 1
+                && primitive.rect.is_finite()
+                && primitive.rect.width() >= 0.0
+                && primitive.rect.height() >= 0.0
+        }));
+    }
 }
 
 #[test]

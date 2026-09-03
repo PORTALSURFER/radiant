@@ -366,7 +366,7 @@ fn custom_policy_measure_child_requests_do_not_expose_nonfinite_maxima() {
 
 #[test]
 fn malformed_padding_measurement_stays_finite_in_cache_and_debug_output() {
-    for padding in [f32::NAN, f32::MAX] {
+    for padding in [f32::NAN, f32::MAX, -f32::MAX] {
         let root = LayoutNode::container(
             50,
             crate::gui::layout_core::model::ContainerPolicy {
@@ -391,6 +391,13 @@ fn malformed_padding_measurement_stays_finite_in_cache_and_debug_output() {
         assert_eq!(
             engine.scratch.measured_by_node.get(&50),
             Some(&Vector2::new(0.0, 0.0))
+        );
+        assert_eq!(engine.scratch.measured.len(), 1);
+        assert_eq!(engine.measure_cache.len(), 1);
+        assert_eq!(output.diagnostics.len(), 1);
+        assert_eq!(
+            output.diagnostics[0].message,
+            "container content geometry was invalid and descendants were omitted"
         );
         assert!(
             engine

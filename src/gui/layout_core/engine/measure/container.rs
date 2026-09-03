@@ -20,8 +20,11 @@ pub(super) fn measure_container(
     context: &mut LayoutContext,
 ) -> Vector2 {
     let policy = &container.policy;
-    let horizontal_padding = policy.padding.horizontal();
-    let vertical_padding = policy.padding.vertical();
+    let Some((horizontal_padding, vertical_padding)) =
+        crate::gui::layout_core::validated_geometry::finite_inset_totals(policy.padding)
+    else {
+        return Vector2::new(constraints.min_w, constraints.min_h);
+    };
     let inner = context.normalize_constraints(
         container.id,
         constraints.inset(horizontal_padding * 0.5, vertical_padding * 0.5),

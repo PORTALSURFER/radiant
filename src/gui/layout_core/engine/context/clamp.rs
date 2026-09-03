@@ -20,7 +20,7 @@ impl<'a> LayoutContext<'a> {
                 "min width was non-finite and was clamped",
             );
         }
-        if !constraints.max_w.is_finite() && constraints.max_w != f32::INFINITY {
+        if !constraints.max_w.is_finite() {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,
@@ -34,7 +34,7 @@ impl<'a> LayoutContext<'a> {
                 "min height was non-finite and was clamped",
             );
         }
-        if !constraints.max_h.is_finite() && constraints.max_h != f32::INFINITY {
+        if !constraints.max_h.is_finite() {
             self.push_diagnostic(
                 node_id,
                 LayoutDiagnosticCode::NegativeSizeClamped,

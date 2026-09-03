@@ -75,3 +75,32 @@ fn contradictory_constraints_emit_diagnostic() {
             .any(|item| item.code == LayoutDiagnosticCode::ConstraintContradiction)
     );
 }
+
+#[test]
+fn explicit_positive_infinity_maxima_retain_compatibility_diagnostics() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy::default(),
+        vec![SlotChild {
+            slot: SlotParams::fill(),
+            child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
+        }],
+    );
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+    );
+
+    for message in [
+        "max width was non-finite and was clamped",
+        "max height was non-finite and was clamped",
+    ] {
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .any(|item| item.node_id == 2 && item.message == message),
+            "missing compatibility diagnostic: {message}"
+        );
+    }
+}

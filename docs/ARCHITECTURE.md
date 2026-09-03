@@ -1493,6 +1493,10 @@ under OPT-1402.
 
 ## Platform Boundary
 
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) is the
+canonical interpretation of the platform/session matrix and native acceptance
+claims described here.
+
 Radiant is macOS-first today as an implementation path, with a cross-platform
 design goal; the target is modern macOS, Windows, and Linux/Wayland systems.
 Core GUI, runtime, widget, layout, and paint-plan code stays platform-neutral.
@@ -1641,6 +1645,10 @@ installed-font/path assumptions to core widget, layout, styling, runtime
 surface, or paint-plan modules.
 
 ## Validation Map
+
+Use the [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) to
+classify each validation command as C or A, and to identify when H, N, or M is
+required. Its outcome and artifact rules apply to this map.
 
 Use the smallest validation slice that proves the edited boundary, then run the
 normal quality lane before merging meaningful changes.

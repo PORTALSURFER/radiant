@@ -9,7 +9,9 @@ native implementation is macOS-first, while backend-neutral GUI contracts and
 host boundaries are designed for cross-platform use across all three in-scope
 platforms. X11 is an explicit non-goal. See `docs/TARGET.md` for the
 modern-system matrix and the
-CI-versus-native acceptance boundary.
+CI-versus-native acceptance boundary. See the
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) for the
+canonical lane, outcome, session, and artifact rules.
 For a contributor-facing map of subsystem ownership, rendering/text/platform
 boundaries, and validation lanes, see `docs/ARCHITECTURE.md`. For the preferred
 shape of application-facing APIs, examples, and cleanup tickets, see
@@ -5795,6 +5797,12 @@ compatibility hook when a host needs pending-chord or `FocusSurface` access.
 
 ## Performance Harness
 
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) classifies
+benchmark configuration and output parsing as lane C, deterministic workload
+execution as lane A, and native frame-profile or fairness claims only through
+the applicable native lanes. Existing performance contracts and thresholds
+remain authoritative; this policy adds no timing threshold.
+
 Radiant includes a standalone performance harness for trend and profiling
 evidence. Run it with:
 
@@ -6209,6 +6217,11 @@ performance acceptance is established.
 
 ### macOS live frame-profile acceptance
 
+Policy classification: `N/NOT_RUN` for the live desktop procedure. The
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) requires a
+qualifying manifest before this procedure can support a native acceptance
+claim.
+
 `macos_frame_profile_acceptance` is the checked public-API harness for native
 Off/Frame acceptance. It is explicitly macOS-only. The selected modes are read
 once at startup; restart the harness to change them. The callback retains only
@@ -6260,6 +6273,11 @@ evidence, not current acceptance.
 
 ### macOS live devtools acceptance
 
+Policy classification: `N/NOT_RUN` for the live desktop procedure. The
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) requires a
+qualifying manifest before this procedure can support a native acceptance
+claim.
+
 `macos_devtools_acceptance` is the checked public-API harness for the existing
 runtime-local devtools overlay. It enables the overlay through
 `radiant::app(...).devtools_overlay(DevtoolsOverlayOptions::enabled())`, uses
@@ -6300,6 +6318,10 @@ performance acceptance is established.
 
 ### macOS live external-drag acceptance
 
+Policy classification: `M/NOT_RUN` for the manual native Finder procedure. The
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) keeps a
+documented procedure separate from a completed hardware/user result.
+
 `macos_external_drag_acceptance` is the checked public-API harness for outgoing
 file drags. It uses `drag_handle()`,
 `UiUpdateContext::begin_drag_with_external(...)`, and
@@ -6325,6 +6347,13 @@ section documents the manual acceptance procedure and does not claim that a
 live Finder run has been performed.
 
 ### macOS numeric accessibility acceptance
+
+Policy classification: current policy-compliant evidence is `N/NOT_RUN` because
+no complete policy manifest is recorded. A historical bounded AppKit/Computer
+Use result is retained below as bounded N evidence; it is not VoiceOver or
+release evidence. VoiceOver-specific acceptance remains `M/NOT_RUN`. The
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) keeps those
+claims scoped to the exercised adapter and screen-reader capability.
 
 `macos_numeric_accessibility_acceptance` is the checked public-API harness for
 ordinary materialized `NumericInput` accessibility increment and decrement
@@ -6355,6 +6384,11 @@ Current Linux/Windows validation remains limited to portable build, compile,
 and test evidence.
 
 ### macOS live Japanese IME acceptance
+
+Policy classification: `M/NOT_RUN` for the live Japanese IME procedure. The
+[Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) does not
+allow deterministic projection checks or a documented command to substitute
+for native IME evidence.
 
 `macos_text_input_ime_acceptance` is the checked public-API harness for the
 already-shipped single-line `TextInput` path in the primary window. The
@@ -6831,6 +6865,11 @@ clips/meters, and paint-only hover/playhead overlays. Arrangement, track,
 transport, mixer, audio, DSP, and plugin behavior remain host-owned.
 
 ## Quality Gate
+
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) classifies
+this repository quality procedure as lane C, with lane A applying when a
+deterministic runtime behavior is exercised. These commands do not establish
+headless native-host, logged-in desktop, or manual/hardware acceptance.
 
 The local validation lane runs formatting, Clippy with warnings denied, library
 and integration tests, checked examples, a rustdoc build, Rust source-level

@@ -39,6 +39,9 @@ widgets. They are explicit control surfaces, not a second framework.
   and the UI-owned mapper contract.
 - `docs/ARCHITECTURE.md`: contributor map for ownership boundaries, platform
   seams, rendering boundaries, and validation slices.
+- [Platform Acceptance and Evidence Policy](docs/PLATFORM_ACCEPTANCE.md):
+  canonical three-platform acceptance, lanes, outcomes, baselines, gates, and
+  artifact rules.
 - `docs/TARGET.md`: long-term project direction for a standalone,
   high-performance general-purpose GUI library.
 
@@ -100,6 +103,11 @@ unchanged payloads. Set `RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY=1` for readable
 JSON during manual automation work.
 
 ## Validation
+
+The [Platform Acceptance and Evidence Policy](docs/PLATFORM_ACCEPTANCE.md)
+classifies this portable quality procedure as lane C, with lane A applying to
+deterministic runtime behavior. It does not establish H, N, or M native
+acceptance.
 
 The normal local quality lane is documented in `docs/API.md`. The short version:
 

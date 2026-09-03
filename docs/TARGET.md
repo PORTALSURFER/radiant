@@ -7,6 +7,9 @@ delivery guide: it explains what Radiant is trying to become and what belongs
 in the library, but it does not assert that every target-state API or runtime
 behavior is shipped today. For current API names and compatibility status, see
 `docs/API.md`; for current module ownership, see `docs/ARCHITECTURE.md`.
+The canonical interpretation of platform claims, acceptance lanes, outcomes,
+baselines, and evidence artifacts is the
+[`Platform Acceptance and Evidence Policy`](PLATFORM_ACCEPTANCE.md).
 
 ## Vision
 
@@ -65,6 +68,9 @@ Radiant should provide:
 Radiant should scale from simple “hello world” interfaces to advanced applications such as DAWs, plugin UIs, node editors, timeline editors, waveform views, inspectors, large virtualized lists, and GPU-heavy realtime interfaces.
 
 ## Platform Target
+
+Apply the [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) to
+every platform-support and native-host claim in this section.
 
 Radiant's target support scope is macOS, Windows, and Linux through a native
 Wayland session. X11 sessions and a direct X11 backend are explicit
@@ -1873,6 +1879,11 @@ Examples and sandboxes are part of the Radiant development workflow, not optiona
 
 ## Documentation Goals
 
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) is the
+single documentation and evidence classification. Documentation structure and
+source-level contract checks are lane C; a documented procedure or example does
+not claim native host, live desktop, or manual acceptance.
+
 Radiant documentation should clarify:
 
 - What Radiant is
@@ -1902,6 +1913,10 @@ Documentation should stay aligned with the examples and the actual public API.
 
 ## Feature Definition of Done
 
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) defines
+which lanes and outcomes can support the evidence portions of this Definition
+of Done; it does not change the feature requirements below.
+
 A Radiant feature is not complete just because the code compiles.
 
 For each meaningful public feature, widget, layout primitive, rendering feature, or interaction system, completion should usually include:
@@ -1923,6 +1938,10 @@ For each meaningful public feature, widget, layout primitive, rendering feature,
 This keeps Radiant coherent as a library rather than becoming a pile of isolated features.
 
 ## Validation and CI Expectations
+
+The [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md) is the
+canonical source for validation-lane identity, platform/session prerequisites,
+outcome handling, and evidence retention.
 
 Radiant should be validated continuously as it evolves.
 
@@ -2076,6 +2095,11 @@ When evaluating Radiant, ask:
 - Does this preserve Radiant as a standalone reusable GUI library?
 
 ## Completion Criteria
+
+The completion bullets below are mapped one-to-one to TC-01 through TC-30 in
+the [Platform Acceptance and Evidence Policy](PLATFORM_ACCEPTANCE.md). The
+policy supplies acceptance evidence rules without changing these criteria or
+the scorecard estimates.
 
 Radiant is moving toward the target when it has:
 

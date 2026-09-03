@@ -19,7 +19,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fmt, time::Duration};
+use std::{collections::BTreeSet, fmt, time::Duration};
 
 /// Media type used by the v1 trace encoder.
 pub const DETERMINISTIC_TRACE_FORMAT: &str = "radiant.deterministic-trace";
@@ -225,7 +225,10 @@ impl HostConfigSchema {
 
 /// A validated, immutable deterministic trace.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DeterministicTrace(TraceEnvelope);
+pub struct DeterministicTrace {
+    envelope: TraceEnvelope,
+    limits: DeterministicTraceLimits,
+}
 
 impl DeterministicTrace {
     /// Decode and validate canonical JSON bytes under `limits`.
@@ -251,24 +254,25 @@ impl DeterministicTrace {
                 "trace is not canonical JSON".into(),
             ));
         }
-        Ok(Self(envelope))
+        Ok(Self { envelope, limits })
     }
 
     /// Serialize the validated trace using stable compact JSON.
     pub fn to_json_bytes(&self) -> Result<Vec<u8>, DeterministicTraceError> {
-        serde_json::to_vec(&self.0).map_err(|e| DeterministicTraceError::Malformed(e.to_string()))
+        serde_json::to_vec(&self.envelope)
+            .map_err(|e| DeterministicTraceError::Malformed(e.to_string()))
     }
     /// Return the trace identity.
     pub fn identity(&self) -> &DeterministicTraceIdentity {
-        &self.0.identity
+        &self.envelope.identity
     }
     /// Return the host configuration recorded in the trace.
     pub fn host_config(&self) -> DeterministicTraceConfigView {
-        DeterministicTraceConfigView(self.0.host.clone())
+        DeterministicTraceConfigView(self.envelope.host.clone())
     }
     /// Return the number of recorded operations.
     pub fn operation_count(&self) -> usize {
-        self.0.operations.len()
+        self.envelope.operations.len()
     }
 
     /// Replay through a caller-provided host factory and typed decoders.
@@ -291,15 +295,15 @@ impl DeterministicTrace {
         FactoryError: fmt::Display,
         ActionError: fmt::Display,
     {
-        validate_envelope(&self.0, DeterministicTraceLimits::default())?;
+        validate_envelope(&self.envelope, self.limits)?;
         let mut host = factory(
-            self.0.host.clone().to_config()?,
-            &self.0.initial_state,
-            &self.0.initial_view_identity,
+            self.envelope.host.clone().to_config()?,
+            &self.envelope.initial_state,
+            &self.envelope.initial_view_identity,
         )
         .map_err(|e| DeterministicTraceError::Replay(e.to_string()))?;
         let mut publications = 0;
-        for (step, operation) in self.0.operations.iter().enumerate() {
+        for (step, operation) in self.envelope.operations.iter().enumerate() {
             match operation {
                 TraceOperation::Input { value } => input(&mut host, value)
                     .map_err(|e| DeterministicTraceError::Replay(e.to_string()))?,
@@ -318,21 +322,30 @@ impl DeterministicTrace {
                         .map_err(|e| DeterministicTraceError::Replay(e.to_string()))?;
                 }
                 TraceOperation::Publication { snapshot } => {
-                    if publications != 0 {
+                    if publications == 0 {
+                        if let Some(divergence) =
+                            first_initial_divergence(snapshot, host.published_snapshot(), step)
+                        {
+                            return Err(DeterministicTraceError::Diverged(divergence));
+                        }
+                    } else {
                         host.turn()
                             .map_err(|e| DeterministicTraceError::Replay(e.to_string()))?;
-                    }
-                    if let Some(divergence) =
-                        first_divergence(snapshot, host.published_snapshot(), step, publications)
-                    {
-                        return Err(DeterministicTraceError::Diverged(divergence));
+                        if let Some(divergence) = first_divergence(
+                            snapshot,
+                            host.published_snapshot(),
+                            step,
+                            publications,
+                        ) {
+                            return Err(DeterministicTraceError::Diverged(divergence));
+                        }
                     }
                     publications += 1;
                 }
             }
         }
         Ok(DeterministicReplayReport {
-            operations: self.0.operations.len(),
+            operations: self.envelope.operations.len(),
             publications,
             divergence: None,
         })
@@ -372,31 +385,34 @@ impl DeterministicTraceCapture {
         config
             .validate()
             .map_err(|e| DeterministicTraceError::Malformed(e.to_string()))?;
-        validate_value(&initial_state, limits.max_json_depth)?;
-        validate_value(&initial_view_identity, limits.max_json_depth)?;
-        Ok(Self {
-            envelope: TraceEnvelope {
-                format: DETERMINISTIC_TRACE_FORMAT.into(),
-                version: DETERMINISTIC_TRACE_VERSION,
-                host: HostConfigSchema::from_config(config),
-                identity,
-                initial_state,
-                initial_view_identity,
-                operations: Vec::new(),
-            },
-            limits,
-        })
+        validate_identity(&identity, limits.max_bytes)?;
+        validate_bounded_value(&initial_state, limits, "value")?;
+        validate_bounded_value(&initial_view_identity, limits, "identity")?;
+        let envelope = TraceEnvelope {
+            format: DETERMINISTIC_TRACE_FORMAT.into(),
+            version: DETERMINISTIC_TRACE_VERSION,
+            host: HostConfigSchema::from_config(config),
+            identity,
+            initial_state,
+            initial_view_identity,
+            operations: Vec::new(),
+        };
+        validate_encoded_envelope(&envelope, limits)?;
+        Ok(Self { envelope, limits })
     }
     fn push(&mut self, operation: TraceOperation) -> Result<(), DeterministicTraceError> {
         if self.envelope.operations.len() >= self.limits.max_operations {
             return Err(DeterministicTraceError::BudgetExceeded("operations"));
         }
-        self.envelope.operations.push(operation);
+        let mut candidate = self.envelope.clone();
+        candidate.operations.push(operation);
+        validate_encoded_envelope(&candidate, self.limits)?;
+        self.envelope = candidate;
         Ok(())
     }
     /// Record a normalized input payload decoded by the caller at replay time.
     pub fn capture_input(&mut self, value: Value) -> Result<(), DeterministicTraceError> {
-        validate_value(&value, self.limits.max_json_depth)?;
+        validate_bounded_value(&value, self.limits, "value")?;
         self.push(TraceOperation::Input { value })
     }
     /// Record a non-negative virtual-time advance.
@@ -422,7 +438,7 @@ impl DeterministicTraceCapture {
         id: PlatformRequestId,
         result: Value,
     ) -> Result<(), DeterministicTraceError> {
-        validate_value(&result, self.limits.max_json_depth)?;
+        validate_bounded_value(&result, self.limits, "value")?;
         self.push(TraceOperation::CompletePlatform {
             id: id.get(),
             result,
@@ -444,12 +460,10 @@ impl DeterministicTraceCapture {
     /// Finish and validate the capture.
     pub fn finish(self) -> Result<DeterministicTrace, DeterministicTraceError> {
         validate_envelope(&self.envelope, self.limits)?;
-        let encoded = serde_json::to_vec(&self.envelope)
-            .map_err(|e| DeterministicTraceError::Malformed(e.to_string()))?;
-        if encoded.len() > self.limits.max_bytes {
-            return Err(DeterministicTraceError::BudgetExceeded("bytes"));
-        }
-        Ok(DeterministicTrace(self.envelope))
+        Ok(DeterministicTrace {
+            envelope: self.envelope,
+            limits: self.limits,
+        })
     }
     fn publication_count(&self) -> usize {
         self.envelope
@@ -493,7 +507,20 @@ fn validate_envelope(
     validate_identity(&e.identity, limits.max_bytes)?;
     validate_bounded_value(&e.initial_state, limits, "value")?;
     validate_bounded_value(&e.initial_view_identity, limits, "identity")?;
+    let Some(TraceOperation::Publication { snapshot }) = e.operations.first() else {
+        return Err(DeterministicTraceError::InvalidOrder(
+            "trace must begin with an initial publication".into(),
+        ));
+    };
+    if snapshot.turn != 0 || snapshot.virtual_time_nanos != 0 {
+        return Err(DeterministicTraceError::InvalidOrder(
+            "initial publication must represent turn 0 and virtual time 0".into(),
+        ));
+    }
     let mut last_time = 0u128;
+    let mut publications = 0usize;
+    let mut worker_ids = BTreeSet::new();
+    let mut platform_ids = BTreeSet::new();
     for op in &e.operations {
         match op {
             TraceOperation::AdvanceVirtualTime { nanos } => {
@@ -507,26 +534,65 @@ fn validate_envelope(
                         "zero completion id".into(),
                     ));
                 }
+                if !platform_ids.insert(*id) {
+                    return Err(DeterministicTraceError::InvalidOrder(
+                        "duplicate platform completion id".into(),
+                    ));
+                }
             }
             TraceOperation::CompleteWorker { id } if *id == 0 => {
                 return Err(DeterministicTraceError::InvalidOrder(
                     "zero completion id".into(),
                 ));
             }
+            TraceOperation::CompleteWorker { id } => {
+                if !worker_ids.insert(*id) {
+                    return Err(DeterministicTraceError::InvalidOrder(
+                        "duplicate worker completion id".into(),
+                    ));
+                }
+            }
             TraceOperation::Publication { snapshot } => {
                 let value = serde_json::to_value(snapshot)
                     .map_err(|e| DeterministicTraceError::Malformed(e.to_string()))?;
                 validate_bounded_value(&value, limits, "snapshot")?;
-                if snapshot.schema_version != NORMALIZED_SNAPSHOT_SCHEMA_VERSION
-                    || snapshot.virtual_time_nanos < last_time
-                {
+                if snapshot.schema_version != NORMALIZED_SNAPSHOT_SCHEMA_VERSION {
                     return Err(DeterministicTraceError::InvalidOrder(
-                        "invalid snapshot version or clock".into(),
+                        "invalid snapshot version".into(),
                     ));
                 }
+                if publications != 0 {
+                    let expected_turn = u64::try_from(publications).map_err(|_| {
+                        DeterministicTraceError::InvalidOrder(
+                            "snapshot publication turn overflow".into(),
+                        )
+                    })?;
+                    if snapshot.turn != expected_turn || snapshot.virtual_time_nanos != last_time {
+                        return Err(DeterministicTraceError::InvalidOrder(
+                            "invalid snapshot publication order or clock".into(),
+                        ));
+                    }
+                }
+                publications += 1;
             }
-            _ => {}
         }
+    }
+    if publications == 0 {
+        return Err(DeterministicTraceError::InvalidOrder(
+            "trace must contain a publication".into(),
+        ));
+    }
+    validate_encoded_envelope(e, limits)
+}
+
+fn validate_encoded_envelope(
+    envelope: &TraceEnvelope,
+    limits: DeterministicTraceLimits,
+) -> Result<(), DeterministicTraceError> {
+    let encoded = serde_json::to_vec(envelope)
+        .map_err(|e| DeterministicTraceError::Malformed(e.to_string()))?;
+    if encoded.len() > limits.max_bytes {
+        return Err(DeterministicTraceError::BudgetExceeded("bytes"));
     }
     Ok(())
 }
@@ -619,6 +685,24 @@ pub fn first_divergence(
     step: usize,
     publication: usize,
 ) -> Option<TraceDivergence> {
+    first_divergence_at_boundary(expected, actual, step, "publication", Some(publication))
+}
+
+fn first_initial_divergence(
+    expected: &NormalizedSnapshot,
+    actual: &NormalizedSnapshot,
+    step: usize,
+) -> Option<TraceDivergence> {
+    first_divergence_at_boundary(expected, actual, step, "initial", None)
+}
+
+fn first_divergence_at_boundary(
+    expected: &NormalizedSnapshot,
+    actual: &NormalizedSnapshot,
+    step: usize,
+    boundary: &str,
+    publication: Option<usize>,
+) -> Option<TraceDivergence> {
     let left = serde_json::to_value(expected).ok()?;
     let right = serde_json::to_value(actual).ok()?;
     fn find(a: &Value, b: &Value, path: &mut String) -> Option<(String, Value, Value)> {
@@ -656,8 +740,8 @@ pub fn first_divergence(
     let (json_path, expected, actual) = find(&left, &right, &mut String::new())?;
     Some(TraceDivergence {
         step,
-        boundary: "publication".into(),
-        publication: Some(publication),
+        boundary: boundary.into(),
+        publication,
         json_path,
         expected,
         actual,
@@ -696,6 +780,18 @@ where
 mod tests {
     use super::*;
     use crate::gui::types::Vector2;
+    use crate::runtime::{RuntimeBridge, SurfaceNode, UiSurface};
+    use std::sync::Arc;
+
+    #[derive(Default)]
+    struct MinimalBridge;
+
+    impl RuntimeBridge<()> for MinimalBridge {
+        #[allow(clippy::arc_with_non_send_sync)]
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            Arc::new(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
+        }
+    }
 
     fn capture() -> DeterministicTraceCapture {
         DeterministicTraceCapture::new(
@@ -713,7 +809,18 @@ mod tests {
 
     #[test]
     fn canonical_round_trip_and_preflight_rejections() {
-        let trace = capture().finish().expect("finish");
+        let initial_snapshot = DeterministicHost::new(
+            MinimalBridge,
+            DeterministicHostConfig::new(Vector2::new(100.0, 80.0)),
+        )
+        .expect("host")
+        .published_snapshot()
+        .clone();
+        let mut capture = capture();
+        capture
+            .publication(initial_snapshot)
+            .expect("initial publication");
+        let trace = capture.finish().expect("finish");
         let bytes = trace.to_json_bytes().expect("encode");
         let decoded =
             DeterministicTrace::from_json_bytes(&bytes, DeterministicTraceLimits::default())

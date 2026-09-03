@@ -32,6 +32,16 @@ fn factory(
     }
 }
 
+fn initial_snapshot() -> radiant::runtime::testing::NormalizedSnapshot {
+    DeterministicHost::new(
+        MinimalBridge,
+        DeterministicHostConfig::new(Vector2::new(100.0, 80.0)),
+    )
+    .expect("host")
+    .published_snapshot()
+    .clone()
+}
+
 #[test]
 fn public_fixtures_are_canonical_and_replay_through_a_real_host() {
     for fixture in [
@@ -58,7 +68,10 @@ fn public_fixtures_are_canonical_and_replay_through_a_real_host() {
         let report = trace
             .replay(
                 factory(&mut invocations),
-                |_, _| Ok::<(), &'static str>(()),
+                |host, value| {
+                    host.set_application_observation(value.clone());
+                    Ok::<(), &'static str>(())
+                },
                 |_| Ok::<_, &'static str>(Ok(PlatformResponse::Completed)),
             )
             .expect("replay");
@@ -82,6 +95,9 @@ fn capture_with_limits(limits: DeterministicTraceLimits) -> DeterministicTrace {
     )
     .expect("capture");
     capture
+        .publication(initial_snapshot())
+        .expect("initial publication");
+    capture
         .advance_virtual_time(std::time::Duration::from_nanos(1))
         .expect("operation");
     capture.finish().expect("finish")
@@ -91,6 +107,26 @@ fn canonical_bytes() -> Vec<u8> {
     capture_with_limits(DeterministicTraceLimits::default())
         .to_json_bytes()
         .unwrap()
+}
+
+#[test]
+fn replay_rejects_stale_worker_completion_after_factory_creation() {
+    let bytes = replace_once(
+        &canonical_bytes(),
+        "{\"AdvanceVirtualTime\":{\"nanos\":1}}",
+        "{\"CompleteWorker\":{\"id\":1}}",
+    );
+    let trace = DeterministicTrace::from_json_bytes(&bytes, Default::default()).unwrap();
+    let mut invocations = 0;
+
+    let result = trace.replay(
+        factory(&mut invocations),
+        |_, _| Ok::<(), &'static str>(()),
+        |_| Ok::<_, &'static str>(Ok(PlatformResponse::Completed)),
+    );
+
+    assert!(matches!(result, Err(DeterministicTraceError::Replay(_))));
+    assert_eq!(invocations, 1);
 }
 
 fn replace_once(base: &[u8], from: &str, to: &str) -> Vec<u8> {
@@ -130,13 +166,8 @@ fn preflight_rejects_malformed_traces_without_factory_invocation() {
         Default::default(),
         "WrongVersion",
     );
-    let too_many = replace_once(
-        &valid,
-        "\"operations\":[{\"AdvanceVirtualTime\":{\"nanos\":1}}]",
-        "\"operations\":[{\"AdvanceVirtualTime\":{\"nanos\":1}},{\"AdvanceVirtualTime\":{\"nanos\":2}}]",
-    );
     assert_decode_rejected(
-        &too_many,
+        &valid,
         DeterministicTraceLimits {
             max_operations: 1,
             ..Default::default()
@@ -151,18 +182,11 @@ fn preflight_rejects_malformed_traces_without_factory_invocation() {
     );
     let zero_completion = replace_once(
         &valid,
-        "\"operations\":[{\"AdvanceVirtualTime\":{\"nanos\":1}}]",
-        "\"operations\":[{\"CompleteWorker\":{\"id\":0}}]",
+        "{\"AdvanceVirtualTime\":{\"nanos\":1}}",
+        "{\"CompleteWorker\":{\"id\":0}}",
     );
     assert_decode_rejected(&zero_completion, Default::default(), "zero completion");
-    let overflow = replace_once(
-        &valid,
-        "\"operations\":[{\"AdvanceVirtualTime\":{\"nanos\":1}}]",
-        &format!(
-            "\"operations\":[{{\"AdvanceVirtualTime\":{{\"nanos\":{}}}}}]",
-            u128::MAX
-        ),
-    );
+    let overflow = replace_once(&valid, "\"nanos\":1", &format!("\"nanos\":{}", u128::MAX));
     assert_decode_rejected(&overflow, Default::default(), "overflow");
 
     assert_decode_rejected(
@@ -243,10 +267,9 @@ fn capture_enforces_value_identity_operation_and_snapshot_budgets() {
             max_bytes: 100,
             ..Default::default()
         },
-    )
-    .unwrap();
+    );
     assert!(matches!(
-        identity.finish(),
+        identity,
         Err(DeterministicTraceError::BudgetExceeded("identity"))
     ));
     let value = DeterministicTraceCapture::new(
@@ -261,12 +284,35 @@ fn capture_enforces_value_identity_operation_and_snapshot_budgets() {
             max_bytes: 100,
             ..Default::default()
         },
-    )
-    .unwrap();
+    );
     assert!(matches!(
-        value.finish(),
+        value,
         Err(DeterministicTraceError::BudgetExceeded("value"))
     ));
+}
+
+#[test]
+fn capture_rejects_incremental_encoded_size_before_retaining_operation() {
+    let mut capture = DeterministicTraceCapture::new(
+        DeterministicTraceIdentity {
+            application: "test-app".into(),
+            scenario: "incremental-bytes".into(),
+        },
+        DeterministicHostConfig::new(Vector2::new(100.0, 80.0)),
+        serde_json::Value::Null,
+        serde_json::Value::Null,
+        DeterministicTraceLimits {
+            max_bytes: 4_200,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    capture.publication(initial_snapshot()).unwrap();
+    assert!(matches!(
+        capture.capture_input(serde_json::json!({"payload": "x".repeat(100)})),
+        Err(DeterministicTraceError::BudgetExceeded("bytes"))
+    ));
+    assert_eq!(capture.finish().unwrap().operation_count(), 1);
 }
 
 #[test]
@@ -287,6 +333,7 @@ fn preflight_rejects_invalid_snapshot_order_and_configuration() {
         Default::default(),
     )
     .unwrap();
+    capture.publication(initial_snapshot()).unwrap();
     capture
         .advance_virtual_time(std::time::Duration::from_nanos(1))
         .unwrap();
@@ -317,11 +364,8 @@ fn preflight_rejects_invalid_snapshot_order_and_configuration() {
 
     let invalid_time = replace_once(
         &canonical_bytes(),
-        "\"operations\":[{\"AdvanceVirtualTime\":{\"nanos\":1}}]",
-        &format!(
-            "\"operations\":[{{\"AdvanceVirtualTime\":{{\"nanos\":{}}}}}]",
-            u128::MAX
-        ),
+        "\"nanos\":1",
+        &format!("\"nanos\":{}", u128::MAX),
     );
     let decoded = DeterministicTrace::from_json_bytes(&invalid_time, Default::default());
     assert!(decoded.is_err());
@@ -374,6 +418,91 @@ fn generated_publication_replays_and_divergence_has_json_path() {
     altered.application_observation = Some(serde_json::json!({"changed": true}));
     let divergence = first_divergence(&published, &altered, 2, 1).unwrap();
     assert!(divergence.json_path.contains("application_observation"));
+}
+
+#[test]
+fn preflight_rejects_absent_or_misordered_first_publication_and_duplicate_ids() {
+    let valid = canonical_bytes();
+    let absent = replace_once(
+        &valid,
+        "{\"Publication\":{\"snapshot\":",
+        "{\"Input\":{\"value\":null}},{\"Publication\":{\"snapshot\":",
+    );
+    assert_decode_rejected(&absent, Default::default(), "initial publication");
+    let misordered = replace_once(
+        &valid,
+        "\"turn\":0,\"virtual_time_nanos\":0",
+        "\"turn\":1,\"virtual_time_nanos\":0",
+    );
+    assert_decode_rejected(&misordered, Default::default(), "initial publication");
+
+    let duplicate_worker = replace_once(
+        &valid,
+        "{\"AdvanceVirtualTime\":{\"nanos\":1}}",
+        "{\"CompleteWorker\":{\"id\":1}},{\"CompleteWorker\":{\"id\":1}}",
+    );
+    assert_decode_rejected(&duplicate_worker, Default::default(), "duplicate worker");
+    let duplicate_platform = replace_once(
+        &valid,
+        "{\"AdvanceVirtualTime\":{\"nanos\":1}}",
+        "{\"CompletePlatform\":{\"id\":1,\"result\":null}},{\"CompletePlatform\":{\"id\":1,\"result\":null}}",
+    );
+    assert_decode_rejected(
+        &duplicate_platform,
+        Default::default(),
+        "duplicate platform",
+    );
+}
+
+#[test]
+fn replay_uses_non_default_limits_and_labels_initial_divergence() {
+    let limits = DeterministicTraceLimits {
+        max_operations: 2,
+        max_virtual_time_nanos: 1,
+        ..Default::default()
+    };
+    let trace = capture_with_limits(limits);
+    let bytes = trace.to_json_bytes().unwrap();
+    let decoded = DeterministicTrace::from_json_bytes(&bytes, limits).unwrap();
+    let mut invocations = 0;
+    decoded
+        .replay(
+            factory(&mut invocations),
+            |_, _| Ok::<(), &'static str>(()),
+            |_| Ok::<_, &'static str>(Ok(PlatformResponse::Completed)),
+        )
+        .unwrap();
+    assert_eq!(invocations, 1);
+
+    let mut expected = initial_snapshot();
+    expected.viewport.width += 1.0;
+    let mut capture = DeterministicTraceCapture::new(
+        DeterministicTraceIdentity {
+            application: "a".into(),
+            scenario: "initial".into(),
+        },
+        DeterministicHostConfig::new(Vector2::new(100.0, 80.0)),
+        serde_json::Value::Null,
+        serde_json::Value::Null,
+        Default::default(),
+    )
+    .unwrap();
+    capture.publication(expected).unwrap();
+    let trace = capture.finish().unwrap();
+    let error = trace
+        .replay(
+            factory(&mut invocations),
+            |_, _| Ok::<(), &'static str>(()),
+            |_| Ok::<_, &'static str>(Ok(PlatformResponse::Completed)),
+        )
+        .unwrap_err();
+    match error {
+        DeterministicTraceError::Diverged(divergence) => {
+            assert_eq!(divergence.boundary, "initial");
+            assert_eq!(divergence.publication, None);
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
 }
 
 #[test]

@@ -1,6 +1,7 @@
 use crate::gui::layout_core::{
-    Constraints, LayoutEngine, LayoutNode, LayoutOmissionReason, LayoutPolicy,
-    LayoutPolicyPlacementError, SizeHint, SlotChild, SlotParams, Vector2,
+    Constraints, LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine, LayoutNode,
+    LayoutOmissionReason, LayoutPolicy, LayoutPolicyPlacementError, SizeHint, SlotChild,
+    SlotParams, Vector2,
 };
 use crate::gui::types::{Point, Rect};
 use std::cell::{Cell, RefCell};
@@ -204,5 +205,77 @@ fn custom_policy_child_measurement_stays_within_disjoint_slot_bounds() {
             && request.max_w <= slot.max_w
             && request.min_h >= slot.min_h
             && request.max_h <= slot.max_h
+    }));
+}
+
+#[test]
+fn custom_policy_place_is_skipped_for_invalid_padding_geometry() {
+    struct PlacementPolicy {
+        place_calls: Rc<Cell<u32>>,
+    }
+
+    impl LayoutPolicy for PlacementPolicy {
+        fn measure(
+            &self,
+            children: &mut crate::gui::layout_core::MeasureChildren<'_>,
+            constraints: Constraints,
+        ) -> SizeHint {
+            let _ = children.measure(0, constraints);
+            SizeHint::preferred(Vector2::new(20.0, 12.0))
+        }
+
+        fn place(&self, children: &mut crate::gui::layout_core::PlaceChildren<'_>, bounds: Rect) {
+            self.place_calls.set(self.place_calls.get() + 1);
+            children
+                .place(0, bounds)
+                .expect("the only child should place");
+        }
+    }
+
+    let place_calls = Rc::new(Cell::new(0));
+    let mut root = LayoutNode::custom_container(
+        30,
+        PlacementPolicy {
+            place_calls: Rc::clone(&place_calls),
+        },
+        vec![SlotChild::new(
+            SlotParams::fill(),
+            LayoutNode::widget(31, Vector2::new(8.0, 8.0)),
+        )],
+    );
+    if let LayoutNode::Container(container) = &mut root {
+        container.policy.padding = crate::gui::layout_core::model::Insets::all(f32::NAN);
+    }
+
+    let output = crate::gui::layout_core::engine::layout_tree_with_state(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(80.0, 40.0)),
+        &crate::gui::layout_core::engine::LayoutState::default(),
+        LayoutDebugOptions {
+            enabled: true,
+            show_bounds: true,
+            show_padding: true,
+            show_margins: true,
+            ..LayoutDebugOptions::default()
+        },
+    );
+
+    assert_eq!(place_calls.get(), 0);
+    assert!(output.rects.contains_key(&30));
+    assert!(!output.rects.contains_key(&31));
+    let diagnostics: Vec<_> = output
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == LayoutDiagnosticCode::NegativeSizeClamped)
+        .collect();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics[0].message,
+        "container content geometry was invalid and descendants were omitted"
+    );
+    assert!(output.debug_primitives.iter().all(|primitive| {
+        primitive.rect.is_finite()
+            && primitive.rect.width() >= 0.0
+            && primitive.rect.height() >= 0.0
     }));
 }

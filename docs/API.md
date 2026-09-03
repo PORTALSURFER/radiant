@@ -4877,7 +4877,7 @@ custom-coordinate, platform, or product wiring API is promised.
 Current shipped ownership is narrower than the target model: the private
 `EffectOrigin` boundary supplies application, auxiliary, and selected
 declarative provenance, while `ResourceTasks` remains application-owned.
-The qualified `runtime::Effect<Message>` facade is now shipped for explicit
+The qualified `runtime::Effect<Message>` facade is now shipped by OPT-1370 for explicit
 `EffectOwner::Application` or `EffectOwner::Declarative(...)` selection across
 after/worker/ordered-stream/latest-stream construction. Its constructors require
 `&mut LatestTask`, reserve a `TaskTicket`, expose a cloned `CancellationToken`,

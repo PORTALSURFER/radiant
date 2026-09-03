@@ -32,8 +32,9 @@ fn deep_nesting_layout_remains_stable() {
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
     );
     assert!(output.rects.contains_key(&1));
-    assert!(output.rects.len() < 301);
-    assert!(output.is_omitted(9_999));
+    assert_eq!(output.rects.len(), 301);
+    assert!(output.rects.contains_key(&9_999));
+    assert!(!output.is_omitted(9_999));
     assert!(
         output
             .rects

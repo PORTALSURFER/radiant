@@ -38,7 +38,17 @@ pub(crate) fn checked_inset_rect(rect: Rect, insets: Insets) -> Option<Rect> {
         Point::new(rect.min.x + insets.left, rect.min.y + insets.top),
         Point::new(rect.max.x - insets.right, rect.max.y - insets.bottom),
     );
-    ValidatedRect::new(derived).map(ValidatedRect::rect)
+    if !derived.is_finite() {
+        return None;
+    }
+    let clamped = Rect::from_min_max(
+        derived.min,
+        Point::new(
+            derived.max.x.max(derived.min.x),
+            derived.max.y.max(derived.min.y),
+        ),
+    );
+    ValidatedRect::new(clamped).map(ValidatedRect::rect)
 }
 
 /// Return finite horizontal and vertical inset totals without admitting overflow.
@@ -108,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn checked_insets_preserve_zero_sizes_and_reject_bad_derivations() {
+    fn checked_insets_clamp_finite_overruns_and_reject_bad_derivations() {
         let rect = Rect::from_min_size(Point::new(-3.0, -2.0), Vector2::new(4.0, 4.0));
         assert_eq!(
             checked_inset_rect(rect, Insets::all(2.0)),
@@ -117,7 +127,13 @@ mod tests {
                 Vector2::new(0.0, 0.0)
             ))
         );
-        assert!(checked_inset_rect(rect, Insets::all(3.0)).is_none());
+        assert_eq!(
+            checked_inset_rect(rect, Insets::all(3.0)),
+            Some(Rect::from_min_size(
+                Point::new(0.0, 1.0),
+                Vector2::new(0.0, 0.0)
+            ))
+        );
         assert!(checked_inset_rect(rect, Insets::all(f32::NAN)).is_none());
         assert!(
             checked_inset_rect(

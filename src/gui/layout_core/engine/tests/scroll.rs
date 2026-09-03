@@ -164,6 +164,44 @@ fn scroll_view_records_padded_viewport_bounds() {
 }
 
 #[test]
+fn finite_overpadding_preserves_zero_size_scroll_viewport() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: crate::gui::layout_core::model::SlotParams {
+                margin: Insets::all(60.0),
+                ..intrinsic_slot()
+            },
+            child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
+        }],
+    );
+
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(100.0, 80.0)),
+    );
+
+    assert_eq!(
+        output.viewport_bounds.get(&1),
+        Some(&Rect::from_min_size(
+            Point::new(60.0, 60.0),
+            Vector2::new(0.0, 0.0)
+        ))
+    );
+    assert_eq!(
+        output.rects.get(&2),
+        Some(&Rect::from_min_size(
+            Point::new(60.0, 60.0),
+            Vector2::new(8.0, 8.0)
+        ))
+    );
+}
+
+#[test]
 fn scroll_offset_is_clamped_and_reported() {
     let root = LayoutNode::container(
         1,

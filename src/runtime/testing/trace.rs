@@ -712,12 +712,19 @@ fn first_divergence_at_boundary(
         match (a, b) {
             (Value::Object(x), Value::Object(y)) => {
                 for (k, av) in x {
+                    let old = path.len();
                     path.push('/');
-                    path.push_str(k);
+                    for character in k.chars() {
+                        match character {
+                            '~' => path.push_str("~0"),
+                            '/' => path.push_str("~1"),
+                            character => path.push(character),
+                        }
+                    }
                     if let Some(v) = y.get(k).and_then(|bv| find(av, bv, path)) {
                         return Some(v);
                     }
-                    path.truncate(path.rfind('/').unwrap_or(0));
+                    path.truncate(old);
                 }
                 Some((path.clone(), a.clone(), b.clone()))
             }

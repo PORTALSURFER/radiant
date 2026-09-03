@@ -228,7 +228,8 @@ new focused export leaf or a module split, not a formatting workaround.
   are not finite and strictly positive normalize to `1.0`. Invalid geometry is
   diagnosed and omitted as a node subtree; prepared candidates remain
   transactional, and missing validated bounds prevent widget and explicit
-  overlay paint hooks.
+  overlay paint hooks. This crate-private boundary uses existing layout
+  diagnostics and adds no public `LayoutDiagnosticCode` variant.
 - `src/gui_runtime` owns native runtime integration and renderer adapters. The
   current native Vello runtime is the macOS implementation path; the target
   adds native Wayland and Windows host adapters behind the same Radiant-owned

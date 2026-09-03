@@ -23,7 +23,7 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         context.omit_subtree(node);
         context.push_diagnostic(
             node.id(),
-            LayoutDiagnosticCode::InvalidGeometry,
+            LayoutDiagnosticCode::CustomLayoutInvalidPlacement,
             "layout geometry was invalid and the subtree was omitted",
         );
         return;

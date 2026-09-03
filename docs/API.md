@@ -592,6 +592,8 @@ positive-infinity constraint maximum remains unbounded. Invalid minima normalize
 to zero; invalid, negative, or contradictory maxima normalize to the minimum.
 Non-finite or overflowing rounded placement is omitted with a stable layout
 diagnostic, and omitted nodes do not dispatch widget or explicit-overlay paint.
+This private geometry boundary uses existing layout diagnostics and adds no
+public `LayoutDiagnosticCode` variant.
 The production-path deterministic runtime host regression covers malformed
 custom-policy widget placement and malformed explicit-overlay geometry; invalid
 bounds are absent from the published snapshot and produce no paint primitives.

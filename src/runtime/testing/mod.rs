@@ -1502,7 +1502,6 @@ fn layout_diagnostic_code_name(code: LayoutDiagnosticCode) -> String {
         LayoutDiagnosticCode::CustomLayoutInvalidPlacement => "custom_layout_invalid_placement",
         LayoutDiagnosticCode::CustomLayoutDuplicatePlacement => "custom_layout_duplicate_placement",
         LayoutDiagnosticCode::CustomLayoutChildUnresolved => "custom_layout_child_unresolved",
-        LayoutDiagnosticCode::InvalidGeometry => "invalid_geometry",
     }
     .to_owned()
 }

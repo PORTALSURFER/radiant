@@ -114,16 +114,18 @@ impl TextInputState {
         if self.has_selection() {
             return self.delete_selected_text();
         }
-        let target = previous_word_boundary(&self.value, self.caret);
-        self.delete_char_range(target, self.caret)
+        let caret = self.canonicalize_collapsed_word_caret();
+        let target = previous_word_boundary(&self.value, caret);
+        self.delete_char_range(target, caret)
     }
 
     pub(crate) fn delete_word_right(&mut self) -> TextInputEditResult {
         if self.has_selection() {
             return self.delete_selected_text();
         }
-        let target = next_word_boundary(&self.value, self.caret);
-        self.delete_char_range(self.caret, target)
+        let caret = self.canonicalize_collapsed_word_caret();
+        let target = next_word_boundary(&self.value, caret);
+        self.delete_char_range(caret, target)
     }
 
     pub(crate) fn delete_selected_text(&mut self) -> TextInputEditResult {
@@ -148,5 +150,12 @@ impl TextInputState {
             value_changed: true,
             selection_changed: true,
         }
+    }
+
+    fn canonicalize_collapsed_word_caret(&mut self) -> usize {
+        let caret = boundary_at_or_after(&self.value, self.caret);
+        self.caret = caret;
+        self.selection_anchor = caret;
+        caret
     }
 }

@@ -106,14 +106,12 @@ pub(super) fn compute_shaped_paragraph(
                         &grapheme_boundaries,
                         font_size,
                     )
-                } else if let Some(face_index) = segment.face_index {
+                } else if segment.face_index.is_some() {
                     shape_face_fragment(
                         font_stack,
                         source.as_ref(),
-                        segment.range.clone(),
-                        face_index,
+                        &segment,
                         direction,
-                        segment.script,
                         &grapheme_boundaries,
                         font_size,
                     )?
@@ -868,13 +866,13 @@ fn special_fragment(
 fn shape_face_fragment(
     font_stack: &NativeFontStack,
     source: &str,
-    range: Range<usize>,
-    face_index: usize,
+    segment: &FontSegment,
     direction: BidiDirection,
-    script: Script,
     grapheme_boundaries: &[Utf8ByteOffset],
     font_size: f32,
 ) -> Result<Fragment, ()> {
+    let range = &segment.range;
+    let face_index = segment.face_index.ok_or(())?;
     let font = font_stack.face_data(face_index).ok_or(())?;
     let face = rustybuzz::Face::from_slice(font.data.as_ref(), font.index).ok_or(())?;
     let mut buffer = rustybuzz::UnicodeBuffer::new();
@@ -883,7 +881,7 @@ fn shape_face_fragment(
         BidiDirection::Ltr => rustybuzz::Direction::LeftToRight,
         BidiDirection::Rtl => rustybuzz::Direction::RightToLeft,
     });
-    buffer.set_script(rustybuzz_script(script));
+    buffer.set_script(rustybuzz_script(segment.script));
     let output = rustybuzz::shape(&face, &[], buffer);
     if output.is_empty() {
         return Err(());
@@ -1295,13 +1293,17 @@ mod tests {
         );
 
         let latin_source = "A";
+        let latin_segment = FontSegment {
+            range: 0..latin_source.len(),
+            face_index: Some(0),
+            special: false,
+            script: Script::Latin,
+        };
         let latin = shape_face_fragment(
             &stack,
             latin_source,
-            0..latin_source.len(),
-            0,
+            &latin_segment,
             BidiDirection::Ltr,
-            Script::Latin,
             &grapheme_boundaries(latin_source),
             20.0,
         )
@@ -1310,13 +1312,17 @@ mod tests {
         assert_eq!(latin.glyphs[0].cluster.end, Utf8ByteOffset(1));
 
         let greek_source = "Ω";
+        let greek_segment = FontSegment {
+            range: 0..greek_source.len(),
+            face_index: Some(1),
+            special: false,
+            script: Script::Greek,
+        };
         let greek = shape_face_fragment(
             &stack,
             greek_source,
-            0..greek_source.len(),
-            1,
+            &greek_segment,
             BidiDirection::Ltr,
-            Script::Greek,
             &grapheme_boundaries(greek_source),
             20.0,
         )

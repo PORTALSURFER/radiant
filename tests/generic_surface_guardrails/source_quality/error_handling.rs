@@ -90,7 +90,15 @@ fn production_lines(source: &str) -> Vec<(usize, &str)> {
 }
 
 fn starts_inline_test_module(trimmed: &str) -> bool {
-    trimmed.starts_with("mod tests") && trimmed.contains('{')
+    let Some(module) = trimmed.strip_prefix("mod ") else {
+        return false;
+    };
+    let name_end = module
+        .find(|character: char| character.is_whitespace() || character == '{' || character == ';')
+        .unwrap_or(module.len());
+    let name = &module[..name_end];
+
+    !name.is_empty() && module[name_end..].trim_start().starts_with('{')
 }
 
 fn advance_test_module_depth(line: &str, depth: &mut Option<isize>) {
@@ -104,4 +112,39 @@ fn brace_delta(line: &str) -> isize {
     let opens = line.chars().filter(|character| *character == '{').count() as isize;
     let closes = line.chars().filter(|character| *character == '}').count() as isize;
     opens - closes
+}
+
+#[test]
+fn production_lines_excludes_any_inline_cfg_test_module() {
+    let source = r#"
+#[cfg(test)]
+mod focused_text_input_tests {
+    fn test_only() {
+        panic!("test-only panic shortcut");
+    }
+}
+
+fn production() {
+    panic!("production panic shortcut");
+}
+"#;
+
+    let lines = production_lines(source);
+    assert!(
+        lines
+            .iter()
+            .any(|(_, line)| line.contains("production panic shortcut"))
+    );
+    assert!(
+        !lines
+            .iter()
+            .any(|(_, line)| line.contains("test-only panic shortcut"))
+    );
+}
+
+#[test]
+fn inline_test_module_scanner_requires_an_inline_body() {
+    assert!(starts_inline_test_module("mod focused_text_input_tests {"));
+    assert!(!starts_inline_test_module("mod focused_text_input_tests;"));
+    assert!(!starts_inline_test_module("mod focused_text_input_tests"));
 }

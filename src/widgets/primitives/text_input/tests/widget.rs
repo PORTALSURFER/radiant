@@ -183,6 +183,37 @@ fn text_input_double_click_selects_word_under_pointer() {
 }
 
 #[test]
+fn text_input_double_click_selects_complete_unicode_word_graphemes() {
+    let mut input = TextInputWidget::new(
+        7,
+        "e\u{301} क्\u{200d}ष \u{10400}\u{301}",
+        WidgetSizing::new(Vector2::new(180.0, 42.0), Vector2::new(260.0, 42.0)),
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 42.0));
+
+    let double_click = |input: &mut TextInputWidget, position| {
+        input.handle_input(
+            bounds,
+            WidgetInput::PointerDoubleClick {
+                position,
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+                timestamp: None,
+            },
+        )
+    };
+
+    assert_eq!(double_click(&mut input, Point::new(20.0, 20.0)), None);
+    assert_eq!(input.selected_text().as_deref(), Some("e\u{301}"));
+
+    assert_eq!(double_click(&mut input, Point::new(47.0, 20.0)), None);
+    assert_eq!(input.selected_text().as_deref(), Some("क्\u{200d}ष"));
+
+    assert_eq!(double_click(&mut input, Point::new(90.0, 20.0)), None);
+    assert_eq!(input.selected_text().as_deref(), Some("\u{10400}\u{301}"));
+}
+
+#[test]
 fn text_input_selection_range_clamps_stale_public_state() {
     let mut input = TextInputWidget::new(
         7,

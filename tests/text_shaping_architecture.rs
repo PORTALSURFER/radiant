@@ -8,6 +8,7 @@ const TEST_FONT: &[u8] = include_bytes!("fixtures/fonts/primary.ttf");
 const SECONDARY_FONT: &[u8] = include_bytes!("fixtures/fonts/secondary.ttf");
 const COMBINING_TEXT: &str = "Cafe\u{0301}";
 const ZWJ_EMOJI: &str = "\u{1f469}\u{200d}\u{1f52c}";
+const MIXED_DIRECTION_TEXT: &str = "שלום world";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ShapedGlyph {
@@ -65,6 +66,22 @@ fn grapheme_boundary_bytes(text: &str) -> Vec<usize> {
         .collect::<Vec<_>>();
     boundaries.push(text.len());
     boundaries
+}
+
+fn grapheme_to_byte(text: &str, grapheme: GraphemeBoundary) -> Utf8ByteOffset {
+    Utf8ByteOffset(
+        *grapheme_boundary_bytes(text)
+            .get(grapheme.0)
+            .expect("grapheme boundary must be within the source text"),
+    )
+}
+
+fn byte_to_grapheme(text: &str, byte: Utf8ByteOffset) -> GraphemeBoundary {
+    GraphemeBoundary(
+        grapheme_boundary_bytes(text)
+            .binary_search(&byte.0)
+            .expect("byte offset must be a grapheme boundary"),
+    )
 }
 
 fn scalar_byte_boundaries(text: &str) -> Vec<usize> {
@@ -374,8 +391,26 @@ fn scalar_compatibility_boundaries_round_trip_and_use_explicit_affinity() {
 }
 
 #[test]
+fn grapheme_boundaries_round_trip_through_typed_utf8_offsets() {
+    for text in [COMBINING_TEXT, ZWJ_EMOJI, MIXED_DIRECTION_TEXT] {
+        let grapheme_count = text.graphemes(true).count();
+        for ordinal in 0..=grapheme_count {
+            let grapheme = GraphemeBoundary(ordinal);
+            let byte = grapheme_to_byte(text, grapheme);
+            assert_eq!(byte_to_grapheme(text, byte), grapheme);
+        }
+
+        assert_eq!(
+            grapheme_to_byte(text, GraphemeBoundary(grapheme_count)),
+            Utf8ByteOffset(text.len()),
+            "the terminal grapheme boundary must map to the terminal UTF-8 offset"
+        );
+    }
+}
+
+#[test]
 fn representative_text_results_are_deterministic() {
-    for text in [COMBINING_TEXT, ZWJ_EMOJI, "שלום world"] {
+    for text in [COMBINING_TEXT, ZWJ_EMOJI, MIXED_DIRECTION_TEXT] {
         assert_eq!(grapheme_boundaries(text), grapheme_boundaries(text));
         assert_eq!(bidi_levels(text), bidi_levels(text));
         assert_eq!(
@@ -393,8 +428,12 @@ fn grapheme_spike_preserves_combining_and_emoji_clusters() {
 
 #[test]
 fn bidi_spike_analyzes_mixed_direction_input() {
-    let info = BidiInfo::new("שלום world", None);
+    let info = BidiInfo::new(MIXED_DIRECTION_TEXT, None);
     assert_eq!(info.paragraphs.len(), 1);
     assert!(!info.paragraphs[0].range.is_empty());
-    assert!(bidi_levels("שלום world").iter().any(|level| *level > 0));
+    assert!(
+        bidi_levels(MIXED_DIRECTION_TEXT)
+            .iter()
+            .any(|level| *level > 0)
+    );
 }

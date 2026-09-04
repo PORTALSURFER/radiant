@@ -21,13 +21,16 @@ The selected implementation stack is:
   boundaries and cluster construction.
 - `unicode-bidi` UAX #9 paragraph levels and visual runs.
 - Existing `NativeTextOptions`, `NativeFontStack`, and `skrifa` ordered
-  embedded-font, path-font, and platform-fallback policy for font resolution.
+  embedded-font, path-font, environment-font, and platform-fallback policy for
+  font resolution.
 - `rustybuzz` 0.20.x for HarfBuzz-compatible shaping, once per resolved
   font/style/bidi run. Shaping output is retained in the paragraph snapshot;
   it is not recomputed by each consumer.
-- An explicit UAX #14 line-break policy adapter. The adapter owns the selected
-  break policy and makes its decisions part of the snapshot; line breaking is
-  not an incidental renderer behavior.
+- `unicode-linebreak` 0.1.5 as the pure-Rust UAX #14 provider, pinned to its
+  embedded Unicode 15.0.0 line-break tables and default Complex-Context
+  Dependent (SA) to Ordinary Alphabetic (AL) tailoring. The adapter owns this
+  selected ruleset and makes its decisions part of the snapshot; it does not
+  delegate line breaking to a platform API or choose a provider at runtime.
 - The existing Vello/`skrifa` renderer adapter, unchanged as the rendering
   boundary. It consumes snapshot glyph placements and continues to produce the
   existing text paint representation.
@@ -55,6 +58,43 @@ Range geometry is derived from the same stops and line records. Paint consumes
 glyph placements; hit testing consumes visual caret/cluster geometry; IME and
 accessibility consume logical byte/cluster ranges and the corresponding visual
 rectangles. No consumer may establish a competing width or coordinate system.
+
+### Line-break policy contract
+
+The future crate-private `LineBreakPolicy` adapter is pinned to the
+`unicode-linebreak` 0.1.5 provider and its embedded Unicode 15.0.0 UAX #14
+ruleset with the default Complex-Context Dependent (SA) to Ordinary Alphabetic
+(AL) tailoring. It accepts an immutable `LineBreakPolicyInput` containing the
+paragraph's UTF-8 source, its stored `GraphemeBoundary` to `Utf8ByteOffset`
+map, and an explicit wrapping mode (`NoWrap` or `SoftWrap`). It does not read
+platform locale services, installed font state, or renderer state. Available
+inline width and shaped cluster advances are inputs to the later deterministic
+line fitter, not to the UAX #14 provider, so changing width can reuse valid
+shaping and break classification.
+
+The adapter returns a crate-private `LineBreakDecision` containing an ordered,
+deduplicated list of break records. Each record contains an exact
+`GraphemeBoundary`, its matching `Utf8ByteOffset`, and one of two kinds:
+`Mandatory` (hard) or `Allowed` (soft). Provider byte positions are accepted
+only when they map to stored UTF-8 and grapheme boundaries; an invalid or
+unsupported result is rejected as one policy failure rather than published as
+partial geometry. The decision always includes the terminal end-of-text
+`Mandatory` opportunity; that sentinel is distinct from a trailing newline.
+
+`Mandatory` opportunities always end the current line and cannot be suppressed
+by available width. The provider's newline handling, including a CRLF pair, is
+preserved as one hard-break decision, while empty paragraphs and a trailing
+hard break remain explicit line-policy records. `Allowed` opportunities are
+soft candidates only: `SoftWrap` mode lets the line fitter choose the last
+candidate that fits before overflow, and `NoWrap` mode ignores them. Neither
+mode may break inside an extended grapheme or shaping cluster; when no soft
+candidate is available, the fitter keeps the unbreakable cluster intact and
+uses the deterministic overflow outcome rather than inventing a scalar break.
+
+If the selected provider is unavailable or cannot represent the input, hard
+breaks remain hard and unsupported soft wrapping becomes the same complete
+deterministic no-wrap fallback described in the fallback policy; no platform
+provider is substituted.
 
 ## Logical coordinate compatibility bridge
 
@@ -123,8 +163,20 @@ or `TextEditCommand`.
 The layout cache has separate shape and width identities. A shape key includes
 the relevant text/run content or revision, resolved font identity and face
 instance, script/language/direction, bidi level, variation/style features, and
-shaping policy. A width key includes the shape identity plus available inline
-width, break policy identity, paragraph spacing, and line-direction policy.
+shaping policy. The selected line-break policy has the crate-private stable
+identity
+`uax14:unicode-linebreak@0.1.5:unicode@15.0.0:default-sa-to-al:v1`.
+`LineBreakPolicyId` is this literal value, not a provider pointer, platform
+locale, or dependency-resolution result. A width key includes the shape
+identity plus available inline width, this exact break-policy identity, the
+wrapping mode, paragraph spacing, and line-direction policy.
+
+The identity is stable across supported platforms for the selected tables and
+tailoring. Any provider, Unicode table, tailoring, hard/soft-break, or adapter
+semantic change must issue a new policy identity and invalidate old width
+entries; equal identities mean that the adapter's break classification and
+hard/soft behavior are equal. The policy input/output and identity are
+crate-private implementation contracts, not a new public text-layout API.
 
 Changing width or wrapping policy reuses valid shaping; changing text, font,
 style, script, language, direction, or shaping features invalidates shaping.
@@ -138,10 +190,28 @@ cache growth is bounded by explicit entry and resource budgets.
 
 ## Fallback and diagnostics
 
-Font resolution follows the existing ordered policy: embedded fonts, configured
-font paths, then approved platform fallback. A missing glyph is retried through
-the next eligible face for the affected grapheme/run. The unsupported behavior
-is selected and atomic, not merely documented:
+Font resolution preserves the existing ordered policy. The candidate tiers are,
+in order:
+
+1. valid `NativeTextOptions::embedded_fonts`, in configured order;
+2. valid `NativeTextOptions::font_paths`, in configured order;
+3. `RADIANT_NATIVE_FONT_PATH`, when set;
+4. approved platform fallback candidates.
+
+Candidates are loaded or consulted lazily as glyph misses require them, and the
+first eligible face in this order supplies the affected grapheme/run. The
+environment path is therefore between configured paths and platform fallback;
+it is not a replacement for either tier. This is an existing compatibility
+input: when set, changing its path or font bytes can change glyph coverage,
+metrics, wrapping, caret positions, and range geometry, while removing or
+reordering it would be a compatibility change. For equal options, environment,
+candidate bytes, and provider identity, resolution remains deterministic. A
+future snapshot must capture the resolved face identity in the shape identity
+and must not reread the environment or platform candidates after publication.
+
+A missing glyph is retried through the next eligible face for the affected
+grapheme/run. The unsupported behavior is selected and atomic, not merely
+documented:
 
 - If shaping is unavailable or unsupported, the engine constructs and publishes
   one complete immutable compatibility snapshot using the current deterministic
@@ -175,8 +245,9 @@ API.
 ## Compatibility and non-goals
 
 The stack must remain usable on Radiant's supported platforms and build modes.
-Embedded bytes and configured paths remain portable inputs; platform fallback is
-an explicit last-resort policy. `rustybuzz` 0.20.x is MIT licensed;
+Embedded bytes and configured paths remain portable inputs; the environment
+font path and platform fallback are explicit ordered inputs. `rustybuzz` 0.20.x
+is MIT licensed; `unicode-linebreak` 0.1.5 is Apache-2.0 licensed;
 `unicode-bidi` and `unicode-segmentation` are MIT OR Apache-2.0. Existing
 `skrifa`/Vello license obligations remain subject to the repository dependency
 audit; this record does not claim that a full audit was done. The checked-in

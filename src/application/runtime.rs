@@ -36,6 +36,9 @@ pub use update_context::{
     BusinessTaskAdmission, BusinessTaskAdmissionReceipt, BusinessTaskAdmissionReceiptState,
 };
 
+pub(in crate::application) type ApplicationEnvironmentSource<State> =
+    Box<dyn Fn(&State) -> crate::application::ApplicationEnvironment>;
+
 pub(in crate::application) type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;
 pub(in crate::application) type TransientOverlayPainter<State> =

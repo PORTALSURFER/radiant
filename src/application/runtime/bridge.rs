@@ -4,8 +4,9 @@ use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
     AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppNativeFocusRegained,
     AppNativeFrameDiagnostics, AppNativeFrameGpuTiming, AppNativeFrameProfile, AppRuntime,
-    AppScroll, AppShortcuts, AppShutdown, AppStartup, AppSubscriptions, RetainedPainter,
-    TransientOverlayActivity, TransientOverlayBinding, TransientOverlayPainter, UiUpdateContext,
+    AppScroll, AppShortcuts, AppShutdown, AppStartup, AppSubscriptions,
+    ApplicationEnvironmentSource, RetainedPainter, TransientOverlayActivity,
+    TransientOverlayBinding, TransientOverlayPainter, UiUpdateContext,
 };
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::{
@@ -30,6 +31,8 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) worker_registry: WorkerSubscriptionRegistry<Message>,
     pub(in crate::application) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(in crate::application) window_environment: Rc<RefCell<crate::runtime::WindowEnvironment>>,
+    pub(in crate::application) application_environment_source:
+        Option<ApplicationEnvironmentSource<State>>,
     pub(in crate::application) runtime_flags: AppBridgeRuntimeFlags,
     pub(in crate::application) _view: PhantomData<View>,
 }
@@ -216,6 +219,7 @@ where
         update: Update,
         lifecycle: AppBridgeLifecycle<State, Message>,
         window_environment: Option<Rc<RefCell<crate::runtime::WindowEnvironment>>>,
+        application_environment_source: Option<ApplicationEnvironmentSource<State>>,
     ) -> Self {
         Self {
             state,
@@ -227,6 +231,7 @@ where
             worker_registry: WorkerSubscriptionRegistry::default(),
             lifecycle,
             window_environment: window_environment.unwrap_or_default(),
+            application_environment_source,
             runtime_flags: AppBridgeRuntimeFlags::default(),
             _view: PhantomData,
         }

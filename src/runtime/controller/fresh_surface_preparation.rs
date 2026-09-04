@@ -224,6 +224,7 @@ pub(crate) struct PreparedSurfaceRefresh<Message> {
     appearance: ResolvedAppearance,
     timings: SurfaceRefreshTimings,
     requested_scope: RepaintScope,
+    application_environment: Option<crate::application::ApplicationEnvironment>,
 }
 
 /// The only result that crosses the private runtime publication boundary.
@@ -244,11 +245,12 @@ impl<Message> PreparedSurfaceRefreshPublication<Message> {
 }
 
 impl<Message> PreparedSurfaceRefresh<Message> {
-    fn is_current<Bridge>(&self, runtime: &SurfaceRuntime<Bridge, Message>) -> bool
+    fn is_current<Bridge>(&self, runtime: &mut SurfaceRuntime<Bridge, Message>) -> bool
     where
         Bridge: RuntimeBridge<Message>,
     {
-        self.paint_candidate.is_current(runtime, self.appearance)
+        self.application_environment == runtime.sample_application_environment()
+            && self.paint_candidate.is_current(runtime, self.appearance)
     }
 
     pub(crate) fn discard(self) {}
@@ -266,10 +268,38 @@ where
         scope: RepaintScope,
         appearance: ResolvedAppearance,
     ) -> Option<PreparedSurfaceRefresh<Message>> {
+        let application_environment = self.sample_application_environment();
+        let scope = application_environment
+            .as_ref()
+            .and_then(|environment| {
+                environment.repaint_scope_since(self.surface.application_environment())
+            })
+            .map_or(scope, |application_scope| scope.merge(application_scope));
         let request = self.issue_fresh_surface_refresh_request(scope)?;
         let application_started = Instant::now();
         let mut surface = self.bridge.pull_surface();
+        if let Some(environment) = application_environment.clone() {
+            surface = surface.with_application_environment(environment);
+        }
         surface.set_window_environment(self.window_environment);
+        let request = if application_environment.is_none() {
+            if let Some(application_scope) = surface
+                .application_environment()
+                .repaint_scope_since(self.surface.application_environment())
+            {
+                let promoted_scope = request.scope.merge(application_scope);
+                let promoted = FreshSurfaceRefreshRequest {
+                    scope: promoted_scope,
+                    ..request
+                };
+                self.fresh_surface_request = Some(promoted);
+                promoted
+            } else {
+                request
+            }
+        } else {
+            request
+        };
         let application_projection = application_started.elapsed();
 
         let projection_started = Instant::now();
@@ -300,6 +330,7 @@ where
                 layout,
             },
             paint_candidate,
+            application_environment,
         })
     }
 
@@ -321,6 +352,7 @@ where
             appearance,
             timings,
             requested_scope,
+            ..
         } = prepared;
         let FreshSurfacePaintCandidate {
             layout_candidate,
@@ -1299,11 +1331,18 @@ mod tests {
         surface: UiSurface<()>,
         pull_calls: CallCount,
         project_calls: CallCount,
+        application_environment: Option<crate::application::ApplicationEnvironment>,
     }
 
     type Fixture = (SurfaceRuntime<SpyBridge, ()>, CallCount, CallCount);
 
     impl RuntimeBridge<()> for SpyBridge {
+        fn application_environment(
+            &mut self,
+        ) -> Option<crate::application::ApplicationEnvironment> {
+            self.application_environment.clone()
+        }
+
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
             self.project_calls.set(self.project_calls.get() + 1);
             crate::runtime::test_arc_surface(self.surface.clone())
@@ -1323,10 +1362,26 @@ mod tests {
                 surface,
                 pull_calls: Rc::clone(&pull_calls),
                 project_calls: Rc::clone(&project_calls),
+                application_environment: None,
             },
             Vector2::new(120.0, 80.0),
         );
         (runtime, pull_calls, project_calls)
+    }
+
+    fn runtime_for_surface_with_application_environment(
+        surface: UiSurface<()>,
+        application_environment: Option<crate::application::ApplicationEnvironment>,
+    ) -> SurfaceRuntime<SpyBridge, ()> {
+        SurfaceRuntime::new(
+            SpyBridge {
+                surface,
+                pull_calls: Rc::new(Cell::new(0)),
+                project_calls: Rc::new(Cell::new(0)),
+                application_environment,
+            },
+            Vector2::new(120.0, 80.0),
+        )
     }
 
     fn ordinary_surface(intrinsic: Vector2) -> UiSurface<()> {
@@ -1346,6 +1401,29 @@ mod tests {
 
     fn runtime_fixture() -> Fixture {
         runtime_for_surface(ordinary_surface(Vector2::new(24.0, 16.0)))
+    }
+
+    #[test]
+    fn startup_application_source_preserves_explicit_none_and_overrides_conflicting_some() {
+        let explicit = crate::application::ApplicationEnvironment::new(
+            crate::application::LocaleId::new("de").expect("valid test locale"),
+        );
+        let runtime = runtime_for_surface_with_application_environment(
+            ordinary_surface(Vector2::new(24.0, 16.0))
+                .with_application_environment(explicit.clone()),
+            None,
+        );
+        assert_eq!(runtime.surface().application_environment(), &explicit);
+
+        let source = crate::application::ApplicationEnvironment::new(
+            crate::application::LocaleId::new("fr").expect("valid test locale"),
+        )
+        .with_text_scale(crate::application::TextScale::new(1.1).expect("valid test text scale"));
+        let runtime = runtime_for_surface_with_application_environment(
+            ordinary_surface(Vector2::new(24.0, 16.0)).with_application_environment(explicit),
+            Some(source.clone()),
+        );
+        assert_eq!(runtime.surface().application_environment(), &source);
     }
 
     fn flat_surface(root_id: u64, widget_ids: &[u64]) -> UiSurface<()> {
@@ -2640,7 +2718,7 @@ mod tests {
             .expect("prepared refresh should retain its request");
         let active_generation = runtime.fresh_surface_active_generation;
         let request_revision = runtime.fresh_surface_request_revision;
-        assert!(prepared.is_current(&runtime));
+        assert!(prepared.is_current(&mut runtime));
 
         prepared
             .paint_candidate
@@ -2649,7 +2727,7 @@ mod tests {
             .find_widget_mut(2)
             .expect("candidate retiring widget")
             .widget_mut();
-        assert!(prepared.is_current(&runtime));
+        assert!(prepared.is_current(&mut runtime));
 
         assert!(runtime.publish_prepared_surface_refresh(prepared).is_none());
         assert_eq!(runtime.fresh_surface_request, Some(request));

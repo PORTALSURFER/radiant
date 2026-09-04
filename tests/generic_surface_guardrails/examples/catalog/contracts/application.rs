@@ -2,6 +2,17 @@ use super::ExampleContract;
 
 pub(super) const CONTRACTS: &[ExampleContract] = &[
     (
+        "localization_foundation",
+        &[
+            "use radiant::prelude::*;",
+            "ApplicationEnvironment",
+            ".application_environment(environment)",
+            "TextKey::new(",
+            "ShortcutPresenter",
+            "Menu: {} | Help: {}",
+        ],
+    ),
+    (
         "folder_browser",
         &[
             "use radiant::prelude as ui;",

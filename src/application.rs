@@ -35,9 +35,11 @@ pub(in crate::application) use runtime::{
 };
 mod builders;
 mod details_list;
+mod environment;
 mod form_row;
 mod labeled_control;
 mod launch;
+mod localization;
 mod menu;
 mod option_list;
 mod panel_section;

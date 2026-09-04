@@ -298,6 +298,10 @@ path = "examples/macos_numeric_accessibility_acceptance.rs"
 name = "macos_text_input_ime_acceptance"
 path = "examples/macos_text_input_ime_acceptance.rs"
 
+[[example]]
+name = "localization_foundation"
+path = "examples/localization_foundation.rs"
+
 [[bench]]
 name = "perf_harness"
 path = "benches/perf_harness.rs"

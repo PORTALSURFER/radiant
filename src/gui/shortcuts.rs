@@ -3,6 +3,7 @@
 mod catalog;
 mod gesture;
 mod layer;
+mod presentation;
 mod resolution;
 mod stack;
 
@@ -13,5 +14,9 @@ mod tests;
 pub use catalog::ShortcutCatalog;
 pub use gesture::{ShortcutGesture, ShortcutModifier};
 pub use layer::{ShortcutBinding, ShortcutLayer};
+pub use presentation::{
+    ShortcutDisplaySpec, ShortcutKeyLabel, ShortcutPlatform, ShortcutPresentation,
+    ShortcutPresenter,
+};
 pub use resolution::ShortcutResolution;
 pub use stack::ShortcutStack;

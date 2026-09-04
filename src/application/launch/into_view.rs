@@ -35,6 +35,21 @@ impl<Message> ViewProjection<Message> {
         &self.surface
     }
 
+    /// Return the immutable application presentation snapshot attached to the
+    /// lowered surface.
+    pub fn application_environment(&self) -> &crate::application::ApplicationEnvironment {
+        self.surface.application_environment()
+    }
+
+    /// Attach an application presentation snapshot to this projection.
+    pub fn with_application_environment(
+        mut self,
+        environment: crate::application::ApplicationEnvironment,
+    ) -> Self {
+        self.surface = self.surface.with_application_environment(environment);
+        self
+    }
+
     /// Consume the projection and return its lowered runtime surface.
     ///
     /// This intentionally discards application-only Scene lifecycle bindings.

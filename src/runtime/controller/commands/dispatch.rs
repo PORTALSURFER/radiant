@@ -278,6 +278,15 @@ where
         } else {
             repaint_scope
         };
+        let effective_scope = self
+            .bridge
+            .application_environment()
+            .and_then(|environment| {
+                environment.repaint_scope_since(self.surface.application_environment())
+            })
+            .map_or(effective_scope, |application_scope| {
+                effective_scope.merge(application_scope)
+            });
         let paint_only = effective_scope.is_paint_only();
         if paint_only {
             self.refresh_with_scope(RepaintScope::PaintOnly);

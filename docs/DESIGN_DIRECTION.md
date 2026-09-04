@@ -601,17 +601,21 @@ display scale and reduced-motion preferences remain separate policies.
 
 ## Locale and System Environment
 
-The current shipped environment is deliberately smaller: `WindowEnvironment`
-and `ResolvedEnvironment` expose only display scale, color scheme, contrast,
-and reduced-motion preference. Unicode-scalar editing is shipped. Locale and
-writing-direction services remain future work under OPT-1386, while bidi and
-complex shaping remain future renderer/text-layout work under OPT-1402.
+The shipped native window environment remains deliberately small:
+`WindowEnvironment` and `ResolvedEnvironment` expose display scale, color
+scheme, contrast, and reduced-motion preference. `ApplicationEnvironment` is
+an additive immutable application snapshot for explicit locale fallback chains,
+writing direction, validated text scale, catalog generation, and shortcut
+presentation generation. Unicode-scalar editing is shipped; full RTL geometry,
+scale propagation, bidi, and complex shaping remain follow-on work under
+OPT-1386 and OPT-1402.
 
-Future target (OPT-1386 and OPT-1402): Radiant may expose immutable, testable
-environment snapshots at application and window scopes. An eventual
-`ApplicationEnvironment` can contain locale, writing direction, system color
-scheme, contrast preference, default reduced-motion preference, and platform
+The current foundation exposes immutable, testable snapshots at application and
+window scopes. `ApplicationEnvironment` contains explicit locale fallback,
+writing direction, validated text scale, catalog generation, and platform
 shortcut presentation; individual widgets still must not query platform state.
+The remaining OPT-1386 work propagates these values through combined resolved
+environment, geometry, text metrics, semantics, and cache identities.
 
 ```rust
 text(localized(TextKey::sample_count(), [state.samples.len().into()]));

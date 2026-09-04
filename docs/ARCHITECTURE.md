@@ -1541,12 +1541,14 @@ Application code should configure portable font policy through
 `NativeTextOptions` and `EmbeddedFont` instead of depending on installed fonts
 or renderer internals.
 
-Current shipped boundary: the environment exposes only display scale, color
+Current shipped boundary: the native environment exposes display scale, color
 scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
-shipped. Locale and writing-direction services remain future work under
-OPT-1386; the selected bidi and complex-shaping architecture is recorded in
-[`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md), with staged
-implementation under OPT-1402 and its mapped follow-on work.
+shipped. The additive `ApplicationEnvironment` snapshot carries explicit
+locale fallback, direction, text scale, catalog generation, and shortcut
+presentation generation. Full RTL geometry, scale propagation, bidi, and
+complex shaping remain staged work; the selected bidi and complex-shaping
+architecture is recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md),
+with implementation under OPT-1386 and OPT-1402.
 
 ## Platform Boundary
 

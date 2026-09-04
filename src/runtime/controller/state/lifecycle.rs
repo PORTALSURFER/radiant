@@ -47,7 +47,11 @@ where
         // Give environment-aware bridges the runtime-owned value before their
         // first projection.
         bridge.set_window_environment(initial_environment);
+        let application_environment = bridge.application_environment();
         let mut surface = bridge.pull_surface();
+        if let Some(environment) = application_environment {
+            surface = surface.with_application_environment(environment);
+        }
         surface.set_window_environment(initial_environment);
         // The initial projection lets declarative hosts discover scene-provided
         // capabilities before this immutable dispatch table is cached.

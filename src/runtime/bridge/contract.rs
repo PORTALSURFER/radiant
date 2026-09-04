@@ -1,4 +1,5 @@
 use super::RuntimeHostCapabilities;
+use crate::application::ApplicationEnvironment;
 use crate::runtime::{Command, RuntimeUpdateSnapshot, UiSurface, WindowEnvironment};
 use std::sync::Arc;
 
@@ -9,6 +10,16 @@ use std::sync::Arc;
 /// capability traits. Radiant caches that table when [`crate::runtime::SurfaceRuntime`]
 /// is created, so capability availability stays stable for the runtime lifetime.
 pub trait RuntimeBridge<Message>: Sized {
+    /// Return the current application presentation snapshot, when the host
+    /// owns one independently of its projected surface.
+    ///
+    /// This boundary is intentionally separate from [`Self::pull_surface`]:
+    /// runtimes can cheaply detect application-environment invalidation before
+    /// deciding whether a requested paint-only refresh needs projection.
+    fn application_environment(&mut self) -> Option<ApplicationEnvironment> {
+        None
+    }
+
     /// Project the latest immutable UI surface snapshot.
     fn project_surface(&mut self) -> Arc<UiSurface<Message>>;
 

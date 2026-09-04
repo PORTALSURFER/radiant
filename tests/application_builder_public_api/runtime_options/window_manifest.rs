@@ -87,6 +87,24 @@ fn window_manifest_rejects_invalid_window_geometry() {
         "window 'main' has invalid inner_size [NaN, 480]; logical sizes must be finite and positive"
     );
 
+    let invalid_position =
+        WindowManifest::from_specs([WindowSpec::new("main", "Main").position(10.0, f32::INFINITY)]);
+
+    let error = invalid_position.expect_err("invalid ordinary position should fail");
+
+    assert_eq!(
+        error,
+        WindowManifestError::InvalidSpec(WindowSpecError::InvalidWindowPosition {
+            key: String::from("main"),
+            x: 10.0,
+            y: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        error.to_string(),
+        "window 'main' has invalid window position [10, inf]; window positions must be finite"
+    );
+
     let invalid_popup =
         WindowSpec::popup("drag-preview", "Drag Preview").popup_position(f32::INFINITY, 220.0);
 

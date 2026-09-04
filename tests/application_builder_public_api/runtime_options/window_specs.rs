@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn window_specs_describe_multiple_windows_without_opening_runtime() {
     let main = radiant::window("Main")
+        .position(96.5, 144.25)
         .size(800, 600)
         .min_size(640, 480)
         .spec("main");
@@ -14,6 +15,7 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
 
     assert_eq!(main.key, "main");
     assert_eq!(main.title(), "Main");
+    assert_eq!(main.initial_position(), Some([96.5, 144.25]));
     assert_eq!(main.inner_size(), Some([800.0, 600.0]));
     assert_eq!(main.min_inner_size(), Some([640.0, 480.0]));
     assert_eq!(inspector.title(), "Inspector");
@@ -28,6 +30,8 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
         options.window.geometry.min_inner_size,
         Some([300.25, 420.5])
     );
+    let main_options: NativeRunOptions = main.into();
+    assert_eq!(main_options.window.geometry.position, Some([96.5, 144.25]));
 }
 
 #[test]
@@ -84,6 +88,7 @@ fn window_specs_describe_floating_popup_windows() {
     assert_eq!(popup.key, "drag-preview");
     assert_eq!(popup.title(), "Drag Preview");
     assert!(popup.is_popup());
+    assert_eq!(popup.initial_position(), None);
     assert_eq!(popup.inner_size(), Some([180.0, 64.0]));
     assert!(!popup.native_options().window.behavior.decorations);
     assert!(!popup.drag_and_drop_enabled());

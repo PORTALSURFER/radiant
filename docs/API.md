@@ -3978,8 +3978,9 @@ authoritative. Set `window.behavior.reveal_after_surface_setup` to `false` only
 when a host-managed or profiling flow must create and present the native surface
 without making the window visible after setup. Window launch and manifest
 builders provide integer `.size(...)` convenience methods
-plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
-fractional logical dimensions.
+plus `.logical_size(...)`, `.min_logical_size(...)`, and `.position(...)` for
+fractional dimensions and initial ordinary-window placement. Popup builders
+retain `.popup_position(...)` for popup-native placement.
 Ordinary window launches should use the typed `FrameRate` choices
 `FrameRate::Hz30`, `FrameRate::Hz60`, or `FrameRate::Hz120` with
 `radiant::window(...).frame_rate(...)`. `WindowSpec::frame_rate(...)` provides
@@ -4070,8 +4071,8 @@ workers check `radiant::runtime::BusinessWorkContext::is_cancelled()` at natural
 boundaries before returning early.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
-keys, non-positive or non-finite logical sizes, and non-finite popup positions,
-returning typed `WindowManifestError` / `WindowSpecError` diagnostics so
+keys, non-positive or non-finite logical sizes, and non-finite ordinary or popup
+positions, returning typed `WindowManifestError` / `WindowSpecError` diagnostics so
 multi-window or embedded hosts can validate a window set and attach a separate
 bridge or view to each spec. `radiant::window(...).spec("main")`
 converts the no-state launch builder into the same manifest shape.

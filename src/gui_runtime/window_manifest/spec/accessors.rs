@@ -12,6 +12,11 @@ impl WindowSpec {
         self.options.window.geometry.inner_size
     }
 
+    /// Return the configured initial logical window position, if one was set.
+    pub const fn initial_position(&self) -> Option<[f32; 2]> {
+        self.options.window.geometry.position
+    }
+
     /// Return the configured minimum logical window size, if one was set.
     pub const fn min_inner_size(&self) -> Option<[f32; 2]> {
         self.options.window.geometry.min_inner_size

@@ -12,6 +12,15 @@ pub enum NativeRunOptionsError {
         /// Invalid logical height.
         height: f32,
     },
+    /// Ordinary window position contains a non-finite coordinate.
+    InvalidWindowPosition {
+        /// Name of the invalid position field.
+        field: &'static str,
+        /// Invalid logical x coordinate.
+        x: f32,
+        /// Invalid logical y coordinate.
+        y: f32,
+    },
     /// Popup position contains a non-finite coordinate.
     InvalidPopupPosition {
         /// Name of the invalid position field.
@@ -38,6 +47,10 @@ impl fmt::Display for NativeRunOptionsError {
             } => write!(
                 formatter,
                 "invalid native {field} [{width}, {height}]; logical sizes must be finite and positive"
+            ),
+            Self::InvalidWindowPosition { field, x, y } => write!(
+                formatter,
+                "invalid native {field} [{x}, {y}]; window positions must be finite"
             ),
             Self::InvalidPopupPosition { field, x, y } => write!(
                 formatter,
@@ -81,6 +94,19 @@ pub(super) fn validate_position(
         return Ok(());
     }
     Err(NativeRunOptionsError::InvalidPopupPosition { field, x, y })
+}
+
+pub(super) fn validate_window_position(
+    field: &'static str,
+    position: Option<[f32; 2]>,
+) -> Result<(), NativeRunOptionsError> {
+    let Some([x, y]) = position else {
+        return Ok(());
+    };
+    if x.is_finite() && y.is_finite() {
+        return Ok(());
+    }
+    Err(NativeRunOptionsError::InvalidWindowPosition { field, x, y })
 }
 
 pub(super) fn validate_popup_drag_region(height: Option<f32>) -> Result<(), NativeRunOptionsError> {

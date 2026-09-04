@@ -1,12 +1,30 @@
 use super::*;
 use crate::runtime::NativePopupOptions;
-use crate::runtime::{NativeWindowBehavior, NativeWindowOptions};
+use crate::runtime::{NativeWindowBehavior, NativeWindowGeometry, NativeWindowOptions};
 
 #[test]
 fn generic_native_window_starts_hidden_during_surface_setup() {
     let attrs = generic_window_attributes(&NativeRunOptions::default());
 
     assert!(!attrs.visible);
+}
+
+#[test]
+fn generic_native_window_applies_ordinary_position() {
+    let attrs = generic_window_attributes(&NativeRunOptions {
+        window: NativeWindowOptions {
+            geometry: NativeWindowGeometry {
+                position: Some([-128.0, 96.0]),
+                ..NativeWindowGeometry::default()
+            },
+            ..NativeWindowOptions::default()
+        },
+        ..NativeRunOptions::default()
+    });
+
+    assert!(
+        matches!(attrs.position, Some(Position::Logical(position)) if position.x == -128.0 && position.y == 96.0)
+    );
 }
 
 #[test]

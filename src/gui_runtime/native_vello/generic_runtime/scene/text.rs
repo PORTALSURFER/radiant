@@ -22,6 +22,8 @@ pub(super) fn encode_text(text_runs: &mut SceneTextRunBuffer, text: &PaintTextRu
         color: text.color,
         max_width: Some(text.rect.width().max(0.0)),
         align,
+        widget_id: text.widget_id,
+        wrap: text.wrap,
     });
 }
 

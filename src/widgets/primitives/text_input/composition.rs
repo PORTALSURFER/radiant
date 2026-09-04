@@ -22,6 +22,7 @@ pub(super) fn handle_sample(
     if !text_input.accepts_editing_input() || !sample.is_valid() {
         return None;
     }
+    text_input.reset_native_pointer_affinity();
 
     match sample {
         CompositionSample::Start {
@@ -47,6 +48,7 @@ pub(super) fn handle_hidden_update(
     if !text_input.accepts_editing_input() {
         return None;
     }
+    text_input.reset_native_pointer_affinity();
     text_input.update_composition(preedit, CompositionSelectionState::Hidden)
 }
 
@@ -208,11 +210,7 @@ fn display_value(
 
 fn set_state_selection(state: &mut TextInputState, selection: CompositionRange) {
     state.selection_anchor = selection.start();
-    state.caret = if selection.is_collapsed() {
-        selection.start()
-    } else {
-        selection.end().saturating_sub(1)
-    };
+    state.caret = selection.end();
 }
 
 fn display_selection(

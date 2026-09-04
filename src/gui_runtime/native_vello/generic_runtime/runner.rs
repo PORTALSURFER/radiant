@@ -3863,6 +3863,11 @@ where
         self.frame.reset_scene_build_outcome();
         let _ = self.apply_pending_viewport_resize_if_needed();
         let paint_plan_decision = self.core.paint_plan_into(&mut self.frame.last_paint_plan);
+        self.frame
+            .seed_text_input_snapshots_for_current_plan(matches!(
+                paint_plan_decision,
+                PaintPlanCacheDecision::Rebuilt
+            ));
         self.publish_native_ime_cursor_area();
         self.admit_scene_from_current_plan(paint_plan_decision, freshly_refreshed, false);
     }
@@ -3978,6 +3983,7 @@ where
                     retained_cache: &mut retained_surface_cache,
                     text_runs: &mut scene_text_runs,
                     animation_time: self.timing.animation_origin.elapsed(),
+                    text_input_snapshot_fence: self.frame.current_text_input_snapshot_fence,
                 },
             );
             let eligibility = render_selection.full_encode_plan();
@@ -4031,6 +4037,7 @@ where
                     retained_cache: &mut self.frame.retained_surface_cache,
                     text_runs: &mut self.frame.scene_text_runs,
                     animation_time: self.timing.animation_origin.elapsed(),
+                    text_input_snapshot_fence: self.frame.current_text_input_snapshot_fence,
                 },
             );
             let eligibility = render_selection.full_encode_plan();

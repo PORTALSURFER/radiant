@@ -9,6 +9,7 @@ use crate::gui::{
 };
 use crate::runtime::{ExternalDragRequest, RuntimeHostCapabilities, RuntimeInputHost};
 use crate::{
+    gui_runtime::native_vello::CaretAffinity,
     layout::LayoutOutput,
     theme::ThemeTokens,
     widgets::{
@@ -860,6 +861,314 @@ fn native_pointer_harness_routes_cursor_and_mouse_to_runner_state() {
     assert!(harness.mouse_released(MouseButton::Left).routed);
 
     assert_eq!(harness.runner.core.runtime.bridge().state.count, 1);
+}
+
+#[test]
+fn native_text_pointer_affinity_commits_only_for_current_target_and_text_source() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let position = Point::new(input_rect.min.x + 4.0, input_rect.min.y + 4.0);
+
+    runner.frame.text_renderer.set_native_caret_affinity(
+        crate::widgets::WidgetId::from(12_u32),
+        CaretAffinity::Upstream,
+    );
+    runner.core.runtime.set_native_text_pointer_caret(
+        crate::widgets::WidgetId::from(12_u32),
+        "stale",
+        0,
+        crate::widgets::NativeCaretAffinity::Downstream,
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(12_u32),
+        WidgetInput::primary_press(position),
+    );
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
+        CaretAffinity::Upstream
+    );
+
+    let source = String::new();
+    let caret = 0;
+    let affinity = CaretAffinity::Downstream;
+    runner.core.runtime.set_native_text_pointer_caret(
+        crate::widgets::WidgetId::from(12_u32),
+        &source,
+        caret,
+        match affinity {
+            CaretAffinity::Upstream => crate::widgets::NativeCaretAffinity::Upstream,
+            CaretAffinity::Downstream => crate::widgets::NativeCaretAffinity::Downstream,
+        },
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(11_u32),
+        WidgetInput::pointer_move(position),
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(12_u32),
+        WidgetInput::primary_press(position),
+    );
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
+        CaretAffinity::Upstream,
+        "a caret staged for a text input must be vetoed when another widget consumes the event"
+    );
+
+    runner.core.runtime.set_native_text_pointer_caret(
+        crate::widgets::WidgetId::from(12_u32),
+        &source,
+        caret,
+        match affinity {
+            CaretAffinity::Upstream => crate::widgets::NativeCaretAffinity::Upstream,
+            CaretAffinity::Downstream => crate::widgets::NativeCaretAffinity::Downstream,
+        },
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(12_u32),
+        WidgetInput::primary_press(position),
+    );
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
+        affinity
+    );
+}
+
+#[test]
+fn native_text_pointer_affinity_commits_for_pressed_drag_move() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let press_position = Point::new(input_rect.min.x + 4.0, input_rect.min.y + 4.0);
+    let drag_position = Point::new(input_rect.min.x + 24.0, input_rect.min.y + 4.0);
+    let widget_id = crate::widgets::WidgetId::from(12_u32);
+
+    runner.core.runtime.set_native_text_pointer_caret(
+        widget_id,
+        "",
+        0,
+        crate::widgets::NativeCaretAffinity::Upstream,
+    );
+    runner
+        .core
+        .runtime
+        .dispatch_input(widget_id, WidgetInput::primary_press(press_position));
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner.frame.text_renderer.native_caret_affinity(widget_id),
+        CaretAffinity::Upstream
+    );
+
+    runner.core.runtime.set_native_text_pointer_caret(
+        widget_id,
+        "",
+        0,
+        crate::widgets::NativeCaretAffinity::Downstream,
+    );
+    runner
+        .core
+        .runtime
+        .dispatch_input(widget_id, WidgetInput::pointer_move(drag_position));
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner.frame.text_renderer.native_caret_affinity(widget_id),
+        CaretAffinity::Downstream
+    );
+}
+
+#[test]
+fn native_text_pointer_drag_uses_exclusive_grapheme_boundaries() {
+    let mut bridge = demo_bridge();
+    bridge.state.name = String::from("ab");
+    let mut harness = NativePointerHarness::new(bridge, Vector2::new(320.0, 40.0));
+    harness
+        .runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = harness
+        .runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let start = (1..input_rect.width() as usize)
+        .map(|offset| Point::new(input_rect.min.x + offset as f32, input_rect.min.y + 4.0))
+        .find(|position| {
+            harness
+                .runner
+                .frame
+                .native_text_pointer_target(*position, None)
+                .is_some_and(|(_, _, scalar, _)| scalar == 0)
+        })
+        .expect("native hit testing should expose the start boundary");
+    let after_a = (1..input_rect.width() as usize)
+        .map(|offset| Point::new(input_rect.min.x + offset as f32, start.y))
+        .find(|position| {
+            harness
+                .runner
+                .frame
+                .native_text_pointer_target(*position, None)
+                .is_some_and(|(_, _, scalar, _)| scalar == 1)
+        })
+        .expect("native hit testing should expose the boundary after a");
+    harness.cursor_moved_logical(start);
+    let _ = harness.mouse_pressed(MouseButton::Left);
+    harness.cursor_moved_logical(after_a);
+
+    let widget_id = crate::widgets::WidgetId::from(12_u32);
+    let widget = harness
+        .runner
+        .core
+        .runtime
+        .surface()
+        .find_widget(widget_id)
+        .expect("text input should remain projected");
+    let input = widget
+        .widget()
+        .as_any()
+        .downcast_ref::<crate::widgets::TextInputWidget>()
+        .expect("projected widget should remain a text input");
+    assert_eq!(input.state.selection_range(), (0, 1));
+    assert_eq!(input.selected_text_slice(), Some("a"));
+
+    let mut combining_bridge = demo_bridge();
+    combining_bridge.state.name = String::from("e\u{301}x");
+    let mut combining = NativePointerHarness::new(combining_bridge, Vector2::new(320.0, 40.0));
+    combining
+        .runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let combining_rect = combining
+        .runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("combining text input should be laid out");
+    let combining_start = Point::new(combining_rect.min.x + 1.0, combining_rect.min.y + 4.0);
+    let combining_after_cluster = (1..combining_rect.width() as usize)
+        .map(|offset| Point::new(combining_rect.min.x + offset as f32, combining_start.y))
+        .find(|position| {
+            combining
+                .runner
+                .frame
+                .native_text_pointer_target(*position, None)
+                .is_some_and(|(_, _, scalar, _)| scalar == 2)
+        })
+        .expect("native hit testing should expose the boundary after the combining cluster");
+    combining.cursor_moved_logical(combining_start);
+    let _ = combining.mouse_pressed(MouseButton::Left);
+    combining.cursor_moved_logical(combining_after_cluster);
+
+    let combining_widget = combining
+        .runner
+        .core
+        .runtime
+        .surface()
+        .find_widget(widget_id)
+        .expect("combining text input should remain projected");
+    let combining_input = combining_widget
+        .widget()
+        .as_any()
+        .downcast_ref::<crate::widgets::TextInputWidget>()
+        .expect("projected combining widget should remain a text input");
+    assert_eq!(combining_input.state.selection_range(), (0, 2));
+    assert_eq!(combining_input.selected_text_slice(), Some("e\u{301}"));
+}
+
+#[test]
+fn native_text_pointer_affinity_ignores_discarded_hover_and_release_carets() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let position = Point::new(input_rect.min.x + 4.0, input_rect.min.y + 4.0);
+    let widget_id = crate::widgets::WidgetId::from(12_u32);
+
+    runner
+        .frame
+        .text_renderer
+        .set_native_caret_affinity(widget_id, CaretAffinity::Upstream);
+    for input in [
+        WidgetInput::pointer_move(position),
+        WidgetInput::pointer_release(
+            position,
+            crate::widgets::PointerButton::Primary,
+            Default::default(),
+        ),
+    ] {
+        runner.core.runtime.set_native_text_pointer_caret(
+            widget_id,
+            "",
+            0,
+            crate::widgets::NativeCaretAffinity::Downstream,
+        );
+        runner.core.runtime.dispatch_input(widget_id, input);
+        runner.commit_accepted_native_text_pointer_caret();
+    }
+
+    assert_eq!(
+        runner.frame.text_renderer.native_caret_affinity(widget_id),
+        CaretAffinity::Upstream
+    );
 }
 
 #[test]

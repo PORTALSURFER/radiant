@@ -1,3 +1,6 @@
+use super::super::grapheme_boundary::{
+    boundary_at_or_after, next_grapheme_boundary, previous_grapheme_boundary,
+};
 use super::super::word_boundary::{next_word_boundary, previous_word_boundary};
 use super::super::{TextInputEditResult, TextInputState};
 use crate::widgets::primitives::text_input::editing_ops::{
@@ -67,10 +70,16 @@ impl TextInputState {
         if self.caret == 0 {
             return TextInputEditResult::default();
         }
+        self.caret = boundary_at_or_after(&self.value, self.caret);
+        self.selection_anchor = self.caret;
+        if self.caret == 0 {
+            return TextInputEditResult::default();
+        }
         let end = byte_index_for_char(&self.value, self.caret);
-        let start = byte_index_for_char(&self.value, self.caret - 1);
+        let start_scalar = previous_grapheme_boundary(&self.value, self.caret);
+        let start = byte_index_for_char(&self.value, start_scalar);
         self.value.replace_range(start..end, "");
-        self.caret -= 1;
+        self.caret = start_scalar;
         self.selection_anchor = self.caret;
         TextInputEditResult {
             value_changed: true,
@@ -85,8 +94,14 @@ impl TextInputState {
         if self.caret >= self.char_len() {
             return TextInputEditResult::default();
         }
+        self.caret = boundary_at_or_after(&self.value, self.caret);
+        self.selection_anchor = self.caret;
         let start = byte_index_for_char(&self.value, self.caret);
-        let end = byte_index_for_char(&self.value, self.caret + 1);
+        let end_scalar = next_grapheme_boundary(&self.value, self.caret);
+        if end_scalar == self.caret {
+            return TextInputEditResult::default();
+        }
+        let end = byte_index_for_char(&self.value, end_scalar);
         self.value.replace_range(start..end, "");
         self.selection_anchor = self.caret;
         TextInputEditResult {
@@ -99,16 +114,18 @@ impl TextInputState {
         if self.has_selection() {
             return self.delete_selected_text();
         }
-        let target = previous_word_boundary(&self.value, self.caret);
-        self.delete_char_range(target, self.caret)
+        let caret = self.canonicalize_collapsed_word_caret();
+        let target = previous_word_boundary(&self.value, caret);
+        self.delete_char_range(target, caret)
     }
 
     pub(crate) fn delete_word_right(&mut self) -> TextInputEditResult {
         if self.has_selection() {
             return self.delete_selected_text();
         }
-        let target = next_word_boundary(&self.value, self.caret);
-        self.delete_char_range(self.caret, target)
+        let caret = self.canonicalize_collapsed_word_caret();
+        let target = next_word_boundary(&self.value, caret);
+        self.delete_char_range(caret, target)
     }
 
     pub(crate) fn delete_selected_text(&mut self) -> TextInputEditResult {
@@ -133,5 +150,12 @@ impl TextInputState {
             value_changed: true,
             selection_changed: true,
         }
+    }
+
+    fn canonicalize_collapsed_word_caret(&mut self) -> usize {
+        let caret = boundary_at_or_after(&self.value, self.caret);
+        self.caret = caret;
+        self.selection_anchor = caret;
+        caret
     }
 }

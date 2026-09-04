@@ -1,13 +1,14 @@
 use super::*;
 use crate::{
     gui::types::ImageRgba,
+    gui_runtime::native_vello::NativeTextInputSnapshotFenceAllocator,
     runtime::{
         GpuSurfaceRuntimeOverlays, PaintClipEnd, PaintClipStart, PaintFillRect, PaintSegment,
-        PaintSegmentObservation, PaintTextAlign, PaintTextRun, RetainedSurfaceCachePolicy,
-        SurfacePaintPlan,
+        PaintSegmentObservation, PaintTextAlign, PaintTextInput, PaintTextRun,
+        RetainedSurfaceCachePolicy, SurfacePaintPlan,
     },
     theme::ThemeTokens,
-    widgets::{TextWrap, WidgetRevision},
+    widgets::{TextInputState, TextWrap, WidgetRevision},
 };
 
 #[path = "scene_cache/retained.rs"]
@@ -50,6 +51,101 @@ fn generic_paint_plan_encodes_to_vello_scene() {
     assert!(stats.text_run_count >= expected_text_primitives);
     assert!(text_runs.is_empty());
     assert_eq!(text_runs.overflow_capacity(), 0);
+}
+
+#[test]
+fn scene_text_input_consumes_the_seeded_snapshot_and_fails_closed_without_one() {
+    let focused = text_input(
+        7,
+        true,
+        "focused",
+        Rect::from_min_size(Point::new(8.0, 8.0), Vector2::new(120.0, 28.0)),
+    );
+    let unfocused = text_input(
+        8,
+        false,
+        "plain",
+        Rect::from_min_size(Point::new(136.0, 8.0), Vector2::new(120.0, 28.0)),
+    );
+    let plan = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![
+            PaintPrimitive::TextInput(focused.clone()),
+            PaintPrimitive::TextInput(unfocused.clone()),
+        ],
+    };
+    let mut bridge = demo_bridge();
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let mut fences = NativeTextInputSnapshotFenceAllocator::default();
+    let fence = fences.allocate().expect("current plan fence");
+
+    super::super::scene::seed_text_input_snapshots_for_plan(&plan, &mut text_renderer, fence);
+    let _ = text_renderer.take_layout_profile_counters();
+    let stats = encode_surface_paint_plan_to_scene(
+        &plan,
+        SurfaceSceneEncodeContext {
+            scene: &mut scene,
+            text_renderer: &mut text_renderer,
+            bridge: &mut bridge,
+            retained_surface: None,
+            viewport: Vector2::new(320.0, 80.0),
+            retained_cache: &mut retained_cache,
+            text_runs: &mut text_runs,
+            animation_time: Duration::ZERO,
+            text_input_snapshot_fence: Some(fence),
+        },
+    );
+    assert_eq!(stats.text_input_count, 2);
+    assert_eq!(
+        text_renderer.take_layout_profile_counters(),
+        Default::default()
+    );
+
+    let mut missing_renderer = NativeTextRenderer::new();
+    let mut missing_scene = Scene::new();
+    let mut missing_cache = RetainedSurfaceFrameCache::default();
+    let mut missing_text_runs = SceneTextRunBuffer::new();
+    let mut missing_bridge = demo_bridge();
+    let stats = encode_surface_paint_plan_to_scene(
+        &plan,
+        SurfaceSceneEncodeContext {
+            scene: &mut missing_scene,
+            text_renderer: &mut missing_renderer,
+            bridge: &mut missing_bridge,
+            retained_surface: None,
+            viewport: Vector2::new(320.0, 80.0),
+            retained_cache: &mut missing_cache,
+            text_runs: &mut missing_text_runs,
+            animation_time: Duration::ZERO,
+            text_input_snapshot_fence: None,
+        },
+    );
+    assert_eq!(stats.text_input_count, 2);
+    assert_eq!(
+        missing_renderer.take_layout_profile_counters(),
+        Default::default()
+    );
+}
+
+fn text_input(widget_id: u64, focused: bool, value: &str, rect: Rect) -> PaintTextInput {
+    PaintTextInput {
+        widget_id,
+        rect,
+        placeholder: None,
+        completion_suffix: None,
+        state: TextInputState::from_value(value.to_owned()),
+        font_size: 14.0,
+        baseline: None,
+        color: Rgba8::default(),
+        placeholder_color: Rgba8::default(),
+        completion_color: Rgba8::default(),
+        selection_color: Rgba8::default(),
+        caret_color: Rgba8::default(),
+        focused,
+    }
 }
 
 fn classify_collector_evidence(
@@ -475,6 +571,7 @@ fn scene_encoding_counts_gpu_surfaces_without_projecting_interactions() {
             retained_cache: &mut retained_cache,
             text_runs: &mut text_runs,
             animation_time: Duration::ZERO,
+            text_input_snapshot_fence: None,
         },
     );
 
@@ -2553,6 +2650,7 @@ where
             retained_cache,
             text_runs,
             animation_time: Duration::ZERO,
+            text_input_snapshot_fence: None,
         },
     )
 }

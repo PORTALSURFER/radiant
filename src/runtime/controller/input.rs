@@ -15,16 +15,112 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<WidgetDispatchResult<Message>> {
-        if let WidgetInput::FocusChanged(focused) = input {
-            return self.dispatch_surface_focus_changed(widget_id, bounds, focused);
+        let is_pointer_input = matches!(
+            &input,
+            WidgetInput::PointerMove { .. }
+                | WidgetInput::PointerPress { .. }
+                | WidgetInput::PointerDoubleClick { .. }
+                | WidgetInput::PointerRelease { .. }
+        );
+        if is_pointer_input {
+            self.apply_native_text_pointer_caret(widget_id);
+        } else {
+            self.pending_native_text_pointer_caret = None;
         }
-        let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
-            return self
-                .surface
-                .dispatch_widget_input_message(widget_id, bounds, input);
+        let result = if let WidgetInput::FocusChanged(focused) = input {
+            self.dispatch_surface_focus_changed(widget_id, bounds, focused)
+        } else if let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) {
+            self.surface
+                .dispatch_widget_input_message_at_path(widget_id, child_path, bounds, input)
+        } else {
+            self.surface
+                .dispatch_widget_input_message(widget_id, bounds, input)
         };
-        self.surface
-            .dispatch_widget_input_message_at_path(widget_id, child_path, bounds, input)
+        if is_pointer_input {
+            self.publish_accepted_native_text_pointer_caret(widget_id);
+        }
+        result
+    }
+
+    fn apply_native_text_pointer_caret(&mut self, widget_id: WidgetId) {
+        let Some(super::NativeTextPointerCaret::Pending(
+            pending_widget_id,
+            source,
+            caret,
+            affinity,
+        )) = self.pending_native_text_pointer_caret.take()
+        else {
+            return;
+        };
+        if pending_widget_id != widget_id {
+            self.pending_native_text_pointer_caret = Some(super::NativeTextPointerCaret::Pending(
+                pending_widget_id,
+                source,
+                caret,
+                affinity,
+            ));
+            return;
+        }
+        let Some(widget) = self.surface_widget_mut(widget_id) else {
+            return;
+        };
+        let Some(text_input) = widget
+            .widget_object_mut_runtime()
+            .as_any_mut()
+            .downcast_mut::<crate::widgets::TextInputWidget>()
+        else {
+            return;
+        };
+        if text_input.state.value == source {
+            text_input.set_native_pointer_caret(caret, affinity);
+            self.pending_native_text_pointer_caret = Some(super::NativeTextPointerCaret::Applied(
+                widget_id, source, affinity,
+            ));
+        }
+    }
+
+    fn publish_accepted_native_text_pointer_caret(&mut self, widget_id: WidgetId) {
+        let Some(super::NativeTextPointerCaret::Applied(applied_widget_id, source, affinity)) =
+            self.pending_native_text_pointer_caret.take()
+        else {
+            return;
+        };
+        if applied_widget_id != widget_id {
+            return;
+        }
+        let accepted = self
+            .surface_widget_mut(widget_id)
+            .and_then(|widget| {
+                widget
+                    .widget_object_mut_runtime()
+                    .as_any_mut()
+                    .downcast_mut::<crate::widgets::TextInputWidget>()
+            })
+            .is_some_and(|text_input| {
+                let accepted = text_input.state.value == source
+                    && text_input.take_native_pointer_caret_acceptance() == Some(affinity);
+                if !accepted {
+                    text_input.clear_native_pointer_caret();
+                }
+                accepted
+            });
+        if accepted {
+            self.pending_native_text_pointer_caret =
+                Some(super::NativeTextPointerCaret::Accepted(widget_id, affinity));
+        }
+    }
+
+    pub(crate) fn take_accepted_native_text_pointer_caret(
+        &mut self,
+    ) -> Option<(WidgetId, crate::widgets::NativeCaretAffinity)> {
+        match self.pending_native_text_pointer_caret.take() {
+            Some(super::NativeTextPointerCaret::Accepted(widget_id, affinity)) => {
+                Some((widget_id, affinity))
+            }
+            Some(super::NativeTextPointerCaret::Pending(..))
+            | Some(super::NativeTextPointerCaret::Applied(..))
+            | None => None,
+        }
     }
 
     fn dispatch_surface_focus_changed(

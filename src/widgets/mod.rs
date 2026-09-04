@@ -100,6 +100,7 @@ pub use interaction::{
     WheelDeltaError, WheelPhase, WheelSample, WheelSampleError, WidgetCursor, WidgetInput,
     WidgetKey, WidgetOutput, handle_activation_input,
 };
+pub(crate) use primitives::NativeCaretAffinity;
 pub(crate) use primitives::NumericInputWidget;
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,

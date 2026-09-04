@@ -615,7 +615,7 @@ fn native_frame_state_uses_explicit_imports() {
             && frame_state.contains("RetainedSurfaceEncodeStats")
             && frame_state.contains("RetainedSurfaceFrameCache")
             && frame_state.contains("SceneTextRunBuffer")
-            && frame_state.contains("gui_runtime::native_vello::NativeTextRenderer")
+            && has_explicit_native_text_renderer_import(&frame_state)
             && frame_state.contains(
                 "runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan}"
             )
@@ -634,6 +634,90 @@ fn native_frame_state_uses_explicit_imports() {
             && !frame_state.contains("Vec<crate::runtime::PaintPrimitive>"),
         "native frame state should own frame buffers, caches, and dirty flags without hidden runtime imports"
     );
+}
+
+#[test]
+fn native_text_renderer_import_guard_accepts_grouped_items_without_wildcards() {
+    assert!(has_explicit_native_text_renderer_import(
+        "use crate::gui_runtime::native_vello::NativeTextRenderer;"
+    ));
+    assert!(has_explicit_native_text_renderer_import(
+        "use crate::{\n    gui_runtime::native_vello::{\n        NativeTextInputSnapshotFence, NativeTextRenderer,\n    },\n};"
+    ));
+    assert!(!has_explicit_native_text_renderer_import(
+        "use crate::gui_runtime::native_vello::*;\nfn render() { let _: NativeTextRenderer; }"
+    ));
+    assert!(!has_explicit_native_text_renderer_import(
+        "use crate::gui_runtime::native_vello::{NativeTextRenderer, *};"
+    ));
+    assert!(!has_explicit_native_text_renderer_import(
+        "use super::*;\nfn render() { let _: NativeTextRenderer; }"
+    ));
+}
+
+fn has_explicit_native_text_renderer_import(source: &str) -> bool {
+    let mut import = String::new();
+    let mut brace_depth = 0isize;
+    let mut collecting = false;
+
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if !collecting {
+            if !trimmed.starts_with("use ") {
+                continue;
+            }
+            import.clear();
+            brace_depth = 0;
+            collecting = true;
+        }
+
+        import.push_str(trimmed);
+        import.push('\n');
+        brace_depth += line.chars().filter(|character| *character == '{').count() as isize;
+        brace_depth -= line.chars().filter(|character| *character == '}').count() as isize;
+
+        if brace_depth == 0 && trimmed.contains(';') {
+            let matches_explicit_item = import_has_explicit_native_text_renderer(&import);
+            collecting = false;
+            if matches_explicit_item {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn import_has_explicit_native_text_renderer(import: &str) -> bool {
+    if import.contains('*') || import.contains(" as _") {
+        return false;
+    }
+
+    let direct_item = "gui_runtime::native_vello::NativeTextRenderer";
+    if import.match_indices(direct_item).any(|(offset, _)| {
+        import[offset + direct_item.len()..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_ascii_alphanumeric() && character != '_')
+    }) {
+        return true;
+    }
+
+    let Some(group_start) = import.find("gui_runtime::native_vello::{") else {
+        return false;
+    };
+    let group = &import[group_start + "gui_runtime::native_vello::{".len()..];
+    let Some(group_end) = group.find('}') else {
+        return false;
+    };
+
+    group[..group_end].split(',').any(|item| {
+        let item = item.trim();
+        item == "NativeTextRenderer"
+            || item
+                .strip_prefix("NativeTextRenderer as ")
+                .is_some_and(|alias| alias != "_")
+    })
 }
 
 #[test]

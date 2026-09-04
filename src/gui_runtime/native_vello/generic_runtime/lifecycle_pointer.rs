@@ -67,6 +67,8 @@ where
     ) -> NativeCursorMovedRoute {
         let timestamp = Some(timestamp);
         let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
+            self.core.runtime.clear_native_text_pointer_caret();
+            self.frame.text_renderer.reset_native_caret_affinities();
             self.input.last_cursor = None;
             self.set_native_cursor_visible(true);
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
@@ -87,6 +89,8 @@ where
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
         }
         if self.core.runtime.scrollbar_drag_active() {
+            self.core.runtime.clear_native_text_pointer_caret();
+            self.frame.text_renderer.reset_native_caret_affinities();
             if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
                 let outcome = self.core.route_pointer_move_with_metadata(
                     position,
@@ -117,6 +121,8 @@ where
             };
         }
         if self.can_fast_path_native_hover_move(position) {
+            self.core.runtime.clear_native_text_pointer_caret();
+            self.frame.text_renderer.reset_native_caret_affinities();
             self.update_gpu_surface_cursor_overlay(position);
             self.update_native_cursor_at_last_position();
             return NativeCursorMovedRoute {
@@ -135,6 +141,7 @@ where
         if cleared_previous_gpu_hover {
             self.update_native_cursor_at_last_position();
         }
+        self.stage_native_text_pointer_caret(position);
         let started = Instant::now();
         let outcome = self.core.route_pointer_move_with_metadata(
             position,
@@ -142,6 +149,7 @@ where
             timestamp,
             sequence_range,
         );
+        self.commit_accepted_native_text_pointer_caret();
         if self.core.runtime.pointer_capture().is_none() {
             self.update_native_cursor_at_last_position();
         }
@@ -190,6 +198,7 @@ where
             );
         }
         let pointer_cleared = self.clear_native_pointer_presence();
+        self.frame.text_renderer.reset_native_caret_affinities();
         let mut outcome = pointer_cleared;
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
         let launch_external_drag = self.core.runtime.external_drag_armed();
@@ -207,6 +216,7 @@ where
 
     pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {
         self.window.native_focus_lost = true;
+        self.frame.text_renderer.reset_native_caret_affinities();
         self.input.tab_sequence_latch = None;
         self.input.effective_pointer_gesture = None;
         let mut outcome = self.clear_native_pointer_presence();

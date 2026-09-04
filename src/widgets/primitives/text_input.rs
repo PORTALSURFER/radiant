@@ -28,6 +28,12 @@ mod tests;
 
 pub use model::{TextInputChrome, TextInputEditResult, TextInputProps, TextInputState};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum NativeCaretAffinity {
+    Upstream,
+    Downstream,
+}
+
 /// Public single-line text-input primitive.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextInputWidget {
@@ -39,6 +45,9 @@ pub struct TextInputWidget {
     pub state: TextInputState,
     /// Transient IME composition state owned by this widget.
     pub(crate) composition: Option<composition::TextInputComposition>,
+    native_pointer_caret: Option<(usize, NativeCaretAffinity)>,
+    native_pointer_caret_acceptance: Option<NativeCaretAffinity>,
+    native_caret_affinity: NativeCaretAffinity,
 }
 
 /// Named construction fields for [`TextInputWidget`].
@@ -69,6 +78,9 @@ impl TextInputWidget {
             },
             state: TextInputState::from_value(parts.value),
             composition: None,
+            native_pointer_caret: None,
+            native_pointer_caret_acceptance: None,
+            native_caret_affinity: NativeCaretAffinity::Downstream,
         }
     }
 
@@ -114,6 +126,33 @@ impl TextInputWidget {
             theme,
             hidden_composition,
         );
+    }
+
+    pub(crate) fn set_native_pointer_caret(&mut self, caret: usize, affinity: NativeCaretAffinity) {
+        self.native_pointer_caret = Some((caret, affinity));
+        self.native_pointer_caret_acceptance = None;
+        self.native_caret_affinity = affinity;
+    }
+
+    pub(crate) fn take_native_pointer_caret(&mut self) -> Option<(usize, NativeCaretAffinity)> {
+        self.native_pointer_caret.take()
+    }
+
+    pub(crate) fn accept_native_pointer_caret(&mut self, affinity: NativeCaretAffinity) {
+        self.native_pointer_caret_acceptance = Some(affinity);
+    }
+
+    pub(crate) fn take_native_pointer_caret_acceptance(&mut self) -> Option<NativeCaretAffinity> {
+        self.native_pointer_caret_acceptance.take()
+    }
+
+    pub(crate) fn clear_native_pointer_caret(&mut self) {
+        self.native_pointer_caret = None;
+        self.native_pointer_caret_acceptance = None;
+    }
+
+    pub(crate) fn reset_native_pointer_affinity(&mut self) {
+        self.native_caret_affinity = NativeCaretAffinity::Downstream;
     }
 }
 

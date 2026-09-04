@@ -6,11 +6,15 @@ use std::mem;
 use std::sync::Arc;
 
 const TEXT_ATOM_CACHE_CAPACITY: usize = 4_096;
+const TEXT_ATOM_CACHE_BYTE_BUDGET: usize = 512 * 1024;
 
 pub(super) struct TextAtomCache {
     cache: HashMap<Arc<str>, u64>,
     order: VecDeque<(Arc<str>, u64)>,
     clock: u64,
+    bytes: usize,
+    #[cfg(test)]
+    byte_budget_override: Option<usize>,
     profile: TextCacheProfileCounters,
 }
 
@@ -20,6 +24,9 @@ impl TextAtomCache {
             cache: HashMap::with_capacity(TEXT_ATOM_CACHE_CAPACITY / 2),
             order: VecDeque::with_capacity(TEXT_ATOM_CACHE_CAPACITY),
             clock: 0,
+            bytes: 0,
+            #[cfg(test)]
+            byte_budget_override: None,
             profile: TextCacheProfileCounters::default(),
         }
     }
@@ -27,6 +34,13 @@ impl TextAtomCache {
     /// Intern text into a bounded atom cache so layout-key construction avoids
     /// hot-path `String` allocations on repeated runs.
     pub(super) fn intern_text(&mut self, text: &str) -> Arc<str> {
+        let byte_budget = self.byte_budget();
+        if text.len() > byte_budget {
+            self.profile.misses = self.profile.misses.saturating_add(1);
+            // The caller still needs an owned key, but this value is never
+            // retained by the atom cache or its LRU queue.
+            return Arc::from(text);
+        }
         self.clock = self.clock.saturating_add(1);
         let stamp = self.clock;
         if let Some((cached, _)) = self.cache.get_key_value(text) {
@@ -43,8 +57,9 @@ impl TextAtomCache {
         self.profile.misses = self.profile.misses.saturating_add(1);
         let atom: Arc<str> = Arc::from(text);
         self.cache.insert(Arc::clone(&atom), stamp);
+        self.bytes = self.bytes.saturating_add(atom.len());
         record_atom_cache_access(&mut self.order, Arc::clone(&atom), stamp);
-        self.evict_stale_atoms();
+        self.evict_stale_atoms(byte_budget);
         atom
     }
 
@@ -71,8 +86,8 @@ impl TextAtomCache {
     }
 
     /// Evict stale atom-cache entries using insertion stamps for bounded memory.
-    fn evict_stale_atoms(&mut self) {
-        while self.cache.len() > TEXT_ATOM_CACHE_CAPACITY {
+    fn evict_stale_atoms(&mut self, byte_budget: usize) {
+        while self.cache.len() > TEXT_ATOM_CACHE_CAPACITY || self.bytes > byte_budget {
             let Some((candidate, queued_stamp)) = self.order.pop_front() else {
                 break;
             };
@@ -83,9 +98,18 @@ impl TextAtomCache {
                 continue;
             }
             if self.cache.remove(candidate.as_ref()).is_some() {
+                self.bytes = self.bytes.saturating_sub(candidate.len());
                 self.profile.evictions = self.profile.evictions.saturating_add(1);
             }
         }
+    }
+
+    fn byte_budget(&self) -> usize {
+        #[cfg(test)]
+        if let Some(budget) = self.byte_budget_override {
+            return budget;
+        }
+        TEXT_ATOM_CACHE_BYTE_BUDGET
     }
 
     #[cfg(test)]
@@ -96,6 +120,11 @@ impl TextAtomCache {
     #[cfg(test)]
     fn order_len(&self) -> usize {
         self.order.len()
+    }
+
+    #[cfg(test)]
+    fn set_byte_budget_override(&mut self, budget: Option<usize>) {
+        self.byte_budget_override = budget;
     }
 }
 
@@ -154,6 +183,33 @@ mod tests {
 
         assert_eq!(cache.len(), 1);
         assert!(cache.order_len() <= TEXT_ATOM_CACHE_CAPACITY);
+    }
+
+    #[test]
+    fn byte_budget_evicts_least_recently_used_atoms() {
+        let mut cache = TextAtomCache::new();
+        cache.set_byte_budget_override(Some(5));
+
+        let first = cache.intern_text("first");
+        let _second = cache.intern_text("other");
+
+        assert_eq!(cache.bytes, 5);
+        assert!(!Arc::ptr_eq(&first, &cache.intern_text("first")));
+        assert_eq!(cache.bytes, 5);
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[test]
+    fn oversized_atom_bypasses_cache_without_retained_bytes() {
+        let mut cache = TextAtomCache::new();
+        cache.set_byte_budget_override(Some(4));
+
+        let atom = cache.intern_text("oversized");
+
+        assert_eq!(atom.as_ref(), "oversized");
+        assert_eq!(cache.len(), 0);
+        assert_eq!(cache.bytes, 0);
+        assert_eq!(cache.order_len(), 0);
     }
 
     #[test]

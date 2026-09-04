@@ -68,6 +68,12 @@ pub use refresh::{
     SurfaceIdentityReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
     SurfaceRefreshTimings,
 };
+
+enum NativeTextPointerCaret {
+    Pending(WidgetId, String, usize, crate::widgets::NativeCaretAffinity),
+    Applied(WidgetId, String, crate::widgets::NativeCaretAffinity),
+    Accepted(WidgetId, crate::widgets::NativeCaretAffinity),
+}
 pub(crate) use scroll::WheelOrScrollRoute;
 pub use scroll::{ScrollUpdate, ScrollUpdateMetadata};
 pub(crate) use virtual_layout::VirtualLayoutSemanticClassificationBatch;
@@ -186,6 +192,7 @@ where
     pub(in crate::runtime) servicing_current_surface_relayout: bool,
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
+    pending_native_text_pointer_caret: Option<NativeTextPointerCaret>,
     effect_owner: RuntimeOwner,
     auxiliary_effect_owners: HashMap<String, AuxiliaryWindowOwner>,
     runtime_work: RuntimeWorkQueues<Message>,
@@ -332,6 +339,28 @@ where
     pub fn dispatch_input(&mut self, widget_id: WidgetId, input: WidgetInput) -> bool {
         self.dispatch_direct_input_output(widget_id, input)
             .is_some()
+    }
+
+    /// Stage native retained-text hit-test geometry for the next pointer
+    /// dispatch. The source string is carried with the caret so a stale paint
+    /// plan cannot mutate a newly projected input.
+    pub(crate) fn set_native_text_pointer_caret(
+        &mut self,
+        widget_id: WidgetId,
+        source: &str,
+        caret: usize,
+        affinity: crate::widgets::NativeCaretAffinity,
+    ) {
+        self.pending_native_text_pointer_caret = Some(NativeTextPointerCaret::Pending(
+            widget_id,
+            source.to_owned(),
+            caret,
+            affinity,
+        ));
+    }
+
+    pub(crate) fn clear_native_text_pointer_caret(&mut self) {
+        self.pending_native_text_pointer_caret = None;
     }
 
     /// Configure whether incompatible same-ID replacements are observational

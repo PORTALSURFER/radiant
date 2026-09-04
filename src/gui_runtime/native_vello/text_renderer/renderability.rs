@@ -2,6 +2,8 @@ use super::SceneTextRun;
 use crate::gui::types::Point;
 
 pub(super) fn text_run_is_renderable(run: &SceneTextRun) -> bool {
+    // Scene encoding retains ownership for future hit-test and diagnostic consumers.
+    let _widget_id = run.widget_id;
     text_run_parts_are_renderable(
         run.text.as_ref(),
         run.position,
@@ -85,6 +87,8 @@ mod tests {
             },
             max_width: Some(80.0),
             align: TextAlign::Left,
+            widget_id: 0,
+            wrap: crate::widgets::TextWrap::None,
         };
 
         assert!(text_run_is_renderable(&run));

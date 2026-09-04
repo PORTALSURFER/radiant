@@ -260,17 +260,6 @@ pub(super) fn maybe_log_render_profile(
         scene_gpu_surfaces = stats.gpu_surface_count,
         scene_custom_surfaces = stats.custom_surface_count,
         scene_custom_surface_fallbacks = stats.custom_surface_fallback_count,
-        text_layout_cache_hits = text_stats.layout.hits,
-        text_layout_cache_misses = text_stats.layout.misses,
-        text_layout_cache_evictions = text_stats.layout.evictions,
-        text_atom_cache_hits = text_stats.atom.hits,
-        text_atom_cache_misses = text_stats.atom.misses,
-        text_atom_cache_evictions = text_stats.atom.evictions,
-        text_unsupported_shaping_runs = text_stats.quality.unsupported_shaping_runs,
-        text_unsupported_shaping_scalars = text_stats.quality.unsupported_shaping_scalars,
-        text_fallback_glyphs = text_stats.quality.fallback_glyphs,
-        text_missing_glyphs = text_stats.quality.missing_glyphs,
-        text_quality_status = text_quality_status(text_stats),
         retained_bridge_calls = stats.bridge_calls,
         retained_cache_hits = stats.cache_hits,
         retained_surface_misses = stats.retained_surface_miss_count,
@@ -428,6 +417,34 @@ pub(super) fn maybe_log_render_profile(
         submit_present_us = frame.submit_present.as_micros(),
         since_last_present_us = since_last_present.as_micros(),
         "radiant native render profile"
+    );
+    info!(
+        reason,
+        window_identity = frame
+            .window_identity
+            .map(NativeWindowDiagnosticIdentity::get),
+        frame_sequence = frame.frame_sequence,
+        text_shape_cache_hits = text_stats.shape.hits,
+        text_shape_cache_misses = text_stats.shape.misses,
+        text_shape_cache_evictions = text_stats.shape.evictions,
+        text_width_cache_hits = text_stats.width.hits,
+        text_width_cache_misses = text_stats.width.misses,
+        text_width_cache_evictions = text_stats.width.evictions,
+        text_view_cache_hits = text_stats.view.hits,
+        text_view_cache_misses = text_stats.view.misses,
+        text_view_cache_evictions = text_stats.view.evictions,
+        text_layout_cache_hits = text_stats.layout.hits,
+        text_layout_cache_misses = text_stats.layout.misses,
+        text_layout_cache_evictions = text_stats.layout.evictions,
+        text_atom_cache_hits = text_stats.atom.hits,
+        text_atom_cache_misses = text_stats.atom.misses,
+        text_atom_cache_evictions = text_stats.atom.evictions,
+        text_unsupported_shaping_runs = text_stats.quality.unsupported_shaping_runs,
+        text_unsupported_shaping_scalars = text_stats.quality.unsupported_shaping_scalars,
+        text_fallback_glyphs = text_stats.quality.fallback_glyphs,
+        text_missing_glyphs = text_stats.quality.missing_glyphs,
+        text_quality_status = text_quality_status(text_stats),
+        "radiant native text profile"
     );
     info!(
         reason,

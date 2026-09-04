@@ -52,7 +52,6 @@ where
                 let lifecycle = self.native_lifecycle_snapshot();
                 let owner = &mut self.frame_stage_owner;
                 let core = &mut self.core;
-                let plan = &mut self.frame.last_paint_plan;
                 let mut prepared = core.prepare_prepared_surface_refresh(scope);
                 if prepared.is_some() {
                     core.record_test_prepared_surface_refresh_phase("candidate-held");
@@ -91,8 +90,14 @@ where
                                     "paint-plan-admitted",
                                 );
                                 if current && let Some(prepared) = prepared.take() {
-                                    prepared_terminal_messages =
-                                        core.publish_prepared_surface_refresh(plan, prepared);
+                                    prepared_terminal_messages = core
+                                        .publish_prepared_surface_refresh(
+                                            &mut self.frame.last_paint_plan,
+                                            prepared,
+                                        );
+                                    if prepared_terminal_messages.is_some() {
+                                        self.frame.seed_text_input_snapshots_for_current_plan(true);
+                                    }
                                     core.record_test_prepared_surface_refresh_phase("published");
                                 }
                             }
@@ -144,6 +149,13 @@ where
             profile.paint_plan = elapsed;
             decision
         };
+        if !used_prepared_refresh {
+            self.frame
+                .seed_text_input_snapshots_for_current_plan(matches!(
+                    paint_plan_decision,
+                    super::PaintPlanCacheDecision::Rebuilt
+                ));
+        }
         self.publish_native_ime_cursor_area();
 
         if !used_prepared_refresh {

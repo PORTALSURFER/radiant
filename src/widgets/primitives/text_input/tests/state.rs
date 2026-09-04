@@ -33,7 +33,7 @@ fn text_input_state_applies_backend_neutral_editing_commands() {
     assert!(!result.value_changed);
     assert!(result.selection_changed);
 
-    for _ in 0..4 {
+    for _ in 0..5 {
         let _ = state.apply_edit_command(
             TextEditCommand::MoveRight {
                 extend_selection: true,
@@ -95,7 +95,7 @@ fn text_input_state_home_end_and_collapse_follow_single_line_contract() {
 fn text_input_state_honors_character_limit_after_selection_replacement() {
     let mut state = TextInputState::from_value(String::from("abcd"));
     state.selection_anchor = 1;
-    state.caret = 2;
+    state.caret = 3;
 
     let result = state.insert_text("xyz", Some(4));
 
@@ -109,7 +109,7 @@ fn text_input_state_honors_character_limit_after_selection_replacement() {
 fn text_input_state_exposes_selection_replacement_helpers() {
     let mut state = TextInputState::from_value(String::from("alpha beta"));
     state.selection_anchor = 0;
-    state.caret = 4;
+    state.caret = 5;
 
     assert!(state.has_selection());
     assert_eq!(state.selected_text().as_deref(), Some("alpha"));
@@ -127,7 +127,7 @@ fn text_input_state_exposes_selection_replacement_helpers() {
 fn text_input_state_exposes_borrowed_selected_text_slice() {
     let mut state = TextInputState::from_value(String::from("aé日 beta"));
     state.selection_anchor = 1;
-    state.caret = 2;
+    state.caret = 3;
 
     assert_eq!(state.selected_text_slice(), Some("é日"));
     assert_eq!(state.selected_text().as_deref(), Some("é日"));
@@ -141,15 +141,15 @@ fn text_input_state_exposes_borrowed_selected_text_slice() {
 fn text_input_state_can_clear_or_delete_active_selection() {
     let mut state = TextInputState::from_value(String::from("abcd"));
     state.selection_anchor = 1;
-    state.caret = 2;
+    state.caret = 3;
 
     state.clear_selection();
 
     assert!(!state.has_selection());
-    assert_eq!(state.selection_range(), (2, 2));
+    assert_eq!(state.selection_range(), (3, 3));
 
     state.selection_anchor = 1;
-    state.caret = 2;
+    state.caret = 3;
     let result = state.delete_selection();
 
     assert!(result.value_changed);
@@ -218,6 +218,45 @@ fn text_input_state_extends_selection_by_word_boundaries() {
 }
 
 #[test]
+fn text_input_state_moves_and_extends_word_selection_over_combining_graphemes() {
+    let mut state = TextInputState::from_value(String::from("e\u{301} next"));
+    state.caret = 1;
+    state.selection_anchor = 1;
+
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveWordLeft {
+            extend_selection: false,
+        },
+        None,
+    );
+    assert!(!result.value_changed);
+    assert_eq!(state.caret, 0);
+
+    state.set_caret(0, false);
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveWordRight {
+            extend_selection: true,
+        },
+        None,
+    );
+    assert!(!result.value_changed);
+    assert_eq!(state.caret, 2);
+    assert_eq!(state.selection_range(), (0, 2));
+    assert_eq!(state.selected_text_slice(), Some("e\u{301}"));
+
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveWordRight {
+            extend_selection: true,
+        },
+        None,
+    );
+    assert!(!result.value_changed);
+    assert_eq!(state.caret, state.char_len());
+    assert_eq!(state.selection_range(), (0, state.char_len()));
+    assert_eq!(state.selected_text_slice(), Some("e\u{301} next"));
+}
+
+#[test]
 fn text_input_state_deletes_by_word_boundaries() {
     let mut state = TextInputState::from_value(String::from("alpha  beta_gamma.日文"));
     state.set_caret(17, false);
@@ -240,7 +279,7 @@ fn text_input_state_deletes_by_word_boundaries() {
 fn text_input_state_word_delete_removes_selection_first() {
     let mut state = TextInputState::from_value(String::from("alpha beta gamma"));
     state.selection_anchor = 6;
-    state.caret = 9;
+    state.caret = 10;
 
     let result = state.apply_edit_command(TextEditCommand::DeleteWordLeft, None);
 
@@ -248,6 +287,73 @@ fn text_input_state_word_delete_removes_selection_first() {
     assert_eq!(state.value, "alpha  gamma");
     assert_eq!(state.caret, 6);
     assert!(!state.has_selection());
+}
+
+#[test]
+fn text_input_state_word_deletion_canonicalizes_combining_carets() {
+    let mut left = TextInputState::from_value(String::from("e\u{301} next"));
+    left.caret = 1;
+    left.selection_anchor = 1;
+    let result = left.apply_edit_command(TextEditCommand::DeleteWordLeft, None);
+
+    assert!(result.value_changed);
+    assert_eq!(left.value, " next");
+    assert_eq!(left.caret, 0);
+    assert_eq!(left.selection_anchor, 0);
+
+    let mut right_start = TextInputState::from_value(String::from("e\u{301} next"));
+    right_start.caret = 0;
+    right_start.selection_anchor = 0;
+    let result = right_start.apply_edit_command(TextEditCommand::DeleteWordRight, None);
+
+    assert!(result.value_changed);
+    assert_eq!(right_start.value, " next");
+    assert_eq!(right_start.caret, 0);
+    assert_eq!(right_start.selection_anchor, 0);
+
+    let mut right = TextInputState::from_value(String::from("e\u{301} next"));
+    right.caret = 1;
+    right.selection_anchor = 1;
+    let result = right.apply_edit_command(TextEditCommand::DeleteWordRight, None);
+
+    assert!(result.value_changed);
+    assert_eq!(right.value, "e\u{301}");
+    assert_eq!(right.caret, 2);
+    assert_eq!(right.selection_anchor, 2);
+
+    let mut stale = TextInputState::from_value(String::from("e\u{301}"));
+    stale.caret = usize::MAX;
+    stale.selection_anchor = usize::MAX;
+    let result = stale.apply_edit_command(TextEditCommand::DeleteWordLeft, None);
+
+    assert!(result.value_changed);
+    assert!(stale.value.is_empty());
+    assert_eq!(stale.caret, 0);
+    assert_eq!(stale.selection_anchor, 0);
+}
+
+#[test]
+fn text_input_state_word_deletion_keeps_zwj_and_non_bmp_words_whole() {
+    let mut state = TextInputState::from_value(String::from(
+        "क्\u{200d}ष👩\u{200d}\u{1f52c}\u{10400}\u{301}",
+    ));
+    let non_bmp_start = "क्\u{200d}ष👩\u{200d}\u{1f52c}".chars().count();
+    state.caret = state.char_len();
+    state.selection_anchor = state.caret;
+
+    let result = state.apply_edit_command(TextEditCommand::DeleteWordLeft, None);
+
+    assert!(result.value_changed);
+    assert_eq!(state.value, "क्\u{200d}ष👩\u{200d}\u{1f52c}");
+    assert_eq!(state.caret, non_bmp_start);
+
+    state.caret = non_bmp_start;
+    state.selection_anchor = non_bmp_start;
+    let result = state.apply_edit_command(TextEditCommand::DeleteWordLeft, None);
+
+    assert!(result.value_changed);
+    assert!(state.value.is_empty());
+    assert_eq!(state.caret, 0);
 }
 
 #[test]

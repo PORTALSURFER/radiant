@@ -15,6 +15,7 @@ use super::model::LoadedFont;
 pub(super) struct NativeFontStack {
     faces: Vec<LoadedFont>,
     pending_candidates: VecDeque<PathBuf>,
+    generation: u64,
 }
 
 impl NativeFontStack {
@@ -29,6 +30,7 @@ impl NativeFontStack {
         let mut stack = Self {
             faces,
             pending_candidates,
+            generation: 0,
         };
         if stack.faces.is_empty() {
             stack.load_next_candidate();
@@ -44,6 +46,14 @@ impl NativeFontStack {
         self.faces.get(index).map(|loaded| &loaded.font)
     }
 
+    pub(super) fn face_data(&self, index: usize) -> Option<&FontData> {
+        self.face(index)
+    }
+
+    pub(super) fn generation(&self) -> u64 {
+        self.generation
+    }
+
     #[cfg(test)]
     pub(super) fn face_count(&self) -> usize {
         self.faces.len()
@@ -56,6 +66,7 @@ impl NativeFontStack {
 
     /// Resolve a scalar against every currently loaded face, loading pending
     /// candidates in order only when the existing stack has no glyph.
+    #[cfg(test)]
     pub(super) fn resolve_glyph(&mut self, character: char) -> Option<FontGlyph> {
         loop {
             if let Some(glyph) = self.find_loaded_glyph(character) {
@@ -67,11 +78,43 @@ impl NativeFontStack {
         }
     }
 
+    pub(super) fn resolve_glyph_in_face(
+        &self,
+        face_index: usize,
+        character: char,
+    ) -> Option<FontGlyph> {
+        let font = self.face(face_index)?;
+        let font_ref = skrifa::FontRef::from_index(font.data.as_ref(), font.index).ok()?;
+        let glyph_id = font_ref.charmap().map(character)?;
+        Some(FontGlyph {
+            face_index,
+            glyph_id: glyph_id.to_u32(),
+        })
+    }
+
     /// Return the first ordered question-mark glyph after all candidates have
     /// had an opportunity to provide the requested scalar.
     pub(super) fn fallback_glyph(&mut self) -> Option<FontGlyph> {
         while self.load_next_candidate() {}
         self.find_loaded_glyph('?')
+    }
+
+    /// Resolve the first ordered face that covers every scalar in one
+    /// grapheme. A grapheme is never split across fallback faces.
+    pub(super) fn resolve_grapheme_face(&mut self, grapheme: &str) -> Option<usize> {
+        if grapheme.is_empty() {
+            return None;
+        }
+        loop {
+            if let Some(index) = self.faces.iter().enumerate().find_map(|(index, loaded)| {
+                face_covers_text(&loaded.font, grapheme).then_some(index)
+            }) {
+                return Some(index);
+            }
+            if !self.load_next_candidate() {
+                return None;
+            }
+        }
     }
 
     #[cfg(test)]
@@ -83,6 +126,7 @@ impl NativeFontStack {
                 .map(|font| LoadedFont { font })
                 .collect(),
             pending_candidates: VecDeque::new(),
+            generation: 0,
         }
     }
 
@@ -91,6 +135,7 @@ impl NativeFontStack {
         let font = font_data_from_bytes(bytes, 0)?;
         let index = self.faces.len();
         self.faces.push(LoadedFont { font });
+        self.generation = self.generation.saturating_add(1);
         Some(index)
     }
 
@@ -134,11 +179,20 @@ impl NativeFontStack {
             };
             if let Some(font) = font_data_from_bytes(bytes, 0) {
                 self.faces.push(LoadedFont { font });
+                self.generation = self.generation.saturating_add(1);
                 return true;
             }
         }
         false
     }
+}
+
+fn face_covers_text(font: &FontData, text: &str) -> bool {
+    let Ok(font_ref) = skrifa::FontRef::from_index(font.data.as_ref(), font.index) else {
+        return false;
+    };
+    text.chars()
+        .all(|character| font_ref.charmap().map(character).is_some())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -238,6 +292,15 @@ mod tests {
     use crate::gui_runtime::{EmbeddedFont, NativeTextOptions};
     use std::path::PathBuf;
 
+    fn fixture_path(label: &str) -> PathBuf {
+        let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".tmp/fixtures");
+        std::fs::create_dir_all(&directory).expect("create disposable fixture directory");
+        directory.join(format!(
+            "radiant-glyph-fallback-{}-{label}.ttf",
+            std::process::id()
+        ))
+    }
+
     #[test]
     fn preferred_font_paths_are_checked_before_fallbacks() {
         let candidates = native_font_candidates(&[PathBuf::from("host-font.ttf")]);
@@ -288,11 +351,24 @@ mod tests {
     }
 
     #[test]
+    fn face_specific_lookup_does_not_cross_fallback_faces() {
+        let stack = NativeFontStack::from_test_bytes(&[
+            include_bytes!("../../../../tests/fixtures/fonts/primary.ttf"),
+            include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
+        ]);
+
+        assert_eq!(stack.resolve_glyph_in_face(1, 'A'), None);
+        assert_eq!(
+            stack
+                .resolve_glyph_in_face(1, 'Ω')
+                .map(|glyph| glyph.face_index),
+            Some(1)
+        );
+    }
+
+    #[test]
     fn path_faces_load_lazily_after_embedded_faces_and_keep_deduped_order() {
-        let path = std::env::temp_dir().join(format!(
-            "radiant-glyph-fallback-{}-secondary.ttf",
-            std::process::id()
-        ));
+        let path = fixture_path("secondary");
         std::fs::write(
             &path,
             include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
@@ -326,14 +402,8 @@ mod tests {
 
     #[test]
     fn invalid_candidates_are_skipped_before_the_first_valid_path_face() {
-        let invalid_path = std::env::temp_dir().join(format!(
-            "radiant-glyph-fallback-{}-invalid.ttf",
-            std::process::id()
-        ));
-        let valid_path = std::env::temp_dir().join(format!(
-            "radiant-glyph-fallback-{}-valid.ttf",
-            std::process::id()
-        ));
+        let invalid_path = fixture_path("invalid");
+        let valid_path = fixture_path("valid");
         std::fs::write(&invalid_path, b"not a font").expect("write invalid fixture");
         std::fs::write(
             &valid_path,

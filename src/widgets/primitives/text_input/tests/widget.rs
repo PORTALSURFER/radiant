@@ -6,7 +6,22 @@ use crate::widgets::interaction::{
     PointerButton, TextEditCommand, TextInputMessage, TextInputRevision, WidgetInput, WidgetKey,
 };
 
+use super::super::NativeCaretAffinity;
 use super::super::{TextInputChrome, TextInputWidget, WidgetSizing};
+
+#[test]
+fn native_pointer_affinity_resets_for_keyboard_input() {
+    let mut input = TextInputWidget::new(
+        7,
+        "ab",
+        WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0)),
+    );
+    input.set_native_pointer_caret(1, NativeCaretAffinity::Upstream);
+    assert_eq!(input.native_caret_affinity, NativeCaretAffinity::Upstream);
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 28.0));
+    let _ = input.handle_input(bounds, WidgetInput::FocusChanged(true));
+    assert_eq!(input.native_caret_affinity, NativeCaretAffinity::Downstream);
+}
 
 #[test]
 fn text_input_editing_emits_changed_and_submitted_messages() {
@@ -65,7 +80,7 @@ fn text_input_selection_replaces_cuts_and_pastes_text() {
             extend_selection: false,
         }),
     );
-    for _ in 0..4 {
+    for _ in 0..5 {
         let _ = input.handle_input(
             bounds,
             WidgetInput::text_edit(TextEditCommand::MoveRight {
@@ -125,7 +140,7 @@ fn text_input_pointer_drag_extends_selection_including_caret_character() {
         None
     );
     assert_eq!(input.state.caret, 3);
-    assert_eq!(input.selected_text().as_deref(), Some("bcd"));
+    assert_eq!(input.selected_text().as_deref(), Some("bc"));
     assert_eq!(
         input.handle_input(
             bounds,
@@ -165,6 +180,37 @@ fn text_input_double_click_selects_word_under_pointer() {
 
     assert!(input.common.state.focused);
     assert_eq!(input.selected_text().as_deref(), Some("beta_gamma"));
+}
+
+#[test]
+fn text_input_double_click_selects_complete_unicode_word_graphemes() {
+    let mut input = TextInputWidget::new(
+        7,
+        "e\u{301} क्\u{200d}ष \u{10400}\u{301}",
+        WidgetSizing::new(Vector2::new(180.0, 42.0), Vector2::new(260.0, 42.0)),
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 42.0));
+
+    let double_click = |input: &mut TextInputWidget, position| {
+        input.handle_input(
+            bounds,
+            WidgetInput::PointerDoubleClick {
+                position,
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+                timestamp: None,
+            },
+        )
+    };
+
+    assert_eq!(double_click(&mut input, Point::new(20.0, 20.0)), None);
+    assert_eq!(input.selected_text().as_deref(), Some("e\u{301}"));
+
+    assert_eq!(double_click(&mut input, Point::new(47.0, 20.0)), None);
+    assert_eq!(input.selected_text().as_deref(), Some("क्\u{200d}ष"));
+
+    assert_eq!(double_click(&mut input, Point::new(90.0, 20.0)), None);
+    assert_eq!(input.selected_text().as_deref(), Some("\u{10400}\u{301}"));
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use super::TextInputState;
+use super::grapheme_boundary::{next_grapheme_boundary, previous_grapheme_boundary};
 use super::word_boundary::{next_word_boundary, previous_word_boundary};
 
 impl TextInputState {
@@ -14,7 +15,7 @@ impl TextInputState {
         let target = if !extend_selection && self.has_selection() {
             self.selection_range().0
         } else {
-            self.caret.saturating_sub(1)
+            previous_grapheme_boundary(&self.value, self.caret)
         };
         self.set_caret(target, extend_selection);
     }
@@ -23,7 +24,7 @@ impl TextInputState {
         let target = if !extend_selection && self.has_selection() {
             self.selection_range().1
         } else {
-            (self.caret + 1).min(self.char_len())
+            next_grapheme_boundary(&self.value, self.caret)
         };
         self.set_caret(target, extend_selection);
     }
@@ -41,12 +42,7 @@ impl TextInputState {
         let target = if !extend_selection && self.has_selection() {
             self.selection_range().1
         } else {
-            let boundary = next_word_boundary(&self.value, self.caret);
-            if extend_selection && boundary > 0 {
-                boundary - 1
-            } else {
-                boundary
-            }
+            next_word_boundary(&self.value, self.caret)
         };
         self.set_caret(target, extend_selection);
     }

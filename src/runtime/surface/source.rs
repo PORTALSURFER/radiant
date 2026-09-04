@@ -194,6 +194,32 @@ impl SourceMetadata {
     }
 }
 
+/// Compare all source evidence retained on one concrete surface node.
+///
+/// Reconciliation may retain the installed node's owner projections only when
+/// the complete source witness is unchanged.  Keep this comparison beside the
+/// metadata types so path-local admission and fresh-preparation validation
+/// cannot drift apart.
+pub(crate) fn source_metadata_matches(first: &SourceMetadata, second: &SourceMetadata) -> bool {
+    first.identity == second.identity
+        && first.compatibility == second.compatibility
+        && source_topology_matches(&first.topology, &second.topology)
+}
+
+fn source_topology_matches(first: &SourceTopology, second: &SourceTopology) -> bool {
+    first.keyed_nodes.len() == second.keyed_nodes.len()
+        && first
+            .keyed_nodes
+            .iter()
+            .zip(&second.keyed_nodes)
+            .all(|(first, second)| {
+                first.identity() == second.identity()
+                    && first.compatibility() == second.compatibility()
+                    && first.effect_owner() == second.effect_owner()
+            })
+        && first.overlays == second.overlays
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct SourceTraversalRecord {
     pub(crate) node_id: NodeId,

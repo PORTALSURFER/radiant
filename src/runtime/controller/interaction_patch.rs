@@ -346,12 +346,22 @@ fn same_rect_bits(left: crate::gui::types::Rect, right: crate::gui::types::Rect)
 mod tests {
     use super::*;
     use crate::{
-        layout::{ContainerPolicy, SlotParams, Vector2},
-        runtime::{ExactChangedRoot, SurfaceNode, SurfaceUpdate},
+        application::{DeclarativeEffectOwner, DeclarativeIdentityOrigin, SourceIdentitySeed},
+        layout::{ContainerPolicy, LayoutCapabilities, SlotParams, Vector2},
+        runtime::{
+            ExactChangedRoot, SurfaceNode, SurfaceUpdate,
+            surface::{
+                KeyedNodeEvidence, OverlayEvidence, OverlayIdentity, SourceCompatibility,
+                SourceIdentity, SourceMetadata, SourceTopology, SurfaceSourceKind,
+            },
+        },
         theme::{ResolvedAppearance, ThemeTokens},
-        widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision},
+        widgets::{
+            Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetStyle,
+            WidgetTone,
+        },
     };
-    use std::sync::Arc;
+    use std::{rc::Rc, sync::Arc};
 
     #[derive(Clone)]
     struct InteractionWidget {
@@ -516,6 +526,379 @@ mod tests {
                     roots
                 },
             })
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum FloatingMutation {
+        Offset,
+        Size,
+        Style,
+        Capabilities,
+    }
+
+    struct FloatingBridge {
+        revision: bool,
+        exact: bool,
+        mutation: Option<FloatingMutation>,
+    }
+
+    impl FloatingBridge {
+        fn surface(&self) -> crate::runtime::UiSurface<()> {
+            let mutation = self.mutation;
+            let mut child = SurfaceNode::container(
+                30,
+                ContainerPolicy::default(),
+                vec![crate::runtime::SurfaceChild::fill(SurfaceNode::widget(
+                    InteractionWidget::new(10, self.revision, false, false, false),
+                    crate::runtime::WidgetMessageMapper::none(),
+                ))],
+            );
+            if matches!(mutation, Some(FloatingMutation::Style)) {
+                child = child.with_container_style(WidgetStyle::strong(WidgetTone::Accent));
+            }
+            if matches!(mutation, Some(FloatingMutation::Capabilities)) {
+                child = child.with_layout_capabilities(LayoutCapabilities::new());
+            }
+            let (offset, size) = match mutation {
+                Some(FloatingMutation::Offset) => (
+                    crate::gui::types::Point::new(12.0, 5.0),
+                    Vector2::new(40.0, 20.0),
+                ),
+                Some(FloatingMutation::Size) => (
+                    crate::gui::types::Point::new(4.0, 5.0),
+                    Vector2::new(64.0, 20.0),
+                ),
+                Some(FloatingMutation::Style | FloatingMutation::Capabilities) | None => (
+                    crate::gui::types::Point::new(4.0, 5.0),
+                    Vector2::new(40.0, 20.0),
+                ),
+            };
+            crate::runtime::UiSurface::new(SurfaceNode::floating_layer(
+                1, offset, size, child, true,
+            ))
+        }
+    }
+
+    impl RuntimeBridge<()> for FloatingBridge {
+        fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<()>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn pull_surface(&mut self) -> crate::runtime::UiSurface<()> {
+            self.surface()
+        }
+
+        fn surface_update_provider_authority(&self) -> Option<SurfaceUpdateProviderAuthority> {
+            Some(SurfaceUpdateProviderAuthority {
+                owner: 88,
+                checked_revision: 1,
+            })
+        }
+
+        fn pull_surface_update(
+            &mut self,
+            request: crate::runtime::SurfaceRefreshRequest,
+        ) -> SurfaceUpdate<()> {
+            let surface = self.surface();
+            if !self.exact {
+                return SurfaceUpdate::Full(surface);
+            }
+            SurfaceUpdate::ExactChangedRoots(crate::runtime::ExactChangedRoots {
+                surface,
+                runtime_identity: request.runtime_identity,
+                request_revision: request.request_revision,
+                active_surface_generation: request.active_surface_generation,
+                viewport: request.viewport,
+                window_environment: request.window_environment,
+                provider_authority: request.expected_provider_authority,
+                changed_roots: vec![ExactChangedRoot {
+                    node_id: 10,
+                    child_path: vec![0, 0],
+                }],
+            })
+        }
+    }
+
+    #[test]
+    fn floating_layer_contract_mutations_match_forced_full_geometry_paint_and_hit_targets() {
+        let cases = [
+            ("offset", FloatingMutation::Offset),
+            ("size", FloatingMutation::Size),
+            ("style", FloatingMutation::Style),
+            ("capabilities", FloatingMutation::Capabilities),
+        ];
+        for (name, mutation) in cases {
+            let make = |exact| FloatingBridge {
+                revision: false,
+                exact,
+                mutation: None,
+            };
+            let mut exact = SurfaceRuntime::new(make(true), Vector2::new(100.0, 60.0));
+            let mut full = SurfaceRuntime::new(make(false), Vector2::new(100.0, 60.0));
+            exact.bridge_mut().mutation = Some(mutation);
+            exact.bridge_mut().revision = true;
+            full.bridge_mut().mutation = Some(mutation);
+            full.bridge_mut().revision = true;
+            let before = exact.refresh_counters();
+            exact.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            full.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            assert_eq!(
+                exact.refresh_counters().runtime_projection,
+                before.runtime_projection + 1,
+                "{name} must use the full fallback"
+            );
+            assert_eq!(exact.layout(), full.layout(), "{name} geometry");
+            assert_eq!(
+                exact.paint_plan(&ThemeTokens::default()),
+                full.paint_plan(&ThemeTokens::default()),
+                "{name} paint"
+            );
+            assert_eq!(
+                exact.traversal.widgets.pointer.order(),
+                full.traversal.widgets.pointer.order(),
+                "{name} pointer hit targets"
+            );
+            assert_eq!(
+                exact.automation_snapshot(),
+                full.automation_snapshot(),
+                "{name} semantics"
+            );
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum OwnerMutation {
+        KeyedOwnerReplacement,
+        OverlayOwnerReplacement,
+        OverlayAdded,
+        OverlayRemoved,
+    }
+
+    struct OwnerBridge {
+        exact: bool,
+        revision: bool,
+        mutation: Option<OwnerMutation>,
+        keyed_owner: DeclarativeEffectOwner,
+        overlay_owner: DeclarativeEffectOwner,
+        replacement_owner: DeclarativeEffectOwner,
+        added_owner: DeclarativeEffectOwner,
+    }
+
+    impl OwnerBridge {
+        fn source_metadata(&self) -> SourceMetadata {
+            let keyed_owner = match self.mutation {
+                Some(OwnerMutation::KeyedOwnerReplacement) => self.replacement_owner,
+                _ => self.keyed_owner,
+            };
+            let overlay_owner = match self.mutation {
+                Some(OwnerMutation::OverlayOwnerReplacement) => self.replacement_owner,
+                _ => self.overlay_owner,
+            };
+            let keyed_seed = SourceIdentitySeed {
+                resolved_id: 10,
+                structural_scope: 11,
+                origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+                effect_owner: Some(keyed_owner),
+            };
+            let keyed = Rc::new(KeyedNodeEvidence::new(keyed_seed));
+            keyed.set_compatibility(SourceCompatibility {
+                surface_kind: SurfaceSourceKind::Widget,
+                widget_compatibility_kind: Some("interaction"),
+            });
+            let overlays = match self.mutation {
+                Some(OwnerMutation::OverlayAdded) => vec![
+                    OverlayEvidence {
+                        identity: OverlayIdentity {
+                            structural_scope: 12,
+                        },
+                        layer_kind: crate::runtime::LayerKind::Modal,
+                        effect_owner: Some(overlay_owner),
+                    },
+                    OverlayEvidence {
+                        identity: OverlayIdentity {
+                            structural_scope: 13,
+                        },
+                        layer_kind: crate::runtime::LayerKind::Tooltip,
+                        effect_owner: Some(self.added_owner),
+                    },
+                ],
+                Some(OwnerMutation::OverlayRemoved) => Vec::new(),
+                _ => vec![OverlayEvidence {
+                    identity: OverlayIdentity {
+                        structural_scope: 12,
+                    },
+                    layer_kind: crate::runtime::LayerKind::Modal,
+                    effect_owner: Some(overlay_owner),
+                }],
+            };
+            SourceMetadata::new(
+                SourceIdentity {
+                    resolved_id: 10,
+                    structural_scope: 11,
+                    origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+                },
+                SourceCompatibility {
+                    surface_kind: SurfaceSourceKind::Widget,
+                    widget_compatibility_kind: Some("interaction"),
+                },
+                SourceTopology {
+                    keyed_nodes: vec![keyed],
+                    overlays,
+                },
+            )
+        }
+
+        fn surface(&self) -> crate::runtime::UiSurface<()> {
+            crate::runtime::UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                vec![crate::runtime::SurfaceChild::fill(
+                    SurfaceNode::widget(
+                        InteractionWidget::new(10, self.revision, false, false, false),
+                        crate::runtime::WidgetMessageMapper::none(),
+                    )
+                    .with_source_metadata(self.source_metadata()),
+                )],
+            ))
+        }
+    }
+
+    impl RuntimeBridge<()> for OwnerBridge {
+        fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<()>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn pull_surface(&mut self) -> crate::runtime::UiSurface<()> {
+            self.surface()
+        }
+
+        fn surface_update_provider_authority(&self) -> Option<SurfaceUpdateProviderAuthority> {
+            Some(SurfaceUpdateProviderAuthority {
+                owner: 99,
+                checked_revision: 1,
+            })
+        }
+
+        fn pull_surface_update(
+            &mut self,
+            request: crate::runtime::SurfaceRefreshRequest,
+        ) -> SurfaceUpdate<()> {
+            let surface = self.surface();
+            if !self.exact {
+                return SurfaceUpdate::Full(surface);
+            }
+            SurfaceUpdate::ExactChangedRoots(crate::runtime::ExactChangedRoots {
+                surface,
+                runtime_identity: request.runtime_identity,
+                request_revision: request.request_revision,
+                active_surface_generation: request.active_surface_generation,
+                viewport: request.viewport,
+                window_environment: request.window_environment,
+                provider_authority: request.expected_provider_authority,
+                changed_roots: vec![ExactChangedRoot {
+                    node_id: 10,
+                    child_path: vec![0],
+                }],
+            })
+        }
+    }
+
+    #[test]
+    fn source_owner_and_overlay_topology_mutations_match_forced_full_projection() {
+        let cases = [
+            (
+                "keyed owner replacement",
+                OwnerMutation::KeyedOwnerReplacement,
+            ),
+            (
+                "overlay owner replacement",
+                OwnerMutation::OverlayOwnerReplacement,
+            ),
+            ("overlay added", OwnerMutation::OverlayAdded),
+            ("overlay removed", OwnerMutation::OverlayRemoved),
+        ];
+        for (name, mutation) in cases {
+            let keyed_owner = DeclarativeEffectOwner::new();
+            let overlay_owner = DeclarativeEffectOwner::new();
+            let replacement_owner = DeclarativeEffectOwner::new();
+            let added_owner = DeclarativeEffectOwner::new();
+            let make = |exact| OwnerBridge {
+                exact,
+                revision: false,
+                mutation: None,
+                keyed_owner,
+                overlay_owner,
+                replacement_owner,
+                added_owner,
+            };
+            let mut exact = SurfaceRuntime::new(make(true), Vector2::new(80.0, 40.0));
+            let mut full = SurfaceRuntime::new(make(false), Vector2::new(80.0, 40.0));
+            exact.bridge_mut().mutation = Some(mutation);
+            exact.bridge_mut().revision = true;
+            full.bridge_mut().mutation = Some(mutation);
+            full.bridge_mut().revision = true;
+            let before = exact.refresh_counters();
+            exact.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            full.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            assert_eq!(
+                exact.refresh_counters().runtime_projection,
+                before.runtime_projection + 1,
+                "{name} must use the full fallback"
+            );
+            assert_eq!(exact.layout(), full.layout(), "{name} geometry");
+            assert_eq!(
+                exact.paint_plan(&ThemeTokens::default()),
+                full.paint_plan(&ThemeTokens::default()),
+                "{name} paint"
+            );
+            assert_eq!(
+                exact.traversal.widgets.pointer.order(),
+                full.traversal.widgets.pointer.order(),
+                "{name} pointer hit targets"
+            );
+            assert_eq!(
+                exact.declarative_owner_projection().accepted_keyed_nodes(),
+                full.declarative_owner_projection().accepted_keyed_nodes(),
+                "{name} keyed owner projection"
+            );
+            assert_eq!(
+                exact.declarative_owner_projection().accepted_overlays(),
+                full.declarative_owner_projection().accepted_overlays(),
+                "{name} overlay owner projection"
+            );
+            assert_eq!(
+                exact
+                    .declarative_owner_origin_for_handle(keyed_owner)
+                    .is_some(),
+                full.declarative_owner_origin_for_handle(keyed_owner)
+                    .is_some(),
+                "{name} keyed owner resolution"
+            );
+            assert_eq!(
+                exact
+                    .declarative_owner_origin_for_handle(overlay_owner)
+                    .is_some(),
+                full.declarative_owner_origin_for_handle(overlay_owner)
+                    .is_some(),
+                "{name} overlay owner resolution"
+            );
+            assert_eq!(
+                exact
+                    .declarative_owner_origin_for_handle(replacement_owner)
+                    .is_some(),
+                full.declarative_owner_origin_for_handle(replacement_owner)
+                    .is_some(),
+                "{name} replacement owner resolution"
+            );
+            assert_eq!(
+                exact
+                    .declarative_owner_origin_for_handle(added_owner)
+                    .is_some(),
+                full.declarative_owner_origin_for_handle(added_owner)
+                    .is_some(),
+                "{name} added owner resolution"
+            );
         }
     }
 

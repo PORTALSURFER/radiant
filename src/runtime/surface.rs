@@ -35,8 +35,10 @@ pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
 pub(crate) use source::{
     KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
-    SourceTraversalIndex,
+    SourceTraversalIndex, source_metadata_matches,
 };
+#[cfg(test)]
+pub(crate) use source::{OverlayEvidence, OverlayIdentity, SurfaceSourceKind};
 pub(in crate::runtime) use state_sync::{
     PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, WidgetReplacementCommitResult,
     WidgetReplacementPlan, WidgetReplacementPlanVeto, WidgetStateSyncPolicy,

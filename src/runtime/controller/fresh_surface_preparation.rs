@@ -24,10 +24,10 @@ use crate::runtime::{
     SurfaceUpdate, UiSurface, WindowEnvironment, empty_paint_plan_for_layout,
     surface::{
         DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, PreparedWidgetStateSyncEvidence,
-        PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceMetadata, SourceTopology,
-        SourceTraversalIndex, SurfaceDamage, SurfaceTraversalIndex as ProjectedTraversalIndex,
-        ViewDelta, ViewDeltaDiagnostics, ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan,
-        classify_view_delta,
+        PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceTraversalIndex, SurfaceDamage,
+        SurfaceTraversalIndex as ProjectedTraversalIndex, ViewDelta, ViewDeltaDiagnostics,
+        ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
+        source_metadata_matches,
     },
 };
 use crate::theme::{ResolvedAppearance, ThemeTokens};
@@ -1430,26 +1430,6 @@ fn source_indices_match(first: &SourceTraversalIndex, second: &SourceTraversalIn
                         _ => false,
                     }
             })
-}
-
-fn source_metadata_matches(first: &SourceMetadata, second: &SourceMetadata) -> bool {
-    first.identity == second.identity
-        && first.compatibility == second.compatibility
-        && source_topology_matches(&first.topology, &second.topology)
-}
-
-fn source_topology_matches(first: &SourceTopology, second: &SourceTopology) -> bool {
-    first.keyed_nodes.len() == second.keyed_nodes.len()
-        && first
-            .keyed_nodes
-            .iter()
-            .zip(&second.keyed_nodes)
-            .all(|(first, second)| {
-                first.identity() == second.identity()
-                    && first.compatibility() == second.compatibility()
-                    && first.effect_owner() == second.effect_owner()
-            })
-        && first.overlays == second.overlays
 }
 
 #[cfg(test)]

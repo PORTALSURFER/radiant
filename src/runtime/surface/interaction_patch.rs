@@ -2,7 +2,8 @@
 
 use super::node::SurfaceLayerChildKind;
 use super::revision::{InteractionLeafRevision, classify_interaction_leaf};
-use super::{SurfaceNode, SurfaceWidget, UiSurface, WidgetPath};
+use super::source::source_metadata_matches;
+use super::{SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface, WidgetPath};
 
 /// Evidence returned after inspecting one selected path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,20 +58,7 @@ pub(crate) fn inspect_interaction_path<Message>(
             SurfaceNode::Container(current),
             Some((index, rest)),
         ) => {
-            if previous.layout_policy.is_some()
-                || current.layout_policy.is_some()
-                || previous.layout_capabilities.is_some()
-                || current.layout_capabilities.is_some()
-                || previous.policy != current.policy
-                || previous.style != current.style
-                || previous.hoverable != current.hoverable
-                || previous.split_pane_runtime != current.split_pane_runtime
-                || previous.children.len() != current.children.len()
-                || previous
-                    .scroll_mapper_descriptor()
-                    .relation(&current.scroll_mapper_descriptor())
-                    != super::widget::MapperRelation::Unchanged
-            {
+            if !same_retained_container_ancestor(previous, current) {
                 return None;
             }
             let (Some(previous_child), Some(current_child)) =
@@ -110,7 +98,7 @@ pub(crate) fn inspect_interaction_path<Message>(
         ) => {
             if previous.interactive != current.interactive
                 || !previous.interactive
-                || previous.container.children.len() != current.container.children.len()
+                || !same_retained_container_ancestor(&previous.container, &current.container)
             {
                 return None;
             }
@@ -148,12 +136,39 @@ fn same_source_metadata(
     current: Option<&super::SourceMetadata>,
 ) -> bool {
     match (previous, current) {
-        (Some(previous), Some(current)) => {
-            previous.identity == current.identity && previous.compatibility == current.compatibility
-        }
+        (Some(previous), Some(current)) => source_metadata_matches(previous, current),
         (None, None) => true,
         _ => false,
     }
+}
+
+/// Compare only the retained-container contract on the selected ancestor.
+///
+/// This deliberately does not inspect sibling descendants.  Any opaque
+/// custom policy, capability, split callback, or virtual registration widens
+/// to the complete refresh because no exact equality witness exists for its
+/// owner-bearing behavior.
+fn same_retained_container_ancestor<Message>(
+    previous: &SurfaceContainer<Message>,
+    current: &SurfaceContainer<Message>,
+) -> bool {
+    previous.layout_policy.is_none()
+        && current.layout_policy.is_none()
+        && previous.layout_capabilities.is_none()
+        && current.layout_capabilities.is_none()
+        && previous.split_pane_ratio_settled.is_none()
+        && current.split_pane_ratio_settled.is_none()
+        && previous.virtual_layout.is_none()
+        && current.virtual_layout.is_none()
+        && previous.policy == current.policy
+        && previous.style == current.style
+        && previous.hoverable == current.hoverable
+        && previous.split_pane_runtime == current.split_pane_runtime
+        && previous.children.len() == current.children.len()
+        && previous
+            .scroll_mapper_descriptor()
+            .relation(&current.scroll_mapper_descriptor())
+            == super::widget::MapperRelation::Unchanged
 }
 
 fn membership<Message>(widget: &SurfaceWidget<Message>) -> [bool; 7] {

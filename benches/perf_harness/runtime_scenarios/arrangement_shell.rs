@@ -94,6 +94,10 @@ where
 
     assert_eq!(delta.application_projection, 1);
     assert_eq!(delta.runtime_projection, 1);
+    assert_eq!(delta.reconciliation_attempts, 0);
+    assert_eq!(delta.reconciliation_applied, 0);
+    assert_eq!(delta.reconciliation_unsupported, 0);
+    assert_eq!(delta.reconciliation_fallbacks, 1);
     assert_eq!(delta.widget_state_sync, 1);
     assert_eq!(delta.layout, 1);
     assert!(!plan.primitives.is_empty());
@@ -105,6 +109,10 @@ where
         .with_surface_refresh_count(1)
         .with_application_projection_count(delta.application_projection)
         .with_runtime_projection_count(delta.runtime_projection)
+        .with_reconciliation_attempts_count(delta.reconciliation_attempts)
+        .with_reconciliation_applied_count(delta.reconciliation_applied)
+        .with_reconciliation_unsupported_count(delta.reconciliation_unsupported)
+        .with_reconciliation_fallbacks_count(delta.reconciliation_fallbacks)
         .with_widget_state_sync_count(delta.widget_state_sync)
         .with_layout_count(delta.layout)
         .with_paint_plan_rebuild_count(1)
@@ -126,6 +134,10 @@ where
 
     assert_eq!(delta.application_projection, 1);
     assert_eq!(delta.runtime_projection, 1);
+    assert_eq!(delta.reconciliation_attempts, 0);
+    assert_eq!(delta.reconciliation_applied, 0);
+    assert_eq!(delta.reconciliation_unsupported, 0);
+    assert_eq!(delta.reconciliation_fallbacks, 1);
     assert_eq!(delta.widget_state_sync, 1);
     assert_eq!(delta.layout, 1);
     assert!(!plan.primitives.is_empty());
@@ -137,6 +149,10 @@ where
         .with_surface_refresh_count(1)
         .with_application_projection_count(delta.application_projection)
         .with_runtime_projection_count(delta.runtime_projection)
+        .with_reconciliation_attempts_count(delta.reconciliation_attempts)
+        .with_reconciliation_applied_count(delta.reconciliation_applied)
+        .with_reconciliation_unsupported_count(delta.reconciliation_unsupported)
+        .with_reconciliation_fallbacks_count(delta.reconciliation_fallbacks)
         .with_widget_state_sync_count(delta.widget_state_sync)
         .with_layout_count(delta.layout)
         .with_paint_plan_rebuild_count(1)
@@ -181,6 +197,10 @@ where
         .with_surface_refresh_count(0)
         .with_application_projection_count(0)
         .with_runtime_projection_count(0)
+        .with_reconciliation_attempts_count(0)
+        .with_reconciliation_applied_count(0)
+        .with_reconciliation_unsupported_count(0)
+        .with_reconciliation_fallbacks_count(0)
         .with_widget_state_sync_count(0)
         .with_layout_count(0)
         .with_paint_plan_rebuild_count(0)
@@ -259,6 +279,10 @@ mod tests {
             ("surface_refresh_count", 0),
             ("application_projection_count", 0),
             ("runtime_projection_count", 0),
+            ("reconciliation_attempts", 0),
+            ("reconciliation_applied", 0),
+            ("reconciliation_unsupported", 0),
+            ("reconciliation_fallbacks", 0),
             ("widget_state_sync_count", 0),
             ("layout_count", 0),
             ("paint_plan_rebuild_count", 0),
@@ -267,5 +291,28 @@ mod tests {
             assert_eq!(counter(first, name), expected, "counter {name}");
         }
         assert!(counter(first, "paint_primitive_count") > 0);
+    }
+
+    #[test]
+    fn full_refresh_lanes_report_reconciliation_deltas() {
+        let mut frame = frame_refresh();
+        let frame = frame();
+        let mut structural = structural_toggle();
+        let structural = structural();
+
+        for (name, counters) in [("frame refresh", frame), ("structural toggle", structural)] {
+            for (counter_name, expected) in [
+                ("reconciliation_attempts", 0),
+                ("reconciliation_applied", 0),
+                ("reconciliation_unsupported", 0),
+                ("reconciliation_fallbacks", 1),
+            ] {
+                assert_eq!(
+                    counter(counters, counter_name),
+                    expected,
+                    "{name} {counter_name}"
+                );
+            }
+        }
     }
 }

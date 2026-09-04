@@ -4512,9 +4512,10 @@ should translate platform preedit/commit/cancel events into backend-neutral
 composition state and final text commits; the widget model should own the
 logical composition range once that generic event exists. Unicode-scalar editing
 is shipped. Locale and writing-direction services remain future work under
-OPT-1386. Future target: Bidirectional text and complex shaping belong to
-renderer text layout and cursor-stop mapping; they remain future work under
-OPT-1402, while `TextInputState`
+OPT-1386. The selected bidirectional text and complex-shaping architecture is
+recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
+Bidirectional text and complex shaping belong to renderer text layout and
+cursor-stop mapping, with implementation staged under OPT-1402, while `TextInputState`
 continues to store logical Unicode-scalar positions instead of renderer glyph
 positions.
 

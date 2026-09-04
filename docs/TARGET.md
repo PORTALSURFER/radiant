@@ -2156,7 +2156,9 @@ Avoid combining unrelated changes in one commit.
 
 The following decisions do not need to be finalized immediately, but should remain visible:
 
-- Exact text shaping/rendering stack.
+The selected text shaping/rendering stack and its staged follow-on work are
+recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
+
 - Exact plugin-host integration adapter design.
 - Which additional performance workloads should become formal release gates;
   the cross-platform scheduler workload and stage budgets are already

@@ -81,6 +81,10 @@ fn projection_stage_refreshes_paint_content_without_running_layout() {
         SurfaceRefreshCounters {
             application_projection: before_counters.application_projection + 1,
             runtime_projection: before_counters.runtime_projection + 1,
+            reconciliation_attempts: before_counters.reconciliation_attempts,
+            reconciliation_applied: before_counters.reconciliation_applied,
+            reconciliation_unsupported: before_counters.reconciliation_unsupported,
+            reconciliation_fallbacks: before_counters.reconciliation_fallbacks + 1,
             widget_state_sync: before_counters.widget_state_sync + 1,
             layout: before_counters.layout
                 + if effective_scope.refreshes_layout() {

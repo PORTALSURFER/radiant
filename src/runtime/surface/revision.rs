@@ -1,8 +1,8 @@
-//! Pure widget revision relation used by future incremental reconciliation.
+//! Pure widget revision relation used by bounded refresh reconciliation.
 
-// This relation is deliberately staged without a production caller. Keep the
-// pure foundation available for contract tests until incremental refresh owns
-// its invocation.
+// The classifier remains observational. Its private attempt outcome is only
+// allowed to select the already-shipped completed-layout retention boundary;
+// it does not authorize a partial surface or traversal publication.
 #![allow(dead_code)]
 
 use super::widget::{
@@ -1073,6 +1073,35 @@ pub(crate) struct RefreshExecutionDecision {
     base_paint_plan_reuse: bool,
 }
 
+/// Result of the private synchronous reconciliation-attempt seam.
+///
+/// `Applied` deliberately means only that an exact no-change candidate was
+/// accepted for the existing completed-layout retention path. The complete
+/// successor projection and runtime traversal still run before this outcome is
+/// derived, so this is not a node- or subtree-reuse counter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReconciliationAttemptOutcome {
+    /// Exact unchanged evidence permits the existing completed layout to stay
+    /// authoritative while the normal refresh publication continues.
+    Applied,
+    /// Exact topology is available, but this data model has no safe partial
+    /// node/subtree operation yet; use the complete refresh path.
+    Unsupported,
+    /// Evidence is incomplete, conservative, structurally incompatible, or
+    /// otherwise outside the private attempt scope; use the complete path.
+    ConservativeFallback,
+}
+
+impl ReconciliationAttemptOutcome {
+    pub(crate) const fn was_attempted(self) -> bool {
+        matches!(self, Self::Applied | Self::Unsupported)
+    }
+
+    pub(crate) const fn was_applied(self) -> bool {
+        matches!(self, Self::Applied)
+    }
+}
+
 impl RefreshExecutionDecision {
     pub(in crate::runtime) fn from_view_delta(requested: RepaintScope, delta: &ViewDelta) -> Self {
         let complete = !delta.conservative && delta.omitted_events == 0 && !delta.truncated_paths;
@@ -1290,6 +1319,56 @@ impl ViewDelta {
     /// Derive bounded future-reconciliation evidence without applying it.
     pub(crate) fn reconciliation_plan(&self) -> ReconciliationPlan {
         ReconciliationPlan::from_delta(self)
+    }
+
+    /// Derive the private synchronous reconciliation-attempt outcome.
+    ///
+    /// This method is deliberately panic-protected even though the current
+    /// inputs are fixed-size, read-only evidence. No widget, mapper, owner, or
+    /// runtime callback is entered here; a future failure therefore widens to
+    /// the existing complete refresh path.
+    pub(crate) fn reconciliation_attempt_outcome(
+        &self,
+        requested: RepaintScope,
+        execution: RefreshExecutionDecision,
+        completed_layout_reuse: bool,
+    ) -> ReconciliationAttemptOutcome {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.reconciliation_attempt_outcome_unchecked(
+                requested,
+                execution,
+                completed_layout_reuse,
+            )
+        }))
+        .unwrap_or(ReconciliationAttemptOutcome::ConservativeFallback)
+    }
+
+    fn reconciliation_attempt_outcome_unchecked(
+        &self,
+        requested: RepaintScope,
+        execution: RefreshExecutionDecision,
+        completed_layout_reuse: bool,
+    ) -> ReconciliationAttemptOutcome {
+        let complete = !self.conservative && self.omitted_events == 0 && !self.truncated_paths;
+        let plan = self.reconciliation_plan();
+        if !complete
+            || !matches!(plan.outcome, ReconciliationPlanOutcome::ExactTopology)
+            || !matches!(requested, RepaintScope::Surface | RepaintScope::Projection)
+            || execution.effective_scope() != requested
+            || self.diagnostic.conservative
+            || self.diagnostic.total_events != 0
+        {
+            return ReconciliationAttemptOutcome::ConservativeFallback;
+        }
+
+        if self.effect == ViewDeltaEffect::Unchanged
+            && execution.allows_completed_layout_reuse()
+            && completed_layout_reuse
+        {
+            ReconciliationAttemptOutcome::Applied
+        } else {
+            ReconciliationAttemptOutcome::Unsupported
+        }
     }
 
     pub(crate) fn diagnostics(self, duration: Duration) -> ViewDeltaDiagnostics {
@@ -2275,10 +2354,10 @@ mod tests {
 #[cfg(test)]
 mod view_delta_tests {
     use super::{
-        ReconciliationMismatch, ReconciliationPlanOutcome, SurfaceDamage, SurfaceDamageCandidate,
-        ViewDeltaCause, ViewDeltaEffect, ViewDeltaScratch, WidgetRevisionEffect,
-        WidgetRevisionSnapshot, classify_view_delta as classify_with_scratch,
-        classify_widget_revision,
+        ReconciliationAttemptOutcome, ReconciliationMismatch, ReconciliationPlanOutcome,
+        RefreshExecutionDecision, SurfaceDamage, SurfaceDamageCandidate, ViewDeltaCause,
+        ViewDeltaEffect, ViewDeltaScratch, WidgetRevisionEffect, WidgetRevisionSnapshot,
+        classify_view_delta as classify_with_scratch, classify_widget_revision,
     };
     use crate::{
         gui::layout_core::{Controlled, SplitPaneRuntimeMode},
@@ -2288,8 +2367,8 @@ mod view_delta_tests {
             LayoutCapabilities, LayoutInteraction, LayoutInteractionRevision, LayoutOutput,
         },
         runtime::{
-            EventMapper, LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface,
-            WidgetMessageMapper,
+            EventMapper, LayerKind, RepaintScope, SurfaceChild, SurfaceLayer, SurfaceNode,
+            UiSurface, WidgetMessageMapper,
         },
         widgets::{
             ButtonMessage, ButtonWidget, ColorMarkerRunWidget, ColorMarkerWidget,
@@ -2467,6 +2546,59 @@ mod view_delta_tests {
         assert_eq!(plan.outcome, ReconciliationPlanOutcome::ExactTopology);
         assert_eq!(plan.matched_nodes, 2);
         assert_eq!(plan.mismatch_count, 0);
+    }
+
+    #[test]
+    fn reconciliation_attempt_accepts_only_exact_unchanged_evidence() {
+        let previous = surface(benchmark_tree(2, "base"));
+        let unchanged_surface = surface(benchmark_tree(2, "base"));
+        let painted = surface(benchmark_tree(2, "last_paint"));
+        let inserted = surface(benchmark_tree(3, "base"));
+        let reordered = surface(benchmark_tree(2, "reorder"));
+
+        let unchanged = classify_view_delta(&previous, &unchanged_surface);
+        let unchanged_execution =
+            RefreshExecutionDecision::from_view_delta(RepaintScope::Projection, &unchanged);
+        assert_eq!(
+            unchanged.reconciliation_attempt_outcome(
+                RepaintScope::Projection,
+                unchanged_execution,
+                true,
+            ),
+            ReconciliationAttemptOutcome::Applied
+        );
+
+        let painted = classify_view_delta(&previous, &painted);
+        let painted_execution =
+            RefreshExecutionDecision::from_view_delta(RepaintScope::Projection, &painted);
+        assert_eq!(
+            painted.reconciliation_attempt_outcome(
+                RepaintScope::Projection,
+                painted_execution,
+                true
+            ),
+            ReconciliationAttemptOutcome::Unsupported
+        );
+
+        for current in [inserted, reordered] {
+            let delta = classify_view_delta(&previous, &current);
+            let execution =
+                RefreshExecutionDecision::from_view_delta(RepaintScope::Projection, &delta);
+            assert_eq!(
+                delta.reconciliation_attempt_outcome(RepaintScope::Projection, execution, true),
+                ReconciliationAttemptOutcome::ConservativeFallback
+            );
+        }
+
+        let mut insufficient_scratch = ViewDeltaScratch::with_capacity(0);
+        let insufficient =
+            classify_with_scratch(&previous, &unchanged_surface, &mut insufficient_scratch);
+        let execution =
+            RefreshExecutionDecision::from_view_delta(RepaintScope::Projection, &insufficient);
+        assert_eq!(
+            insufficient.reconciliation_attempt_outcome(RepaintScope::Projection, execution, true),
+            ReconciliationAttemptOutcome::ConservativeFallback
+        );
     }
 
     #[test]

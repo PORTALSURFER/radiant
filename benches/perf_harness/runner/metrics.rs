@@ -7,7 +7,7 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 27] = [
+const COUNTER_FIELDS: [&str; 31] = [
     "scene_rebuild_count",
     "static_rebuild_count",
     "paint_only_count",
@@ -35,6 +35,10 @@ const COUNTER_FIELDS: [&str; 27] = [
     "widget_state_sync_count",
     "layout_count",
     "paint_plan_rebuild_count",
+    "reconciliation_attempts",
+    "reconciliation_applied",
+    "reconciliation_unsupported",
+    "reconciliation_fallbacks",
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -70,6 +74,10 @@ impl ScenarioCounters {
     const WIDGET_STATE_SYNC_COUNT: usize = 24;
     const LAYOUT_COUNT: usize = 25;
     const PAINT_PLAN_REBUILD_COUNT: usize = 26;
+    const RECONCILIATION_ATTEMPTS: usize = 27;
+    const RECONCILIATION_APPLIED: usize = 28;
+    const RECONCILIATION_UNSUPPORTED: usize = 29;
+    const RECONCILIATION_FALLBACKS: usize = 30;
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {
@@ -223,6 +231,26 @@ impl ScenarioCounters {
 
     pub(crate) fn with_paint_plan_rebuild_count(mut self, value: u64) -> Self {
         self.values[Self::PAINT_PLAN_REBUILD_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_reconciliation_attempts_count(mut self, value: u64) -> Self {
+        self.values[Self::RECONCILIATION_ATTEMPTS] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_reconciliation_applied_count(mut self, value: u64) -> Self {
+        self.values[Self::RECONCILIATION_APPLIED] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_reconciliation_unsupported_count(mut self, value: u64) -> Self {
+        self.values[Self::RECONCILIATION_UNSUPPORTED] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_reconciliation_fallbacks_count(mut self, value: u64) -> Self {
+        self.values[Self::RECONCILIATION_FALLBACKS] = Some(value);
         self
     }
 }

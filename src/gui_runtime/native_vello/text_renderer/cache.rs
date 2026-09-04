@@ -106,6 +106,13 @@ impl TextLayoutCache {
         }
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "legacy width-independent layout remains covered by native text tests"
+        )
+    )]
     pub(super) fn layout_for<'a>(
         &'a mut self,
         font_stack: &mut NativeFontStack,

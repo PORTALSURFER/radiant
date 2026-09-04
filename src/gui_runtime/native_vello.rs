@@ -3,7 +3,7 @@
 use super::{NativeRunOptions, NativeTextOptions, WindowIconRgba};
 use crate::gui::{
     paint::TextAlign,
-    types::{Point, Rect as UiRect, Rgba8},
+    types::{Rect as UiRect, Rgba8},
 };
 use crate::runtime::PaintTextInput;
 use vello::{Scene, wgpu};

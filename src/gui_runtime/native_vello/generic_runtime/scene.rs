@@ -2,10 +2,13 @@
 
 use crate::{
     gui::types::{Rect, Rgba8, Vector2},
-    gui_runtime::native_vello::{NativeTextRenderer, to_kurbo_rect},
+    gui_runtime::native_vello::{
+        CaretAffinity, NativeTextInputSnapshotFence, NativeTextRenderer, ParagraphSnapshot,
+        to_kurbo_rect,
+    },
     runtime::{
         MAX_PAINT_SEGMENTS, PaintPrimitive, PaintSegmentObservation, PaintSegmentSpan,
-        RuntimeBridge, RuntimeRetainedSurfaceCapability, SurfacePaintPlan,
+        PaintTextInput, RuntimeBridge, RuntimeRetainedSurfaceCapability, SurfacePaintPlan,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -72,6 +75,13 @@ use text_runs::flush_text_runs;
 
 use super::retained_paint_segments::NativePaintSegmentEligibilityPlan;
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "legacy renderer-backed caret projection remains covered by focused text-input tests"
+    )
+)]
 pub(super) fn focused_text_input_caret_area(
     plan: &SurfacePaintPlan,
     text_renderer: &mut NativeTextRenderer,
@@ -91,6 +101,56 @@ pub(super) fn focused_text_input_caret_area(
     focused_input.and_then(|input| text_input::focused_text_input_caret_rect(input, text_renderer))
 }
 
+pub(super) fn focused_text_input_caret_area_from_snapshot(
+    plan: &SurfacePaintPlan,
+    text_renderer: &mut NativeTextRenderer,
+    fence: NativeTextInputSnapshotFence,
+) -> Option<Rect> {
+    let mut focused_input = None;
+    for primitive in &plan.primitives {
+        let PaintPrimitive::TextInput(input) = primitive else {
+            continue;
+        };
+        if !input.focused {
+            continue;
+        }
+        if focused_input.replace(input).is_some() {
+            return None;
+        }
+    }
+    let input = focused_input?;
+    let snapshot = text_renderer.text_input_snapshot_for_input(
+        input.widget_id,
+        input.state.value.as_str(),
+        input.font_size,
+        input.rect,
+        fence,
+    )?;
+    text_input::focused_text_input_caret_rect_from_snapshot(input, text_renderer, snapshot)
+}
+
+pub(in crate::gui_runtime::native_vello) fn seed_text_input_snapshots_for_plan(
+    plan: &SurfacePaintPlan,
+    text_renderer: &mut NativeTextRenderer,
+    fence: NativeTextInputSnapshotFence,
+) {
+    text_renderer.begin_text_input_snapshot_fence(fence);
+    for primitive in &plan.primitives {
+        let PaintPrimitive::TextInput(input) = primitive else {
+            continue;
+        };
+        text_input::seed_text_input_snapshot(text_renderer, input, fence);
+    }
+}
+
+pub(super) fn text_input_pointer_target_from_snapshot(
+    input: &PaintTextInput,
+    position: crate::gui::types::Point,
+    snapshot: std::sync::Arc<ParagraphSnapshot>,
+) -> Option<(usize, CaretAffinity)> {
+    text_input::text_input_pointer_target_from_snapshot(input, position, snapshot)
+}
+
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
     plan: &crate::runtime::SurfacePaintPlan,
     context: SurfaceSceneEncodeContext<'_, Bridge>,
@@ -107,6 +167,7 @@ where
         retained_cache,
         text_runs,
         animation_time,
+        text_input_snapshot_fence,
     } = context;
     scene.reset();
     text_runs.clear();
@@ -221,7 +282,16 @@ where
             }
             PaintPrimitive::TextInput(input) => {
                 stats.text_input_count = stats.text_input_count.saturating_add(1);
-                encode_text_input(scene, text_renderer, input, animation_time);
+                let snapshot = text_input_snapshot_fence.and_then(|fence| {
+                    text_renderer.text_input_snapshot_for_input(
+                        input.widget_id,
+                        input.state.value.as_str(),
+                        input.font_size,
+                        input.rect,
+                        fence,
+                    )
+                });
+                encode_text_input(scene, text_renderer, input, animation_time, snapshot);
                 stats.record_text_runs(1);
             }
             PaintPrimitive::Image(draw) => {
@@ -504,17 +574,24 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Br
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
     pub text_runs: &'a mut SceneTextRunBuffer,
     pub animation_time: Duration,
+    pub text_input_snapshot_fence: Option<NativeTextInputSnapshotFence>,
 }
 
 #[cfg(test)]
 mod focused_text_input_tests {
-    use super::focused_text_input_caret_area;
+    use super::{
+        focused_text_input_caret_area, focused_text_input_caret_area_from_snapshot,
+        seed_text_input_snapshots_for_plan, text_input_pointer_target_from_snapshot,
+    };
     use crate::{
         gui::types::{Point, Rect, Rgba8},
-        gui_runtime::native_vello::NativeTextRenderer,
+        gui_runtime::native_vello::{
+            CaretAffinity, NativeTextInputSnapshotFenceAllocator, NativeTextRenderer,
+        },
         runtime::{PaintPrimitive, PaintTextInput, SurfacePaintPlan},
         widgets::TextInputState,
     };
+    use std::sync::Arc;
 
     #[test]
     fn focused_text_input_caret_area_requires_exactly_one_focused_input() {
@@ -529,6 +606,78 @@ mod focused_text_input_tests {
         assert_eq!(
             caret_area(&mut text_renderer, [focused.clone(), focused]),
             None
+        );
+    }
+
+    #[test]
+    fn seeded_text_inputs_feed_ime_and_pointer_from_one_current_fence() {
+        let mut text_renderer = NativeTextRenderer::new();
+        let mut fences = NativeTextInputSnapshotFenceAllocator::default();
+        let fence = fences.allocate().expect("current plan fence");
+        let mut empty = text_input(1, false);
+        empty.state = TextInputState::from_value(String::new());
+        let focused = text_input(2, true);
+        let plan = SurfacePaintPlan {
+            clear_color: Rgba8::default(),
+            primitives: vec![
+                PaintPrimitive::TextInput(empty.clone()),
+                PaintPrimitive::TextInput(focused.clone()),
+            ],
+        };
+
+        seed_text_input_snapshots_for_plan(&plan, &mut text_renderer, fence);
+        let focused_snapshot = text_renderer
+            .text_input_snapshot_for_input(
+                focused.widget_id,
+                focused.state.value.as_str(),
+                focused.font_size,
+                focused.rect,
+                fence,
+            )
+            .expect("focused input snapshot should be seeded");
+        let empty_snapshot = text_renderer
+            .text_input_snapshot_for_input(
+                empty.widget_id,
+                empty.state.value.as_str(),
+                empty.font_size,
+                empty.rect,
+                fence,
+            )
+            .expect("empty input snapshot should be seeded");
+
+        assert!(!Arc::ptr_eq(&focused_snapshot, &empty_snapshot));
+        assert!(
+            focused_text_input_caret_area_from_snapshot(&plan, &mut text_renderer, fence,)
+                .is_some()
+        );
+        let (scalar, affinity) = text_input_pointer_target_from_snapshot(
+            &focused,
+            Point::new(focused.rect.min.x + 1.0, focused.rect.min.y + 1.0),
+            focused_snapshot.clone(),
+        )
+        .expect("pointer target should use the seeded snapshot");
+        assert!(scalar <= focused.state.value.chars().count());
+        assert!(matches!(
+            affinity,
+            CaretAffinity::Upstream | CaretAffinity::Downstream
+        ));
+
+        seed_text_input_snapshots_for_plan(&plan, &mut text_renderer, fence);
+        let repeated_snapshot = text_renderer
+            .text_input_snapshot_for_input(
+                focused.widget_id,
+                focused.state.value.as_str(),
+                focused.font_size,
+                focused.rect,
+                fence,
+            )
+            .expect("same-fence reseed should remain available");
+        assert!(Arc::ptr_eq(&focused_snapshot, &repeated_snapshot));
+
+        let next_fence = fences.allocate().expect("next plan fence");
+        assert!(
+            focused_text_input_caret_area_from_snapshot(&plan, &mut text_renderer, next_fence,)
+                .is_none()
         );
     }
 

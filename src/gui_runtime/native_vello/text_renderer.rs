@@ -54,13 +54,6 @@ impl NativeTextInputSnapshotFence {
 /// Checked monotonic fence allocator for native text-input frame/plan
 /// preparation. Each allocation identifies one real preparation boundary; the
 /// sidecar never needs to guess whether a plan belongs to a later frame.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "frame integration is intentionally deferred to the production call-path slice"
-    )
-)]
 #[derive(Debug)]
 pub(crate) struct NativeTextInputSnapshotFenceAllocator {
     next_frame_token: Option<u64>,
@@ -77,13 +70,6 @@ impl Default for NativeTextInputSnapshotFenceAllocator {
 }
 
 impl NativeTextInputSnapshotFenceAllocator {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "frame integration is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) fn allocate(&mut self) -> Option<NativeTextInputSnapshotFence> {
         let frame_token = self.next_frame_token?;
         let plan_token = self.next_plan_token?;
@@ -145,13 +131,6 @@ pub(in crate::gui_runtime::native_vello) struct NativeTextInputSnapshotKey {
 
 impl NativeTextInputSnapshotKey {
     #[allow(clippy::too_many_arguments)]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) fn new(
         widget_id: WidgetId,
         text: &str,
@@ -185,57 +164,20 @@ impl NativeTextInputSnapshotKey {
 
 #[derive(Clone, Debug)]
 pub(crate) struct RetainedTextInputSnapshot {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) key: NativeTextInputSnapshotKey,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) snapshot: Arc<ParagraphSnapshot>,
 }
 
 #[derive(Default)]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "text-input publication is intentionally deferred to the production call-path slice"
-    )
-)]
 pub(crate) struct RetainedTextInputSnapshotSidecar {
     // Text inputs are normally few, but a plan can contain more than one.
-    // Keeping a fixed FIFO collection preserves all ordinary current-plan
-    // inputs without turning this renderer-local seam into an unbounded cache.
+    // The current-fence lifetime bounds this collection to the current plan;
+    // replacing the fence drops every entry from the prior plan.
     fence: Option<NativeTextInputSnapshotFence>,
     entries: VecDeque<RetainedTextInputSnapshot>,
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "text-input publication is intentionally deferred to the production call-path slice"
-    )
-)]
-pub(crate) const RETAINED_TEXT_INPUT_SNAPSHOT_CAPACITY: usize = 16;
-
 impl RetainedTextInputSnapshotSidecar {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) fn begin_fence(&mut self, fence: NativeTextInputSnapshotFence) {
         if self.fence != Some(fence) {
             self.fence = Some(fence);
@@ -243,11 +185,16 @@ impl RetainedTextInputSnapshotSidecar {
         }
     }
 
+    pub(crate) fn invalidate(&mut self) {
+        self.fence = None;
+        self.entries.clear();
+    }
+
     #[cfg_attr(
         not(test),
         expect(
             dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
+            reason = "legacy keyed snapshot lookup remains covered by text-renderer tests"
         )
     )]
     pub(crate) fn snapshot_for(
@@ -269,13 +216,53 @@ impl RetainedTextInputSnapshotSidecar {
         None
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
+    /// Return a current-fence entry without rebuilding its key from the live
+    /// font stack. The seed key owns the font generation used to build the
+    /// snapshot, so later consumers can safely run after lazy font discovery.
+    pub(crate) fn snapshot_for_input(
+        &mut self,
+        widget_id: WidgetId,
+        text: &str,
+        font_size: f32,
+        rect: Rect,
+        fence: NativeTextInputSnapshotFence,
+    ) -> Option<Arc<ParagraphSnapshot>> {
+        if self.fence != Some(fence) {
+            return None;
+        }
+        let available_width = Some(rect.width().max(0.0));
+        let source_identity = model::source_identity(text);
+        let entry_index = self.entries.iter().position(|entry| {
+            let key = &entry.key;
+            key.widget_id == widget_id
+                && key.fence == fence
+                && key.source_identity == source_identity
+                && key.font.size_bits == font_size.to_bits()
+                && key.constraints.available_width_bits == available_width.map(f32::to_bits)
+                && key.constraints.align == TextAlign::Left
+                && key.constraints.wrap == TextWrap::None
+                && key.rect == rect.into()
+        });
+        let Some(entry_index) = entry_index else {
+            self.entries
+                .retain(|entry| entry.key.widget_id != widget_id);
+            return None;
+        };
+        let entry = &self.entries[entry_index];
+        if entry
+            .snapshot
+            .matches_source(text, entry.key.content_revision)
+            && entry.snapshot.is_usable_for(font_size)
+            && entry.snapshot.available_width.map(f32::to_bits)
+                == entry.key.constraints.available_width_bits
+        {
+            return Some(entry.snapshot.clone());
+        }
+        self.entries
+            .retain(|entry| entry.key.widget_id != widget_id);
+        None
+    }
+
     pub(crate) fn retain(
         &mut self,
         key: NativeTextInputSnapshotKey,
@@ -288,9 +275,6 @@ impl RetainedTextInputSnapshotSidecar {
         }
         self.entries
             .retain(|entry| entry.key.widget_id != key.widget_id);
-        if self.entries.len() >= RETAINED_TEXT_INPUT_SNAPSHOT_CAPACITY {
-            self.entries.pop_front();
-        }
         self.entries
             .push_back(RetainedTextInputSnapshot { key, snapshot });
     }
@@ -300,13 +284,6 @@ pub(crate) struct NativeTextRenderer {
     font_stack: NativeFontStack,
     layout_cache: TextLayoutCache,
     native_caret_affinities: HashMap<crate::widgets::WidgetId, CaretAffinity>,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) retained_text_input_snapshot: RetainedTextInputSnapshotSidecar,
 }
 
@@ -353,13 +330,6 @@ impl NativeTextRenderer {
         self.native_caret_affinities.clear();
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) fn begin_text_input_snapshot_fence(&mut self, fence: NativeTextInputSnapshotFence) {
         self.retained_text_input_snapshot.begin_fence(fence);
     }
@@ -369,7 +339,7 @@ impl NativeTextRenderer {
         not(test),
         expect(
             dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
+            reason = "legacy keyed snapshot lookup remains covered by text-renderer tests"
         )
     )]
     pub(crate) fn text_input_snapshot(
@@ -379,14 +349,23 @@ impl NativeTextRenderer {
         self.retained_text_input_snapshot.snapshot_for(key)
     }
 
+    pub(crate) fn text_input_snapshot_for_input(
+        &mut self,
+        widget_id: WidgetId,
+        text: &str,
+        font_size: f32,
+        rect: Rect,
+        fence: NativeTextInputSnapshotFence,
+    ) -> Option<Arc<ParagraphSnapshot>> {
+        self.retained_text_input_snapshot
+            .snapshot_for_input(widget_id, text, font_size, rect, fence)
+    }
+
+    pub(crate) fn invalidate_text_input_snapshots(&mut self) {
+        self.retained_text_input_snapshot.invalidate();
+    }
+
     /// Retain one private text-input snapshot for the current frame/plan seam.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) fn retain_text_input_snapshot(
         &mut self,
         key: NativeTextInputSnapshotKey,
@@ -395,13 +374,6 @@ impl NativeTextRenderer {
         self.retained_text_input_snapshot.retain(key, snapshot);
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "text-input publication is intentionally deferred to the production call-path slice"
-        )
-    )]
     pub(crate) fn retain_or_build_text_input_snapshot(
         &mut self,
         widget_id: WidgetId,
@@ -411,22 +383,8 @@ impl NativeTextRenderer {
         fence: NativeTextInputSnapshotFence,
     ) -> Option<Arc<ParagraphSnapshot>> {
         let available_width = Some(rect.width().max(0.0));
-        let key = NativeTextInputSnapshotKey::new(
-            widget_id,
-            text,
-            font_size,
-            self.font_stack.generation(),
-            available_width,
-            TextAlign::Left,
-            TextWrap::None,
-            rect,
-            fence,
-        );
-        if let Some(snapshot) = self.text_input_snapshot(&key)
-            && snapshot.source_identity == key.source_identity
-            && snapshot.matches_source(text, key.content_revision)
-            && snapshot.is_usable_for(font_size)
-            && snapshot.available_width.map(f32::to_bits) == key.constraints.available_width_bits
+        if let Some(snapshot) =
+            self.text_input_snapshot_for_input(widget_id, text, font_size, rect, fence)
         {
             return Some(snapshot);
         }
@@ -439,6 +397,17 @@ impl NativeTextRenderer {
                 TextWrap::None,
             )?
             .snapshot();
+        let key = NativeTextInputSnapshotKey::new(
+            widget_id,
+            text,
+            font_size,
+            self.font_stack.generation(),
+            available_width,
+            TextAlign::Left,
+            TextWrap::None,
+            rect,
+            fence,
+        );
         if snapshot.source_identity != key.source_identity
             || !snapshot.matches_source(text, key.content_revision)
             || !snapshot.is_usable_for(font_size)
@@ -494,6 +463,13 @@ impl NativeTextRenderer {
         );
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "legacy width-independent layout remains covered by native text tests"
+        )
+    )]
     pub(super) fn layout_text(&mut self, text: &str, font_size: f32) -> Option<&TextLayout> {
         if !font_size_is_renderable(font_size) {
             return None;
@@ -806,6 +782,114 @@ mod tests {
                 .is_some()
         );
         assert_eq!(snapshot.available_width, Some(240.0));
+    }
+
+    #[test]
+    fn text_input_snapshot_fence_allocator_is_monotonic_and_checked() {
+        let mut allocator = NativeTextInputSnapshotFenceAllocator::default();
+        let first = allocator.allocate().expect("first fence");
+        let second = allocator.allocate().expect("second fence");
+
+        assert_eq!(second.frame_token, first.frame_token + 1);
+        assert_eq!(second.plan_token, first.plan_token + 1);
+
+        allocator.next_frame_token = Some(u64::MAX);
+        allocator.next_plan_token = Some(u64::MAX);
+        assert!(allocator.allocate().is_some());
+        assert!(allocator.allocate().is_none());
+    }
+
+    #[test]
+    fn retained_text_input_snapshots_keep_all_current_plan_values_and_invalidate_old_fences() {
+        let mut renderer = NativeTextRenderer::new();
+        let mut fences = NativeTextInputSnapshotFenceAllocator::default();
+        let fence = fences.allocate().expect("current plan fence");
+        let first_rect = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(128.0, 38.0));
+        let second_rect = Rect::from_min_max(Point::new(136.0, 10.0), Point::new(256.0, 38.0));
+
+        renderer.begin_text_input_snapshot_fence(fence);
+        let empty = renderer
+            .retain_or_build_text_input_snapshot(WidgetId::from(7_u32), "", 14.0, first_rect, fence)
+            .expect("empty input snapshot should be retained");
+        let value = renderer
+            .retain_or_build_text_input_snapshot(
+                WidgetId::from(8_u32),
+                "value",
+                14.0,
+                second_rect,
+                fence,
+            )
+            .expect("value input snapshot should be retained");
+
+        assert_eq!(renderer.retained_text_input_snapshot.entries.len(), 2);
+        assert!(Arc::ptr_eq(
+            &empty,
+            &renderer
+                .text_input_snapshot_for_input(WidgetId::from(7_u32), "", 14.0, first_rect, fence,)
+                .expect("empty input should remain available")
+        ));
+        assert!(Arc::ptr_eq(
+            &value,
+            &renderer
+                .text_input_snapshot_for_input(
+                    WidgetId::from(8_u32),
+                    "value",
+                    14.0,
+                    second_rect,
+                    fence,
+                )
+                .expect("value input should remain available")
+        ));
+
+        assert!(
+            renderer
+                .text_input_snapshot_for_input(
+                    WidgetId::from(7_u32),
+                    "changed",
+                    14.0,
+                    first_rect,
+                    fence,
+                )
+                .is_none()
+        );
+        assert!(
+            renderer
+                .text_input_snapshot_for_input(
+                    WidgetId::from(8_u32),
+                    "value",
+                    14.0,
+                    second_rect,
+                    fence,
+                )
+                .is_some()
+        );
+
+        let next_fence = fences.allocate().expect("next plan fence");
+        renderer.begin_text_input_snapshot_fence(next_fence);
+        assert!(
+            renderer
+                .text_input_snapshot_for_input(
+                    WidgetId::from(8_u32),
+                    "value",
+                    14.0,
+                    second_rect,
+                    fence,
+                )
+                .is_none()
+        );
+
+        renderer.invalidate_text_input_snapshots();
+        assert!(
+            renderer
+                .text_input_snapshot_for_input(
+                    WidgetId::from(8_u32),
+                    "value",
+                    14.0,
+                    second_rect,
+                    next_fence,
+                )
+                .is_none()
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::gui::types::Rect as UiRect;
+use crate::gui::types::{Point, Rect as UiRect};
 use crate::gui_runtime::native_vello::{
     text_edit::{
         SingleLineTextEditorState, TextFieldLayoutState, build_text_field_layout,
@@ -63,7 +63,6 @@ fn focused_text_input_geometry(
     })
 }
 
-#[allow(dead_code)]
 fn focused_text_input_geometry_from_snapshot(
     input: &PaintTextInput,
     text_renderer: &mut NativeTextRenderer,
@@ -105,6 +104,13 @@ fn focused_text_input_geometry_from_snapshot(
     })
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "legacy renderer-backed caret projection remains covered by focused text-input tests"
+    )
+)]
 pub(super) fn focused_text_input_caret_rect(
     input: &PaintTextInput,
     text_renderer: &mut NativeTextRenderer,
@@ -112,25 +118,33 @@ pub(super) fn focused_text_input_caret_rect(
     focused_text_input_geometry(input, text_renderer).map(|geometry| geometry.caret_rect)
 }
 
+pub(super) fn focused_text_input_caret_rect_from_snapshot(
+    input: &PaintTextInput,
+    text_renderer: &mut NativeTextRenderer,
+    snapshot: Arc<ParagraphSnapshot>,
+) -> Option<UiRect> {
+    focused_text_input_geometry_from_snapshot(input, text_renderer, snapshot)
+        .map(|geometry| geometry.caret_rect)
+}
+
 pub(super) fn encode_text_input(
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
     input: &PaintTextInput,
     animation_time: Duration,
+    snapshot: Option<Arc<ParagraphSnapshot>>,
 ) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
     if !text_input_geometry_is_renderable(input) {
         return;
     }
     let text = input.state.value.as_str();
     let is_placeholder = text.is_empty();
-    let display_text = if is_placeholder {
-        input.placeholder.as_deref().unwrap_or_default()
-    } else {
-        text
-    };
     let focused_geometry = input
         .focused
-        .then(|| focused_text_input_geometry(input, text_renderer))
+        .then(|| focused_text_input_geometry_from_snapshot(input, text_renderer, snapshot.clone()))
         .flatten();
     if input.focused && !is_placeholder {
         let Some(FocusedTextInputGeometry {
@@ -157,26 +171,19 @@ pub(super) fn encode_text_input(
             layout.local_x_for_byte(text.len()),
         );
     } else {
-        draw_text_input_text(
-            scene,
-            text_renderer,
-            input,
-            display_text,
-            if is_placeholder {
-                input.placeholder_color
-            } else {
-                input.color
-            },
-        );
+        if is_placeholder {
+            draw_text_input_text(
+                scene,
+                text_renderer,
+                input,
+                input.placeholder.as_deref().unwrap_or_default(),
+                input.placeholder_color,
+            );
+        } else {
+            draw_text_input_value_from_snapshot(scene, text_renderer, input, snapshot);
+        }
         if let Some(geometry) = focused_geometry {
             encode_block_caret(scene, input, geometry.caret_rect, animation_time);
-        }
-        if !is_placeholder {
-            let suffix_x = text_renderer
-                .layout_text(display_text, input.font_size)
-                .map(|layout| layout.width)
-                .unwrap_or(0.0);
-            draw_completion_suffix(scene, text_renderer, input, suffix_x);
         }
     }
 }
@@ -209,7 +216,6 @@ fn draw_text_input_text(
     );
 }
 
-#[allow(dead_code)]
 fn draw_text_input_value_from_snapshot(
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
@@ -235,6 +241,74 @@ fn draw_text_input_value_from_snapshot(
         },
     );
     draw_completion_suffix(scene, text_renderer, input, snapshot.width);
+}
+
+pub(super) fn seed_text_input_snapshot(
+    text_renderer: &mut NativeTextRenderer,
+    input: &PaintTextInput,
+    fence: NativeTextInputSnapshotFence,
+) {
+    if !text_input_geometry_is_renderable(input) {
+        return;
+    }
+    let _ = text_renderer.retain_or_build_text_input_snapshot(
+        input.widget_id,
+        input.state.value.as_str(),
+        input.font_size,
+        input.rect,
+        fence,
+    );
+}
+
+pub(super) fn text_input_pointer_target_from_snapshot(
+    input: &PaintTextInput,
+    position: Point,
+    snapshot: Arc<ParagraphSnapshot>,
+) -> Option<(usize, CaretAffinity)> {
+    if !text_input_geometry_is_renderable(input) || !position.x.is_finite() {
+        return None;
+    }
+    let text = input.state.value.as_str();
+    let (snapshot, scroll_x) = if input.focused {
+        let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
+        editor.set_cursor(text, byte_index_for_scalar(text, input.state.caret), false);
+        let layout = build_text_field_layout_from_snapshot(
+            snapshot,
+            &mut editor,
+            text,
+            input.font_size,
+            input.rect.width(),
+        );
+        if !layout
+            .snapshot
+            .matches_source(text, layout.snapshot.revision)
+            || !layout.snapshot.is_usable_for(input.font_size)
+        {
+            return None;
+        }
+        (layout.snapshot, layout.scroll_x)
+    } else {
+        (snapshot, 0.0)
+    };
+    let local_x = position.x - input.rect.min.x;
+    if !local_x.is_finite() {
+        return None;
+    }
+    let (scalar, affinity) = snapshot.hit_test((local_x + scroll_x).max(0.0));
+    let byte = snapshot.scalar_boundaries.get(scalar)?.0;
+    let canonical = snapshot.canonical_byte(byte, affinity);
+    let scalar = snapshot
+        .scalar_boundaries
+        .binary_search_by_key(&canonical, |offset| offset.0)
+        .ok()?;
+    Some((scalar, affinity))
+}
+
+fn byte_index_for_scalar(text: &str, scalar: usize) -> usize {
+    text.char_indices()
+        .nth(scalar)
+        .map(|(byte, _)| byte)
+        .unwrap_or(text.len())
 }
 
 fn draw_text_input_layout(

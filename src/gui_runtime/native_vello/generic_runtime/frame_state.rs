@@ -24,7 +24,7 @@ use super::{
         NativePaintSegmentArtifactMaterialization, NativePaintSegmentArtifactResidency,
         NativePaintSegmentArtifactStore, NativePaintSegmentAssemblyBundle,
         NativePaintSegmentAssemblyInput, NativePaintSegmentAssemblyVetoReason,
-        focused_text_input_caret_area,
+        focused_text_input_caret_area_from_snapshot, text_input_pointer_target_from_snapshot,
     },
 };
 use crate::gui::types::Point;
@@ -36,7 +36,9 @@ use crate::theme::ResolvedAppearance;
 use crate::theme::ThemeTokens;
 use crate::{
     gui::types::Rect as UiRect,
-    gui_runtime::native_vello::NativeTextRenderer,
+    gui_runtime::native_vello::{
+        NativeTextInputSnapshotFence, NativeTextInputSnapshotFenceAllocator, NativeTextRenderer,
+    },
     runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
     widgets::WidgetId,
 };
@@ -86,6 +88,8 @@ pub(super) struct NativeVelloFrameState {
     scaled_scene_dpi_scale: DpiScale,
     scaled_scene_dirty: bool,
     pub(super) last_paint_plan: SurfacePaintPlan,
+    pub(super) current_text_input_snapshot_fence: Option<NativeTextInputSnapshotFence>,
+    text_input_snapshot_fence_allocator: NativeTextInputSnapshotFenceAllocator,
     pub(super) transient_overlay_primitives: Vec<PaintPrimitive>,
     pub(super) composited_base_dirty: bool,
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
@@ -207,6 +211,8 @@ impl NativeVelloFrameState {
             scaled_scene_dpi_scale: DpiScale::ONE,
             scaled_scene_dirty: true,
             last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),
+            current_text_input_snapshot_fence: None,
+            text_input_snapshot_fence_allocator: NativeTextInputSnapshotFenceAllocator::default(),
             transient_overlay_primitives: Vec::new(),
             composited_base_dirty: true,
             retained_surface_cache: RetainedSurfaceFrameCache::with_policy(retained_surface_cache),
@@ -629,8 +635,30 @@ impl NativeVelloFrameState {
         self.mark_scene_texture_dirty();
     }
 
+    pub(super) fn seed_text_input_snapshots_for_current_plan(&mut self, force_new_fence: bool) {
+        if !force_new_fence && self.current_text_input_snapshot_fence.is_some() {
+            return;
+        }
+        let Some(fence) = self.text_input_snapshot_fence_allocator.allocate() else {
+            self.current_text_input_snapshot_fence = None;
+            self.text_renderer.invalidate_text_input_snapshots();
+            return;
+        };
+        self.current_text_input_snapshot_fence = Some(fence);
+        super::scene::seed_text_input_snapshots_for_plan(
+            &self.last_paint_plan,
+            &mut self.text_renderer,
+            fence,
+        );
+    }
+
     pub(super) fn native_ime_cursor_area(&mut self) -> Option<UiRect> {
-        focused_text_input_caret_area(&self.last_paint_plan, &mut self.text_renderer)
+        let fence = self.current_text_input_snapshot_fence?;
+        focused_text_input_caret_area_from_snapshot(
+            &self.last_paint_plan,
+            &mut self.text_renderer,
+            fence,
+        )
     }
 
     /// Resolve a native pointer through the retained paragraph that paints the
@@ -646,7 +674,8 @@ impl NativeVelloFrameState {
         usize,
         crate::gui_runtime::native_vello::CaretAffinity,
     )> {
-        let (widget_id, rect, font_size, text, focused, caret) = self
+        let fence = self.current_text_input_snapshot_fence?;
+        let input = self
             .last_paint_plan
             .primitives
             .iter()
@@ -659,58 +688,22 @@ impl NativeVelloFrameState {
                     || input.rect.contains(position),
                     |widget_id| input.widget_id == widget_id,
                 );
-                hit.then(|| {
-                    (
-                        input.widget_id,
-                        input.rect,
-                        input.font_size,
-                        input.state.value.clone(),
-                        input.focused,
-                        input.state.caret,
-                    )
-                })
+                hit.then_some(input)
             })?;
-        if !rect.has_finite_positive_area() {
+        if !input.rect.has_finite_positive_area() {
             return None;
         }
 
-        let local_x = position.x - rect.min.x;
-        let (snapshot, scroll_x) = if focused {
-            let mut editor =
-                crate::gui_runtime::native_vello::text_edit::SingleLineTextEditorState::collapsed_at_end(
-                    &text,
-                );
-            editor.set_cursor(&text, byte_index_for_scalar(&text, caret), false);
-            let layout = crate::gui_runtime::native_vello::text_edit::build_text_field_layout(
-                &mut self.text_renderer,
-                &mut editor,
-                &text,
-                font_size,
-                rect.width(),
-            );
-            (layout.snapshot, layout.scroll_x)
-        } else {
-            (
-                self.text_renderer
-                    .layout_text_view(
-                        &text,
-                        font_size,
-                        Some(rect.width().max(0.0)),
-                        crate::gui::paint::TextAlign::Left,
-                        crate::widgets::TextWrap::None,
-                    )?
-                    .snapshot(),
-                0.0,
-            )
-        };
-        let (scalar, affinity) = snapshot.hit_test((local_x + scroll_x).max(0.0));
-        let byte = snapshot.scalar_boundaries.get(scalar)?.0;
-        let canonical = snapshot.canonical_byte(byte, affinity);
-        let scalar = snapshot
-            .scalar_boundaries
-            .binary_search_by_key(&canonical, |offset| offset.0)
-            .ok()?;
-        Some((widget_id, text, scalar, affinity))
+        let snapshot = self.text_renderer.text_input_snapshot_for_input(
+            input.widget_id,
+            input.state.value.as_str(),
+            input.font_size,
+            input.rect,
+            fence,
+        )?;
+        let (scalar, affinity) =
+            text_input_pointer_target_from_snapshot(input, position, snapshot)?;
+        Some((input.widget_id, input.state.value.clone(), scalar, affinity))
     }
 
     pub(super) fn mark_composited_base_dirty(&mut self) {
@@ -794,17 +787,17 @@ impl NativeVelloFrameState {
     }
 }
 
-fn byte_index_for_scalar(text: &str, scalar: usize) -> usize {
-    text.char_indices()
-        .nth(scalar)
-        .map(|(byte, _)| byte)
-        .unwrap_or(text.len())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::{PaintSegment, PaintSegmentAnchor, PaintSegmentIdentity};
+    use crate::{
+        gui::types::{Rect, Rgba8},
+        runtime::{
+            PaintPrimitive, PaintSegment, PaintSegmentAnchor, PaintSegmentIdentity, PaintTextInput,
+        },
+        widgets::TextInputState,
+    };
+    use std::sync::Arc;
 
     fn identity(key: u64) -> PaintSegmentIdentity {
         PaintSegmentIdentity {
@@ -1018,5 +1011,110 @@ mod tests {
             frame.native_retained_paint_segment_store.snapshot(),
             retained
         );
+    }
+
+    #[test]
+    fn current_text_input_fence_is_reused_until_plan_replacement() {
+        let mut frame = NativeVelloFrameState::new(
+            NativeTextRenderer::new(),
+            RetainedSurfaceCachePolicy::default(),
+        );
+        let input = text_input(7, true, "candidate");
+        frame.last_paint_plan = SurfacePaintPlan {
+            clear_color: Rgba8::default(),
+            primitives: vec![PaintPrimitive::TextInput(input.clone())],
+        };
+
+        frame.seed_text_input_snapshots_for_current_plan(false);
+        let first_fence = frame
+            .current_text_input_snapshot_fence
+            .expect("current plan should have a fence");
+        let first_snapshot = frame
+            .text_renderer
+            .text_input_snapshot_for_input(
+                input.widget_id,
+                input.state.value.as_str(),
+                input.font_size,
+                input.rect,
+                first_fence,
+            )
+            .expect("current plan snapshot should be available");
+        assert!(frame.native_ime_cursor_area().is_some());
+        let (widget_id, value, scalar, _) = frame
+            .native_text_pointer_target(
+                Point::new(input.rect.min.x + 1.0, input.rect.min.y + 1.0),
+                None,
+            )
+            .expect("pointer should use the current plan snapshot");
+        assert_eq!(widget_id, input.widget_id);
+        assert_eq!(value, input.state.value);
+        assert!(scalar <= input.state.value.chars().count());
+
+        frame.seed_text_input_snapshots_for_current_plan(false);
+        assert_eq!(frame.current_text_input_snapshot_fence, Some(first_fence));
+        let repeated_snapshot = frame
+            .text_renderer
+            .text_input_snapshot_for_input(
+                input.widget_id,
+                input.state.value.as_str(),
+                input.font_size,
+                input.rect,
+                first_fence,
+            )
+            .expect("same-fence snapshot should remain available");
+        assert!(Arc::ptr_eq(&first_snapshot, &repeated_snapshot));
+
+        let replacement = text_input(7, true, "replacement");
+        frame.last_paint_plan = SurfacePaintPlan {
+            clear_color: Rgba8::default(),
+            primitives: vec![PaintPrimitive::TextInput(replacement.clone())],
+        };
+        frame.seed_text_input_snapshots_for_current_plan(true);
+        let replacement_fence = frame
+            .current_text_input_snapshot_fence
+            .expect("replacement plan should have a new fence");
+        assert_ne!(replacement_fence, first_fence);
+        assert!(
+            frame
+                .text_renderer
+                .text_input_snapshot_for_input(
+                    input.widget_id,
+                    input.state.value.as_str(),
+                    input.font_size,
+                    input.rect,
+                    first_fence,
+                )
+                .is_none()
+        );
+        assert!(
+            frame
+                .text_renderer
+                .text_input_snapshot_for_input(
+                    replacement.widget_id,
+                    replacement.state.value.as_str(),
+                    replacement.font_size,
+                    replacement.rect,
+                    replacement_fence,
+                )
+                .is_some()
+        );
+    }
+
+    fn text_input(widget_id: u64, focused: bool, value: &str) -> PaintTextInput {
+        PaintTextInput {
+            widget_id,
+            rect: Rect::from_min_max(Point::new(8.0, 10.0), Point::new(160.0, 38.0)),
+            placeholder: None,
+            completion_suffix: None,
+            state: TextInputState::from_value(value.to_owned()),
+            font_size: 14.0,
+            baseline: None,
+            color: Rgba8::default(),
+            placeholder_color: Rgba8::default(),
+            completion_color: Rgba8::default(),
+            selection_color: Rgba8::default(),
+            caret_color: Rgba8::default(),
+            focused,
+        }
     }
 }

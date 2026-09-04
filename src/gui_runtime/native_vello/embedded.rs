@@ -18,9 +18,12 @@ use super::generic_runtime::{
     RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer, SurfaceOcclusionPlan,
     SurfaceOcclusionPolicy, SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch,
     encode_surface_paint_plan_to_scene, gpu_surface_requires_compositing_in_viewport,
-    surface_rect_has_visible_region_in_viewport,
+    seed_text_input_snapshots_for_plan, surface_rect_has_visible_region_in_viewport,
 };
-use super::{NativeTextOptions, NativeTextRenderer, startup_renderer_options};
+use super::{
+    NativeTextInputSnapshotFenceAllocator, NativeTextOptions, NativeTextRenderer,
+    startup_renderer_options,
+};
 use crate::{
     gui::types::Vector2,
     runtime::{
@@ -123,6 +126,7 @@ pub struct EmbeddedVelloRenderer {
     animation_clock: EmbeddedAnimationClock,
     surface_occlusion_plan: SurfaceOcclusionPlan,
     surface_visibility: SurfaceVisibleSuffixScratch,
+    text_input_snapshot_fence_allocator: NativeTextInputSnapshotFenceAllocator,
 }
 
 impl EmbeddedVelloRenderer {
@@ -210,6 +214,7 @@ impl EmbeddedVelloRenderer {
             animation_clock: EmbeddedAnimationClock::start(),
             surface_occlusion_plan: SurfaceOcclusionPlan::default(),
             surface_visibility: SurfaceVisibleSuffixScratch::default(),
+            text_input_snapshot_fence_allocator: NativeTextInputSnapshotFenceAllocator::default(),
         })
     }
 
@@ -239,6 +244,12 @@ impl EmbeddedVelloRenderer {
             &self.surface_occlusion_plan,
             &mut self.surface_visibility,
         )?;
+        let text_input_snapshot_fence = self.text_input_snapshot_fence_allocator.allocate();
+        if let Some(fence) = text_input_snapshot_fence {
+            seed_text_input_snapshots_for_plan(plan, &mut self.text_renderer, fence);
+        } else {
+            self.text_renderer.invalidate_text_input_snapshots();
+        }
         // Keep the source scene independent between captures. The shared encoder also resets
         // before encoding, but doing so here makes the offscreen lifecycle explicit and guards
         // against stale primitives if the encoder gains an early-return path later.
@@ -255,6 +266,7 @@ impl EmbeddedVelloRenderer {
                 retained_cache: &mut self.retained_cache,
                 text_runs: &mut self.text_runs,
                 animation_time,
+                text_input_snapshot_fence,
             },
         );
         self.scaled_scene.reset();
@@ -351,6 +363,7 @@ pub struct OffscreenVelloCapture {
     text_runs: SceneTextRunBuffer,
     logical_size: Vector2,
     dpi_scale: DpiScale,
+    text_input_snapshot_fence_allocator: NativeTextInputSnapshotFenceAllocator,
 }
 
 impl OffscreenVelloCapture {
@@ -393,6 +406,7 @@ impl OffscreenVelloCapture {
             text_runs: SceneTextRunBuffer::new(),
             logical_size,
             dpi_scale,
+            text_input_snapshot_fence_allocator: NativeTextInputSnapshotFenceAllocator::default(),
         })
     }
 
@@ -400,6 +414,12 @@ impl OffscreenVelloCapture {
     pub fn capture(&mut self, plan: &SurfacePaintPlan) -> Result<Vec<u8>, EmbeddedVelloError> {
         validate_offscreen_plan(plan)?;
 
+        let text_input_snapshot_fence = self.text_input_snapshot_fence_allocator.allocate();
+        if let Some(fence) = text_input_snapshot_fence {
+            seed_text_input_snapshots_for_plan(plan, &mut self.text_renderer, fence);
+        } else {
+            self.text_renderer.invalidate_text_input_snapshots();
+        }
         encode_surface_paint_plan_to_scene(
             plan,
             SurfaceSceneEncodeContext {
@@ -411,6 +431,7 @@ impl OffscreenVelloCapture {
                 retained_cache: &mut self.retained_cache,
                 text_runs: &mut self.text_runs,
                 animation_time: Duration::ZERO,
+                text_input_snapshot_fence,
             },
         );
         self.scaled_scene.reset();

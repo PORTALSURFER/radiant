@@ -543,6 +543,13 @@ impl ParagraphSnapshot {
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_runtime::native_vello) struct TextLayout {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "legacy width-independent layout remains covered by native text tests"
+        )
+    )]
     pub(in crate::gui_runtime::native_vello) width: f32,
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) glyphs: Vec<GlyphLayout>,

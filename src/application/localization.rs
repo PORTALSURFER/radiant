@@ -20,9 +20,6 @@ impl LocaleId {
         if value.len() > 32 {
             return Err(LocaleIdError::TooLong);
         }
-        if value.starts_with('-') || value.ends_with('-') {
-            return Err(LocaleIdError::InvalidCharacter);
-        }
         if !value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
@@ -30,6 +27,9 @@ impl LocaleId {
             return Err(LocaleIdError::InvalidCharacter);
         }
         let canonical = value.replace('_', "-").to_ascii_lowercase();
+        if canonical.split('-').any(str::is_empty) {
+            return Err(LocaleIdError::InvalidCharacter);
+        }
         Ok(Self(Arc::from(canonical)))
     }
 
@@ -308,13 +308,22 @@ impl TextCatalog {
 
 #[cfg(test)]
 mod tests {
-    use super::{LocaleId, LocalizationOutcome, TextCatalog, TextKey};
+    use super::{LocaleId, LocaleIdError, LocalizationOutcome, TextCatalog, TextKey};
 
     #[test]
     fn locale_ids_are_canonical_and_validated() {
-        assert_eq!(LocaleId::new("EN_us").unwrap().as_str(), "en-us");
-        assert!(LocaleId::new("").is_err());
-        assert!(LocaleId::new("en/").is_err());
+        for (input, expected) in [("EN_us", "en-us"), ("ZH_Hant-TW", "zh-hant-tw")] {
+            assert_eq!(LocaleId::new(input).unwrap().as_str(), expected);
+        }
+
+        for input in [
+            "_", "-", "_en", "en_", "-en", "en-", "en__US", "en--US", "en-_US", "en_-US",
+        ] {
+            assert_eq!(LocaleId::new(input), Err(LocaleIdError::InvalidCharacter));
+        }
+        assert_eq!(LocaleId::new(""), Err(LocaleIdError::Empty));
+        assert_eq!(LocaleId::new("en/"), Err(LocaleIdError::InvalidCharacter));
+        assert_eq!(LocaleId::new("a".repeat(33)), Err(LocaleIdError::TooLong));
     }
 
     #[test]

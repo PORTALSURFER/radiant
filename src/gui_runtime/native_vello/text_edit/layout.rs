@@ -86,7 +86,7 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
 }
 
 /// Build field geometry from one validated retained paragraph snapshot.
-pub(super) fn build_text_field_layout_from_snapshot(
+pub(in crate::gui_runtime::native_vello) fn build_text_field_layout_from_snapshot(
     snapshot: Arc<ParagraphSnapshot>,
     editor: &mut SingleLineTextEditorState,
     text: &str,

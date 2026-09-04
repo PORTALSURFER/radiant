@@ -1,8 +1,12 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::{
-    text_edit::{SingleLineTextEditorState, TextFieldLayoutState, build_text_field_layout},
+    text_edit::{
+        SingleLineTextEditorState, TextFieldLayoutState, build_text_field_layout,
+        build_text_field_layout_from_snapshot,
+    },
     *,
 };
 use crate::widgets::TextWrap;
@@ -35,6 +39,48 @@ fn focused_text_input_geometry(
     editor.set_cursor(text, selection.end_byte, true);
     let layout = build_text_field_layout(
         text_renderer,
+        &mut editor,
+        text,
+        input.font_size,
+        input.rect.width(),
+    );
+    let caret_affinity = text_renderer.native_caret_affinity(input.widget_id);
+    let caret_offset = if selection.has_selection {
+        layout.local_x_for_byte(selection.caret_byte)
+    } else if caret_affinity == CaretAffinity::Downstream {
+        layout.caret_offset
+    } else {
+        (layout
+            .snapshot
+            .caret_x(selection.caret_byte, caret_affinity)
+            - layout.scroll_x)
+            .clamp(0.0, input.rect.width())
+    };
+    Some(FocusedTextInputGeometry {
+        caret_rect: caret_rect(input, input.rect.min.x + caret_offset)?,
+        layout: Some(layout),
+        selection: Some(selection),
+    })
+}
+
+#[allow(dead_code)]
+fn focused_text_input_geometry_from_snapshot(
+    input: &PaintTextInput,
+    text_renderer: &mut NativeTextRenderer,
+    snapshot: Arc<ParagraphSnapshot>,
+) -> Option<FocusedTextInputGeometry> {
+    if !input.focused || !text_input_geometry_is_renderable(input) {
+        return None;
+    }
+
+    let text = input.state.value.as_str();
+    let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
+    let selection =
+        resolve_text_input_selection(text, input.state.caret, input.state.selection_anchor);
+    editor.set_cursor(text, selection.start_byte, false);
+    editor.set_cursor(text, selection.end_byte, true);
+    let layout = build_text_field_layout_from_snapshot(
+        snapshot,
         &mut editor,
         text,
         input.font_size,
@@ -161,6 +207,34 @@ fn draw_text_input_text(
             wrap: TextWrap::None,
         },
     );
+}
+
+#[allow(dead_code)]
+fn draw_text_input_value_from_snapshot(
+    scene: &mut Scene,
+    text_renderer: &mut NativeTextRenderer,
+    input: &PaintTextInput,
+    snapshot: Arc<ParagraphSnapshot>,
+) {
+    if input.state.value.is_empty() {
+        return;
+    }
+    let baseline_offset = input.baseline.unwrap_or(input.font_size);
+    text_renderer.draw_paragraph_snapshot(
+        scene,
+        &snapshot,
+        TextSnapshotPaint {
+            position: Point::new(
+                input.rect.min.x,
+                input.rect.min.y + baseline_offset - input.font_size,
+            ),
+            font_size: input.font_size,
+            color: input.color,
+            clip_width: input.rect.width().max(0.0),
+            scroll_x: 0.0,
+        },
+    );
+    draw_completion_suffix(scene, text_renderer, input, snapshot.width);
 }
 
 fn draw_text_input_layout(

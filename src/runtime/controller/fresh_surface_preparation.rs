@@ -235,7 +235,6 @@ pub(crate) enum PreparedSurfaceRefresh<Message> {
         application_environment: Option<crate::application::ApplicationEnvironment>,
     },
 }
-}
 
 /// The only result that crosses the private runtime publication boundary.
 ///
@@ -285,13 +284,17 @@ impl<Message> PreparedSurfaceRefresh<Message> {
                 appearance,
                 application_environment,
                 ..
-            } => application_environment == &runtime.sample_application_environment()
-                && paint_candidate.is_current(runtime, **appearance),
+            } => {
+                application_environment == &runtime.sample_application_environment()
+                    && paint_candidate.is_current(runtime, **appearance)
+            }
             Self::Interaction {
                 candidate,
                 application_environment,
-            } => application_environment == &runtime.sample_application_environment()
-                && runtime.interaction_patch_candidate_is_current(candidate),
+            } => {
+                application_environment == &runtime.sample_application_environment()
+                    && runtime.interaction_patch_candidate_is_current(candidate)
+            }
         }
     }
 
@@ -417,7 +420,11 @@ where
             return None;
         }
 
-        let PreparedSurfaceRefresh::Interaction { candidate: prepared, .. } = prepared else {
+        let PreparedSurfaceRefresh::Interaction {
+            candidate: prepared,
+            ..
+        } = prepared
+        else {
             let PreparedSurfaceRefresh::Full {
                 paint_candidate,
                 appearance,

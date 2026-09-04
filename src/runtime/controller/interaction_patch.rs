@@ -546,7 +546,7 @@ mod tests {
     impl FloatingBridge {
         fn surface(&self) -> crate::runtime::UiSurface<()> {
             let mutation = self.mutation;
-            let mut child = SurfaceNode::container(
+            let child = SurfaceNode::container(
                 30,
                 ContainerPolicy::default(),
                 vec![crate::runtime::SurfaceChild::fill(SurfaceNode::widget(
@@ -554,12 +554,6 @@ mod tests {
                     crate::runtime::WidgetMessageMapper::none(),
                 ))],
             );
-            if matches!(mutation, Some(FloatingMutation::Style)) {
-                child = child.with_container_style(WidgetStyle::strong(WidgetTone::Accent));
-            }
-            if matches!(mutation, Some(FloatingMutation::Capabilities)) {
-                child = child.with_layout_capabilities(LayoutCapabilities::new());
-            }
             let (offset, size) = match mutation {
                 Some(FloatingMutation::Offset) => (
                     crate::gui::types::Point::new(12.0, 5.0),
@@ -574,9 +568,18 @@ mod tests {
                     Vector2::new(40.0, 20.0),
                 ),
             };
-            crate::runtime::UiSurface::new(SurfaceNode::floating_layer(
-                1, offset, size, child, true,
-            ))
+            let layer = SurfaceNode::floating_layer(1, offset, size, child, true);
+            let layer = if matches!(mutation, Some(FloatingMutation::Style)) {
+                layer.with_floating_layer_container_style(WidgetStyle::strong(WidgetTone::Accent))
+            } else {
+                layer
+            };
+            let layer = if matches!(mutation, Some(FloatingMutation::Capabilities)) {
+                layer.with_floating_layer_container_capabilities(LayoutCapabilities::new())
+            } else {
+                layer
+            };
+            crate::runtime::UiSurface::new(layer)
         }
     }
 

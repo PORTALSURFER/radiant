@@ -434,7 +434,7 @@ fn interaction_candidate_is_vetoed_when_appearance_drifts_before_publish() {
         .expect("interaction candidate");
     assert!(matches!(
         &prepared,
-        crate::runtime::PreparedSurfaceRefresh::Interaction(_)
+        crate::runtime::PreparedSurfaceRefresh::Interaction { .. }
     ));
     runner
         .core

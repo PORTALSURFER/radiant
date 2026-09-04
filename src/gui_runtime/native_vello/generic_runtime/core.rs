@@ -269,7 +269,7 @@ where
         plan: &mut crate::runtime::SurfacePaintPlan,
         prepared: PreparedSurfaceRefresh<Message>,
     ) -> Option<Vec<Message>> {
-        if matches!(&prepared, PreparedSurfaceRefresh::Interaction(_))
+        if matches!(&prepared, PreparedSurfaceRefresh::Interaction { .. })
             && prepared.appearance() != self.resolved_appearance
         {
             prepared.discard();

@@ -12,9 +12,9 @@ use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     RepaintScope, RuntimeBridge, SurfaceInvalidation,
     surface::{
-        RefreshExecutionDecision, SurfaceDamage, ViewDeltaDiagnostics,
-        WidgetReplacementCommitResult, WidgetReplacementPlan, WidgetReplacementPlanVeto,
-        classify_view_delta,
+        ReconciliationAttemptOutcome, RefreshExecutionDecision, SurfaceDamage,
+        ViewDeltaDiagnostics, WidgetReplacementCommitResult, WidgetReplacementPlan,
+        WidgetReplacementPlanVeto, classify_view_delta,
     },
 };
 use crate::widgets::WidgetId;
@@ -2384,6 +2384,11 @@ mod tests {
                 .replacement_count,
             1
         );
+        let counters = runtime.refresh_counters();
+        assert_eq!(counters.reconciliation_attempts, 0);
+        assert_eq!(counters.reconciliation_applied, 0);
+        assert_eq!(counters.reconciliation_unsupported, 0);
+        assert_eq!(counters.reconciliation_fallbacks, 1);
     }
 
     #[test]
@@ -2509,6 +2514,84 @@ mod tests {
             after_surface.widget_state_sync + 1
         );
         assert_eq!(after_projection.layout, after_surface.layout);
+    }
+
+    #[test]
+    fn exact_unchanged_candidate_records_applied_attempt_without_node_reuse() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                exact: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let before = runtime.refresh_counters();
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+
+        let after = runtime.refresh_counters();
+        assert_eq!(
+            after.reconciliation_attempts,
+            before.reconciliation_attempts + 1
+        );
+        assert_eq!(
+            after.reconciliation_applied,
+            before.reconciliation_applied + 1
+        );
+        assert_eq!(
+            after.reconciliation_unsupported,
+            before.reconciliation_unsupported
+        );
+        assert_eq!(
+            after.reconciliation_fallbacks,
+            before.reconciliation_fallbacks
+        );
+        assert_eq!(
+            after.runtime_projection,
+            before.runtime_projection + 1,
+            "the complete runtime projection remains the correctness path"
+        );
+        assert_eq!(
+            after.layout, before.layout,
+            "Applied only retains the completed layout; it does not claim node reuse"
+        );
+    }
+
+    #[test]
+    fn exact_changed_leaf_records_unsupported_attempt_and_uses_full_path() {
+        let mut runtime = SurfaceRuntime::new(
+            ReplacementBridge {
+                semantic_mode: true,
+                ..ReplacementBridge::default()
+            },
+            Vector2::new(120.0, 80.0),
+        );
+        let before = runtime.refresh_counters();
+        runtime.bridge_mut().semantic_changed = true;
+
+        runtime.refresh_with_scope(RepaintScope::Projection);
+
+        let after = runtime.refresh_counters();
+        assert_eq!(
+            after.reconciliation_attempts,
+            before.reconciliation_attempts + 1
+        );
+        assert_eq!(after.reconciliation_applied, before.reconciliation_applied);
+        assert_eq!(
+            after.reconciliation_unsupported,
+            before.reconciliation_unsupported + 1
+        );
+        assert_eq!(
+            after.reconciliation_fallbacks,
+            before.reconciliation_fallbacks + 1
+        );
+        assert_eq!(
+            after.runtime_projection,
+            before.runtime_projection + 1,
+            "unsupported candidates use the complete runtime projection"
+        );
+        assert_eq!(after.layout, before.layout);
+        assert!(runtime.base_paint_plan_reuse_eligible());
     }
 
     #[test]
@@ -2691,7 +2774,7 @@ mod tests {
         );
         runtime.scratch.view_delta = crate::runtime::surface::ViewDeltaScratch::with_capacity(0);
         let _ = runtime.take_frame_refresh_diagnostics();
-        let layout_before = runtime.refresh_counters().layout;
+        let before = runtime.refresh_counters();
 
         runtime.refresh_with_scope(RepaintScope::Projection);
 
@@ -2709,7 +2792,21 @@ mod tests {
         assert_eq!(summary.recorded_events, 1);
         let frame = runtime.take_frame_refresh_diagnostics();
         assert_eq!(frame.effective_scope, RepaintScope::Surface);
-        assert_eq!(runtime.refresh_counters().layout, layout_before + 1);
+        let after = runtime.refresh_counters();
+        assert_eq!(after.layout, before.layout + 1);
+        assert_eq!(
+            after.reconciliation_attempts,
+            before.reconciliation_attempts
+        );
+        assert_eq!(after.reconciliation_applied, before.reconciliation_applied);
+        assert_eq!(
+            after.reconciliation_unsupported,
+            before.reconciliation_unsupported
+        );
+        assert_eq!(
+            after.reconciliation_fallbacks,
+            before.reconciliation_fallbacks + 1
+        );
         assert!(!runtime.base_paint_plan_reuse_eligible());
     }
 
@@ -3156,6 +3253,19 @@ pub struct SurfaceRefreshCounters {
     pub application_projection: u64,
     /// Runtime projection/traversal rebuilds.
     pub runtime_projection: u64,
+    /// Exact candidates evaluated by the private reconciliation seam.
+    ///
+    /// This counts seam decisions, not nodes visited or reused.
+    pub reconciliation_attempts: u64,
+    /// Exact unchanged candidates accepted by the existing completed-layout
+    /// retention path. This is not a node- or subtree-reuse count.
+    pub reconciliation_applied: u64,
+    /// Exact candidates that reached the seam but have no supported partial
+    /// node/subtree operation and therefore use the full refresh path.
+    pub reconciliation_unsupported: u64,
+    /// Refreshes whose evidence or scope conservatively selected the full path,
+    /// including unsupported exact candidates.
+    pub reconciliation_fallbacks: u64,
     /// Widget-state synchronization passes.
     pub widget_state_sync: u64,
     /// Layout passes.
@@ -3169,6 +3279,10 @@ impl SurfaceRefreshCounters {
         Self {
             application_projection: 1,
             runtime_projection: 1,
+            reconciliation_attempts: 0,
+            reconciliation_applied: 0,
+            reconciliation_unsupported: 0,
+            reconciliation_fallbacks: 0,
             widget_state_sync: 0,
             layout: 1,
             base_paint_plan_rebuilds: 0,
@@ -3568,9 +3682,10 @@ where
 
         self.base_paint_plan_reuse_eligible =
             execution.allows_base_paint_plan_reuse() && reuse_completed_layout;
+        let mut reconciliation_plan = raw_view_delta.reconciliation_plan();
         let mut damage = SurfaceDamage::from_view_delta(
             &raw_view_delta,
-            &raw_view_delta.reconciliation_plan(),
+            &reconciliation_plan,
             &self.surface,
             &self.layout,
             self.viewport,
@@ -3594,10 +3709,11 @@ where
             view_delta = raw_view_delta.diagnostics(view_delta_started.elapsed());
             execution = RefreshExecutionDecision::from_view_delta(scope, &raw_view_delta);
             effective_scope = execution.effective_scope();
+            reconciliation_plan = raw_view_delta.reconciliation_plan();
             self.base_paint_plan_reuse_eligible = false;
             damage = SurfaceDamage::from_view_delta(
                 &raw_view_delta,
-                &raw_view_delta.reconciliation_plan(),
+                &reconciliation_plan,
                 &self.surface,
                 &self.layout,
                 self.viewport,
@@ -3614,6 +3730,10 @@ where
             self.refresh_counters.runtime_projection =
                 self.refresh_counters.runtime_projection.saturating_add(1);
         }
+
+        let reconciliation_attempt =
+            raw_view_delta.reconciliation_attempt_outcome(scope, execution, reuse_completed_layout);
+        self.record_reconciliation_attempt(reconciliation_attempt);
 
         if had_virtual_layout && !paths_prepared {
             std::mem::swap(
@@ -3810,6 +3930,32 @@ where
                 .unwrap_or(RepaintScope::PaintOnly),
             effective_scope,
         );
+    }
+
+    fn record_reconciliation_attempt(&mut self, outcome: ReconciliationAttemptOutcome) {
+        if outcome.was_attempted() {
+            self.refresh_counters.reconciliation_attempts = self
+                .refresh_counters
+                .reconciliation_attempts
+                .saturating_add(1);
+        }
+        if outcome.was_applied() {
+            self.refresh_counters.reconciliation_applied = self
+                .refresh_counters
+                .reconciliation_applied
+                .saturating_add(1);
+        } else {
+            self.refresh_counters.reconciliation_fallbacks = self
+                .refresh_counters
+                .reconciliation_fallbacks
+                .saturating_add(1);
+        }
+        if matches!(outcome, ReconciliationAttemptOutcome::Unsupported) {
+            self.refresh_counters.reconciliation_unsupported = self
+                .refresh_counters
+                .reconciliation_unsupported
+                .saturating_add(1);
+        }
     }
 
     pub(crate) fn take_frame_refresh_diagnostics(&mut self) -> SurfaceRefreshFrameDiagnostics {

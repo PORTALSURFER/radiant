@@ -199,6 +199,18 @@ fn refresh_delta(
         runtime_projection: after
             .runtime_projection
             .saturating_sub(before.runtime_projection),
+        reconciliation_attempts: after
+            .reconciliation_attempts
+            .saturating_sub(before.reconciliation_attempts),
+        reconciliation_applied: after
+            .reconciliation_applied
+            .saturating_sub(before.reconciliation_applied),
+        reconciliation_unsupported: after
+            .reconciliation_unsupported
+            .saturating_sub(before.reconciliation_unsupported),
+        reconciliation_fallbacks: after
+            .reconciliation_fallbacks
+            .saturating_sub(before.reconciliation_fallbacks),
         widget_state_sync: after
             .widget_state_sync
             .saturating_sub(before.widget_state_sync),

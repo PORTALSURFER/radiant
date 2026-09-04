@@ -12,6 +12,16 @@ fn native_run_options_validate_direct_launch_geometry() {
         },
         ..NativeRunOptions::default()
     };
+    let invalid_position = NativeRunOptions {
+        window: NativeWindowOptions {
+            geometry: NativeWindowGeometry {
+                position: Some([f32::NAN, -64.0]),
+                ..NativeWindowGeometry::default()
+            },
+            ..NativeWindowOptions::default()
+        },
+        ..NativeRunOptions::default()
+    };
     let invalid_popup = NativeRunOptions::popup("Drag Preview").popup_position(10.0, f32::INFINITY);
 
     assert!(matches!(
@@ -22,6 +32,18 @@ fn native_run_options_validate_direct_launch_geometry() {
             height: 480.0,
         }) if width.is_nan()
     ));
+    assert!(matches!(
+        invalid_position.validate(),
+        Err(NativeRunOptionsError::InvalidWindowPosition {
+            field: "position",
+            x,
+            y: -64.0,
+        }) if x.is_nan()
+    ));
+    assert_eq!(
+        invalid_position.validate().unwrap_err().to_string(),
+        "invalid native position [NaN, -64]; window positions must be finite"
+    );
     assert_eq!(
         invalid_popup.validate(),
         Err(NativeRunOptionsError::InvalidPopupPosition {

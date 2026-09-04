@@ -21,6 +21,15 @@ pub enum WindowSpecError {
         /// Invalid logical height.
         height: f32,
     },
+    /// Ordinary window position contains a non-finite coordinate.
+    InvalidWindowPosition {
+        /// Stable host-owned key for the invalid window.
+        key: String,
+        /// Invalid logical x coordinate.
+        x: f32,
+        /// Invalid logical y coordinate.
+        y: f32,
+    },
     /// Popup position contains a non-finite coordinate.
     InvalidPopupPosition {
         /// Stable host-owned key for the invalid window.
@@ -66,6 +75,10 @@ impl fmt::Display for WindowSpecError {
                 formatter,
                 "window '{key}' has invalid {field} [{width}, {height}]; logical sizes must be finite and positive"
             ),
+            Self::InvalidWindowPosition { key, x, y } => write!(
+                formatter,
+                "window '{key}' has invalid window position [{x}, {y}]; window positions must be finite"
+            ),
             Self::InvalidPopupPosition { key, x, y } => write!(
                 formatter,
                 "window '{key}' has invalid popup position [{x}, {y}]; popup positions must be finite"
@@ -93,6 +106,13 @@ impl WindowSpecError {
                 width,
                 height,
             },
+            NativeRunOptionsError::InvalidWindowPosition { x, y, .. } => {
+                Self::InvalidWindowPosition {
+                    key: key.to_string(),
+                    x,
+                    y,
+                }
+            }
             NativeRunOptionsError::InvalidPopupPosition { x, y, .. } => {
                 Self::InvalidPopupPosition {
                     key: key.to_string(),

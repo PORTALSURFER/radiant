@@ -38,6 +38,12 @@ impl WindowBuilder {
         self
     }
 
+    /// Set the initial logical window position in screen coordinates.
+    pub fn position(mut self, x: f32, y: f32) -> Self {
+        self.options.window.geometry.position = Some([x, y]);
+        self
+    }
+
     /// Set the maximum native animation and presentation cadence.
     pub fn frame_rate(mut self, frame_rate: FrameRate) -> Self {
         self.options.frame.target_fps = frame_rate.as_u32();

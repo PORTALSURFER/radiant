@@ -8,7 +8,9 @@ pub use model::{
     NativeRunOptions, NativeWindowBehavior, NativeWindowGeometry, NativeWindowOptions,
 };
 pub use validation::NativeRunOptionsError;
-use validation::{validate_popup_drag_region, validate_position, validate_size};
+use validation::{
+    validate_popup_drag_region, validate_position, validate_size, validate_window_position,
+};
 
 impl NativeRunOptions {
     /// Return options configured for a secondary utility window.
@@ -120,6 +122,7 @@ impl NativeRunOptions {
     pub fn validate(&self) -> Result<(), NativeRunOptionsError> {
         validate_size("inner_size", self.window.geometry.inner_size)?;
         validate_size("min_inner_size", self.window.geometry.min_inner_size)?;
+        validate_window_position("position", self.window.geometry.position)?;
         if let Some(popup) = self.popup_options() {
             validate_position("popup_position", popup.position)?;
             validate_popup_drag_region(popup.drag_region_height)?;

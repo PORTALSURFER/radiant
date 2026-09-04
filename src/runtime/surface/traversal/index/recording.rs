@@ -2,6 +2,7 @@ use super::{
     ClipAncestors, SurfaceContainerTraversalRecord, SurfaceSplitPaneFocusOrderCandidate,
     SurfaceTraversalIndex, SurfaceWidgetTraversalRecord, WheelHitTarget, WidgetPath,
 };
+use std::collections::hash_map::Entry;
 
 impl<Message> SurfaceTraversalIndex<Message> {
     pub(in crate::runtime) fn record_container(
@@ -41,9 +42,23 @@ impl<Message> SurfaceTraversalIndex<Message> {
 
     pub(in crate::runtime) fn record_widget(&mut self, record: SurfaceWidgetTraversalRecord<'_>) {
         self.widget_paint_order.push(record.id);
-        self.widget_paths
-            .entry(record.id)
-            .or_insert_with(|| WidgetPath::from_slice(record.child_path));
+        if let Entry::Vacant(entry) = self.widget_paths.entry(record.id) {
+            entry.insert(WidgetPath::from_slice(record.child_path));
+            self.widget_membership.insert(
+                record.id,
+                [
+                    record.focusable,
+                    record.keyboard_focusable,
+                    record.receives_pointer_hit_testing,
+                    record.receives_wheel_input,
+                    record.accepts_native_file_drop,
+                    record.needs_state_synchronization,
+                    record.suppresses_container_hover,
+                ],
+            );
+        } else {
+            self.duplicate_widget_ids.insert(record.id);
+        }
         if record.focusable {
             self.focusable_widget_order.push(record.id);
         }

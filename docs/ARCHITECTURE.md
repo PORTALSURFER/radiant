@@ -1110,6 +1110,22 @@ and paint-plan candidate synchronously, then uses a later no-yield publication
 gate. Independently schedulable Reconciliation, Layout, and Paint stages remain
 future work under OPT-1389.
 
+The first production reconciliation slice is interaction-only leaf replacement.
+An opting-in bridge supplies a provider authority and one request-fenced
+`ExactChangedRoots` response whose paths are disjoint and bounded. Admission
+uses only cached exact evidence on each selected chain and leaf: structure,
+geometry, paint, source identity, mapper, hit-test, pointer, file-drop, and
+state membership must remain compatible, while the selected leaf may change
+interaction or semantics revisions. The commit swaps only those
+`SurfaceWidget` leaves and keeps installed layout, traversal, source, and base
+paint owners in place. Stateful or structural changes, virtual content, custom
+layout, opaque mapper evidence, stale fences, duplicate or ambiguous paths,
+and missing authority conservatively retain the complete refresh path. The
+bridge's exact changed-root response is the authority; recursive classifiers
+and diagnostics are observational only. Broader subtree reconciliation,
+stateful-leaf synchronization and retirement, topology edits, geometry and
+paint fragments, and deep differential benchmarking remain future work.
+
 ### Native visual request packet handoff (private native-window contract)
 
 The native event loop has one crate-private `NativeVisualRequestPacket` handoff

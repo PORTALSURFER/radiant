@@ -9,6 +9,7 @@ mod dispatch;
 mod focus;
 mod frame;
 mod input;
+mod interaction_patch;
 mod layout;
 mod lookup;
 mod node;
@@ -57,6 +58,8 @@ pub use widget::{
 };
 
 pub(in crate::runtime) use crate::widgets::WidgetId;
+pub(crate) use interaction_patch::inspect_interaction_path;
+pub(crate) use revision::InteractionLeafRevision;
 #[cfg(test)]
 pub(in crate::runtime) use revision::SurfaceDamageCandidate;
 #[cfg(test)]

@@ -20,6 +20,7 @@ mod hit_order;
 mod hit_test;
 mod host;
 mod input;
+mod interaction_patch;
 mod interaction_state;
 mod layout;
 mod layout_state;
@@ -297,6 +298,13 @@ where
         &self,
     ) -> crate::runtime::surface::ViewDeltaDiagnostics {
         self.last_view_delta_diagnostics
+    }
+
+    pub(crate) const fn interaction_refresh_applied(&self) -> bool {
+        matches!(
+            self.last_view_delta_diagnostics.effect,
+            crate::runtime::surface::ViewDeltaEffect::Interaction
+        )
     }
 
     pub(crate) fn record_paint_segment_observation(

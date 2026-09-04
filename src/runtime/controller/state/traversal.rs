@@ -11,6 +11,8 @@ where
     ) {
         self.traversal.widgets.hit_order = traversal.widget_paint_order;
         self.traversal.widgets.paths.current = traversal.widget_paths;
+        self.traversal.widgets.duplicate_widget_ids = traversal.duplicate_widget_ids;
+        self.traversal.widgets.membership = traversal.widget_membership;
         self.traversal
             .widgets
             .focusable
@@ -114,6 +116,8 @@ where
             } else {
                 Default::default()
             },
+            duplicate_widget_ids: std::mem::take(&mut self.traversal.widgets.duplicate_widget_ids),
+            widget_membership: std::mem::take(&mut self.traversal.widgets.membership),
             container_hover_suppression: std::mem::take(
                 &mut self.traversal.widgets.paths.container_hover_suppression,
             ),

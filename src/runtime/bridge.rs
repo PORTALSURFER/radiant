@@ -20,7 +20,11 @@ pub use capabilities::{
     RuntimeTimerOwner, RuntimeTimerWake, RuntimeTransientOverlayHost, RuntimeWindowHost,
 };
 pub(crate) use capabilities::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
-pub use contract::RuntimeBridge;
+pub use contract::{
+    ExactChangedRoot, ExactChangedRoots, MAX_EXACT_CHANGED_ROOT_PATH_COMPONENTS,
+    MAX_EXACT_CHANGED_ROOTS, RuntimeBridge, SurfaceRefreshRequest, SurfaceUpdate,
+    SurfaceUpdateProviderAuthority,
+};
 pub use declarative::{
     DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,
     DeclarativeOwnedCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridgeParts,

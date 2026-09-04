@@ -36,6 +36,8 @@ pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
     pub(in crate::runtime) native_file_drop_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) stateful_widget_order: Vec<WidgetId>,
     pub(in crate::runtime) widget_paths: HashMap<WidgetId, WidgetPath>,
+    pub(in crate::runtime) widget_membership: HashMap<WidgetId, [bool; 7]>,
+    pub(in crate::runtime) duplicate_widget_ids: HashSet<WidgetId>,
     pub(in crate::runtime) container_hover_suppression: HashSet<WidgetId>,
     pub(in crate::runtime) styled_container_order: Vec<NodeId>,
     pub(in crate::runtime) scroll_container_order: Vec<NodeId>,
@@ -66,6 +68,8 @@ impl<Message> SurfaceTraversalIndex<Message> {
             native_file_drop_hit_order: Vec::with_capacity(stats.widgets),
             stateful_widget_order: Vec::with_capacity(stats.stateful_widgets),
             widget_paths: HashMap::with_capacity(stats.widgets),
+            widget_membership: HashMap::with_capacity(stats.widgets),
+            duplicate_widget_ids: HashSet::with_capacity(stats.widgets),
             container_hover_suppression: HashSet::with_capacity(stats.widgets),
             styled_container_order: Vec::with_capacity(stats.styled_hoverable_containers),
             scroll_container_order: Vec::with_capacity(stats.scroll_containers),
@@ -109,6 +113,9 @@ impl<Message> SurfaceTraversalIndex<Message> {
         reserve_vec_capacity(&mut self.stateful_widget_order, stats.stateful_widgets);
         self.widget_paths.clear();
         reserve_map_capacity(&mut self.widget_paths, stats.widgets);
+        self.widget_membership.clear();
+        reserve_map_capacity(&mut self.widget_membership, stats.widgets);
+        self.duplicate_widget_ids.clear();
         self.container_hover_suppression.clear();
         reserve_set_capacity(&mut self.container_hover_suppression, stats.widgets);
         self.styled_container_order.clear();
@@ -145,6 +152,8 @@ impl<Message> SurfaceTraversalIndex<Message> {
         self.native_file_drop_hit_order.clear();
         self.stateful_widget_order.clear();
         self.widget_paths.clear();
+        self.widget_membership.clear();
+        self.duplicate_widget_ids.clear();
         self.container_hover_suppression.clear();
         self.styled_container_order.clear();
         self.scroll_container_order.clear();

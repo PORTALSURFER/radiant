@@ -244,6 +244,65 @@ fn classify_cached_widget_revision(
     classify_exact_components(previous, current)
 }
 
+/// Narrow leaf relation admitted by the interaction-only refresh path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum InteractionLeafRevision {
+    Interaction,
+    Unchanged,
+    Reject,
+}
+
+/// Compare one old/new widget pair using only cached exact evidence.
+///
+/// This intentionally rejects geometry, paint, structural, conservative, and
+/// opaque mapper changes. It never calls widget behavior or a host callback.
+pub(crate) fn classify_interaction_leaf<PreviousMessage, CurrentMessage>(
+    previous: &super::SurfaceWidget<PreviousMessage>,
+    current: &super::SurfaceWidget<CurrentMessage>,
+) -> InteractionLeafRevision {
+    let revision =
+        classify_cached_widget_revision(previous.revision_evidence(), current.revision_evidence());
+    if matches!(
+        revision,
+        WidgetRevisionEffect::Structural
+            | WidgetRevisionEffect::Geometry
+            | WidgetRevisionEffect::Paint
+    ) {
+        return InteractionLeafRevision::Reject;
+    }
+    let capabilities = classify_cached_widget_capabilities(
+        &previous.revision_evidence().capabilities,
+        &current.revision_evidence().capabilities,
+    );
+    if matches!(
+        capabilities,
+        WidgetRevisionEffect::Structural
+            | WidgetRevisionEffect::Geometry
+            | WidgetRevisionEffect::Paint
+    ) {
+        return InteractionLeafRevision::Reject;
+    }
+    if previous
+        .output_mapper_descriptor()
+        .relation(&current.output_mapper_descriptor())
+        != MapperRelation::Unchanged
+        || previous
+            .native_file_drop_mapper_descriptor()
+            .relation(&current.native_file_drop_mapper_descriptor())
+            != MapperRelation::Unchanged
+        || previous.accepts_native_file_drop() != current.accepts_native_file_drop()
+    {
+        return InteractionLeafRevision::Reject;
+    }
+    if matches!(revision, WidgetRevisionEffect::Interaction)
+        || matches!(capabilities, WidgetRevisionEffect::Interaction)
+    {
+        InteractionLeafRevision::Interaction
+    } else {
+        InteractionLeafRevision::Unchanged
+    }
+}
+
 /// Classify the v1 and v2 capability descriptors without evaluating
 /// behavioral output methods such as role, label, value, hit testing, cursor,
 /// or pointer-motion policy.

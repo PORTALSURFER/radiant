@@ -3519,8 +3519,19 @@ where
         self.validate_managed_wheel_sequence_authority();
         self.validate_managed_composition_authority();
         let refresh_started = Instant::now();
-        let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         self.last_layout_state_diagnostics = SurfaceLayoutStateDiagnostics::default();
+        let previous_widget_order = self.traversal.widgets.hit_order.clone();
+        let previous_stateful_widget_order = self.traversal.widgets.stateful_order.clone();
+
+        let application_projection_started = Instant::now();
+        let application_environment = self.bridge.application_environment();
+        let scope = application_environment
+            .as_ref()
+            .and_then(|environment| {
+                environment.repaint_scope_since(self.surface.application_environment())
+            })
+            .map_or(scope, |application_scope| scope.merge(application_scope));
+        let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         if scope.is_paint_only() {
             self.base_paint_plan_reuse_eligible = false;
             let view_delta = ViewDeltaDiagnostics {
@@ -3540,13 +3551,16 @@ where
             );
             return Vec::new();
         }
-
-        let previous_widget_order = self.traversal.widgets.hit_order.clone();
-        let previous_stateful_widget_order = self.traversal.widgets.stateful_order.clone();
-
-        let application_projection_started = Instant::now();
         let mut next_surface = self.bridge.pull_surface();
+        if let Some(environment) = application_environment {
+            next_surface = next_surface.with_application_environment(environment);
+        }
         next_surface.set_window_environment(self.window_environment);
+        let scope = next_surface
+            .application_environment()
+            .repaint_scope_since(self.surface.application_environment())
+            .map_or(scope, |application_scope| scope.merge(application_scope));
+        let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         let application_projection = application_projection_started.elapsed();
         self.refresh_counters.application_projection = self
             .refresh_counters

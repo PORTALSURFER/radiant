@@ -1,6 +1,8 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
 use crate::UiAffinity;
+use crate::application::ApplicationEnvironment;
+use std::sync::Arc;
 
 mod builders;
 mod dispatch;
@@ -87,6 +89,7 @@ pub struct UiSurface<Message> {
     _ui_affinity: UiAffinity,
     root: SurfaceNode<Message>,
     window_environment: crate::runtime::WindowEnvironment,
+    application_environment: Arc<ApplicationEnvironment>,
 }
 
 impl<Message> UiSurface<Message> {

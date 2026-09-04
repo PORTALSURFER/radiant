@@ -41,6 +41,11 @@ impl<'a, Message> RuntimeContext<'a, Message> {
     pub const fn resolved_environment(&self) -> ResolvedEnvironment {
         self.surface.window_environment().resolved()
     }
+
+    /// Return the immutable application presentation snapshot for this surface.
+    pub fn application_environment(&self) -> &crate::application::ApplicationEnvironment {
+        self.surface.application_environment()
+    }
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>

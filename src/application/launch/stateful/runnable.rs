@@ -16,6 +16,8 @@ pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
     pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(super) window_environment:
         Option<std::rc::Rc<std::cell::RefCell<crate::runtime::WindowEnvironment>>>,
+    pub(super) application_environment_source:
+        Option<crate::application::runtime::ApplicationEnvironmentSource<State>>,
     pub(super) _message: PhantomData<Message>,
     pub(super) _view: PhantomData<View>,
 }
@@ -49,6 +51,7 @@ where
             self.update,
             self.lifecycle,
             self.window_environment,
+            self.application_environment_source,
         )
     }
 

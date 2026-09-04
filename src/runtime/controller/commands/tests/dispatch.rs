@@ -5,10 +5,68 @@ use super::{
         DeferredScrollFocusBridge,
     },
 };
-use crate::runtime::{
-    FileDialogRequest, GpuShaderPresentationUniformUpdate, PlatformRequest, RepaintScope,
-    SurfaceInvalidation,
+use crate::{
+    application::{ApplicationEnvironment, LocaleId, TextCatalog, TextKey, WritingDirection},
+    runtime::{
+        Command, FileDialogRequest, GpuShaderPresentationUniformUpdate, PaintText, PlatformRequest,
+        RepaintScope, RuntimeBridge, SurfaceInvalidation, SurfaceNode, UiSurface,
+    },
+    widgets::{TextWidget, WidgetSizing},
 };
+use std::sync::Arc;
+
+#[derive(Default)]
+struct DeferredLocalizationBridge {
+    french: bool,
+    project_count: usize,
+}
+
+impl DeferredLocalizationBridge {
+    fn environment(&self) -> ApplicationEnvironment {
+        let french = LocaleId::new("fr").expect("valid locale");
+        let key = TextKey::new("save", "Save");
+        let catalog = TextCatalog::default().insert(french.clone(), key.clone(), "Enregistrer");
+        ApplicationEnvironment::new(if self.french {
+            french
+        } else {
+            LocaleId::english()
+        })
+        .with_catalog(Arc::new(catalog))
+        .with_writing_direction(WritingDirection::Ltr)
+    }
+
+    fn surface(&self) -> UiSurface<()> {
+        let key = TextKey::new("save", "Save");
+        let localized = self.environment().localized(&key);
+        UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+            1,
+            PaintText::from(localized.as_str()),
+            WidgetSizing::fixed(Vector2::new(100.0, 24.0)),
+        )))
+        .with_application_environment(self.environment())
+    }
+}
+
+impl RuntimeBridge<()> for DeferredLocalizationBridge {
+    fn application_environment(&mut self) -> Option<ApplicationEnvironment> {
+        Some(self.environment())
+    }
+
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        self.project_count += 1;
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn pull_surface(&mut self) -> UiSurface<()> {
+        self.project_count += 1;
+        self.surface()
+    }
+
+    fn update(&mut self, _message: ()) -> Command<()> {
+        self.french = true;
+        Command::request_paint_only()
+    }
+}
 
 #[test]
 fn gpu_shader_presentation_uniform_updates_are_admitted_as_paint_only_and_drained() {
@@ -139,6 +197,47 @@ fn deferred_message_dispatch_refreshes_before_focus_followup() {
     );
     assert!(outcome.surface_refresh_requested);
     assert!(outcome.surface_repaint_requested);
+}
+
+#[test]
+fn deferred_locale_change_promotes_paint_only_before_native_refresh() {
+    let mut runtime = SurfaceRuntime::new(
+        DeferredLocalizationBridge::default(),
+        Vector2::new(160.0, 40.0),
+    );
+    assert_eq!(runtime.bridge().project_count, 1);
+
+    let mut outcome = CommandOutcome::default();
+    runtime.dispatch_message_inner_deferred_refresh((), &mut outcome);
+
+    assert_eq!(
+        outcome.surface_invalidation(),
+        SurfaceInvalidation::Surface,
+        "application locale invalidation must be reported as surface work"
+    );
+    assert_eq!(
+        runtime.bridge().project_count,
+        1,
+        "deferred locale changes must not pull before the native refresh"
+    );
+
+    let outcome = runtime.finish_command_outcome(outcome);
+    assert!(outcome.surface_refresh_requested);
+    assert_eq!(runtime.bridge().project_count, 2);
+    assert!(
+        runtime
+            .paint_plan(&crate::theme::ThemeTokens::default())
+            .first_text_run("Enregistrer")
+            .is_some()
+    );
+    fn has_label(node: &crate::gui::automation::AutomationNodeSnapshot, label: &str) -> bool {
+        node.label.as_deref() == Some(label)
+            || node.children.iter().any(|child| has_label(child, label))
+    }
+    assert!(has_label(
+        &runtime.automation_snapshot().root,
+        "Enregistrer"
+    ));
 }
 
 #[test]

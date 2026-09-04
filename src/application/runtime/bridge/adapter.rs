@@ -23,6 +23,10 @@ where
     Message: 'static,
     State: 'static,
 {
+    fn application_environment(&mut self) -> Option<crate::application::ApplicationEnvironment> {
+        self.application_environment_for_refresh()
+    }
+
     fn project_surface(&mut self) -> Arc<UiSurface<Message>> {
         self.project_surface_arc()
     }

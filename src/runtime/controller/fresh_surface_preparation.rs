@@ -270,6 +270,20 @@ where
         let application_started = Instant::now();
         let mut surface = self.bridge.pull_surface();
         surface.set_window_environment(self.window_environment);
+        let request = if let Some(application_scope) = surface
+            .application_environment()
+            .repaint_scope_since(self.surface.application_environment())
+        {
+            let promoted_scope = request.scope.merge(application_scope);
+            let promoted = FreshSurfaceRefreshRequest {
+                scope: promoted_scope,
+                ..request
+            };
+            self.fresh_surface_request = Some(promoted);
+            promoted
+        } else {
+            request
+        };
         let application_projection = application_started.elapsed();
 
         let projection_started = Instant::now();

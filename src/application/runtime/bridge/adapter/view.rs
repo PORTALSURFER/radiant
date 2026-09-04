@@ -13,10 +13,30 @@ where
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
 {
+    pub(super) fn application_environment_for_refresh(
+        &mut self,
+    ) -> Option<crate::application::ApplicationEnvironment> {
+        self.application_environment_source
+            .as_ref()
+            .map(|source| source(&self.state))
+    }
+
+    fn application_environment_for_projection(
+        &mut self,
+    ) -> Option<crate::application::ApplicationEnvironment> {
+        self.application_environment_source
+            .as_ref()
+            .map(|source| source(&self.state))
+    }
+
     pub(super) fn project_surface_arc(&mut self) -> Arc<UiSurface<Message>> {
         let projection = (self.project)(&self.state).into_projection();
         let (surface, scene) = projection.into_parts();
         scene.apply(&mut self.lifecycle);
+        let surface = match self.application_environment_for_projection() {
+            Some(environment) => surface.with_application_environment(environment),
+            None => surface,
+        };
         Arc::new(surface)
     }
 
@@ -24,7 +44,10 @@ where
         let projection = (self.project)(&self.state).into_projection();
         let (surface, scene) = projection.into_parts();
         scene.apply(&mut self.lifecycle);
-        surface
+        match self.application_environment_for_projection() {
+            Some(environment) => surface.with_application_environment(environment),
+            None => surface,
+        }
     }
 
     pub(super) fn update_message(&mut self, message: Message) -> Command<Message> {

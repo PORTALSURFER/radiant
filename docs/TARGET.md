@@ -1602,11 +1602,16 @@ Text handling is often a performance-sensitive and correctness-sensitive part of
 
 Full internationalization can be a future concern, but the core text system should avoid obviously fragile assumptions where practical.
 
-Current shipped boundary: the environment exposes only display scale, color
+Current shipped boundary: the native environment exposes display scale, color
 scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
-shipped. Locale and writing-direction services remain future work under
-OPT-1386; bidi and complex shaping remain future renderer/text-layout work
-under OPT-1402.
+shipped. The additive `ApplicationEnvironment` snapshot now carries explicit
+locale fallback, direction, text scale, catalog generation, and shortcut
+presentation generation. Full RTL geometry, scale propagation, bidi, and
+complex shaping remain staged work under OPT-1386 and OPT-1402.
+
+At the native window scope, environment exposes only display scale, color
+scheme, contrast, and reduced-motion preference; application presentation
+values are carried by the additive snapshot above.
 
 ## Accessibility
 

@@ -4324,6 +4324,25 @@ preference. Unknown platform values use `None` or `false`; the default scale is
 Auxiliary windows update their runtime snapshot but do not run a separate
 high-level application projection.
 
+Application presentation inputs are carried by the additive
+`ApplicationEnvironment` snapshot. Construct a validated `LocaleId` and
+`TextScale`, provide an explicit ordered fallback chain and immutable
+`TextCatalog`, then attach the snapshot with
+`ViewProjection::with_application_environment(...)` or
+`UiSurface::with_application_environment(...)`. `TextKey` resolution returns
+`LocalizedText`, whose exact, explicit-fallback, source-fallback, and missing
+outcomes are deterministic; `LocalizedText::to_content()` lets visible and
+accessibility values share the same `TextContent` bytes. Shortcut matching
+continues to use `ShortcutGesture`; `ShortcutDisplaySpec` requires a caller
+supplied semantic character or named-key label and `ShortcutPresenter` emits
+compact and spoken forms without deriving a legend from a physical key code.
+Stateful apps that keep this snapshot in state can add
+`.application_environment(|state| snapshot)`. The runtime samples that cheap
+source before selecting a repaint scope, so an unchanged paint-only request
+does not reproject the app while a changed locale or catalog promotes the
+request to surface work. Custom `RuntimeBridge` hosts may implement the same
+optional snapshot hook directly.
+
 Widget paint receives the same snapshot through the copyable
 `ResolvedEnvironment` projection. `WidgetPaintContext` exposes the assigned
 logical bounds, layout, theme, and environment to additive
@@ -4335,11 +4354,12 @@ it carries display scale, optional color scheme, contrast, and reduced-motion
 preference without choosing fallbacks or changing layout, theme, or animation
 semantics.
 
-Current shipped boundary: the environment exposes only display scale, color
+Current shipped boundary: the native environment exposes display scale, color
 scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
-shipped. Locale and writing-direction services remain future work under
-OPT-1386; bidi and complex shaping remain future renderer/text-layout work
-under OPT-1402.
+shipped. The additive `ApplicationEnvironment` snapshot carries explicit
+locale fallback, direction, text scale, catalog generation, and shortcut
+presentation generation. Full RTL geometry, scale propagation, bidi, and
+complex shaping remain staged work under OPT-1386 and OPT-1402.
 
 Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
 resolves light, dark, and high-contrast tokens from the current window snapshot;
@@ -4511,9 +4531,12 @@ value. Native IME composition belongs at the platform adapter boundary, which
 should translate platform preedit/commit/cancel events into backend-neutral
 composition state and final text commits; the widget model should own the
 logical composition range once that generic event exists. Unicode-scalar editing
-is shipped. Locale and writing-direction services remain future work under
-OPT-1386. The selected bidirectional text and complex-shaping architecture is
-recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
+is shipped. The additive `ApplicationEnvironment` snapshot provides explicit
+locale fallback, direction, text scale, catalog generation, and shortcut
+presentation generation. Full RTL geometry, scale propagation, bidi, and
+complex shaping remain staged under OPT-1386 and OPT-1402. The selected
+bidirectional text and complex-shaping architecture is recorded in
+[`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
 Bidirectional text and complex shaping belong to renderer text layout and
 cursor-stop mapping, with implementation staged under OPT-1402, while `TextInputState`
 continues to store logical Unicode-scalar positions instead of renderer glyph
@@ -6538,6 +6561,7 @@ manual validation:
 | --- | --- |
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
+| Localization and shortcut presentation | `localization_foundation` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
@@ -6610,6 +6634,9 @@ that demonstrates the current application-builder first-use path.
 Run `cargo run --example hello_world` for the smallest windowed app skeleton.
 Run `cargo run --example counter` for a minimal state-update and button message
 flow.
+Run `cargo run --example localization_foundation` for an explicit application
+environment source that switches a visible localized label and its compact and
+spoken shortcut help text while preserving the existing shortcut matcher.
 Run `cargo run --example todo_list` for text input, submit binding, row
 selection, drag handles, drop markers, and scroll composition in one small app.
 Run `cargo run --example form` for text binding and boolean controls.

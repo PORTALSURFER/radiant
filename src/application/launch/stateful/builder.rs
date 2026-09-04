@@ -121,6 +121,7 @@ impl<State> StatefulAppBuilder<State> {
             project,
             lifecycle: AppBridgeLifecycle::default(),
             window_environment: None,
+            application_environment_source: None,
             _message: PhantomData,
             _view: PhantomData,
         }
@@ -151,6 +152,7 @@ impl<State> StatefulAppBuilder<State> {
             project,
             lifecycle: AppBridgeLifecycle::default(),
             window_environment: Some(environment),
+            application_environment_source: None,
             _message: PhantomData,
             _view: PhantomData,
         }
@@ -161,11 +163,22 @@ impl<State> StatefulAppBuilder<State> {
 mod tests {
     use super::*;
     use crate::{
-        application::text,
-        runtime::{SurfaceRuntime, WindowColorScheme},
+        application::{
+            ApplicationEnvironment, IntoView, LocaleId, TextCatalog, TextKey, TextScale,
+            WritingDirection, text,
+        },
+        gui::shortcuts::{
+            ShortcutDisplaySpec, ShortcutGesture, ShortcutKeyLabel, ShortcutPlatform,
+            ShortcutPresenter,
+        },
+        runtime::{RepaintScope, SurfaceInvalidation, SurfaceRuntime, WindowColorScheme},
         theme::DpiScale,
     };
-    use std::sync::{Arc, Mutex};
+    use std::{
+        cell::Cell,
+        rc::Rc,
+        sync::{Arc, Mutex},
+    };
 
     #[test]
     fn devtools_overlay_builder_preserves_default_and_enabled_option() {
@@ -207,5 +220,85 @@ mod tests {
         runtime.refresh();
 
         assert_eq!(*seen.lock().unwrap(), vec![1.0, 2.0]);
+    }
+
+    #[test]
+    fn app_bridge_projects_locale_snapshot_and_promotes_weak_refresh_scope() {
+        let french = Rc::new(Cell::new(false));
+        let projection_count = Rc::new(Cell::new(0));
+        let projection_count_for_projection = Rc::clone(&projection_count);
+        let french_for_projection = Rc::clone(&french);
+        let french_for_environment = Rc::clone(&french);
+        let app = StatefulAppBuilder::new(())
+            .view(move |_| {
+                projection_count_for_projection.set(projection_count_for_projection.get() + 1);
+                let fr = LocaleId::new("fr").expect("valid locale");
+                let locale = if french_for_projection.get() {
+                    fr.clone()
+                } else {
+                    LocaleId::english()
+                };
+                let key = TextKey::new("save", "Save");
+                let catalog = TextCatalog::default().insert(fr, key.clone(), "Enregistrer");
+                let environment = ApplicationEnvironment::new(locale)
+                    .with_catalog(Arc::new(catalog))
+                    .with_text_scale(TextScale::new(1.0).expect("valid scale"))
+                    .with_writing_direction(WritingDirection::Ltr);
+                let localized = environment.localized(&key);
+                let visible = localized.to_content();
+                assert_eq!(localized.as_str(), visible.as_str());
+                text::<()>(visible)
+                    .into_projection()
+                    .with_application_environment(environment)
+            })
+            .application_environment(move |_| {
+                let fr = LocaleId::new("fr").expect("valid locale");
+                let locale = if french_for_environment.get() {
+                    fr.clone()
+                } else {
+                    LocaleId::english()
+                };
+                let key = TextKey::new("save", "Save");
+                let catalog = TextCatalog::default().insert(fr, key, "Enregistrer");
+                ApplicationEnvironment::new(locale).with_catalog(Arc::new(catalog))
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(app, crate::gui::types::Vector2::new(100.0, 60.0));
+        assert_eq!(projection_count.get(), 1);
+
+        french.set(true);
+        runtime.refresh_with_scope(RepaintScope::PaintOnly);
+
+        assert_eq!(projection_count.get(), 2);
+        let paint = runtime.paint_plan(&crate::theme::ThemeTokens::default());
+        assert!(paint.first_text_run("Enregistrer").is_some());
+        fn has_label(node: &crate::gui::automation::AutomationNodeSnapshot, label: &str) -> bool {
+            node.label.as_deref() == Some(label)
+                || node.children.iter().any(|child| has_label(child, label))
+        }
+        assert!(has_label(
+            &runtime.automation_snapshot().root,
+            "Enregistrer"
+        ));
+
+        assert_eq!(
+            runtime.last_refresh_diagnostics().invalidation,
+            SurfaceInvalidation::Surface
+        );
+        assert_eq!(
+            runtime.context().application_environment().fallback_chain()[0].as_str(),
+            "fr"
+        );
+
+        let shortcut =
+            ShortcutPresenter::new(ShortcutPlatform::Mac).present(&ShortcutDisplaySpec::new(
+                ShortcutGesture::with_command(crate::gui::input::KeyCode::S),
+                ShortcutKeyLabel::character('S'),
+            ));
+        assert_eq!(shortcut.compact_text(), "⌘S");
+        assert_eq!(shortcut.spoken_text(), "Command+S");
+
+        runtime.refresh_with_scope(RepaintScope::PaintOnly);
+        assert_eq!(projection_count.get(), 2);
     }
 }

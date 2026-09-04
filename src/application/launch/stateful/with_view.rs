@@ -16,8 +16,25 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     pub(super) project: Project,
     pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(super) window_environment: Option<Rc<RefCell<crate::runtime::WindowEnvironment>>>,
+    pub(super) application_environment_source:
+        Option<crate::application::runtime::ApplicationEnvironmentSource<State>>,
     pub(super) _message: PhantomData<Message>,
     pub(super) _view: PhantomData<View>,
+}
+
+impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View> {
+    /// Attach a cheap application presentation snapshot source.
+    ///
+    /// The source is consulted before a refresh chooses its repaint scope, so
+    /// application environment changes cannot be hidden by a paint-only
+    /// request and unchanged snapshots do not force projection.
+    pub fn application_environment<Source>(mut self, source: Source) -> Self
+    where
+        Source: Fn(&State) -> crate::application::ApplicationEnvironment + 'static,
+    {
+        self.application_environment_source = Some(Box::new(source));
+        self
+    }
 }
 
 impl<State, Project, View> StatefulAppWithView<State, (), Project, View>
@@ -48,6 +65,7 @@ where
             },
             self.lifecycle,
             self.window_environment,
+            self.application_environment_source,
         )
     }
 }
@@ -88,6 +106,7 @@ where
             update,
             lifecycle: self.lifecycle,
             window_environment: self.window_environment,
+            application_environment_source: self.application_environment_source,
             _message: PhantomData,
             _view: PhantomData,
         }

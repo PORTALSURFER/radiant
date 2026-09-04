@@ -8,6 +8,7 @@ impl<Message> Clone for UiSurface<Message> {
             _ui_affinity: self._ui_affinity,
             root: self.root.clone(),
             window_environment: self.window_environment,
+            application_environment: std::sync::Arc::clone(&self.application_environment),
         }
     }
 }
@@ -19,6 +20,9 @@ impl<Message> UiSurface<Message> {
             _ui_affinity: UiAffinity::new(),
             root,
             window_environment: crate::runtime::WindowEnvironment::default(),
+            application_environment: std::sync::Arc::new(
+                crate::application::ApplicationEnvironment::default(),
+            ),
         }
     }
 
@@ -31,6 +35,21 @@ impl<Message> UiSurface<Message> {
 
     pub(in crate::runtime) const fn window_environment(&self) -> crate::runtime::WindowEnvironment {
         self.window_environment
+    }
+
+    /// Return the immutable application presentation snapshot attached to this
+    /// surface.
+    pub fn application_environment(&self) -> &crate::application::ApplicationEnvironment {
+        &self.application_environment
+    }
+
+    /// Attach an application presentation snapshot to this surface.
+    pub fn with_application_environment(
+        mut self,
+        environment: crate::application::ApplicationEnvironment,
+    ) -> Self {
+        self.application_environment = std::sync::Arc::new(environment);
+        self
     }
 
     /// Return the root declarative node.
@@ -94,6 +113,7 @@ fn widget_callback_allocation_count<Message>(node: &SurfaceNode<Message>) -> usi
 mod tests {
     use super::*;
     use crate::{
+        application::{ApplicationEnvironment, LocaleId, TextScale},
         layout::Vector2,
         widgets::{ButtonMessage, WidgetOutput, WidgetSizing},
     };
@@ -162,5 +182,26 @@ mod tests {
                 .is_some()
         );
         assert_eq!(clone_count.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn surface_retains_additive_application_environment_snapshot() {
+        let scale = TextScale::new(1.5).expect("valid scale");
+        let environment = ApplicationEnvironment::new(LocaleId::new("ar").unwrap())
+            .with_writing_direction(crate::application::WritingDirection::Rtl)
+            .with_text_scale(scale);
+        let surface = UiSurface::new(SurfaceNode::button(
+            1,
+            "Save",
+            WidgetSizing::fixed(Vector2::new(80.0, 24.0)),
+            (),
+        ))
+        .with_application_environment(environment);
+
+        assert_eq!(surface.application_environment().text_scale().factor(), 1.5);
+        assert_eq!(
+            surface.application_environment().fallback_chain()[0].as_str(),
+            "ar"
+        );
     }
 }

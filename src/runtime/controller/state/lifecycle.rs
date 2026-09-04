@@ -104,6 +104,7 @@ where
             servicing_current_surface_relayout: false,
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
+            pending_native_text_pointer_caret: None,
             effect_owner: effect_owner.clone(),
             auxiliary_effect_owners: std::collections::HashMap::new(),
             runtime_work: RuntimeWorkQueues::default(),

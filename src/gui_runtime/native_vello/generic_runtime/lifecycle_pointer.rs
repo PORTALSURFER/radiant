@@ -67,6 +67,7 @@ where
     ) -> NativeCursorMovedRoute {
         let timestamp = Some(timestamp);
         let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
+            self.core.runtime.clear_native_text_pointer_caret();
             self.input.last_cursor = None;
             self.set_native_cursor_visible(true);
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
@@ -87,6 +88,7 @@ where
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
         }
         if self.core.runtime.scrollbar_drag_active() {
+            self.core.runtime.clear_native_text_pointer_caret();
             if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
                 let outcome = self.core.route_pointer_move_with_metadata(
                     position,
@@ -117,6 +119,7 @@ where
             };
         }
         if self.can_fast_path_native_hover_move(position) {
+            self.core.runtime.clear_native_text_pointer_caret();
             self.update_gpu_surface_cursor_overlay(position);
             self.update_native_cursor_at_last_position();
             return NativeCursorMovedRoute {
@@ -135,6 +138,7 @@ where
         if cleared_previous_gpu_hover {
             self.update_native_cursor_at_last_position();
         }
+        self.stage_native_text_pointer_caret(position);
         let started = Instant::now();
         let outcome = self.core.route_pointer_move_with_metadata(
             position,

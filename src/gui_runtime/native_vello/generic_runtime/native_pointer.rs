@@ -220,6 +220,7 @@ where
             self.flush_pending_scrollbar_drag_now();
         }
         self.flush_pending_wheel_input_now();
+        self.stage_native_text_pointer_caret(position);
         let modifiers = gesture.map_or_else(
             || self.pointer_modifiers(),
             |gesture| self.pointer_modifiers_for_gesture(gesture.consume_control),
@@ -522,6 +523,19 @@ where
 
     fn pointer_modifiers_for_gesture(&self, consume_control: bool) -> PointerModifiers {
         pointer_modifiers_for_native_gesture(self.input.modifiers, consume_control)
+    }
+
+    pub(super) fn stage_native_text_pointer_caret(&mut self, position: Point) {
+        self.core.runtime.clear_native_text_pointer_caret();
+        let captured_widget_id = self.core.runtime.pointer_capture();
+        if let Some((widget_id, source, caret)) = self
+            .frame
+            .native_text_pointer_target(position, captured_widget_id)
+        {
+            self.core
+                .runtime
+                .set_native_text_pointer_caret(widget_id, &source, caret);
+        }
     }
 
     fn native_pointer_diagnostic(

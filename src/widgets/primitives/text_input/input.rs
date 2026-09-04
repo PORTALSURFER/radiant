@@ -15,7 +15,12 @@ pub(super) fn handle_text_input(
         WidgetInput::PointerMove { position, .. } => {
             text_input.common.state.hovered = bounds.contains(position);
             if text_input.common.state.pressed {
-                text_input.set_caret(caret_for_pointer_x(bounds, position.x), true);
+                let caret = text_input
+                    .take_native_pointer_caret()
+                    .unwrap_or_else(|| caret_for_pointer_x(bounds, position.x));
+                text_input.set_caret(caret, true);
+            } else {
+                let _ = text_input.take_native_pointer_caret();
             }
             None
         }
@@ -27,7 +32,10 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = true;
             text_input.common.state.hovered = true;
             text_input.common.state.pressed = true;
-            text_input.set_caret(caret_for_pointer_x(bounds, position.x), false);
+            let caret = text_input
+                .take_native_pointer_caret()
+                .unwrap_or_else(|| caret_for_pointer_x(bounds, position.x));
+            text_input.set_caret(caret, false);
             None
         }
         WidgetInput::PointerDoubleClick {
@@ -38,13 +46,17 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = true;
             text_input.common.state.hovered = true;
             text_input.common.state.pressed = false;
-            text_input.select_word_at(caret_for_pointer_x(bounds, position.x));
+            let caret = text_input
+                .take_native_pointer_caret()
+                .unwrap_or_else(|| caret_for_pointer_x(bounds, position.x));
+            text_input.select_word_at(caret);
             None
         }
         WidgetInput::PointerRelease {
             button: PointerButton::Primary,
             ..
         } => {
+            let _ = text_input.take_native_pointer_caret();
             text_input.common.state.pressed = false;
             None
         }

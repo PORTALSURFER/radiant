@@ -31,7 +31,10 @@ fn build_text_field_layout_uses_one_full_layout_pass() {
     let layout = build_text_field_layout(&mut renderer, &mut editor, "item alpha beta", 14.0, 48.0);
 
     let counters = renderer.take_layout_profile_counters();
-    assert_eq!((counters.layout.hits, counters.layout.misses), (0, 1));
+    assert_eq!((counters.layout.hits, counters.layout.misses), (0, 0));
+    assert_eq!((counters.shape.hits, counters.shape.misses), (0, 1));
+    assert_eq!((counters.width.hits, counters.width.misses), (0, 1));
+    assert_eq!((counters.view.hits, counters.view.misses), (0, 1));
     assert_eq!(counters.atom.misses, 1);
     assert!(!layout.visible_text("item alpha beta").is_empty());
     assert!(byte_index_for_local_x(&layout, 0.0) <= "item alpha beta".len());
@@ -51,7 +54,10 @@ fn text_field_layout_resolves_caret_offsets_without_second_layout_pass() {
     let counters = renderer.take_layout_profile_counters();
 
     assert!(selection_end > selection_start);
-    assert_eq!((counters.layout.hits, counters.layout.misses), (0, 1));
+    assert_eq!((counters.layout.hits, counters.layout.misses), (0, 0));
+    assert_eq!((counters.shape.hits, counters.shape.misses), (0, 1));
+    assert_eq!((counters.width.hits, counters.width.misses), (0, 1));
+    assert_eq!((counters.view.hits, counters.view.misses), (0, 1));
 }
 
 #[test]

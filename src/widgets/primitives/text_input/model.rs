@@ -2,6 +2,7 @@ use crate::runtime::PaintText;
 use crate::widgets::interaction::TextInputRevision;
 
 mod editing;
+mod grapheme_boundary;
 mod navigation;
 mod selection;
 mod word_boundary;

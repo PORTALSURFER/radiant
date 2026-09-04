@@ -110,6 +110,7 @@ mod tests {
         paint::TextAlign,
         types::{Point, Rgba8},
     };
+    use crate::widgets::TextWrap;
 
     fn text_run(text: &str) -> SceneTextRun {
         SceneTextRun {
@@ -124,6 +125,8 @@ mod tests {
             },
             max_width: None,
             align: TextAlign::Left,
+            widget_id: 0,
+            wrap: TextWrap::None,
         }
     }
 

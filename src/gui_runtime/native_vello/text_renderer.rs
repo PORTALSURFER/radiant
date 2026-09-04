@@ -5,6 +5,7 @@ use crate::gui::{
     paint::{TextAlign, TextRun},
     types::{Point, Rgba8},
 };
+use crate::widgets::TextWrap;
 use vello::{Glyph, Scene, peniko::Fill};
 
 mod cache;
@@ -19,8 +20,13 @@ pub(in crate::gui_runtime::native_vello) use cache::TextLayoutProfileCounters;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 use font::NativeFontStack;
 pub(in crate::gui_runtime::native_vello) use model::{
-    GlyphLayout, SceneTextRun, TextCursorStop, TextLayout, TextLayoutKey,
+    BidiDirection, BidiRun, CaretAffinity, CaretStopGeometry, GlyphPlacement, GraphemeBoundary,
+    GraphemeGeometry, LineBreakKind, LineBreakPolicyId, LineBreakRecord, ParagraphSnapshot,
+    ResolvedFontRun, ScalarBoundary, SceneTextRun, ShapeClusterRange, ShapedParagraph,
+    SnapshotQuality, TextLayout, TextLayoutKey, TextQuality, TextViewKey, Utf8ByteOffset,
 };
+#[cfg(test)]
+pub(in crate::gui_runtime::native_vello) use model::{GlyphLayout, TextCursorStop};
 pub(in crate::gui_runtime::native_vello) use renderability::font_size_is_renderable;
 use renderability::text_run_is_renderable;
 use renderability::text_run_parts_are_renderable;
@@ -58,9 +64,6 @@ impl NativeTextRenderer {
         scene: &mut Scene,
         text_runs: impl IntoIterator<Item = SceneTextRun>,
     ) {
-        if self.font_stack.is_empty() {
-            return;
-        }
         let layout_cache = &mut self.layout_cache;
         for run in text_runs {
             if !text_run_is_renderable(&run) {
@@ -77,6 +80,7 @@ impl NativeTextRenderer {
                     color: run.color,
                     max_width: run.max_width,
                     align: run.align,
+                    wrap: run.wrap,
                 },
             );
         }
@@ -84,9 +88,6 @@ impl NativeTextRenderer {
 
     pub(super) fn draw_text_run(&mut self, scene: &mut Scene, text: &str, parts: TextRunParts) {
         if !text_run_parts_are_renderable(text, parts.position, parts.font_size, parts.max_width) {
-            return;
-        }
-        if self.font_stack.is_empty() {
             return;
         }
         draw_text_run_with_font(
@@ -106,6 +107,56 @@ impl NativeTextRenderer {
             .layout_for(&mut self.font_stack, text, font_size)
     }
 
+    pub(super) fn layout_text_view(
+        &mut self,
+        text: &str,
+        font_size: f32,
+        available_width: Option<f32>,
+        align: TextAlign,
+        wrap: TextWrap,
+    ) -> Option<&TextLayout> {
+        if !font_size_is_renderable(font_size) {
+            return None;
+        }
+        self.layout_cache.layout_for_view(
+            &mut self.font_stack,
+            text,
+            font_size,
+            available_width,
+            align,
+            wrap,
+        )
+    }
+
+    pub(super) fn draw_paragraph_snapshot(
+        &mut self,
+        scene: &mut Scene,
+        snapshot: &ParagraphSnapshot,
+        paint: TextSnapshotPaint,
+    ) {
+        if !font_size_is_renderable(paint.font_size)
+            || !paint.position.x.is_finite()
+            || !paint.position.y.is_finite()
+            || !paint.clip_width.is_finite()
+            || paint.clip_width <= 0.0
+            || !paint.scroll_x.is_finite()
+        {
+            return;
+        }
+        if !snapshot.is_usable_for(paint.font_size) {
+            return;
+        }
+        draw_snapshot_glyphs(
+            scene,
+            &mut self.font_stack,
+            snapshot,
+            TextSnapshotPaint {
+                scroll_x: paint.scroll_x.max(0.0),
+                ..paint
+            },
+        );
+    }
+
     pub(super) fn take_layout_profile_counters(&mut self) -> TextLayoutProfileCounters {
         self.layout_cache.take_profile_counters()
     }
@@ -118,6 +169,7 @@ pub(super) struct TextRunParts {
     pub(super) color: Rgba8,
     pub(super) max_width: Option<f32>,
     pub(super) align: TextAlign,
+    pub(super) wrap: TextWrap,
 }
 
 fn draw_text_run_with_font(
@@ -127,43 +179,91 @@ fn draw_text_run_with_font(
     text: &str,
     parts: TextRunParts,
 ) {
-    let Some(layout) = layout_cache.layout_for(font_stack, text, parts.font_size) else {
+    let Some(layout) = layout_cache.layout_for_view(
+        font_stack,
+        text,
+        parts.font_size,
+        parts.max_width,
+        parts.align,
+        parts.wrap,
+    ) else {
         return;
     };
-    let mut origin_x = parts.position.x;
-    if let Some(max_width) = parts.max_width {
-        let extra = (max_width - layout.width).max(0.0);
-        origin_x += match parts.align {
-            TextAlign::Left => 0.0,
-            TextAlign::Center => extra * 0.5,
-            TextAlign::Right => extra,
-        };
-    }
     let clip_width = parts.max_width.unwrap_or(f32::INFINITY);
-    let baseline = parts.position.y + parts.font_size;
-    let mut start = 0;
-    while start < layout.glyphs.len() {
-        let Some((face_index, end)) = visible_face_segment(&layout.glyphs, start, clip_width)
-        else {
-            break;
-        };
-        let Some(font_data) = font_stack.face(face_index) else {
-            break;
-        };
-        let glyph_iter = layout.glyphs[start..end].iter().map(|glyph| Glyph {
-            id: glyph.id,
-            x: origin_x + glyph.x,
-            y: baseline,
-        });
-        scene
-            .draw_glyphs(font_data)
-            .font_size(parts.font_size)
-            .brush(color_from_rgba(parts.color))
-            .draw(Fill::NonZero, glyph_iter);
-        start = end;
-    }
+    draw_snapshot_glyphs(
+        scene,
+        font_stack,
+        &layout.snapshot,
+        TextSnapshotPaint {
+            position: parts.position,
+            font_size: parts.font_size,
+            color: parts.color,
+            clip_width,
+            scroll_x: 0.0,
+        },
+    );
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(super) struct TextSnapshotPaint {
+    pub(super) position: Point,
+    pub(super) font_size: f32,
+    pub(super) color: Rgba8,
+    pub(super) clip_width: f32,
+    pub(super) scroll_x: f32,
+}
+
+fn draw_snapshot_glyphs(
+    scene: &mut Scene,
+    font_stack: &mut NativeFontStack,
+    snapshot: &ParagraphSnapshot,
+    paint: TextSnapshotPaint,
+) {
+    if !snapshot.is_usable_for(paint.font_size) {
+        return;
+    }
+    let baseline = paint.position.y + paint.font_size;
+    let right = paint.scroll_x + paint.clip_width;
+    let mut segment_face = None;
+    let mut segment = Vec::new();
+
+    let flush = |scene: &mut Scene, face_index: Option<usize>, glyphs: &mut Vec<Glyph>| {
+        let Some(face_index) = face_index else {
+            glyphs.clear();
+            return;
+        };
+        let Some(font_data) = font_stack.face(face_index) else {
+            glyphs.clear();
+            return;
+        };
+        scene
+            .draw_glyphs(font_data)
+            .font_size(paint.font_size)
+            .brush(color_from_rgba(paint.color))
+            .draw(Fill::NonZero, glyphs.drain(..));
+    };
+
+    for glyph in &snapshot.glyphs {
+        let glyph_left = glyph.x.min(glyph.x + glyph.advance);
+        let glyph_right = glyph.x.max(glyph.x + glyph.advance);
+        let visible = glyph_right >= paint.scroll_x && glyph_left <= right;
+        if !visible {
+            flush(scene, segment_face.take(), &mut segment);
+            continue;
+        }
+        if segment_face != Some(glyph.face_index) {
+            flush(scene, segment_face.replace(glyph.face_index), &mut segment);
+        }
+        segment.push(Glyph {
+            id: glyph.glyph_id,
+            x: paint.position.x + glyph.x + glyph.x_offset - paint.scroll_x,
+            y: baseline + glyph.y_offset,
+        });
+    }
+    flush(scene, segment_face, &mut segment);
+}
+
+#[cfg(test)]
 fn visible_face_segment(
     glyphs: &[GlyphLayout],
     start: usize,
@@ -227,6 +327,10 @@ mod tests {
             start = end;
         }
 
+        assert_eq!(
+            glyphs.iter().map(|glyph| glyph.id).collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
         assert_eq!(segments, vec![(0, 0..1), (1, 1..2)]);
     }
 }

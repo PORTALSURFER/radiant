@@ -1,3 +1,6 @@
+use super::super::grapheme_boundary::{
+    boundary_at_or_after, next_grapheme_boundary, previous_grapheme_boundary,
+};
 use super::super::word_boundary::{next_word_boundary, previous_word_boundary};
 use super::super::{TextInputEditResult, TextInputState};
 use crate::widgets::primitives::text_input::editing_ops::{
@@ -67,10 +70,16 @@ impl TextInputState {
         if self.caret == 0 {
             return TextInputEditResult::default();
         }
+        self.caret = boundary_at_or_after(&self.value, self.caret);
+        self.selection_anchor = self.caret;
+        if self.caret == 0 {
+            return TextInputEditResult::default();
+        }
         let end = byte_index_for_char(&self.value, self.caret);
-        let start = byte_index_for_char(&self.value, self.caret - 1);
+        let start_scalar = previous_grapheme_boundary(&self.value, self.caret);
+        let start = byte_index_for_char(&self.value, start_scalar);
         self.value.replace_range(start..end, "");
-        self.caret -= 1;
+        self.caret = start_scalar;
         self.selection_anchor = self.caret;
         TextInputEditResult {
             value_changed: true,
@@ -85,8 +94,14 @@ impl TextInputState {
         if self.caret >= self.char_len() {
             return TextInputEditResult::default();
         }
+        self.caret = boundary_at_or_after(&self.value, self.caret);
+        self.selection_anchor = self.caret;
         let start = byte_index_for_char(&self.value, self.caret);
-        let end = byte_index_for_char(&self.value, self.caret + 1);
+        let end_scalar = next_grapheme_boundary(&self.value, self.caret);
+        if end_scalar == self.caret {
+            return TextInputEditResult::default();
+        }
+        let end = byte_index_for_char(&self.value, end_scalar);
         self.value.replace_range(start..end, "");
         self.selection_anchor = self.caret;
         TextInputEditResult {

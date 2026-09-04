@@ -39,6 +39,7 @@ pub struct TextInputWidget {
     pub state: TextInputState,
     /// Transient IME composition state owned by this widget.
     pub(crate) composition: Option<composition::TextInputComposition>,
+    native_pointer_caret: Option<usize>,
 }
 
 /// Named construction fields for [`TextInputWidget`].
@@ -69,6 +70,7 @@ impl TextInputWidget {
             },
             state: TextInputState::from_value(parts.value),
             composition: None,
+            native_pointer_caret: None,
         }
     }
 
@@ -114,6 +116,14 @@ impl TextInputWidget {
             theme,
             hidden_composition,
         );
+    }
+
+    pub(crate) fn set_native_pointer_caret(&mut self, caret: usize) {
+        self.native_pointer_caret = Some(caret);
+    }
+
+    pub(crate) fn take_native_pointer_caret(&mut self) -> Option<usize> {
+        self.native_pointer_caret.take()
     }
 }
 

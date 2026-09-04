@@ -5,6 +5,7 @@ use crate::gui_runtime::native_vello::{
     text_edit::{SingleLineTextEditorState, TextFieldLayoutState, build_text_field_layout},
     *,
 };
+use crate::widgets::TextWrap;
 
 mod geometry;
 
@@ -27,14 +28,6 @@ fn focused_text_input_geometry(
     }
 
     let text = input.state.value.as_str();
-    if text.is_empty() {
-        return Some(FocusedTextInputGeometry {
-            caret_rect: caret_rect(input, input.rect.min.x)?,
-            layout: None,
-            selection: None,
-        });
-    }
-
     let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
     let selection =
         resolve_text_input_selection(text, input.state.caret, input.state.selection_anchor);
@@ -95,20 +88,15 @@ pub(super) fn encode_text_input(
         else {
             return;
         };
-        if input.selection_color.a != 0
-            && let Some((start, end)) = layout.selection_offsets
-            && let Some(rect) = selection_rect(input, start, end)
-        {
-            super::encode_rect(scene, input.selection_color, rect);
+        if input.selection_color.a != 0 {
+            for &(start, end) in layout.selection_rects() {
+                if let Some(rect) = selection_rect(input, start, end) {
+                    super::encode_rect(scene, input.selection_color, rect);
+                }
+            }
         }
         encode_block_caret(scene, input, *caret_rect, animation_time);
-        draw_text_input_text(
-            scene,
-            text_renderer,
-            input,
-            layout.visible_text(text),
-            input.color,
-        );
+        draw_text_input_layout(scene, text_renderer, input, layout, input.color);
         draw_completion_suffix(
             scene,
             text_renderer,
@@ -163,6 +151,31 @@ fn draw_text_input_text(
             color,
             max_width: Some(input.rect.width().max(0.0)),
             align: TextAlign::Left,
+            wrap: TextWrap::None,
+        },
+    );
+}
+
+fn draw_text_input_layout(
+    scene: &mut Scene,
+    text_renderer: &mut NativeTextRenderer,
+    input: &PaintTextInput,
+    layout: &TextFieldLayoutState,
+    color: Rgba8,
+) {
+    let baseline_offset = input.baseline.unwrap_or(input.font_size);
+    text_renderer.draw_paragraph_snapshot(
+        scene,
+        &layout.snapshot,
+        TextSnapshotPaint {
+            position: Point::new(
+                input.rect.min.x,
+                input.rect.min.y + baseline_offset - input.font_size,
+            ),
+            font_size: input.font_size,
+            color,
+            clip_width: input.rect.width().max(0.0),
+            scroll_x: layout.scroll_x,
         },
     );
 }
@@ -202,6 +215,7 @@ fn draw_completion_suffix(
             color: input.completion_color,
             max_width: Some(max_width),
             align: TextAlign::Left,
+            wrap: TextWrap::None,
         },
     );
 }

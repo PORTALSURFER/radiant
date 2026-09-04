@@ -1,4 +1,5 @@
 use super::TextInputState;
+use super::grapheme_boundary::{boundary_at_or_after, boundary_at_or_before};
 use super::word_boundary::word_range_at;
 use crate::widgets::primitives::text_input::editing_ops::byte_index_for_char;
 
@@ -24,10 +25,12 @@ impl TextInputState {
         let caret = self.caret.min(char_len);
         let anchor = self.selection_anchor.min(char_len);
         if anchor == caret {
+            let caret = boundary_at_or_after(&self.value, caret);
             return (caret, caret);
         }
-        let start = anchor.min(caret);
-        let end = anchor.max(caret).saturating_add(1).min(char_len);
+        let start = boundary_at_or_before(&self.value, anchor.min(caret));
+        let raw_end = anchor.max(caret).saturating_add(1).min(char_len);
+        let end = boundary_at_or_after(&self.value, raw_end);
         (start, end)
     }
 

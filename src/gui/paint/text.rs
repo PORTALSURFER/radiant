@@ -1,7 +1,7 @@
 use crate::gui::types::{Point, Rgba8};
 
 /// Horizontal alignment strategy for text runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum TextAlign {
     /// Align text to the left edge of its layout width.
     Left,

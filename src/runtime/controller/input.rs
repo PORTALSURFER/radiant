@@ -15,6 +15,17 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<WidgetDispatchResult<Message>> {
+        if matches!(
+            &input,
+            WidgetInput::PointerMove { .. }
+                | WidgetInput::PointerPress { .. }
+                | WidgetInput::PointerDoubleClick { .. }
+                | WidgetInput::PointerRelease { .. }
+        ) {
+            self.apply_native_text_pointer_caret(widget_id);
+        } else {
+            self.pending_native_text_pointer_caret = None;
+        }
         if let WidgetInput::FocusChanged(focused) = input {
             return self.dispatch_surface_focus_changed(widget_id, bounds, focused);
         }
@@ -25,6 +36,30 @@ where
         };
         self.surface
             .dispatch_widget_input_message_at_path(widget_id, child_path, bounds, input)
+    }
+
+    fn apply_native_text_pointer_caret(&mut self, widget_id: WidgetId) {
+        let Some((pending_widget_id, source, caret)) =
+            self.pending_native_text_pointer_caret.take()
+        else {
+            return;
+        };
+        if pending_widget_id != widget_id {
+            return;
+        }
+        let Some(widget) = self.surface_widget_mut(widget_id) else {
+            return;
+        };
+        let Some(text_input) = widget
+            .widget_object_mut_runtime()
+            .as_any_mut()
+            .downcast_mut::<crate::widgets::TextInputWidget>()
+        else {
+            return;
+        };
+        if text_input.state.value == source {
+            text_input.set_native_pointer_caret(caret);
+        }
     }
 
     fn dispatch_surface_focus_changed(

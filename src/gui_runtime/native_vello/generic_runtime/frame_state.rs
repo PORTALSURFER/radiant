@@ -27,6 +27,7 @@ use super::{
         focused_text_input_caret_area,
     },
 };
+use crate::gui::types::Point;
 use crate::runtime::BasePaintPlanContext;
 use crate::runtime::MAX_PAINT_SEGMENTS;
 use crate::runtime::{PaintSegmentObservation, collect_segment_spans};
@@ -37,6 +38,7 @@ use crate::{
     gui::types::Rect as UiRect,
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
+    widgets::WidgetId,
 };
 use vello::Scene;
 use vello::kurbo::Affine;
@@ -631,6 +633,84 @@ impl NativeVelloFrameState {
         focused_text_input_caret_area(&self.last_paint_plan, &mut self.text_renderer)
     }
 
+    /// Resolve a native pointer through the retained paragraph that paints the
+    /// current text-input plan. The source travels with the result so runtime
+    /// dispatch can reject a stale plan atomically.
+    pub(super) fn native_text_pointer_target(
+        &mut self,
+        position: Point,
+        captured_widget_id: Option<WidgetId>,
+    ) -> Option<(WidgetId, String, usize)> {
+        let (widget_id, rect, font_size, text, focused, caret) = self
+            .last_paint_plan
+            .primitives
+            .iter()
+            .rev()
+            .find_map(|primitive| {
+                let PaintPrimitive::TextInput(input) = primitive else {
+                    return None;
+                };
+                let hit = captured_widget_id.map_or_else(
+                    || input.rect.contains(position),
+                    |widget_id| input.widget_id == widget_id,
+                );
+                hit.then(|| {
+                    (
+                        input.widget_id,
+                        input.rect,
+                        input.font_size,
+                        input.state.value.clone(),
+                        input.focused,
+                        input.state.caret,
+                    )
+                })
+            })?;
+        if !rect.has_finite_positive_area() {
+            return None;
+        }
+
+        let local_x = position.x - rect.min.x;
+        let (snapshot, scroll_x) = if focused {
+            let mut editor =
+                crate::gui_runtime::native_vello::text_edit::SingleLineTextEditorState::collapsed_at_end(
+                    &text,
+                );
+            editor.set_cursor(&text, byte_index_for_scalar(&text, caret), false);
+            let layout = crate::gui_runtime::native_vello::text_edit::build_text_field_layout(
+                &mut self.text_renderer,
+                &mut editor,
+                &text,
+                font_size,
+                rect.width(),
+            );
+            (layout.snapshot, layout.scroll_x)
+        } else {
+            (
+                self.text_renderer
+                    .layout_text_view(
+                        &text,
+                        font_size,
+                        Some(rect.width().max(0.0)),
+                        crate::gui::paint::TextAlign::Left,
+                        crate::widgets::TextWrap::None,
+                    )?
+                    .snapshot(),
+                0.0,
+            )
+        };
+        let scalar = snapshot.hit_test((local_x + scroll_x).max(0.0)).0;
+        let byte = snapshot.scalar_boundaries.get(scalar)?.0;
+        let canonical = snapshot.canonical_byte(
+            byte,
+            crate::gui_runtime::native_vello::CaretAffinity::Downstream,
+        );
+        let scalar = snapshot
+            .scalar_boundaries
+            .binary_search_by_key(&canonical, |offset| offset.0)
+            .ok()?;
+        Some((widget_id, text, scalar))
+    }
+
     pub(super) fn mark_composited_base_dirty(&mut self) {
         self.composited_base_dirty = true;
     }
@@ -710,6 +790,13 @@ impl NativeVelloFrameState {
             transient_overlay_primitives,
         );
     }
+}
+
+fn byte_index_for_scalar(text: &str, scalar: usize) -> usize {
+    text.char_indices()
+        .nth(scalar)
+        .map(|(byte, _)| byte)
+        .unwrap_or(text.len())
 }
 
 #[cfg(test)]

@@ -2623,6 +2623,7 @@ dependencies = [
  "tracing",
  "unicode-bidi",
  "unicode-linebreak",
+ "unicode-script",
  "unicode-segmentation",
  "vello",
  "vello_svg",

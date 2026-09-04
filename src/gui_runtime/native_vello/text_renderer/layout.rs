@@ -14,6 +14,7 @@ use crate::gui::paint::TextAlign;
 use std::{ops::Range, sync::Arc};
 use unicode_bidi::BidiInfo;
 use unicode_linebreak::{BreakOpportunity, linebreaks};
+use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
 const COMPATIBILITY_REPLACEMENT_WIDTH_EM: f32 = 0.5;
@@ -112,6 +113,7 @@ pub(super) fn compute_shaped_paragraph(
                         segment.range.clone(),
                         face_index,
                         direction,
+                        segment.script,
                         &grapheme_boundaries,
                         font_size,
                     )?
@@ -751,6 +753,7 @@ struct FontSegment {
     range: Range<usize>,
     face_index: Option<usize>,
     special: bool,
+    script: Script,
 }
 
 #[derive(Clone, Debug)]
@@ -767,8 +770,13 @@ fn font_segments(
     grapheme_boundaries: &[Utf8ByteOffset],
 ) -> Result<Vec<FontSegment>, ()> {
     let ranges = grapheme_ranges(grapheme_boundaries, range.clone());
+    let scripts = ranges
+        .iter()
+        .map(|grapheme_range| grapheme_script(&source[grapheme_range.clone()]))
+        .collect::<Vec<_>>();
+    let scripts = contextualize_scripts(&scripts);
     let mut segments: Vec<FontSegment> = Vec::new();
-    for grapheme_range in ranges {
+    for (grapheme_range, script) in ranges.into_iter().zip(scripts) {
         let grapheme = &source[grapheme_range.clone()];
         let special = grapheme == "\t" || grapheme.chars().all(char::is_control);
         let face_index = if special {
@@ -779,6 +787,7 @@ fn font_segments(
         if face_index.is_some()
             && let Some(previous) = segments.last_mut()
             && previous.face_index == face_index
+            && previous.script == script
             && previous.range.end == grapheme_range.start
         {
             previous.range.end = grapheme_range.end;
@@ -787,10 +796,44 @@ fn font_segments(
                 range: grapheme_range,
                 face_index,
                 special,
+                script,
             });
         }
     }
     Ok(segments)
+}
+
+fn grapheme_script(grapheme: &str) -> Script {
+    grapheme
+        .chars()
+        .map(|character| character.script())
+        .find(|script| !matches!(script, Script::Common | Script::Inherited))
+        .unwrap_or(Script::Common)
+}
+
+fn contextualize_scripts(scripts: &[Script]) -> Vec<Script> {
+    let mut next_strong = vec![None; scripts.len()];
+    let mut following = None;
+    for (index, script) in scripts.iter().enumerate().rev() {
+        next_strong[index] = following;
+        if !matches!(script, Script::Common | Script::Inherited) {
+            following = Some(*script);
+        }
+    }
+
+    let mut preceding = None;
+    scripts
+        .iter()
+        .enumerate()
+        .map(|(index, script)| {
+            if matches!(script, Script::Common | Script::Inherited) {
+                preceding.or(next_strong[index]).unwrap_or(Script::Common)
+            } else {
+                preceding = Some(*script);
+                *script
+            }
+        })
+        .collect()
 }
 
 fn special_fragment(
@@ -828,6 +871,7 @@ fn shape_face_fragment(
     range: Range<usize>,
     face_index: usize,
     direction: BidiDirection,
+    script: Script,
     grapheme_boundaries: &[Utf8ByteOffset],
     font_size: f32,
 ) -> Result<Fragment, ()> {
@@ -839,6 +883,7 @@ fn shape_face_fragment(
         BidiDirection::Ltr => rustybuzz::Direction::LeftToRight,
         BidiDirection::Rtl => rustybuzz::Direction::RightToLeft,
     });
+    buffer.set_script(rustybuzz_script(script));
     let output = rustybuzz::shape(&face, &[], buffer);
     if output.is_empty() {
         return Err(());
@@ -982,6 +1027,12 @@ fn shape_face_fragment(
         grapheme_geometry: geometry,
         width,
     })
+}
+
+fn rustybuzz_script(script: Script) -> rustybuzz::Script {
+    let tag_bytes = script.as_iso15924_tag().to_be_bytes();
+    let tag = rustybuzz::ttf_parser::Tag::from_bytes(&tag_bytes);
+    rustybuzz::Script::from_iso15924_tag(tag).unwrap_or(rustybuzz::script::UNKNOWN)
 }
 
 fn missing_fragment(
@@ -1201,6 +1252,77 @@ mod tests {
         assert_eq!(layout.snapshot.grapheme_boundaries.len(), 3);
         assert!(layout.glyphs[1].x > layout.glyphs[0].x);
         assert!(layout.snapshot.glyphs[1].advance > layout.snapshot.glyphs[0].advance);
+    }
+
+    #[test]
+    fn mixed_scripts_are_itemized_at_grapheme_boundaries_with_context() {
+        let mut stack = NativeFontStack::from_test_bytes(&[
+            include_bytes!("../../../../tests/fixtures/fonts/primary.ttf"),
+            include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
+        ]);
+        let source = "\u{0301}A.\u{0915}\u{093f}";
+        let boundaries = grapheme_boundaries(source);
+        let segments = font_segments(&mut stack, source, 0..source.len(), &boundaries)
+            .expect("valid grapheme ranges");
+
+        assert_eq!(
+            segments
+                .iter()
+                .map(|segment| (source[segment.range.clone()].to_owned(), segment.script))
+                .collect::<Vec<_>>(),
+            vec![
+                ("\u{0301}".to_owned(), Script::Latin),
+                ("A".to_owned(), Script::Latin),
+                (".".to_owned(), Script::Latin),
+                ("\u{0915}\u{093f}".to_owned(), Script::Devanagari),
+            ]
+        );
+        assert!(segments.iter().all(|segment| {
+            is_grapheme_boundary(&boundaries, segment.range.start)
+                && is_grapheme_boundary(&boundaries, segment.range.end)
+        }));
+    }
+
+    #[test]
+    fn isolated_fixture_scripts_shape_with_explicit_rustybuzz_script() {
+        let stack = NativeFontStack::from_test_bytes(&[
+            include_bytes!("../../../../tests/fixtures/fonts/primary.ttf"),
+            include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
+        ]);
+        assert_eq!(
+            rustybuzz_script(Script::Devanagari),
+            rustybuzz::script::DEVANAGARI
+        );
+
+        let latin_source = "A";
+        let latin = shape_face_fragment(
+            &stack,
+            latin_source,
+            0..latin_source.len(),
+            0,
+            BidiDirection::Ltr,
+            Script::Latin,
+            &grapheme_boundaries(latin_source),
+            20.0,
+        )
+        .expect("isolated Latin fragment shapes");
+        assert_eq!(latin.glyphs.len(), 1);
+        assert_eq!(latin.glyphs[0].cluster.end, Utf8ByteOffset(1));
+
+        let greek_source = "Ω";
+        let greek = shape_face_fragment(
+            &stack,
+            greek_source,
+            0..greek_source.len(),
+            1,
+            BidiDirection::Ltr,
+            Script::Greek,
+            &grapheme_boundaries(greek_source),
+            20.0,
+        )
+        .expect("isolated Greek fragment shapes");
+        assert_eq!(greek.glyphs.len(), 1);
+        assert_eq!(greek.glyphs[0].cluster.end, Utf8ByteOffset(2));
     }
 
     #[test]

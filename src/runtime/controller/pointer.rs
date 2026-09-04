@@ -740,7 +740,9 @@ where
                 .pointer
                 .set_release_tombstone(capture.button, true);
             let offset = self.layout_state.scroll_offset(capture.node_id);
-            self.emit_scroll_offset_settled(capture.node_id, offset, true);
+            if offset != capture.start_offset {
+                self.emit_scroll_offset_settled(capture.node_id, offset, true);
+            }
         }
         if managed_record_present {
             self.finish_managed_pointer_capture_cancellation();

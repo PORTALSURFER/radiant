@@ -9,7 +9,8 @@ mod systems;
 
 pub(super) type ExampleContract = (&'static str, &'static [&'static str]);
 
-pub(super) const SEPARATELY_COVERED_EXAMPLES: &[&str] = &["generic_native", "hello_world"];
+pub(super) const SEPARATELY_COVERED_EXAMPLES: &[&str] =
+    &["controlled_scroll", "generic_native", "hello_world"];
 
 const FOCUSED_EXAMPLE_CONTRACT_GROUPS: &[&[ExampleContract]] = &[
     first_use::CONTRACTS,

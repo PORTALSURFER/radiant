@@ -190,13 +190,12 @@ pub(super) struct RuntimeFocusedKeyCapture {
 /// The slot deliberately stores no history or orphan metadata. `Blocked` is a
 /// current identityless state that prevents stale continuations from being
 /// rebound to the widget currently under the pointer.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(super) struct RuntimeWheelState {
     pub(super) managed_sequence: RuntimeManagedWheelSequenceState,
-    /// The last accepted offset in an explicit scroll sequence.  Keeping one
-    /// identity is enough because one wheel sample can only consume one
-    /// deepest scroll chain; it also makes the terminal callback idempotent.
-    pub(super) pending_scroll_settlement: Option<(NodeId, crate::gui::types::Vector2)>,
+    /// The latest accepted offset for each container in an explicit scroll
+    /// sequence. Nested chaining may settle more than one owner per sample.
+    pub(super) pending_scroll_settlement: Vec<(NodeId, crate::gui::types::Vector2)>,
     pub(super) scroll_settlement_deadline: Option<Instant>,
 }
 
@@ -306,6 +305,7 @@ pub(super) struct ScrollDragCapture {
     pub(super) grip_fraction: f32,
     pub(super) button: PointerButton,
     pub(super) axis: ScrollbarAxis,
+    pub(super) start_offset: crate::gui::types::Vector2,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

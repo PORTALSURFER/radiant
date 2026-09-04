@@ -93,19 +93,17 @@ where
         metadata: ScrollUpdateMetadata,
         refresh_after_message: bool,
     ) -> bool {
-        let candidates: Vec<_> = self
-            .traversal
-            .containers
-            .scroll
-            .visible()
-            .iter()
-            .rev()
-            .copied()
-            .collect();
+        let Some(deepest) = self.scroll_container_at(point) else {
+            return false;
+        };
+        let mut candidates = vec![deepest];
+        if let Some(ancestors) = self.traversal.containers.clip_ancestors.get(&deepest) {
+            candidates.extend(ancestors.as_slice().iter().rev().copied());
+        }
         let mut remaining = delta;
         let mut accepted = false;
         for node_id in candidates {
-            if !self.scroll_container_accepts_point(node_id, point) {
+            if node_id != deepest && !self.scroll_container_accepts_point(node_id, point) {
                 continue;
             }
             accepted = true;
@@ -125,18 +123,8 @@ where
                 effective.y = 0.0;
             }
             match policy.axis_lock {
-                crate::layout::ScrollAxisLock::Horizontal
-                    if effective.x.abs() >= effective.y.abs() =>
-                {
-                    effective.y = 0.0
-                }
-                crate::layout::ScrollAxisLock::Horizontal => effective.x = 0.0,
-                crate::layout::ScrollAxisLock::Vertical
-                    if effective.y.abs() >= effective.x.abs() =>
-                {
-                    effective.x = 0.0
-                }
-                crate::layout::ScrollAxisLock::Vertical => effective.y = 0.0,
+                crate::layout::ScrollAxisLock::Horizontal => effective.y = 0.0,
+                crate::layout::ScrollAxisLock::Vertical => effective.x = 0.0,
                 crate::layout::ScrollAxisLock::None => {}
             }
             let current = self.layout_state.scroll_offset(node_id);
@@ -258,10 +246,10 @@ where
         &self,
         node_id: NodeId,
     ) -> Option<&crate::layout::ContainerPolicy> {
-        fn find<'a>(
-            node: &'a crate::layout::LayoutNode,
+        fn find(
+            node: &crate::layout::LayoutNode,
             id: NodeId,
-        ) -> Option<&'a crate::layout::ContainerPolicy> {
+        ) -> Option<&crate::layout::ContainerPolicy> {
             let crate::layout::LayoutNode::Container(container) = node else {
                 return None;
             };

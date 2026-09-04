@@ -12,6 +12,10 @@ use super::interaction_patch::InteractionPatchCandidate;
 use super::interaction_state::RuntimeManagedPointerCaptureState;
 use super::layout_state::RuntimeLayoutContainerStateCandidate;
 use super::refresh::SurfaceIdentityDiagnostics;
+use super::state::{
+    apply_declarative_scroll_requests_for, collect_scroll_declarations, collect_scroll_requests,
+    sync_declarative_scroll_inputs_for, sync_scroll_offsets_for,
+};
 use crate::gui::layout_core::{
     LayoutAuthorityEvidence, LayoutInputEvidence, LayoutOutput, LayoutStateAuthorityOwner,
     MountedLayoutSourceAuthorityOwner, PreparedLayoutPass, RootLayoutAuthorityOwner,
@@ -197,6 +201,8 @@ pub(in crate::runtime::controller) struct FreshSurfaceLayoutCandidate<Message> {
     replacement_plan: WidgetReplacementPlan,
     view_delta_scratch: ViewDeltaScratch,
     mounted_state: RuntimeLayoutContainerStateCandidate,
+    layout_state: crate::gui::layout_core::LayoutState,
+    scroll_settlements: Vec<(NodeId, crate::gui::types::Vector2)>,
     prepared_layout: PreparedLayoutPass,
     damage: SurfaceDamage,
     widget_state_sync: Duration,
@@ -513,6 +519,8 @@ where
             replacement_plan,
             view_delta_scratch,
             mounted_state,
+            layout_state,
+            scroll_settlements,
             prepared_layout,
             damage,
             widget_state_sync: _,
@@ -543,7 +551,7 @@ where
         let replacement_commit = self
             .surface
             .commit_validated_widget_replacements(&surface, validated_replacement_plan);
-        let terminal_messages = replacement_commit.terminal_messages;
+        let mut terminal_messages = replacement_commit.terminal_messages;
         let retired_widget_ids = replacement_commit.retired_widget_ids;
         let wheel_focus_before_refresh = self.interaction.focus.focused_widget();
         let composition_focus_before_refresh = self.interaction.focus.focused_widget();
@@ -595,6 +603,7 @@ where
         );
 
         self.surface = surface;
+        self.layout_state = layout_state;
         if prepared_layout
             .commit(&mut self.layout_engine, &mut self.layout, authority.input)
             .is_err()
@@ -627,6 +636,21 @@ where
         }
         self.validate_focused_key_capture_authority();
         self.install_declarative_owner_projection();
+        self.interaction
+            .wheel
+            .pending_scroll_settlement
+            .retain(|(id, _)| self.traversal.containers.scroll.contains(*id));
+        if self.interaction.wheel.pending_scroll_settlement.is_empty() {
+            self.interaction.wheel.scroll_settlement_deadline = None;
+        }
+        for (node_id, previous_offset) in scroll_settlements {
+            let offset = self.layout_state.scroll_offset(node_id);
+            if offset != previous_offset
+                && let Some(message) = self.surface.root().offset_settled(node_id, offset)
+            {
+                terminal_messages.push(message);
+            }
+        }
 
         self.refresh_counters.application_projection = self
             .refresh_counters
@@ -895,7 +919,6 @@ where
         {
             return Ok(None);
         }
-
         let mut candidate_root_authority = self.layout_root_authority;
         if !candidate_root_authority.advance_revision()
             || candidate_root_authority == self.layout_root_authority
@@ -917,12 +940,21 @@ where
             return Ok(None);
         };
 
+        let mut candidate_layout_state = self.layout_state.clone();
+        let mut declarations = Vec::new();
+        collect_scroll_declarations(&candidate.layout_root, &mut declarations);
+        sync_declarative_scroll_inputs_for(
+            declarations,
+            &mut candidate_layout_state,
+            self.layout_state_generation,
+        );
+
         let preflight_layout = if candidate_mounted_source_present {
             let container_state_source = self.interaction.layout_state.read_source(&mounted_state);
             self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
-                &self.layout_state,
+                &candidate_layout_state,
                 self.layout_debug_options,
                 candidate_direction,
                 Some(&container_state_source),
@@ -932,7 +964,7 @@ where
             self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
-                &self.layout_state,
+                &candidate_layout_state,
                 self.layout_debug_options,
                 candidate_direction,
                 None,
@@ -982,6 +1014,22 @@ where
         candidate.traversal = traversal;
         candidate.source = source;
 
+        let mut declarations = Vec::new();
+        collect_scroll_declarations(&candidate.layout_root, &mut declarations);
+        let live: std::collections::BTreeSet<_> =
+            declarations.iter().map(|(id, _, _)| *id).collect();
+        candidate_layout_state
+            .scroll_runtime
+            .retain(|id, _| live.contains(id));
+        candidate_layout_state
+            .scroll_offsets
+            .retain(|id, _| live.contains(id));
+        sync_declarative_scroll_inputs_for(
+            declarations,
+            &mut candidate_layout_state,
+            self.layout_state_generation,
+        );
+
         if !candidate.is_current(self)
             || !preflight_layout.is_current_for_engine(&self.layout_engine)
         {
@@ -990,12 +1038,12 @@ where
         }
         preflight_layout.discard();
 
-        let prepared_layout = if candidate_mounted_source_present {
+        let mut prepared_layout = if candidate_mounted_source_present {
             let container_state_source = self.interaction.layout_state.read_source(&mounted_state);
             self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
-                &self.layout_state,
+                &candidate_layout_state,
                 self.layout_debug_options,
                 candidate.surface.resolved_environment().writing_direction(),
                 Some(&container_state_source),
@@ -1005,7 +1053,7 @@ where
             self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
-                &self.layout_state,
+                &candidate_layout_state,
                 self.layout_debug_options,
                 candidate.surface.resolved_environment().writing_direction(),
                 None,
@@ -1019,6 +1067,60 @@ where
         {
             prepared_layout.discard();
             return Ok(None);
+        }
+        let mut scroll_settlements = Vec::new();
+        if let Some(output) = prepared_layout.output().cloned() {
+            // Normalize controlled offsets against the first candidate output
+            // before resolving requests.  Request alignment must observe the
+            // committed/clamped current offset, just like the direct route;
+            // otherwise an out-of-range controlled value can make a no-op
+            // reveal appear to have moved and emit a false settlement.
+            sync_scroll_offsets_for(&output, &candidate.traversal, &mut candidate_layout_state);
+            scroll_settlements = apply_declarative_scroll_requests_for(
+                {
+                    let mut requests = Vec::new();
+                    collect_scroll_requests(&candidate.layout_root, &mut requests);
+                    requests
+                },
+                &output,
+                &mut candidate_layout_state,
+                |owner, key| self.virtual_layout.materialized_key_payload(owner, key),
+            );
+            if !scroll_settlements.is_empty() {
+                prepared_layout.discard();
+                prepared_layout = if candidate_mounted_source_present {
+                    let container_state_source =
+                        self.interaction.layout_state.read_source(&mounted_state);
+                    self.layout_engine.prepare_layout_with_state_and_source(
+                        &candidate.layout_root,
+                        self.viewport,
+                        &candidate_layout_state,
+                        self.layout_debug_options,
+                        Some(&container_state_source),
+                        input,
+                    )
+                } else {
+                    self.layout_engine.prepare_layout_with_state_and_source(
+                        &candidate.layout_root,
+                        self.viewport,
+                        &candidate_layout_state,
+                        self.layout_debug_options,
+                        None,
+                        input,
+                    )
+                };
+                if !prepared_layout.is_usable()
+                    || prepared_layout
+                        .validate_for_engine(&self.layout_engine, input)
+                        .is_err()
+                {
+                    prepared_layout.discard();
+                    return Ok(None);
+                }
+            }
+        }
+        if let Some(output) = prepared_layout.output() {
+            sync_scroll_offsets_for(output, &candidate.traversal, &mut candidate_layout_state);
         }
         let Some(candidate_layout_output) = prepared_layout.output() else {
             prepared_layout.discard();
@@ -1062,6 +1164,8 @@ where
             replacement_plan,
             view_delta_scratch,
             mounted_state,
+            layout_state: candidate_layout_state,
+            scroll_settlements,
             prepared_layout,
             damage,
             widget_state_sync,

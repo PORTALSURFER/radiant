@@ -369,7 +369,9 @@ where
             self.cancel_layout_pointer_capture();
             self.reset_tooltip_hover_intent();
             let offset = self.layout_state.scroll_offset(capture.node_id);
-            self.emit_scroll_offset_settled(capture.node_id, offset, true);
+            if offset != capture.start_offset {
+                self.emit_scroll_offset_settled(capture.node_id, offset, true);
+            }
             return None;
         }
         if self.interaction.pointer.capture.is_none() && self.layout_pointer_capture_active() {

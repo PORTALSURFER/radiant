@@ -1,9 +1,79 @@
 use super::{DemoMessage, intrinsic_slot};
 use radiant::{
-    layout::{ContainerKind, ContainerPolicy, Point, Rect, Vector2, layout_tree},
+    layout::{
+        ContainerKind, ContainerPolicy, Point, Rect, ScrollPolicy, ScrollbarVisibility, Vector2,
+        layout_tree,
+    },
     runtime::{PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface},
     widgets::{WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
 };
+
+#[test]
+fn explicit_scrollbar_visibility_modes_are_distinct_and_legacy_scroll_area_stays_visible() {
+    fn plan_for(policy: ScrollPolicy) -> usize {
+        let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::container(
+            31,
+            ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                overflow: radiant::layout::OverflowPolicy::Scroll,
+                scroll_policy: policy,
+                ..ContainerPolicy::default()
+            },
+            vec![SurfaceChild::fill(SurfaceNode::text(
+                32,
+                "Long content",
+                WidgetSizing::fixed(Vector2::new(180.0, 400.0)),
+            ))],
+        ));
+        let layout = layout_tree(
+            &surface.layout_node(),
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 80.0)),
+        );
+        surface
+            .paint_plan(&layout, &Default::default())
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 31))
+            .count()
+    }
+
+    assert_eq!(
+        plan_for(ScrollPolicy::default()),
+        0,
+        "Auto is quiet without hover/activity"
+    );
+    assert_eq!(
+        plan_for(ScrollPolicy::default().scrollbar_visibility(ScrollbarVisibility::Always)),
+        1
+    );
+    assert_eq!(
+        plan_for(ScrollPolicy::default().scrollbar_visibility(ScrollbarVisibility::Hidden)),
+        0
+    );
+
+    let legacy: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::scroll_area(
+        31,
+        SurfaceNode::text(
+            32,
+            "Long content",
+            WidgetSizing::fixed(Vector2::new(180.0, 400.0)),
+        ),
+    ));
+    let layout = layout_tree(
+        &legacy.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 80.0)),
+    );
+    assert_eq!(
+        legacy
+            .paint_plan(&layout, &Default::default())
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 31))
+            .count(),
+        1,
+        "legacy scroll_area retains its visible scrollbar default"
+    );
+}
 
 #[test]
 fn surface_paint_plan_clips_scroll_content_and_draws_scrollbar_affordance() {

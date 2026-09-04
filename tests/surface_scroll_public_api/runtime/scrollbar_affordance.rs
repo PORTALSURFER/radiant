@@ -1,6 +1,7 @@
 use super::*;
 use radiant::runtime::{Event, PaintPrimitive};
 use radiant::widgets::PointerButton;
+use std::{cell::Cell, rc::Rc, sync::Arc};
 
 #[test]
 fn surface_runtime_drags_painted_scrollbar_thumb() {
@@ -67,6 +68,59 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
 
     let after = runtime.layout().rects[&100];
     assert!(after.min.y < before.min.y);
+}
+
+#[test]
+fn scrollbar_release_settles_only_after_effective_movement() {
+    let settled = Rc::new(Cell::new(0_usize));
+    let mut runtime = SurfaceRuntime::new(
+        declarative_runtime_bridge(
+            Rc::clone(&settled),
+            move |_| {
+                crate::arc_surface(UiSurface::<DemoMessage>::new(
+                    SurfaceNode::scroll_area(
+                        31,
+                        SurfaceNode::text(
+                            32,
+                            "Long content",
+                            WidgetSizing::fixed(Vector2::new(180.0, 400.0)),
+                        ),
+                    )
+                    .on_offset_settled(|_| DemoMessage::ScrollSettled),
+                ))
+            },
+            |settled, message| {
+                if message == DemoMessage::ScrollSettled {
+                    settled.set(settled.get() + 1);
+                }
+            },
+        ),
+        Vector2::new(220.0, 96.0),
+    );
+    let thumb = runtime
+        .paint_plan(&Default::default())
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.rect),
+            _ => None,
+        })
+        .expect("scroll area should paint a draggable thumb");
+
+    runtime.dispatch_event(Event::primary_press(thumb.center()));
+    runtime.dispatch_event(Event::primary_release(thumb.center()));
+    assert_eq!(settled.get(), 0);
+
+    runtime.dispatch_event(Event::primary_press(thumb.center()));
+    runtime.dispatch_event(Event::pointer_move(Point::new(
+        thumb.center().x,
+        thumb.center().y + 36.0,
+    )));
+    runtime.dispatch_event(Event::primary_release(Point::new(
+        thumb.center().x,
+        thumb.center().y + 36.0,
+    )));
+    assert_eq!(settled.get(), 1);
 }
 
 #[test]
@@ -172,6 +226,7 @@ fn surface_runtime_clears_scrollbar_hover_when_refresh_removes_scroll_area() {
         },
         |state, message| match message {
             DemoMessage::Increment => *state = state.saturating_add(1),
+            DemoMessage::ScrollSettled => {}
         },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));

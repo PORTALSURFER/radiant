@@ -27,7 +27,7 @@ impl ScrollAxis {
     }
 }
 
-/// Optional dominant-axis lock for wheel and gesture input.
+/// Optional fixed-axis lock for wheel and gesture input.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ScrollAxisLock {
     /// Preserve both components.

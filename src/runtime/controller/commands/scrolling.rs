@@ -63,10 +63,13 @@ where
                 continue;
             };
             let current = self.layout_state.scroll_offset(node_id);
-            let target_min_x = target.min.x - content.min.x + current.x;
-            let target_max_x = target.max.x - content.min.x + current.x;
-            let target_min_y = target.min.y - content.min.y + current.y;
-            let target_max_y = target.max.y - content.min.y + current.y;
+            // Both committed rectangles carry the current scroll transform;
+            // subtracting the translated content origin yields content-local
+            // coordinates without applying the offset a second time.
+            let target_min_x = target.min.x - content.min.x;
+            let target_max_x = target.max.x - content.min.x;
+            let target_min_y = target.min.y - content.min.y;
+            let target_max_y = target.max.y - content.min.y;
             let mut next = current;
             if policy.axes.includes_horizontal() {
                 next.x = crate::gui::layout_core::resolve_scroll_alignment(

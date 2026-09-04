@@ -308,10 +308,10 @@ where
                 }
             }
         };
-        if transition == FocusTransition::Changed {
-            if let RuntimeFocusOwner::Widget(widget_id) = next {
-                self.reveal_widget_in_scroll_ancestors(widget_id);
-            }
+        if transition == FocusTransition::Changed
+            && let RuntimeFocusOwner::Widget(widget_id) = next
+        {
+            self.reveal_widget_in_scroll_ancestors(widget_id);
         }
         transition
     }

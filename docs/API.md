@@ -6606,7 +6606,7 @@ manual validation:
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Localization and shortcut presentation | `localization_foundation` |
-| Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
+| Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
@@ -6618,6 +6618,9 @@ manual validation:
 Run `cargo run --example logical_provider_attachment` to inspect the portable
 declarative provider attachment shape; the qualified custom-coordinate resolver
 is an additional application-owned option on the same parts declaration.
+
+Run `cargo run --example controlled_scroll` to inspect generation-fenced
+controlled offsets, one-shot reveal requests, and settled offset messages.
 
 For multi-region application shells, use `workspace_shell(main_workspace)` when
 the readable app shape is a top bar, central workspace row, optional leading or

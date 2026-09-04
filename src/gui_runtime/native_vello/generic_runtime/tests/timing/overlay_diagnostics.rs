@@ -157,6 +157,212 @@ fn valid_prepared_surface_refresh_native_evidence() -> PreparedSurfaceRefreshNat
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum PreparedScrollMessage {
+    Settled(Vector2),
+}
+
+struct PreparedScrollBridge {
+    project_count: usize,
+    controlled: Option<crate::layout::Controlled<Vector2>>,
+    request: Option<crate::layout::ScrollRequest>,
+    settled: Rc<std::cell::RefCell<Vec<Vector2>>>,
+    observed_projects: Rc<Cell<usize>>,
+}
+
+impl PreparedScrollBridge {
+    fn new(
+        settled: Rc<std::cell::RefCell<Vec<Vector2>>>,
+        observed_projects: Rc<Cell<usize>>,
+    ) -> Self {
+        Self {
+            project_count: 0,
+            controlled: None,
+            request: None,
+            settled,
+            observed_projects,
+        }
+    }
+}
+
+impl crate::runtime::RuntimeBridge<PreparedScrollMessage> for PreparedScrollBridge {
+    fn project_surface(
+        &mut self,
+    ) -> std::sync::Arc<crate::runtime::UiSurface<PreparedScrollMessage>> {
+        self.project_count += 1;
+        self.observed_projects.set(self.project_count);
+        let policy = crate::layout::ContainerPolicy {
+            kind: crate::layout::ContainerKind::ScrollView,
+            overflow: crate::layout::OverflowPolicy::Scroll,
+            controlled_offset: self.controlled,
+            scroll_request: self.request.clone(),
+            ..crate::layout::ContainerPolicy::default()
+        };
+        let surface = crate::runtime::SurfaceNode::container(
+            1,
+            policy,
+            vec![crate::runtime::SurfaceChild::fill(
+                crate::runtime::SurfaceNode::widget(
+                    crate::widgets::TextWidget::new(
+                        2,
+                        "prepared scroll",
+                        crate::widgets::WidgetSizing::fixed(Vector2::new(80.0, 400.0)),
+                    ),
+                    crate::runtime::WidgetMessageMapper::none(),
+                ),
+            )],
+        )
+        .on_offset_settled(PreparedScrollMessage::Settled);
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(surface))
+    }
+
+    fn update(
+        &mut self,
+        message: PreparedScrollMessage,
+    ) -> crate::runtime::Command<PreparedScrollMessage> {
+        let PreparedScrollMessage::Settled(offset) = message;
+        self.settled.borrow_mut().push(offset);
+        crate::runtime::Command::none()
+    }
+}
+
+#[test]
+fn prepared_native_refresh_commits_controlled_and_request_scroll_state_once() {
+    let settled = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let observed_projects = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedScrollBridge::new(Rc::clone(&settled), Rc::clone(&observed_projects)),
+        Vector2::new(100.0, 80.0),
+    );
+    assert!(runner.window.target_generation.advance());
+    runner.rebuild_scene();
+    let before_projects = runner.core.runtime.bridge().project_count;
+    runner.core.runtime.bridge_mut().controlled =
+        Some(crate::layout::Controlled::new(Vector2::new(0.0, 100.0), 1));
+    runner.core.runtime.bridge_mut().request = Some(crate::layout::ScrollRequest::rect(
+        crate::gui::types::Rect::from_xy_size(0.0, 300.0, 20.0, 20.0),
+        crate::layout::ScrollAlignment::Start,
+        2,
+    ));
+    runner.timing.deferred_surface_refresh = true;
+    let phases = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let projects_at_publication = Rc::new(Cell::new(None));
+    runner
+        .core
+        .set_test_prepared_surface_refresh_phase_observer(Rc::new({
+            let phases = Rc::clone(&phases);
+            let projects_at_publication = Rc::clone(&projects_at_publication);
+            move |phase| {
+                phases.borrow_mut().push(phase);
+                if phase == "published" {
+                    projects_at_publication.set(Some(observed_projects.get()));
+                }
+            }
+        }));
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        before_projects + 2
+    );
+    assert_eq!(
+        projects_at_publication.get(),
+        Some(before_projects + 1),
+        "publication observes exactly one candidate bridge pull before callback dispatch"
+    );
+    assert_eq!(
+        runner
+            .core
+            .runtime
+            .layout()
+            .rects
+            .get(&2)
+            .map(|rect| rect.min.y),
+        Some(-300.0)
+    );
+    assert_eq!(&*settled.borrow(), &[Vector2::new(0.0, 300.0)]);
+}
+
+#[test]
+fn prepared_native_scroll_gate_veto_preserves_active_state_before_retry() {
+    let settled = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let observed_projects = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedScrollBridge::new(Rc::clone(&settled), Rc::clone(&observed_projects)),
+        Vector2::new(100.0, 80.0),
+    );
+    assert!(runner.window.target_generation.advance());
+    runner.rebuild_scene();
+    let before_rect = runner.core.runtime.layout().rects[&2];
+    let before_projects = runner.core.runtime.bridge().project_count;
+    runner.core.runtime.bridge_mut().controlled =
+        Some(crate::layout::Controlled::new(Vector2::new(0.0, 100.0), 1));
+    runner.core.runtime.bridge_mut().request = Some(crate::layout::ScrollRequest::rect(
+        crate::gui::types::Rect::from_xy_size(0.0, 300.0, 20.0, 20.0),
+        crate::layout::ScrollAlignment::Start,
+        2,
+    ));
+    runner.timing.deferred_surface_refresh = true;
+    let mut stale = valid_prepared_surface_refresh_native_evidence();
+    stale.target_generation =
+        super::super::super::runner_state::NativeTargetGeneration::from_test_serial(2);
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+        stale,
+    );
+
+    assert_eq!(runner.core.runtime.layout().rects[&2], before_rect);
+    assert!(settled.borrow().is_empty());
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        before_projects + 1
+    );
+
+    runner.timing.deferred_surface_refresh = true;
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+    assert_eq!(runner.core.runtime.layout().rects[&2].min.y, -300.0);
+    assert_eq!(&*settled.borrow(), &[Vector2::new(0.0, 300.0)]);
+}
+
+#[test]
+fn prepared_native_controlled_clamp_precedes_visible_nearest_request() {
+    let settled = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let observed_projects = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedScrollBridge::new(Rc::clone(&settled), Rc::clone(&observed_projects)),
+        Vector2::new(100.0, 80.0),
+    );
+    assert!(runner.window.target_generation.advance());
+    runner.rebuild_scene();
+    runner.core.runtime.bridge_mut().controlled = Some(crate::layout::Controlled::new(
+        Vector2::new(0.0, 10_000.0),
+        1,
+    ));
+    runner.core.runtime.bridge_mut().request = Some(crate::layout::ScrollRequest::rect(
+        crate::gui::types::Rect::from_xy_size(0.0, 350.0, 20.0, 20.0),
+        crate::layout::ScrollAlignment::Nearest,
+        2,
+    ));
+    runner.timing.deferred_surface_refresh = true;
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    assert_eq!(runner.core.runtime.layout().rects[&2].min.y, -320.0);
+    assert!(settled.borrow().is_empty());
+}
+
 #[test]
 fn bare_bridge_environment_promotes_deferred_paint_only_once_and_reuses_unchanged_source() {
     let initial = crate::application::ApplicationEnvironment::new(

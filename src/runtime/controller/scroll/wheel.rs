@@ -351,38 +351,38 @@ where
             sample.into(),
             refresh_after_message,
         ) {
-            let changed = before.into_iter().find_map(|(node_id, previous)| {
-                let offset = self.layout_state.scroll_offset(node_id);
-                (offset != previous).then_some((node_id, offset))
-            });
+            let changed = before
+                .into_iter()
+                .filter_map(|(node_id, previous)| {
+                    let offset = self.layout_state.scroll_offset(node_id);
+                    (offset != previous).then_some((node_id, offset))
+                })
+                .collect::<Vec<_>>();
             match sample.phase() {
                 Some(WheelPhase::Started | WheelPhase::Changed) => {
-                    if let Some((node_id, offset)) = changed {
-                        self.interaction.wheel.pending_scroll_settlement = Some((node_id, offset));
-                    }
+                    self.queue_scroll_settlements(&changed);
                 }
                 Some(WheelPhase::Ended) => {
-                    if let Some((node_id, offset)) = changed {
-                        self.interaction.wheel.pending_scroll_settlement = Some((node_id, offset));
-                    }
-                    if let Some((node_id, offset)) =
-                        self.interaction.wheel.pending_scroll_settlement.take()
-                    {
+                    self.queue_scroll_settlements(&changed);
+                    let settlements =
+                        std::mem::take(&mut self.interaction.wheel.pending_scroll_settlement);
+                    for (node_id, offset) in settlements {
                         self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
                     }
                 }
                 Some(WheelPhase::Cancelled) => {
-                    self.interaction.wheel.pending_scroll_settlement = None;
+                    self.interaction.wheel.pending_scroll_settlement.clear();
                 }
                 Some(WheelPhase::Discrete) | None => {
-                    if let Some((node_id, offset)) = changed {
-                        if sample.phase().is_none() {
-                            self.interaction.wheel.pending_scroll_settlement =
-                                Some((node_id, offset));
+                    if sample.phase().is_none() {
+                        self.queue_scroll_settlements(&changed);
+                        if !changed.is_empty() {
                             self.interaction.wheel.scroll_settlement_deadline = Some(
                                 self.timed_repaint_now() + std::time::Duration::from_millis(100),
                             );
-                        } else {
+                        }
+                    } else {
+                        for (node_id, offset) in changed {
                             self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
                         }
                     }
@@ -619,8 +619,27 @@ where
 
     fn clear_managed_wheel_sequence(&mut self) {
         self.interaction.wheel.managed_sequence = RuntimeManagedWheelSequenceState::Idle;
-        self.interaction.wheel.pending_scroll_settlement = None;
+        self.interaction.wheel.pending_scroll_settlement.clear();
         self.interaction.wheel.scroll_settlement_deadline = None;
+    }
+
+    fn queue_scroll_settlements(&mut self, changed: &[(crate::layout::NodeId, Vector2)]) {
+        for &(node_id, offset) in changed {
+            if let Some(existing) = self
+                .interaction
+                .wheel
+                .pending_scroll_settlement
+                .iter_mut()
+                .find(|(id, _)| *id == node_id)
+            {
+                existing.1 = offset;
+            } else {
+                self.interaction
+                    .wheel
+                    .pending_scroll_settlement
+                    .push((node_id, offset));
+            }
+        }
     }
 
     pub(in crate::runtime::controller) fn block_managed_wheel_sequence(&mut self) {

@@ -5,15 +5,11 @@ use super::{
     ScrollUpdate, ScrollUpdateMetadata,
 };
 use crate::runtime::controller::interaction_state::ScrollbarAxis;
+use crate::runtime::{RuntimeBridge, paint::resolve_scroll_affordance};
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::NodeId,
-    runtime::{
-        RuntimeBridge,
-        paint::{
-            resolve_horizontal_scroll_affordance, resolve_scroll_affordance, scrollbar_viewport,
-        },
-    },
+    runtime::paint::{resolve_horizontal_scroll_affordance, scrollbar_viewport},
     widgets::PointerButton,
 };
 
@@ -40,6 +36,7 @@ where
             grip_fraction,
             button,
             axis,
+            start_offset: self.layout_state.scroll_offset(node_id),
         };
         self.interaction.pointer.scroll_drag_capture = Some(capture);
         self.interaction.hover.scroll_affordance = Some(capture.node_id);
@@ -168,12 +165,9 @@ where
             .copied()
             .find_map(|node_id| {
                 let viewport = scrollbar_viewport(node_id, &self.layout)?;
-                let Some(policy) = self
+                let policy = self
                     .scroll_policy_for_node(node_id)
-                    .map(|c| c.scroll_policy)
-                else {
-                    return None;
-                };
+                    .map(|c| c.scroll_policy)?;
                 if policy.scrollbar_visibility == crate::layout::ScrollbarVisibility::Hidden
                     || !scrollbar_hit_viewport_contains_point(viewport, point)
                     || !self.container_clip_contains_point(node_id, point)

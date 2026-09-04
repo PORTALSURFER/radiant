@@ -3,7 +3,8 @@ use crate::gui::types::{Point, Rect};
 use crate::{
     gui::layout_core::{ScrollRuntimeState, resolve_scroll_alignment},
     gui::types::Vector2,
-    layout::{LayoutDiagnosticCode, LayoutNode, ScrollEdge, ScrollTarget},
+    layout::LayoutDiagnosticCode,
+    layout::{LayoutNode, ScrollEdge, ScrollTarget},
     runtime::RuntimeBridge,
 };
 
@@ -118,9 +119,11 @@ where
             );
             self.install_traversal_with_candidate(traversal, candidate);
             self.sync_scroll_offsets();
-            for (node_id, _proposed_offset) in settled {
+            for (node_id, previous_offset) in settled {
                 let offset = self.layout_state.scroll_offset(node_id);
-                if let Some(message) = self.surface.root().offset_settled(node_id, offset) {
+                if offset != previous_offset
+                    && let Some(message) = self.surface.root().offset_settled(node_id, offset)
+                {
                     let outcome = self.execute_command(crate::runtime::Command::Message(message));
                     if !outcome.surface_refresh_requested {
                         self.refresh();
@@ -143,10 +146,16 @@ where
             .interaction
             .wheel
             .pending_scroll_settlement
-            .is_some_and(|(id, _)| !live.contains(&id))
+            .iter()
+            .any(|(id, _)| !live.contains(id))
         {
-            self.interaction.wheel.pending_scroll_settlement = None;
-            self.interaction.wheel.scroll_settlement_deadline = None;
+            self.interaction
+                .wheel
+                .pending_scroll_settlement
+                .retain(|(id, _)| live.contains(id));
+            if self.interaction.wheel.pending_scroll_settlement.is_empty() {
+                self.interaction.wheel.scroll_settlement_deadline = None;
+            }
         }
         self.layout_state
             .scroll_runtime
@@ -154,43 +163,11 @@ where
         self.layout_state
             .scroll_offsets
             .retain(|id, _| live.contains(id));
-        for (id, _content_id, policy) in declarations {
-            let entry = self
-                .layout_state
-                .scroll_runtime
-                .entry(id)
-                .or_insert_with(|| ScrollRuntimeState {
-                    mount_generation: self.layout_state_generation.max(1),
-                    ..ScrollRuntimeState::default()
-                });
-            if !entry.initial_seeded {
-                if let Some(offset) = policy
-                    .initial_offset
-                    .filter(|offset| offset.x.is_finite() && offset.y.is_finite())
-                {
-                    self.layout_state
-                        .scroll_offsets
-                        .insert(id, Vector2::new(offset.x.max(0.0), offset.y.max(0.0)));
-                }
-                entry.initial_seeded = true;
-            }
-            if let Some(controlled) = policy.controlled_offset.filter(|value| {
-                value.generation() != u64::MAX
-                    && value.value().x.is_finite()
-                    && value.value().y.is_finite()
-            }) {
-                if entry
-                    .controlled_generation
-                    .is_none_or(|generation| controlled.generation() > generation)
-                {
-                    let value = *controlled.value();
-                    self.layout_state
-                        .scroll_offsets
-                        .insert(id, Vector2::new(value.x.max(0.0), value.y.max(0.0)));
-                    entry.controlled_generation = Some(controlled.generation());
-                }
-            }
-        }
+        sync_declarative_scroll_inputs_for(
+            declarations,
+            &mut self.layout_state,
+            self.layout_state_generation,
+        );
     }
 
     /// Resolve finite committed rectangles and edges and consume each request
@@ -199,95 +176,196 @@ where
     fn apply_declarative_scroll_requests(&mut self) -> Vec<(crate::layout::NodeId, Vector2)> {
         let mut requests = Vec::new();
         collect_scroll_requests(&self.layout_root, &mut requests);
-        let mut changed = Vec::new();
-        for (id, policy, child_id) in requests {
-            let Some(request) = policy.scroll_request.as_ref() else {
-                continue;
-            };
-            let already_consumed = self
-                .layout_state
-                .scroll_runtime
-                .get(&id)
-                .and_then(|state| state.request_generation)
-                .is_some_and(|generation| request.generation <= generation);
-            if request.generation == u64::MAX || already_consumed {
-                continue;
+        apply_declarative_scroll_requests_for(
+            requests,
+            &self.layout,
+            &mut self.layout_state,
+            |owner, key| self.virtual_layout.materialized_key_payload(owner, key),
+        )
+    }
+}
+
+pub(in crate::runtime::controller) fn sync_declarative_scroll_inputs_for(
+    declarations: Vec<(
+        crate::layout::NodeId,
+        crate::layout::NodeId,
+        &crate::layout::ContainerPolicy,
+    )>,
+    layout_state: &mut crate::gui::layout_core::LayoutState,
+    layout_state_generation: u64,
+) {
+    for (id, _content_id, policy) in declarations {
+        let entry = layout_state
+            .scroll_runtime
+            .entry(id)
+            .or_insert_with(|| ScrollRuntimeState {
+                mount_generation: layout_state_generation.max(1),
+                ..ScrollRuntimeState::default()
+            });
+        if !entry.initial_seeded {
+            if let Some(offset) = policy
+                .initial_offset
+                .filter(|offset| offset.x.is_finite() && offset.y.is_finite())
+            {
+                layout_state
+                    .scroll_offsets
+                    .insert(id, Vector2::new(offset.x.max(0.0), offset.y.max(0.0)));
             }
-            let Some(viewport) = self
-                .layout
-                .viewport_bounds
-                .get(&id)
-                .or_else(|| self.layout.rects.get(&id))
-                .copied()
-            else {
-                continue;
-            };
-            let Some(content) = self.layout.rects.get(&child_id).copied() else {
-                continue;
-            };
-            let current = self.layout_state.scroll_offset(id);
-            let (target_x, target_y, target_w, target_h) = match &request.target {
-                ScrollTarget::Keyed(key) => {
-                    let Some((owner, payload_id)) =
-                        self.virtual_layout.materialized_key_payload(key)
-                    else {
-                        continue;
-                    };
-                    if owner != id || !self.layout.rects.contains_key(&payload_id) {
-                        continue;
-                    }
-                    let Some(rect) = self.layout.rects.get(&payload_id).copied() else {
-                        continue;
-                    };
-                    if !rect.is_finite() || !rect.has_finite_positive_area() {
-                        continue;
-                    }
-                    (rect.min.x, rect.min.y, rect.width(), rect.height())
+            entry.initial_seeded = true;
+        }
+        if let Some(controlled) = policy.controlled_offset.filter(|value| {
+            value.generation() != u64::MAX
+                && value.value().x.is_finite()
+                && value.value().y.is_finite()
+        }) && entry
+            .controlled_generation
+            .is_none_or(|generation| controlled.generation() > generation)
+        {
+            let value = *controlled.value();
+            layout_state
+                .scroll_offsets
+                .insert(id, Vector2::new(value.x.max(0.0), value.y.max(0.0)));
+            entry.controlled_generation = Some(controlled.generation());
+        }
+    }
+}
+
+pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
+    requests: Vec<(
+        crate::layout::NodeId,
+        &crate::layout::ContainerPolicy,
+        crate::layout::NodeId,
+    )>,
+    layout: &crate::gui::layout_core::LayoutOutput,
+    layout_state: &mut crate::gui::layout_core::LayoutState,
+    mut materialized_key_payload: impl FnMut(
+        crate::layout::NodeId,
+        &crate::layout::VirtualLayoutItemKey,
+    )
+        -> Option<(crate::layout::NodeId, crate::layout::NodeId)>,
+) -> Vec<(crate::layout::NodeId, Vector2)> {
+    let mut changed = Vec::new();
+    for (id, policy, child_id) in requests {
+        let Some(request) = policy.scroll_request.as_ref() else {
+            continue;
+        };
+        let already_consumed = layout_state
+            .scroll_runtime
+            .get(&id)
+            .and_then(|state| state.request_generation)
+            .is_some_and(|generation| request.generation <= generation);
+        if request.generation == u64::MAX || already_consumed {
+            continue;
+        }
+        let Some(viewport) = layout
+            .viewport_bounds
+            .get(&id)
+            .or_else(|| layout.rects.get(&id))
+            .copied()
+        else {
+            continue;
+        };
+        let Some(content) = layout.rects.get(&child_id).copied() else {
+            continue;
+        };
+        let current = layout_state.scroll_offset(id);
+        let (target_x, target_y, target_w, target_h) = match &request.target {
+            ScrollTarget::Keyed(key) => {
+                let Some((owner, payload_id)) = materialized_key_payload(id, key) else {
+                    continue;
+                };
+                if owner != id || !layout.rects.contains_key(&payload_id) {
+                    continue;
                 }
-                ScrollTarget::Rect(rect) if rect.has_finite_positive_area() => {
-                    (rect.min.x, rect.min.y, rect.width(), rect.height())
+                let Some(rect) = layout.rects.get(&payload_id).copied() else {
+                    continue;
+                };
+                if !rect.is_finite() || !rect.has_finite_positive_area() {
+                    continue;
                 }
-                ScrollTarget::Edge(edge) => match edge {
-                    ScrollEdge::Top => (current.x, 0.0, 0.0, 0.0),
-                    ScrollEdge::Bottom => (current.x, content.height(), 0.0, 0.0),
-                    ScrollEdge::Left | ScrollEdge::Start => (0.0, current.y, 0.0, 0.0),
-                    ScrollEdge::Right | ScrollEdge::End => (content.width(), current.y, 0.0, 0.0),
-                },
-                _ => continue,
-            };
-            let mut next = current;
-            if policy.scroll_policy.axes.includes_horizontal() {
-                next.x = resolve_scroll_alignment(
-                    current.x,
-                    viewport.width(),
-                    target_x,
-                    target_x + target_w,
-                    request.alignment,
-                );
+                (
+                    rect.min.x - content.min.x,
+                    rect.min.y - content.min.y,
+                    rect.width(),
+                    rect.height(),
+                )
             }
-            if policy.scroll_policy.axes.includes_vertical() {
-                next.y = resolve_scroll_alignment(
-                    current.y,
-                    viewport.height(),
-                    target_y,
-                    target_y + target_h,
-                    request.alignment,
-                );
+            ScrollTarget::Rect(rect) if rect.has_finite_positive_area() => {
+                (rect.min.x, rect.min.y, rect.width(), rect.height())
             }
-            if next.x.is_finite() && next.y.is_finite() {
-                let state = self.layout_state.scroll_runtime.entry(id).or_default();
-                state.request_generation = Some(request.generation);
-                if next != current {
-                    self.layout_state
-                        .scroll_offsets
-                        .insert(id, Vector2::new(next.x.max(0.0), next.y.max(0.0)));
-                    changed.push((id, next));
-                }
+            ScrollTarget::Edge(edge) => match edge {
+                ScrollEdge::Top => (current.x, 0.0, 0.0, 0.0),
+                ScrollEdge::Bottom => (current.x, content.height(), 0.0, 0.0),
+                ScrollEdge::Left => (0.0, current.y, 0.0, 0.0),
+                ScrollEdge::Right => (content.width(), current.y, 0.0, 0.0),
+                ScrollEdge::Start => (
+                    if policy.scroll_policy.axes.includes_horizontal() {
+                        0.0
+                    } else {
+                        current.x
+                    },
+                    if policy.scroll_policy.axes.includes_vertical() {
+                        0.0
+                    } else {
+                        current.y
+                    },
+                    0.0,
+                    0.0,
+                ),
+                ScrollEdge::End => (
+                    if policy.scroll_policy.axes.includes_horizontal() {
+                        content.width()
+                    } else {
+                        current.x
+                    },
+                    if policy.scroll_policy.axes.includes_vertical() {
+                        content.height()
+                    } else {
+                        current.y
+                    },
+                    0.0,
+                    0.0,
+                ),
+            },
+            _ => continue,
+        };
+        let mut next = current;
+        if policy.scroll_policy.axes.includes_horizontal() {
+            next.x = resolve_scroll_alignment(
+                current.x,
+                viewport.width(),
+                target_x,
+                target_x + target_w,
+                request.alignment,
+            );
+        }
+        if policy.scroll_policy.axes.includes_vertical() {
+            next.y = resolve_scroll_alignment(
+                current.y,
+                viewport.height(),
+                target_y,
+                target_y + target_h,
+                request.alignment,
+            );
+        }
+        if next.x.is_finite() && next.y.is_finite() {
+            let state = layout_state.scroll_runtime.entry(id).or_default();
+            state.request_generation = Some(request.generation);
+            if next != current {
+                layout_state
+                    .scroll_offsets
+                    .insert(id, Vector2::new(next.x.max(0.0), next.y.max(0.0)));
+                changed.push((id, current));
             }
         }
-        changed
     }
+    changed
+}
 
+impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
     pub(in crate::runtime::controller) fn record_completed_layout(&mut self) {
         self.external_layout_dirty = false;
         self.completed_layout = Some(super::super::CompletedLayoutContext {
@@ -347,6 +425,40 @@ fn effective_layout_viewport(viewport: Rect) -> Rect {
     )
 }
 
+/// Clamp candidate-owned scroll offsets against one candidate layout output.
+/// This helper performs no diagnostics or active-runtime bookkeeping, which
+/// lets prepared refresh stage the exact state it will publish.
+pub(in crate::runtime::controller) fn sync_scroll_offsets_for<Message>(
+    layout: &crate::gui::layout_core::LayoutOutput,
+    traversal: &SurfaceTraversalIndex<Message>,
+    layout_state: &mut crate::gui::layout_core::LayoutState,
+) {
+    let updates: Vec<_> = layout
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == LayoutDiagnosticCode::InvalidScrollOffsetClamped)
+        .filter_map(|diagnostic| {
+            let child_rect = layout.rects.get(
+                traversal
+                    .scroll_content_by_container
+                    .get(&diagnostic.node_id)?,
+            )?;
+            let viewport_rect = layout
+                .viewport_bounds
+                .get(&diagnostic.node_id)
+                .or_else(|| layout.rects.get(&diagnostic.node_id))?;
+            let current_offset = layout_state.scroll_offset(diagnostic.node_id);
+            Some((
+                diagnostic.node_id,
+                clamped_scroll_offset(current_offset, *child_rect, *viewport_rect),
+            ))
+        })
+        .collect();
+    for (node_id, offset) in updates {
+        layout_state.scroll_offsets.insert(node_id, offset);
+    }
+}
+
 fn clamped_scroll_offset(current: Vector2, child_rect: Rect, viewport_rect: Rect) -> Vector2 {
     Vector2::new(
         current
@@ -358,7 +470,7 @@ fn clamped_scroll_offset(current: Vector2, child_rect: Rect, viewport_rect: Rect
     )
 }
 
-fn collect_scroll_declarations<'a>(
+pub(in crate::runtime::controller) fn collect_scroll_declarations<'a>(
     node: &'a LayoutNode,
     output: &mut Vec<(
         crate::layout::NodeId,
@@ -369,17 +481,17 @@ fn collect_scroll_declarations<'a>(
     let LayoutNode::Container(container) = node else {
         return;
     };
-    if container.policy.kind == crate::layout::ContainerKind::ScrollView {
-        if let Some(child) = container.children.first() {
-            output.push((container.id, child.child.id(), &container.policy));
-        }
+    if container.policy.kind == crate::layout::ContainerKind::ScrollView
+        && let Some(child) = container.children.first()
+    {
+        output.push((container.id, child.child.id(), &container.policy));
     }
     for child in &container.children {
         collect_scroll_declarations(&child.child, output);
     }
 }
 
-fn collect_scroll_requests<'a>(
+pub(in crate::runtime::controller) fn collect_scroll_requests<'a>(
     node: &'a LayoutNode,
     output: &mut Vec<(
         crate::layout::NodeId,
@@ -390,10 +502,10 @@ fn collect_scroll_requests<'a>(
     let LayoutNode::Container(container) = node else {
         return;
     };
-    if container.policy.kind == crate::layout::ContainerKind::ScrollView {
-        if let Some(child) = container.children.first() {
-            output.push((container.id, &container.policy, child.child.id()));
-        }
+    if container.policy.kind == crate::layout::ContainerKind::ScrollView
+        && let Some(child) = container.children.first()
+    {
+        output.push((container.id, &container.policy, child.child.id()));
     }
     for child in &container.children {
         collect_scroll_requests(&child.child, output);
@@ -595,6 +707,8 @@ mod tests {
         let runtime = SurfaceRuntime::new(
             RequestSettlementBridge {
                 request,
+                initial: Vector2::default(),
+                policy: ScrollPolicy::default(),
                 settled: Vec::new(),
             },
             Vector2::new(100.0, 80.0),
@@ -607,7 +721,445 @@ mod tests {
         );
     }
 
+    #[test]
+    fn request_at_boundary_consumes_generation_without_settlement() {
+        let request = ScrollRequest::new(
+            ScrollTarget::Edge(crate::layout::ScrollEdge::Bottom),
+            ScrollAlignment::Nearest,
+            9,
+        );
+        let runtime = SurfaceRuntime::new(
+            RequestSettlementBridge {
+                request,
+                initial: Vector2::new(0.0, 320.0),
+                policy: ScrollPolicy::default(),
+                settled: Vec::new(),
+            },
+            Vector2::new(100.0, 80.0),
+        );
+
+        assert_eq!(
+            runtime.layout_state.scroll_offset(1),
+            Vector2::new(0.0, 320.0)
+        );
+        assert!(runtime.bridge().settled.is_empty());
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_runtime
+                .get(&1)
+                .and_then(|state| state.request_generation),
+            Some(9)
+        );
+    }
+
+    #[test]
+    fn scroll_edges_follow_configured_axis_and_fixed_axis_wheel_lock() {
+        for (axes, edge, expected) in [
+            (
+                ScrollAxis::Vertical,
+                ScrollEdge::Start,
+                Vector2::new(17.0, 0.0),
+            ),
+            (
+                ScrollAxis::Vertical,
+                ScrollEdge::End,
+                Vector2::new(17.0, 400.0),
+            ),
+            (
+                ScrollAxis::Horizontal,
+                ScrollEdge::Start,
+                Vector2::new(0.0, 23.0),
+            ),
+            (
+                ScrollAxis::Horizontal,
+                ScrollEdge::End,
+                Vector2::new(400.0, 23.0),
+            ),
+        ] {
+            let policy = ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                overflow: OverflowPolicy::Scroll,
+                scroll_policy: ScrollPolicy::default().axes(axes),
+                scroll_request: Some(ScrollRequest::new(
+                    ScrollTarget::Edge(edge),
+                    ScrollAlignment::Start,
+                    1,
+                )),
+                ..ContainerPolicy::default()
+            };
+            let mut layout = crate::gui::layout_core::LayoutOutput::default();
+            layout.rects.insert(
+                1,
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+            );
+            layout.rects.insert(
+                2,
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 400.0)),
+            );
+            layout.viewport_bounds.insert(1, layout.rects[&1]);
+            let mut state = crate::gui::layout_core::LayoutState::default();
+            state.scroll_offsets.insert(1, Vector2::new(17.0, 23.0));
+            let changed = apply_declarative_scroll_requests_for(
+                vec![(1, &policy, 2)],
+                &layout,
+                &mut state,
+                |_, _| None,
+            );
+            assert!(!changed.is_empty());
+            assert_eq!(state.scroll_offset(1), expected);
+        }
+
+        for (lock, expected) in [
+            (
+                crate::layout::ScrollAxisLock::Horizontal,
+                Vector2::new(12.0, 0.0),
+            ),
+            (
+                crate::layout::ScrollAxisLock::Vertical,
+                Vector2::new(0.0, 12.0),
+            ),
+        ] {
+            let mut runtime = SurfaceRuntime::new(
+                ScrollInputRefreshBridge {
+                    policy: ScrollPolicy::default()
+                        .axes(ScrollAxis::Both)
+                        .axis_lock(lock),
+                    initial: Vector2::default(),
+                    controlled: None,
+                    request: None,
+                    scroll: true,
+                },
+                Vector2::new(100.0, 80.0),
+            );
+            assert!(runtime.scroll_at(Point::new(8.0, 8.0), Vector2::new(12.0, 12.0)));
+            assert_eq!(runtime.layout_state.scroll_offset(1), expected);
+        }
+    }
+
+    #[test]
+    fn keyed_request_scopes_materialized_lookup_to_its_container() {
+        let key = crate::layout::VirtualLayoutItemKey::new(7_u32);
+        let policy = ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            scroll_policy: ScrollPolicy::default(),
+            scroll_request: Some(ScrollRequest::new(
+                ScrollTarget::Keyed(key.clone()),
+                ScrollAlignment::Start,
+                1,
+            )),
+            ..ContainerPolicy::default()
+        };
+        let mut layout = crate::gui::layout_core::LayoutOutput::default();
+        layout.rects.insert(
+            3,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+        );
+        layout.rects.insert(
+            4,
+            Rect::from_min_size(Point::new(0.0, 160.0), Vector2::new(20.0, 20.0)),
+        );
+        layout.rects.insert(
+            5,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 400.0)),
+        );
+        layout.viewport_bounds.insert(3, layout.rects[&3]);
+        let mut state = crate::gui::layout_core::LayoutState::default();
+        let changed = apply_declarative_scroll_requests_for(
+            vec![(3, &policy, 5)],
+            &layout,
+            &mut state,
+            |owner, candidate| {
+                assert_eq!(candidate, &key);
+                (owner == 3).then_some((owner, 4))
+            },
+        );
+        assert_eq!(changed, vec![(3, Vector2::default())]);
+        assert_eq!(state.scroll_offset(3), Vector2::new(0.0, 160.0));
+    }
+
+    #[test]
+    fn focus_reveal_uses_translated_content_coordinates_at_nonzero_offset() {
+        let mut runtime = SurfaceRuntime::new(FocusRevealBridge, Vector2::new(100.0, 80.0));
+        let content = runtime.layout().rects[&FocusRevealBridge::CONTENT_ID];
+        let target = runtime.layout().rects[&FocusRevealBridge::TARGET_ID];
+        let viewport = runtime.layout().viewport_bounds[&FocusRevealBridge::SCROLL_ID];
+        let expected = (target.max.y - content.min.y - viewport.height()).max(0.0);
+
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(FocusRevealBridge::SCROLL_ID)
+                .y,
+            40.0
+        );
+        runtime.reveal_widget_in_scroll_ancestors(FocusRevealBridge::TARGET_ID);
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(FocusRevealBridge::SCROLL_ID)
+                .y,
+            expected,
+            "revealing a translated target must subtract the translated content origin once"
+        );
+    }
+
+    #[test]
+    fn overlapping_sibling_scroll_containers_do_not_join_residual_chain() {
+        let mut runtime = SurfaceRuntime::new(OverlappingScrollBridge, Vector2::new(100.0, 80.0));
+        assert!(runtime.scroll_at(Point::new(8.0, 8.0), Vector2::new(0.0, 10_000.0)));
+
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(OverlappingScrollBridge::TOP_ID)
+                .y,
+            0.0
+        );
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(OverlappingScrollBridge::BOTTOM_ID)
+                .y,
+            320.0
+        );
+    }
+
+    #[test]
+    fn nested_wheel_settles_each_changed_scroll_owner_once_at_idle() {
+        let settled = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            NestedWheelBridge::new(std::rc::Rc::clone(&settled)),
+            Vector2::new(100.0, 80.0),
+        );
+        let now = Instant::now();
+        runtime.set_timed_repaint_clock(Some(now));
+
+        let inner_origin = runtime.layout().rects[&NestedWheelBridge::INNER_ID].min;
+        assert!(runtime.wheel_or_scroll_at(
+            Point::new(inner_origin.x + 8.0, inner_origin.y + 8.0),
+            Vector2::new(0.0, 10_000.0)
+        ));
+        assert!(
+            runtime
+                .layout_state
+                .scroll_offset(NestedWheelBridge::INNER_ID)
+                .y
+                > 0.0
+        );
+        assert!(
+            runtime
+                .layout_state
+                .scroll_offset(NestedWheelBridge::OUTER_ID)
+                .y
+                > 0.0
+        );
+        let deadline = runtime
+            .timed_repaint_deadline()
+            .expect("wheel idle deadline");
+        assert!(runtime.advance_timed_repaints(deadline));
+        let settled = settled.borrow();
+        assert_eq!(settled.len(), 2);
+        assert_eq!(
+            settled
+                .iter()
+                .filter(|(id, _)| *id == NestedWheelBridge::INNER_ID)
+                .count(),
+            1
+        );
+        assert_eq!(
+            settled
+                .iter()
+                .filter(|(id, _)| *id == NestedWheelBridge::OUTER_ID)
+                .count(),
+            1
+        );
+    }
+
     struct PaddedScrollBridge;
+
+    struct FocusRevealBridge;
+
+    impl FocusRevealBridge {
+        const SCROLL_ID: u64 = 1;
+        const CONTENT_ID: u64 = 2;
+        const TARGET_ID: u64 = 10 + 7;
+    }
+
+    impl RuntimeBridge<()> for FocusRevealBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            let rows = (0..12)
+                .map(|index| {
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                10 + index,
+                                format!("Row {index}"),
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ),
+                    )
+                })
+                .collect();
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::container(
+                Self::SCROLL_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, 40.0)),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::column(
+                    Self::CONTENT_ID,
+                    0.0,
+                    rows,
+                ))],
+            )))
+        }
+
+        fn reduce_message(&mut self, _message: ()) {}
+    }
+
+    struct OverlappingScrollBridge;
+
+    impl OverlappingScrollBridge {
+        const TOP_ID: u64 = 1;
+        const BOTTOM_ID: u64 = 3;
+
+        fn scroll(id: u64, content_id: u64) -> SurfaceNode<()> {
+            SurfaceNode::container(
+                id,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(
+                        content_id,
+                        "Overlapping content",
+                        WidgetSizing::fixed(Vector2::new(400.0, 400.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                ))],
+            )
+        }
+    }
+
+    impl RuntimeBridge<()> for OverlappingScrollBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::stack(
+                9,
+                vec![
+                    SurfaceChild::fill(Self::scroll(Self::TOP_ID, 2)),
+                    SurfaceChild::fill(Self::scroll(Self::BOTTOM_ID, 4)),
+                ],
+            )))
+        }
+
+        fn reduce_message(&mut self, _message: ()) {}
+    }
+
+    struct NestedWheelBridge {
+        settled: std::rc::Rc<std::cell::RefCell<Vec<(u64, Vector2)>>>,
+    }
+
+    impl NestedWheelBridge {
+        const OUTER_ID: u64 = 1;
+        const INNER_ID: u64 = 3;
+
+        fn new(settled: std::rc::Rc<std::cell::RefCell<Vec<(u64, Vector2)>>>) -> Self {
+            Self { settled }
+        }
+    }
+
+    impl RuntimeBridge<(u64, Vector2)> for NestedWheelBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<(u64, Vector2)>> {
+            let inner = SurfaceNode::container(
+                Self::INNER_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(4, "Inner", WidgetSizing::fixed(Vector2::new(80.0, 400.0))),
+                    WidgetMessageMapper::none(),
+                ))],
+            )
+            .on_offset_settled(|offset| (Self::INNER_ID, offset));
+            let outer_content = SurfaceNode::column(
+                5,
+                0.0,
+                vec![
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        inner,
+                    ),
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Intrinsic,
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                6,
+                                "Outer continuation",
+                                WidgetSizing::fixed(Vector2::new(80.0, 400.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ),
+                    ),
+                ],
+            );
+            let outer = SurfaceNode::container(
+                Self::OUTER_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Intrinsic,
+                        size_cross: SizeModeCross::Fill,
+                        constraints: Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    outer_content,
+                )],
+            )
+            .on_offset_settled(|offset| (Self::OUTER_ID, offset));
+            crate::runtime::test_arc_surface(UiSurface::new(outer))
+        }
+
+        fn reduce_message(&mut self, message: (u64, Vector2)) {
+            self.settled.borrow_mut().push(message);
+        }
+    }
 
     impl PaddedScrollBridge {
         const CONTENT_ID: u64 = 2;
@@ -688,7 +1240,7 @@ mod tests {
                         allow_fixed_compress: false,
                     },
                     SurfaceNode::widget(
-                        TextWidget::new(2, "Tall", WidgetSizing::fixed(Vector2::new(80.0, 400.0))),
+                        TextWidget::new(2, "Tall", WidgetSizing::fixed(Vector2::new(400.0, 400.0))),
                         WidgetMessageMapper::none(),
                     ),
                 )],
@@ -764,6 +1316,8 @@ mod tests {
 
     struct RequestSettlementBridge {
         request: ScrollRequest,
+        initial: Vector2,
+        policy: ScrollPolicy,
         settled: Vec<Vector2>,
     }
 
@@ -775,6 +1329,8 @@ mod tests {
                     ContainerPolicy {
                         kind: ContainerKind::ScrollView,
                         overflow: OverflowPolicy::Scroll,
+                        scroll_policy: self.policy,
+                        initial_offset: Some(self.initial),
                         ..ContainerPolicy::default()
                     },
                     vec![SurfaceChild::new(

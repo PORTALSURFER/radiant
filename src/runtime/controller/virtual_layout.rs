@@ -860,11 +860,12 @@ impl<Message> RuntimeVirtualLayoutState<Message> {
     /// so an unavailable virtual item never causes speculative scrolling.
     pub(super) fn materialized_key_payload(
         &self,
+        owner_id: NodeId,
         key: &VirtualLayoutItemKey,
     ) -> Option<(NodeId, NodeId)> {
         self.records
             .iter()
-            .filter(|record| !record.retired)
+            .filter(|record| !record.retired && record.registration.container_id == owner_id)
             .find_map(|record| {
                 record
                     .materialization

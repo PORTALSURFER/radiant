@@ -1100,6 +1100,85 @@ mod tests {
         );
     }
 
+    #[test]
+    fn oversized_text_input_declines_consistently_across_seed_paint_hit_and_ime() {
+        let mut frame = NativeVelloFrameState::new(
+            NativeTextRenderer::new(),
+            RetainedSurfaceCachePolicy::default(),
+        );
+        frame
+            .text_renderer
+            .retained_text_input_snapshot
+            .set_byte_budget_override(Some(1));
+        let input = text_input(7, true, "candidate");
+        frame.last_paint_plan = SurfacePaintPlan {
+            clear_color: Rgba8::default(),
+            primitives: vec![PaintPrimitive::TextInput(input.clone())],
+        };
+
+        frame.seed_text_input_snapshots_for_current_plan(false);
+        let fence = frame
+            .current_text_input_snapshot_fence
+            .expect("current plan should still have a fence");
+        assert!(
+            frame
+                .text_renderer
+                .text_input_snapshot_for_input(
+                    input.widget_id,
+                    input.state.value.as_str(),
+                    input.font_size,
+                    input.rect,
+                    fence,
+                )
+                .is_none()
+        );
+        assert!(frame.native_ime_cursor_area().is_none());
+        assert!(
+            frame
+                .native_text_pointer_target(
+                    Point::new(input.rect.min.x + 1.0, input.rect.min.y + 1.0),
+                    None,
+                )
+                .is_none()
+        );
+
+        let mut scene = Scene::new();
+        let mut bridge = EmptyBridge;
+        let mut retained_cache =
+            RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy::default());
+        let mut text_runs = SceneTextRunBuffer::new();
+        let stats = super::super::scene::encode_surface_paint_plan_to_scene(
+            &frame.last_paint_plan,
+            super::super::scene::SurfaceSceneEncodeContext {
+                scene: &mut scene,
+                text_renderer: &mut frame.text_renderer,
+                bridge: &mut bridge,
+                retained_surface: None,
+                viewport: crate::gui::types::Vector2::new(320.0, 40.0),
+                retained_cache: &mut retained_cache,
+                text_runs: &mut text_runs,
+                animation_time: std::time::Duration::ZERO,
+                text_input_snapshot_fence: Some(fence),
+            },
+        );
+        assert_eq!(stats.text_input_count, 1);
+        assert!(scene.encoding().is_empty());
+    }
+
+    struct EmptyBridge;
+
+    impl crate::runtime::RuntimeBridge<()> for EmptyBridge {
+        fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<()>> {
+            crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(
+                crate::runtime::SurfaceNode::container(
+                    1,
+                    crate::layout::ContainerPolicy::default(),
+                    Vec::new(),
+                ),
+            ))
+        }
+    }
+
     fn text_input(widget_id: u64, focused: bool, value: &str) -> PaintTextInput {
         PaintTextInput {
             widget_id,

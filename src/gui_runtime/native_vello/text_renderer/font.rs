@@ -66,6 +66,7 @@ impl NativeFontStack {
 
     /// Resolve a scalar against every currently loaded face, loading pending
     /// candidates in order only when the existing stack has no glyph.
+    #[cfg(test)]
     pub(super) fn resolve_glyph(&mut self, character: char) -> Option<FontGlyph> {
         loop {
             if let Some(glyph) = self.find_loaded_glyph(character) {
@@ -75,6 +76,20 @@ impl NativeFontStack {
                 return None;
             }
         }
+    }
+
+    pub(super) fn resolve_glyph_in_face(
+        &self,
+        face_index: usize,
+        character: char,
+    ) -> Option<FontGlyph> {
+        let font = self.face(face_index)?;
+        let font_ref = skrifa::FontRef::from_index(font.data.as_ref(), font.index).ok()?;
+        let glyph_id = font_ref.charmap().map(character)?;
+        Some(FontGlyph {
+            face_index,
+            glyph_id: glyph_id.to_u32(),
+        })
     }
 
     /// Return the first ordered question-mark glyph after all candidates have
@@ -332,6 +347,22 @@ mod tests {
         assert_eq!(
             stack.fallback_glyph().map(|glyph| glyph.face_index),
             Some(0)
+        );
+    }
+
+    #[test]
+    fn face_specific_lookup_does_not_cross_fallback_faces() {
+        let stack = NativeFontStack::from_test_bytes(&[
+            include_bytes!("../../../../tests/fixtures/fonts/primary.ttf"),
+            include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
+        ]);
+
+        assert_eq!(stack.resolve_glyph_in_face(1, 'A'), None);
+        assert_eq!(
+            stack
+                .resolve_glyph_in_face(1, 'Ω')
+                .map(|glyph| glyph.face_index),
+            Some(1)
         );
     }
 

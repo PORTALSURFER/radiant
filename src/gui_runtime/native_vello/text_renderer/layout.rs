@@ -242,11 +242,11 @@ pub(super) fn compute_compatibility_paragraph(
             // Keep compatibility geometry deterministic without drawing controls.
         } else {
             resolved_face = font_stack.resolve_grapheme_face(grapheme);
-            let covered_glyphs = resolved_face.and_then(|_| {
+            let covered_glyphs = resolved_face.and_then(|face_index| {
                 grapheme
                     .char_indices()
                     .map(|(offset, character)| {
-                        let glyph = font_stack.resolve_glyph(character)?;
+                        let glyph = font_stack.resolve_glyph_in_face(face_index, character)?;
                         let advance = font_stack.glyph_advance(glyph, font_size);
                         (advance.is_finite() && advance >= 0.0)
                             .then_some((offset, character, glyph, advance))
@@ -1344,6 +1344,32 @@ mod tests {
             vec![Utf8ByteOffset(0), Utf8ByteOffset(3)]
         );
         assert_eq!(layout.snapshot.caret_geometry.len(), 2);
+    }
+
+    #[test]
+    fn forced_compatibility_keeps_two_face_glyphs_in_their_selected_runs() {
+        let mut stack = NativeFontStack::from_test_bytes(&[
+            include_bytes!("../../../../tests/fixtures/fonts/primary.ttf"),
+            include_bytes!("../../../../tests/fixtures/fonts/secondary.ttf"),
+        ]);
+        let paragraph = compute_compatibility_paragraph(&mut stack, Arc::from("AΩ"), 20.0);
+
+        assert_eq!(paragraph.quality.fallback_glyphs, 0);
+        assert_eq!(
+            paragraph
+                .glyphs
+                .iter()
+                .map(|glyph| glyph.face_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        assert!(paragraph.glyphs.iter().all(|glyph| {
+            paragraph.resolved_font_runs.iter().any(|run| {
+                run.face_index == Some(glyph.face_index)
+                    && run.range.start <= glyph.cluster.start.0
+                    && glyph.cluster.end.0 <= run.range.end
+            })
+        }));
     }
 
     #[test]

@@ -234,6 +234,7 @@ where
                 .core
                 .route_pointer_release_with_timestamp(position, button, modifiers, timestamp),
         };
+        self.commit_accepted_native_text_pointer_caret();
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
@@ -527,14 +528,12 @@ where
 
     pub(super) fn stage_native_text_pointer_caret(&mut self, position: Point) {
         self.core.runtime.clear_native_text_pointer_caret();
+        self.frame.text_renderer.reset_native_caret_affinities();
         let captured_widget_id = self.core.runtime.pointer_capture();
         if let Some((widget_id, source, caret, affinity)) = self
             .frame
             .native_text_pointer_target(position, captured_widget_id)
         {
-            self.frame
-                .text_renderer
-                .set_native_caret_affinity(widget_id, affinity);
             self.core.runtime.set_native_text_pointer_caret(
                 widget_id,
                 &source,
@@ -545,6 +544,24 @@ where
                     }
                     crate::gui_runtime::native_vello::CaretAffinity::Downstream => {
                         crate::widgets::NativeCaretAffinity::Downstream
+                    }
+                },
+            );
+        }
+    }
+
+    pub(super) fn commit_accepted_native_text_pointer_caret(&mut self) {
+        if let Some((widget_id, affinity)) =
+            self.core.runtime.take_accepted_native_text_pointer_caret()
+        {
+            self.frame.text_renderer.set_native_caret_affinity(
+                widget_id,
+                match affinity {
+                    crate::widgets::NativeCaretAffinity::Upstream => {
+                        crate::gui_runtime::native_vello::CaretAffinity::Upstream
+                    }
+                    crate::widgets::NativeCaretAffinity::Downstream => {
+                        crate::gui_runtime::native_vello::CaretAffinity::Downstream
                     }
                 },
             );

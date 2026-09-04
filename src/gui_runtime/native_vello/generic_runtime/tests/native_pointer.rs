@@ -9,6 +9,7 @@ use crate::gui::{
 };
 use crate::runtime::{ExternalDragRequest, RuntimeHostCapabilities, RuntimeInputHost};
 use crate::{
+    gui_runtime::native_vello::CaretAffinity,
     layout::LayoutOutput,
     theme::ThemeTokens,
     widgets::{
@@ -860,6 +861,80 @@ fn native_pointer_harness_routes_cursor_and_mouse_to_runner_state() {
     assert!(harness.mouse_released(MouseButton::Left).routed);
 
     assert_eq!(harness.runner.core.runtime.bridge().state.count, 1);
+}
+
+#[test]
+fn native_text_pointer_affinity_commits_only_for_current_target_and_text_source() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let position = Point::new(input_rect.min.x + 4.0, input_rect.min.y + 4.0);
+
+    runner.frame.text_renderer.set_native_caret_affinity(
+        crate::widgets::WidgetId::from(12_u32),
+        CaretAffinity::Upstream,
+    );
+    runner.core.runtime.set_native_text_pointer_caret(
+        crate::widgets::WidgetId::from(12_u32),
+        "stale",
+        0,
+        crate::widgets::NativeCaretAffinity::Downstream,
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(12_u32),
+        WidgetInput::pointer_move(position),
+    );
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
+        CaretAffinity::Upstream
+    );
+
+    let source = String::new();
+    let caret = 0;
+    let affinity = CaretAffinity::Downstream;
+    runner.core.runtime.set_native_text_pointer_caret(
+        crate::widgets::WidgetId::from(12_u32),
+        &source,
+        caret,
+        match affinity {
+            CaretAffinity::Upstream => crate::widgets::NativeCaretAffinity::Upstream,
+            CaretAffinity::Downstream => crate::widgets::NativeCaretAffinity::Downstream,
+        },
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(11_u32),
+        WidgetInput::pointer_move(position),
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(12_u32),
+        WidgetInput::pointer_move(position),
+    );
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
+        affinity
+    );
 }
 
 #[test]

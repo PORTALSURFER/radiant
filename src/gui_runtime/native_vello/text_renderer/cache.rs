@@ -17,8 +17,8 @@ use std::sync::Arc;
 
 const SHAPE_CACHE_ENTRY_BUDGET: usize = 512;
 const SHAPE_CACHE_BYTE_BUDGET: usize = 8 * 1024 * 1024;
-const VIEW_CACHE_ENTRY_BUDGET: usize = 1_024;
-const VIEW_CACHE_BYTE_BUDGET: usize = 8 * 1024 * 1024;
+pub(super) const VIEW_CACHE_ENTRY_BUDGET: usize = 1_024;
+pub(super) const VIEW_CACHE_BYTE_BUDGET: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {

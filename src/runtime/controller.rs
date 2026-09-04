@@ -68,6 +68,11 @@ pub use refresh::{
     SurfaceIdentityReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
     SurfaceRefreshTimings,
 };
+
+enum NativeTextPointerCaret {
+    Pending(WidgetId, String, usize, crate::widgets::NativeCaretAffinity),
+    Accepted(WidgetId, crate::widgets::NativeCaretAffinity),
+}
 pub(crate) use scroll::WheelOrScrollRoute;
 pub use scroll::{ScrollUpdate, ScrollUpdateMetadata};
 pub(crate) use virtual_layout::VirtualLayoutSemanticClassificationBatch;
@@ -186,8 +191,7 @@ where
     pub(in crate::runtime) servicing_current_surface_relayout: bool,
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
-    pending_native_text_pointer_caret:
-        Option<(WidgetId, String, usize, crate::widgets::NativeCaretAffinity)>,
+    pending_native_text_pointer_caret: Option<NativeTextPointerCaret>,
     effect_owner: RuntimeOwner,
     auxiliary_effect_owners: HashMap<String, AuxiliaryWindowOwner>,
     runtime_work: RuntimeWorkQueues<Message>,
@@ -346,8 +350,12 @@ where
         caret: usize,
         affinity: crate::widgets::NativeCaretAffinity,
     ) {
-        self.pending_native_text_pointer_caret =
-            Some((widget_id, source.to_owned(), caret, affinity));
+        self.pending_native_text_pointer_caret = Some(NativeTextPointerCaret::Pending(
+            widget_id,
+            source.to_owned(),
+            caret,
+            affinity,
+        ));
     }
 
     pub(crate) fn clear_native_text_pointer_caret(&mut self) {

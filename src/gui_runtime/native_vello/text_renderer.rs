@@ -19,8 +19,8 @@ mod layout;
 mod model;
 mod renderability;
 
-use cache::TextLayoutCache;
 pub(in crate::gui_runtime::native_vello) use cache::TextLayoutProfileCounters;
+use cache::{TextLayoutCache, VIEW_CACHE_BYTE_BUDGET, VIEW_CACHE_ENTRY_BUDGET};
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 use font::NativeFontStack;
 pub(in crate::gui_runtime::native_vello) use model::{
@@ -166,28 +166,87 @@ impl NativeTextInputSnapshotKey {
 pub(crate) struct RetainedTextInputSnapshot {
     pub(crate) key: NativeTextInputSnapshotKey,
     pub(crate) snapshot: Arc<ParagraphSnapshot>,
+    bytes: usize,
 }
 
 #[derive(Default)]
 pub(crate) struct RetainedTextInputSnapshotSidecar {
-    // Text inputs are normally few, but a plan can contain more than one.
-    // The current-fence lifetime bounds this collection to the current plan;
-    // replacing the fence drops every entry from the prior plan.
+    // Text inputs are normally few, but a plan can contain more than one. The
+    // view-cache budgets bound this plan-local retention just like the normal
+    // width/view cache. Replacing the fence drops every entry from the prior
+    // plan.
     fence: Option<NativeTextInputSnapshotFence>,
     entries: VecDeque<RetainedTextInputSnapshot>,
+    bytes: usize,
+    #[cfg(test)]
+    entry_budget_override: Option<usize>,
+    #[cfg(test)]
+    byte_budget_override: Option<usize>,
 }
 
 impl RetainedTextInputSnapshotSidecar {
     pub(crate) fn begin_fence(&mut self, fence: NativeTextInputSnapshotFence) {
         if self.fence != Some(fence) {
             self.fence = Some(fence);
-            self.entries.clear();
+            self.clear_entries();
         }
     }
 
     pub(crate) fn invalidate(&mut self) {
         self.fence = None;
+        self.clear_entries();
+    }
+
+    fn clear_entries(&mut self) {
         self.entries.clear();
+        self.bytes = 0;
+    }
+
+    fn entry_budget(&self) -> usize {
+        #[cfg(test)]
+        if let Some(budget) = self.entry_budget_override {
+            return budget;
+        }
+        VIEW_CACHE_ENTRY_BUDGET
+    }
+
+    fn byte_budget(&self) -> usize {
+        #[cfg(test)]
+        if let Some(budget) = self.byte_budget_override {
+            return budget;
+        }
+        VIEW_CACHE_BYTE_BUDGET
+    }
+
+    fn remove_entries_for_widget(&mut self, widget_id: WidgetId) {
+        let removed_bytes = self
+            .entries
+            .iter()
+            .filter(|entry| entry.key.widget_id == widget_id)
+            .fold(0usize, |bytes, entry| bytes.saturating_add(entry.bytes));
+        self.entries
+            .retain(|entry| entry.key.widget_id != widget_id);
+        self.bytes = self.bytes.saturating_sub(removed_bytes);
+    }
+
+    fn take_entry(&mut self, index: usize) -> Option<Arc<ParagraphSnapshot>> {
+        let entry = self.entries.remove(index)?;
+        let snapshot = entry.snapshot.clone();
+        // VecDeque order is the deterministic LRU order: the front is the
+        // least recently used entry and every successful lookup moves its
+        // entry to the back.
+        self.entries.push_back(entry);
+        Some(snapshot)
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_entry_budget_override(&mut self, budget: Option<usize>) {
+        self.entry_budget_override = budget;
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_byte_budget_override(&mut self, budget: Option<usize>) {
+        self.byte_budget_override = budget;
     }
 
     #[cfg_attr(
@@ -202,17 +261,18 @@ impl RetainedTextInputSnapshotSidecar {
         key: &NativeTextInputSnapshotKey,
     ) -> Option<Arc<ParagraphSnapshot>> {
         if self.fence != Some(key.fence) {
-            self.entries.clear();
+            // A stale consumer may not erase the currently active plan. The
+            // next preparation boundary owns replacement through
+            // `begin_fence` (or explicit invalidation).
             return None;
         }
-        if let Some(entry) = self.entries.iter().find(|entry| entry.key == *key) {
-            return Some(entry.snapshot.clone());
+        if let Some(entry_index) = self.entries.iter().position(|entry| entry.key == *key) {
+            return self.take_entry(entry_index);
         }
         // A changed source, widget, font, constraint, or rectangle must not
         // leave a stale entry for the same input identity available to a later
         // lookup in this preparation boundary.
-        self.entries
-            .retain(|entry| entry.key.widget_id != key.widget_id);
+        self.remove_entries_for_widget(key.widget_id);
         None
     }
 
@@ -228,6 +288,8 @@ impl RetainedTextInputSnapshotSidecar {
         fence: NativeTextInputSnapshotFence,
     ) -> Option<Arc<ParagraphSnapshot>> {
         if self.fence != Some(fence) {
+            // Do not let an old pointer/IME consumer clear a newer plan's
+            // entries. Fence replacement is performed only by begin_fence.
             return None;
         }
         let available_width = Some(rect.width().max(0.0));
@@ -244,8 +306,7 @@ impl RetainedTextInputSnapshotSidecar {
                 && key.rect == rect.into()
         });
         let Some(entry_index) = entry_index else {
-            self.entries
-                .retain(|entry| entry.key.widget_id != widget_id);
+            self.remove_entries_for_widget(widget_id);
             return None;
         };
         let entry = &self.entries[entry_index];
@@ -256,10 +317,9 @@ impl RetainedTextInputSnapshotSidecar {
             && entry.snapshot.available_width.map(f32::to_bits)
                 == entry.key.constraints.available_width_bits
         {
-            return Some(entry.snapshot.clone());
+            return self.take_entry(entry_index);
         }
-        self.entries
-            .retain(|entry| entry.key.widget_id != widget_id);
+        self.remove_entries_for_widget(widget_id);
         None
     }
 
@@ -267,16 +327,45 @@ impl RetainedTextInputSnapshotSidecar {
         &mut self,
         key: NativeTextInputSnapshotKey,
         snapshot: Arc<ParagraphSnapshot>,
-    ) {
+    ) -> bool {
+        self.try_retain(key, snapshot)
+    }
+
+    fn try_retain(
+        &mut self,
+        key: NativeTextInputSnapshotKey,
+        snapshot: Arc<ParagraphSnapshot>,
+    ) -> bool {
         self.begin_fence(key.fence);
-        if let Some(entry) = self.entries.iter_mut().find(|entry| entry.key == key) {
-            entry.snapshot = snapshot;
-            return;
+        let entry_budget = self.entry_budget();
+        let byte_budget = self.byte_budget();
+        let bytes = snapshot.estimated_bytes();
+
+        // An entry that cannot fit is never published. Removing the previous
+        // value for this widget also prevents an older geometry from becoming
+        // the only answer after a failed replacement.
+        self.remove_entries_for_widget(key.widget_id);
+        if entry_budget == 0 || byte_budget == 0 || bytes > byte_budget {
+            return false;
         }
-        self.entries
-            .retain(|entry| entry.key.widget_id != key.widget_id);
-        self.entries
-            .push_back(RetainedTextInputSnapshot { key, snapshot });
+
+        while self.entries.len() >= entry_budget || self.bytes > byte_budget.saturating_sub(bytes) {
+            let Some(entry) = self.entries.pop_front() else {
+                break;
+            };
+            self.bytes = self.bytes.saturating_sub(entry.bytes);
+        }
+        if self.entries.len() >= entry_budget || self.bytes > byte_budget.saturating_sub(bytes) {
+            return false;
+        }
+
+        self.bytes += bytes;
+        self.entries.push_back(RetainedTextInputSnapshot {
+            key,
+            snapshot,
+            bytes,
+        });
+        true
     }
 }
 
@@ -370,8 +459,8 @@ impl NativeTextRenderer {
         &mut self,
         key: NativeTextInputSnapshotKey,
         snapshot: Arc<ParagraphSnapshot>,
-    ) {
-        self.retained_text_input_snapshot.retain(key, snapshot);
+    ) -> bool {
+        self.retained_text_input_snapshot.retain(key, snapshot)
     }
 
     pub(crate) fn retain_or_build_text_input_snapshot(
@@ -415,8 +504,8 @@ impl NativeTextRenderer {
         {
             return None;
         }
-        self.retain_text_input_snapshot(key, snapshot.clone());
-        Some(snapshot)
+        self.retain_text_input_snapshot(key, snapshot.clone())
+            .then_some(snapshot)
     }
 
     pub(super) fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
@@ -723,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn retained_text_input_snapshot_invalidates_on_fence_mismatch() {
+    fn stale_text_input_snapshot_lookup_cannot_clear_current_fence() {
         let mut renderer = NativeTextRenderer::new();
         let snapshot = ParagraphSnapshot::empty("text");
         let key = NativeTextInputSnapshotKey::new(
@@ -751,7 +840,51 @@ mod tests {
             NativeTextInputSnapshotFence::new(4, 10),
         );
         assert!(renderer.text_input_snapshot(&mismatched_key).is_none());
+        assert!(renderer.text_input_snapshot(&key).is_some());
+
+        renderer.begin_text_input_snapshot_fence(NativeTextInputSnapshotFence::new(4, 10));
         assert!(renderer.text_input_snapshot(&key).is_none());
+    }
+
+    #[test]
+    fn stale_input_lookup_cannot_clear_current_fence_entries() {
+        let mut renderer = NativeTextRenderer::new();
+        let current_fence = NativeTextInputSnapshotFence::new(4, 9);
+        let stale_fence = NativeTextInputSnapshotFence::new(4, 8);
+        let rect = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(128.0, 38.0));
+
+        renderer.begin_text_input_snapshot_fence(current_fence);
+        let current = renderer
+            .retain_or_build_text_input_snapshot(
+                WidgetId::from(1_u32),
+                "value",
+                14.0,
+                rect,
+                current_fence,
+            )
+            .expect("current snapshot should be retained");
+
+        assert!(
+            renderer
+                .text_input_snapshot_for_input(
+                    WidgetId::from(1_u32),
+                    "value",
+                    14.0,
+                    rect,
+                    stale_fence,
+                )
+                .is_none()
+        );
+        let still_current = renderer
+            .text_input_snapshot_for_input(
+                WidgetId::from(1_u32),
+                "value",
+                14.0,
+                rect,
+                current_fence,
+            )
+            .expect("stale lookup must preserve the current snapshot");
+        assert!(Arc::ptr_eq(&current, &still_current));
     }
 
     #[test]
@@ -800,7 +933,7 @@ mod tests {
     }
 
     #[test]
-    fn retained_text_input_snapshots_keep_all_current_plan_values_and_invalidate_old_fences() {
+    fn retained_text_input_snapshots_keep_admitted_current_plan_values_and_invalidate_old_fences() {
         let mut renderer = NativeTextRenderer::new();
         let mut fences = NativeTextInputSnapshotFenceAllocator::default();
         let fence = fences.allocate().expect("current plan fence");
@@ -822,6 +955,10 @@ mod tests {
             .expect("value input snapshot should be retained");
 
         assert_eq!(renderer.retained_text_input_snapshot.entries.len(), 2);
+        assert_eq!(
+            renderer.retained_text_input_snapshot.bytes,
+            empty.estimated_bytes() + value.estimated_bytes()
+        );
         assert!(Arc::ptr_eq(
             &empty,
             &renderer
@@ -890,6 +1027,155 @@ mod tests {
                 )
                 .is_none()
         );
+        assert_eq!(renderer.retained_text_input_snapshot.bytes, 0);
+    }
+
+    #[test]
+    fn retained_text_input_snapshots_evict_least_recently_used_entries_at_entry_limit() {
+        let mut renderer = NativeTextRenderer::new();
+        renderer
+            .retained_text_input_snapshot
+            .set_entry_budget_override(Some(2));
+        let fence = NativeTextInputSnapshotFence::new(4, 9);
+        let rect = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(128.0, 38.0));
+        let generation = renderer.font_stack.generation();
+        let first_key = retained_key(1, "first", rect, fence, generation);
+        let second_key = retained_key(2, "second", rect, fence, generation);
+        let third_key = retained_key(3, "third", rect, fence, generation);
+        let first = ParagraphSnapshot::empty("first");
+        let second = ParagraphSnapshot::empty("second");
+        let third = ParagraphSnapshot::empty("third");
+
+        renderer.retain_text_input_snapshot(first_key, first.clone());
+        renderer.retain_text_input_snapshot(second_key, second);
+        assert!(renderer.text_input_snapshot(&first_key).is_some());
+        renderer.retain_text_input_snapshot(third_key, third.clone());
+
+        assert_eq!(renderer.retained_text_input_snapshot.entries.len(), 2);
+        assert!(renderer.text_input_snapshot(&first_key).is_some());
+        assert!(renderer.text_input_snapshot(&third_key).is_some());
+        assert!(renderer.text_input_snapshot(&second_key).is_none());
+        assert_eq!(
+            renderer.retained_text_input_snapshot.bytes,
+            first.estimated_bytes() + third.estimated_bytes()
+        );
+    }
+
+    #[test]
+    fn retained_text_input_snapshots_evict_by_exact_byte_accounting() {
+        let mut renderer = NativeTextRenderer::new();
+        let fence = NativeTextInputSnapshotFence::new(4, 9);
+        let rect = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(128.0, 38.0));
+        let generation = renderer.font_stack.generation();
+        let first_key = retained_key(1, "first", rect, fence, generation);
+        let second_key = retained_key(2, "second", rect, fence, generation);
+        let first = ParagraphSnapshot::empty("first");
+        let second = ParagraphSnapshot::empty("second");
+        let byte_budget = first
+            .estimated_bytes()
+            .saturating_add(second.estimated_bytes())
+            .saturating_sub(1);
+        renderer
+            .retained_text_input_snapshot
+            .set_byte_budget_override(Some(byte_budget));
+
+        renderer.retain_text_input_snapshot(first_key, first);
+        renderer.retain_text_input_snapshot(second_key, second.clone());
+
+        assert_eq!(renderer.retained_text_input_snapshot.entries.len(), 1);
+        assert!(renderer.text_input_snapshot(&first_key).is_none());
+        assert!(renderer.text_input_snapshot(&second_key).is_some());
+        assert_eq!(
+            renderer.retained_text_input_snapshot.bytes,
+            second.estimated_bytes()
+        );
+    }
+
+    #[test]
+    fn retained_text_input_snapshot_replacement_updates_byte_accounting() {
+        let mut renderer = NativeTextRenderer::new();
+        let fence = NativeTextInputSnapshotFence::new(4, 9);
+        let rect = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(128.0, 38.0));
+        let generation = renderer.font_stack.generation();
+        let key = retained_key(1, "value", rect, fence, generation);
+        let first = ParagraphSnapshot::empty("value");
+        let replacement = ParagraphSnapshot::empty("value");
+        renderer
+            .retained_text_input_snapshot
+            .set_byte_budget_override(Some(
+                first.estimated_bytes().max(replacement.estimated_bytes()),
+            ));
+
+        renderer.retain_text_input_snapshot(key, first);
+        renderer.retain_text_input_snapshot(key, replacement.clone());
+
+        assert_eq!(renderer.retained_text_input_snapshot.entries.len(), 1);
+        assert_eq!(
+            renderer.retained_text_input_snapshot.bytes,
+            replacement.estimated_bytes()
+        );
+        assert!(Arc::ptr_eq(
+            &replacement,
+            &renderer
+                .text_input_snapshot(&key)
+                .expect("replacement should remain available")
+        ));
+    }
+
+    #[test]
+    fn oversized_text_input_snapshot_is_declined_before_publication() {
+        let mut renderer = NativeTextRenderer::new();
+        renderer
+            .retained_text_input_snapshot
+            .set_byte_budget_override(Some(1));
+        let fence = NativeTextInputSnapshotFence::new(4, 9);
+        let rect = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(128.0, 38.0));
+        let generation = renderer.font_stack.generation();
+        let key = retained_key(1, "value", rect, fence, generation);
+        let snapshot = ParagraphSnapshot::empty("value");
+
+        assert!(
+            !renderer
+                .retained_text_input_snapshot
+                .try_retain(key, snapshot)
+        );
+        assert_eq!(renderer.retained_text_input_snapshot.entries.len(), 0);
+        assert_eq!(renderer.retained_text_input_snapshot.bytes, 0);
+        assert!(renderer.text_input_snapshot(&key).is_none());
+
+        assert!(
+            renderer
+                .retain_or_build_text_input_snapshot(
+                    WidgetId::from(2_u32),
+                    "value",
+                    14.0,
+                    rect,
+                    fence,
+                )
+                .is_none()
+        );
+        assert_eq!(renderer.retained_text_input_snapshot.entries.len(), 0);
+        assert_eq!(renderer.retained_text_input_snapshot.bytes, 0);
+    }
+
+    fn retained_key(
+        widget_id: u64,
+        text: &str,
+        rect: Rect,
+        fence: NativeTextInputSnapshotFence,
+        font_generation: u64,
+    ) -> NativeTextInputSnapshotKey {
+        NativeTextInputSnapshotKey::new(
+            WidgetId::from(widget_id),
+            text,
+            14.0,
+            font_generation,
+            Some(rect.width()),
+            TextAlign::Left,
+            TextWrap::None,
+            rect,
+            fence,
+        )
     }
 
     #[test]

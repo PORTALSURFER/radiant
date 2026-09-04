@@ -39,12 +39,22 @@ where
     }
 
     fn apply_native_text_pointer_caret(&mut self, widget_id: WidgetId) {
-        let Some((pending_widget_id, source, caret, affinity)) =
-            self.pending_native_text_pointer_caret.take()
+        let Some(super::NativeTextPointerCaret::Pending(
+            pending_widget_id,
+            source,
+            caret,
+            affinity,
+        )) = self.pending_native_text_pointer_caret.take()
         else {
             return;
         };
         if pending_widget_id != widget_id {
+            self.pending_native_text_pointer_caret = Some(super::NativeTextPointerCaret::Pending(
+                pending_widget_id,
+                source,
+                caret,
+                affinity,
+            ));
             return;
         }
         let Some(widget) = self.surface_widget_mut(widget_id) else {
@@ -59,6 +69,19 @@ where
         };
         if text_input.state.value == source {
             text_input.set_native_pointer_caret(caret, affinity);
+            self.pending_native_text_pointer_caret =
+                Some(super::NativeTextPointerCaret::Accepted(widget_id, affinity));
+        }
+    }
+
+    pub(crate) fn take_accepted_native_text_pointer_caret(
+        &mut self,
+    ) -> Option<(WidgetId, crate::widgets::NativeCaretAffinity)> {
+        match self.pending_native_text_pointer_caret.take() {
+            Some(super::NativeTextPointerCaret::Accepted(widget_id, affinity)) => {
+                Some((widget_id, affinity))
+            }
+            Some(super::NativeTextPointerCaret::Pending(..)) | None => None,
         }
     }
 

@@ -69,11 +69,6 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
     available_width: f32,
 ) -> TextFieldLayoutState {
     editor.clamp_to_text(text);
-    let padding_font_size = if font_size_is_renderable(font_size) {
-        font_size
-    } else {
-        1.0
-    };
     let width = text_field_width(available_width);
     let Some(snapshot) = renderer
         .layout_text_view(
@@ -87,7 +82,29 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
     else {
         return empty_field_layout(text, width);
     };
-    if !snapshot.matches_source(text, snapshot.revision) {
+    build_text_field_layout_from_snapshot(snapshot, editor, text, font_size, available_width)
+}
+
+/// Build field geometry from one validated retained paragraph snapshot.
+pub(super) fn build_text_field_layout_from_snapshot(
+    snapshot: Arc<ParagraphSnapshot>,
+    editor: &mut SingleLineTextEditorState,
+    text: &str,
+    font_size: f32,
+    available_width: f32,
+) -> TextFieldLayoutState {
+    editor.clamp_to_text(text);
+    let padding_font_size = if font_size_is_renderable(font_size) {
+        font_size
+    } else {
+        1.0
+    };
+    let width = text_field_width(available_width);
+    let snapshot_matches_field = font_size_is_renderable(font_size)
+        && snapshot.matches_source(text, snapshot.revision)
+        && snapshot.is_usable_for(font_size)
+        && snapshot.available_width.map(f32::to_bits) == Some(width.to_bits());
+    if !snapshot_matches_field {
         return empty_field_layout(text, width);
     }
 

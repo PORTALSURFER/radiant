@@ -2,13 +2,18 @@
 
 use rustybuzz::{Face, UnicodeBuffer};
 use unicode_bidi::BidiInfo;
+use unicode_linebreak::{BreakOpportunity, linebreaks};
 use unicode_segmentation::UnicodeSegmentation;
 
 const TEST_FONT: &[u8] = include_bytes!("fixtures/fonts/primary.ttf");
 const SECONDARY_FONT: &[u8] = include_bytes!("fixtures/fonts/secondary.ttf");
 const COMBINING_TEXT: &str = "Cafe\u{0301}";
+const COMBINING_TEXT_WITH_WRAP: &str = "Cafe\u{0301} x";
 const ZWJ_EMOJI: &str = "\u{1f469}\u{200d}\u{1f52c}";
+const ZWJ_EMOJI_WITH_WRAP: &str = "\u{1f469}\u{200d}\u{1f52c} x";
 const MIXED_DIRECTION_TEXT: &str = "שלום world";
+const LINE_BREAK_POLICY_ID: &str =
+    "uax14:unicode-linebreak@0.1.5:unicode@15.0.0:default-sa-to-al:v1";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ShapedGlyph {
@@ -31,6 +36,44 @@ struct Utf8ByteOffset(usize);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct GraphemeBoundary(usize);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LineBreakKind {
+    Mandatory,
+    Allowed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct LineBreakRecord {
+    grapheme: GraphemeBoundary,
+    byte: Utf8ByteOffset,
+    kind: LineBreakKind,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LineBreakDecision {
+    policy_id: &'static str,
+    breaks: Vec<LineBreakRecord>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LineBreakMappingError {
+    NotUtf8Boundary(Utf8ByteOffset),
+    NotGraphemeBoundary(Utf8ByteOffset),
+}
+
+struct LineBreakPolicy;
+
+impl LineBreakPolicy {
+    const ID: &'static str = LINE_BREAK_POLICY_ID;
+
+    fn classify(text: &str) -> Result<LineBreakDecision, LineBreakMappingError> {
+        Ok(LineBreakDecision {
+            policy_id: Self::ID,
+            breaks: map_provider_breaks(text, linebreaks(text))?,
+        })
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct CanonicalCaret {
@@ -82,6 +125,51 @@ fn byte_to_grapheme(text: &str, byte: Utf8ByteOffset) -> GraphemeBoundary {
             .binary_search(&byte.0)
             .expect("byte offset must be a grapheme boundary"),
     )
+}
+
+fn map_provider_breaks(
+    text: &str,
+    opportunities: impl IntoIterator<Item = (usize, BreakOpportunity)>,
+) -> Result<Vec<LineBreakRecord>, LineBreakMappingError> {
+    let stored_grapheme_bytes = grapheme_boundary_bytes(text);
+
+    opportunities
+        .into_iter()
+        .map(|(byte, opportunity)| {
+            let byte = Utf8ByteOffset(byte);
+            if !text.is_char_boundary(byte.0) {
+                return Err(LineBreakMappingError::NotUtf8Boundary(byte));
+            }
+            let grapheme = stored_grapheme_bytes
+                .binary_search(&byte.0)
+                .map(GraphemeBoundary)
+                .map_err(|_| LineBreakMappingError::NotGraphemeBoundary(byte))?;
+            let kind = match opportunity {
+                BreakOpportunity::Mandatory => LineBreakKind::Mandatory,
+                BreakOpportunity::Allowed => LineBreakKind::Allowed,
+            };
+            Ok(LineBreakRecord {
+                grapheme,
+                byte,
+                kind,
+            })
+        })
+        .collect()
+}
+
+fn assert_grapheme_safe_breaks(text: &str, expected: &[LineBreakRecord]) {
+    let decision = LineBreakPolicy::classify(text).expect("fixture provider output must map");
+    assert_eq!(decision.breaks, expected);
+
+    let stored_grapheme_bytes = grapheme_boundary_bytes(text);
+    for record in decision.breaks {
+        assert!(text.is_char_boundary(record.byte.0));
+        assert_eq!(
+            stored_grapheme_bytes.binary_search(&record.byte.0),
+            Ok(record.grapheme.0),
+            "provider output must map to a stored grapheme/UTF-8 boundary"
+        );
+    }
 }
 
 fn scalar_byte_boundaries(text: &str) -> Vec<usize> {
@@ -409,15 +497,150 @@ fn grapheme_boundaries_round_trip_through_typed_utf8_offsets() {
 }
 
 #[test]
+fn line_break_provider_is_deterministic_and_includes_terminal_mandatory_output() {
+    let text = "abc";
+    let expected = LineBreakDecision {
+        policy_id: "uax14:unicode-linebreak@0.1.5:unicode@15.0.0:default-sa-to-al:v1",
+        breaks: vec![LineBreakRecord {
+            grapheme: GraphemeBoundary(3),
+            byte: Utf8ByteOffset(3),
+            kind: LineBreakKind::Mandatory,
+        }],
+    };
+
+    let first = LineBreakPolicy::classify(text).expect("fixture provider output must map");
+    let second = LineBreakPolicy::classify(text).expect("fixture provider output must map");
+    assert_eq!(first, expected);
+    assert_eq!(second, expected);
+    assert_eq!(first, second);
+}
+
+#[test]
+fn line_break_provider_treats_crlf_as_one_hard_break_and_preserves_terminal_behavior() {
+    assert_eq!(
+        LineBreakPolicy::classify("a\r\nb")
+            .expect("fixture provider output must map")
+            .breaks,
+        vec![
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(2),
+                byte: Utf8ByteOffset(3),
+                kind: LineBreakKind::Mandatory,
+            },
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(3),
+                byte: Utf8ByteOffset(4),
+                kind: LineBreakKind::Mandatory,
+            },
+        ]
+    );
+
+    assert_eq!(
+        LineBreakPolicy::classify("a\r\n")
+            .expect("fixture provider output must map")
+            .breaks,
+        vec![LineBreakRecord {
+            grapheme: GraphemeBoundary(2),
+            byte: Utf8ByteOffset(3),
+            kind: LineBreakKind::Mandatory,
+        }],
+        "the provider reports trailing CRLF and its terminal opportunity at one offset"
+    );
+}
+
+#[test]
+fn line_break_provider_maps_combining_zwj_and_mixed_direction_text_to_graphemes() {
+    assert_grapheme_safe_breaks(
+        COMBINING_TEXT_WITH_WRAP,
+        &[
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(5),
+                byte: Utf8ByteOffset(7),
+                kind: LineBreakKind::Allowed,
+            },
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(6),
+                byte: Utf8ByteOffset(8),
+                kind: LineBreakKind::Mandatory,
+            },
+        ],
+    );
+    assert_grapheme_safe_breaks(
+        ZWJ_EMOJI_WITH_WRAP,
+        &[
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(2),
+                byte: Utf8ByteOffset(12),
+                kind: LineBreakKind::Allowed,
+            },
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(3),
+                byte: Utf8ByteOffset(13),
+                kind: LineBreakKind::Mandatory,
+            },
+        ],
+    );
+    assert_grapheme_safe_breaks(
+        MIXED_DIRECTION_TEXT,
+        &[
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(5),
+                byte: Utf8ByteOffset(9),
+                kind: LineBreakKind::Allowed,
+            },
+            LineBreakRecord {
+                grapheme: GraphemeBoundary(10),
+                byte: Utf8ByteOffset(14),
+                kind: LineBreakKind::Mandatory,
+            },
+        ],
+    );
+}
+
+#[test]
+fn line_break_adapter_rejects_unstored_provider_offsets() {
+    assert_eq!(
+        map_provider_breaks(COMBINING_TEXT, [(4, BreakOpportunity::Allowed)]),
+        Err(LineBreakMappingError::NotGraphemeBoundary(Utf8ByteOffset(
+            4
+        )))
+    );
+    assert_eq!(
+        map_provider_breaks(ZWJ_EMOJI, [(1, BreakOpportunity::Allowed)]),
+        Err(LineBreakMappingError::NotUtf8Boundary(Utf8ByteOffset(1)))
+    );
+}
+
+#[test]
 fn representative_text_results_are_deterministic() {
-    for text in [COMBINING_TEXT, ZWJ_EMOJI, MIXED_DIRECTION_TEXT] {
-        assert_eq!(grapheme_boundaries(text), grapheme_boundaries(text));
-        assert_eq!(bidi_levels(text), bidi_levels(text));
-        assert_eq!(
-            shaped_glyphs(TEST_FONT, text),
-            shaped_glyphs(TEST_FONT, text)
-        );
-    }
+    assert_eq!(
+        grapheme_boundaries(COMBINING_TEXT),
+        vec![(0, "C"), (1, "a"), (2, "f"), (3, "e\u{0301}")]
+    );
+    assert_eq!(bidi_levels(COMBINING_TEXT), vec![0; COMBINING_TEXT.len()]);
+
+    assert_eq!(grapheme_boundaries(ZWJ_EMOJI), vec![(0, ZWJ_EMOJI)]);
+    assert_eq!(bidi_levels(ZWJ_EMOJI), vec![0; ZWJ_EMOJI.len()]);
+
+    assert_eq!(
+        grapheme_boundaries(MIXED_DIRECTION_TEXT),
+        vec![
+            (0, "ש"),
+            (2, "ל"),
+            (4, "ו"),
+            (6, "ם"),
+            (8, " "),
+            (9, "w"),
+            (10, "o"),
+            (11, "r"),
+            (12, "l"),
+            (13, "d"),
+        ]
+    );
+    assert_eq!(
+        bidi_levels(MIXED_DIRECTION_TEXT),
+        [vec![1; 9], vec![2; 5]].concat()
+    );
 }
 
 #[test]

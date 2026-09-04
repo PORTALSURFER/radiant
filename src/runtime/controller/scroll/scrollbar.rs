@@ -40,6 +40,7 @@ where
         };
         self.interaction.pointer.scroll_drag_capture = Some(capture);
         self.interaction.hover.scroll_affordance = Some(capture.node_id);
+        self.note_scroll_visibility_mutation();
         self.repaint_requested = true;
         true
     }
@@ -149,6 +150,38 @@ where
     ) -> Option<NodeId> {
         self.scrollbar_drag_capture_at(point)
             .map(|(node_id, _, _)| node_id)
+    }
+
+    pub(in crate::runtime::controller) fn scroll_viewport_at(
+        &self,
+        point: Point,
+    ) -> Option<NodeId> {
+        self.traversal
+            .containers
+            .scroll
+            .visible()
+            .iter()
+            .rev()
+            .copied()
+            .find(|node_id| {
+                let Some(policy) = self
+                    .scroll_policy_for_node(*node_id)
+                    .map(|container| container.scroll_policy)
+                else {
+                    return false;
+                };
+                if policy.scrollbar_visibility == crate::layout::ScrollbarVisibility::Hidden {
+                    return false;
+                }
+                let viewport = self
+                    .layout
+                    .viewport_bounds
+                    .get(node_id)
+                    .or_else(|| self.layout.rects.get(node_id));
+                viewport.is_some_and(|viewport| {
+                    viewport.contains(point) && self.container_clip_contains_point(*node_id, point)
+                })
+            })
     }
 
     pub(crate) fn scrollbar_drag_active(&self) -> bool {

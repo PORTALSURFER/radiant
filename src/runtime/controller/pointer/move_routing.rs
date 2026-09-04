@@ -108,6 +108,7 @@ where
                 };
             }
         }
+        self.update_hovered_scroll_viewport(position);
         self.update_hovered_scroll_affordance(position);
 
         let pointer_widget = self.pointer_widget_for_move(position);
@@ -145,6 +146,7 @@ where
         position: Point,
     ) {
         self.update_drag_preview_position(position);
+        self.update_hovered_scroll_viewport(position);
         self.update_hovered_scroll_affordance(position);
 
         let pointer_widget = self.pointer_widget_for_move(position);
@@ -238,6 +240,17 @@ where
             return;
         }
         self.interaction.hover.scroll_affordance = hovered_scroll_affordance;
+        self.note_scroll_visibility_mutation();
+        self.repaint_requested = true;
+    }
+
+    fn update_hovered_scroll_viewport(&mut self, position: Point) {
+        let hovered_scroll_viewport = self.scroll_viewport_at(position);
+        if self.interaction.hover.scroll_viewport == hovered_scroll_viewport {
+            return;
+        }
+        self.interaction.hover.scroll_viewport = hovered_scroll_viewport;
+        self.note_scroll_visibility_mutation();
         self.repaint_requested = true;
     }
 

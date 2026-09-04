@@ -197,6 +197,12 @@ pub(super) struct RuntimeWheelState {
     /// sequence. Nested chaining may settle more than one owner per sample.
     pub(super) pending_scroll_settlement: Vec<(NodeId, crate::gui::types::Vector2)>,
     pub(super) scroll_settlement_deadline: Option<Instant>,
+    /// Scroll owners whose Auto affordance is currently visible because of
+    /// wheel activity. `None` means a phaseful sequence or drag is live;
+    /// `Some` is the visual-idle expiry for phase-less/discrete input.
+    pub(super) scroll_activity: std::collections::BTreeMap<NodeId, Option<Instant>>,
+    pub(super) scroll_visibility_revision: u64,
+    pub(super) scroll_visibility_revision_exhausted: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -234,6 +240,7 @@ pub(super) struct RuntimeHoverState {
     pub(super) container: Option<NodeId>,
     pub(super) widget: Option<WidgetId>,
     pub(super) scroll_affordance: Option<NodeId>,
+    pub(super) scroll_viewport: Option<NodeId>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

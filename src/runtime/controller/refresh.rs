@@ -3478,6 +3478,7 @@ pub(crate) struct BasePaintPlanContext {
     pub(crate) hovered_container: Option<crate::layout::NodeId>,
     pub(crate) hovered_widget: Option<WidgetId>,
     pub(crate) hovered_scroll_affordance: Option<crate::layout::NodeId>,
+    pub(crate) scroll_auto_visibility_revision: u64,
     pub(crate) focused_widget: Option<WidgetId>,
     pub(crate) pointer_capture: Option<WidgetId>,
     pub(crate) pointer_capture_state: Option<(WidgetId, crate::widgets::WidgetState)>,
@@ -4079,6 +4080,7 @@ where
             hovered_container: self.interaction.hover.container,
             hovered_widget: self.interaction.hover.widget,
             hovered_scroll_affordance: self.interaction.hover.scroll_affordance,
+            scroll_auto_visibility_revision: self.interaction.wheel.scroll_visibility_revision,
             focused_widget: self.interaction.focus.focused_widget(),
             pointer_capture: self.interaction.pointer.capture,
             pointer_capture_state: self.interaction.pointer.capture_state,
@@ -4092,6 +4094,7 @@ where
 
     pub(crate) fn base_paint_plan_reuse_eligible(&self) -> bool {
         self.base_paint_plan_reuse_eligible
+            && !self.interaction.wheel.scroll_visibility_revision_exhausted
     }
 
     pub(crate) fn record_base_paint_plan_rebuild(&mut self) {

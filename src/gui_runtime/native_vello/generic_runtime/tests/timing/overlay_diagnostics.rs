@@ -334,6 +334,48 @@ fn prepared_native_scroll_gate_veto_preserves_active_state_before_retry() {
 }
 
 #[test]
+fn prepared_native_veto_does_not_consume_candidate_only_reveal_generation() {
+    let settled = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let observed_projects = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedScrollBridge::new(Rc::clone(&settled), Rc::clone(&observed_projects)),
+        Vector2::new(100.0, 80.0),
+    );
+    assert!(runner.window.target_generation.advance());
+    runner.rebuild_scene();
+    let before_offset = runner.core.runtime.layout().rects[&2].min.y;
+    runner.core.runtime.bridge_mut().request = Some(crate::layout::ScrollRequest::new(
+        crate::layout::ScrollTarget::Keyed(crate::layout::VirtualLayoutItemKey::new(7_u32)),
+        crate::layout::ScrollAlignment::Start,
+        2,
+    ));
+    runner.timing.deferred_surface_refresh = true;
+    let mut stale = valid_prepared_surface_refresh_native_evidence();
+    stale.target_generation =
+        super::super::super::runner_state::NativeTargetGeneration::from_test_serial(2);
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+        stale,
+    );
+    assert_eq!(runner.core.runtime.layout().rects[&2].min.y, before_offset);
+
+    runner.core.runtime.bridge_mut().request = Some(crate::layout::ScrollRequest::new(
+        crate::layout::ScrollTarget::Edge(crate::layout::ScrollEdge::Bottom),
+        crate::layout::ScrollAlignment::Start,
+        2,
+    ));
+    runner.timing.deferred_surface_refresh = true;
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+    assert_eq!(runner.core.runtime.layout().rects[&2].min.y, -320.0);
+    assert_eq!(&*settled.borrow(), &[Vector2::new(0.0, 320.0)]);
+}
+
+#[test]
 fn prepared_native_controlled_clamp_precedes_visible_nearest_request() {
     let settled = Rc::new(std::cell::RefCell::new(Vec::new()));
     let observed_projects = Rc::new(Cell::new(0));

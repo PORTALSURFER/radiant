@@ -114,14 +114,16 @@ where
         environment: crate::runtime::ResolvedEnvironment,
         plan: &mut SurfacePaintPlan,
     ) {
+        let auto_scroll_visible = self.scroll_auto_visibility();
         self.surface
-            .paint_plan_with_hover_and_environment_and_appearance_into(
+            .paint_plan_with_hover_and_environment_and_appearance_and_scroll_visibility_into(
                 &self.layout,
                 theme,
                 environment.clone(),
                 appearance,
                 self.interaction.hover.container,
                 self.interaction.hover.scroll_affordance,
+                &auto_scroll_visible,
                 plan,
             );
     }
@@ -132,14 +134,18 @@ where
         environment: crate::runtime::ResolvedEnvironment,
         plan: &mut SurfacePaintPlan,
     ) {
-        self.surface.paint_plan_with_hover_and_environment_into(
-            &self.layout,
-            theme,
-            environment,
-            self.interaction.hover.container,
-            self.interaction.hover.scroll_affordance,
-            plan,
-        );
+        let auto_scroll_visible = self.scroll_auto_visibility();
+        self.surface
+            .paint_plan_with_hover_and_environment_and_appearance_and_scroll_visibility_into(
+                &self.layout,
+                theme,
+                environment,
+                ResolvedAppearance::fixed(*theme),
+                self.interaction.hover.container,
+                self.interaction.hover.scroll_affordance,
+                &auto_scroll_visible,
+                plan,
+            );
     }
 
     /// Append runtime-local overlay primitives for active pointer widgets.

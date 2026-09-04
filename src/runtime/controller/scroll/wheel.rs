@@ -220,12 +220,21 @@ where
     ) -> WheelOrScrollRoute {
         let phase = sample.phase();
         if phase == Some(WheelPhase::Started) {
+            self.clear_phaseful_scroll_activity();
             if exact_sample {
                 self.cancel_live_managed_wheel_sequence_for_start(point, refresh_after_message);
             }
             // Every explicit start is a fresh boundary, including a malformed
             // start that cannot be admitted below.
             self.clear_managed_wheel_sequence();
+        }
+        if matches!(phase, Some(WheelPhase::Ended | WheelPhase::Cancelled))
+            && !matches!(
+                self.interaction.wheel.managed_sequence,
+                RuntimeManagedWheelSequenceState::Active { .. }
+            )
+        {
+            self.clear_phaseful_scroll_activity();
         }
         if exact_sample && !sample.is_valid() {
             return WheelOrScrollRoute::NotRouted;
@@ -244,6 +253,7 @@ where
                 // The first terminal after an orphan closes the blocked slot,
                 // but is not delivered through the compatibility path.
                 self.clear_managed_wheel_sequence();
+                self.clear_phaseful_scroll_activity();
                 return WheelOrScrollRoute::NotRouted;
             }
             (RuntimeManagedWheelSequenceState::Active { widget_id }, Some(WheelPhase::Changed)) => {
@@ -266,14 +276,17 @@ where
                     // A stale terminal closes the slot without guessing a
                     // replacement target or delivering a fallback sample.
                     self.clear_managed_wheel_sequence();
+                    self.clear_phaseful_scroll_activity();
                     return WheelOrScrollRoute::NotRouted;
                 }
-                return self.dispatch_managed_wheel_sequence(
+                let route = self.dispatch_managed_wheel_sequence(
                     widget_id,
                     point,
                     sample,
                     refresh_after_message,
                 );
+                self.clear_phaseful_scroll_activity();
+                return route;
             }
             _ => {}
         }
@@ -285,7 +298,7 @@ where
         let Some(input) = self.wheel_input_for_hit_test(point, sample, exact_sample) else {
             return WheelOrScrollRoute::NotRouted;
         };
-        match self.wheel_target_at(point, &input) {
+        let route = match self.wheel_target_at(point, &input) {
             Some(WheelHitTarget::Widget(widget_id)) => {
                 let Some(dispatch) = self.dispatch_wheel_to_widget_with_refresh(
                     widget_id,
@@ -294,7 +307,8 @@ where
                     refresh_after_message,
                     exact_sample,
                 ) else {
-                    return WheelOrScrollRoute::NotRouted;
+                    return self
+                        .finish_scroll_terminal_after_routing(sample, refresh_after_message);
                 };
                 let may_install = exact_sample
                     && sample.phase() == Some(WheelPhase::Started)
@@ -323,7 +337,14 @@ where
                 self.scroll_fallback_for_sample(point, sample, exact_sample, refresh_after_message)
             }
             None => WheelOrScrollRoute::NotRouted,
+        };
+        if matches!(
+            sample.phase(),
+            Some(WheelPhase::Ended | WheelPhase::Cancelled)
+        ) {
+            self.finish_scroll_terminal_after_routing(sample, refresh_after_message);
         }
+        route
     }
 
     fn scroll_fallback_for_sample(
@@ -360,9 +381,11 @@ where
                 .collect::<Vec<_>>();
             match sample.phase() {
                 Some(WheelPhase::Started | WheelPhase::Changed) => {
+                    self.mark_scroll_activity(&changed, sample.phase());
                     self.queue_scroll_settlements(&changed);
                 }
                 Some(WheelPhase::Ended) => {
+                    self.mark_scroll_activity(&changed, sample.phase());
                     self.queue_scroll_settlements(&changed);
                     let settlements =
                         std::mem::take(&mut self.interaction.wheel.pending_scroll_settlement);
@@ -371,9 +394,11 @@ where
                     }
                 }
                 Some(WheelPhase::Cancelled) => {
+                    self.mark_scroll_activity(&changed, sample.phase());
                     self.interaction.wheel.pending_scroll_settlement.clear();
                 }
                 Some(WheelPhase::Discrete) | None => {
+                    self.mark_scroll_activity(&changed, sample.phase());
                     if sample.phase().is_none() {
                         self.queue_scroll_settlements(&changed);
                         if !changed.is_empty() {
@@ -392,6 +417,131 @@ where
         } else {
             WheelOrScrollRoute::NotRouted
         }
+    }
+
+    fn finish_scroll_terminal_after_routing(
+        &mut self,
+        sample: WheelSample,
+        refresh_after_message: bool,
+    ) -> WheelOrScrollRoute {
+        match sample.phase() {
+            Some(WheelPhase::Ended) => {
+                self.interaction.wheel.scroll_settlement_deadline = None;
+                let settlements =
+                    std::mem::take(&mut self.interaction.wheel.pending_scroll_settlement);
+                for (node_id, offset) in settlements {
+                    self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
+                }
+            }
+            Some(WheelPhase::Cancelled) => {
+                self.interaction.wheel.pending_scroll_settlement.clear();
+                self.interaction.wheel.scroll_settlement_deadline = None;
+            }
+            _ => {}
+        }
+        WheelOrScrollRoute::NotRouted
+    }
+
+    /// Keep Auto scrollbar activity independent from callback settlement. The
+    /// latter is an input contract; this state only controls transient paint.
+    fn mark_scroll_activity(
+        &mut self,
+        changed: &[(crate::layout::NodeId, Vector2)],
+        phase: Option<WheelPhase>,
+    ) {
+        let now = self.timed_repaint_now();
+        let idle_deadline = now.checked_add(std::time::Duration::from_millis(100));
+        let phaseful = matches!(phase, Some(WheelPhase::Started | WheelPhase::Changed));
+        let terminal = matches!(phase, Some(WheelPhase::Ended | WheelPhase::Cancelled));
+        if terminal {
+            // A phaseful owner remains active while its terminal sample is
+            // dispatched, then leaves the visual state at that boundary.
+            let had_phaseful = self
+                .interaction
+                .wheel
+                .scroll_activity
+                .values()
+                .any(Option::is_none);
+            self.interaction
+                .wheel
+                .scroll_activity
+                .retain(|_, deadline| deadline.is_some());
+            if had_phaseful {
+                self.note_scroll_visibility_mutation();
+                self.repaint_requested = true;
+            }
+        }
+        if !terminal {
+            for &(node_id, _) in changed {
+                let deadline = if phaseful { None } else { idle_deadline };
+                self.interaction
+                    .wheel
+                    .scroll_activity
+                    .insert(node_id, deadline);
+                self.note_scroll_visibility_mutation();
+            }
+        }
+        if !changed.is_empty() {
+            self.repaint_requested = true;
+        }
+    }
+
+    fn clear_phaseful_scroll_activity(&mut self) {
+        let had_phaseful = self
+            .interaction
+            .wheel
+            .scroll_activity
+            .values()
+            .any(Option::is_none);
+        if !had_phaseful {
+            return;
+        }
+        self.interaction
+            .wheel
+            .scroll_activity
+            .retain(|_, deadline| deadline.is_some());
+        self.note_scroll_visibility_mutation();
+        self.repaint_requested = true;
+    }
+
+    pub(in crate::runtime::controller) fn scroll_auto_visibility(
+        &self,
+    ) -> Vec<crate::layout::NodeId> {
+        let mut visible = self
+            .interaction
+            .wheel
+            .scroll_activity
+            .keys()
+            .copied()
+            .collect::<Vec<_>>();
+        if let Some(node_id) = self.interaction.hover.scroll_viewport {
+            visible.push(node_id);
+        }
+        if let Some(node_id) = self.interaction.hover.scroll_affordance {
+            visible.push(node_id);
+        }
+        if let Some(capture) = self.interaction.pointer.scroll_drag_capture {
+            visible.push(capture.node_id);
+        }
+        visible.sort_unstable();
+        visible.dedup();
+        visible
+    }
+
+    pub(in crate::runtime::controller) fn note_scroll_visibility_mutation(&mut self) {
+        if self.interaction.wheel.scroll_visibility_revision_exhausted {
+            return;
+        }
+        let Some(next) = self
+            .interaction
+            .wheel
+            .scroll_visibility_revision
+            .checked_add(1)
+        else {
+            self.interaction.wheel.scroll_visibility_revision_exhausted = true;
+            return;
+        };
+        self.interaction.wheel.scroll_visibility_revision = next;
     }
 
     fn wheel_input_for_hit_test(

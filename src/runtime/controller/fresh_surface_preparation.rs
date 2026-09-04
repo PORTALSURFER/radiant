@@ -120,6 +120,7 @@ struct FreshSurfacePaintProjectionContext {
     appearance: ResolvedAppearance,
     hovered_container: Option<NodeId>,
     active_scroll_affordance: Option<NodeId>,
+    auto_scroll_visible: Vec<NodeId>,
 }
 
 impl FreshSurfacePaintProjectionContext {
@@ -138,11 +139,14 @@ impl FreshSurfacePaintProjectionContext {
             appearance,
             hovered_container: runtime.interaction.hover.container,
             active_scroll_affordance: runtime.interaction.hover.scroll_affordance,
+            auto_scroll_visible: runtime.scroll_auto_visibility(),
         }
     }
 
     fn is_neutral(&self) -> bool {
-        self.hovered_container.is_none() && self.active_scroll_affordance.is_none()
+        self.hovered_container.is_none()
+            && self.active_scroll_affordance.is_none()
+            && self.auto_scroll_visible.is_empty()
     }
 
     fn is_current<Bridge, Message>(
@@ -159,6 +163,7 @@ impl FreshSurfacePaintProjectionContext {
             && self.appearance == appearance
             && self.hovered_container == runtime.interaction.hover.container
             && self.active_scroll_affordance == runtime.interaction.hover.scroll_affordance
+            && self.auto_scroll_visible == runtime.scroll_auto_visibility()
     }
 }
 
@@ -1211,13 +1216,14 @@ where
         let traversal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             candidate
                 .surface
-                .paint_plan_with_hover_and_environment_and_appearance_into(
+                .paint_plan_with_hover_and_environment_and_appearance_and_scroll_visibility_into(
                     layout,
                     &projection_context.theme,
                     projection_context.environment.clone(),
                     projection_context.appearance,
                     projection_context.hovered_container,
                     projection_context.active_scroll_affordance,
+                    &projection_context.auto_scroll_visible,
                     &mut paint_plan,
                 );
         }));
@@ -1244,6 +1250,8 @@ where
 
     fn fresh_surface_paint_context_is_neutral(&self) -> bool {
         self.interaction.hover.widget.is_none()
+            && self.interaction.hover.scroll_viewport.is_none()
+            && self.interaction.wheel.scroll_activity.is_empty()
             && self.interaction.pointer.capture.is_none()
             && self.interaction.pointer.capture_state.is_none()
             && self.interaction.pointer.managed_capture.is_none()

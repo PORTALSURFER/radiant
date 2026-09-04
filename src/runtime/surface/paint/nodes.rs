@@ -88,12 +88,14 @@ impl<Message> SurfaceNode<Message> {
         plan: &mut SurfacePaintPlan,
         hovered_container: Option<NodeId>,
         active_scroll_affordance: Option<NodeId>,
+        auto_scroll_visible: &[NodeId],
     ) {
         let context = SurfacePaintContext::new(
             layout,
             theme,
             hovered_container,
             active_scroll_affordance,
+            auto_scroll_visible,
             environment,
             appearance,
         );

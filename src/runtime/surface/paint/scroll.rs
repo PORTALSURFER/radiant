@@ -43,7 +43,7 @@ impl<Message> SurfaceContainer<Message> {
         }
         if self.policy.scroll_policy.scrollbar_visibility
             == crate::layout::ScrollbarVisibility::Auto
-            && context.active_scroll_affordance != Some(self.id)
+            && !context.auto_scroll_visible(self.id)
         {
             return;
         }

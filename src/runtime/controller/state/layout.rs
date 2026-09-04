@@ -257,6 +257,14 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
         if request.generation == u64::MAX || already_consumed {
             continue;
         }
+        // A mounted owner consumes every valid generation at the admission
+        // boundary.  Target lookup and geometry are deliberately after this
+        // fence: an unavailable virtual item or malformed target must not be
+        // retried by a later reprojection with the same generation.
+        let Some(state) = layout_state.scroll_runtime.get_mut(&id) else {
+            continue;
+        };
+        state.request_generation = Some(request.generation);
         let Some(viewport) = layout
             .viewport_bounds
             .get(&id)
@@ -348,15 +356,11 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
                 request.alignment,
             );
         }
-        if next.x.is_finite() && next.y.is_finite() {
-            let state = layout_state.scroll_runtime.entry(id).or_default();
-            state.request_generation = Some(request.generation);
-            if next != current {
-                layout_state
-                    .scroll_offsets
-                    .insert(id, Vector2::new(next.x.max(0.0), next.y.max(0.0)));
-                changed.push((id, current));
-            }
+        if next.x.is_finite() && next.y.is_finite() && next != current {
+            layout_state
+                .scroll_offsets
+                .insert(id, Vector2::new(next.x.max(0.0), next.y.max(0.0)));
+            changed.push((id, current));
         }
     }
     changed
@@ -516,14 +520,15 @@ pub(in crate::runtime::controller) fn collect_scroll_requests<'a>(
 mod tests {
     use super::*;
     use crate::{
-        gui::types::Point,
+        gui::{layout_core::LayoutOutput, types::Point},
         layout::{
             Constraints, ContainerKind, ContainerPolicy, Controlled, OverflowPolicy,
             ScrollAlignment, ScrollAxis, ScrollPolicy, ScrollRequest, ScrollTarget,
             ScrollbarPlacement, SizeModeCross, SizeModeMain, SlotParams,
         },
         runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-        widgets::{TextWidget, WidgetSizing},
+        theme::ThemeTokens,
+        widgets::{TextWidget, Widget, WidgetCommon, WidgetOutput, WidgetSizing},
     };
     use std::{
         sync::Arc,
@@ -680,6 +685,129 @@ mod tests {
     }
 
     #[test]
+    fn auto_scroll_affordance_tracks_viewport_and_visual_activity() {
+        let mut runtime =
+            SurfaceRuntime::new(WheelSettlementBridge::default(), Vector2::new(100.0, 80.0));
+        let theme = crate::theme::ThemeTokens::default();
+        let has_thumb = |runtime: &SurfaceRuntime<WheelSettlementBridge, String>| {
+            runtime
+                .paint_plan(&theme)
+                .primitives
+                .iter()
+                .any(|primitive| {
+                    matches!(
+                        primitive,
+                        crate::runtime::PaintPrimitive::FillRect(fill) if fill.widget_id == 1
+                    )
+                })
+        };
+        assert!(!has_thumb(&runtime));
+        runtime.dispatch_pointer_move_with_outcome(Point::new(8.0, 8.0));
+        assert!(has_thumb(&runtime));
+        runtime.dispatch_pointer_move_with_outcome(Point::new(-8.0, -8.0));
+        assert!(!has_thumb(&runtime));
+
+        let now = Instant::now();
+        runtime.set_timed_repaint_clock(Some(now));
+        let phaseful = |phase| {
+            crate::widgets::WheelSample::from_parts(
+                crate::widgets::WheelDelta::Pixels(Vector2::new(0.0, 12.0)),
+                Some(phase),
+                crate::widgets::PointerModifiers::default(),
+                None,
+                None,
+            )
+        };
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 8.0),
+            phaseful(crate::widgets::WheelPhase::Started)
+        ));
+        assert!(has_thumb(&runtime));
+        runtime.dispatch_pointer_move_with_outcome(Point::new(-8.0, -8.0));
+        assert!(has_thumb(&runtime));
+        assert!(!runtime.wheel_or_scroll_at_with_sample(
+            Point::new(-8.0, -8.0),
+            phaseful(crate::widgets::WheelPhase::Ended)
+        ));
+        assert!(!has_thumb(&runtime));
+        assert_eq!(runtime.bridge().settled, 1);
+        assert!(!runtime.wheel_or_scroll_at_with_sample(
+            Point::new(-8.0, -8.0),
+            phaseful(crate::widgets::WheelPhase::Ended)
+        ));
+        assert_eq!(runtime.bridge().settled, 1);
+
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 8.0),
+            phaseful(crate::widgets::WheelPhase::Started)
+        ));
+        runtime.dispatch_pointer_move_with_outcome(Point::new(-8.0, -8.0));
+        assert!(has_thumb(&runtime));
+        assert!(!runtime.wheel_or_scroll_at_with_sample(
+            Point::new(-8.0, -8.0),
+            phaseful(crate::widgets::WheelPhase::Cancelled)
+        ));
+        assert!(!has_thumb(&runtime));
+        assert_eq!(runtime.bridge().settled, 1);
+
+        assert!(runtime.wheel_or_scroll_at(Point::new(8.0, 8.0), Vector2::new(0.0, 12.0)));
+        assert!(has_thumb(&runtime));
+        let deadline = runtime
+            .timed_repaint_deadline()
+            .expect("visual idle deadline");
+        assert!(runtime.advance_timed_repaints(deadline));
+        assert!(!has_thumb(&runtime));
+    }
+
+    #[test]
+    fn terminal_over_wheel_sibling_finalizes_scroll_once_without_swallowing_widget() {
+        let mut runtime =
+            SurfaceRuntime::new(WheelSiblingBridge::default(), Vector2::new(100.0, 160.0));
+        let sample = |phase| {
+            crate::widgets::WheelSample::from_parts(
+                crate::widgets::WheelDelta::Pixels(Vector2::new(0.0, 12.0)),
+                Some(phase),
+                crate::widgets::PointerModifiers::default(),
+                None,
+                None,
+            )
+        };
+
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 8.0),
+            sample(crate::widgets::WheelPhase::Started)
+        ));
+        assert_eq!(runtime.bridge().settled, 0);
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 100.0),
+            sample(crate::widgets::WheelPhase::Ended)
+        ));
+        assert_eq!(runtime.bridge().settled, 1);
+        assert_eq!(runtime.bridge().sibling_wheels, 1);
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 100.0),
+            sample(crate::widgets::WheelPhase::Ended)
+        ));
+        assert_eq!(runtime.bridge().settled, 1);
+        assert_eq!(runtime.bridge().sibling_wheels, 2);
+
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 8.0),
+            sample(crate::widgets::WheelPhase::Started)
+        ));
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 100.0),
+            sample(crate::widgets::WheelPhase::Cancelled)
+        ));
+        assert_eq!(runtime.bridge().settled, 1);
+        assert_eq!(runtime.bridge().sibling_wheels, 3);
+        let now = Instant::now();
+        runtime.set_timed_repaint_clock(Some(now));
+        assert!(!runtime.advance_timed_repaints(now + Duration::from_millis(100)));
+        assert_eq!(runtime.bridge().settled, 1);
+    }
+
+    #[test]
     fn removing_scroll_container_cancels_pending_settlement_before_readd() {
         let mut runtime =
             SurfaceRuntime::new(WheelSettlementBridge::default(), Vector2::new(100.0, 80.0));
@@ -800,6 +928,9 @@ mod tests {
             layout.viewport_bounds.insert(1, layout.rects[&1]);
             let mut state = crate::gui::layout_core::LayoutState::default();
             state.scroll_offsets.insert(1, Vector2::new(17.0, 23.0));
+            state
+                .scroll_runtime
+                .insert(1, ScrollRuntimeState::default());
             let changed = apply_declarative_scroll_requests_for(
                 vec![(1, &policy, 2)],
                 &layout,
@@ -866,6 +997,9 @@ mod tests {
         );
         layout.viewport_bounds.insert(3, layout.rects[&3]);
         let mut state = crate::gui::layout_core::LayoutState::default();
+        state
+            .scroll_runtime
+            .insert(3, ScrollRuntimeState::default());
         let changed = apply_declarative_scroll_requests_for(
             vec![(3, &policy, 5)],
             &layout,
@@ -877,6 +1011,152 @@ mod tests {
         );
         assert_eq!(changed, vec![(3, Vector2::default())]);
         assert_eq!(state.scroll_offset(3), Vector2::new(0.0, 160.0));
+    }
+
+    #[test]
+    fn rejected_keyed_request_is_consumed_before_materialization() {
+        let key = crate::layout::VirtualLayoutItemKey::new(7_u32);
+        let mut policy = ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            scroll_policy: ScrollPolicy::default(),
+            scroll_request: Some(ScrollRequest::new(
+                ScrollTarget::Keyed(key.clone()),
+                ScrollAlignment::Start,
+                4,
+            )),
+            ..ContainerPolicy::default()
+        };
+        let mut layout = crate::gui::layout_core::LayoutOutput::default();
+        layout.rects.insert(
+            3,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+        );
+        layout.rects.insert(
+            5,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 400.0)),
+        );
+        layout.rects.insert(
+            4,
+            Rect::from_min_size(Point::new(0.0, 160.0), Vector2::new(20.0, 20.0)),
+        );
+        layout.viewport_bounds.insert(3, layout.rects[&3]);
+        let mut state = crate::gui::layout_core::LayoutState::default();
+        state
+            .scroll_runtime
+            .insert(3, ScrollRuntimeState::default());
+        let first = apply_declarative_scroll_requests_for(
+            vec![(3, &policy, 5)],
+            &layout,
+            &mut state,
+            |_, _| None,
+        );
+        assert!(first.is_empty());
+        assert_eq!(state.scroll_runtime[&3].request_generation, Some(4));
+        let second = apply_declarative_scroll_requests_for(
+            vec![(3, &policy, 5)],
+            &layout,
+            &mut state,
+            |_, candidate| (candidate == &key).then_some((3, 4)),
+        );
+        assert!(second.is_empty());
+
+        policy.scroll_request = Some(ScrollRequest::new(
+            ScrollTarget::Keyed(key.clone()),
+            ScrollAlignment::Start,
+            5,
+        ));
+        let third = apply_declarative_scroll_requests_for(
+            vec![(3, &policy, 5)],
+            &layout,
+            &mut state,
+            |_, candidate| (candidate == &key).then_some((3, 4)),
+        );
+        assert_eq!(third, vec![(3, Vector2::default())]);
+        assert_eq!(state.scroll_offset(3), Vector2::new(0.0, 160.0));
+    }
+
+    #[test]
+    fn malformed_request_is_consumed_and_max_generation_is_ignored() {
+        let mut policy = ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            scroll_policy: ScrollPolicy::default(),
+            scroll_request: Some(ScrollRequest::rect(
+                Rect::from_min_size(Point::new(0.0, 40.0), Vector2::new(0.0, 20.0)),
+                ScrollAlignment::Start,
+                8,
+            )),
+            ..ContainerPolicy::default()
+        };
+        let mut layout = crate::gui::layout_core::LayoutOutput::default();
+        layout.rects.insert(
+            3,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+        );
+        layout.rects.insert(
+            5,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 400.0)),
+        );
+        layout.viewport_bounds.insert(3, layout.rects[&3]);
+        let mut state = crate::gui::layout_core::LayoutState::default();
+        state
+            .scroll_runtime
+            .insert(3, ScrollRuntimeState::default());
+        assert!(
+            apply_declarative_scroll_requests_for(
+                vec![(3, &policy, 5)],
+                &layout,
+                &mut state,
+                |_, _| None,
+            )
+            .is_empty()
+        );
+        assert_eq!(state.scroll_runtime[&3].request_generation, Some(8));
+        policy.scroll_request = Some(ScrollRequest::rect(
+            Rect::from_min_size(Point::new(0.0, 40.0), Vector2::new(20.0, 20.0)),
+            ScrollAlignment::Start,
+            8,
+        ));
+        assert!(
+            apply_declarative_scroll_requests_for(
+                vec![(3, &policy, 5)],
+                &layout,
+                &mut state,
+                |_, _| None,
+            )
+            .is_empty()
+        );
+        policy.scroll_request = Some(ScrollRequest::new(
+            ScrollTarget::Edge(ScrollEdge::Bottom),
+            ScrollAlignment::Start,
+            u64::MAX,
+        ));
+        assert!(
+            apply_declarative_scroll_requests_for(
+                vec![(3, &policy, 5)],
+                &layout,
+                &mut state,
+                |_, _| None,
+            )
+            .is_empty()
+        );
+        assert_eq!(state.scroll_runtime[&3].request_generation, Some(8));
+        policy.scroll_request = Some(ScrollRequest::new(
+            ScrollTarget::Edge(ScrollEdge::Bottom),
+            ScrollAlignment::Start,
+            9,
+        ));
+        assert_eq!(
+            apply_declarative_scroll_requests_for(
+                vec![(3, &policy, 5)],
+                &layout,
+                &mut state,
+                |_, _| None,
+            ),
+            vec![(3, Vector2::default())]
+        );
+        assert_eq!(state.scroll_offset(3), Vector2::new(0.0, 400.0));
     }
 
     #[test]
@@ -1248,6 +1528,122 @@ mod tests {
         }
 
         fn reduce_message(&mut self, _message: ()) {}
+    }
+
+    #[derive(Clone, Debug)]
+    struct WheelSiblingWidget {
+        common: WidgetCommon,
+    }
+
+    impl WheelSiblingWidget {
+        fn new(id: u64) -> Self {
+            Self {
+                common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(100.0, 80.0))),
+            }
+        }
+    }
+
+    impl Widget for WheelSiblingWidget {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: Rect,
+            _input: crate::widgets::WidgetInput,
+        ) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn handle_wheel_sample(
+            &mut self,
+            _bounds: Rect,
+            _position: Point,
+            _sample: crate::widgets::WheelSample,
+        ) -> Option<WidgetOutput> {
+            Some(WidgetOutput::typed(String::from("sibling-wheel")))
+        }
+
+        fn accepts_wheel_input(&self) -> bool {
+            true
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &LayoutOutput,
+            _theme: &ThemeTokens,
+        ) {
+        }
+    }
+
+    #[derive(Default)]
+    struct WheelSiblingBridge {
+        settled: usize,
+        sibling_wheels: usize,
+    }
+
+    impl RuntimeBridge<String> for WheelSiblingBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<String>> {
+            let scroll = SurfaceNode::container(
+                1,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(2, "Tall", WidgetSizing::fixed(Vector2::new(80.0, 400.0))),
+                    WidgetMessageMapper::none(),
+                ))],
+            )
+            .on_offset_settled(|_| String::from("settled"));
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::column(
+                9,
+                0.0,
+                vec![
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        scroll,
+                    ),
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        SurfaceNode::widget(
+                            WheelSiblingWidget::new(7),
+                            WidgetMessageMapper::typed(|message: String| message),
+                        ),
+                    ),
+                ],
+            )))
+        }
+
+        fn reduce_message(&mut self, message: String) {
+            match message.as_str() {
+                "settled" => self.settled += 1,
+                "sibling-wheel" => self.sibling_wheels += 1,
+                _ => {}
+            }
+        }
     }
 
     struct WheelSettlementBridge {

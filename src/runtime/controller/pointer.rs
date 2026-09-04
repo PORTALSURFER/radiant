@@ -809,6 +809,11 @@ where
             cleared = true;
         }
         if self.interaction.hover.scroll_affordance.take().is_some() {
+            self.note_scroll_visibility_mutation();
+            cleared = true;
+        }
+        if self.interaction.hover.scroll_viewport.take().is_some() {
+            self.note_scroll_visibility_mutation();
             cleared = true;
         }
         if cleared {

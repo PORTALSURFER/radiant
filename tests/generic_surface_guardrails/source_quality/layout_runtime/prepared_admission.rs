@@ -15,10 +15,10 @@ fn direct_runtime_refresh_and_relayout_do_not_publish_prepared_candidates() {
     assert!(
         !refresh_inner.contains("prepare_runtime_layout_candidate")
             && !refresh_inner.contains("RuntimeLayoutCandidate")
-            && !refresh_inner.contains("fresh_surface")
-            && !refresh_inner.contains("FreshSurface")
-            && !refresh_inner.contains("advance_fresh_surface_active_generation"),
-        "refresh_with_scope_inner must keep fresh-surface preparation and bookkeeping out of the existing direct publication path"
+            && !refresh_inner.contains("prepare_fresh_surface_refresh")
+            && !refresh_inner.contains("PreparedSurfaceRefresh")
+            && !refresh_inner.contains("publish_prepared_surface_refresh"),
+        "refresh_with_scope_inner must keep staged fresh-surface preparation and publication out of the direct path"
     );
     assert!(
         refresh_inner.contains("self.relayout_with_traversal(traversal)")

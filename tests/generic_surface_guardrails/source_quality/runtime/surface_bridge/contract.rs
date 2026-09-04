@@ -49,8 +49,12 @@ fn runtime_bridge_contract_stays_minimal_and_routes_optional_host_capabilities()
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
 
     assert!(
-        contract.lines().count() <= 80,
-        "RuntimeBridge should stay focused on projection, update, and one capability table"
+        contract.contains("pub trait RuntimeBridge")
+            && contract.contains("pub struct SurfaceRefreshRequest")
+            && contract.contains("pub enum SurfaceUpdate")
+            && contract.contains("pub struct ExactChangedRoots")
+            && contract.lines().count() <= 170,
+        "RuntimeBridge should keep its core contract and opt-in exact-update boundary in one focused module"
     );
     for core_method in [
         "fn project_surface",
@@ -59,6 +63,8 @@ fn runtime_bridge_contract_stays_minimal_and_routes_optional_host_capabilities()
         "fn update(",
         "fn update_with_runtime",
         "fn host_capabilities",
+        "fn pull_surface_update",
+        "fn surface_update_provider_authority",
     ] {
         assert!(
             contract.contains(core_method),

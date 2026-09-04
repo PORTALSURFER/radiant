@@ -90,10 +90,11 @@ bounded diagnostic and uses the documented deterministic fallback policy.
 
 The stack must remain usable on Radiant's supported platforms and build modes.
 Embedded bytes and configured paths remain portable inputs; platform fallback is
-an explicit last-resort policy. The selected crates' licenses are compatible
-with Radiant's dependency and redistribution policy and must remain recorded in
-the dependency audit when implementation lands. The checked-in spike exercises
-determinism only; it is not full product shaping validation.
+an explicit last-resort policy. `rustybuzz` 0.20.x is MIT licensed;
+`unicode-bidi` and `unicode-segmentation` are MIT OR Apache-2.0. Existing
+`skrifa`/Vello license obligations remain subject to the repository dependency
+audit; this record does not claim that a full audit was done. The checked-in
+spike exercises determinism only; it is not full product shaping validation.
 
 This decision does not replace Vello, implement a complete text engine, or ship
 a full locale database. It does not change the current single-line behavior,
@@ -103,15 +104,19 @@ integration public before their staged implementation and acceptance work.
 
 ## Follow-on work
 
-- OPT-1402 integrates the snapshot with renderer text layout and cursor-stop
-  mapping while preserving the current single-line compatibility surface.
-- OPT-1404 completes the text-input/IME and multiline editing consumer path.
-- OPT-1367 connects shared stable geometry to hit testing, selection, and
-  accessibility consumers.
-- OPT-1406 adds bounded cache/runtime invalidation, diagnostics, and acceptance
-  evidence for fallback and platform behavior.
-- OPT-1386 supplies locale and writing-direction services without moving locale
-  policy into the shaping engine.
+OPT-1403 is architecture-only and does not implement any of these follow-ons.
+
+- OPT-1402 integrates the retained shaping/paragraph snapshot with
+  renderer/text-layout and cursor-stop mapping while preserving the current
+  single-line compatibility surface.
+- OPT-1404 implements the multiline `TextEditor` and typed-edit consumer.
+- OPT-1367 implements native IME adapters and matching-key suppression, and
+  consumes shared geometry for composition placement.
+- OPT-1406 implements text-range accessibility semantics and consumes shared
+  range geometry.
+- OPT-1386 supplies locale and writing-direction policy.
 
 Each follow-on must preserve this snapshot as the only geometry authority and
 must not broaden the renderer boundary or introduce a second measurement path.
+Cache invalidation follows the snapshot/shape implementation owner where
+appropriate.

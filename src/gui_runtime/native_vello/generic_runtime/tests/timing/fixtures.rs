@@ -359,6 +359,7 @@ pub(super) struct PreparedRefreshReplacementBridge {
     pub(super) replace: bool,
     pub(super) root_id: u64,
     pub(super) project_count: usize,
+    pub(super) application_environment: Option<crate::application::ApplicationEnvironment>,
     recorder: PreparedRefreshRecorder,
 }
 
@@ -368,12 +369,17 @@ impl PreparedRefreshReplacementBridge {
             replace: false,
             root_id: 101,
             project_count: 0,
+            application_environment: Some(crate::application::ApplicationEnvironment::default()),
             recorder,
         }
     }
 }
 
 impl RuntimeBridge<PreparedRefreshTerminalMessage> for PreparedRefreshReplacementBridge {
+    fn application_environment(&mut self) -> Option<crate::application::ApplicationEnvironment> {
+        self.application_environment.clone()
+    }
+
     fn project_surface(&mut self) -> Arc<UiSurface<PreparedRefreshTerminalMessage>> {
         self.project_count += 1;
         let paint_revision = if self.replace { 2 } else { 1 };

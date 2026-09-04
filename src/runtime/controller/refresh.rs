@@ -3524,7 +3524,7 @@ where
         let previous_stateful_widget_order = self.traversal.widgets.stateful_order.clone();
 
         let application_projection_started = Instant::now();
-        let application_environment = self.bridge.application_environment();
+        let application_environment = self.sample_application_environment();
         let scope = application_environment
             .as_ref()
             .and_then(|environment| {
@@ -3552,14 +3552,18 @@ where
             return Vec::new();
         }
         let mut next_surface = self.bridge.pull_surface();
-        if let Some(environment) = application_environment {
+        if let Some(environment) = application_environment.clone() {
             next_surface = next_surface.with_application_environment(environment);
         }
         next_surface.set_window_environment(self.window_environment);
-        let scope = next_surface
-            .application_environment()
-            .repaint_scope_since(self.surface.application_environment())
-            .map_or(scope, |application_scope| scope.merge(application_scope));
+        let scope = if application_environment.is_none() {
+            next_surface
+                .application_environment()
+                .repaint_scope_since(self.surface.application_environment())
+                .map_or(scope, |application_scope| scope.merge(application_scope))
+        } else {
+            scope
+        };
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         let application_projection = application_projection_started.elapsed();
         self.refresh_counters.application_projection = self

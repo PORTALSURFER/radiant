@@ -1,6 +1,43 @@
 use super::{fixtures::*, shared::*};
 use crate::application::IntoView;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
+
+struct BareApplicationEnvironmentBridge {
+    environment: Rc<RefCell<Option<crate::application::ApplicationEnvironment>>>,
+    pulls: Rc<Cell<usize>>,
+}
+
+impl BareApplicationEnvironmentBridge {
+    fn new(
+        environment: Rc<RefCell<Option<crate::application::ApplicationEnvironment>>>,
+        pulls: Rc<Cell<usize>>,
+    ) -> Self {
+        Self { environment, pulls }
+    }
+}
+
+impl crate::runtime::RuntimeBridge<()> for BareApplicationEnvironmentBridge {
+    fn application_environment(&mut self) -> Option<crate::application::ApplicationEnvironment> {
+        self.environment.borrow().clone()
+    }
+
+    fn project_surface(&mut self) -> std::sync::Arc<crate::runtime::UiSurface<()>> {
+        self.pulls.set(self.pulls.get().saturating_add(1));
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(
+            crate::runtime::SurfaceNode::widget(
+                crate::widgets::TextWidget::new(
+                    1,
+                    "bare",
+                    crate::widgets::WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+                ),
+                crate::runtime::WidgetMessageMapper::none(),
+            ),
+        ))
+    }
+}
 
 struct ReadyVirtualLayoutPolicy {
     query_count: Rc<Cell<usize>>,
@@ -84,6 +121,120 @@ fn valid_prepared_surface_refresh_native_evidence() -> PreparedSurfaceRefreshNat
         lifecycle: NativeLifecycle::default(),
         newer_visual_request: false,
     }
+}
+
+#[test]
+fn bare_bridge_environment_promotes_deferred_paint_only_once_and_reuses_unchanged_source() {
+    let initial = crate::application::ApplicationEnvironment::new(
+        crate::application::LocaleId::new("fr").expect("valid test locale"),
+    )
+    .with_text_scale(crate::application::TextScale::new(1.1).expect("valid test text scale"));
+    let changed = initial
+        .clone()
+        .with_writing_direction(crate::application::WritingDirection::Rtl)
+        .with_text_scale(crate::application::TextScale::new(1.25).expect("valid test text scale"));
+    let environment = Rc::new(RefCell::new(Some(initial.clone())));
+    let pulls = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        BareApplicationEnvironmentBridge::new(Rc::clone(&environment), Rc::clone(&pulls)),
+        Vector2::new(120.0, 40.0),
+    );
+
+    assert_eq!(
+        runner.core.runtime.context().application_environment(),
+        &initial
+    );
+    let startup_pulls = pulls.get();
+    *environment.borrow_mut() = Some(changed.clone());
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
+    let before = runner.core.runtime.refresh_counters();
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    assert_eq!(pulls.get(), startup_pulls + 1);
+    assert_eq!(
+        runner.core.runtime.context().application_environment(),
+        &changed
+    );
+    let after_changed = runner.core.runtime.refresh_counters();
+    assert_eq!(
+        after_changed.runtime_projection,
+        before.runtime_projection + 1
+    );
+    assert_eq!(after_changed.layout, before.layout + 1);
+
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
+    let pulls_before_unchanged = pulls.get();
+    let before_unchanged = runner.core.runtime.refresh_counters();
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    assert_eq!(pulls.get(), pulls_before_unchanged);
+    assert_eq!(runner.core.runtime.refresh_counters(), before_unchanged);
+}
+
+#[test]
+fn native_candidate_source_change_vetoes_without_replay_or_active_mutation() {
+    let initial = crate::application::ApplicationEnvironment::new(
+        crate::application::LocaleId::new("fr").expect("valid test locale"),
+    )
+    .with_text_scale(crate::application::TextScale::new(1.1).expect("valid test text scale"));
+    let changed = initial
+        .clone()
+        .with_writing_direction(crate::application::WritingDirection::Rtl)
+        .with_text_scale(crate::application::TextScale::new(1.25).expect("valid test text scale"));
+    let environment = Rc::new(RefCell::new(Some(initial.clone())));
+    let pulls = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        BareApplicationEnvironmentBridge::new(Rc::clone(&environment), Rc::clone(&pulls)),
+        Vector2::new(120.0, 40.0),
+    );
+    let startup_pulls = pulls.get();
+    let before_counters = runner.core.runtime.refresh_counters();
+    let before_application_environment = runner
+        .core
+        .runtime
+        .surface()
+        .application_environment()
+        .clone();
+    let before_window_environment = runner.core.runtime.context().window_environment();
+    let before_plan = runner.frame.last_paint_plan.clone();
+    *environment.borrow_mut() = Some(changed);
+    runner
+        .core
+        .set_test_prepared_surface_refresh_phase_observer(Rc::new({
+            let environment = Rc::clone(&environment);
+            move |phase| {
+                if phase == "candidate-held" {
+                    *environment.borrow_mut() = None;
+                }
+            }
+        }));
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    assert_eq!(pulls.get(), startup_pulls + 1);
+    assert_eq!(runner.core.runtime.refresh_counters(), before_counters);
+    assert_eq!(
+        runner.core.runtime.surface().application_environment(),
+        &before_application_environment
+    );
+    assert_eq!(
+        runner.core.runtime.context().window_environment(),
+        before_window_environment
+    );
+    assert_eq!(runner.frame.last_paint_plan, before_plan);
+    assert!(!runner.frame_stage_owner.has_in_flight());
 }
 
 #[test]
@@ -586,6 +737,65 @@ fn prepared_refresh_orders_projection_candidate_layout_publication_scene_and_ter
             PreparedRefreshEvent::TerminalUpdate(PreparedRefreshTerminalMessage),
         ]
     );
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
+fn prepared_refresh_vetoes_source_some_to_none_and_catalog_replacement_before_publication() {
+    let recorder = prepared_refresh_scene_admission_recorder();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedRefreshReplacementBridge::new(Rc::clone(&recorder)),
+        Vector2::new(120.0, 40.0),
+    );
+    let before = runner.core.runtime.refresh_counters();
+    let prepared = runner
+        .core
+        .prepare_prepared_surface_refresh(crate::runtime::RepaintScope::Projection)
+        .expect("source snapshot should prepare");
+    runner.core.runtime.bridge_mut().application_environment = None;
+    assert!(
+        runner
+            .core
+            .publish_prepared_surface_refresh(&mut runner.frame.last_paint_plan, prepared)
+            .is_none()
+    );
+    assert_eq!(runner.core.runtime.refresh_counters(), before);
+
+    runner.core.runtime.bridge_mut().application_environment = Some(
+        crate::application::ApplicationEnvironment::default().with_catalog(std::sync::Arc::new(
+            crate::application::TextCatalog::default()
+                .with_generation(7)
+                .insert(
+                    crate::application::LocaleId::english(),
+                    crate::application::TextKey::new("prepared", "Prepared"),
+                    "Changed",
+                ),
+        )),
+    );
+    let before_catalog = runner.core.runtime.refresh_counters();
+    let prepared = runner
+        .core
+        .prepare_prepared_surface_refresh(crate::runtime::RepaintScope::Projection)
+        .expect("catalog source snapshot should prepare");
+    runner.core.runtime.bridge_mut().application_environment = Some(
+        crate::application::ApplicationEnvironment::default().with_catalog(std::sync::Arc::new(
+            crate::application::TextCatalog::default()
+                .with_generation(7)
+                .insert(
+                    crate::application::LocaleId::english(),
+                    crate::application::TextKey::new("prepared", "Prepared"),
+                    "Replaced",
+                ),
+        )),
+    );
+    assert!(
+        runner
+            .core
+            .publish_prepared_surface_refresh(&mut runner.frame.last_paint_plan, prepared)
+            .is_none()
+    );
+    assert_eq!(runner.core.runtime.refresh_counters(), before_catalog);
     assert!(!runner.frame_stage_owner.has_in_flight());
 }
 

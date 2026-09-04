@@ -245,6 +245,15 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Sample the bridge-owned application environment once for one runtime
+    /// operation. Callers attach this exact value to the surface they pull so
+    /// scope promotion and projection share one source snapshot.
+    pub(in crate::runtime::controller) fn sample_application_environment(
+        &mut self,
+    ) -> Option<crate::application::ApplicationEnvironment> {
+        self.bridge.application_environment()
+    }
+
     pub(in crate::runtime) const fn runtime_identity(&self) -> u64 {
         self.effect_owner.id()
     }

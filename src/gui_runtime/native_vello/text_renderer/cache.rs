@@ -290,6 +290,11 @@ impl TextLayoutCache {
         }
     }
 
+    #[cfg(test)]
+    pub(super) fn set_view_cache_byte_budget_override(&mut self, budget: Option<usize>) {
+        self.view_cache_byte_budget_override = budget;
+    }
+
     fn evict_shape_cache_until(&mut self, incoming: usize) {
         while self.shape_cache.len() >= SHAPE_CACHE_ENTRY_BUDGET
             || self.shape_cache_bytes.saturating_add(incoming) > SHAPE_CACHE_BYTE_BUDGET

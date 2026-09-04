@@ -3,10 +3,10 @@
 use super::NativeTextOptions;
 use crate::gui::{
     paint::{TextAlign, TextRun},
-    types::{Point, Rgba8},
+    types::{Point, Rect, Rgba8},
 };
-use crate::widgets::TextWrap;
-use std::collections::HashMap;
+use crate::widgets::{TextWrap, WidgetId};
+use std::{collections::HashMap, sync::Arc};
 use vello::{Glyph, Scene, peniko::Fill};
 
 mod cache;
@@ -32,10 +32,142 @@ pub(in crate::gui_runtime::native_vello) use renderability::font_size_is_rendera
 use renderability::text_run_is_renderable;
 use renderability::text_run_parts_are_renderable;
 
+/// Exact renderer-local fence for one frame/plan text-input publication.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct NativeTextInputSnapshotFence {
+    frame_token: u64,
+    plan_token: u64,
+}
+
+impl NativeTextInputSnapshotFence {
+    #[allow(dead_code)]
+    pub(super) const fn new(frame_token: u64, plan_token: u64) -> Self {
+        Self {
+            frame_token,
+            plan_token,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct NativeTextInputFontKey {
+    size_bits: u32,
+    generation: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct NativeTextInputConstraintsKey {
+    available_width_bits: Option<u32>,
+    align: TextAlign,
+    wrap: TextWrap,
+    break_policy_id: LineBreakPolicyId,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct NativeTextInputRectKey {
+    min_x: u32,
+    min_y: u32,
+    max_x: u32,
+    max_y: u32,
+}
+
+impl From<Rect> for NativeTextInputRectKey {
+    fn from(rect: Rect) -> Self {
+        Self {
+            min_x: rect.min.x.to_bits(),
+            min_y: rect.min.y.to_bits(),
+            max_x: rect.max.x.to_bits(),
+            max_y: rect.max.y.to_bits(),
+        }
+    }
+}
+
+/// Private identity for one retained text-input paragraph snapshot.
+///
+/// The content revision and widget identity prevent cross-input reuse.  Font,
+/// view constraints, and the complete input rectangle cover geometry inputs;
+/// the frame/plan fence prevents this bounded sidecar from becoming an
+/// unscoped cross-frame cache.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct NativeTextInputSnapshotKey {
+    widget_id: WidgetId,
+    content_revision: u64,
+    font: NativeTextInputFontKey,
+    constraints: NativeTextInputConstraintsKey,
+    rect: NativeTextInputRectKey,
+    fence: NativeTextInputSnapshotFence,
+}
+
+impl NativeTextInputSnapshotKey {
+    #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)]
+    pub(super) fn new(
+        widget_id: WidgetId,
+        content_revision: u64,
+        font_size: f32,
+        font_generation: u64,
+        available_width: Option<f32>,
+        align: TextAlign,
+        wrap: TextWrap,
+        rect: Rect,
+        fence: NativeTextInputSnapshotFence,
+    ) -> Self {
+        Self {
+            widget_id,
+            content_revision,
+            font: NativeTextInputFontKey {
+                size_bits: font_size.to_bits(),
+                generation: font_generation,
+            },
+            constraints: NativeTextInputConstraintsKey {
+                available_width_bits: available_width.map(f32::to_bits),
+                align,
+                wrap,
+                break_policy_id: model::LINE_BREAK_POLICY_ID,
+            },
+            rect: rect.into(),
+            fence,
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+struct RetainedTextInputSnapshot {
+    key: NativeTextInputSnapshotKey,
+    snapshot: Arc<ParagraphSnapshot>,
+}
+
+#[allow(dead_code)]
+#[derive(Default)]
+struct RetainedTextInputSnapshotSidecar {
+    // One current entry is enough for the integration seam and bounds
+    // retention even when the view cache rejects an oversized paragraph.
+    entry: Option<RetainedTextInputSnapshot>,
+}
+
+impl RetainedTextInputSnapshotSidecar {
+    #[allow(dead_code)]
+    fn snapshot_for(&mut self, key: &NativeTextInputSnapshotKey) -> Option<Arc<ParagraphSnapshot>> {
+        if self.entry.as_ref().is_some_and(|entry| entry.key == *key) {
+            return self.entry.as_ref().map(|entry| entry.snapshot.clone());
+        }
+        self.entry = None;
+        None
+    }
+
+    #[allow(dead_code)]
+    fn retain(&mut self, key: NativeTextInputSnapshotKey, snapshot: Arc<ParagraphSnapshot>) {
+        self.entry = Some(RetainedTextInputSnapshot { key, snapshot });
+    }
+}
+
 pub(super) struct NativeTextRenderer {
     font_stack: NativeFontStack,
     layout_cache: TextLayoutCache,
     native_caret_affinities: HashMap<crate::widgets::WidgetId, CaretAffinity>,
+    #[allow(dead_code)]
+    retained_text_input_snapshot: RetainedTextInputSnapshotSidecar,
 }
 
 impl NativeTextRenderer {
@@ -55,6 +187,7 @@ impl NativeTextRenderer {
             font_stack,
             layout_cache: TextLayoutCache::new(),
             native_caret_affinities: HashMap::new(),
+            retained_text_input_snapshot: RetainedTextInputSnapshotSidecar::default(),
         }
     }
 
@@ -78,6 +211,25 @@ impl NativeTextRenderer {
 
     pub(super) fn reset_native_caret_affinities(&mut self) {
         self.native_caret_affinities.clear();
+    }
+
+    /// Return the current private text-input snapshot when its full fence matches.
+    #[allow(dead_code)]
+    pub(super) fn text_input_snapshot(
+        &mut self,
+        key: &NativeTextInputSnapshotKey,
+    ) -> Option<Arc<ParagraphSnapshot>> {
+        self.retained_text_input_snapshot.snapshot_for(key)
+    }
+
+    /// Retain one private text-input snapshot for the current frame/plan seam.
+    #[allow(dead_code)]
+    pub(super) fn retain_text_input_snapshot(
+        &mut self,
+        key: NativeTextInputSnapshotKey,
+        snapshot: Arc<ParagraphSnapshot>,
+    ) {
+        self.retained_text_input_snapshot.retain(key, snapshot);
     }
 
     pub(super) fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
@@ -310,9 +462,19 @@ fn visible_face_segment(
 #[cfg(test)]
 mod tests {
     use super::GlyphLayout;
-    use super::{CaretAffinity, NativeTextRenderer};
+    use super::{
+        CaretAffinity, NativeTextInputSnapshotFence, NativeTextInputSnapshotKey,
+        NativeTextRenderer, ParagraphSnapshot,
+    };
     use super::{TextCursorStop, TextLayout, visible_face_segment};
-    use crate::widgets::WidgetId;
+    use crate::{
+        gui::{
+            paint::TextAlign,
+            types::{Point, Rect},
+        },
+        widgets::{TextWrap, WidgetId},
+    };
+    use std::sync::Arc;
 
     #[test]
     fn native_pointer_affinity_resets_to_downstream() {
@@ -327,6 +489,75 @@ mod tests {
             renderer.native_caret_affinity(WidgetId::from(7_u32)),
             CaretAffinity::Downstream
         );
+    }
+
+    #[test]
+    fn retained_text_input_snapshot_reuses_arc_after_transient_view_reset() {
+        let mut renderer = NativeTextRenderer::new();
+        renderer
+            .layout_cache
+            .set_view_cache_byte_budget_override(Some(1));
+        let text = "A";
+        let first = renderer
+            .layout_text_view(text, 20.0, Some(240.0), TextAlign::Left, TextWrap::None)
+            .expect("oversized text input layout should be available")
+            .snapshot();
+
+        let key = NativeTextInputSnapshotKey::new(
+            WidgetId::from(7_u32),
+            first.revision,
+            20.0,
+            renderer.font_stack.generation(),
+            Some(240.0),
+            TextAlign::Left,
+            TextWrap::None,
+            Rect::from_min_max(Point::new(8.0, 10.0), Point::new(248.0, 38.0)),
+            NativeTextInputSnapshotFence::new(4, 9),
+        );
+        renderer.retain_text_input_snapshot(key, first.clone());
+
+        let replacement = renderer
+            .layout_text_view(text, 20.0, Some(240.0), TextAlign::Left, TextWrap::None)
+            .expect("transient view should be rebuilt")
+            .snapshot();
+        assert!(!Arc::ptr_eq(&first, &replacement));
+
+        let retained = renderer
+            .text_input_snapshot(&key)
+            .expect("matching fence should reuse the retained snapshot");
+        assert!(Arc::ptr_eq(&first, &retained));
+    }
+
+    #[test]
+    fn retained_text_input_snapshot_invalidates_on_fence_mismatch() {
+        let mut renderer = NativeTextRenderer::new();
+        let snapshot = ParagraphSnapshot::empty("text");
+        let key = NativeTextInputSnapshotKey::new(
+            WidgetId::from(7_u32),
+            snapshot.revision,
+            20.0,
+            renderer.font_stack.generation(),
+            Some(240.0),
+            TextAlign::Left,
+            TextWrap::None,
+            Rect::from_min_max(Point::new(8.0, 10.0), Point::new(248.0, 38.0)),
+            NativeTextInputSnapshotFence::new(4, 9),
+        );
+        renderer.retain_text_input_snapshot(key, snapshot);
+
+        let mismatched_key = NativeTextInputSnapshotKey::new(
+            WidgetId::from(7_u32),
+            key.content_revision,
+            20.0,
+            key.font.generation,
+            Some(240.0),
+            TextAlign::Left,
+            TextWrap::None,
+            Rect::from_min_max(Point::new(8.0, 10.0), Point::new(248.0, 38.0)),
+            NativeTextInputSnapshotFence::new(4, 10),
+        );
+        assert!(renderer.text_input_snapshot(&mismatched_key).is_none());
+        assert!(renderer.text_input_snapshot(&key).is_none());
     }
 
     #[test]

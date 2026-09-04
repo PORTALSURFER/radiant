@@ -270,6 +270,42 @@ fn missing_clusters_have_explicit_notdef_and_compatibility_replacement_output() 
         }],
         "the whole ZWJ emoji grapheme must use one stable replacement cluster"
     );
+    assert_eq!(
+        compatibility_replacement_glyphs("שלום Ж", &ordered_faces),
+        vec![
+            ReplacementGlyph {
+                glyph_id: 2,
+                cluster_range: (0, 2),
+                x_advance: 580,
+            },
+            ReplacementGlyph {
+                glyph_id: 2,
+                cluster_range: (2, 4),
+                x_advance: 580,
+            },
+            ReplacementGlyph {
+                glyph_id: 2,
+                cluster_range: (4, 6),
+                x_advance: 580,
+            },
+            ReplacementGlyph {
+                glyph_id: 2,
+                cluster_range: (6, 8),
+                x_advance: 580,
+            },
+            ReplacementGlyph {
+                glyph_id: 2,
+                cluster_range: (8, 9),
+                x_advance: 580,
+            },
+            ReplacementGlyph {
+                glyph_id: 2,
+                cluster_range: (9, 11),
+                x_advance: 580,
+            },
+        ],
+        "mixed-direction missing graphemes must retain exact UTF-8 ranges and stable fallback metrics"
+    );
 }
 
 #[test]

@@ -15,13 +15,15 @@ pub(super) fn handle_text_input(
         WidgetInput::PointerMove { position, .. } => {
             text_input.common.state.hovered = bounds.contains(position);
             if text_input.common.state.pressed {
-                let (caret, _) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
-                    (
-                        caret_for_pointer_x(bounds, position.x),
-                        super::NativeCaretAffinity::Downstream,
-                    )
-                });
+                let (caret, affinity) =
+                    text_input.take_native_pointer_caret().unwrap_or_else(|| {
+                        (
+                            caret_for_pointer_x(bounds, position.x),
+                            super::NativeCaretAffinity::Downstream,
+                        )
+                    });
                 text_input.set_caret(caret, true);
+                text_input.accept_native_pointer_caret(affinity);
             } else {
                 let _ = text_input.take_native_pointer_caret();
             }
@@ -35,13 +37,14 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = true;
             text_input.common.state.hovered = true;
             text_input.common.state.pressed = true;
-            let (caret, _) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
+            let (caret, affinity) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
                 (
                     caret_for_pointer_x(bounds, position.x),
                     super::NativeCaretAffinity::Downstream,
                 )
             });
             text_input.set_caret(caret, false);
+            text_input.accept_native_pointer_caret(affinity);
             None
         }
         WidgetInput::PointerDoubleClick {
@@ -52,20 +55,21 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = true;
             text_input.common.state.hovered = true;
             text_input.common.state.pressed = false;
-            let (caret, _) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
+            let (caret, affinity) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
                 (
                     caret_for_pointer_x(bounds, position.x),
                     super::NativeCaretAffinity::Downstream,
                 )
             });
             text_input.select_word_at(caret);
+            text_input.accept_native_pointer_caret(affinity);
             None
         }
         WidgetInput::PointerRelease {
             button: PointerButton::Primary,
             ..
         } => {
-            let _ = text_input.take_native_pointer_caret();
+            text_input.clear_native_pointer_caret();
             text_input.common.state.pressed = false;
             None
         }

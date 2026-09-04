@@ -219,14 +219,9 @@ impl RetainedTextInputSnapshotSidecar {
     }
 
     fn remove_entries_for_widget(&mut self, widget_id: WidgetId) {
-        let removed_bytes = self
-            .entries
-            .iter()
-            .filter(|entry| entry.key.widget_id == widget_id)
-            .fold(0usize, |bytes, entry| bytes.saturating_add(entry.bytes));
         self.entries
             .retain(|entry| entry.key.widget_id != widget_id);
-        self.bytes = self.bytes.saturating_sub(removed_bytes);
+        self.recompute_bytes();
     }
 
     fn take_entry(&mut self, index: usize) -> Option<Arc<ParagraphSnapshot>> {
@@ -349,23 +344,64 @@ impl RetainedTextInputSnapshotSidecar {
             return false;
         }
 
-        while self.entries.len() >= entry_budget || self.bytes > byte_budget.saturating_sub(bytes) {
+        while self.entries.len() >= entry_budget
+            || self
+                .bytes
+                .saturating_add(self.bytes_for_snapshot(&snapshot))
+                > byte_budget
+        {
             let Some(entry) = self.entries.pop_front() else {
                 break;
             };
             self.bytes = self.bytes.saturating_sub(entry.bytes);
+            self.recompute_bytes();
         }
-        if self.entries.len() >= entry_budget || self.bytes > byte_budget.saturating_sub(bytes) {
+        if self.entries.len() >= entry_budget
+            || self
+                .bytes
+                .saturating_add(self.bytes_for_snapshot(&snapshot))
+                > byte_budget
+        {
             return false;
         }
 
-        self.bytes += bytes;
+        let local_bytes = snapshot.estimated_local_bytes();
         self.entries.push_back(RetainedTextInputSnapshot {
             key,
             snapshot,
-            bytes,
+            bytes: local_bytes,
         });
+        self.recompute_bytes();
         true
+    }
+
+    fn recompute_bytes(&mut self) {
+        let mut retained = Vec::<Arc<super::ShapedParagraph>>::new();
+        let mut bytes = 0usize;
+        for entry in &self.entries {
+            bytes = bytes.saturating_add(entry.bytes);
+            if !retained
+                .iter()
+                .any(|shape| Arc::ptr_eq(shape, &entry.snapshot.shaped))
+            {
+                retained.push(Arc::clone(&entry.snapshot.shaped));
+                bytes = bytes.saturating_add(entry.snapshot.shaped.estimated_bytes());
+            }
+        }
+        self.bytes = bytes;
+    }
+
+    fn bytes_for_snapshot(&self, snapshot: &Arc<ParagraphSnapshot>) -> usize {
+        let local_bytes = snapshot.estimated_local_bytes();
+        if self
+            .entries
+            .iter()
+            .any(|entry| Arc::ptr_eq(&entry.snapshot.shaped, &snapshot.shaped))
+        {
+            local_bytes
+        } else {
+            local_bytes.saturating_add(snapshot.shaped.estimated_bytes())
+        }
     }
 }
 

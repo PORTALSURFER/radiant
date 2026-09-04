@@ -4,7 +4,6 @@ fn cached_layout(text: &str, stamp: u64) -> CachedTextLayout {
     CachedTextLayout {
         layout: TextLayout::empty_for(text),
         stamp,
-        bytes: 0,
     }
 }
 
@@ -21,11 +20,7 @@ fn cached_layout_with_glyph_diagnostics(
     layout.unsupported_shaping_scalars = unsupported_shaping_scalars;
     layout.fallback_glyphs = fallback_glyphs;
     layout.missing_glyphs = missing_glyphs;
-    CachedTextLayout {
-        layout,
-        stamp,
-        bytes: 0,
-    }
+    CachedTextLayout { layout, stamp }
 }
 
 fn layout_key(label: &str) -> TextViewKey {
@@ -210,12 +205,67 @@ fn shape_cache_is_reused_while_width_views_reproject_independently() {
 }
 
 #[test]
+fn view_cache_counts_shared_shaped_geometry_once_near_budget() {
+    let mut cache = TextLayoutCache::new();
+    let mut stack = super::super::font::NativeFontStack::from_test_bytes(&[include_bytes!(
+        "../../../../../tests/fixtures/fonts/primary.ttf"
+    )]);
+
+    let first = cache
+        .layout_for_view(
+            &mut stack,
+            "A",
+            20.0,
+            Some(40.0),
+            TextAlign::Left,
+            TextWrap::None,
+        )
+        .expect("first view should be complete")
+        .clone();
+    let shaped = first.snapshot.shaped.clone();
+    let second = TextLayout::from_snapshot(ParagraphSnapshot::from_shaped(
+        shaped.clone(),
+        Some(80.0),
+        TextAlign::Left,
+    ));
+    let byte_budget = first
+        .estimated_local_bytes()
+        .saturating_add(second.estimated_local_bytes())
+        .saturating_add(shaped.estimated_bytes());
+
+    cache.view_cache.clear();
+    cache.view_cache_order.clear();
+    cache.view_cache_bytes = 0;
+    cache.view_cache_byte_budget_override = Some(byte_budget);
+
+    let _ = cache.layout_for_view(
+        &mut stack,
+        "A",
+        20.0,
+        Some(40.0),
+        TextAlign::Left,
+        TextWrap::None,
+    );
+    let _ = cache.layout_for_view(
+        &mut stack,
+        "A",
+        20.0,
+        Some(80.0),
+        TextAlign::Left,
+        TextWrap::None,
+    );
+
+    assert_eq!(cache.view_cache.len(), 2);
+    assert_eq!(cache.view_cache_bytes, byte_budget);
+}
+
+#[test]
 fn width_and_view_cache_eviction_obeys_entry_and_byte_budgets() {
     let mut cache = TextLayoutCache::new();
     let key = layout_key("byte-budget");
-    let mut entry = cached_layout(key.shape.text.as_ref(), 1);
-    entry.bytes = VIEW_CACHE_BYTE_BUDGET;
-    cache.view_cache.insert(key.clone(), entry);
+    cache
+        .view_cache
+        .insert(key.clone(), cached_layout(key.shape.text.as_ref(), 1));
     cache.view_cache_bytes = VIEW_CACHE_BYTE_BUDGET;
     cache.touch_view_cache_key(&key);
 

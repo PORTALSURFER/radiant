@@ -71,6 +71,7 @@ pub use refresh::{
 
 enum NativeTextPointerCaret {
     Pending(WidgetId, String, usize, crate::widgets::NativeCaretAffinity),
+    Applied(WidgetId, String, crate::widgets::NativeCaretAffinity),
     Accepted(WidgetId, crate::widgets::NativeCaretAffinity),
 }
 pub(crate) use scroll::WheelOrScrollRoute;

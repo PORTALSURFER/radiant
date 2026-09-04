@@ -896,7 +896,7 @@ fn native_text_pointer_affinity_commits_only_for_current_target_and_text_source(
     );
     runner.core.runtime.dispatch_input(
         crate::widgets::WidgetId::from(12_u32),
-        WidgetInput::pointer_move(position),
+        WidgetInput::primary_press(position),
     );
     runner.commit_accepted_native_text_pointer_caret();
     assert_eq!(
@@ -925,7 +925,30 @@ fn native_text_pointer_affinity_commits_only_for_current_target_and_text_source(
     );
     runner.core.runtime.dispatch_input(
         crate::widgets::WidgetId::from(12_u32),
-        WidgetInput::pointer_move(position),
+        WidgetInput::primary_press(position),
+    );
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
+        CaretAffinity::Upstream,
+        "a caret staged for a text input must be vetoed when another widget consumes the event"
+    );
+
+    runner.core.runtime.set_native_text_pointer_caret(
+        crate::widgets::WidgetId::from(12_u32),
+        &source,
+        caret,
+        match affinity {
+            CaretAffinity::Upstream => crate::widgets::NativeCaretAffinity::Upstream,
+            CaretAffinity::Downstream => crate::widgets::NativeCaretAffinity::Downstream,
+        },
+    );
+    runner.core.runtime.dispatch_input(
+        crate::widgets::WidgetId::from(12_u32),
+        WidgetInput::primary_press(position),
     );
     runner.commit_accepted_native_text_pointer_caret();
     assert_eq!(
@@ -934,6 +957,112 @@ fn native_text_pointer_affinity_commits_only_for_current_target_and_text_source(
             .text_renderer
             .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
         affinity
+    );
+}
+
+#[test]
+fn native_text_pointer_affinity_commits_for_pressed_drag_move() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let press_position = Point::new(input_rect.min.x + 4.0, input_rect.min.y + 4.0);
+    let drag_position = Point::new(input_rect.min.x + 24.0, input_rect.min.y + 4.0);
+    let widget_id = crate::widgets::WidgetId::from(12_u32);
+
+    runner.core.runtime.set_native_text_pointer_caret(
+        widget_id,
+        "",
+        0,
+        crate::widgets::NativeCaretAffinity::Upstream,
+    );
+    runner
+        .core
+        .runtime
+        .dispatch_input(widget_id, WidgetInput::primary_press(press_position));
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner.frame.text_renderer.native_caret_affinity(widget_id),
+        CaretAffinity::Upstream
+    );
+
+    runner.core.runtime.set_native_text_pointer_caret(
+        widget_id,
+        "",
+        0,
+        crate::widgets::NativeCaretAffinity::Downstream,
+    );
+    runner
+        .core
+        .runtime
+        .dispatch_input(widget_id, WidgetInput::pointer_move(drag_position));
+    runner.commit_accepted_native_text_pointer_caret();
+    assert_eq!(
+        runner.frame.text_renderer.native_caret_affinity(widget_id),
+        CaretAffinity::Downstream
+    );
+}
+
+#[test]
+fn native_text_pointer_affinity_ignores_discarded_hover_and_release_carets() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let position = Point::new(input_rect.min.x + 4.0, input_rect.min.y + 4.0);
+    let widget_id = crate::widgets::WidgetId::from(12_u32);
+
+    runner
+        .frame
+        .text_renderer
+        .set_native_caret_affinity(widget_id, CaretAffinity::Upstream);
+    for input in [
+        WidgetInput::pointer_move(position),
+        WidgetInput::pointer_release(
+            position,
+            crate::widgets::PointerButton::Primary,
+            Default::default(),
+        ),
+    ] {
+        runner.core.runtime.set_native_text_pointer_caret(
+            widget_id,
+            "",
+            0,
+            crate::widgets::NativeCaretAffinity::Downstream,
+        );
+        runner.core.runtime.dispatch_input(widget_id, input);
+        runner.commit_accepted_native_text_pointer_caret();
+    }
+
+    assert_eq!(
+        runner.frame.text_renderer.native_caret_affinity(widget_id),
+        CaretAffinity::Upstream
     );
 }
 

@@ -198,6 +198,8 @@ impl ShapedParagraph {
             + self.glyphs.len() * std::mem::size_of::<GlyphPlacement>()
             + self.grapheme_geometry.len() * std::mem::size_of::<GraphemeGeometry>()
             + self.caret_geometry.len() * std::mem::size_of::<CaretStopGeometry>()
+            + self.logical_to_visual.len() * std::mem::size_of::<usize>()
+            + self.visual_to_logical.len() * std::mem::size_of::<usize>()
     }
 }
 
@@ -528,9 +530,8 @@ impl ParagraphSnapshot {
         (start, end)
     }
 
-    pub(in crate::gui_runtime::native_vello) fn estimated_bytes(&self) -> usize {
-        self.source.len()
-            + self.scalar_boundaries.len() * std::mem::size_of::<Utf8ByteOffset>()
+    pub(in crate::gui_runtime::native_vello) fn estimated_local_bytes(&self) -> usize {
+        self.scalar_boundaries.len() * std::mem::size_of::<Utf8ByteOffset>()
             + self.grapheme_boundaries.len() * std::mem::size_of::<Utf8ByteOffset>()
             + self.breaks.len() * std::mem::size_of::<LineBreakRecord>()
             + self.resolved_font_runs.len() * std::mem::size_of::<ResolvedFontRun>()
@@ -538,6 +539,13 @@ impl ParagraphSnapshot {
             + self.glyphs.len() * std::mem::size_of::<GlyphPlacement>()
             + self.grapheme_geometry.len() * std::mem::size_of::<GraphemeGeometry>()
             + self.caret_geometry.len() * std::mem::size_of::<CaretStopGeometry>()
+            + self.logical_to_visual.len() * std::mem::size_of::<usize>()
+            + self.visual_to_logical.len() * std::mem::size_of::<usize>()
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn estimated_bytes(&self) -> usize {
+        self.estimated_local_bytes()
+            .saturating_add(self.shaped.estimated_bytes())
     }
 }
 
@@ -612,6 +620,11 @@ impl TextLayout {
     }
 
     pub(in crate::gui_runtime::native_vello) fn estimated_bytes(&self) -> usize {
+        self.estimated_local_bytes()
+            .saturating_add(self.snapshot.shaped.estimated_bytes())
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn estimated_local_bytes(&self) -> usize {
         let legacy_bytes = {
             #[cfg(test)]
             {
@@ -622,7 +635,7 @@ impl TextLayout {
                 0
             }
         };
-        self.snapshot.estimated_bytes() + legacy_bytes
+        self.snapshot.estimated_local_bytes() + legacy_bytes
     }
 }
 

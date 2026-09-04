@@ -73,14 +73,12 @@ pub(super) struct TextLayoutCache {
 struct CachedShape {
     shape: Arc<super::ShapedParagraph>,
     stamp: u64,
-    bytes: usize,
 }
 
 #[derive(Clone, Debug)]
 struct CachedTextLayout {
     layout: TextLayout,
     stamp: u64,
-    bytes: usize,
 }
 
 impl TextLayoutCache {
@@ -190,19 +188,15 @@ impl TextLayoutCache {
         self.quality_profile.record_layout(&layout);
         let bytes = layout.estimated_bytes();
         if bytes <= self.view_cache_byte_budget() {
-            self.evict_view_cache_until(bytes);
+            self.evict_view_cache_until_layout(&layout);
             let stamp =
                 record_key_access(&mut self.view_cache_clock, &mut self.view_cache_order, &key);
-            self.view_cache_bytes = self.view_cache_bytes.saturating_add(bytes);
             let entry = self
                 .view_cache
                 .entry(key.clone())
-                .or_insert(CachedTextLayout {
-                    layout,
-                    stamp,
-                    bytes,
-                });
+                .or_insert(CachedTextLayout { layout, stamp });
             entry.stamp = stamp;
+            self.recompute_view_cache_bytes();
             return self.view_cache.get(&key).map(|entry| &entry.layout);
         }
         self.transient_layout = Some(layout);
@@ -235,23 +229,21 @@ impl TextLayoutCache {
             font_size_bits: initial_key.font_size_bits,
             font_generation: font_stack.generation(),
         };
-        let bytes = shape.estimated_bytes();
-        if bytes <= SHAPE_CACHE_BYTE_BUDGET {
-            self.evict_shape_cache_until(bytes);
+        if shape.estimated_bytes() <= SHAPE_CACHE_BYTE_BUDGET {
+            self.evict_shape_cache_until(&shape);
             let stamp = record_key_access(
                 &mut self.shape_cache_clock,
                 &mut self.shape_cache_order,
                 &key,
             );
-            self.shape_cache_bytes = self.shape_cache_bytes.saturating_add(bytes);
             self.shape_cache.insert(
                 key.clone(),
                 CachedShape {
                     shape: shape.clone(),
                     stamp,
-                    bytes,
                 },
             );
+            self.recompute_shape_cache_bytes();
         }
         (key, shape)
     }
@@ -302,9 +294,12 @@ impl TextLayoutCache {
         self.view_cache_byte_budget_override = budget;
     }
 
-    fn evict_shape_cache_until(&mut self, incoming: usize) {
+    fn evict_shape_cache_until(&mut self, incoming: &Arc<super::ShapedParagraph>) {
         while self.shape_cache.len() >= SHAPE_CACHE_ENTRY_BUDGET
-            || self.shape_cache_bytes.saturating_add(incoming) > SHAPE_CACHE_BYTE_BUDGET
+            || self
+                .shape_cache_bytes_for(incoming)
+                .saturating_add(self.shape_cache_bytes)
+                > SHAPE_CACHE_BYTE_BUDGET
         {
             let Some((candidate, queued_stamp)) = self.shape_cache_order.pop_front() else {
                 break;
@@ -315,13 +310,14 @@ impl TextLayoutCache {
             if entry.stamp != queued_stamp {
                 continue;
             }
-            if let Some(entry) = self.shape_cache.remove(&candidate) {
-                self.shape_cache_bytes = self.shape_cache_bytes.saturating_sub(entry.bytes);
+            if self.shape_cache.remove(&candidate).is_some() {
+                self.recompute_shape_cache_bytes();
                 self.shape_profile.evictions = self.shape_profile.evictions.saturating_add(1);
             }
         }
     }
 
+    #[cfg(test)]
     fn evict_view_cache_until(&mut self, incoming: usize) {
         let byte_budget = self.view_cache_byte_budget();
         while self.view_cache.len() >= VIEW_CACHE_ENTRY_BUDGET
@@ -336,8 +332,8 @@ impl TextLayoutCache {
             if entry.stamp != queued_stamp {
                 continue;
             }
-            if let Some(entry) = self.view_cache.remove(&candidate) {
-                self.view_cache_bytes = self.view_cache_bytes.saturating_sub(entry.bytes);
+            if self.view_cache.remove(&candidate).is_some() {
+                self.recompute_view_cache_bytes();
                 self.view_profile.evictions = self.view_profile.evictions.saturating_add(1);
                 self.width_profile.evictions = self.width_profile.evictions.saturating_add(1);
                 if is_no_width_key(&candidate) {
@@ -345,6 +341,89 @@ impl TextLayoutCache {
                 }
             }
         }
+    }
+
+    fn evict_view_cache_until_layout(&mut self, incoming: &TextLayout) {
+        let byte_budget = self.view_cache_byte_budget();
+        while self.view_cache.len() >= VIEW_CACHE_ENTRY_BUDGET
+            || self
+                .view_cache_bytes
+                .saturating_add(self.view_cache_bytes_for(incoming))
+                > byte_budget
+        {
+            let Some((candidate, queued_stamp)) = self.view_cache_order.pop_front() else {
+                break;
+            };
+            let Some(entry) = self.view_cache.get(&candidate) else {
+                continue;
+            };
+            if entry.stamp != queued_stamp {
+                continue;
+            }
+            if self.view_cache.remove(&candidate).is_some() {
+                self.recompute_view_cache_bytes();
+                self.view_profile.evictions = self.view_profile.evictions.saturating_add(1);
+                self.width_profile.evictions = self.width_profile.evictions.saturating_add(1);
+                if is_no_width_key(&candidate) {
+                    self.layout_profile.evictions = self.layout_profile.evictions.saturating_add(1);
+                }
+            }
+        }
+    }
+
+    fn shape_cache_bytes_for(&self, incoming: &Arc<super::ShapedParagraph>) -> usize {
+        self.shape_cache
+            .values()
+            .find(|entry| Arc::ptr_eq(&entry.shape, incoming))
+            .map_or_else(|| incoming.estimated_bytes(), |_| 0)
+    }
+
+    fn recompute_shape_cache_bytes(&mut self) {
+        let mut retained = Vec::<Arc<super::ShapedParagraph>>::new();
+        self.shape_cache_bytes = self
+            .shape_cache
+            .values()
+            .filter_map(|entry| {
+                if retained
+                    .iter()
+                    .any(|shape| Arc::ptr_eq(shape, &entry.shape))
+                {
+                    None
+                } else {
+                    retained.push(Arc::clone(&entry.shape));
+                    Some(entry.shape.estimated_bytes())
+                }
+            })
+            .sum();
+    }
+
+    fn view_cache_bytes_for(&self, incoming: &TextLayout) -> usize {
+        let local = incoming.estimated_local_bytes();
+        if self
+            .view_cache
+            .values()
+            .any(|entry| Arc::ptr_eq(&entry.layout.snapshot.shaped, &incoming.snapshot.shaped))
+        {
+            local
+        } else {
+            local.saturating_add(incoming.snapshot.shaped.estimated_bytes())
+        }
+    }
+
+    fn recompute_view_cache_bytes(&mut self) {
+        let mut retained = Vec::<Arc<super::ShapedParagraph>>::new();
+        let mut bytes = 0usize;
+        for entry in self.view_cache.values() {
+            bytes = bytes.saturating_add(entry.layout.estimated_local_bytes());
+            if !retained
+                .iter()
+                .any(|shape| Arc::ptr_eq(shape, &entry.layout.snapshot.shaped))
+            {
+                retained.push(Arc::clone(&entry.layout.snapshot.shaped));
+                bytes = bytes.saturating_add(entry.layout.snapshot.shaped.estimated_bytes());
+            }
+        }
+        self.view_cache_bytes = bytes;
     }
 
     fn compact_shape_cache_order_if_needed(&mut self) {

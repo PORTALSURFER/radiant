@@ -70,6 +70,8 @@ pub struct SurfaceContainer<Message> {
         Option<super::super::VirtualLayoutRegistration<Message>>,
     pub(in crate::runtime::surface) scroll_message:
         Option<EventMapper<crate::runtime::ScrollUpdate, Option<Message>>>,
+    pub(in crate::runtime::surface) offset_settled:
+        Option<Rc<dyn Fn(crate::gui::types::Vector2) -> Message>>,
     pub(in crate::runtime::surface) children: Vec<SurfaceChild<Message>>,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
 }
@@ -101,6 +103,7 @@ impl<Message> SurfaceContainer<Message> {
             split_pane_ratio_settled: None,
             virtual_layout: None,
             scroll_message: None,
+            offset_settled: None,
             children: parts.children,
             source: None,
         }
@@ -203,6 +206,18 @@ impl<Message> SurfaceContainer<Message> {
         self
     }
 
+    /// Return this container with a settlement callback for accepted offsets.
+    pub fn with_offset_settled(
+        mut self,
+        map: impl Fn(crate::gui::types::Vector2) -> Message + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        self.offset_settled = Some(Rc::new(map));
+        self
+    }
+
     pub(in crate::runtime::surface) fn scroll_mapper_descriptor(
         &self,
     ) -> crate::runtime::surface::widget::MapperDescriptor {
@@ -246,6 +261,14 @@ impl<Message> SurfaceNode<Message> {
         self
     }
 
+    /// Configure scroll behavior on a container node.
+    pub fn scroll_policy(mut self, policy: crate::layout::ScrollPolicy) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.policy.scroll_policy = policy.normalized();
+        }
+        self
+    }
+
     #[cfg(test)]
     pub(crate) fn with_floating_layer_container_capabilities(
         mut self,
@@ -255,6 +278,71 @@ impl<Message> SurfaceNode<Message> {
             layer.container.layout_capabilities = Some(capabilities);
         }
         self
+    }
+
+    /// Seed a scroll offset on the next mount.
+    pub fn initial_offset(mut self, offset: crate::gui::types::Vector2) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.policy.initial_offset = Some(offset);
+        }
+        self
+    }
+
+    /// Supply a strictly generation-ordered controlled offset.
+    pub fn controlled_offset(
+        mut self,
+        offset: crate::layout::Controlled<crate::gui::types::Vector2>,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.policy.controlled_offset = Some(offset);
+        }
+        self
+    }
+
+    /// Supply a one-shot generation-bearing reveal request.
+    pub fn scroll_request(mut self, request: crate::layout::ScrollRequest) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.policy.scroll_request = Some(request);
+        }
+        self
+    }
+
+    pub(crate) fn with_scroll_declaration(
+        self,
+        policy: Option<crate::layout::ScrollPolicy>,
+        initial_offset: Option<crate::gui::types::Vector2>,
+        controlled_offset: Option<crate::layout::Controlled<crate::gui::types::Vector2>>,
+        request: Option<crate::layout::ScrollRequest>,
+    ) -> Self {
+        match self {
+            Self::Container(mut container) => {
+                if let Some(policy) = policy {
+                    container.policy.scroll_policy = policy;
+                }
+                container.policy.initial_offset = initial_offset;
+                container.policy.controlled_offset = controlled_offset;
+                container.policy.scroll_request = request;
+                Self::Container(container)
+            }
+            node => node,
+        }
+    }
+
+    /// Emit one host message after an accepted offset settles.
+    pub fn on_offset_settled(
+        self,
+        map: impl Fn(crate::gui::types::Vector2) -> Message + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        match self {
+            Self::Container(mut container) => {
+                container.offset_settled = Some(Rc::new(map));
+                Self::Container(container)
+            }
+            node => node,
+        }
     }
 
     pub(crate) fn with_split_pane_runtime_mode(

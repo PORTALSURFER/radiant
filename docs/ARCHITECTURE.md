@@ -319,6 +319,15 @@ the only platform conversion, negating content-direction deltas once, applying
 40 logical pixels per line or one DPI conversion for pixels, and passing the
 normalized result through generic routing without an origin flip.
 
+Each mounted scroll container has one runtime-owned offset slot fenced by its
+container identity and environment generation. `initial_offset` seeds only a
+new mount; a `Controlled<Vector2>` value is admitted only when its generation
+is newer than the accepted generation; and a `ScrollRequest` is consumed once
+after finite committed geometry or a currently materialized key is verified.
+Wheel, scrollbar, keyboard, focus reveal, and programmatic requests all pass
+through the same clamping and settlement path. Rejected or stale evidence has
+no layout or callback side effects.
+
 ## Virtual Layout Semantic Provider Boundary
 
 The current mounted `SurfaceRuntime` virtual-layout registration and semantic

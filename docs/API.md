@@ -65,6 +65,37 @@ ordinary application code should stay message-first. See `docs/API_STYLE.md`.
 
 ## Application API
 
+### Controlled scrolling
+
+`scroll(content)` owns its live logical offset in the runtime. Use
+`ScrollPolicy` for axis, locking, scrollbar placement and visibility, and use
+`initial_offset` only to seed a newly mounted container. `controlled_offset`
+accepts a strictly newer `Controlled<Vector2>` generation; `scroll_request`
+consumes each generation once after resolving a materialized key, rectangle, or
+edge. `on_offset_settled` is called once after an accepted offset settles, so
+applications can persist the resulting value without driving every wheel
+update through application state.
+
+```rust
+use radiant::layout::{ScrollAxis, ScrollPolicy, ScrollbarPlacement, Vector2};
+use radiant::prelude::*;
+
+scroll(content)
+    .scroll_policy(
+        ScrollPolicy::default()
+            .axes(ScrollAxis::Vertical)
+            .scrollbar_placement(ScrollbarPlacement::Reserved),
+    )
+    .initial_offset(Vector2::new(0.0, 96.0))
+    .on_offset_settled(Message::ScrollSettled);
+```
+
+The runtime validates generations, finite geometry, mount identity, and
+current committed layout evidence before mutating scroll state. A stale,
+malformed, unavailable, or no-op request is consumed silently. Focus reveal,
+wheel chaining, keyboard page/Home/End commands, and horizontal or vertical
+scrollbar interaction use the same policy and committed geometry.
+
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. Application code imports `radiant::prelude::*`, declares view
 structure, emits explicit messages from widgets, and mutates durable state in

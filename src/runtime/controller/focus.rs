@@ -253,7 +253,7 @@ where
             self.route_focus_changed(widget_id, true);
         }
 
-        match next {
+        let transition = match next {
             RuntimeFocusOwner::Widget(widget_id) => {
                 if self.interaction.focus.owner == Some(next)
                     && !self.is_authoritative_focus_target(widget_id)
@@ -307,7 +307,13 @@ where
                     FocusTransition::InvalidTarget
                 }
             }
+        };
+        if transition == FocusTransition::Changed {
+            if let RuntimeFocusOwner::Widget(widget_id) = next {
+                self.reveal_widget_in_scroll_ancestors(widget_id);
+            }
         }
+        transition
     }
 
     pub(super) fn is_live_focus_target(&self, widget_id: WidgetId) -> bool {

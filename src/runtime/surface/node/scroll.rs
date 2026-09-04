@@ -10,6 +10,19 @@ impl<Message> SurfaceNode<Message> {
             Self::Widget(_) | Self::Overlay(_) => None,
         }
     }
+
+    pub(in crate::runtime) fn offset_settled(
+        &self,
+        node_id: crate::layout::NodeId,
+        offset: crate::gui::types::Vector2,
+    ) -> Option<Message> {
+        match self {
+            Self::Scene(scene) => scene.offset_settled(node_id, offset),
+            Self::Container(container) => container.offset_settled(node_id, offset),
+            Self::FloatingLayer(layer) => layer.container.offset_settled(node_id, offset),
+            Self::Widget(_) | Self::Overlay(_) => None,
+        }
+    }
 }
 
 impl<Message> SurfaceContainer<Message> {
@@ -23,6 +36,19 @@ impl<Message> SurfaceContainer<Message> {
             .iter()
             .find_map(|child| child.child.scroll_message(update))
     }
+
+    fn offset_settled(
+        &self,
+        node_id: crate::layout::NodeId,
+        offset: crate::gui::types::Vector2,
+    ) -> Option<Message> {
+        if self.id == node_id {
+            return self.offset_settled.as_ref().map(|map| map(offset));
+        }
+        self.children
+            .iter()
+            .find_map(|child| child.child.offset_settled(node_id, offset))
+    }
 }
 
 impl<Message> SurfaceScene<Message> {
@@ -34,6 +60,22 @@ impl<Message> SurfaceScene<Message> {
                     .as_ref()
                     .and_then(|input| input.scroll_message(update))
                     .or_else(|| layer.node.scroll_message(update))
+            })
+        })
+    }
+
+    fn offset_settled(
+        &self,
+        node_id: crate::layout::NodeId,
+        offset: crate::gui::types::Vector2,
+    ) -> Option<Message> {
+        self.base.offset_settled(node_id, offset).or_else(|| {
+            self.ordered_layers().find_map(|layer| {
+                layer
+                    .input
+                    .as_ref()
+                    .and_then(|input| input.offset_settled(node_id, offset))
+                    .or_else(|| layer.node.offset_settled(node_id, offset))
             })
         })
     }

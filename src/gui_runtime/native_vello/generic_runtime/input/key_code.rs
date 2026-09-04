@@ -65,6 +65,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn key_code_from_winit
         WinitKeyCode::ArrowDown => KeyCode::ArrowDown,
         WinitKeyCode::Home => KeyCode::Home,
         WinitKeyCode::End => KeyCode::End,
+        WinitKeyCode::PageUp => KeyCode::PageUp,
+        WinitKeyCode::PageDown => KeyCode::PageDown,
         _ => return None,
     })
 }

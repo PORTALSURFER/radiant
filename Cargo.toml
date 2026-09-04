@@ -95,6 +95,10 @@ name = "list_actions"
 path = "examples/list_actions.rs"
 
 [[example]]
+name = "controlled_scroll"
+path = "examples/controlled_scroll.rs"
+
+[[example]]
 name = "toolbar_icons"
 path = "examples/toolbar_icons.rs"
 

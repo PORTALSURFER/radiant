@@ -336,12 +336,58 @@ where
         let Some(delta) = self.wheel_delta_for_scroll(sample, exact_sample) else {
             return WheelOrScrollRoute::NotRouted;
         };
+        let before = self
+            .traversal
+            .containers
+            .scroll
+            .visible()
+            .iter()
+            .copied()
+            .map(|node_id| (node_id, self.layout_state.scroll_offset(node_id)))
+            .collect::<Vec<_>>();
         if self.scroll_at_with_refresh_and_metadata(
             point,
             delta,
             sample.into(),
             refresh_after_message,
         ) {
+            let changed = before.into_iter().find_map(|(node_id, previous)| {
+                let offset = self.layout_state.scroll_offset(node_id);
+                (offset != previous).then_some((node_id, offset))
+            });
+            match sample.phase() {
+                Some(WheelPhase::Started | WheelPhase::Changed) => {
+                    if let Some((node_id, offset)) = changed {
+                        self.interaction.wheel.pending_scroll_settlement = Some((node_id, offset));
+                    }
+                }
+                Some(WheelPhase::Ended) => {
+                    if let Some((node_id, offset)) = changed {
+                        self.interaction.wheel.pending_scroll_settlement = Some((node_id, offset));
+                    }
+                    if let Some((node_id, offset)) =
+                        self.interaction.wheel.pending_scroll_settlement.take()
+                    {
+                        self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
+                    }
+                }
+                Some(WheelPhase::Cancelled) => {
+                    self.interaction.wheel.pending_scroll_settlement = None;
+                }
+                Some(WheelPhase::Discrete) | None => {
+                    if let Some((node_id, offset)) = changed {
+                        if sample.phase().is_none() {
+                            self.interaction.wheel.pending_scroll_settlement =
+                                Some((node_id, offset));
+                            self.interaction.wheel.scroll_settlement_deadline = Some(
+                                self.timed_repaint_now() + std::time::Duration::from_millis(100),
+                            );
+                        } else {
+                            self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
+                        }
+                    }
+                }
+            }
             WheelOrScrollRoute::ScrollContainer
         } else {
             WheelOrScrollRoute::NotRouted
@@ -573,6 +619,8 @@ where
 
     fn clear_managed_wheel_sequence(&mut self) {
         self.interaction.wheel.managed_sequence = RuntimeManagedWheelSequenceState::Idle;
+        self.interaction.wheel.pending_scroll_settlement = None;
+        self.interaction.wheel.scroll_settlement_deadline = None;
     }
 
     pub(in crate::runtime::controller) fn block_managed_wheel_sequence(&mut self) {

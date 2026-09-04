@@ -4,12 +4,106 @@ use crate::{
     layout::NodeId,
     runtime::RuntimeBridge,
 };
+use std::collections::BTreeSet;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn scroll_to_offset(&mut self, node_id: NodeId, offset: Vector2) {
+    pub(in crate::runtime::controller) fn reveal_widget_in_scroll_ancestors(
+        &mut self,
+        widget_id: crate::widgets::WidgetId,
+    ) {
+        let mut ancestors = self
+            .traversal
+            .widgets
+            .paths
+            .clip_ancestors
+            .get(&widget_id)
+            .map(|path| path.as_slice().iter().rev().copied().collect::<Vec<_>>())
+            .unwrap_or_default();
+        if ancestors.is_empty() {
+            ancestors.extend(
+                self.traversal
+                    .containers
+                    .scroll
+                    .visible()
+                    .iter()
+                    .rev()
+                    .copied(),
+            );
+        }
+        let mut seen = BTreeSet::new();
+        for node_id in ancestors {
+            if !seen.insert(node_id) {
+                continue;
+            }
+            let Some(content_id) = self
+                .traversal
+                .containers
+                .scroll_content_by_container
+                .get(&node_id)
+                .copied()
+            else {
+                continue;
+            };
+            let Some(policy) = self
+                .scroll_policy_for_node(node_id)
+                .map(|c| c.scroll_policy)
+            else {
+                continue;
+            };
+            let Some(target) = self.layout.rects.get(&widget_id).copied() else {
+                continue;
+            };
+            let Some(viewport) = self.layout.viewport_bounds.get(&node_id).copied() else {
+                continue;
+            };
+            let Some(content) = self.layout.rects.get(&content_id).copied() else {
+                continue;
+            };
+            let current = self.layout_state.scroll_offset(node_id);
+            let target_min_x = target.min.x - content.min.x + current.x;
+            let target_max_x = target.max.x - content.min.x + current.x;
+            let target_min_y = target.min.y - content.min.y + current.y;
+            let target_max_y = target.max.y - content.min.y + current.y;
+            let mut next = current;
+            if policy.axes.includes_horizontal() {
+                next.x = crate::gui::layout_core::resolve_scroll_alignment(
+                    current.x,
+                    viewport.width(),
+                    target_min_x,
+                    target_max_x,
+                    crate::layout::ScrollAlignment::Nearest,
+                );
+            }
+            if policy.axes.includes_vertical() {
+                next.y = crate::gui::layout_core::resolve_scroll_alignment(
+                    current.y,
+                    viewport.height(),
+                    target_min_y,
+                    target_max_y,
+                    crate::layout::ScrollAlignment::Nearest,
+                );
+            }
+            if next == current || !next.x.is_finite() || !next.y.is_finite() {
+                continue;
+            }
+            self.layout_state.scroll_offsets.insert(node_id, next);
+            self.note_layout_state_mutation();
+            self.relayout_current_surface();
+            let settled = self.layout_state.scroll_offset(node_id);
+            if settled != current {
+                self.emit_scroll_offset_settled(node_id, settled, true);
+            }
+        }
+    }
+
+    pub(in crate::runtime::controller) fn scroll_to_offset(
+        &mut self,
+        node_id: NodeId,
+        offset: Vector2,
+    ) {
         let previous_offset = self.layout_state.scroll_offset(node_id);
         self.layout_state.scroll_offsets.insert(node_id, offset);
         if offset != previous_offset {
@@ -35,6 +129,28 @@ where
             viewport,
             metadata: ScrollUpdateMetadata::default(),
         });
+        self.emit_scroll_offset_settled(node_id, offset, true);
+    }
+
+    pub(in crate::runtime::controller) fn emit_scroll_offset_settled(
+        &mut self,
+        node_id: NodeId,
+        offset: Vector2,
+        refresh_after_message: bool,
+    ) {
+        let Some(message) = self.surface.root().offset_settled(node_id, offset) else {
+            return;
+        };
+        if refresh_after_message {
+            let outcome = self.execute_command(crate::runtime::Command::Message(message));
+            if !outcome.surface_refresh_requested {
+                self.refresh();
+            }
+        } else {
+            let mut outcome = super::super::CommandOutcome::default();
+            self.dispatch_message_inner_deferred_refresh(message, &mut outcome);
+            self.pending_input_command_outcome.merge(outcome);
+        }
     }
 
     pub(super) fn scroll_into_view_offset(

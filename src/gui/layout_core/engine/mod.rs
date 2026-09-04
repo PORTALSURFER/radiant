@@ -25,7 +25,8 @@ use cache::{
 use context::{LayoutContext, LayoutContextParts, LayoutScratch};
 pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
-    LayoutDiagnosticCode, LayoutOutput, LayoutState, LayoutStats, OverflowInfo, VirtualWindowInfo,
+    LayoutDiagnosticCode, LayoutOutput, LayoutState, LayoutStats, OverflowInfo, ScrollRuntimeState,
+    VirtualWindowInfo,
 };
 
 /// Crate-private immutable source for one complete mounted-container layout

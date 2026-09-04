@@ -52,6 +52,10 @@ pub enum WidgetKey {
     Home,
     /// Move to the end of the value or range.
     End,
+    /// Move one viewport toward the leading edge.
+    PageUp,
+    /// Move one viewport toward the trailing edge.
+    PageDown,
     /// Delete the codepoint before the caret.
     Backspace,
     /// Delete the codepoint after the caret.
@@ -73,6 +77,8 @@ impl WidgetKey {
             KeyCode::ArrowDown => Self::ArrowDown,
             KeyCode::Home => Self::Home,
             KeyCode::End => Self::End,
+            KeyCode::PageUp => Self::PageUp,
+            KeyCode::PageDown => Self::PageDown,
             KeyCode::Delete => Self::Delete,
             _ => return None,
         })
@@ -91,6 +97,8 @@ impl WidgetKey {
             Self::ArrowDown => KeyCode::ArrowDown,
             Self::Home => KeyCode::Home,
             Self::End => KeyCode::End,
+            Self::PageUp => KeyCode::PageUp,
+            Self::PageDown => KeyCode::PageDown,
             Self::Backspace => KeyCode::Backspace,
             Self::Delete => KeyCode::Delete,
         }

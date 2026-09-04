@@ -92,6 +92,7 @@ mod engine;
 mod model;
 mod policy;
 mod row_helpers;
+mod scroll;
 mod split_pane_interaction;
 mod split_pane_state;
 mod tree;
@@ -117,7 +118,8 @@ pub use controlled::Controlled;
 pub use engine::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutEngine, LayoutOutput, LayoutState, LayoutStats, OverflowInfo,
-    VirtualWindowInfo, layout_tree, layout_tree_with_direction, layout_tree_with_state,
+    ScrollRuntimeState, VirtualWindowInfo, layout_tree, layout_tree_with_direction,
+    layout_tree_with_state,
 };
 pub(crate) use engine::{
     LayoutAuthorityEvidence, LayoutContainerStateReadSource, LayoutInputEvidence,
@@ -142,6 +144,10 @@ pub use row_helpers::{
     grouped_fixed_width_row_width, stacked_row_rects, stacked_row_rects_from_parts,
     stacked_row_rects_into, stacked_row_rects_into_from_parts, visible_suffix_widths,
     visible_suffix_widths_into,
+};
+pub use scroll::{
+    ScrollAlignment, ScrollAxis, ScrollAxisLock, ScrollDeclaration, ScrollEdge, ScrollPolicy,
+    ScrollRequest, ScrollTarget, ScrollbarPlacement, ScrollbarVisibility, resolve_scroll_alignment,
 };
 pub(crate) use split_pane_interaction::{
     SPLIT_PANE_DIVIDER_REGION_ID, SplitPaneCaptureWitness, SplitPaneDividerDescriptor,

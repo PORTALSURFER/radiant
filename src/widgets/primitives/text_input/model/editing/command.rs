@@ -111,7 +111,9 @@ impl TextInputState {
             | WidgetKey::Tab
             | WidgetKey::Space
             | WidgetKey::ArrowUp
-            | WidgetKey::ArrowDown => TextInputEditResult::default(),
+            | WidgetKey::ArrowDown
+            | WidgetKey::PageUp
+            | WidgetKey::PageDown => TextInputEditResult::default(),
         }
     }
 }

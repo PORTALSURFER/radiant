@@ -276,7 +276,10 @@ where
         }
         earlier_deadline(
             self.surface.timed_repaint_deadline(),
-            self.interaction.tooltip.deadline,
+            earlier_deadline(
+                self.interaction.tooltip.deadline,
+                self.interaction.wheel.scroll_settlement_deadline,
+            ),
         )
     }
 
@@ -326,6 +329,19 @@ where
             return false;
         }
         let mut changed = self.surface.advance_timed_repaints(now);
+        if self
+            .interaction
+            .wheel
+            .scroll_settlement_deadline
+            .is_some_and(|deadline| now >= deadline)
+        {
+            self.interaction.wheel.scroll_settlement_deadline = None;
+            if let Some((node_id, offset)) = self.interaction.wheel.pending_scroll_settlement.take()
+            {
+                self.emit_scroll_offset_settled(node_id, offset, true);
+            }
+            changed = true;
+        }
         let Some(deadline) = self.interaction.tooltip.deadline else {
             return changed;
         };

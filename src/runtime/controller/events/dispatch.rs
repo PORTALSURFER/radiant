@@ -101,9 +101,15 @@ where
                     FocusSurface::None,
                 ) {
                     Some(route) => route.widget_id,
-                    None => self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
-                        key, modifiers, repeat, timestamp,
-                    )),
+                    None => {
+                        let routed = self.dispatch_focused_input(
+                            WidgetInput::key_press_with_metadata(key, modifiers, repeat, timestamp),
+                        );
+                        if routed.is_none() {
+                            self.scroll_keyboard_fallback(key);
+                        }
+                        routed
+                    }
                 }
             }
             Event::KeyRelease {

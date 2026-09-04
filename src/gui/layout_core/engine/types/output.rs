@@ -19,6 +19,9 @@ pub struct LayoutOutput {
     pub debug_primitives: Vec<LayoutDebugPrimitive>,
     /// Scroll viewport bounds keyed by scroll container id.
     pub viewport_bounds: BTreeMap<NodeId, Rect>,
+    /// Scrollbar placement keyed by scroll container id. This keeps paint and
+    /// hit testing on the same committed geometry as layout.
+    pub scrollbar_placements: BTreeMap<NodeId, crate::gui::layout_core::ScrollbarPlacement>,
     /// Virtualization window metadata keyed by scroll container id.
     pub virtual_windows: BTreeMap<NodeId, VirtualWindowInfo>,
     /// Traversal counters collected during this layout pass.
@@ -34,6 +37,7 @@ impl LayoutOutput {
         self.diagnostics.clear();
         self.debug_primitives.clear();
         self.viewport_bounds.clear();
+        self.scrollbar_placements.clear();
         self.virtual_windows.clear();
         self.stats = LayoutStats::default();
     }

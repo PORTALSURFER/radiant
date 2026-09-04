@@ -4,10 +4,16 @@ use super::{
     super::{ScrollDragCapture, SurfaceRuntime},
     ScrollUpdate, ScrollUpdateMetadata,
 };
+use crate::runtime::controller::interaction_state::ScrollbarAxis;
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::NodeId,
-    runtime::{RuntimeBridge, paint::resolve_scroll_affordance},
+    runtime::{
+        RuntimeBridge,
+        paint::{
+            resolve_horizontal_scroll_affordance, resolve_scroll_affordance, scrollbar_viewport,
+        },
+    },
     widgets::PointerButton,
 };
 
@@ -26,13 +32,14 @@ where
         point: Point,
         button: PointerButton,
     ) -> bool {
-        let Some((node_id, grip_fraction)) = self.scrollbar_drag_capture_at(point) else {
+        let Some((node_id, grip_fraction, axis)) = self.scrollbar_drag_capture_at(point) else {
             return false;
         };
         let capture = ScrollDragCapture {
             node_id,
             grip_fraction,
             button,
+            axis,
         };
         self.interaction.pointer.scroll_drag_capture = Some(capture);
         self.interaction.hover.scroll_affordance = Some(capture.node_id);
@@ -66,26 +73,52 @@ where
             self.interaction.pointer.scroll_drag_capture = None;
             return false;
         };
-        let Some(affordance) = resolve_scroll_affordance(capture.node_id, content_id, &self.layout)
-        else {
+        let Some(affordance) = (match capture.axis {
+            ScrollbarAxis::Vertical => {
+                resolve_scroll_affordance(capture.node_id, content_id, &self.layout)
+            }
+            ScrollbarAxis::Horizontal => {
+                resolve_horizontal_scroll_affordance(capture.node_id, content_id, &self.layout)
+            }
+        }) else {
             self.interaction
                 .pointer
                 .set_release_tombstone(capture.button, true);
             self.interaction.pointer.scroll_drag_capture = None;
             return false;
         };
-        let travel = (affordance.track.height() - affordance.thumb.height()).max(0.0);
+        let travel = match capture.axis {
+            ScrollbarAxis::Vertical => {
+                (affordance.track.height() - affordance.thumb.height()).max(0.0)
+            }
+            ScrollbarAxis::Horizontal => {
+                (affordance.track.width() - affordance.thumb.width()).max(0.0)
+            }
+        };
         if travel <= f32::EPSILON {
             return true;
         }
-        let thumb_y = (point.y - affordance.thumb.height() * capture.grip_fraction)
-            .clamp(affordance.track.min.y, affordance.track.min.y + travel);
-        let offset_fraction = (thumb_y - affordance.track.min.y) / travel;
+        let offset_fraction = match capture.axis {
+            ScrollbarAxis::Vertical => {
+                let thumb_y = (point.y - affordance.thumb.height() * capture.grip_fraction)
+                    .clamp(affordance.track.min.y, affordance.track.min.y + travel);
+                (thumb_y - affordance.track.min.y) / travel
+            }
+            ScrollbarAxis::Horizontal => {
+                let thumb_x = (point.x - affordance.thumb.width() * capture.grip_fraction)
+                    .clamp(affordance.track.min.x, affordance.track.min.x + travel);
+                (thumb_x - affordance.track.min.x) / travel
+            }
+        };
         let previous_offset = self.layout_state.scroll_offset(capture.node_id);
-        self.layout_state.scroll_offsets.insert(
-            capture.node_id,
-            Vector2::new(previous_offset.x, offset_fraction * affordance.max_scroll),
-        );
+        let value = offset_fraction * affordance.max_scroll;
+        let next_offset = match capture.axis {
+            ScrollbarAxis::Vertical => Vector2::new(previous_offset.x, value),
+            ScrollbarAxis::Horizontal => Vector2::new(value, previous_offset.y),
+        };
+        self.layout_state
+            .scroll_offsets
+            .insert(capture.node_id, next_offset);
         self.note_layout_state_mutation();
         self.relayout_current_surface();
         let offset = self.layout_state.scroll_offset(capture.node_id);
@@ -118,14 +151,14 @@ where
         point: Point,
     ) -> Option<NodeId> {
         self.scrollbar_drag_capture_at(point)
-            .map(|(node_id, _)| node_id)
+            .map(|(node_id, _, _)| node_id)
     }
 
     pub(crate) fn scrollbar_drag_active(&self) -> bool {
         self.interaction.pointer.scroll_drag_capture.is_some()
     }
 
-    fn scrollbar_drag_capture_at(&self, point: Point) -> Option<(NodeId, f32)> {
+    fn scrollbar_drag_capture_at(&self, point: Point) -> Option<(NodeId, f32, ScrollbarAxis)> {
         self.traversal
             .containers
             .scroll
@@ -134,8 +167,15 @@ where
             .rev()
             .copied()
             .find_map(|node_id| {
-                let viewport = self.layout.rects.get(&node_id).copied()?;
-                if !scrollbar_hit_column_contains_point(viewport, point)
+                let viewport = scrollbar_viewport(node_id, &self.layout)?;
+                let Some(policy) = self
+                    .scroll_policy_for_node(node_id)
+                    .map(|c| c.scroll_policy)
+                else {
+                    return None;
+                };
+                if policy.scrollbar_visibility == crate::layout::ScrollbarVisibility::Hidden
+                    || !scrollbar_hit_viewport_contains_point(viewport, point)
                     || !self.container_clip_contains_point(node_id, point)
                 {
                     return None;
@@ -146,18 +186,36 @@ where
                     .scroll_content_by_container
                     .get(&node_id)
                     .copied()?;
-                let affordance = resolve_scroll_affordance(node_id, content_id, &self.layout)?;
-                if !scrollbar_thumb_hit_rect(affordance.thumb).contains(point) {
-                    return None;
+                if policy.axes.includes_vertical()
+                    && let Some(affordance) =
+                        resolve_scroll_affordance(node_id, content_id, &self.layout)
+                    && scrollbar_thumb_hit_rect(affordance.thumb).contains(point)
+                {
+                    let grip_fraction = ((point.y - affordance.thumb.min.y)
+                        / affordance.thumb.height())
+                    .clamp(0.0, 1.0);
+                    return Some((node_id, grip_fraction, ScrollbarAxis::Vertical));
                 }
-                let grip_fraction = ((point.y - affordance.thumb.min.y)
-                    / affordance.thumb.height())
-                .clamp(0.0, 1.0);
-                Some((node_id, grip_fraction))
+                if policy.axes.includes_horizontal()
+                    && let Some(affordance) =
+                        resolve_horizontal_scroll_affordance(node_id, content_id, &self.layout)
+                    && scrollbar_horizontal_thumb_hit_rect(affordance.thumb).contains(point)
+                {
+                    let grip_fraction = ((point.x - affordance.thumb.min.x)
+                        / affordance.thumb.width())
+                    .clamp(0.0, 1.0);
+                    return Some((node_id, grip_fraction, ScrollbarAxis::Horizontal));
+                }
+                None
             })
     }
 }
 
+fn scrollbar_hit_viewport_contains_point(viewport: Rect, point: Point) -> bool {
+    viewport.contains(point)
+}
+
+#[cfg(test)]
 fn scrollbar_hit_column_contains_point(viewport: Rect, point: Point) -> bool {
     viewport.contains(point) && point.x >= viewport.max.x - SCROLLBAR_HIT_WIDTH
 }
@@ -165,6 +223,13 @@ fn scrollbar_hit_column_contains_point(viewport: Rect, point: Point) -> bool {
 fn scrollbar_thumb_hit_rect(thumb: Rect) -> Rect {
     Rect::from_min_max(
         Point::new(thumb.max.x - SCROLLBAR_HIT_WIDTH, thumb.min.y),
+        Point::new(thumb.max.x, thumb.max.y),
+    )
+}
+
+fn scrollbar_horizontal_thumb_hit_rect(thumb: Rect) -> Rect {
+    Rect::from_min_max(
+        Point::new(thumb.min.x, thumb.max.y - SCROLLBAR_HIT_WIDTH),
         Point::new(thumb.max.x, thumb.max.y),
     )
 }

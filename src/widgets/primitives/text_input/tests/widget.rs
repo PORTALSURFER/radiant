@@ -6,7 +6,22 @@ use crate::widgets::interaction::{
     PointerButton, TextEditCommand, TextInputMessage, TextInputRevision, WidgetInput, WidgetKey,
 };
 
+use super::super::NativeCaretAffinity;
 use super::super::{TextInputChrome, TextInputWidget, WidgetSizing};
+
+#[test]
+fn native_pointer_affinity_resets_for_keyboard_input() {
+    let mut input = TextInputWidget::new(
+        7,
+        "ab",
+        WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0)),
+    );
+    input.set_native_pointer_caret(1, NativeCaretAffinity::Upstream);
+    assert_eq!(input.native_caret_affinity, NativeCaretAffinity::Upstream);
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 28.0));
+    let _ = input.handle_input(bounds, WidgetInput::FocusChanged(true));
+    assert_eq!(input.native_caret_affinity, NativeCaretAffinity::Downstream);
+}
 
 #[test]
 fn text_input_editing_emits_changed_and_submitted_messages() {

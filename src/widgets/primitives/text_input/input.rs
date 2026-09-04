@@ -15,9 +15,12 @@ pub(super) fn handle_text_input(
         WidgetInput::PointerMove { position, .. } => {
             text_input.common.state.hovered = bounds.contains(position);
             if text_input.common.state.pressed {
-                let caret = text_input
-                    .take_native_pointer_caret()
-                    .unwrap_or_else(|| caret_for_pointer_x(bounds, position.x));
+                let (caret, _) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
+                    (
+                        caret_for_pointer_x(bounds, position.x),
+                        super::NativeCaretAffinity::Downstream,
+                    )
+                });
                 text_input.set_caret(caret, true);
             } else {
                 let _ = text_input.take_native_pointer_caret();
@@ -32,9 +35,12 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = true;
             text_input.common.state.hovered = true;
             text_input.common.state.pressed = true;
-            let caret = text_input
-                .take_native_pointer_caret()
-                .unwrap_or_else(|| caret_for_pointer_x(bounds, position.x));
+            let (caret, _) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
+                (
+                    caret_for_pointer_x(bounds, position.x),
+                    super::NativeCaretAffinity::Downstream,
+                )
+            });
             text_input.set_caret(caret, false);
             None
         }
@@ -46,9 +52,12 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = true;
             text_input.common.state.hovered = true;
             text_input.common.state.pressed = false;
-            let caret = text_input
-                .take_native_pointer_caret()
-                .unwrap_or_else(|| caret_for_pointer_x(bounds, position.x));
+            let (caret, _) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
+                (
+                    caret_for_pointer_x(bounds, position.x),
+                    super::NativeCaretAffinity::Downstream,
+                )
+            });
             text_input.select_word_at(caret);
             None
         }
@@ -61,6 +70,7 @@ pub(super) fn handle_text_input(
             None
         }
         WidgetInput::FocusChanged(focused) => {
+            text_input.reset_native_pointer_affinity();
             text_input.common.state.focused = focused;
             if !focused {
                 text_input.cancel_composition();
@@ -70,12 +80,15 @@ pub(super) fn handle_text_input(
         WidgetInput::Character { character: ch, .. }
             if text_input.accepts_editing_input() && !ch.is_control() =>
         {
+            text_input.reset_native_pointer_affinity();
             text_input.insert_text(ch.encode_utf8(&mut [0; 4]))
         }
         WidgetInput::KeyPress { key, .. } if text_input.accepts_editing_input() => {
+            text_input.reset_native_pointer_affinity();
             text_input.handle_key_input(key)
         }
         WidgetInput::TextEdit { command, .. } if text_input.accepts_editing_input() => {
+            text_input.reset_native_pointer_affinity();
             text_input.handle_text_edit(command)
         }
         _ => None,

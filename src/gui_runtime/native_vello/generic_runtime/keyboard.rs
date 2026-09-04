@@ -81,6 +81,7 @@ where
             adapter_generation,
             wrapper_eligible,
         )?;
+        self.frame.text_renderer.reset_native_caret_affinities();
         let outcome = self.route_native_keyboard_event_inner(event, timestamp);
         Some((ticket, outcome))
     }

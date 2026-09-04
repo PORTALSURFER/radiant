@@ -40,10 +40,17 @@ fn focused_text_input_geometry(
         input.font_size,
         input.rect.width(),
     );
+    let caret_affinity = text_renderer.native_caret_affinity(input.widget_id);
     let caret_offset = if selection.has_selection {
         layout.local_x_for_byte(selection.caret_byte)
-    } else {
+    } else if caret_affinity == CaretAffinity::Downstream {
         layout.caret_offset
+    } else {
+        (layout
+            .snapshot
+            .caret_x(selection.caret_byte, caret_affinity)
+            - layout.scroll_x)
+            .clamp(0.0, input.rect.width())
     };
     Some(FocusedTextInputGeometry {
         caret_rect: caret_rect(input, input.rect.min.x + caret_offset)?,
@@ -241,7 +248,7 @@ mod tests {
     use super::{encode_block_caret, focused_text_input_caret_rect, geometry::caret_rect};
     use crate::{
         gui::types::{Point, Rect, Rgba8},
-        gui_runtime::native_vello::NativeTextRenderer,
+        gui_runtime::native_vello::{CaretAffinity, NativeTextRenderer},
         runtime::PaintTextInput,
         widgets::TextInputState,
     };
@@ -347,6 +354,28 @@ mod tests {
 
         assert!(unicode_x > start_x);
         assert_eq!(selected_x, collapsed_x);
+    }
+
+    #[test]
+    fn focused_text_input_caret_geometry_preserves_bidi_affinity() {
+        let input = focused_input(
+            "שלום world",
+            1,
+            1,
+            Rect::from_min_max(Point::new(8.0, 10.0), Point::new(260.0, 38.0)),
+        );
+        let mut text_renderer = NativeTextRenderer::new();
+        text_renderer.set_native_caret_affinity(input.widget_id, CaretAffinity::Upstream);
+        let upstream = focused_text_input_caret_rect(&input, &mut text_renderer)
+            .expect("upstream caret should project")
+            .min
+            .x;
+        text_renderer.set_native_caret_affinity(input.widget_id, CaretAffinity::Downstream);
+        let downstream = focused_text_input_caret_rect(&input, &mut text_renderer)
+            .expect("downstream caret should project")
+            .min
+            .x;
+        assert_ne!(upstream, downstream);
     }
 
     #[test]

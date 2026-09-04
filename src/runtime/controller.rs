@@ -186,7 +186,8 @@ where
     pub(in crate::runtime) servicing_current_surface_relayout: bool,
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
-    pending_native_text_pointer_caret: Option<(WidgetId, String, usize)>,
+    pending_native_text_pointer_caret:
+        Option<(WidgetId, String, usize, crate::widgets::NativeCaretAffinity)>,
     effect_owner: RuntimeOwner,
     auxiliary_effect_owners: HashMap<String, AuxiliaryWindowOwner>,
     runtime_work: RuntimeWorkQueues<Message>,
@@ -343,8 +344,10 @@ where
         widget_id: WidgetId,
         source: &str,
         caret: usize,
+        affinity: crate::widgets::NativeCaretAffinity,
     ) {
-        self.pending_native_text_pointer_caret = Some((widget_id, source.to_owned(), caret));
+        self.pending_native_text_pointer_caret =
+            Some((widget_id, source.to_owned(), caret, affinity));
     }
 
     pub(crate) fn clear_native_text_pointer_caret(&mut self) {

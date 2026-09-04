@@ -22,6 +22,7 @@ pub(super) fn handle_sample(
     if !text_input.accepts_editing_input() || !sample.is_valid() {
         return None;
     }
+    text_input.reset_native_pointer_affinity();
 
     match sample {
         CompositionSample::Start {
@@ -47,6 +48,7 @@ pub(super) fn handle_hidden_update(
     if !text_input.accepts_editing_input() {
         return None;
     }
+    text_input.reset_native_pointer_affinity();
     text_input.update_composition(preedit, CompositionSelectionState::Hidden)
 }
 

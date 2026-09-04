@@ -1371,7 +1371,17 @@ mod tests {
         );
         assert_eq!(layout.snapshot.caret_geometry.len(), 11);
         let rtl_boundary = layout.snapshot.caret_geometry[1];
-        assert_ne!(rtl_boundary.upstream_x, rtl_boundary.downstream_x);
+        let upstream_x = rtl_boundary.upstream_x.expect("RTL upstream caret");
+        let downstream_x = rtl_boundary.downstream_x.expect("RTL downstream caret");
+        assert_ne!(upstream_x, downstream_x);
+        assert_eq!(
+            layout.snapshot.hit_test(upstream_x),
+            (1, super::super::CaretAffinity::Upstream)
+        );
+        assert_eq!(
+            layout.snapshot.hit_test(downstream_x),
+            (1, super::super::CaretAffinity::Downstream)
+        );
     }
 
     #[test]

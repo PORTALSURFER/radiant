@@ -640,7 +640,12 @@ impl NativeVelloFrameState {
         &mut self,
         position: Point,
         captured_widget_id: Option<WidgetId>,
-    ) -> Option<(WidgetId, String, usize)> {
+    ) -> Option<(
+        WidgetId,
+        String,
+        usize,
+        crate::gui_runtime::native_vello::CaretAffinity,
+    )> {
         let (widget_id, rect, font_size, text, focused, caret) = self
             .last_paint_plan
             .primitives
@@ -698,17 +703,14 @@ impl NativeVelloFrameState {
                 0.0,
             )
         };
-        let scalar = snapshot.hit_test((local_x + scroll_x).max(0.0)).0;
+        let (scalar, affinity) = snapshot.hit_test((local_x + scroll_x).max(0.0));
         let byte = snapshot.scalar_boundaries.get(scalar)?.0;
-        let canonical = snapshot.canonical_byte(
-            byte,
-            crate::gui_runtime::native_vello::CaretAffinity::Downstream,
-        );
+        let canonical = snapshot.canonical_byte(byte, affinity);
         let scalar = snapshot
             .scalar_boundaries
             .binary_search_by_key(&canonical, |offset| offset.0)
             .ok()?;
-        Some((widget_id, text, scalar))
+        Some((widget_id, text, scalar, affinity))
     }
 
     pub(super) fn mark_composited_base_dirty(&mut self) {

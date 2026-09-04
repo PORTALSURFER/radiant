@@ -68,6 +68,7 @@ pub use support::WidgetCommon;
 pub use text::{
     TextAlign, TextBackgroundRole, TextColorRole, TextWidget, TextWidgetParts, TextWrap,
 };
+pub(crate) use text_input::NativeCaretAffinity;
 pub use text_input::{
     TextInputChrome, TextInputEditResult, TextInputProps, TextInputState, TextInputWidget,
     TextInputWidgetParts,

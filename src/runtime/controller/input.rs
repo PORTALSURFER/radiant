@@ -39,7 +39,7 @@ where
     }
 
     fn apply_native_text_pointer_caret(&mut self, widget_id: WidgetId) {
-        let Some((pending_widget_id, source, caret)) =
+        let Some((pending_widget_id, source, caret, affinity)) =
             self.pending_native_text_pointer_caret.take()
         else {
             return;
@@ -58,7 +58,7 @@ where
             return;
         };
         if text_input.state.value == source {
-            text_input.set_native_pointer_caret(caret);
+            text_input.set_native_pointer_caret(caret, affinity);
         }
     }
 

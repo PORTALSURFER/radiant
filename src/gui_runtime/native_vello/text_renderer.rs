@@ -6,6 +6,7 @@ use crate::gui::{
     types::{Point, Rgba8},
 };
 use crate::widgets::TextWrap;
+use std::collections::HashMap;
 use vello::{Glyph, Scene, peniko::Fill};
 
 mod cache;
@@ -34,6 +35,7 @@ use renderability::text_run_parts_are_renderable;
 pub(super) struct NativeTextRenderer {
     font_stack: NativeFontStack,
     layout_cache: TextLayoutCache,
+    native_caret_affinities: HashMap<crate::widgets::WidgetId, CaretAffinity>,
 }
 
 impl NativeTextRenderer {
@@ -52,7 +54,30 @@ impl NativeTextRenderer {
         Self {
             font_stack,
             layout_cache: TextLayoutCache::new(),
+            native_caret_affinities: HashMap::new(),
         }
+    }
+
+    pub(super) fn set_native_caret_affinity(
+        &mut self,
+        widget_id: crate::widgets::WidgetId,
+        affinity: CaretAffinity,
+    ) {
+        self.native_caret_affinities.insert(widget_id, affinity);
+    }
+
+    pub(super) fn native_caret_affinity(
+        &self,
+        widget_id: crate::widgets::WidgetId,
+    ) -> CaretAffinity {
+        self.native_caret_affinities
+            .get(&widget_id)
+            .copied()
+            .unwrap_or(CaretAffinity::Downstream)
+    }
+
+    pub(super) fn reset_native_caret_affinities(&mut self) {
+        self.native_caret_affinities.clear();
     }
 
     pub(super) fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
@@ -285,7 +310,24 @@ fn visible_face_segment(
 #[cfg(test)]
 mod tests {
     use super::GlyphLayout;
+    use super::{CaretAffinity, NativeTextRenderer};
     use super::{TextCursorStop, TextLayout, visible_face_segment};
+    use crate::widgets::WidgetId;
+
+    #[test]
+    fn native_pointer_affinity_resets_to_downstream() {
+        let mut renderer = NativeTextRenderer::new();
+        renderer.set_native_caret_affinity(WidgetId::from(7_u32), CaretAffinity::Upstream);
+        assert_eq!(
+            renderer.native_caret_affinity(WidgetId::from(7_u32)),
+            CaretAffinity::Upstream
+        );
+        renderer.reset_native_caret_affinities();
+        assert_eq!(
+            renderer.native_caret_affinity(WidgetId::from(7_u32)),
+            CaretAffinity::Downstream
+        );
+    }
 
     #[test]
     fn empty_layout_preserves_terminal_cursor_stop() {

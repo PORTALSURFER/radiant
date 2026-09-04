@@ -84,6 +84,7 @@ where
     }
 
     fn route_native_ime_sample(&mut self, sample: CompositionSample) -> GenericRouteOutcome {
+        self.frame.text_renderer.reset_native_caret_affinities();
         if !self.ensure_native_ime_composition() {
             return self.core.route_outcome(false);
         }
@@ -101,6 +102,7 @@ where
         preedit: String,
         selection: Option<CompositionRange>,
     ) -> GenericRouteOutcome {
+        self.frame.text_renderer.reset_native_caret_affinities();
         if !self.ensure_native_ime_composition() {
             return self.core.route_outcome(false);
         }
@@ -146,6 +148,7 @@ where
     }
 
     fn route_native_ime_cancel(&mut self) -> GenericRouteOutcome {
+        self.frame.text_renderer.reset_native_caret_affinities();
         let was_active = self.core.managed_composition_is_active();
         let _ = self
             .core

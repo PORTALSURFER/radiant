@@ -528,13 +528,26 @@ where
     pub(super) fn stage_native_text_pointer_caret(&mut self, position: Point) {
         self.core.runtime.clear_native_text_pointer_caret();
         let captured_widget_id = self.core.runtime.pointer_capture();
-        if let Some((widget_id, source, caret)) = self
+        if let Some((widget_id, source, caret, affinity)) = self
             .frame
             .native_text_pointer_target(position, captured_widget_id)
         {
-            self.core
-                .runtime
-                .set_native_text_pointer_caret(widget_id, &source, caret);
+            self.frame
+                .text_renderer
+                .set_native_caret_affinity(widget_id, affinity);
+            self.core.runtime.set_native_text_pointer_caret(
+                widget_id,
+                &source,
+                caret,
+                match affinity {
+                    crate::gui_runtime::native_vello::CaretAffinity::Upstream => {
+                        crate::widgets::NativeCaretAffinity::Upstream
+                    }
+                    crate::gui_runtime::native_vello::CaretAffinity::Downstream => {
+                        crate::widgets::NativeCaretAffinity::Downstream
+                    }
+                },
+            );
         }
     }
 

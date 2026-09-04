@@ -301,4 +301,75 @@ mod tests {
         runtime.refresh_with_scope(RepaintScope::PaintOnly);
         assert_eq!(projection_count.get(), 2);
     }
+
+    #[test]
+    fn app_bridge_same_locale_catalog_replacement_promotes_paint_only_refresh() {
+        fn environment(updated: bool) -> ApplicationEnvironment {
+            let key = TextKey::new("status", "Initial");
+            let catalog = TextCatalog::default().insert(
+                LocaleId::english(),
+                key,
+                if updated { "Updated" } else { "Initial" },
+            );
+            ApplicationEnvironment::new(LocaleId::english()).with_catalog(Arc::new(catalog))
+        }
+
+        let updated = Rc::new(Cell::new(false));
+        let projection_count = Rc::new(Cell::new(0));
+        let updated_for_view = Rc::clone(&updated);
+        let updated_for_environment = Rc::clone(&updated);
+        let projection_count_for_view = Rc::clone(&projection_count);
+        let app = StatefulAppBuilder::new(())
+            .view(move |_| {
+                projection_count_for_view.set(projection_count_for_view.get() + 1);
+                let key = TextKey::new("status", "Initial");
+                let localized = environment(updated_for_view.get()).localized(&key);
+                text::<()>(localized.to_content())
+            })
+            .application_environment(move |_| environment(updated_for_environment.get()))
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(app, crate::gui::types::Vector2::new(160.0, 40.0));
+        let initial_counters = runtime.refresh_counters();
+        assert_eq!(projection_count.get(), 1);
+        assert_eq!(initial_counters.application_projection, 1);
+        assert!(
+            runtime
+                .paint_plan(&crate::theme::ThemeTokens::default())
+                .first_text_run("Initial")
+                .is_some()
+        );
+
+        updated.set(true);
+        runtime.refresh_with_scope(RepaintScope::PaintOnly);
+
+        let changed_counters = runtime.refresh_counters();
+        assert_eq!(projection_count.get(), 2);
+        assert_eq!(
+            changed_counters.application_projection,
+            initial_counters.application_projection + 1
+        );
+        assert_eq!(
+            runtime.last_refresh_diagnostics().invalidation,
+            SurfaceInvalidation::Surface
+        );
+        assert!(
+            runtime
+                .paint_plan(&crate::theme::ThemeTokens::default())
+                .first_text_run("Updated")
+                .is_some()
+        );
+        fn has_label(node: &crate::gui::automation::AutomationNodeSnapshot, label: &str) -> bool {
+            node.label.as_deref() == Some(label)
+                || node.children.iter().any(|child| has_label(child, label))
+        }
+        assert!(has_label(&runtime.automation_snapshot().root, "Updated"));
+
+        runtime.refresh_with_scope(RepaintScope::PaintOnly);
+        assert_eq!(projection_count.get(), 2);
+        assert_eq!(runtime.refresh_counters(), changed_counters);
+        assert_eq!(
+            runtime.last_refresh_diagnostics().invalidation,
+            SurfaceInvalidation::PaintOnly
+        );
+    }
 }

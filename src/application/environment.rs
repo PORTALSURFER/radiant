@@ -221,7 +221,8 @@ impl ApplicationEnvironment {
     pub fn repaint_scope_since(&self, previous: &Self) -> Option<RepaintScope> {
         let mut scope = None;
         if self.fallback_chain != previous.fallback_chain
-            || self.catalog.generation() != previous.catalog.generation()
+            || (!Arc::ptr_eq(&self.catalog, &previous.catalog)
+                && self.catalog.as_ref() != previous.catalog.as_ref())
         {
             scope = Some(RepaintScope::Surface);
         }
@@ -304,6 +305,60 @@ mod tests {
                     .with_shortcut_platform(ShortcutPlatform::Windows)
             ),
             Some(RepaintScope::Projection)
+        );
+    }
+
+    #[test]
+    fn identical_catalog_pointer_is_unchanged_without_comparing_entries() {
+        let catalog = Arc::new(TextCatalog::default());
+        let previous = ApplicationEnvironment::default().with_catalog(Arc::clone(&catalog));
+        let current = ApplicationEnvironment::default().with_catalog(catalog);
+
+        assert_eq!(current.repaint_scope_since(&previous), None);
+    }
+
+    #[test]
+    fn distinct_equal_catalog_values_are_unchanged() {
+        let key = TextKey::new("save", "Save");
+        let previous = ApplicationEnvironment::default().with_catalog(Arc::new(
+            TextCatalog::default().with_generation(3).insert(
+                LocaleId::english(),
+                key.clone(),
+                "Enregistrer",
+            ),
+        ));
+        let current = ApplicationEnvironment::default().with_catalog(Arc::new(
+            TextCatalog::default().with_generation(3).insert(
+                LocaleId::english(),
+                key,
+                "Enregistrer",
+            ),
+        ));
+
+        assert_eq!(current.repaint_scope_since(&previous), None);
+    }
+
+    #[test]
+    fn distinct_same_generation_catalog_entries_require_surface_repaint() {
+        let key = TextKey::new("save", "Save");
+        let previous = ApplicationEnvironment::default().with_catalog(Arc::new(
+            TextCatalog::default().with_generation(3).insert(
+                LocaleId::english(),
+                key.clone(),
+                "Save",
+            ),
+        ));
+        let current = ApplicationEnvironment::default().with_catalog(Arc::new(
+            TextCatalog::default().with_generation(3).insert(
+                LocaleId::english(),
+                key,
+                "Enregistrer",
+            ),
+        ));
+
+        assert_eq!(
+            current.repaint_scope_since(&previous),
+            Some(crate::runtime::RepaintScope::Surface)
         );
     }
 }

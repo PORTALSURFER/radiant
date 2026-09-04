@@ -1017,6 +1017,111 @@ fn native_text_pointer_affinity_commits_for_pressed_drag_move() {
 }
 
 #[test]
+fn native_text_pointer_drag_uses_exclusive_grapheme_boundaries() {
+    let mut bridge = demo_bridge();
+    bridge.state.name = String::from("ab");
+    let mut harness = NativePointerHarness::new(bridge, Vector2::new(320.0, 40.0));
+    harness
+        .runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let input_rect = harness
+        .runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should be laid out");
+    let start = (1..input_rect.width() as usize)
+        .map(|offset| Point::new(input_rect.min.x + offset as f32, input_rect.min.y + 4.0))
+        .find(|position| {
+            harness
+                .runner
+                .frame
+                .native_text_pointer_target(*position, None)
+                .is_some_and(|(_, _, scalar, _)| scalar == 0)
+        })
+        .expect("native hit testing should expose the start boundary");
+    let after_a = (1..input_rect.width() as usize)
+        .map(|offset| Point::new(input_rect.min.x + offset as f32, start.y))
+        .find(|position| {
+            harness
+                .runner
+                .frame
+                .native_text_pointer_target(*position, None)
+                .is_some_and(|(_, _, scalar, _)| scalar == 1)
+        })
+        .expect("native hit testing should expose the boundary after a");
+    harness.cursor_moved_logical(start);
+    let _ = harness.mouse_pressed(MouseButton::Left);
+    harness.cursor_moved_logical(after_a);
+
+    let widget_id = crate::widgets::WidgetId::from(12_u32);
+    let widget = harness
+        .runner
+        .core
+        .runtime
+        .surface()
+        .find_widget(widget_id)
+        .expect("text input should remain projected");
+    let input = widget
+        .widget()
+        .as_any()
+        .downcast_ref::<crate::widgets::TextInputWidget>()
+        .expect("projected widget should remain a text input");
+    assert_eq!(input.state.selection_range(), (0, 1));
+    assert_eq!(input.selected_text_slice(), Some("a"));
+
+    let mut combining_bridge = demo_bridge();
+    combining_bridge.state.name = String::from("e\u{301}x");
+    let mut combining = NativePointerHarness::new(combining_bridge, Vector2::new(320.0, 40.0));
+    combining
+        .runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let combining_rect = combining
+        .runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("combining text input should be laid out");
+    let combining_start = Point::new(combining_rect.min.x + 1.0, combining_rect.min.y + 4.0);
+    let combining_after_cluster = (1..combining_rect.width() as usize)
+        .map(|offset| Point::new(combining_rect.min.x + offset as f32, combining_start.y))
+        .find(|position| {
+            combining
+                .runner
+                .frame
+                .native_text_pointer_target(*position, None)
+                .is_some_and(|(_, _, scalar, _)| scalar == 2)
+        })
+        .expect("native hit testing should expose the boundary after the combining cluster");
+    combining.cursor_moved_logical(combining_start);
+    let _ = combining.mouse_pressed(MouseButton::Left);
+    combining.cursor_moved_logical(combining_after_cluster);
+
+    let combining_widget = combining
+        .runner
+        .core
+        .runtime
+        .surface()
+        .find_widget(widget_id)
+        .expect("combining text input should remain projected");
+    let combining_input = combining_widget
+        .widget()
+        .as_any()
+        .downcast_ref::<crate::widgets::TextInputWidget>()
+        .expect("projected combining widget should remain a text input");
+    assert_eq!(combining_input.state.selection_range(), (0, 2));
+    assert_eq!(combining_input.selected_text_slice(), Some("e\u{301}"));
+}
+
+#[test]
 fn native_text_pointer_affinity_ignores_discarded_hover_and_release_carets() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

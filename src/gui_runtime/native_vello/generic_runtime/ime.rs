@@ -343,7 +343,7 @@ mod tests {
             .core
             .focused_composition_start_context()
             .expect("focused text input should expose start context");
-        let expected = CompositionRange::new(0, 2, 3).expect("scalar selection");
+        let expected = CompositionRange::new(0, 1, 3).expect("scalar selection");
         assert_eq!(context.replacement_range(), expected);
         assert_eq!(context.selection(), expected);
     }

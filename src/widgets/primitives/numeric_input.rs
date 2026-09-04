@@ -125,11 +125,7 @@ fn composition_display_value(
 
 fn set_composition_selection(state: &mut TextInputState, selection: CompositionRange) {
     state.selection_anchor = selection.start();
-    state.caret = if selection.is_collapsed() {
-        selection.start()
-    } else {
-        selection.end().saturating_sub(1)
-    };
+    state.caret = selection.end();
 }
 
 fn composition_display_selection(

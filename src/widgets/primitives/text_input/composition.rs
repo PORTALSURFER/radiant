@@ -210,11 +210,7 @@ fn display_value(
 
 fn set_state_selection(state: &mut TextInputState, selection: CompositionRange) {
     state.selection_anchor = selection.start();
-    state.caret = if selection.is_collapsed() {
-        selection.start()
-    } else {
-        selection.end().saturating_sub(1)
-    };
+    state.caret = selection.end();
 }
 
 fn display_selection(

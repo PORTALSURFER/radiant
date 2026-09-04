@@ -42,12 +42,7 @@ impl TextInputState {
         let target = if !extend_selection && self.has_selection() {
             self.selection_range().1
         } else {
-            let boundary = next_word_boundary(&self.value, self.caret);
-            if extend_selection && boundary > 0 {
-                boundary - 1
-            } else {
-                boundary
-            }
+            next_word_boundary(&self.value, self.caret)
         };
         self.set_caret(target, extend_selection);
     }

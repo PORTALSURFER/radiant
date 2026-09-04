@@ -80,7 +80,7 @@ fn text_input_selection_replaces_cuts_and_pastes_text() {
             extend_selection: false,
         }),
     );
-    for _ in 0..4 {
+    for _ in 0..5 {
         let _ = input.handle_input(
             bounds,
             WidgetInput::text_edit(TextEditCommand::MoveRight {
@@ -140,7 +140,7 @@ fn text_input_pointer_drag_extends_selection_including_caret_character() {
         None
     );
     assert_eq!(input.state.caret, 3);
-    assert_eq!(input.selected_text().as_deref(), Some("bcd"));
+    assert_eq!(input.selected_text().as_deref(), Some("bc"));
     assert_eq!(
         input.handle_input(
             bounds,

@@ -29,8 +29,7 @@ impl TextInputState {
             return (caret, caret);
         }
         let start = boundary_at_or_before(&self.value, anchor.min(caret));
-        let raw_end = anchor.max(caret).saturating_add(1).min(char_len);
-        let end = boundary_at_or_after(&self.value, raw_end);
+        let end = boundary_at_or_after(&self.value, anchor.max(caret));
         (start, end)
     }
 
@@ -54,7 +53,7 @@ impl TextInputState {
             return false;
         };
         self.selection_anchor = start;
-        self.caret = end.saturating_sub(1);
+        self.caret = end;
         true
     }
 }

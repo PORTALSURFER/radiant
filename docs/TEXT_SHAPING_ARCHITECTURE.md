@@ -56,6 +56,68 @@ glyph placements; hit testing consumes visual caret/cluster geometry; IME and
 accessibility consume logical byte/cluster ranges and the corresponding visual
 rectangles. No consumer may establish a competing width or coordinate system.
 
+## Logical coordinate compatibility bridge
+
+The snapshot uses distinct typed logical coordinates; a scalar boundary, byte
+offset, grapheme boundary, and shape cluster are not interchangeable:
+
+- `ScalarBoundary` is an integer in `0..=scalar_count`. It identifies a
+  boundary before scalar `n`, including the terminal boundary; it is not a
+  code-point or byte index into the middle of a UTF-8 scalar. This is the
+  coordinate currently stored by `TextInputState`.
+- `Utf8ByteOffset` is an integer in `0..=text.len()` that identifies a UTF-8
+  boundary. `ScalarBoundary(n)` converts by enumerating `text.char_indices()`
+  and taking the `n`th scalar start, with `text.len()` for the terminal
+  boundary. The reverse conversion accepts only `0`, `text.len()`, or an
+  offset returned by `char_indices()`; an arbitrary interior byte is first
+  normalized to the previous or next scalar boundary according to explicit
+  upstream/downstream affinity, never guessed as a scalar index.
+- `GraphemeBoundary` is an ordinal boundary in the UAX #29 extended grapheme
+  sequence. Its snapshot record carries the corresponding UTF-8 byte interval
+  `[start, end)`, obtained from `grapheme_indices(true)`; it is the user-visible
+  caret and selection coordinate.
+- `ShapeClusterRange` is the logical UTF-8 byte interval associated with a
+  shaping cluster. Multiple glyphs may share one cluster start, and a shaping
+  cluster may cover multiple scalars; a glyph-array index is never a logical
+  coordinate.
+
+The bridge first maps scalar boundaries to exact UTF-8 boundaries through
+`char_indices()`, then maps byte boundaries to the stored grapheme and shape
+cluster intervals. A legacy scalar boundary inside one UAX #29 extended
+grapheme is canonicalized explicitly: `Upstream` (also called leading)
+selects that grapheme's start, while `Downstream` (also called trailing)
+selects its end. A boundary already at a grapheme edge is kept unchanged. The
+same affinity is carried with a caret stop so canonicalization is deterministic
+even when old scalar editing state points inside a cluster.
+
+Selection normalization converts both legacy scalar endpoints, orders the
+result by logical UTF-8 byte offset, and uses upstream/leading affinity for the
+lower endpoint and downstream/trailing affinity for the upper endpoint. The
+published range is therefore an ordered `[start, end)` over whole grapheme
+boundaries; a reversed input has the same normalized geometry and a partial
+grapheme is never exposed to a consumer.
+
+At a bidi run edge, both possible visual caret positions remain available in
+the snapshot. Upstream/leading affinity selects the trailing edge of the
+preceding logical run; downstream/trailing affinity selects the leading edge of
+the following logical run. At a paragraph or line edge the only available edge
+is used. “Preceding” and “following” are logical-order terms, not left/right
+terms, so RTL run edges resolve their visual position from the run direction
+rather than from an x-coordinate guess.
+
+Within one paragraph revision, conversions round-trip exactly at valid scalar,
+grapheme, and shape-cluster boundaries: scalar -> byte -> scalar returns the
+same scalar boundary, and a stored cluster interval -> byte endpoints -> stored
+cluster returns the same logical range. An interior legacy scalar boundary
+intentionally round-trips to the affinity-selected canonical grapheme edge,
+not to the discarded interior position. A revision mismatch invalidates the
+conversion instead of applying old byte or cluster offsets to new text.
+
+OPT-1402 owns this compatibility bridge together with the shaping engine,
+immutable snapshot, fallback publication, and cursor-stop mapping. OPT-1403
+records the contract only; it does not change `TextInputState`, `PaintTextRun`,
+or `TextEditCommand`.
+
 ## Caches and ownership
 
 The layout cache has separate shape and width identities. A shape key includes
@@ -78,13 +140,37 @@ cache growth is bounded by explicit entry and resource budgets.
 
 Font resolution follows the existing ordered policy: embedded fonts, configured
 font paths, then approved platform fallback. A missing glyph is retried through
-the next eligible face for the affected grapheme/run; fallback never silently
-changes the paragraph's geometry authority. If no face covers the content, the
-snapshot records a deterministic diagnostic and replacement/tofu outcome with
-stable geometry. Diagnostics identify the paragraph revision, run, code-point
-range, and fallback decision without exposing platform-specific font internals
-as public API. Unsupported shaping or line-break input is reported as a
-bounded diagnostic and uses the documented deterministic fallback policy.
+the next eligible face for the affected grapheme/run. The unsupported behavior
+is selected and atomic, not merely documented:
+
+- If shaping is unavailable or unsupported, the engine constructs and publishes
+  one complete immutable compatibility snapshot using the current deterministic
+  scalar, single-line, no-wrap layout. No partially shaped paragraph, partial
+  line list, or mixed shaped/fallback geometry is published.
+- If the requested soft line-break policy is unsupported, hard breaks remain
+  hard breaks and soft wrapping is disabled. Each hard-break-delimited segment
+  uses the deterministic no-wrap fallback, so every line record and consumer
+  sees the same geometry.
+- For a missing glyph, ordered faces are exhausted before fallback is chosen.
+  If no eligible face covers the affected logical grapheme/run, the snapshot
+  emits one deterministic replacement/tofu glyph with a stable advance and one
+  logical byte/scalar/cluster range for that missing content, rather than
+  emitting an unbounded per-code-point sequence. The fallback glyph and its
+  range are part of the same immutable snapshot.
+
+Fallback construction is complete before publication. Paint, hit testing,
+caret/selection, IME, and accessibility consume that one compatibility
+snapshot; no consumer may measure again or combine fallback geometry with a
+different layout. OPT-1402 owns the engine/snapshot fallback and its atomic
+publication. OPT-1367 and OPT-1406 are consumers of the shared fallback
+geometry for IME composition and text-range accessibility respectively.
+
+Every fallback diagnostic is bounded in count and payload and contains the
+paragraph revision, category (`ShapingUnavailable`, `UnsupportedLineBreak`, or
+`MissingGlyph`), logical byte/scalar/cluster range, face identity and policy
+identity, and the fallback outcome. The identity fields are stable policy or
+ordered-face labels; platform-private font internals are not exposed as public
+API.
 
 ## Compatibility and non-goals
 
@@ -106,14 +192,16 @@ integration public before their staged implementation and acceptance work.
 
 OPT-1403 is architecture-only and does not implement any of these follow-ons.
 
-- OPT-1402 integrates the retained shaping/paragraph snapshot with
-  renderer/text-layout and cursor-stop mapping while preserving the current
-  single-line compatibility surface.
+- OPT-1402 owns the retained shaping/paragraph snapshot, scalar compatibility
+  bridge, selected fallback behavior, renderer/text-layout integration, and
+  cursor-stop mapping while preserving the current single-line compatibility
+  surface.
 - OPT-1404 implements the multiline `TextEditor` and typed-edit consumer.
 - OPT-1367 implements native IME adapters and matching-key suppression, and
-  consumes shared geometry for composition placement.
+  consumes shared geometry, including the selected fallback, for composition
+  placement.
 - OPT-1406 implements text-range accessibility semantics and consumes shared
-  range geometry.
+  range geometry, including the selected fallback.
 - OPT-1386 supplies locale and writing-direction policy.
 
 Each follow-on must preserve this snapshot as the only geometry authority and

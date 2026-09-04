@@ -322,6 +322,9 @@ windows-sys = { version = "0.61.2", features = [
 [dev-dependencies]
 image = "0.25.9"
 naga = { version = "27.0.3", features = ["wgsl-in"] }
+rustybuzz = "0.20.1"
+unicode-bidi = "0.3.18"
+unicode-segmentation = "1.12.0"
 
 [build-dependencies]
 cc = "1.2.55"

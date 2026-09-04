@@ -171,10 +171,7 @@ fn face_covers_grapheme(font: &[u8], grapheme: &str) -> bool {
         .all(|character| face.glyph_index(character).is_some())
 }
 
-fn compatibility_replacement_glyphs(
-    text: &str,
-    ordered_faces: &[&[u8]],
-) -> Vec<ReplacementGlyph> {
+fn compatibility_replacement_glyphs(text: &str, ordered_faces: &[&[u8]]) -> Vec<ReplacementGlyph> {
     let replacement = ordered_faces
         .iter()
         .find_map(|font| {

@@ -36,15 +36,11 @@ impl<Message> SurfaceContainer<Message> {
         let Some(content_id) = self.children.first().map(|child| child.child.id()) else {
             return;
         };
-        if self.policy.scroll_policy.scrollbar_visibility
-            == crate::layout::ScrollbarVisibility::Hidden
-        {
-            return;
-        }
-        if self.policy.scroll_policy.scrollbar_visibility
-            == crate::layout::ScrollbarVisibility::Auto
-            && !context.auto_scroll_visible(self.id)
-        {
+        if !crate::runtime::paint::scrollbar_visibility_allows(
+            self.policy.scroll_policy.scrollbar_visibility,
+            self.id,
+            context.auto_scroll_visible,
+        ) {
             return;
         }
         if self.policy.scroll_policy.axes.includes_vertical() {

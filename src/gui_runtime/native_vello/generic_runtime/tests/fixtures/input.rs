@@ -261,6 +261,10 @@ impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
                 .view()
                 .id(81)
                 .fill()
+                .scroll_policy(
+                    crate::layout::ScrollPolicy::default()
+                        .scrollbar_visibility(crate::layout::ScrollbarVisibility::Always),
+                )
                 .into_surface(),
         )
     }

@@ -1,7 +1,7 @@
 //! Scroll paint helpers for backend-neutral paint plans.
 
 use crate::gui::types::{Point, Rect, Vector2};
-use crate::layout::{LayoutOutput, NodeId, OverflowPolicy};
+use crate::layout::{LayoutOutput, NodeId, OverflowPolicy, ScrollbarVisibility};
 use crate::theme::ThemeTokens;
 
 use super::{PaintFillRect, PaintPrimitive};
@@ -213,5 +213,25 @@ pub(in crate::runtime) fn scroll_content_clip_rect(
     if overflow.policy != OverflowPolicy::Scroll {
         return viewport;
     }
-    viewport
+    match layout.scrollbar_placements.get(&node_id).copied() {
+        Some(crate::gui::layout_core::ScrollbarPlacement::Reserved) => {
+            scrollbar_viewports(node_id, layout)
+                .map_or(viewport, |(committed_viewport, _)| committed_viewport)
+        }
+        _ => viewport,
+    }
+}
+
+/// Resolve whether a scrollbar affordance is visible at the private paint
+/// and pointer-routing boundaries.
+pub(in crate::runtime) fn scrollbar_visibility_allows(
+    visibility: ScrollbarVisibility,
+    node_id: NodeId,
+    auto_visible: &[NodeId],
+) -> bool {
+    match visibility {
+        ScrollbarVisibility::Hidden => false,
+        ScrollbarVisibility::Always => true,
+        ScrollbarVisibility::Auto => auto_visible.binary_search(&node_id).is_ok(),
+    }
 }

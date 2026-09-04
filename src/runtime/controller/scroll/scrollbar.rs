@@ -5,7 +5,10 @@ use super::{
     ScrollUpdate, ScrollUpdateMetadata,
 };
 use crate::runtime::controller::interaction_state::ScrollbarAxis;
-use crate::runtime::{RuntimeBridge, paint::resolve_scroll_affordance};
+use crate::runtime::{
+    RuntimeBridge,
+    paint::{resolve_scroll_affordance, scrollbar_visibility_allows},
+};
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::NodeId,
@@ -189,6 +192,7 @@ where
     }
 
     fn scrollbar_drag_capture_at(&self, point: Point) -> Option<(NodeId, f32, ScrollbarAxis)> {
+        let auto_visible = self.scroll_auto_visibility();
         self.traversal
             .containers
             .scroll
@@ -201,7 +205,7 @@ where
                 let policy = self
                     .scroll_policy_for_node(node_id)
                     .map(|c| c.scroll_policy)?;
-                if policy.scrollbar_visibility == crate::layout::ScrollbarVisibility::Hidden
+                if !scrollbar_visibility_allows(policy.scrollbar_visibility, node_id, &auto_visible)
                     || !scrollbar_hit_viewport_contains_point(viewport, point)
                     || !self.container_clip_contains_point(node_id, point)
                 {

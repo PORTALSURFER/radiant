@@ -343,11 +343,7 @@ where
             .scroll_settlement_deadline
             .is_some_and(|deadline| now >= deadline)
         {
-            self.interaction.wheel.scroll_settlement_deadline = None;
-            let settlements = std::mem::take(&mut self.interaction.wheel.pending_scroll_settlement);
-            for (node_id, offset) in settlements {
-                self.emit_scroll_offset_settled(node_id, offset, true);
-            }
+            self.emit_pending_scroll_settlements(true);
             changed = true;
         }
         let expired_activity: Vec<_> = self

@@ -137,6 +137,71 @@ fn surface_paint_plan_clips_scroll_content_and_draws_scrollbar_affordance() {
 }
 
 #[test]
+fn reserved_scrollbar_clip_uses_committed_viewport_for_each_axis_selection() {
+    fn clip_and_bars(axes: radiant::layout::ScrollAxis) -> (Rect, Rect, Vec<Rect>) {
+        let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::container(
+            31,
+            ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                overflow: radiant::layout::OverflowPolicy::Scroll,
+                scroll_policy: ScrollPolicy::default()
+                    .axes(axes)
+                    .scrollbar_placement(radiant::layout::ScrollbarPlacement::Reserved)
+                    .scrollbar_visibility(ScrollbarVisibility::Always),
+                ..ContainerPolicy::default()
+            },
+            vec![SurfaceChild::fill(SurfaceNode::text(
+                32,
+                "Long content",
+                WidgetSizing::fixed(Vector2::new(400.0, 400.0)),
+            ))],
+        ));
+        let layout = layout_tree(
+            &surface.layout_node(),
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 80.0)),
+        );
+        let plan = surface.paint_plan(&layout, &Default::default());
+        let clip = plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::ClipStart(clip) if clip.node_id == 31 => Some(clip.rect),
+                _ => None,
+            })
+            .expect("reserved scroll content should be clipped");
+        let committed = layout.viewport_bounds[&31];
+        let bars = plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.rect),
+                _ => None,
+            })
+            .collect();
+        (clip, committed, bars)
+    }
+
+    for axes in [
+        radiant::layout::ScrollAxis::Vertical,
+        radiant::layout::ScrollAxis::Horizontal,
+        radiant::layout::ScrollAxis::Both,
+    ] {
+        let (clip, committed, bars) = clip_and_bars(axes);
+        assert_eq!(clip, committed, "reserved clip must use committed viewport");
+        assert!(
+            !bars.is_empty(),
+            "reserved policy should paint overflowing bars"
+        );
+        for bar in bars {
+            assert!(
+                bar.min.x >= clip.max.x || bar.min.y >= clip.max.y,
+                "bar {bar:?} must remain outside content clip {clip:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn surface_paint_plan_culls_scroll_content_outside_visible_clip() {
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::scroll_area(
         31,

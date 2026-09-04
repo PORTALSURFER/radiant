@@ -65,10 +65,6 @@ impl<'a> SurfacePaintContext<'a> {
         }
     }
 
-    pub(super) fn auto_scroll_visible(&self, node_id: NodeId) -> bool {
-        self.auto_scroll_visible.binary_search(&node_id).is_ok()
-    }
-
     pub(super) fn should_paint_node(&self, node_id: NodeId) -> bool {
         if self.layout.is_omitted(node_id) || !self.layout.rects.contains_key(&node_id) {
             return false;

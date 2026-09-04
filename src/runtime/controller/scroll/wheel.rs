@@ -221,11 +221,17 @@ where
         let phase = sample.phase();
         if phase == Some(WheelPhase::Started) {
             self.clear_phaseful_scroll_activity();
+            if exact_sample && !sample.is_valid() {
+                // Invalid explicit starts do not settle an admitted prior
+                // phase-less owner. They remain a non-routing boundary.
+                self.clear_managed_wheel_sequence();
+                return WheelOrScrollRoute::NotRouted;
+            }
+            self.emit_pending_scroll_settlements(refresh_after_message);
             if exact_sample {
                 self.cancel_live_managed_wheel_sequence_for_start(point, refresh_after_message);
             }
-            // Every explicit start is a fresh boundary, including a malformed
-            // start that cannot be admitted below.
+            // Every valid explicit start is a fresh managed-widget boundary.
             self.clear_managed_wheel_sequence();
         }
         if matches!(phase, Some(WheelPhase::Ended | WheelPhase::Cancelled))
@@ -239,7 +245,6 @@ where
         if exact_sample && !sample.is_valid() {
             return WheelOrScrollRoute::NotRouted;
         }
-
         match (self.interaction.wheel.managed_sequence, phase) {
             (RuntimeManagedWheelSequenceState::Blocked, Some(WheelPhase::Changed)) => {
                 // A known orphan cannot be rebound by a continuation that
@@ -387,15 +392,11 @@ where
                 Some(WheelPhase::Ended) => {
                     self.mark_scroll_activity(&changed, sample.phase());
                     self.queue_scroll_settlements(&changed);
-                    let settlements =
-                        std::mem::take(&mut self.interaction.wheel.pending_scroll_settlement);
-                    for (node_id, offset) in settlements {
-                        self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
-                    }
+                    self.emit_pending_scroll_settlements(refresh_after_message);
                 }
                 Some(WheelPhase::Cancelled) => {
                     self.mark_scroll_activity(&changed, sample.phase());
-                    self.interaction.wheel.pending_scroll_settlement.clear();
+                    self.clear_pending_scroll_settlements();
                 }
                 Some(WheelPhase::Discrete) | None => {
                     self.mark_scroll_activity(&changed, sample.phase());
@@ -426,16 +427,10 @@ where
     ) -> WheelOrScrollRoute {
         match sample.phase() {
             Some(WheelPhase::Ended) => {
-                self.interaction.wheel.scroll_settlement_deadline = None;
-                let settlements =
-                    std::mem::take(&mut self.interaction.wheel.pending_scroll_settlement);
-                for (node_id, offset) in settlements {
-                    self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
-                }
+                self.emit_pending_scroll_settlements(refresh_after_message);
             }
             Some(WheelPhase::Cancelled) => {
-                self.interaction.wheel.pending_scroll_settlement.clear();
-                self.interaction.wheel.scroll_settlement_deadline = None;
+                self.clear_pending_scroll_settlements();
             }
             _ => {}
         }
@@ -769,6 +764,26 @@ where
 
     fn clear_managed_wheel_sequence(&mut self) {
         self.interaction.wheel.managed_sequence = RuntimeManagedWheelSequenceState::Idle;
+    }
+
+    fn take_pending_scroll_settlements(
+        &mut self,
+    ) -> Vec<(crate::layout::NodeId, crate::gui::types::Vector2)> {
+        self.interaction.wheel.scroll_settlement_deadline = None;
+        std::mem::take(&mut self.interaction.wheel.pending_scroll_settlement)
+    }
+
+    pub(in crate::runtime::controller) fn emit_pending_scroll_settlements(
+        &mut self,
+        refresh_after_message: bool,
+    ) {
+        let settlements = self.take_pending_scroll_settlements();
+        for (node_id, offset) in settlements {
+            self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
+        }
+    }
+
+    fn clear_pending_scroll_settlements(&mut self) {
         self.interaction.wheel.pending_scroll_settlement.clear();
         self.interaction.wheel.scroll_settlement_deadline = None;
     }

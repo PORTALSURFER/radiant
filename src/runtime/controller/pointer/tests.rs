@@ -1732,6 +1732,8 @@ impl LayoutProbeBridge {
                 ContainerPolicy {
                     kind: ContainerKind::ScrollView,
                     overflow: OverflowPolicy::Scroll,
+                    scroll_policy: crate::layout::ScrollPolicy::default()
+                        .scrollbar_visibility(crate::layout::ScrollbarVisibility::Always),
                     ..ContainerPolicy::default()
                 },
                 vec![SurfaceChild::fill(SurfaceNode::widget(

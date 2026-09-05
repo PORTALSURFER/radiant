@@ -156,4 +156,14 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "DragHandleMessage",
         ],
     ),
+    (
+        "rendering_baseline",
+        &[
+            ".on_frame_profile(State::observe)",
+            ".on_frame_gpu_timing(",
+            "native_fixture",
+            "native_run",
+            "profiles_preserve_window_identity_and_distinct_cpu_stages",
+        ],
+    ),
 ];

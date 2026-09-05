@@ -324,7 +324,7 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
                     } else {
                         current.x
                     },
-                    if policy.scroll_policy.axes.includes_vertical() {
+                    if policy.scroll_policy.configured_axes().includes_vertical() {
                         0.0
                     } else {
                         current.y
@@ -338,7 +338,7 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
                     } else {
                         current.x
                     },
-                    if policy.scroll_policy.axes.includes_vertical() {
+                    if policy.scroll_policy.configured_axes().includes_vertical() {
                         content.height()
                     } else {
                         current.y
@@ -359,7 +359,7 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
                 request.alignment,
             );
         }
-        if policy.scroll_policy.axes.includes_vertical() {
+        if policy.scroll_policy.configured_axes().includes_vertical() {
             next.y = resolve_scroll_alignment(
                 current.y,
                 viewport.height(),
@@ -1126,7 +1126,7 @@ mod tests {
                     } else {
                         0.0
                     },
-                    if edge == ScrollEdge::End && policy.axes.includes_vertical() {
+                    if edge == ScrollEdge::End && policy.configured_axes().includes_vertical() {
                         320.0
                     } else {
                         0.0

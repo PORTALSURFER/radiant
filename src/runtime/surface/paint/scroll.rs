@@ -43,7 +43,12 @@ impl<Message> SurfaceContainer<Message> {
         ) {
             return;
         }
-        if self.policy.scroll_policy.axes.includes_vertical() {
+        if self
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_vertical()
+        {
             push_scroll_affordance(
                 &mut plan.primitives,
                 self.id,
@@ -53,7 +58,12 @@ impl<Message> SurfaceContainer<Message> {
                 context.active_scroll_affordance == Some(self.id),
             );
         }
-        if self.policy.scroll_policy.axes.includes_horizontal() {
+        if self
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_horizontal()
+        {
             push_horizontal_scroll_affordance(
                 &mut plan.primitives,
                 self.id,

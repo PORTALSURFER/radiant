@@ -87,7 +87,7 @@ where
                     crate::layout::ScrollAlignment::Nearest,
                 );
             }
-            if policy.axes.includes_vertical() {
+            if policy.configured_axes().includes_vertical() {
                 next.y = crate::gui::layout_core::resolve_scroll_alignment(
                     current.y,
                     viewport.height(),

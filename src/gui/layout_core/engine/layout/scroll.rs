@@ -35,10 +35,20 @@ pub(super) fn layout_scroll_view(
         == crate::layout::ScrollbarPlacement::Reserved
     {
         let mut max = viewport_rect.max;
-        if container.policy.scroll_policy.axes.includes_vertical() {
+        if container
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_vertical()
+        {
             max.x = (max.x - 3.0).max(viewport_rect.min.x);
         }
-        if container.policy.scroll_policy.axes.includes_horizontal() {
+        if container
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_horizontal()
+        {
             max.y = (max.y - 3.0).max(viewport_rect.min.y);
         }
         viewport_rect = Rect::from_min_max(viewport_rect.min, max);

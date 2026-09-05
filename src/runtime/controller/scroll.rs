@@ -118,7 +118,7 @@ where
             if !allows_horizontal {
                 effective.x = 0.0;
             }
-            if !policy.axes.includes_vertical() {
+            if !policy.configured_axes().includes_vertical() {
                 effective.y = 0.0;
             }
             match policy.axis_lock {
@@ -147,7 +147,7 @@ where
                 if allows_horizontal {
                     residual.x -= consumed.x;
                 }
-                if policy.axes.includes_vertical() {
+                if policy.configured_axes().includes_vertical() {
                     residual.y -= consumed.y;
                 }
                 let viewport = self
@@ -326,17 +326,17 @@ where
             let mut next = current;
             match key {
                 crate::widgets::WidgetKey::PageUp => {
-                    if policy.axes.includes_vertical() {
+                    if policy.configured_axes().includes_vertical() {
                         next.y -= viewport.height().max(1.0) * page;
                     }
                 }
                 crate::widgets::WidgetKey::PageDown => {
-                    if policy.axes.includes_vertical() {
+                    if policy.configured_axes().includes_vertical() {
                         next.y += viewport.height().max(1.0) * page;
                     }
                 }
                 crate::widgets::WidgetKey::Home => {
-                    if policy.axes.includes_vertical() {
+                    if policy.configured_axes().includes_vertical() {
                         next.y = 0.0;
                     }
                     if policy.allows_horizontal() {
@@ -344,7 +344,7 @@ where
                     }
                 }
                 crate::widgets::WidgetKey::End => {
-                    if policy.axes.includes_vertical() {
+                    if policy.configured_axes().includes_vertical() {
                         next.y = (content.height() - viewport.height()).max(0.0);
                     }
                     if policy.allows_horizontal() {

@@ -90,6 +90,10 @@ scroll(content)
     .on_offset_settled(Message::ScrollSettled);
 ```
 
+Configure the raw layout and chrome axes with `.axes(...)`, and inspect that
+selection with `ScrollPolicy::configured_axes()`; the default retains legacy
+horizontal offset mutation authority separately.
+
 The runtime validates generations, finite geometry, mount identity, and
 current committed layout evidence before mutating scroll state. A stale,
 malformed, unavailable, or no-op request is consumed silently. Focus reveal,

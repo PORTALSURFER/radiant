@@ -216,7 +216,7 @@ where
                     .scroll_content_by_container
                     .get(&node_id)
                     .copied()?;
-                if policy.axes.includes_vertical()
+                if policy.configured_axes().includes_vertical()
                     && let Some(affordance) =
                         resolve_scroll_affordance(node_id, content_id, &self.layout)
                     && scrollbar_thumb_hit_rect(affordance.thumb).contains(point)
@@ -226,7 +226,7 @@ where
                     .clamp(0.0, 1.0);
                     return Some((node_id, grip_fraction, ScrollbarAxis::Vertical));
                 }
-                if policy.axes.includes_horizontal()
+                if policy.configured_axes().includes_horizontal()
                     && let Some(affordance) =
                         resolve_horizontal_scroll_affordance(node_id, content_id, &self.layout)
                     && scrollbar_horizontal_thumb_hit_rect(affordance.thumb).contains(point)

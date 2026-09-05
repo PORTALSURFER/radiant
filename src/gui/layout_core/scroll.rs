@@ -62,10 +62,17 @@ pub enum ScrollbarVisibility {
 }
 
 /// Runtime behavior for a scroll viewport.
+///
+/// ```compile_fail
+/// use radiant::layout::{ScrollAxis, ScrollPolicy};
+///
+/// let mut policy = ScrollPolicy::default();
+/// policy.axes = ScrollAxis::Both;
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollPolicy {
     /// Axes that may scroll.
-    pub axes: ScrollAxis,
+    axes: ScrollAxis,
     /// Dominant-axis lock for wheel/gesture deltas.
     pub axis_lock: ScrollAxisLock,
     /// Placement of horizontal and vertical bars.
@@ -99,6 +106,13 @@ impl ScrollPolicy {
         self.axes = axes;
         self.legacy_both_axes = false;
         self
+    }
+    /// Return the configured axes used by layout and scrollbar chrome.
+    ///
+    /// The default keeps its legacy horizontal offset mutation authority;
+    /// this accessor reports the raw configured selection for chrome.
+    pub const fn configured_axes(self) -> ScrollAxis {
+        self.axes
     }
     /// Set the axis lock.
     pub const fn axis_lock(mut self, lock: ScrollAxisLock) -> Self {
@@ -153,7 +167,11 @@ impl ScrollPolicy {
     /// offset behavior. This is intentionally about offset mutation authority;
     /// layout and scrollbar chrome continue to inspect the raw configured axes.
     pub(crate) const fn allows_horizontal(self) -> bool {
-        self.axes.includes_horizontal() || self.legacy_both_axes
+        self.configured_axes().includes_horizontal() || self.legacy_both_axes
+    }
+
+    pub(crate) const fn allows_vertical(self) -> bool {
+        self.configured_axes().includes_vertical()
     }
 
     /// Project a stored offset onto the axes currently admitted by this
@@ -166,7 +184,7 @@ impl ScrollPolicy {
             } else {
                 0.0
             },
-            if self.axes.includes_vertical() {
+            if self.allows_vertical() {
                 offset.y
             } else {
                 0.0
@@ -330,13 +348,30 @@ mod tests {
 
     #[test]
     fn effective_horizontal_offset_authority_preserves_legacy_default() {
-        for (policy, expected) in [
-            (ScrollPolicy::default(), true),
-            (ScrollPolicy::default().axes(ScrollAxis::Vertical), false),
-            (ScrollPolicy::default().axes(ScrollAxis::Horizontal), true),
-            (ScrollPolicy::default().axes(ScrollAxis::Both), true),
+        for (policy, configured, expected_horizontal, expected_vertical) in [
+            (ScrollPolicy::default(), ScrollAxis::Vertical, true, true),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Vertical),
+                ScrollAxis::Vertical,
+                false,
+                true,
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Horizontal),
+                ScrollAxis::Horizontal,
+                true,
+                false,
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Both),
+                ScrollAxis::Both,
+                true,
+                true,
+            ),
         ] {
-            assert_eq!(policy.allows_horizontal(), expected);
+            assert_eq!(policy.configured_axes(), configured);
+            assert_eq!(policy.allows_horizontal(), expected_horizontal);
+            assert_eq!(policy.allows_vertical(), expected_vertical);
         }
     }
 }

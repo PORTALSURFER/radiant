@@ -1,8 +1,8 @@
 use crate::{
     gui::text_layout::{TextLineInsets, centered_text_baseline, centered_text_line},
     gui::types::{Rect, Rgba8},
-    runtime::{PaintPrimitive, PaintText, PaintTextAlign, PaintTextRun},
-    widgets::{TextWrap, WidgetId},
+    runtime::{PaintPrimitive, PaintText, PaintTextAlign, PaintTextRun, ResolvedEnvironment},
+    widgets::{DeclaredTextMetrics, TextScaleParticipation, TextWrap, WidgetId},
 };
 
 /// Named fields for painting a dense-row label.
@@ -100,6 +100,42 @@ pub fn push_dense_row_label(
         rect,
         font_size,
         baseline: centered_text_baseline(rect, font_size),
+        color: parts.color,
+        align: parts.align,
+        wrap: parts.wrap,
+    }));
+    true
+}
+
+/// Push a dense-row label using an explicit declared text-metrics witness.
+///
+/// The declaration is resolved against the supplied immutable environment once
+/// for the label's font and horizontal inset. Assigned bounds remain the
+/// physical centering and clipping rectangle.
+pub fn push_dense_row_label_with_environment(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    parts: DenseRowLabelParts,
+    declared: DeclaredTextMetrics,
+    environment: &ResolvedEnvironment,
+) -> bool {
+    if parts.text.is_empty() || !bounds.has_finite_positive_area() {
+        return false;
+    }
+    let metrics = declared.resolve(environment, TextScaleParticipation::Scaled);
+    let rect = centered_text_line(
+        bounds,
+        metrics.font_size,
+        TextLineInsets::horizontal(metrics.insets.x),
+        parts.offset_y * environment.text_scale().factor(),
+    );
+    primitives.push(PaintPrimitive::Text(PaintTextRun {
+        widget_id,
+        text: parts.text,
+        rect,
+        font_size: metrics.font_size,
+        baseline: centered_text_baseline(rect, metrics.font_size),
         color: parts.color,
         align: parts.align,
         wrap: parts.wrap,

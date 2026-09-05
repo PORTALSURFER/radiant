@@ -518,7 +518,7 @@ fn target_alignment_scorecard_has_current_estimates() {
         "| Declarative model, identity, reconciliation | 84.8% |",
         "| Input, provenance, and edit lifecycle | 98.5% |",
         "| Layout, composition, virtualization | ~87% |",
-        "| Text, focus, and selection | ~90.5% |",
+        "| Text, focus, and selection | ~90.7% |",
         "| Numeric controls | 91% |",
         "| Runtime, effects, and scheduling | 97% |",
         "| Rendering, invalidation, retained GPU surfaces | ~89.2% |",

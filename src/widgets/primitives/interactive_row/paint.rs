@@ -6,10 +6,12 @@ use crate::{
         list::{
             DenseRowChromeParts, DenseRowLabelParts, DenseRowPalette, DenseRowVisualState,
             push_dense_row_chrome, push_dense_row_fill, push_dense_row_labeled_chrome,
+            push_dense_row_labeled_chrome_with_environment,
         },
         types::Rect,
     },
-    runtime::PaintPrimitive,
+    runtime::{PaintPrimitive, ResolvedEnvironment},
+    widgets::DeclaredTextMetrics,
 };
 
 impl InteractiveRowWidget {
@@ -95,5 +97,26 @@ impl InteractiveRowWidget {
         label: DenseRowLabelParts,
     ) -> usize {
         push_dense_row_labeled_chrome(primitives, self.id(), bounds, chrome, label)
+    }
+
+    /// Push standard dense-row chrome followed by an environment-aware label.
+    pub fn push_dense_labeled_chrome_with_environment(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        chrome: DenseRowChromeParts,
+        label: DenseRowLabelParts,
+        declared: DeclaredTextMetrics,
+        environment: &ResolvedEnvironment,
+    ) -> usize {
+        push_dense_row_labeled_chrome_with_environment(
+            primitives,
+            self.id(),
+            bounds,
+            chrome,
+            label,
+            declared,
+            environment,
+        )
     }
 }

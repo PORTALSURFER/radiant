@@ -19,6 +19,8 @@ fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> 
 
 #[path = "custom_widget_public_api/builders.rs"]
 mod builders;
+#[path = "custom_widget_public_api/embedded_rows.rs"]
+mod embedded_rows;
 #[path = "custom_widget_public_api/hover.rs"]
 mod hover;
 #[path = "custom_widget_public_api/local_ownership.rs"]

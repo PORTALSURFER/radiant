@@ -138,6 +138,7 @@ impl TreeRowBuilder {
         let input_id = self.input_id;
         let widget = TreeRowHitTarget::new(TreeRowHitTargetParts {
             label: self.label,
+            row_height: self.row_height,
             selected: self.selected,
             focused: self.focused,
             drag_drop: self.drag_drop,
@@ -173,6 +174,7 @@ impl TreeRowBuilder {
         let input_id = self.input_id;
         let widget = TreeRowHitTarget::new(TreeRowHitTargetParts {
             label: self.label,
+            row_height: self.row_height,
             selected: self.selected,
             focused: self.focused,
             drag_drop: self.drag_drop,

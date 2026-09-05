@@ -1,4 +1,5 @@
 use crate::{
+    gui::automation::{AutomationLiveRegion, AutomationNodeSemantics, AutomationRole},
     gui::{
         list::{
             DenseRowChromeParts, DenseRowLabelParts, DenseRowMarkerStyle, DenseRowOutlineStyle,
@@ -8,22 +9,24 @@ use crate::{
         types::{Rect, Rgba8},
     },
     layout::{LayoutOutput, Vector2},
-    runtime::{PaintPrimitive, PaintText},
+    runtime::{PaintPrimitive, PaintText, ResolvedEnvironment},
     theme::ThemeTokens,
     widgets::{
-        EmbeddedInteractiveRowWidget, InteractiveRowMessage, InteractiveRowVisualStateParts,
-        InteractiveRowWidget, WidgetSizing, WidgetStyle,
+        DeclaredTextMetrics, EmbeddedInteractiveRowWidget, FocusBehavior, InteractiveRowMessage,
+        InteractiveRowVisualStateParts, InteractiveRowWidget, WidgetSemantics, WidgetSizing,
+        WidgetStyle,
     },
 };
 
 use super::{
-    defaults::{DEFAULT_TREE_ROW_HEIGHT, default_drop_target_outline, default_palette},
+    defaults::{default_drop_target_outline, default_palette},
     drag_drop::TreeRowDragDropState,
 };
 
 #[derive(Clone)]
 pub(super) struct TreeRowHitTarget {
     row: InteractiveRowWidget,
+    declared_text_metrics: DeclaredTextMetrics,
     label: PaintText,
     selected: bool,
     focused: bool,
@@ -40,12 +43,12 @@ pub(super) struct TreeRowHitTarget {
     selected_hover_marker: Option<DenseRowMarkerStyle>,
     normal_label_color: Option<Rgba8>,
     highlighted_label_color: Rgba8,
-    label_inset_x: f32,
     trailing_icon: Option<SvgIcon>,
 }
 
 pub(super) struct TreeRowHitTargetParts {
     pub(super) label: PaintText,
+    pub(super) row_height: f32,
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) drag_drop: TreeRowDragDropState,
@@ -87,12 +90,18 @@ impl TreeRowHitTarget {
             row = row.clear_hover_on_sync();
         }
         let mut row = row.widget();
-        row.common.sizing = WidgetSizing::fixed(Vector2::new(0.0, DEFAULT_TREE_ROW_HEIGHT));
+        row.common.sizing = WidgetSizing::fixed(Vector2::new(0.0, parts.row_height));
+        let declared_text_metrics = DeclaredTextMetrics::new(
+            WidgetSizing::fixed(Vector2::new(0.0, parts.row_height)),
+            crate::gui::list::dense_row_label_font_size(parts.row_height),
+            Vector2::new(parts.label_inset_x.max(0.0), 0.0),
+        );
         if let Some(style) = parts.style {
             row.common.style = style;
         }
         Self {
             row,
+            declared_text_metrics,
             label: parts.label,
             selected: parts.selected,
             focused: parts.focused,
@@ -109,7 +118,6 @@ impl TreeRowHitTarget {
             selected_hover_marker: parts.selected_hover_marker,
             normal_label_color: parts.normal_label_color,
             highlighted_label_color: parts.highlighted_label_color,
-            label_inset_x: parts.label_inset_x,
             trailing_icon: parts.trailing_icon,
         }
     }
@@ -218,6 +226,14 @@ impl EmbeddedInteractiveRowWidget for TreeRowHitTarget {
         Some(message)
     }
 
+    fn declared_interactive_row_text_metrics(&self) -> Option<DeclaredTextMetrics> {
+        Some(self.declared_text_metrics)
+    }
+
+    fn interactive_row_semantics(&self) -> Option<&dyn WidgetSemantics> {
+        Some(self)
+    }
+
     fn append_interactive_row_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
@@ -225,12 +241,75 @@ impl EmbeddedInteractiveRowWidget for TreeRowHitTarget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        self.row.push_dense_labeled_chrome(
+        self.append_paint_for_environment(
+            primitives,
+            bounds,
+            theme,
+            &ResolvedEnvironment::default(),
+        );
+    }
+
+    fn append_interactive_row_paint_with_context(
+        &self,
+        context: &mut crate::widgets::WidgetPaintContext<'_>,
+    ) {
+        let bounds = context.bounds();
+        let theme = context.theme();
+        let environment = context.environment();
+        let primitives = context.primitives();
+        self.append_paint_for_environment(primitives, bounds, theme, environment);
+    }
+}
+
+impl WidgetSemantics for TreeRowHitTarget {
+    fn automation_role(&self) -> crate::gui::automation::AutomationRole {
+        AutomationRole::Row
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.label.as_str().to_owned())
+    }
+
+    fn resolve_automation_semantics(
+        &self,
+        common: &crate::widgets::WidgetCommon,
+    ) -> AutomationNodeSemantics {
+        let focusable = common.focus != FocusBehavior::None && !common.state.disabled;
+        AutomationNodeSemantics {
+            role: AutomationRole::Row,
+            label: self.automation_label(),
+            description: None,
+            value_text: None,
+            checked: None,
+            selected: self.selected,
+            disabled: common.state.disabled,
+            read_only: common.state.read_only,
+            focusable,
+            focused: common.state.focused,
+            tab_index: (common.focus == FocusBehavior::Keyboard && !common.state.disabled)
+                .then_some(0),
+            focus_hints: Default::default(),
+            live_region: AutomationLiveRegion::None,
+            metadata: Default::default(),
+        }
+    }
+}
+
+impl TreeRowHitTarget {
+    fn append_paint_for_environment(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        theme: &ThemeTokens,
+        environment: &ResolvedEnvironment,
+    ) {
+        self.row.push_dense_labeled_chrome_with_environment(
             primitives,
             bounds,
             self.chrome_parts(theme),
-            DenseRowLabelParts::new(self.label.clone(), self.label_color(theme))
-                .inset_x(self.label_inset_x),
+            DenseRowLabelParts::new(self.label.clone(), self.label_color(theme)),
+            self.declared_text_metrics,
+            environment,
         );
         if let Some(icon) = &self.trailing_icon {
             icon.append_paint(primitives, self.row.id(), trailing_icon_rect(bounds));

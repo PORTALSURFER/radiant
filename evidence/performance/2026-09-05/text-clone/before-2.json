@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "backend": "backend-neutral SurfaceRuntime; no native GPU submission",
+    "build_mode": "release",
+    "commit": "ac7222355ed3a96c87cda71c62276bb91511ea34",
+    "dataset": "runtime_surface_tree_clone_10k v1 at ac7222355ed3a96c87cda71c62276bb91511ea34: clone and drop an immutable container with 10000 text leaves",
+    "features": {
+      "cargo": "default",
+      "rustc": "1.97.1 (8bab26f4f 2026-07-14)",
+      "target": "aarch64-apple-darwin"
+    },
+    "hardware": {
+      "chip": "Apple M5 Pro",
+      "memory": "24 GB",
+      "model": "Mac17,9"
+    },
+    "measurement_kind": "deterministic_harness",
+    "os": "macOS 26.6.2 (25G83)",
+    "power_state": "AC Power; battery 100%",
+    "refresh_hz": 60,
+    "sampling": {
+      "batch_size": 8,
+      "iterations": 100,
+      "percentiles": "per-batch average, nearest rank",
+      "scale_refresh": "synthetic harness settings; not display measurements",
+      "warmup": "one scenario bench call"
+    },
+    "scale": 1
+  },
+  "metrics_jsonl": "{\"type\":\"radiant_perf\",\"scenario\":\"runtime_surface_tree_clone_10k\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":58529,\"avg_us\":585.290,\"p50_us\":566.958,\"p95_us\":775.203,\"p99_us\":775.203}\n",
+  "metrics_sha256": "558ede4e402f2da8779c979332be92f854ccaf49fb188f71a49df1ff283bcb6f",
+  "schema": 1
+}

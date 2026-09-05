@@ -1,0 +1,71 @@
+{
+  "status": "regression",
+  "baseline_commit": "ac7222355ed3a96c87cda71c62276bb91511ea34",
+  "candidate_commit": "a3dbf03dc63e329ef488bb0ef4d1b65b2385bc00",
+  "same_revision": false,
+  "comparisons": [
+    {
+      "scenario": "runtime_projection_refresh_large_tree",
+      "field": "avg_us",
+      "baseline": 335.81,
+      "candidate": 354.06,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_projection_refresh_large_tree",
+      "field": "p95_us",
+      "baseline": 341.615,
+      "candidate": 375.786,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_projection_refresh_large_tree",
+      "field": "p99_us",
+      "baseline": 341.615,
+      "candidate": 375.786,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_refresh_large_tree",
+      "field": "avg_us",
+      "baseline": 339.06,
+      "candidate": 381.48,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_refresh_large_tree",
+      "field": "p95_us",
+      "baseline": 354.406,
+      "candidate": 410.656,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_refresh_large_tree",
+      "field": "p99_us",
+      "baseline": 354.406,
+      "candidate": 410.656,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_surface_large_tree",
+      "field": "avg_us",
+      "baseline": 63.44,
+      "candidate": 72.31,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_surface_large_tree",
+      "field": "p95_us",
+      "baseline": 72.438,
+      "candidate": 89.677,
+      "status": "regression"
+    },
+    {
+      "scenario": "runtime_surface_large_tree",
+      "field": "p99_us",
+      "baseline": 72.438,
+      "candidate": 89.677,
+      "status": "regression"
+    }
+  ]
+}

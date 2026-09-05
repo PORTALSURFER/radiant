@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "backend": "backend-neutral SurfaceRuntime; no native GPU submission",
+    "build_mode": "release",
+    "commit": "ac7222355ed3a96c87cda71c62276bb91511ea34",
+    "dataset": "runtime_surface_large_tree, runtime_refresh_large_tree, runtime_projection_refresh_large_tree existing fixtures at ac7222355ed3a96c87cda71c62276bb91511ea34",
+    "features": {
+      "cargo": "default",
+      "rustc": "1.97.1 (8bab26f4f 2026-07-14)",
+      "target": "aarch64-apple-darwin"
+    },
+    "hardware": {
+      "chip": "Apple M5 Pro",
+      "memory": "24 GB",
+      "model": "Mac17,9"
+    },
+    "measurement_kind": "deterministic_harness",
+    "os": "macOS 26.6.2 (25G83)",
+    "power_state": "AC Power; battery 100%",
+    "refresh_hz": 60,
+    "sampling": {
+      "batch_size": 8,
+      "iterations": 100,
+      "percentiles": "per-batch average, nearest rank",
+      "scale_refresh": "synthetic harness settings; not display measurements",
+      "warmup": "one scenario bench call"
+    },
+    "scale": 1
+  },
+  "metrics_jsonl": "{\"type\":\"radiant_perf\",\"scenario\":\"runtime_surface_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":6344,\"avg_us\":63.440,\"p50_us\":60.026,\"p95_us\":72.438,\"p99_us\":72.438,\"scene_rebuild_count\":100,\"paint_primitive_count\":8900,\"paint_plan_rebuild_count\":100}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":33906,\"avg_us\":339.060,\"p50_us\":335.573,\"p95_us\":354.406,\"p99_us\":354.406,\"surface_refresh_count\":100,\"application_projection_count\":100,\"runtime_projection_count\":100,\"widget_state_sync_count\":100,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_projection_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":33581,\"avg_us\":335.810,\"p50_us\":335.839,\"p95_us\":341.615,\"p99_us\":341.615,\"surface_refresh_count\":100,\"application_projection_count\":100,\"runtime_projection_count\":100,\"widget_state_sync_count\":100,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n",
+  "metrics_sha256": "873f96bcf9836d59dad4ee95fa972839978b3710caf65a386d637c58d949020f",
+  "schema": 1
+}

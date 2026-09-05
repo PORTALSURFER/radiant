@@ -1,0 +1,71 @@
+{
+  "status": "pass",
+  "baseline_commit": "ac7222355ed3a96c87cda71c62276bb91511ea34",
+  "candidate_commit": "a3dbf03dc63e329ef488bb0ef4d1b65b2385bc00",
+  "same_revision": false,
+  "comparisons": [
+    {
+      "scenario": "runtime_projection_refresh_large_tree",
+      "field": "avg_us",
+      "baseline": 389.83,
+      "candidate": 339.37,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_projection_refresh_large_tree",
+      "field": "p95_us",
+      "baseline": 449.708,
+      "candidate": 347.594,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_projection_refresh_large_tree",
+      "field": "p99_us",
+      "baseline": 449.708,
+      "candidate": 347.594,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_refresh_large_tree",
+      "field": "avg_us",
+      "baseline": 391.8,
+      "candidate": 343.06,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_refresh_large_tree",
+      "field": "p95_us",
+      "baseline": 455.333,
+      "candidate": 353.547,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_refresh_large_tree",
+      "field": "p99_us",
+      "baseline": 455.333,
+      "candidate": 353.547,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_surface_large_tree",
+      "field": "avg_us",
+      "baseline": 62.02,
+      "candidate": 59.7,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_surface_large_tree",
+      "field": "p95_us",
+      "baseline": 71.401,
+      "candidate": 71.036,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_surface_large_tree",
+      "field": "p99_us",
+      "baseline": 71.401,
+      "candidate": 71.036,
+      "status": "pass"
+    }
+  ]
+}

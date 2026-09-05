@@ -76,14 +76,18 @@ impl Constraints {
         }
     }
 
-    /// Clamp a width to this range.
+    /// Clamp a width after normalizing directly supplied range bounds.
     pub fn clamp_w(self, width: f32) -> f32 {
-        width.clamp(self.min_w, self.max_w)
+        let (minimum, maximum) =
+            super::validated_geometry::normalize_constraint_axis(self.min_w, self.max_w);
+        width.clamp(minimum, maximum)
     }
 
-    /// Clamp a height to this range.
+    /// Clamp a height after normalizing directly supplied range bounds.
     pub fn clamp_h(self, height: f32) -> f32 {
-        height.clamp(self.min_h, self.max_h)
+        let (minimum, maximum) =
+            super::validated_geometry::normalize_constraint_axis(self.min_h, self.max_h);
+        height.clamp(minimum, maximum)
     }
 
     /// Shrink available space by insets while preserving min <= max.

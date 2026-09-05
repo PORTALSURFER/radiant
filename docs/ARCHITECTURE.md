@@ -1113,6 +1113,10 @@ future work under OPT-1389.
 The first production reconciliation slice is interaction-only leaf replacement.
 An opting-in bridge supplies a provider authority and one request-fenced
 `ExactChangedRoots` response whose paths are disjoint and bounded. Admission
+first applies the sampled application-environment fence: `None` retains
+candidate ownership, while `Some(sampled)` is admitted only when it equals the
+installed surface application environment; a mismatch uses the complete
+refresh path so the sampled environment is applied before publication. It then
 uses only cached exact evidence on each selected chain and leaf: structure,
 geometry, paint, source identity, mapper, hit-test, pointer, file-drop, and
 state membership must remain compatible, while the selected leaf may change

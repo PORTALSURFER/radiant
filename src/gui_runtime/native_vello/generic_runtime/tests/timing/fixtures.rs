@@ -242,14 +242,17 @@ impl Widget for ExactInteractionWidget {
 
 pub(super) struct ExactInteractionBridge {
     pub(super) revision: bool,
+    pub(super) exact: bool,
     pub(super) project_count: usize,
     pub(super) pull_update_count: usize,
     pub(super) drop_probe: Option<InteractionDropProbe>,
+    pub(super) application_environment: Option<crate::application::ApplicationEnvironment>,
+    pub(super) surface_application_environment: Option<crate::application::ApplicationEnvironment>,
 }
 
 impl ExactInteractionBridge {
     fn surface(&self) -> UiSurface<DemoMessage> {
-        UiSurface::new(SurfaceNode::container(
+        let mut surface = UiSurface::new(SurfaceNode::container(
             1,
             ContainerPolicy::default(),
             vec![
@@ -270,11 +273,19 @@ impl ExactInteractionBridge {
                     WidgetMessageMapper::none(),
                 )),
             ],
-        ))
+        ));
+        if let Some(environment) = &self.surface_application_environment {
+            surface = surface.with_application_environment(environment.clone());
+        }
+        surface
     }
 }
 
 impl RuntimeBridge<DemoMessage> for ExactInteractionBridge {
+    fn application_environment(&mut self) -> Option<crate::application::ApplicationEnvironment> {
+        self.application_environment.clone()
+    }
+
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
         self.project_count += 1;
         crate::runtime::test_arc_surface(self.surface())
@@ -298,6 +309,9 @@ impl RuntimeBridge<DemoMessage> for ExactInteractionBridge {
         request: crate::runtime::SurfaceRefreshRequest,
     ) -> crate::runtime::SurfaceUpdate<DemoMessage> {
         self.pull_update_count += 1;
+        if !self.exact {
+            return crate::runtime::SurfaceUpdate::Full(self.surface());
+        }
         crate::runtime::SurfaceUpdate::ExactChangedRoots(crate::runtime::ExactChangedRoots {
             surface: self.surface(),
             runtime_identity: request.runtime_identity,

@@ -7480,8 +7480,12 @@ future work under OPT-1389.
 The current interaction-only reconciliation slice is narrower than the full
 prepared-refresh contract. A `RuntimeBridge` may opt in by supplying a
 provider authority and returning `SurfaceUpdate::ExactChangedRoots` with
-request-fenced, disjoint widget-leaf paths. Radiant admits a path only when
-cached exact structure, geometry, paint, source, mapper, hit-test, pointer,
+request-fenced, disjoint widget-leaf paths. Before exact admission, the sampled
+application environment is a fence: `None` retains candidate ownership, while
+`Some(sampled)` is admitted only when it equals the installed surface
+application environment. A mismatch uses the complete refresh path so the
+sampled environment is applied before publication. Radiant then admits a path
+only when cached exact structure, geometry, paint, source, mapper, hit-test, pointer,
 file-drop, and state-membership evidence agrees and the leaf changes only
 interaction or semantics revisions. It swaps those leaves atomically while
 retaining installed layout, traversal, source, and base paint state. Stateful

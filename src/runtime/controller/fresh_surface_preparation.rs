@@ -334,20 +334,25 @@ where
             SurfaceUpdate::Full(surface) => surface,
             SurfaceUpdate::ExactChangedRoots(candidate) => {
                 let application_projection = application_started.elapsed();
-                match self.prepare_interaction_update(
-                    request,
-                    update_request.expected_provider_authority,
-                    candidate,
-                    appearance,
-                    application_projection,
-                ) {
-                    Ok(candidate) => {
-                        return Some(PreparedSurfaceRefresh::Interaction {
-                            candidate: Box::new(candidate),
-                            application_environment,
-                        });
+                if self.sampled_application_environment_is_current(application_environment.as_ref())
+                {
+                    match self.prepare_interaction_update(
+                        request,
+                        update_request.expected_provider_authority,
+                        candidate,
+                        appearance,
+                        application_projection,
+                    ) {
+                        Ok(candidate) => {
+                            return Some(PreparedSurfaceRefresh::Interaction {
+                                candidate: Box::new(candidate),
+                                application_environment,
+                            });
+                        }
+                        Err(candidate) => candidate.surface,
                     }
-                    Err(candidate) => candidate.surface,
+                } else {
+                    candidate.surface
                 }
             }
         };

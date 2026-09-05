@@ -3569,49 +3569,56 @@ where
             SurfaceUpdate::Full(surface) => surface,
             SurfaceUpdate::ExactChangedRoots(candidate) => {
                 if let Some(request) = fresh_request {
-                    match self.try_apply_interaction_update(
-                        request,
-                        update_request.expected_provider_authority,
-                        candidate,
+                    if self.sampled_application_environment_is_current(
+                        application_environment.as_ref(),
                     ) {
-                        Ok(commit) => {
-                            let changed_count = commit.changed_count;
-                            let application_projection = application_projection_started.elapsed();
-                            self.refresh_counters.application_projection = self
-                                .refresh_counters
-                                .application_projection
-                                .saturating_add(1);
-                            self.record_reconciliation_attempt(
-                                ReconciliationAttemptOutcome::Applied,
-                            );
-                            self.base_paint_plan_reuse_eligible = true;
-                            let view_delta = ViewDeltaDiagnostics {
-                                classified: true,
-                                effect: crate::runtime::surface::ViewDeltaEffect::Interaction,
-                                total_events: changed_count,
-                                recorded_events: changed_count.min(16) as u8,
-                                base_paint_reuse_safe: true,
-                                damage: SurfaceDamage::empty(self.viewport),
-                                ..ViewDeltaDiagnostics::default()
-                            };
-                            self.record_refresh_diagnostics(
-                                SurfaceRefreshDiagnostics {
-                                    invalidation,
-                                    timings: SurfaceRefreshTimings {
-                                        application_projection,
-                                        ..SurfaceRefreshTimings::default()
+                        match self.try_apply_interaction_update(
+                            request,
+                            update_request.expected_provider_authority,
+                            candidate,
+                        ) {
+                            Ok(commit) => {
+                                let changed_count = commit.changed_count;
+                                let application_projection =
+                                    application_projection_started.elapsed();
+                                self.refresh_counters.application_projection = self
+                                    .refresh_counters
+                                    .application_projection
+                                    .saturating_add(1);
+                                self.record_reconciliation_attempt(
+                                    ReconciliationAttemptOutcome::Applied,
+                                );
+                                self.base_paint_plan_reuse_eligible = true;
+                                let view_delta = ViewDeltaDiagnostics {
+                                    classified: true,
+                                    effect: crate::runtime::surface::ViewDeltaEffect::Interaction,
+                                    total_events: changed_count,
+                                    recorded_events: changed_count.min(16) as u8,
+                                    base_paint_reuse_safe: true,
+                                    damage: SurfaceDamage::empty(self.viewport),
+                                    ..ViewDeltaDiagnostics::default()
+                                };
+                                self.record_refresh_diagnostics(
+                                    SurfaceRefreshDiagnostics {
+                                        invalidation,
+                                        timings: SurfaceRefreshTimings {
+                                            application_projection,
+                                            ..SurfaceRefreshTimings::default()
+                                        },
+                                        identity: SurfaceIdentityDiagnostics::default(),
+                                        layout_state: SurfaceLayoutStateDiagnostics::default(),
                                     },
-                                    identity: SurfaceIdentityDiagnostics::default(),
-                                    layout_state: SurfaceLayoutStateDiagnostics::default(),
-                                },
-                                refresh_started.elapsed(),
-                                view_delta,
-                                scope,
-                            );
-                            drop(commit.retired_candidate);
-                            return Vec::new();
+                                    refresh_started.elapsed(),
+                                    view_delta,
+                                    scope,
+                                );
+                                drop(commit.retired_candidate);
+                                return Vec::new();
+                            }
+                            Err(candidate) => candidate.surface,
                         }
-                        Err(candidate) => candidate.surface,
+                    } else {
+                        candidate.surface
                     }
                 } else {
                     candidate.surface

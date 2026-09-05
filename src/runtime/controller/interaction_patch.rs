@@ -29,6 +29,16 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(in crate::runtime::controller) fn sampled_application_environment_is_current(
+        &self,
+        sampled: Option<&crate::application::ApplicationEnvironment>,
+    ) -> bool {
+        match sampled {
+            None => true,
+            Some(sampled) => sampled == self.surface.application_environment(),
+        }
+    }
+
     /// Apply one exact interaction-only candidate. Returning the candidate
     /// leaves the caller able to use the ordinary full-refresh fallback.
     #[allow(clippy::result_large_err)]
@@ -361,7 +371,7 @@ mod tests {
             WidgetTone,
         },
     };
-    use std::{rc::Rc, sync::Arc};
+    use std::{cell::Cell, rc::Rc, sync::Arc};
 
     #[derive(Clone)]
     struct InteractionWidget {
@@ -430,6 +440,9 @@ mod tests {
         revision: bool,
         path: Vec<usize>,
         authority_revision: u64,
+        application_environment: Option<crate::application::ApplicationEnvironment>,
+        surface_application_environment: Option<crate::application::ApplicationEnvironment>,
+        pull_calls: Option<Rc<Cell<usize>>>,
         duplicate: bool,
         exact: bool,
         geometry_changed: bool,
@@ -442,7 +455,7 @@ mod tests {
 
     impl Bridge {
         fn surface(&self) -> crate::runtime::UiSurface<()> {
-            crate::runtime::UiSurface::new(SurfaceNode::container(
+            let mut surface = crate::runtime::UiSurface::new(SurfaceNode::container(
                 1,
                 ContainerPolicy::default(),
                 vec![
@@ -477,11 +490,21 @@ mod tests {
                         ),
                     ),
                 ],
-            ))
+            ));
+            if let Some(environment) = &self.surface_application_environment {
+                surface = surface.with_application_environment(environment.clone());
+            }
+            surface
         }
     }
 
     impl RuntimeBridge<()> for Bridge {
+        fn application_environment(
+            &mut self,
+        ) -> Option<crate::application::ApplicationEnvironment> {
+            self.application_environment.clone()
+        }
+
         fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<()>> {
             crate::runtime::test_arc_surface(self.surface())
         }
@@ -501,6 +524,9 @@ mod tests {
             &mut self,
             request: crate::runtime::SurfaceRefreshRequest,
         ) -> SurfaceUpdate<()> {
+            if let Some(pull_calls) = &self.pull_calls {
+                pull_calls.set(pull_calls.get() + 1);
+            }
             if !self.exact {
                 return SurfaceUpdate::Full(self.surface());
             }
@@ -954,6 +980,187 @@ mod tests {
     }
 
     #[test]
+    fn sampled_application_environment_changes_match_forced_full_twins() {
+        let key = crate::application::TextKey::new("save", "Save");
+        let old_catalog = crate::application::TextCatalog::default()
+            .with_generation(7)
+            .insert(crate::application::LocaleId::english(), key.clone(), "Save");
+        let new_catalog = crate::application::TextCatalog::default()
+            .with_generation(7)
+            .insert(
+                crate::application::LocaleId::english(),
+                key.clone(),
+                "Store",
+            );
+        let old_environment = crate::application::ApplicationEnvironment::default()
+            .with_catalog(Arc::new(old_catalog));
+        let cases = [
+            (
+                "locale",
+                old_environment.clone(),
+                crate::application::ApplicationEnvironment::new(
+                    crate::application::LocaleId::new("fr").expect("valid locale"),
+                ),
+            ),
+            (
+                "same locale and catalog generation",
+                old_environment.clone(),
+                crate::application::ApplicationEnvironment::default()
+                    .with_catalog(Arc::new(new_catalog)),
+            ),
+        ];
+
+        for (name, old_environment, new_environment) in cases {
+            let exact_pulls = Rc::new(Cell::new(0));
+            let full_pulls = Rc::new(Cell::new(0));
+            let bridge = |exact, pulls| Bridge {
+                revision: false,
+                path: vec![0],
+                authority_revision: 1,
+                application_environment: Some(old_environment.clone()),
+                surface_application_environment: Some(old_environment.clone()),
+                pull_calls: Some(pulls),
+                exact,
+                ..Default::default()
+            };
+            let mut exact = SurfaceRuntime::new(
+                bridge(true, Rc::clone(&exact_pulls)),
+                Vector2::new(80.0, 40.0),
+            );
+            let mut full = SurfaceRuntime::new(
+                bridge(false, Rc::clone(&full_pulls)),
+                Vector2::new(80.0, 40.0),
+            );
+            exact.bridge_mut().revision = true;
+            exact.bridge_mut().application_environment = Some(new_environment.clone());
+            full.bridge_mut().revision = true;
+            full.bridge_mut().application_environment = Some(new_environment.clone());
+            let before = exact.refresh_counters();
+
+            exact.refresh_with_scope(crate::runtime::RepaintScope::Surface);
+            full.refresh_with_scope(crate::runtime::RepaintScope::Surface);
+
+            assert_eq!(exact_pulls.get(), 1, "{name} exact should pull once");
+            assert_eq!(full_pulls.get(), 1, "{name} full should pull once");
+            assert_eq!(
+                exact.refresh_counters(),
+                full.refresh_counters(),
+                "{name} counters"
+            );
+            assert_eq!(
+                exact.paint_plan(&ThemeTokens::default()),
+                full.paint_plan(&ThemeTokens::default()),
+                "{name} paint"
+            );
+            assert_eq!(
+                exact.automation_snapshot(),
+                full.automation_snapshot(),
+                "{name} automation"
+            );
+            assert_eq!(
+                exact.surface().application_environment(),
+                &new_environment,
+                "{name} installed environment"
+            );
+            let expected = if name == "locale" { "Save" } else { "Store" };
+            assert_eq!(
+                exact
+                    .context()
+                    .application_environment()
+                    .localized(&key)
+                    .as_str(),
+                expected,
+                "{name} localized value"
+            );
+            assert_eq!(
+                exact.refresh_counters().runtime_projection,
+                before.runtime_projection + 1,
+                "{name} should use full projection"
+            );
+        }
+    }
+
+    #[test]
+    fn exact_environment_admission_preserves_none_and_unchanged_some_fast_paths() {
+        let environment = crate::application::ApplicationEnvironment::default();
+        for sampled in [Some(environment.clone()), None] {
+            let pulls = Rc::new(Cell::new(0));
+            let mut runtime = SurfaceRuntime::new(
+                Bridge {
+                    revision: false,
+                    path: vec![0],
+                    authority_revision: 1,
+                    application_environment: Some(environment.clone()),
+                    surface_application_environment: Some(environment.clone()),
+                    pull_calls: Some(Rc::clone(&pulls)),
+                    exact: true,
+                    ..Default::default()
+                },
+                Vector2::new(80.0, 40.0),
+            );
+            runtime.bridge_mut().revision = true;
+            runtime.bridge_mut().application_environment = sampled;
+            let before = runtime.refresh_counters();
+            runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            let after = runtime.refresh_counters();
+            assert_eq!(pulls.get(), 1);
+            assert_eq!(after.runtime_projection, before.runtime_projection);
+            assert_eq!(after.layout, before.layout);
+            assert_eq!(after.widget_state_sync, before.widget_state_sync);
+            assert_eq!(
+                after.base_paint_plan_rebuilds,
+                before.base_paint_plan_rebuilds
+            );
+        }
+    }
+
+    #[test]
+    fn changed_candidate_environment_and_conflicting_sampled_some_use_full_fallback() {
+        let installed = crate::application::ApplicationEnvironment::default();
+        let candidate_environment = crate::application::ApplicationEnvironment::new(
+            crate::application::LocaleId::new("de").expect("valid locale"),
+        );
+        let sampled_environment = crate::application::ApplicationEnvironment::new(
+            crate::application::LocaleId::new("fr").expect("valid locale"),
+        );
+        for (sampled, candidate) in [
+            (None, candidate_environment.clone()),
+            (Some(sampled_environment.clone()), candidate_environment),
+        ] {
+            let expected_environment = sampled.clone().unwrap_or_else(|| candidate.clone());
+            let pulls = Rc::new(Cell::new(0));
+            let mut runtime = SurfaceRuntime::new(
+                Bridge {
+                    revision: false,
+                    path: vec![0],
+                    authority_revision: 1,
+                    application_environment: Some(installed.clone()),
+                    surface_application_environment: Some(installed.clone()),
+                    pull_calls: Some(Rc::clone(&pulls)),
+                    exact: true,
+                    ..Default::default()
+                },
+                Vector2::new(80.0, 40.0),
+            );
+            runtime.bridge_mut().revision = true;
+            runtime.bridge_mut().application_environment = sampled;
+            runtime.bridge_mut().surface_application_environment = Some(candidate);
+            let before = runtime.refresh_counters();
+            runtime.refresh_with_scope(crate::runtime::RepaintScope::Surface);
+            assert_eq!(pulls.get(), 1);
+            assert_eq!(
+                runtime.surface().application_environment(),
+                &expected_environment
+            );
+            assert_eq!(
+                runtime.refresh_counters().runtime_projection,
+                before.runtime_projection + 1
+            );
+            assert_eq!(runtime.refresh_counters().layout, before.layout);
+        }
+    }
+
+    #[test]
     fn invalid_leaf_path_uses_the_same_candidate_for_full_fallback() {
         let mut runtime = SurfaceRuntime::new(
             Bridge {
@@ -1000,9 +1207,46 @@ mod tests {
             )
             .expect("exact interaction candidate should be prepared");
         assert!(matches!(
-            prepared,
+            &prepared,
             super::super::fresh_surface_preparation::PreparedSurfaceRefresh::Interaction { .. }
         ));
+    }
+
+    #[test]
+    fn sampled_application_environment_change_prepares_the_full_variant() {
+        let old_environment = crate::application::ApplicationEnvironment::default();
+        let new_environment = crate::application::ApplicationEnvironment::new(
+            crate::application::LocaleId::new("fr").expect("valid locale"),
+        );
+        let pull_calls = Rc::new(Cell::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                revision: false,
+                path: vec![0],
+                authority_revision: 1,
+                application_environment: Some(old_environment.clone()),
+                surface_application_environment: Some(old_environment),
+                pull_calls: Some(Rc::clone(&pull_calls)),
+                exact: true,
+                ..Default::default()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        runtime.bridge_mut().revision = true;
+        runtime.bridge_mut().application_environment = Some(new_environment);
+
+        let prepared = runtime
+            .prepare_fresh_surface_refresh(
+                crate::runtime::RepaintScope::Projection,
+                ResolvedAppearance::fixed(ThemeTokens::dark()),
+            )
+            .expect("changed application environment should prepare fully");
+        assert!(matches!(
+            prepared,
+            super::super::fresh_surface_preparation::PreparedSurfaceRefresh::Full { .. }
+        ));
+        assert_eq!(pull_calls.get(), 1);
+        prepared.discard();
     }
 
     #[test]

@@ -3,6 +3,7 @@ use crate::application::IntoView;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
+    sync::Arc,
 };
 
 struct BareApplicationEnvironmentBridge {
@@ -420,9 +421,12 @@ fn interaction_candidate_is_vetoed_when_appearance_drifts_before_publish() {
         NativeRunOptions::default(),
         ExactInteractionBridge {
             revision: false,
+            exact: true,
             project_count: 0,
             pull_update_count: 0,
             drop_probe: None,
+            application_environment: None,
+            surface_application_environment: None,
         },
         Vector2::new(120.0, 40.0),
     );
@@ -532,9 +536,12 @@ fn native_interaction_publication_reuses_plan_and_skips_full_runtime_work() {
         NativeRunOptions::default(),
         ExactInteractionBridge {
             revision: false,
+            exact: true,
             project_count: 0,
             pull_update_count: 0,
             drop_probe: None,
+            application_environment: None,
+            surface_application_environment: None,
         },
         Vector2::new(120.0, 40.0),
     );
@@ -600,6 +607,169 @@ fn native_interaction_publication_reuses_plan_and_skips_full_runtime_work() {
 }
 
 #[test]
+fn native_sampled_application_environment_changes_match_forced_full_twins() {
+    let key = crate::application::TextKey::new("save", "Save");
+    let old_catalog = crate::application::TextCatalog::default()
+        .with_generation(7)
+        .insert(crate::application::LocaleId::english(), key.clone(), "Save");
+    let new_catalog = crate::application::TextCatalog::default()
+        .with_generation(7)
+        .insert(
+            crate::application::LocaleId::english(),
+            key.clone(),
+            "Store",
+        );
+    let old_environment =
+        crate::application::ApplicationEnvironment::default().with_catalog(Arc::new(old_catalog));
+    let cases = [
+        (
+            "locale",
+            crate::application::ApplicationEnvironment::new(
+                crate::application::LocaleId::new("fr").expect("valid locale"),
+            ),
+            "Save",
+        ),
+        (
+            "same locale and catalog generation",
+            crate::application::ApplicationEnvironment::default()
+                .with_catalog(Arc::new(new_catalog)),
+            "Store",
+        ),
+    ];
+
+    for (name, new_environment, expected_localized) in cases {
+        let make_runner = |exact| {
+            let mut runner = GenericNativeVelloRunner::new(
+                NativeRunOptions::default(),
+                ExactInteractionBridge {
+                    revision: false,
+                    exact,
+                    project_count: 0,
+                    pull_update_count: 0,
+                    drop_probe: None,
+                    application_environment: Some(old_environment.clone()),
+                    surface_application_environment: Some(old_environment.clone()),
+                },
+                Vector2::new(120.0, 40.0),
+            );
+            runner.rebuild_scene();
+            runner.core.runtime.bridge_mut().revision = true;
+            runner.core.runtime.bridge_mut().application_environment =
+                Some(new_environment.clone());
+            runner.timing.deferred_surface_refresh = true;
+            runner.timing.deferred_surface_refresh_scope =
+                Some(crate::runtime::RepaintScope::Projection);
+            runner
+        };
+        let mut exact = make_runner(true);
+        let mut full = make_runner(false);
+        let exact_before = exact.core.runtime.refresh_counters();
+        let full_before = full.core.runtime.refresh_counters();
+
+        exact.refresh_deferred_surface_if_needed_for_test(
+            &mut RenderFrameProfile::default(),
+            valid_prepared_surface_refresh_native_evidence(),
+        );
+        full.refresh_deferred_surface_if_needed_for_test(
+            &mut RenderFrameProfile::default(),
+            valid_prepared_surface_refresh_native_evidence(),
+        );
+
+        assert_eq!(
+            exact.core.runtime.bridge().pull_update_count,
+            1,
+            "{name} exact should pull once"
+        );
+        assert_eq!(
+            full.core.runtime.bridge().pull_update_count,
+            1,
+            "{name} full should pull once"
+        );
+        assert_eq!(
+            exact.core.runtime.refresh_counters(),
+            full.core.runtime.refresh_counters(),
+            "{name} counters"
+        );
+        assert_eq!(
+            exact.frame.last_paint_plan, full.frame.last_paint_plan,
+            "{name} paint"
+        );
+        assert_eq!(
+            exact.core.runtime.automation_snapshot(),
+            full.core.runtime.automation_snapshot(),
+            "{name} automation"
+        );
+        assert_eq!(
+            exact.core.runtime.context().application_environment(),
+            &new_environment,
+            "{name} installed environment"
+        );
+        assert_eq!(
+            exact
+                .core
+                .runtime
+                .context()
+                .application_environment()
+                .localized(&key)
+                .as_str(),
+            expected_localized,
+            "{name} localized value"
+        );
+        assert_eq!(
+            exact.core.runtime.refresh_counters().runtime_projection,
+            exact_before.runtime_projection + 1
+        );
+        assert_eq!(
+            full.core.runtime.refresh_counters().runtime_projection,
+            full_before.runtime_projection + 1
+        );
+        assert!(!exact.frame_stage_owner.has_in_flight());
+        assert!(!full.frame_stage_owner.has_in_flight());
+    }
+}
+
+#[test]
+fn native_unchanged_some_environment_keeps_exact_fast_path() {
+    let environment = crate::application::ApplicationEnvironment::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactInteractionBridge {
+            revision: false,
+            exact: true,
+            project_count: 0,
+            pull_update_count: 0,
+            drop_probe: None,
+            application_environment: Some(environment.clone()),
+            surface_application_environment: Some(environment),
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let before = runner.core.runtime.refresh_counters();
+    let before_plan = runner.frame.last_paint_plan.clone();
+    runner.core.runtime.bridge_mut().revision = true;
+    runner.timing.deferred_surface_refresh = true;
+    runner.timing.deferred_surface_refresh_scope = Some(crate::runtime::RepaintScope::Projection);
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    let after = runner.core.runtime.refresh_counters();
+    assert_eq!(runner.core.runtime.bridge().pull_update_count, 1);
+    assert_eq!(after.runtime_projection, before.runtime_projection);
+    assert_eq!(after.layout, before.layout);
+    assert_eq!(after.widget_state_sync, before.widget_state_sync);
+    assert_eq!(
+        after.base_paint_plan_rebuilds,
+        before.base_paint_plan_rebuilds
+    );
+    assert_eq!(runner.frame.last_paint_plan, before_plan);
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
 fn retired_interaction_candidate_drops_after_native_publication_diagnostics() {
     let published = Rc::new(Cell::new(false));
     let dropped = Rc::new(Cell::new(0));
@@ -608,6 +778,7 @@ fn retired_interaction_candidate_drops_after_native_publication_diagnostics() {
         NativeRunOptions::default(),
         ExactInteractionBridge {
             revision: false,
+            exact: true,
             project_count: 0,
             pull_update_count: 0,
             drop_probe: Some((
@@ -615,6 +786,8 @@ fn retired_interaction_candidate_drops_after_native_publication_diagnostics() {
                 Rc::clone(&dropped),
                 Rc::clone(&premature),
             )),
+            application_environment: None,
+            surface_application_environment: None,
         },
         Vector2::new(120.0, 40.0),
     );
@@ -660,9 +833,12 @@ fn native_stale_interaction_gate_discards_without_replay() {
         NativeRunOptions::default(),
         ExactInteractionBridge {
             revision: true,
+            exact: true,
             project_count: 0,
             pull_update_count: 0,
             drop_probe: None,
+            application_environment: None,
+            surface_application_environment: None,
         },
         Vector2::new(120.0, 40.0),
     );

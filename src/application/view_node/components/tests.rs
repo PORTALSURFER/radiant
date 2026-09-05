@@ -200,6 +200,19 @@ fn production_component_reuse_matches_fresh_projection_during_capture() {
         let counters = *counts.borrow().last().unwrap();
         assert_eq!(counters.callbacks, 1);
         assert_eq!(counters.cache_hits, 1);
+        assert_eq!(
+            cached
+                .surface()
+                .find_widget(7)
+                .unwrap()
+                .widget()
+                .as_any()
+                .downcast_ref::<crate::widgets::TextWidget>()
+                .unwrap()
+                .text
+                .as_str(),
+            value.to_string()
+        );
         assert_eq!(cached.pointer_capture(), Some(8));
         assert_eq!(cached.pointer_capture(), fresh.pointer_capture());
         assert_eq!(cached.focused_widget(), fresh.focused_widget());

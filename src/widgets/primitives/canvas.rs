@@ -1,5 +1,6 @@
 //! Reusable custom canvas primitive.
 
+use crate::gui::pointer_ingress::PointerEvent;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
@@ -82,7 +83,10 @@ impl CanvasWidget {
 
     /// Route one backend-neutral interaction into the custom surface.
     pub fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<CanvasMessage> {
-        (!self.common.state.disabled).then_some(CanvasMessage::Input { input })
+        if self.common.state.disabled {
+            return None;
+        }
+        Some(CanvasMessage::Input { input })
     }
 }
 
@@ -101,6 +105,10 @@ impl Widget for CanvasWidget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         CanvasWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn handle_pointer_event(&mut self, _bounds: Rect, event: PointerEvent) -> Option<WidgetOutput> {
+        (!self.common.state.disabled).then(|| WidgetOutput::typed(event))
     }
 
     fn accepts_wheel_input(&self) -> bool {

@@ -9,7 +9,10 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             ".application_environment(environment)",
             "TextKey::new(",
             "ShortcutPresenter",
-            "Menu: {} | Help: {}",
+            "toolbar([button(label.clone())",
+            "shortcut.compact_text()",
+            "shortcut.spoken_text()",
+            "live_locale_switch_updates_menu_toolbar_help_and_semantic_names_together",
         ],
     ),
     (
@@ -154,6 +157,16 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "DetailsColumn::fixed(",
             "DetailsSort::new(",
             "DragHandleMessage",
+        ],
+    ),
+    (
+        "typed_pointer",
+        &[
+            "render_canvas_pointer",
+            "dispatch_pointer_ingress_with_admission",
+            "sequence_token()",
+            "PointerIngressDisposition::Stale",
+            "public_pointer_builder_delivers_one_sequence_and_rejects_replayed_terminal",
         ],
     ),
     (

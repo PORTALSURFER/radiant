@@ -48,6 +48,9 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --check
 
+      - name: Test qualified historical baseline comparison
+        run: python3 -m unittest discover -s scripts -p 'test_qualified_baseline.py'
+
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 

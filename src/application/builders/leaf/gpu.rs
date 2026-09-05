@@ -2,6 +2,7 @@ use super::super::defaults::default_gpu_surface_sizing;
 use super::core::view_node_from_widget;
 use crate::{
     application::{MappedWidget, ViewNode},
+    gui::pointer_ingress::PointerEvent,
     runtime::{
         CanvasKey, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay,
         WidgetMessageMapper,
@@ -239,4 +240,37 @@ where
             GpuSurfaceMessage::Input { input } => (parts.map)(input),
         }),
     ))
+}
+
+/// Build an opt-in retained GPU surface that receives admitted typed pointer
+/// events. Legacy [`gpu_surface_input`] remains available for `WidgetInput`.
+pub fn gpu_surface_pointer<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: GpuSurfaceContent,
+    map: impl Fn(PointerEvent) -> Message + 'static,
+) -> ViewNode<Message> {
+    view_node_from_widget(MappedWidget::new(
+        GpuSurfaceWidget::from_parts(GpuSurfaceParts {
+            id: 0,
+            sizing: default_gpu_surface_sizing(),
+            key,
+            revision,
+            content,
+        })
+        .with_input_events(true),
+        WidgetMessageMapper::dynamic_pointer(move |output| {
+            output.typed_cloned::<PointerEvent>().map(&map)
+        }),
+    ))
+}
+
+/// Renderer-neutral alias for [`gpu_surface_pointer`].
+pub fn render_canvas_pointer<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: crate::runtime::RenderCanvasContent,
+    map: impl Fn(PointerEvent) -> Message + 'static,
+) -> ViewNode<Message> {
+    gpu_surface_pointer(key, revision, content, map)
 }

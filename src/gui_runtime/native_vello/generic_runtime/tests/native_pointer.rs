@@ -5,6 +5,7 @@ use crate::application::{ApplicationEnvironment, IntoView, LocaleId, TextScale};
 use crate::gui::{
     focus::FocusSurface,
     input::{InputSequenceRange, InputTimestamp, KeyCode, KeyPress},
+    pointer_ingress::{DeviceKind, PointerEvent, PointerIngressDisposition, PointerPhase},
     shortcuts::ShortcutResolution,
 };
 use crate::runtime::{ExternalDragRequest, RuntimeHostCapabilities, RuntimeInputHost};
@@ -27,7 +28,7 @@ use std::{
 };
 use winit::{
     dpi::PhysicalPosition,
-    event::{MouseButton, MouseScrollDelta, TouchPhase},
+    event::{DeviceId, ElementState, MouseButton, MouseScrollDelta, TouchPhase},
     keyboard::{KeyCode as WinitKeyCode, ModifiersState, PhysicalKey},
 };
 
@@ -590,6 +591,24 @@ struct NativeMoveSample {
 #[derive(Default)]
 struct NativeMoveMetadataBridge {
     samples: Vec<NativeMoveSample>,
+}
+
+#[derive(Default)]
+struct NativeTypedPointerBridge {
+    events: Vec<PointerEvent>,
+}
+
+impl RuntimeBridge<PointerEvent> for NativeTypedPointerBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<PointerEvent>> {
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
+            crate::widgets::CanvasWidget::new(1, WidgetSizing::fixed(Vector2::new(120.0, 40.0))),
+            WidgetMessageMapper::canvas_pointer(|event| event),
+        )))
+    }
+
+    fn reduce_message(&mut self, event: PointerEvent) {
+        self.events.push(event);
+    }
 }
 
 #[derive(Clone)]
@@ -2467,6 +2486,173 @@ fn native_scrollbar_drag_flushes_newest_position_and_sample_metadata() {
         .expect("flushed scrollbar drag should retain sequence metadata");
     assert_eq!(delivered_sequence.start(), first_sequence.start());
     assert_eq!(delivered_sequence.end(), newest_sequence.end());
+}
+
+#[test]
+fn native_scrollbar_queue_flushes_original_identity_after_contact_reuse() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        NativeTypedPointerBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let native_device = DeviceId::dummy();
+    let position = Point::new(20.0, 20.0);
+    runner.input.last_cursor = Some(position);
+    runner.retain_native_mouse_device(native_device, None);
+
+    let _pressed_a = runner.route_native_mouse_input_with_timestamp(
+        MouseButton::Left,
+        ElementState::Pressed,
+        Some(InputTimestamp::capture()),
+    );
+    assert_eq!(runner.core.runtime.bridge().events.len(), 1);
+    let token_a = runner.core.runtime.bridge().events[0]
+        .sequence_token()
+        .expect("native press should admit a token");
+    let (device_a, contact_a) = runner
+        .input
+        .native_pointer_ingress
+        .retain_mouse_contact(native_device)
+        .expect("mouse contact should be retained");
+    runner.queue_scrollbar_drag_with_metadata(
+        Point::new(28.0, 20.0),
+        PointerModifiers::default(),
+        Some(InputTimestamp::capture()),
+        None,
+    );
+    let pending = runner
+        .input
+        .pending_scrollbar_drag
+        .expect("native move should be queued");
+    let identity = pending
+        .native_identity
+        .expect("queued native identity should be retained atomically");
+    assert_eq!(identity.token, token_a);
+    assert_eq!(identity.device, device_a);
+    assert_eq!(identity.contact, contact_a);
+    // A known native stream with no admitted token cannot legacy-route or
+    // replace the valid queued A sample.
+    runner
+        .input
+        .native_pointer_ingress
+        .clear_token_for_identity(device_a, contact_a);
+    runner.queue_scrollbar_drag_with_metadata(
+        Point::new(36.0, 20.0),
+        PointerModifiers::default(),
+        Some(InputTimestamp::capture()),
+        None,
+    );
+    let pending = runner
+        .input
+        .pending_scrollbar_drag
+        .expect("valid A sample remains queued");
+    assert_eq!(pending.position, Point::new(28.0, 20.0));
+    assert_eq!(runner.core.runtime.bridge().events.len(), 1);
+
+    assert_eq!(
+        runner.core.runtime.dispatch_native_pointer_continuation(
+            DeviceKind::Mouse,
+            device_a,
+            contact_a,
+            token_a,
+            PointerPhase::Ended {
+                button: PointerButton::Primary,
+            },
+            position,
+            crate::gui::pointer_ingress::PointerButtons::empty(),
+            PointerModifiers::default(),
+            None,
+            None,
+            Some(InputTimestamp::capture()),
+            None,
+        ),
+        PointerIngressDisposition::RoutedWidget(1)
+    );
+    assert!(matches!(
+        runner.core.runtime.bridge().events[1].phase(),
+        PointerPhase::Ended { .. }
+    ));
+
+    let _pressed_b = runner.route_native_mouse_input_with_timestamp(
+        MouseButton::Left,
+        ElementState::Pressed,
+        Some(InputTimestamp::capture()),
+    );
+    let token_b = runner.core.runtime.bridge().events[2]
+        .sequence_token()
+        .expect("reused native contact should admit a fresh token");
+    assert_ne!(token_a, token_b);
+
+    runner.flush_pending_scrollbar_drag_now();
+    assert_eq!(
+        runner.core.runtime.bridge().events.len(),
+        3,
+        "delayed A move must be stale after B starts"
+    );
+    assert_eq!(
+        runner.core.runtime.dispatch_native_pointer_continuation(
+            DeviceKind::Mouse,
+            device_a,
+            contact_a,
+            token_b,
+            PointerPhase::Moved,
+            Point::new(30.0, 20.0),
+            crate::gui::pointer_ingress::PointerButtons::PRIMARY,
+            PointerModifiers::default(),
+            None,
+            None,
+            None,
+            None,
+        ),
+        PointerIngressDisposition::RoutedWidget(1),
+        "current B must remain routable after stale A flush"
+    );
+    assert_eq!(
+        runner.core.runtime.dispatch_native_pointer_continuation(
+            DeviceKind::Mouse,
+            device_a,
+            contact_a,
+            token_a,
+            PointerPhase::Ended {
+                button: PointerButton::Primary,
+            },
+            position,
+            crate::gui::pointer_ingress::PointerButtons::empty(),
+            PointerModifiers::default(),
+            None,
+            None,
+            None,
+            None,
+        ),
+        PointerIngressDisposition::Stale
+    );
+    let _released_b = runner.route_native_mouse_input_with_timestamp(
+        MouseButton::Left,
+        ElementState::Released,
+        Some(InputTimestamp::capture()),
+    );
+    assert_eq!(runner.core.runtime.bridge().events.len(), 5);
+    assert_eq!(
+        runner.core.runtime.dispatch_native_pointer_continuation(
+            DeviceKind::Mouse,
+            device_a,
+            contact_a,
+            token_b,
+            PointerPhase::Ended {
+                button: PointerButton::Primary,
+            },
+            position,
+            crate::gui::pointer_ingress::PointerButtons::empty(),
+            PointerModifiers::default(),
+            None,
+            None,
+            None,
+            None,
+        ),
+        PointerIngressDisposition::Stale
+    );
+    assert_eq!(runner.core.runtime.bridge().events.len(), 5);
 }
 
 #[test]

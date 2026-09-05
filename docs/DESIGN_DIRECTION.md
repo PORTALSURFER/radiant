@@ -5147,6 +5147,20 @@ transfers.
 
 ### Pointer, scroll, and gesture contract
 
+The shipped pointer ingress boundary additionally exposes checked
+`DeviceKind`, nonzero host `InputDeviceId`/`PointerContactId`, `PointerPhase`,
+`PointerButtons`, pressure and tilt values, and an opaque runtime-fenced
+`PointerSequenceToken`. `PointerIngress` admits one normalized sample and the
+controller retains at most sixteen exact device/contact records. Hover and
+started samples are tokenless; continuations must match the current runtime,
+device, contact, and sequence token. `Widget::handle_pointer_event` is an
+additive opt-in consumer hook used by retained canvases and GPU surfaces;
+legacy `Event`, `WidgetInput`, and `CanvasGestureEvent` routing remains
+unchanged. Pan, pinch, and rotate samples are validated and explicitly
+reported as unsupported consumers in this bounded phase. Gesture arena
+recognition, typed drag payloads, cross-window payloads, and external offers
+remain later work.
+
 Radiant normalizes mouse, trackpad, touch, pen, and native scroll input into
 typed logical-coordinate events with timestamps, modifiers, device kind, and
 capture lifetime. It distinguishes line scrolling from pixel-precise scrolling;

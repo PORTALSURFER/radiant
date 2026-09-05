@@ -15,6 +15,7 @@ use super::native_immediate_transient_stage::{
 use super::native_lifecycle_stage::NativeLifecycleStageEvidence;
 use super::native_lifecycle_stage::NativeLifecycleStageTicket;
 use super::native_pointer::NativeWheelRoute;
+use super::native_pointer_ingress::GestureInput;
 use super::native_visual_packet::{NativeVisualRequestBegin, NativeVisualRequestDisposition};
 use super::renderer_recovery::NativeRendererRecoveryWindowKind;
 use super::runner_state::{
@@ -1466,7 +1467,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     },
                 });
             }
-            WindowEvent::CursorEntered { .. } => {
+            WindowEvent::CursorEntered { device_id } => {
+                self.runner
+                    .retain_native_mouse_device(device_id, Some(true));
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = adapter.capture_generation() else {
                     return self.event_result(None, false);
@@ -1495,7 +1498,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     kind: AuxiliaryNativeImmediateTransientRouteKind::CursorEntered,
                 });
             }
-            WindowEvent::CursorMoved { position, .. } => {
+            WindowEvent::CursorMoved {
+                device_id,
+                position,
+            } => {
+                self.runner.retain_native_mouse_device(device_id, None);
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = adapter.capture_generation() else {
                     return self.event_result(None, false);
@@ -1526,7 +1533,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     kind: AuxiliaryNativeImmediateTransientRouteKind::CursorMoved(route),
                 });
             }
-            WindowEvent::CursorLeft { .. } => {
+            WindowEvent::CursorLeft { device_id } => {
+                self.runner
+                    .retain_native_mouse_device(device_id, Some(false));
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = adapter.capture_generation() else {
                     return self.event_result(None, false);
@@ -1555,7 +1564,12 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     kind: AuxiliaryNativeImmediateTransientRouteKind::CursorLeft(route),
                 });
             }
-            WindowEvent::MouseInput { button, state, .. } => {
+            WindowEvent::MouseInput {
+                device_id,
+                button,
+                state,
+            } => {
+                self.runner.retain_native_mouse_device(device_id, None);
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = adapter.capture_generation() else {
                     return self.event_result(None, false);
@@ -1581,7 +1595,12 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     outcome: Some(route.outcome),
                 });
             }
-            WindowEvent::MouseWheel { delta, phase, .. } => {
+            WindowEvent::MouseWheel {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.runner.retain_native_mouse_device(device_id, None);
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = adapter.capture_generation() else {
                     return self.event_result(None, false);
@@ -1611,6 +1630,53 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                     ticket,
                     kind: AuxiliaryNativeImmediateTransientRouteKind::MouseWheel(route),
                 });
+            }
+            WindowEvent::Touch(touch) => {
+                self.runner
+                    .normalize_native_touch_transient(event_loop, touch);
+                return self.event_result(None, false);
+            }
+            WindowEvent::PinchGesture {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.runner.normalize_native_gesture_transient(
+                    event_loop,
+                    NativeImmediateTransientKind::PinchGesture(phase),
+                    device_id,
+                    GestureInput::Pinch { delta, phase },
+                );
+                return self.event_result(None, false);
+            }
+            WindowEvent::RotationGesture {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.runner.normalize_native_gesture_transient(
+                    event_loop,
+                    NativeImmediateTransientKind::RotationGesture(phase),
+                    device_id,
+                    GestureInput::Rotate {
+                        delta_degrees: delta,
+                        phase,
+                    },
+                );
+                return self.event_result(None, false);
+            }
+            WindowEvent::PanGesture {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.runner.normalize_native_gesture_transient(
+                    event_loop,
+                    NativeImmediateTransientKind::DesktopPanUnsupported(phase),
+                    device_id,
+                    GestureInput::Pan { delta, phase },
+                );
+                return self.event_result(None, false);
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let wrapper_eligible = adapter.capture_generation().is_some_and(|generation| {

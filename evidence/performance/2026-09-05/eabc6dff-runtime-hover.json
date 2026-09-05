@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "backend": "backend-neutral SurfaceRuntime; no native GPU submission",
+    "build_mode": "release",
+    "commit": "eabc6dff122b01cb9b7238ba473e89177883a152",
+    "dataset": "runtime_virtualized_list_hover* 10k built-in fixture at eabc6dff",
+    "features": {
+      "cargo": "default",
+      "rustc": "1.97.1 (8bab26f4f 2026-07-14)",
+      "target": "aarch64-apple-darwin"
+    },
+    "hardware": {
+      "chip": "Apple M5 Pro",
+      "memory": "24 GB",
+      "model": "Mac17,9"
+    },
+    "measurement_kind": "deterministic_harness",
+    "os": "macOS 26.6.2 (25G83)",
+    "power_state": "AC Power; battery 100%",
+    "refresh_hz": 60,
+    "sampling": {
+      "batch_size": 8,
+      "iterations": 100,
+      "percentiles": "per-batch average, nearest rank",
+      "scale_refresh": "synthetic harness settings; not display measurements",
+      "warmup": "one scenario bench call"
+    },
+    "scale": 1
+  },
+  "metrics_jsonl": "{\"type\":\"radiant_perf\",\"scenario\":\"runtime_virtualized_list_hover_10k\",\"category\":\"runtime_virtualized\",\"group\":\"pointer_motion\",\"iterations\":100,\"total_us\":3572659,\"avg_us\":35726.590,\"p50_us\":434.458,\"p95_us\":86796.771,\"p99_us\":86796.771,\"scene_rebuild_count\":41,\"paint_only_count\":0,\"relayout_count\":100}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_virtualized_list_hover_paint_10k\",\"category\":\"runtime_virtualized\",\"group\":\"virtual_lists\",\"iterations\":100,\"total_us\":3571390,\"avg_us\":35713.900,\"p50_us\":433.432,\"p95_us\":86771.062,\"p99_us\":86771.062,\"scene_rebuild_count\":41,\"paint_only_count\":0,\"relayout_count\":100,\"paint_primitive_count\":2600}\n",
+  "metrics_sha256": "de24e5b078063dde626f0f150f8615d6e6f732960203777e2b172b64637078a3",
+  "schema": 1
+}

@@ -5,7 +5,10 @@ use radiant::runtime::{
     FrameProfile, GpuSignalGainPreview, GpuSignalSummary, ProfilingOptions, RenderCanvasContent,
     RenderCanvasShaderSurfaceDescriptor, render_canvas,
 };
-use std::{cell::RefCell, fs::File, io::Write, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
+
+#[path = "rendering_baseline/artifacts.rs"]
+mod artifacts;
 
 struct State {
     mode: String,
@@ -151,7 +154,7 @@ fn main() -> radiant::Result {
     {
         return Err("usage: rendering_baseline cold|pan|crossing|gain|shaders|local|two_windows|idle output.jsonl".into());
     }
-    let mut output = File::create_new(&args[2]).map_err(|error| error.to_string())?;
+    let output = artifacts::ArtifactOutput::create(&args[2])?;
     let mode = args[1].clone();
     let preparation_started = std::time::Instant::now();
     let samples: Arc<[f32]> = if matches!(mode.as_str(), "cold" | "pan" | "crossing" | "gain") {
@@ -249,10 +252,7 @@ fn main() -> radiant::Result {
         "first_present_ms": startup.and_then(|artifact| artifact.first_present_ms),
     }));
     let result = result.result.map_err(|error| error.to_string());
-    for row in observations.borrow().iter() {
-        writeln!(output, "{row}").map_err(|error| error.to_string())?;
-    }
-    output.flush().map_err(|error| error.to_string())?;
+    output.finish(&observations.borrow())?;
     result?;
     if !observations
         .borrow()

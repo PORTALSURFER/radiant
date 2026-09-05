@@ -169,6 +169,10 @@ fn radiant_examples_pass_reusable_non_blocking_guardrail() {
             "examples/macos_external_drag_acceptance.rs",
             "macOS live acceptance source lifecycle is a native platform boundary",
         )
+        .allow_path_fragment(
+            "examples/rendering_baseline/artifacts.rs",
+            "native recorder CLI artifact boundary creates output before the event loop and writes only after run_with_artifacts returns",
+        )
         .scan_roots([manifest_dir.join("examples")])
         .expect("Radiant examples should keep blocking work inside explicit worker or platform boundaries");
 }

@@ -62,11 +62,14 @@ fn geometry_component(expanded: &bool, _: &ResolvedEnvironment) -> View<()> {
         (0..100)
             .map(|index| {
                 text(format!("Row {index}"))
+                    .width(100.0)
+                    .height(if index == 0 && *expanded { 21.0 } else { 20.0 })
                     .size(100.0, if index == 0 && *expanded { 21.0 } else { 20.0 })
             })
             .collect::<Vec<_>>(),
     )
-    .size(100.0, 2200.0)
+    .width(100.0)
+    .height(2600.0)
 }
 
 pub(super) fn local_geometry() -> impl FnMut() -> crate::runner::ScenarioCounters {
@@ -92,11 +95,20 @@ pub(super) fn local_geometry() -> impl FnMut() -> crate::runner::ScenarioCounter
             },
         )
         .into_bridge();
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(3300.0, 2300.0));
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(3400.0, 2700.0));
+    assert!(
+        runtime.layout().overflowed.is_empty(),
+        "fixture must fit the viewport"
+    );
     move || {
+        let before = runtime.refresh_counters();
         changed.set(!changed.get());
         runtime.refresh_with_scope(RepaintScope::Projection);
+        let layouts = runtime.refresh_counters().layout - before.layout;
+        assert_eq!(layouts, 1, "each measured edit must run layout");
+        assert!(runtime.layout().overflowed.is_empty());
         crate::runner::ScenarioCounters::default()
+            .with_layout_count(layouts)
             .with_layout_node_visit_count(runtime.layout().stats.laid_out_nodes as u64)
     }
 }

@@ -4,6 +4,7 @@ mod actions;
 mod model;
 mod overlays;
 mod projection;
+mod widget;
 
 pub use actions::{menu_height, message_menu, message_menu_height};
 pub use model::{MenuCommand, MenuCommandParts, MessageMenuWidthPolicy};

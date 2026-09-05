@@ -95,6 +95,7 @@ pub struct SurfaceOverlay {
 
 /// One floating child tree with explicit layout placement and input policy.
 pub struct SurfaceFloatingLayer<Message> {
+    pub(in crate::runtime::surface) text_scaled_size: Option<super::super::TextScaledSize>,
     pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
     pub(in crate::runtime::surface) container: SurfaceContainer<Message>,
     pub(in crate::runtime::surface) interactive: bool,
@@ -128,6 +129,7 @@ mod tests {
     fn floating_layer_owns_one_fill_child() {
         let child = SurfaceNode::<()>::container(2, ContainerPolicy::default(), Vec::new());
         let layer = SurfaceFloatingLayer {
+            text_scaled_size: None,
             _ui_affinity: UiAffinity::new(),
             container: SurfaceContainer::new(
                 1,

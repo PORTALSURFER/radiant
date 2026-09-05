@@ -124,7 +124,7 @@ impl<Message> SurfaceNode<Message> {
                 });
                 LayoutNode::container_with_layout_policy_mode(
                     layer.container.id,
-                    layer.container.policy.clone(),
+                    layer.resolved_policy(environment),
                     children,
                     layer.container.layout_policy.clone(),
                     None,
@@ -226,7 +226,7 @@ impl<Message> SurfaceNode<Message> {
                     end_container_runtime(is_scroll, scroll_stack);
                     LayoutNode::container_with_layout_policy_mode(
                         layer.container.id,
-                        layer.container.policy.clone(),
+                        layer.resolved_policy(environment),
                         children,
                         layer.container.layout_policy.clone(),
                         None,
@@ -238,7 +238,7 @@ impl<Message> SurfaceNode<Message> {
                     });
                     LayoutNode::container_with_layout_policy_mode(
                         layer.container.id,
-                        layer.container.policy.clone(),
+                        layer.resolved_policy(environment),
                         children,
                         layer.container.layout_policy.clone(),
                         None,

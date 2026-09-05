@@ -380,6 +380,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 }
             }
             ViewNodeKind::FloatingLayer {
+                text_scaled_size,
                 offset,
                 size,
                 child,
@@ -398,6 +399,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     horizontal_overflow,
                     vertical_overflow,
                 )
+                .with_text_scaled_floating_size(text_scaled_size)
             }
         };
         let mut lowered = if accepts_native_file_drop {

@@ -4414,8 +4414,17 @@ geometry remains physical, and TreeRow semantics preserve host/runtime
 ownership. Native paragraph shaping receives the requested locale and explicit
 writing direction from the published application snapshot. Both values qualify
 shape/view cache reuse; a change retires native input geometry before reseeding
-the current plan. Menu/shell geometry remains staged work under OPT-1386.
+the current plan. Shell geometry remains staged work under OPT-1386.
 Retained bidi and complex shaping are implemented under OPT-1402.
+
+Framework-owned menus resolve title and command-row intrinsic heights from the
+application text scale. Each command owns its visible label, shortcut hint,
+accessible name, and input state under one widget identity; RTL mirrors the
+label and shortcut columns. Automatic context-menu width scales its character
+estimate within the declared physical limits, and automatic height scales text
+rows while retaining physical padding and gaps. Explicit `.width(...)` and
+`.size(...)` constraints remain physical. The `localization_foundation` example
+cycles English, French, and Arabic with a larger text scale and an RTL menu.
 
 Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
 resolves light, dark, and high-contrast tokens from the current window snapshot;
@@ -4604,7 +4613,7 @@ locale fallback, direction, text scale, catalog generation, and shortcut
 presentation generation. Phase-1 logical RTL container geometry is shipped;
 built-in dense/interactive row and TreeRow text-scale propagation is shipped,
 and native shaping/cache identity consumes the application locale and direction.
-Menu/shell geometry remains staged under OPT-1386. Bidirectional text and complex shaping belong to renderer text
+Shell geometry remains staged under OPT-1386. Bidirectional text and complex shaping belong to renderer text
 layout and cursor-stop mapping; their retained implementation is under
 OPT-1402, while `TextInputState` continues to store logical Unicode-scalar
 positions instead of renderer glyph positions. The selected architecture is

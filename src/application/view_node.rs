@@ -167,6 +167,7 @@ pub(in crate::application) enum ViewNodeKind<Message> {
         label: Option<TextContent>,
     },
     FloatingLayer {
+        text_scaled_size: Option<crate::runtime::TextScaledSize>,
         offset: crate::gui::types::Point,
         size: crate::layout::Vector2,
         child: Box<ViewNode<Message>>,
@@ -183,6 +184,19 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
 }
 
 impl<Message> ViewNode<Message> {
+    pub(in crate::application) fn with_text_scaled_floating_size(
+        mut self,
+        size: Option<crate::runtime::TextScaledSize>,
+    ) -> Self {
+        if let ViewNodeKind::FloatingLayer {
+            text_scaled_size, ..
+        } = &mut self.kind
+        {
+            *text_scaled_size = size;
+        }
+        self
+    }
+
     pub(in crate::application) fn new(kind: ViewNodeKind<Message>) -> Self {
         Self {
             _ui_affinity: UiAffinity::new(),

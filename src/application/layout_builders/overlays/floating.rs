@@ -46,6 +46,7 @@ pub fn floating_layer_with_input_and_vertical_overflow<Message>(
 ) -> ViewNode<Message> {
     let has_reserved_descendant_identity = child.has_reserved_identity_in_subtree();
     ViewNode::new(ViewNodeKind::FloatingLayer {
+        text_scaled_size: None,
         offset,
         size,
         child: Box::new(child),

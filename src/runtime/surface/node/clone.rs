@@ -83,6 +83,7 @@ impl<Message> Clone for SurfaceFloatingLayer<Message> {
         Self {
             _ui_affinity: self._ui_affinity,
             container: self.container.clone(),
+            text_scaled_size: self.text_scaled_size,
             interactive: self.interactive,
             source: self.source.clone(),
         }

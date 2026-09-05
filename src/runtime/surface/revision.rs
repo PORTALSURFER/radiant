@@ -1606,6 +1606,13 @@ fn compare_node<Message>(
                 delta,
                 scratch,
             );
+            if previous.text_scaled_size != current.text_scaled_size {
+                delta.record(
+                    ViewDeltaEffect::Geometry,
+                    ViewDeltaCause::ContainerPolicy,
+                    path.path,
+                );
+            }
             if previous.interactive != current.interactive {
                 delta.record(
                     ViewDeltaEffect::Interaction,
@@ -3712,6 +3719,41 @@ mod view_delta_tests {
                 .iter()
                 .flatten()
                 .all(|event| event.path.len <= 8)
+        );
+    }
+
+    #[test]
+    fn floating_text_size_declaration_changes_geometry() {
+        let node = || {
+            SurfaceNode::floating_layer(
+                1,
+                Point::new(0.0, 0.0),
+                Vector2::new(20.0, 20.0),
+                SurfaceNode::overlay_marker(
+                    2,
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+                    WidgetStyle::normal(WidgetTone::Neutral),
+                ),
+                false,
+            )
+        };
+        let scaled = node().with_text_scaled_floating_size(Some(crate::runtime::TextScaledSize {
+            width: Some(crate::runtime::TextScaledExtent {
+                characters: 2,
+                metrics: crate::gui::text_layout::TextWidthEstimate::new(10.0, 0.0),
+                minimum: 1.0,
+                maximum: 100.0,
+            }),
+            height: None,
+        }));
+        let cloned = scaled.clone();
+        assert_eq!(
+            classify_view_delta(&surface(node()), &surface(scaled)).effect,
+            ViewDeltaEffect::Geometry
+        );
+        assert_eq!(
+            classify_view_delta(&surface(node()), &surface(cloned)).effect,
+            ViewDeltaEffect::Geometry
         );
     }
 

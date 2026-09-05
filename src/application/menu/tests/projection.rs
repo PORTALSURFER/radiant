@@ -118,3 +118,66 @@ fn projected_menu_frame<const N: usize>(
         &Default::default(),
     )
 }
+
+#[test]
+fn automatic_menus_scale_geometry_and_share_visible_semantic_command_identity() {
+    use crate::{
+        application::{ApplicationEnvironment, LocaleId, TextScale, WritingDirection},
+        gui::automation::AutomationRole,
+    };
+    for scale in [1.0, 1.5, 2.0] {
+        for direction in [WritingDirection::Ltr, WritingDirection::Rtl] {
+            let environment = ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(scale).unwrap())
+                .with_writing_direction(direction);
+            let surface = UiSurface::new(
+                context_menu(
+                    "Actions",
+                    [MenuCommand::new("Open", MenuMessage::Open).hotkey_hint("Cmd-O")],
+                )
+                .anchor(Point::new(80.0, 90.0))
+                .view()
+                .into_node(),
+            )
+            .with_application_environment(environment);
+            let frame = surface.frame(
+                Rect::from_xy_size(0.0, 0.0, 1280.0, 720.0),
+                &Default::default(),
+            );
+            let label = frame.paint_plan.first_text_run("Open").unwrap();
+            let hint = frame.paint_plan.first_text_run("Cmd-O").unwrap();
+            assert_eq!(label.font_size, 13.0 * scale);
+            assert_eq!(hint.font_size, label.font_size);
+            assert_eq!(label.widget_id, hint.widget_id);
+            assert_eq!(frame.layout.rects[&label.widget_id].height(), 28.0 * scale);
+            let semantics = surface
+                .find_widget(label.widget_id)
+                .unwrap()
+                .widget()
+                .automation_semantics();
+            assert_eq!(semantics.role, AutomationRole::Button);
+            assert_eq!(semantics.label.as_deref(), Some("Open"));
+            assert_eq!(semantics.description.as_deref(), Some("Cmd-O"));
+            assert!(semantics.focusable);
+            match direction {
+                WritingDirection::Ltr => {
+                    assert_eq!(label.align, PaintTextAlign::Left);
+                    assert_eq!(hint.align, PaintTextAlign::Right);
+                    assert!(
+                        label.rect.max.x + MENU_LABEL_HOTKEY_GAP * scale <= hint.rect.min.x + 0.01
+                    );
+                }
+                WritingDirection::Rtl => {
+                    assert_eq!(label.align, PaintTextAlign::Right);
+                    assert_eq!(hint.align, PaintTextAlign::Left);
+                    assert!(
+                        hint.rect.max.x + MENU_LABEL_HOTKEY_GAP * scale <= label.rect.min.x + 0.01
+                    );
+                }
+            }
+            let title = frame.paint_plan.first_text_run("Actions").unwrap();
+            assert_eq!(frame.layout.rects[&title.widget_id].height(), 22.0 * scale);
+            assert_eq!(label.rect.height(), 28.0 * scale);
+        }
+    }
+}

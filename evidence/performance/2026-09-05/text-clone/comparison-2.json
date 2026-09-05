@@ -1,0 +1,29 @@
+{
+  "status": "pass",
+  "baseline_commit": "ac7222355ed3a96c87cda71c62276bb91511ea34",
+  "candidate_commit": "a3dbf03dc63e329ef488bb0ef4d1b65b2385bc00",
+  "same_revision": false,
+  "comparisons": [
+    {
+      "scenario": "runtime_surface_tree_clone_10k",
+      "field": "avg_us",
+      "baseline": 585.29,
+      "candidate": 0.03,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_surface_tree_clone_10k",
+      "field": "p95_us",
+      "baseline": 775.203,
+      "candidate": 0.052,
+      "status": "pass"
+    },
+    {
+      "scenario": "runtime_surface_tree_clone_10k",
+      "field": "p99_us",
+      "baseline": 775.203,
+      "candidate": 0.052,
+      "status": "pass"
+    }
+  ]
+}

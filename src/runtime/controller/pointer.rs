@@ -1,5 +1,6 @@
 use super::focus::FocusTransition;
 use super::interaction_state::{RuntimeManagedPointerCapture, RuntimeManagedPointerCaptureState};
+use super::pointer_ingress::TypedPointerDeliveryContext;
 use super::{PointerMoveOutcome, SurfaceRuntime};
 use crate::{
     gui::input::{InputSequenceRange, InputTimestamp},
@@ -176,6 +177,28 @@ where
         focus_press: bool,
         managed_press_compatibility_kind: Option<&'static str>,
     ) -> PointInputDispatch {
+        self.dispatch_input_at_target_output_with_delivery(
+            widget_id,
+            input,
+            admission,
+            install_legacy_capture,
+            focus_press,
+            managed_press_compatibility_kind,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn dispatch_input_at_target_output_with_delivery(
+        &mut self,
+        widget_id: WidgetId,
+        input: WidgetInput,
+        admission: PointerPressAdmission,
+        install_legacy_capture: bool,
+        focus_press: bool,
+        managed_press_compatibility_kind: Option<&'static str>,
+        delivery: Option<&mut TypedPointerDeliveryContext>,
+    ) -> PointInputDispatch {
         let managed_press = match &input {
             WidgetInput::PointerPress { button, .. }
                 if admission == PointerPressAdmission::ManagedCapture =>
@@ -239,7 +262,16 @@ where
         {
             self.clear_pointer_release_tombstone_for_new_press(*button);
         }
-        let routed = self.dispatch_input_output(widget_id, input);
+        let routed: Option<bool> = if let Some(delivery) = delivery
+            && self.surface.widget_has_pointer_mapper(widget_id)
+            && matches!(input, WidgetInput::PointerPress { .. })
+        {
+            self.issue_pointer_delivery(delivery)
+                .ok()
+                .map(|event| self.dispatch_pointer_output(widget_id, event))
+        } else {
+            self.dispatch_input_output(widget_id, input)
+        };
         if let Some(button) = managed_press {
             self.finish_managed_pointer_press(widget_id, button, routed.is_some());
         }
@@ -713,6 +745,13 @@ where
     /// the originating surface must not keep treating later pointer motion as a
     /// continuation of the in-window press.
     pub(crate) fn cancel_pointer_capture(&mut self) {
+        self.cancel_pointer_capture_with_delivery(None);
+    }
+
+    pub(in crate::runtime::controller) fn cancel_pointer_capture_with_delivery(
+        &mut self,
+        delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
+    ) -> bool {
         self.cancel_layout_pointer_capture();
         let managed_record_present = self.interaction.pointer.managed_capture.is_some();
         let managed_owner = self.begin_managed_pointer_capture_cancellation();
@@ -724,8 +763,16 @@ where
         } else {
             captured
         };
+        let mut delivered = false;
         if let Some(widget_id) = cancellation_owner {
-            self.cancel_captured_widget_state(widget_id);
+            if let Some(event) = delivery
+                && self.surface.widget_has_pointer_mapper(widget_id)
+            {
+                let _ = self.dispatch_pointer_output(widget_id, event);
+                delivered = true;
+            } else {
+                self.cancel_captured_widget_state(widget_id);
+            }
         }
         if !managed_record_present
             && captured.is_some()
@@ -749,6 +796,7 @@ where
         }
         self.reset_tooltip_hover_intent();
         self.service_pending_current_surface_relayout();
+        delivered
     }
 
     fn cancel_captured_widget_state(&mut self, widget_id: WidgetId) {

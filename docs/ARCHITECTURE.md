@@ -12,6 +12,12 @@ module ownership and the migration seams between it and that target; a boundary
 described here is not evidence that every target-state node, scheduling, or
 renderer contract is already implemented.
 
+Pointer ingress has a backend-neutral checked boundary before controller
+routing. It uses nonzero host identities and runtime-fenced sequence tokens,
+with sixteen fixed sequence records per surface and no queue, coalescer, or
+history. The additive widget pointer hook lets opted-in canvas and GPU leaves
+receive exact five-phase evidence while legacy input remains unchanged.
+
 Only canonical merged source counts for shipped status; branch, draft,
 acceptance-only, and unverified evidence do not. X11 and product-specific
 behavior remain explicit non-goals for Radiant.

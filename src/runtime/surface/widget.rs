@@ -539,6 +539,28 @@ impl<Message> SurfaceWidget<Message> {
             .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
     }
 
+    pub(in crate::runtime) fn dispatch_pointer_event(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        event: crate::gui::pointer_ingress::PointerEvent,
+    ) -> super::WidgetDispatchResult<Message> {
+        let Some(output) = (self.id() == widget_id)
+            .then(|| self.widget.handle_pointer_event(bounds, event))
+            .flatten()
+        else {
+            return super::WidgetDispatchResult::NoOutput;
+        };
+        self.messages
+            .map_pointer_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
+    pub(in crate::runtime) fn has_pointer_output(&self) -> bool {
+        self.messages.has_pointer_output()
+    }
+
     pub(in crate::runtime) fn dispatch_focus_changed_at(
         &mut self,
         widget_id: WidgetId,

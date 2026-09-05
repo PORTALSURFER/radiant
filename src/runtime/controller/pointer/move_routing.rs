@@ -42,6 +42,25 @@ where
         timestamp: Option<InputTimestamp>,
         sequence_range: Option<InputSequenceRange>,
     ) -> PointerMoveDispatch {
+        self.dispatch_pointer_move_target_with_delivery(
+            position,
+            refresh_after_message,
+            modifiers,
+            timestamp,
+            sequence_range,
+            None,
+        )
+    }
+
+    pub(in crate::runtime::controller) fn dispatch_pointer_move_target_with_delivery(
+        &mut self,
+        position: Point,
+        refresh_after_message: bool,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+        _delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
+    ) -> PointerMoveDispatch {
         self.validate_managed_pointer_capture_authority();
         let metadata = PointerMoveMetadata {
             modifiers,
@@ -72,6 +91,7 @@ where
                 false,
                 refresh_after_message,
                 metadata,
+                _delivery,
             );
         }
         if self.layout_pointer_capture_active() {
@@ -138,6 +158,36 @@ where
             emitted_output,
             refresh_after_message,
             metadata,
+            _delivery,
+        )
+    }
+
+    /// Continue an already admitted widget capture without re-hit-testing.
+    /// The caller has validated the ingress token and the existing capture
+    /// witness before entering this helper.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::runtime::controller) fn dispatch_pointer_move_to_exact_target(
+        &mut self,
+        position: Point,
+        target: WidgetId,
+        refresh_after_message: bool,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<InputSequenceRange>,
+        delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
+    ) -> PointerMoveDispatch {
+        self.route_pointer_move_to_target(
+            position,
+            target,
+            PointerHoverTransition::default(),
+            false,
+            refresh_after_message,
+            PointerMoveMetadata {
+                modifiers,
+                timestamp,
+                sequence_range,
+            },
+            delivery,
         )
     }
 
@@ -161,6 +211,7 @@ where
         self.retain_hover_owner(hover_widget);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn route_pointer_move_to_target(
         &mut self,
         position: Point,
@@ -169,6 +220,7 @@ where
         mut emitted_output: bool,
         refresh_after_message: bool,
         metadata: PointerMoveMetadata,
+        delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
     ) -> PointerMoveDispatch {
         let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
         if !hover_changed.changed
@@ -180,16 +232,22 @@ where
                 emitted_output,
             };
         }
-        let routed = self.dispatch_input_output_with_refresh(
-            target,
-            WidgetInput::pointer_move_with_metadata(
-                position,
-                metadata.modifiers,
-                metadata.timestamp,
-                metadata.sequence_range,
-            ),
-            refresh_after_message,
-        );
+        let routed: Option<bool> = if let Some(event) = delivery
+            && self.surface.widget_has_pointer_mapper(target)
+        {
+            Some(self.dispatch_pointer_output(target, event))
+        } else {
+            self.dispatch_input_output_with_refresh(
+                target,
+                WidgetInput::pointer_move_with_metadata(
+                    position,
+                    metadata.modifiers,
+                    metadata.timestamp,
+                    metadata.sequence_range,
+                ),
+                refresh_after_message,
+            )
+        };
         if let Some(emitted) = routed {
             // Stable pointer-move widgets may update local paint-only hover
             // state without emitting host messages. Captured drags can also

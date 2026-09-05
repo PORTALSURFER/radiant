@@ -5922,6 +5922,25 @@ Accepted wheel edits from `KnobWidget` emit one `KnobMessage::WheelGesture` with
 the existing three ordered `KnobAutomationEvent` values and a copyable
 `KnobWheelMetadata` payload. Its modifiers, optional timestamp, and optional
 sequence range are copied unchanged from the accepted `WidgetInput::Wheel`.
+Typed pointer ingress is an additive API in `gui::pointer_ingress`. Hosts may
+construct checked `PointerIngress` and `GestureIngress` values with device,
+contact, phase, logical-coordinate, button, modifier, pressure, tilt, timestamp,
+and sample-range evidence. Surface runtimes route these through a fixed
+sixteen-record device/contact table. A started or hover sample has no sequence
+token; only the runtime can issue a nonzero opaque token, and a continuation is
+admitted only when its token, device, contact, and runtime identity match.
+`dispatch_pointer_ingress_with_admission` returns that opaque token for a
+started sequence, including layout, scrollbar, and explicitly unsupported
+admissions that have no widget callback; hosts can pass it to the checked
+continuation constructor without minting or inspecting the token.
+`Widget::handle_pointer_event` is the opt-in extension used by
+`RetainedCanvasBuilder::on_pointer`, `gpu_surface_pointer`, and
+`render_canvas_pointer`; existing `Event`, `WidgetInput`, and canvas gesture
+contracts remain source-compatible. Valid pan, pinch, and rotate ingress is
+reported as an explicitly admitted unsupported consumer until the later gesture
+arena phase. Typed drag payloads, cross-window payloads, and external offers
+remain outside this phase.
+
 `KnobWheelGesture::new(...)` remains the compatibility constructor and uses
 `KnobWheelMetadata::default()`; use `KnobWheelGesture::new_with_metadata(...)`
 or `input_metadata()` for explicit provenance. The added public `metadata`

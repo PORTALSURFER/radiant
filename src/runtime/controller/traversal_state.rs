@@ -17,6 +17,7 @@ use crate::{
 use std::collections::{HashMap, HashSet};
 
 pub(super) struct RuntimeTraversalState<Message = ()> {
+    pub(super) command_scopes: crate::runtime::surface::SurfaceCommandScopes,
     pub(super) widgets: RuntimeWidgetTraversal,
     pub(super) containers: RuntimeContainerTraversal<Message>,
 }
@@ -30,6 +31,7 @@ pub(super) enum RuntimeFocusOrderEntry {
 impl<Message> Default for RuntimeTraversalState<Message> {
     fn default() -> Self {
         Self {
+            command_scopes: Default::default(),
             widgets: RuntimeWidgetTraversal::default(),
             containers: RuntimeContainerTraversal::default(),
         }

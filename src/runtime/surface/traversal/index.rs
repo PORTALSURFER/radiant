@@ -25,6 +25,7 @@ pub(in crate::runtime) use records::{
 };
 
 pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
+    pub(in crate::runtime) command_scopes: crate::runtime::surface::SurfaceCommandScopes,
     pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
     pub(in crate::runtime) focusable_widget_order: Vec<WidgetId>,
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
@@ -56,6 +57,7 @@ pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
 impl<Message> SurfaceTraversalIndex<Message> {
     pub(in crate::runtime) fn with_stats(stats: SurfaceTraversalStats) -> Self {
         Self {
+            command_scopes: Default::default(),
             widget_paint_order: Vec::with_capacity(stats.widgets),
             focusable_widget_order: Vec::with_capacity(stats.widgets),
             keyboard_focus_order: Vec::with_capacity(stats.widgets),
@@ -87,6 +89,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
     }
 
     pub(in crate::runtime) fn clear_for_stats(&mut self, stats: SurfaceTraversalStats) {
+        self.command_scopes.clear();
         self.widget_paint_order.clear();
         reserve_vec_capacity(&mut self.widget_paint_order, stats.widgets);
         self.focusable_widget_order.clear();
@@ -142,6 +145,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
     }
 
     pub(in crate::runtime) fn clear_for_reuse(&mut self) {
+        self.command_scopes.clear();
         self.widget_paint_order.clear();
         self.focusable_widget_order.clear();
         self.keyboard_focus_order.clear();

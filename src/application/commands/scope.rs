@@ -119,6 +119,8 @@ impl<Context> Clone for CommandScope<Context> {
 /// Invalid scope construction, before an active scope can be installed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandScopeError {
+    /// The non-reusing declarative attachment identity space was exhausted.
+    IdentityExhausted,
     /// Scope identity does not meet the stable-identifier bounds.
     Identity(CommandRegistrationError),
     /// A scope declared the same semantic command more than once.

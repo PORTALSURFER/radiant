@@ -3,6 +3,7 @@
 //! Registries own static metadata. Applications project active immutable scopes;
 //! resolution selects one typed invocation without performing a domain action.
 
+mod declarative;
 mod dispatch;
 mod host;
 mod keymap;
@@ -13,6 +14,8 @@ mod resolution;
 mod scope;
 mod validation;
 
+pub use declarative::CommandScopeProjection;
+pub(crate) use declarative::{CommandScopeAttachment, ResolvedCommandScope};
 pub use dispatch::{CommandDispatch, CommandDispatchStatus, CommandDispatcher};
 pub use host::{CommandFocus, CommandRequest, CommandSnapshot};
 pub use keymap::{Keymap, KeymapDiagnostic, KeymapError, KeymapProblem};

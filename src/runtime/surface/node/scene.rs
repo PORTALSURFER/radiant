@@ -10,6 +10,8 @@ pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
+    pub(in crate::runtime::surface) command_scope:
+        Option<crate::application::CommandScopeAttachment>,
 }
 
 impl<Message> SurfaceScene<Message> {
@@ -21,6 +23,7 @@ impl<Message> SurfaceScene<Message> {
             base: Box::new(base),
             layers,
             source: None,
+            command_scope: None,
         }
     }
 

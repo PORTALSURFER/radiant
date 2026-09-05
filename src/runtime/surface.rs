@@ -5,6 +5,8 @@ use crate::application::ApplicationEnvironment;
 use std::sync::Arc;
 
 mod builders;
+mod command_scopes;
+pub(in crate::runtime) use command_scopes::SurfaceCommandScopes;
 mod dispatch;
 mod focus;
 mod frame;

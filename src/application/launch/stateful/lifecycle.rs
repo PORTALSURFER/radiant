@@ -71,6 +71,7 @@ where
         + 'static,
         dispatcher: crate::application::CommandDispatcher<Context, Message>,
     ) -> Self {
+        self.lifecycle.declarative_command_router = None;
         self.lifecycle.command_router = Some(Box::new(move |state, request, focus| {
             let snapshot = project(state, focus);
             match request {
@@ -82,6 +83,48 @@ where
                 }
             }
         }));
+        self
+    }
+
+    /// Register one mapper for command scopes attached to declarative views.
+    ///
+    /// The runtime selects the focused ancestry and current eligible layers from
+    /// its committed tree. Application code does not reconstruct that scope list.
+    pub fn command_registry<Context: 'static>(
+        mut self,
+        registry: crate::application::CommandRegistry,
+        dispatcher: crate::application::CommandDispatcher<Context, Message>,
+    ) -> Self {
+        self.lifecycle.command_router = None;
+        self.lifecycle.declarative_command_router =
+            Some(Box::new(move |request, projection, keymap| {
+                let scopes = match projection.scopes::<Context>() {
+                    Ok(scopes) => scopes,
+                    Err(reason) => {
+                        return crate::application::CommandDispatch {
+                            message: None,
+                            status: crate::application::CommandDispatchStatus::Suppressed(reason),
+                        };
+                    }
+                };
+                match request {
+                    crate::application::CommandRequest::Input(input) => {
+                        dispatcher.input(&registry, &scopes, keymap, input)
+                    }
+                    crate::application::CommandRequest::Target(target, source) => {
+                        dispatcher.target(&registry, &scopes, target, source)
+                    }
+                }
+            }));
+        self
+    }
+
+    /// Project persisted keymap overrides for the declarative command registry.
+    pub fn command_keymap(
+        mut self,
+        project: impl Fn(&State) -> crate::application::Keymap + 'static,
+    ) -> Self {
+        self.lifecycle.command_keymap = Some(Box::new(project));
         self
     }
 

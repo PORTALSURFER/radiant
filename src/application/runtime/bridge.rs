@@ -82,6 +82,16 @@ pub(in crate::application) type AppCommandRouter<State, Message> = Box<
     ) -> crate::application::CommandDispatch<Message>,
 >;
 
+pub(in crate::application) type AppDeclarativeCommandRouter<Message> = Box<
+    dyn Fn(
+        crate::application::CommandRequest<'_>,
+        crate::application::CommandScopeProjection<'_>,
+        &crate::application::Keymap,
+    ) -> crate::application::CommandDispatch<Message>,
+>;
+pub(in crate::application) type AppCommandKeymap<State> =
+    Box<dyn Fn(&State) -> crate::application::Keymap>;
+
 /// Lifecycle hooks carried from application launch builders into the runtime bridge.
 pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     /// Animation activity callback.
@@ -103,6 +113,11 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) repaint_policy: Option<RepaintPolicy<Message>>,
     /// App-level subscription factory.
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
+    /// One mapper for runtime-qualified declarative scopes.
+    pub(in crate::application) declarative_command_router:
+        Option<AppDeclarativeCommandRouter<Message>>,
+    /// Current data-only keymap for declarative command resolution.
+    pub(in crate::application) command_keymap: Option<AppCommandKeymap<State>>,
     /// Single semantic command projection and invocation mapper.
     pub(in crate::application) command_router: Option<AppCommandRouter<State, Message>>,
     /// App-level shortcut resolver.
@@ -159,6 +174,8 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             subscriptions: None,
             shortcuts: None,
             command_router: None,
+            declarative_command_router: None,
+            command_keymap: None,
             scene_shortcuts: None,
             scroll: None,
             native_file_drop: None,

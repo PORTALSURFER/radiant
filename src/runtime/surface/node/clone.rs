@@ -52,6 +52,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             offset_settled: self.offset_settled.clone(),
             children: self.children.clone(),
             source: self.source.clone(),
+            command_scope: self.command_scope.clone(),
         }
     }
 }
@@ -74,6 +75,7 @@ impl<Message> Clone for SurfaceScene<Message> {
             base: self.base.clone(),
             layers: self.layers.clone(),
             source: self.source.clone(),
+            command_scope: self.command_scope.clone(),
         }
     }
 }
@@ -86,6 +88,7 @@ impl<Message> Clone for SurfaceFloatingLayer<Message> {
             text_scaled_size: self.text_scaled_size,
             interactive: self.interactive,
             source: self.source.clone(),
+            command_scope: self.command_scope.clone(),
         }
     }
 }

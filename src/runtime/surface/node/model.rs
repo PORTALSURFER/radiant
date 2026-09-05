@@ -74,6 +74,8 @@ pub struct SurfaceContainer<Message> {
         Option<Rc<dyn Fn(crate::gui::types::Vector2) -> Message>>,
     pub(in crate::runtime::surface) children: super::children::SurfaceChildren<Message>,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
+    pub(in crate::runtime::surface) command_scope:
+        Option<crate::application::CommandScopeAttachment>,
 }
 
 /// Runtime-internal named construction fields for a [`SurfaceContainer`].
@@ -106,6 +108,7 @@ impl<Message> SurfaceContainer<Message> {
             offset_settled: None,
             children: parts.children.into(),
             source: None,
+            command_scope: None,
         }
     }
 
@@ -404,7 +407,8 @@ impl<Message> SurfaceNode<Message> {
         self
     }
 
-    pub(crate) fn with_source_metadata(mut self, metadata: SourceMetadata) -> Self {
+    pub(crate) fn with_source_metadata(mut self, mut metadata: SourceMetadata) -> Self {
+        metadata.command_incarnation = self.command_scope().map(|scope| scope.incarnation);
         let metadata = Rc::new(metadata);
         match &mut self {
             Self::Scene(scene) => scene.source = Some(Rc::clone(&metadata)),
@@ -414,6 +418,30 @@ impl<Message> SurfaceNode<Message> {
             Self::FloatingLayer(layer) => layer.source = Some(Rc::clone(&metadata)),
         }
         self
+    }
+
+    pub(crate) fn with_command_scope(
+        mut self,
+        scope: crate::application::CommandScopeAttachment,
+    ) -> Self {
+        match &mut self {
+            Self::Scene(node) => node.command_scope = Some(scope),
+            Self::Container(node) => node.command_scope = Some(scope),
+            Self::Widget(node) => node.command_scope = Some(scope),
+            Self::Overlay(node) => node.command_scope = Some(scope),
+            Self::FloatingLayer(node) => node.command_scope = Some(scope),
+        }
+        self
+    }
+
+    pub(crate) fn command_scope(&self) -> Option<&crate::application::CommandScopeAttachment> {
+        match self {
+            Self::Scene(node) => node.command_scope.as_ref(),
+            Self::Container(node) => node.command_scope.as_ref(),
+            Self::Widget(node) => node.command_scope.as_ref(),
+            Self::Overlay(node) => node.command_scope.as_ref(),
+            Self::FloatingLayer(node) => node.command_scope.as_ref(),
+        }
     }
 
     pub(crate) fn source_metadata_handle(&self) -> Option<Rc<SourceMetadata>> {
@@ -669,6 +697,9 @@ impl<Message> SurfaceNode<Message> {
         let mut pending = vec![self];
         let mut count = 0usize;
         while let Some(node) = pending.pop() {
+            if node.command_scope().is_some() {
+                return None;
+            }
             count = count.checked_add(1)?;
             if count > limit {
                 return None;

@@ -42,9 +42,18 @@ where
             widget: self.focused_widget(),
             surface,
         };
+        let (scopes, error) = self.active_command_scope_records();
+        let projection = crate::application::CommandScopeProjection::new(&scopes, error);
         let dispatch = self.host_capabilities.input.as_ref().map_or_else(
             crate::application::CommandDispatch::unhandled,
-            |capability| (capability.resolve_command)(&mut self.bridge, request, focus),
+            |capability| {
+                (capability.resolve_command_with_scopes)(
+                    &mut self.bridge,
+                    request,
+                    focus,
+                    projection,
+                )
+            },
         );
         let outcome = dispatch
             .message
@@ -52,6 +61,35 @@ where
                 self.dispatch_message(message)
             });
         (dispatch.status, outcome)
+    }
+
+    /// Query active typed command scopes from the current committed view and focus.
+    /// This does not invoke the application mapper or mutate domain state.
+    pub fn command_scopes<Context: 'static>(
+        &self,
+    ) -> Result<
+        Vec<crate::application::CommandScope<Context>>,
+        crate::application::CommandSuppression,
+    > {
+        if !self.lifecycle_accepts_work() {
+            return Err(crate::application::CommandSuppression::InvalidScopes);
+        }
+        let (scopes, error) = self.active_command_scope_records();
+        crate::application::CommandScopeProjection::new(&scopes, error).scopes()
+    }
+
+    fn active_command_scope_records(
+        &self,
+    ) -> (
+        Vec<crate::application::ResolvedCommandScope>,
+        Option<crate::application::CommandSuppression>,
+    ) {
+        let focused = self
+            .focused_widget()
+            .filter(|id| self.is_authoritative_focus_target(*id))
+            .and_then(|id| self.traversal.widgets.paths.current.get(&id))
+            .map(|path| path.as_slice());
+        self.traversal.command_scopes.active(&self.layout, focused)
     }
 
     pub(crate) fn dispatch_semantic_key_input(

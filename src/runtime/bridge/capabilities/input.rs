@@ -34,6 +34,17 @@ pub trait RuntimeInputHost<Message> {
         crate::application::CommandDispatch::unhandled()
     }
 
+    /// Resolve a request with qualified declarative scopes from the committed tree.
+    /// Hosts with manual scope projection retain their existing resolver by default.
+    fn resolve_command_with_scopes(
+        &mut self,
+        request: crate::application::CommandRequest<'_>,
+        focus: crate::application::CommandFocus,
+        _scopes: crate::application::CommandScopeProjection<'_>,
+    ) -> crate::application::CommandDispatch<Message> {
+        self.resolve_command(request, focus)
+    }
+
     /// Resolve one keyboard press against host-owned shortcuts.
     fn resolve_key_press(
         &mut self,
@@ -50,10 +61,11 @@ pub(crate) struct RuntimeInputCapability<Bridge, Message> {
     pub native_file_drop: fn(&mut Bridge, NativeFileDrop) -> Command<Message>,
     pub native_file_open: fn(&mut Bridge, NativeFileOpen) -> Command<Message>,
     pub native_focus_regained: fn(&mut Bridge) -> Command<Message>,
-    pub resolve_command: fn(
+    pub resolve_command_with_scopes: fn(
         &mut Bridge,
         crate::application::CommandRequest<'_>,
         crate::application::CommandFocus,
+        crate::application::CommandScopeProjection<'_>,
     ) -> crate::application::CommandDispatch<Message>,
     pub resolve_key_press:
         fn(&mut Bridge, Option<KeyPress>, KeyPress, FocusSurface) -> ShortcutResolution<Message>,
@@ -70,7 +82,7 @@ where
             native_file_open: Bridge::native_file_open,
             native_focus_regained: Bridge::native_focus_regained,
             resolve_key_press: Bridge::resolve_key_press,
-            resolve_command: Bridge::resolve_command,
+            resolve_command_with_scopes: Bridge::resolve_command_with_scopes,
         }
     }
 }

@@ -196,6 +196,9 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "CommandRequest::Target(",
             "dispatch_command_request(",
             "example_routes_shortcut_and_menu_through_reducer",
+            ".command_registry(",
+            ".commands([CommandBinding::new(",
+            ".command_scopes::<u64>()",
         ],
     ),
 ];

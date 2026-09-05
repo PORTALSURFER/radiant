@@ -2,8 +2,8 @@
 
 use crate::gui::types::Rect;
 use crate::runtime::{
-    PaintPrimitive, PaintTextAlign, PaintTextRun, inset_rect, optical_centered_baseline,
-    push_text_run, text_font_size,
+    PaintPrimitive, PaintTextAlign, PaintTextRun, ResolvedEnvironment, inset_rect,
+    optical_centered_baseline, push_text_run,
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
@@ -11,12 +11,40 @@ use crate::widgets::primitives::{
     text::TextWrap,
     toggle::ToggleWidget,
 };
+use crate::widgets::{Widget, WidgetPaintContext};
 
 pub(super) fn push_toggle_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     toggle: &ToggleWidget,
     bounds: Rect,
     theme: &ThemeTokens,
+) {
+    push_toggle_widget_paint_resolved(
+        primitives,
+        toggle,
+        bounds,
+        theme,
+        &ResolvedEnvironment::default(),
+    );
+}
+
+pub(super) fn push_toggle_widget_paint_with_context(
+    context: &mut WidgetPaintContext<'_>,
+    toggle: &ToggleWidget,
+) {
+    let bounds = context.bounds();
+    let theme = context.theme();
+    let environment = context.environment().clone();
+    let primitives = context.primitives();
+    push_toggle_widget_paint_resolved(primitives, toggle, bounds, theme, &environment);
+}
+
+fn push_toggle_widget_paint_resolved(
+    primitives: &mut Vec<PaintPrimitive>,
+    toggle: &ToggleWidget,
+    bounds: crate::gui::types::Rect,
+    theme: &ThemeTokens,
+    environment: &ResolvedEnvironment,
 ) {
     let tokens = crate::widgets::resolve_widget_visual_tokens(
         theme,
@@ -34,8 +62,11 @@ pub(super) fn push_toggle_widget_paint(
         );
     } else {
         push_control_chrome(primitives, &toggle.common, bounds, theme);
-        let font_size = text_font_size(bounds);
-        let rect = inset_rect(bounds, 8.0, 4.0);
+        let metrics = toggle
+            .declared_text_metrics()
+            .resolve(environment, toggle.text_scale_participation());
+        let font_size = metrics.font_size;
+        let rect = inset_rect(bounds, metrics.insets.x, metrics.insets.y);
         push_text_run(
             primitives,
             PaintTextRun {

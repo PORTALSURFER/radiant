@@ -5,9 +5,9 @@ mod input;
 mod model;
 mod paint;
 
-use crate::gui::types::Rect;
+use crate::gui::types::{Rect, Vector2};
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, PaintText};
+use crate::runtime::{PaintPrimitive, PaintText, ResolvedEnvironment, text_font_size_for_height};
 use crate::theme::ThemeTokens;
 
 use super::support::{
@@ -18,7 +18,7 @@ use super::support::{
     },
 };
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext, WidgetPointerMotion,
     WidgetPointerMotionRevision, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision,
     WidgetSizing,
 };
@@ -51,6 +51,14 @@ pub struct ToggleWidgetParts {
 }
 
 impl ToggleWidget {
+    pub(super) fn declared_text_metrics(&self) -> crate::widgets::DeclaredTextMetrics {
+        crate::widgets::DeclaredTextMetrics::new(
+            self.common.sizing,
+            text_font_size_for_height(self.common.sizing.preferred.y),
+            Vector2::new(8.0, 4.0),
+        )
+    }
+
     /// Build a toggle descriptor from named parts.
     pub fn from_parts(parts: ToggleWidgetParts) -> Self {
         let mut common = WidgetCommon::new(parts.id, parts.sizing);
@@ -187,6 +195,21 @@ impl Widget for ToggleWidget {
         }
     }
 
+    fn text_scale_participation(&self) -> crate::widgets::TextScaleParticipation {
+        crate::widgets::TextScaleParticipation::Scaled
+    }
+
+    fn layout_node_with_environment(
+        &self,
+        environment: &ResolvedEnvironment,
+    ) -> crate::layout::LayoutNode {
+        crate::layout::LayoutNode::Widget(
+            self.declared_text_metrics()
+                .resolve(environment, self.text_scale_participation())
+                .layout_node(self.common.id),
+        )
+    }
+
     fn revision(&self) -> WidgetRevision {
         self.exact_revision()
             .unwrap_or_else(WidgetRevision::conservative)
@@ -235,6 +258,10 @@ impl Widget for ToggleWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_toggle_widget_paint(primitives, self, bounds, theme);
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        paint::push_toggle_widget_paint_with_context(context, self);
     }
 }
 

@@ -2,19 +2,47 @@
 
 use crate::gui::types::Rect;
 use crate::runtime::{
-    PaintPrimitive, PaintTextAlign, PaintTextRun, button_font_size, inset_rect,
+    PaintPrimitive, PaintTextAlign, PaintTextRun, ResolvedEnvironment, inset_rect,
     optical_centered_baseline, push_text_run,
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
     button::ButtonWidget, support::push_button_chrome, text::TextWrap,
 };
+use crate::widgets::{Widget, WidgetPaintContext};
 
 pub(super) fn push_button_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     button: &ButtonWidget,
     bounds: Rect,
     theme: &ThemeTokens,
+) {
+    push_button_widget_paint_resolved(
+        primitives,
+        button,
+        bounds,
+        theme,
+        &ResolvedEnvironment::default(),
+    );
+}
+
+pub(super) fn push_button_widget_paint_with_context(
+    context: &mut WidgetPaintContext<'_>,
+    button: &ButtonWidget,
+) {
+    let bounds = context.bounds();
+    let theme = context.theme();
+    let environment = context.environment().clone();
+    let primitives = context.primitives();
+    push_button_widget_paint_resolved(primitives, button, bounds, theme, &environment);
+}
+
+fn push_button_widget_paint_resolved(
+    primitives: &mut Vec<PaintPrimitive>,
+    button: &ButtonWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+    environment: &ResolvedEnvironment,
 ) {
     if !button.common.paint.paints_state_layers {
         return;
@@ -29,8 +57,11 @@ pub(super) fn push_button_widget_paint(
         return;
     }
     push_button_chrome(primitives, &button.common, bounds, theme);
-    let font_size = button_font_size(bounds);
-    let rect = inset_rect(bounds, 8.0, 4.0);
+    let metrics = button
+        .declared_text_metrics()
+        .resolve(environment, button.text_scale_participation());
+    let font_size = metrics.font_size;
+    let rect = inset_rect(bounds, metrics.insets.x, metrics.insets.y);
     let trailing_width =
         if button.trailing_icon.is_some() || button.trailing_icon_tint_cache.is_some() {
             font_size.max(16.0)
@@ -73,7 +104,7 @@ pub(super) fn push_button_widget_paint(
             align: button
                 .props
                 .text_align
-                .resolve(crate::application::WritingDirection::Ltr),
+                .resolve(environment.writing_direction()),
             wrap: TextWrap::None,
             font_size,
         },

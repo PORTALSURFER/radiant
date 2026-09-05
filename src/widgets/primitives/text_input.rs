@@ -8,9 +8,8 @@ use crate::theme::ThemeTokens;
 use super::WidgetCommon;
 use super::text::TextAlign;
 use crate::widgets::contract::{
-    FocusBehavior, FocusedKeyDisposition, Widget, WidgetCapabilities, WidgetId,
-    WidgetPaintContext, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics,
-    WidgetSizing,
+    FocusBehavior, FocusedKeyDisposition, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext,
+    WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
     CompositionRange, CompositionSample, CompositionStartContext, TextInputMessage, WidgetInput,

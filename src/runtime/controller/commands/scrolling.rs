@@ -14,27 +14,34 @@ where
         &mut self,
         widget_id: crate::widgets::WidgetId,
     ) {
-        let mut ancestors = self
+        let Some(ancestors) = self
             .traversal
             .widgets
             .paths
             .clip_ancestors
             .get(&widget_id)
             .map(|path| path.as_slice().iter().rev().copied().collect::<Vec<_>>())
-            .unwrap_or_default();
+        else {
+            return;
+        };
         if ancestors.is_empty() {
-            ancestors.extend(
-                self.traversal
-                    .containers
-                    .scroll
-                    .visible()
-                    .iter()
-                    .rev()
-                    .copied(),
-            );
+            return;
         }
         let mut seen = BTreeSet::new();
         for node_id in ancestors {
+            if !self.is_authoritative_focus_target(widget_id) {
+                return;
+            }
+            if !self
+                .traversal
+                .widgets
+                .paths
+                .clip_ancestors
+                .get(&widget_id)
+                .is_some_and(|path| path.as_slice().contains(&node_id))
+            {
+                continue;
+            }
             if !seen.insert(node_id) {
                 continue;
             }

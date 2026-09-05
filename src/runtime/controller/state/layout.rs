@@ -526,9 +526,12 @@ mod tests {
             ScrollAlignment, ScrollAxis, ScrollPolicy, ScrollRequest, ScrollTarget,
             ScrollbarPlacement, SizeModeCross, SizeModeMain, SlotParams,
         },
-        runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+        runtime::{
+            ClipAncestors, LayerKind, RuntimeBridge, SurfaceChild, SurfaceLayer, SurfaceNode,
+            UiSurface, WidgetMessageMapper,
+        },
         theme::ThemeTokens,
-        widgets::{TextWidget, Widget, WidgetCommon, WidgetOutput, WidgetSizing},
+        widgets::{ButtonWidget, TextWidget, Widget, WidgetCommon, WidgetOutput, WidgetSizing},
     };
     use std::{
         sync::Arc,
@@ -1077,6 +1080,72 @@ mod tests {
     }
 
     #[test]
+    fn focus_reveal_requires_a_recorded_clip_ancestor_path() {
+        for empty_path in [false, true] {
+            let mut runtime = SurfaceRuntime::new(
+                SiblingFocusRevealBridge::default(),
+                Vector2::new(100.0, 80.0),
+            );
+            let offsets = [
+                runtime
+                    .layout_state
+                    .scroll_offset(SiblingFocusRevealBridge::FIRST_ID),
+                runtime
+                    .layout_state
+                    .scroll_offset(SiblingFocusRevealBridge::SECOND_ID),
+            ];
+            let content_rects = [
+                runtime.layout().rects[&SiblingFocusRevealBridge::FIRST_CONTENT_ID],
+                runtime.layout().rects[&SiblingFocusRevealBridge::SECOND_CONTENT_ID],
+            ];
+            let layout_state_generation = runtime.layout_state_generation;
+            let rects = runtime.layout().rects.clone();
+            assert!(runtime.bridge().settled.is_empty());
+
+            if empty_path {
+                runtime.traversal.widgets.paths.clip_ancestors.insert(
+                    SiblingFocusRevealBridge::OUTSIDE_ID,
+                    ClipAncestors::from_slice(&[]),
+                );
+            } else {
+                runtime
+                    .traversal
+                    .widgets
+                    .paths
+                    .clip_ancestors
+                    .remove(&SiblingFocusRevealBridge::OUTSIDE_ID);
+            }
+
+            assert!(runtime.focus_widget(SiblingFocusRevealBridge::OUTSIDE_ID));
+            assert_eq!(
+                runtime.focused_widget(),
+                Some(SiblingFocusRevealBridge::OUTSIDE_ID)
+            );
+            assert!(runtime.bridge().settled.is_empty());
+            assert_eq!(
+                [
+                    runtime
+                        .layout_state
+                        .scroll_offset(SiblingFocusRevealBridge::FIRST_ID),
+                    runtime
+                        .layout_state
+                        .scroll_offset(SiblingFocusRevealBridge::SECOND_ID),
+                ],
+                offsets
+            );
+            assert_eq!(
+                [
+                    runtime.layout().rects[&SiblingFocusRevealBridge::FIRST_CONTENT_ID],
+                    runtime.layout().rects[&SiblingFocusRevealBridge::SECOND_CONTENT_ID],
+                ],
+                content_rects
+            );
+            assert_eq!(runtime.layout_state_generation, layout_state_generation);
+            assert_eq!(runtime.layout().rects, rects);
+        }
+    }
+
+    #[test]
     fn malformed_request_is_consumed_and_max_generation_is_ignored() {
         let mut policy = ContainerPolicy {
             kind: ContainerKind::ScrollView,
@@ -1174,7 +1243,7 @@ mod tests {
                 .y,
             40.0
         );
-        runtime.reveal_widget_in_scroll_ancestors(FocusRevealBridge::TARGET_ID);
+        assert!(runtime.focus_widget(FocusRevealBridge::TARGET_ID));
         assert_eq!(
             runtime
                 .layout_state
@@ -1182,6 +1251,150 @@ mod tests {
                 .y,
             expected,
             "revealing a translated target must subtract the translated content origin once"
+        );
+    }
+
+    #[test]
+    fn focus_reveal_settles_nested_scrollers_inside_out_once() {
+        let mut runtime = SurfaceRuntime::new(
+            NestedFocusRevealBridge::default(),
+            Vector2::new(100.0, 80.0),
+        );
+
+        assert!(runtime.focus_widget(NestedFocusRevealBridge::TARGET_ID));
+        assert_eq!(
+            runtime.focused_widget(),
+            Some(NestedFocusRevealBridge::TARGET_ID)
+        );
+        assert_eq!(
+            runtime.bridge().settled.len(),
+            2,
+            "each changed scroll owner settles once"
+        );
+        assert_eq!(
+            runtime.bridge().settled[0].0,
+            NestedFocusRevealBridge::INNER_ID
+        );
+        assert_eq!(
+            runtime.bridge().settled[1].0,
+            NestedFocusRevealBridge::OUTER_ID
+        );
+        assert!(
+            runtime
+                .layout_state
+                .scroll_offset(NestedFocusRevealBridge::INNER_ID)
+                .y
+                > 20.0
+        );
+        assert!(
+            runtime
+                .layout_state
+                .scroll_offset(NestedFocusRevealBridge::OUTER_ID)
+                .y
+                > 10.0
+        );
+
+        let target = runtime.layout().rects[&NestedFocusRevealBridge::TARGET_ID];
+        for node_id in [
+            NestedFocusRevealBridge::INNER_ID,
+            NestedFocusRevealBridge::OUTER_ID,
+        ] {
+            let viewport = runtime.layout().viewport_bounds[&node_id];
+            assert!(target.min.y >= viewport.min.y);
+            assert!(target.max.y <= viewport.max.y);
+        }
+    }
+
+    #[test]
+    fn focus_reveal_isolated_between_scene_base_and_layer_scrollers() {
+        let mut runtime =
+            SurfaceRuntime::new(SceneFocusRevealBridge::default(), Vector2::new(100.0, 80.0));
+        let base_offset = runtime
+            .layout_state
+            .scroll_offset(SceneFocusRevealBridge::BASE_ID);
+
+        assert!(runtime.focus_widget(SceneFocusRevealBridge::LAYER_OUTSIDE_ID));
+        assert!(runtime.bridge().settled.is_empty());
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(SceneFocusRevealBridge::BASE_ID),
+            base_offset
+        );
+
+        assert!(runtime.focus_widget(SceneFocusRevealBridge::LAYER_TARGET_ID));
+        assert_eq!(
+            runtime.focused_widget(),
+            Some(SceneFocusRevealBridge::LAYER_TARGET_ID)
+        );
+        assert_eq!(
+            runtime.bridge().settled.len(),
+            1,
+            "the layer-local owner is the only changed scroll container"
+        );
+        assert_eq!(
+            runtime.bridge().settled[0].0,
+            SceneFocusRevealBridge::LAYER_SCROLL_ID
+        );
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(SceneFocusRevealBridge::BASE_ID),
+            base_offset
+        );
+        assert!(
+            runtime
+                .layout_state
+                .scroll_offset(SceneFocusRevealBridge::LAYER_SCROLL_ID)
+                .y
+                > 40.0
+        );
+    }
+
+    #[test]
+    fn focus_reveal_rechecks_ancestry_after_reentrant_inner_settlement() {
+        let mut runtime = SurfaceRuntime::new(
+            ReentrantFocusRevealBridge::default(),
+            Vector2::new(100.0, 80.0),
+        );
+        let outer_offset = runtime
+            .layout_state
+            .scroll_offset(ReentrantFocusRevealBridge::OUTER_ID);
+        let outer_content = runtime.layout().rects[&ReentrantFocusRevealBridge::OUTER_CONTENT_ID];
+
+        assert!(runtime.focus_widget(ReentrantFocusRevealBridge::TARGET_ID));
+        assert_eq!(
+            runtime.focused_widget(),
+            Some(ReentrantFocusRevealBridge::TARGET_ID)
+        );
+        assert!(runtime.bridge().moved);
+        assert_eq!(
+            runtime.bridge().settled.len(),
+            1,
+            "the stale outer owner must not settle after reparenting"
+        );
+        assert_eq!(
+            runtime.bridge().settled[0].0,
+            ReentrantFocusRevealBridge::INNER_ID
+        );
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(ReentrantFocusRevealBridge::OUTER_ID),
+            outer_offset
+        );
+        assert_eq!(
+            runtime.layout().rects[&ReentrantFocusRevealBridge::OUTER_CONTENT_ID],
+            outer_content
+        );
+        assert!(
+            runtime
+                .traversal
+                .widgets
+                .paths
+                .clip_ancestors
+                .get(&ReentrantFocusRevealBridge::TARGET_ID)
+                .is_none_or(|path| path.as_slice().is_empty())
         );
     }
 
@@ -1271,6 +1484,25 @@ mod tests {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
             let rows = (0..12)
                 .map(|index| {
+                    let widget = if index == 7 {
+                        SurfaceNode::widget(
+                            ButtonWidget::new(
+                                10 + index,
+                                format!("Row {index}"),
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    } else {
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                10 + index,
+                                format!("Row {index}"),
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    };
                     SurfaceChild::new(
                         SlotParams {
                             size_main: SizeModeMain::Fixed(80.0),
@@ -1280,14 +1512,7 @@ mod tests {
                             align_cross_override: None,
                             allow_fixed_compress: false,
                         },
-                        SurfaceNode::widget(
-                            TextWidget::new(
-                                10 + index,
-                                format!("Row {index}"),
-                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
-                            ),
-                            WidgetMessageMapper::none(),
-                        ),
+                        widget,
                     )
                 })
                 .collect();
@@ -1308,6 +1533,451 @@ mod tests {
         }
 
         fn reduce_message(&mut self, _message: ()) {}
+    }
+
+    #[derive(Default)]
+    struct NestedFocusRevealBridge {
+        settled: Vec<(u64, Vector2)>,
+    }
+
+    impl NestedFocusRevealBridge {
+        const OUTER_ID: u64 = 1;
+        const OUTER_CONTENT_ID: u64 = 2;
+        const INNER_ID: u64 = 3;
+        const INNER_CONTENT_ID: u64 = 4;
+        const PREFIX_ID: u64 = 5;
+        const TARGET_ID: u64 = 17;
+    }
+
+    impl RuntimeBridge<(u64, Vector2)> for NestedFocusRevealBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<(u64, Vector2)>> {
+            let rows = (0..12)
+                .map(|index| {
+                    let widget = if index == 7 {
+                        SurfaceNode::widget(
+                            ButtonWidget::new(
+                                Self::TARGET_ID,
+                                "Target",
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    } else {
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                20 + index,
+                                format!("Inner {index}"),
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    };
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        widget,
+                    )
+                })
+                .collect();
+            let inner = SurfaceNode::container(
+                Self::INNER_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, 20.0)),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::column(
+                    Self::INNER_CONTENT_ID,
+                    0.0,
+                    rows,
+                ))],
+            )
+            .on_offset_settled(|offset| (Self::INNER_ID, offset));
+            let outer_content = SurfaceNode::column(
+                Self::OUTER_CONTENT_ID,
+                0.0,
+                vec![
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(120.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                Self::PREFIX_ID,
+                                "Prefix",
+                                WidgetSizing::fixed(Vector2::new(80.0, 120.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ),
+                    ),
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        inner,
+                    ),
+                ],
+            );
+            crate::runtime::test_arc_surface(UiSurface::new(
+                SurfaceNode::container(
+                    Self::OUTER_ID,
+                    ContainerPolicy {
+                        kind: ContainerKind::ScrollView,
+                        overflow: OverflowPolicy::Scroll,
+                        initial_offset: Some(Vector2::new(0.0, 10.0)),
+                        ..ContainerPolicy::default()
+                    },
+                    vec![SurfaceChild::fill(outer_content)],
+                )
+                .on_offset_settled(|offset| (Self::OUTER_ID, offset)),
+            ))
+        }
+
+        fn reduce_message(&mut self, message: (u64, Vector2)) {
+            self.settled.push(message);
+        }
+    }
+
+    #[derive(Default)]
+    struct SceneFocusRevealBridge {
+        settled: Vec<(u64, Vector2)>,
+    }
+
+    impl SceneFocusRevealBridge {
+        const BASE_ID: u64 = 1;
+        const BASE_CONTENT_ID: u64 = 2;
+        const LAYER_SCROLL_ID: u64 = 3;
+        const LAYER_CONTENT_ID: u64 = 4;
+        const LAYER_OUTSIDE_ID: u64 = 10;
+        const LAYER_TARGET_ID: u64 = 17;
+
+        fn layer_rows() -> Vec<SurfaceChild<(u64, Vector2)>> {
+            (0..8)
+                .map(|index| {
+                    let widget = if index == 7 {
+                        SurfaceNode::widget(
+                            ButtonWidget::new(
+                                Self::LAYER_TARGET_ID,
+                                "Layer target",
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    } else {
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                20 + index,
+                                format!("Layer row {index}"),
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    };
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        widget,
+                    )
+                })
+                .collect()
+        }
+    }
+
+    impl RuntimeBridge<(u64, Vector2)> for SceneFocusRevealBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<(u64, Vector2)>> {
+            let base = SurfaceNode::container(
+                Self::BASE_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, 40.0)),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(
+                        Self::BASE_CONTENT_ID,
+                        "Base content",
+                        WidgetSizing::fixed(Vector2::new(100.0, 400.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                ))],
+            )
+            .on_offset_settled(|offset| (Self::BASE_ID, offset));
+            let layer_scroll = SurfaceNode::container(
+                Self::LAYER_SCROLL_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, 40.0)),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::column(
+                    Self::LAYER_CONTENT_ID,
+                    0.0,
+                    Self::layer_rows(),
+                ))],
+            )
+            .on_offset_settled(|offset| (Self::LAYER_SCROLL_ID, offset));
+            let layer = SurfaceNode::stack(
+                20,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        ButtonWidget::new(
+                            Self::LAYER_OUTSIDE_ID,
+                            "Outside layer scroll",
+                            WidgetSizing::fixed(Vector2::new(100.0, 24.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    )),
+                    SurfaceChild::fill(layer_scroll),
+                ],
+            );
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::scene(
+                100,
+                base,
+                vec![SurfaceLayer::new(LayerKind::Modal, layer)],
+            )))
+        }
+
+        fn reduce_message(&mut self, message: (u64, Vector2)) {
+            self.settled.push(message);
+        }
+    }
+
+    #[derive(Default)]
+    struct ReentrantFocusRevealBridge {
+        moved: bool,
+        settled: Vec<(u64, Vector2)>,
+    }
+
+    impl ReentrantFocusRevealBridge {
+        const OUTER_ID: u64 = 1;
+        const OUTER_CONTENT_ID: u64 = 2;
+        const INNER_ID: u64 = 3;
+        const INNER_CONTENT_ID: u64 = 4;
+        const PREFIX_ID: u64 = 5;
+        const TARGET_ID: u64 = 17;
+        const TARGET_PLACEHOLDER_ID: u64 = 18;
+
+        fn nested_content(&self) -> SurfaceNode<(u64, Vector2)> {
+            let rows = (0..12)
+                .map(|index| {
+                    let widget = if index == 7 && !self.moved {
+                        SurfaceNode::widget(
+                            ButtonWidget::new(
+                                Self::TARGET_ID,
+                                "Target",
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    } else {
+                        let id = if index == 7 {
+                            Self::TARGET_PLACEHOLDER_ID
+                        } else {
+                            20 + index
+                        };
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                id,
+                                format!("Inner {index}"),
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )
+                    };
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        widget,
+                    )
+                })
+                .collect();
+            SurfaceNode::column(Self::INNER_CONTENT_ID, 0.0, rows)
+        }
+
+        fn outer(&self) -> SurfaceNode<(u64, Vector2)> {
+            let inner = SurfaceNode::container(
+                Self::INNER_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, 20.0)),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(self.nested_content())],
+            )
+            .on_offset_settled(|offset| (Self::INNER_ID, offset));
+            let content = SurfaceNode::column(
+                Self::OUTER_CONTENT_ID,
+                0.0,
+                vec![
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(120.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                Self::PREFIX_ID,
+                                "Prefix",
+                                WidgetSizing::fixed(Vector2::new(80.0, 120.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ),
+                    ),
+                    SurfaceChild::new(
+                        SlotParams {
+                            size_main: SizeModeMain::Fixed(80.0),
+                            size_cross: SizeModeCross::Fill,
+                            constraints: Constraints::unconstrained(),
+                            margin: Default::default(),
+                            align_cross_override: None,
+                            allow_fixed_compress: false,
+                        },
+                        inner,
+                    ),
+                ],
+            );
+            SurfaceNode::container(
+                Self::OUTER_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, 10.0)),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(content)],
+            )
+            .on_offset_settled(|offset| (Self::OUTER_ID, offset))
+        }
+    }
+
+    impl RuntimeBridge<(u64, Vector2)> for ReentrantFocusRevealBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<(u64, Vector2)>> {
+            let outer = self.outer();
+            let root = if self.moved {
+                SurfaceNode::stack(
+                    100,
+                    vec![
+                        SurfaceChild::fill(outer),
+                        SurfaceChild::fill(SurfaceNode::widget(
+                            ButtonWidget::new(
+                                Self::TARGET_ID,
+                                "Reparented target",
+                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        )),
+                    ],
+                )
+            } else {
+                outer
+            };
+            crate::runtime::test_arc_surface(UiSurface::new(root))
+        }
+
+        fn reduce_message(&mut self, message: (u64, Vector2)) {
+            self.settled.push(message);
+            if message.0 == Self::INNER_ID {
+                self.moved = true;
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct SiblingFocusRevealBridge {
+        settled: Vec<(u64, Vector2)>,
+    }
+
+    impl SiblingFocusRevealBridge {
+        const FIRST_ID: u64 = 1;
+        const FIRST_CONTENT_ID: u64 = 2;
+        const SECOND_ID: u64 = 3;
+        const SECOND_CONTENT_ID: u64 = 4;
+        const OUTSIDE_ID: u64 = 10;
+
+        fn scroll(id: u64, content_id: u64, initial_offset: f32) -> SurfaceNode<(u64, Vector2)> {
+            SurfaceNode::container(
+                id,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, initial_offset)),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::fill(SurfaceNode::widget(
+                    TextWidget::new(
+                        content_id,
+                        "Tall",
+                        WidgetSizing::fixed(Vector2::new(100.0, 400.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                ))],
+            )
+            .on_offset_settled(move |offset| (id, offset))
+        }
+    }
+
+    impl RuntimeBridge<(u64, Vector2)> for SiblingFocusRevealBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<(u64, Vector2)>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::stack(
+                9,
+                vec![
+                    SurfaceChild::fill(Self::scroll(Self::FIRST_ID, Self::FIRST_CONTENT_ID, 40.0)),
+                    SurfaceChild::fill(Self::scroll(
+                        Self::SECOND_ID,
+                        Self::SECOND_CONTENT_ID,
+                        60.0,
+                    )),
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        ButtonWidget::new(
+                            Self::OUTSIDE_ID,
+                            "Outside",
+                            WidgetSizing::fixed(Vector2::new(80.0, 24.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    )),
+                ],
+            )))
+        }
+
+        fn reduce_message(&mut self, message: (u64, Vector2)) {
+            self.settled.push(message);
+        }
     }
 
     struct OverlappingScrollBridge;

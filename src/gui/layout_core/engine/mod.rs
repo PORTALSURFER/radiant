@@ -4,6 +4,7 @@ mod cache;
 mod context;
 mod direct;
 mod dirty;
+mod fragments;
 mod helpers;
 mod layout;
 mod measure;
@@ -288,6 +289,7 @@ impl LayoutPreparationWorkspace {
 #[allow(dead_code)]
 #[derive(Default)]
 struct LayoutPreparationWorkspaceStorage {
+    fragments: fragments::LayoutFragmentCache,
     output: LayoutOutput,
     scratch: LayoutScratch,
     measure_updates: HashMap<MeasureCacheKey, Vector2>,
@@ -557,6 +559,7 @@ pub(crate) enum PreparedLayoutCommitError {
 /// Reusable stateful layout engine with measurement and virtualization caches.
 #[derive(Default)]
 pub struct LayoutEngine {
+    fragments: fragments::LayoutFragmentCache,
     measure_cache: HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
     scratch: LayoutScratch,
@@ -572,6 +575,12 @@ pub struct LayoutEngine {
 }
 
 impl LayoutEngine {
+    pub(crate) fn with_static_geometry_fragments() -> Self {
+        let mut engine = Self::default();
+        engine.fragments.enabled = true;
+        engine
+    }
+
     fn note_mutation(&mut self, cache_authority_changed: bool) {
         let Some(next_generation) = self.generation.checked_add(1) else {
             self.generation_exhausted = true;
@@ -743,6 +752,8 @@ impl LayoutEngine {
         output: &mut LayoutOutput,
     ) {
         self.note_mutation(true);
+        let dirty = self.has_explicit_dirty();
+        self.fragments.begin(root, debug, dirty);
         let constraints = Constraints {
             min_w: 0.0,
             max_w: root_rect.width().max(0.0),
@@ -757,6 +768,7 @@ impl LayoutEngine {
                 None
             };
             let mut context = LayoutContext::new(LayoutContextParts {
+                fragments: &mut self.fragments,
                 cache: &mut self.measure_cache,
                 active_cache: None,
                 virtual_cache: &mut self.virtual_cache,
@@ -776,6 +788,7 @@ impl LayoutEngine {
             layout::layout_node(root, root_rect, &mut context);
         }
 
+        self.fragments.finish();
         self.prune_stale_measure_cache();
         self.prune_stale_virtual_cache();
         self.clear_dirty_without_generation();
@@ -855,6 +868,10 @@ impl LayoutEngine {
         }
 
         storage.begin(&self.layout_dirty, &self.measure_dirty);
+        storage.fragments.fork_from(&self.fragments);
+        storage
+            .fragments
+            .begin(root, debug, self.has_explicit_dirty());
         let constraints = Constraints {
             min_w: 0.0,
             max_w: root_rect.width().max(0.0),
@@ -869,6 +886,7 @@ impl LayoutEngine {
                 None
             };
             let mut context = LayoutContext::new(LayoutContextParts {
+                fragments: &mut storage.fragments,
                 cache: &mut storage.measure_updates,
                 active_cache: Some(&self.measure_cache),
                 virtual_cache: &mut storage.virtual_updates,
@@ -888,6 +906,7 @@ impl LayoutEngine {
             layout::layout_node(root, root_rect, &mut context);
         }
 
+        storage.fragments.finish();
         workspace.observe(&storage);
         PreparedLayoutPass {
             workspace: Some(storage),
@@ -934,6 +953,7 @@ impl LayoutEngine {
             self.virtual_cache.insert(key, value);
         }
 
+        self.fragments = std::mem::take(&mut storage.fragments);
         std::mem::swap(output, &mut storage.output);
         std::mem::swap(&mut self.scratch, &mut storage.scratch);
         for node_id in storage.layout_dirty.drain() {

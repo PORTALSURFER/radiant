@@ -74,7 +74,7 @@ where
             window_environment: initial_environment,
             surface,
             layout_root,
-            layout_engine: LayoutEngine::default(),
+            layout_engine: LayoutEngine::with_static_geometry_fragments(),
             layout: LayoutOutput::default(),
             layout_state: LayoutState::default(),
             layout_state_generation: 0,

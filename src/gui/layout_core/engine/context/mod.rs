@@ -40,6 +40,7 @@ pub(super) struct LayoutScratch {
 /// recording needed by the engine's measure and layout passes so those passes
 /// can share one consistent view of normalization and overflow state.
 pub(super) struct LayoutContext<'a> {
+    fragments: &'a mut super::fragments::LayoutFragmentCache,
     measured: &'a mut HashMap<MeasureCacheKey, Vector2>,
     measured_by_node: &'a mut HashMap<NodeId, Vector2>,
     virtual_touched: &'a mut HashSet<VirtualizationCacheKey>,
@@ -61,6 +62,7 @@ pub(super) struct LayoutContext<'a> {
 }
 
 pub(super) struct LayoutContextParts<'a> {
+    pub(super) fragments: &'a mut super::fragments::LayoutFragmentCache,
     pub(super) cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
     pub(super) active_cache: Option<&'a HashMap<MeasureCacheKey, Vector2>>,
     pub(super) virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
@@ -78,6 +80,28 @@ pub(super) struct LayoutContextParts<'a> {
 }
 
 impl<'a> LayoutContext<'a> {
+    pub(super) fn reuse_layout_fragment(
+        &mut self,
+        node: &super::LayoutNode,
+        rect: crate::gui::types::Rect,
+    ) -> bool {
+        self.linear_windows.is_empty()
+            && self
+                .fragments
+                .reuse(node, rect, self.direction, self.output)
+    }
+
+    pub(super) fn capture_layout_fragment(
+        &mut self,
+        node: &super::LayoutNode,
+        rect: crate::gui::types::Rect,
+    ) {
+        if self.linear_windows.is_empty() {
+            self.fragments
+                .capture(node, rect, self.direction, self.output);
+        }
+    }
+
     /// Build a fresh layout-engine scratchpad for one evaluation pass.
     pub(super) fn new(parts: LayoutContextParts<'a>) -> Self {
         parts.scratch.measured.clear();
@@ -95,6 +119,7 @@ impl<'a> LayoutContext<'a> {
         parts.scratch.dirty_marked.clear();
         parts.output.clear_reusing_storage();
         Self {
+            fragments: parts.fragments,
             measured: &mut parts.scratch.measured,
             measured_by_node: &mut parts.scratch.measured_by_node,
             virtual_touched: &mut parts.scratch.virtual_touched,

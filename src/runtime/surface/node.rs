@@ -1,3 +1,4 @@
+mod children;
 mod clone;
 mod layer;
 mod model;

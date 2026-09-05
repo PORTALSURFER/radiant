@@ -72,7 +72,7 @@ pub struct SurfaceContainer<Message> {
         Option<EventMapper<crate::runtime::ScrollUpdate, Option<Message>>>,
     pub(in crate::runtime::surface) offset_settled:
         Option<Rc<dyn Fn(crate::gui::types::Vector2) -> Message>>,
-    pub(in crate::runtime::surface) children: Vec<SurfaceChild<Message>>,
+    pub(in crate::runtime::surface) children: super::children::SurfaceChildren<Message>,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
 }
 
@@ -104,7 +104,7 @@ impl<Message> SurfaceContainer<Message> {
             virtual_layout: None,
             scroll_message: None,
             offset_settled: None,
-            children: parts.children,
+            children: parts.children.into(),
             source: None,
         }
     }

@@ -6,8 +6,8 @@ use super::{
 };
 use crate::{
     gui::types::{Point, Rect, Rgba8},
-    runtime::{PaintPrimitive, push_fill_rect, push_stroke_rect},
-    widgets::WidgetId,
+    runtime::{PaintPrimitive, ResolvedEnvironment, push_fill_rect, push_stroke_rect},
+    widgets::{DeclaredTextMetrics, WidgetId},
 };
 
 /// Optional inset outline for dense-row chrome.
@@ -238,6 +238,30 @@ pub fn push_dense_row_labeled_chrome(
     let initial_len = primitives.len();
     push_dense_row_chrome(primitives, widget_id, bounds, chrome);
     push_dense_row_label(primitives, widget_id, bounds, label);
+    primitives.len() - initial_len
+}
+
+/// Push standard physical dense-row chrome followed by an environment-aware
+/// centered label.
+pub fn push_dense_row_labeled_chrome_with_environment(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    chrome: DenseRowChromeParts,
+    label: DenseRowLabelParts,
+    declared: DeclaredTextMetrics,
+    environment: &ResolvedEnvironment,
+) -> usize {
+    let initial_len = primitives.len();
+    push_dense_row_chrome(primitives, widget_id, bounds, chrome);
+    super::label::push_dense_row_label_with_environment(
+        primitives,
+        widget_id,
+        bounds,
+        label,
+        declared,
+        environment,
+    );
     primitives.len() - initial_len
 }
 

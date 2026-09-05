@@ -4,10 +4,14 @@ use super::{InteractiveRowActions, InteractiveRowLocalActions, InteractiveRowWid
 use crate::{
     gui::types::Rect,
     layout::LayoutOutput,
-    runtime::PaintPrimitive,
+    runtime::{PaintPrimitive, ResolvedEnvironment},
     theme::ThemeTokens,
     widgets::{
-        contract::{Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision},
+        DeclaredTextMetrics, TextScaleParticipation,
+        contract::{
+            Widget, WidgetCapabilities, WidgetPaintContext, WidgetPointerMotion,
+            WidgetPointerMotionRevision, WidgetSemantics,
+        },
         interaction::{InteractiveRowMessage, WidgetInput, WidgetOutput},
         primitives::support::WidgetCommon,
     },
@@ -75,6 +79,30 @@ pub trait EmbeddedInteractiveRowWidget: Clone + 'static {
             })
     }
 
+    /// Return the optional declared text metrics for this embedded row.
+    ///
+    /// Custom rows remain on the legacy unscaled contract unless they provide
+    /// an explicit immutable declaration.
+    fn declared_interactive_row_text_metrics(&self) -> Option<DeclaredTextMetrics> {
+        None
+    }
+
+    /// Append host-specific paint through the environment-aware context.
+    ///
+    /// The default delegates exactly once to the legacy paint callback.
+    fn append_interactive_row_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        let bounds = context.bounds();
+        let layout = context.layout();
+        let theme = context.theme();
+        let primitives = context.primitives();
+        self.append_interactive_row_paint(primitives, bounds, layout, theme);
+    }
+
+    /// Return optional semantics for this embedded row.
+    fn interactive_row_semantics(&self) -> Option<&dyn WidgetSemantics> {
+        None
+    }
+
     /// Append host-specific paint for this custom row.
     fn append_interactive_row_paint(
         &self,
@@ -97,6 +125,27 @@ where
         self.interactive_row_mut().common_mut()
     }
 
+    fn text_scale_participation(&self) -> TextScaleParticipation {
+        self.declared_interactive_row_text_metrics()
+            .map_or(TextScaleParticipation::Unscaled, |_| {
+                TextScaleParticipation::Scaled
+            })
+    }
+
+    fn layout_node_with_environment(
+        &self,
+        environment: &ResolvedEnvironment,
+    ) -> crate::layout::LayoutNode {
+        let Some(declared) = self.declared_interactive_row_text_metrics() else {
+            return self.interactive_row().common().layout_node();
+        };
+        crate::layout::LayoutNode::Widget(
+            declared
+                .resolve(environment, TextScaleParticipation::Scaled)
+                .layout_node(self.interactive_row().id()),
+        )
+    }
+
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         let message = self.interactive_row_mut().handle_input(bounds, input)?;
         self.map_interactive_row_message(message)
@@ -104,7 +153,10 @@ where
     }
 
     fn capabilities(&self) -> WidgetCapabilities<'_> {
-        WidgetCapabilities::none()
+        self.interactive_row_semantics()
+            .map_or_else(WidgetCapabilities::none, |semantics| {
+                WidgetCapabilities::new().semantics(semantics)
+            })
     }
 
     fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
@@ -127,5 +179,9 @@ where
         theme: &ThemeTokens,
     ) {
         self.append_interactive_row_paint(primitives, bounds, layout, theme);
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        self.append_interactive_row_paint_with_context(context);
     }
 }

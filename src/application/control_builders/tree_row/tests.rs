@@ -1,14 +1,17 @@
 use super::hit_target::{TreeRowHitTarget, TreeRowHitTargetParts};
 use crate::{
-    application::{IntoView, tree_row},
+    application::{
+        ApplicationEnvironment, IntoView, LocaleId, TextScale, WritingDirection, tree_row,
+    },
     gui::{
-        list::{DenseRowMarkerParts, DenseRowMarkerStyle, DenseRowPalette},
+        list::{DenseRowMarkerParts, DenseRowMarkerStyle, DenseRowPalette, TreeGuideMetrics},
         types::{Point, Rect, Rgba8, Vector2},
     },
+    runtime::{PaintPrimitive, ResolvedEnvironment},
     theme::ThemeTokens,
     widgets::{
-        InteractiveRowActions, PointerButton, PointerModifiers, Widget, WidgetInput, WidgetStyle,
-        WidgetTone, stable_widget_id,
+        InteractiveRowActions, InteractiveRowLocalActions, PointerButton, PointerModifiers, Widget,
+        WidgetInput, WidgetPaintContext, WidgetStyle, WidgetTone, stable_widget_id,
     },
 };
 
@@ -17,6 +20,346 @@ enum TreeRowMessage {
     Activate,
     ActivateWithModifiers(PointerModifiers),
     Toggle,
+}
+
+fn text_environment(scale: f32) -> ResolvedEnvironment {
+    ResolvedEnvironment::from_snapshots(
+        crate::runtime::WindowEnvironment::new(
+            crate::theme::DpiScale::new(2.0),
+            None,
+            false,
+            false,
+        ),
+        std::sync::Arc::new(
+            ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(scale).expect("valid text scale")),
+        ),
+    )
+}
+
+fn row_text(plan: &crate::runtime::SurfacePaintPlan) -> &crate::runtime::PaintTextRun {
+    plan.text_runs().next().expect("tree row text run")
+}
+
+#[test]
+fn tree_row_declared_metrics_follow_scale_without_scaling_physical_row_geometry() {
+    for (scale, expected_font, expected_inset) in
+        [(1.0, 13.0, 4.0), (1.5, 19.5, 6.0), (2.0, 26.0, 8.0)]
+    {
+        let input_id = 801;
+        let surface = tree_row("Folder")
+            .input_id(input_id)
+            .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate))
+            .into_surface()
+            .with_application_environment(
+                ApplicationEnvironment::new(LocaleId::english())
+                    .with_text_scale(TextScale::new(scale).expect("valid text scale")),
+            );
+        let frame = surface.frame_at_size_with_default_theme(Vector2::new(160.0, 22.0));
+        let hit_bounds = frame
+            .layout
+            .rects
+            .get(&input_id)
+            .expect("tree hit target bounds");
+        assert_eq!(hit_bounds.height(), 22.0);
+        let text = row_text(&frame.paint_plan);
+        assert_eq!(text.font_size, expected_font);
+        assert_eq!(text.rect.min.x, hit_bounds.min.x + expected_inset);
+    }
+}
+
+#[test]
+fn tree_row_explicit_height_selects_nominal_font_but_stays_physical() {
+    let input_id = 802;
+    let surface = tree_row("Folder")
+        .row_height(38.0)
+        .input_id(input_id)
+        .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate))
+        .into_surface()
+        .with_application_environment(
+            ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(1.5).expect("valid text scale")),
+        );
+    let frame = surface.frame_at_size_with_default_theme(Vector2::new(220.0, 38.0));
+    let hit_bounds = frame
+        .layout
+        .rects
+        .get(&input_id)
+        .expect("tree hit target bounds");
+    assert_eq!(hit_bounds.height(), 38.0);
+    assert_eq!(row_text(&frame.paint_plan).font_size, 27.0);
+}
+
+#[test]
+fn tree_row_assigned_bounds_do_not_derive_declared_font_or_inset() {
+    let input_id = 803;
+    let surface = tree_row("Folder")
+        .input_id(input_id)
+        .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate))
+        .into_surface();
+    let widget = surface
+        .find_widget(input_id)
+        .expect("tree hit target")
+        .widget();
+    let environment = text_environment(2.0);
+    let layout = crate::layout::LayoutOutput::default();
+    let theme = ThemeTokens::default();
+    for height in [11.0, 60.0] {
+        let bounds = Rect::from_size(120.0, height);
+        let mut primitives = Vec::new();
+        let mut context =
+            WidgetPaintContext::new(&mut primitives, bounds, &layout, &theme, &environment);
+        widget.append_paint_with_context(&mut context);
+        let PaintPrimitive::Text(text) = primitives
+            .iter()
+            .find(|primitive| matches!(primitive, PaintPrimitive::Text(_)))
+            .expect("tree label")
+        else {
+            panic!("expected tree text");
+        };
+        assert_eq!(text.font_size, 26.0);
+        assert_eq!(text.rect.min.x, 8.0);
+    }
+}
+
+#[test]
+fn tree_row_optional_semantics_use_host_selection_and_runtime_focus() {
+    let input_id = 804;
+    let surface = tree_row("Folder")
+        .selected(true)
+        .input_id(input_id)
+        .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate))
+        .into_surface();
+    let widget = surface
+        .find_widget(input_id)
+        .expect("tree hit target")
+        .widget();
+    let semantics = widget.automation_semantics();
+    assert_eq!(semantics.role, crate::gui::automation::AutomationRole::Row);
+    assert_eq!(semantics.label.as_deref(), Some("Folder"));
+    assert!(semantics.selected);
+    assert!(!semantics.focused);
+
+    let mut focused = surface;
+    focused
+        .find_widget_mut(input_id)
+        .expect("tree hit target")
+        .widget_mut()
+        .handle_input(
+            Rect::from_size(120.0, 22.0),
+            WidgetInput::FocusChanged(true),
+        );
+    assert!(
+        focused
+            .find_widget(input_id)
+            .expect("focused tree hit target")
+            .widget()
+            .automation_semantics()
+            .focused
+    );
+}
+
+#[test]
+fn tree_row_keeps_guide_expander_icon_and_hit_geometry_physical() {
+    for (row_height, nominal_font) in [(22.0, 13.0), (38.0, 18.0)] {
+        for (scale, expected_font, expected_inset) in [
+            (1.0, nominal_font, 4.0),
+            (1.5, nominal_font * 1.5, 6.0),
+            (2.0, nominal_font * 2.0, 8.0),
+        ] {
+            let frames = [WritingDirection::Ltr, WritingDirection::Rtl].map(|direction| {
+                let surface = tree_row("Folder")
+                    .depth(2)
+                    .has_children(true)
+                    .expanded(true)
+                    .row_height(row_height)
+                    .trailing_icon(crate::gui::svg::IconName::ChevronDown.icon())
+                    .input_id(805)
+                    .interactive_actions(
+                        InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
+                    )
+                    .into_surface()
+                    .with_application_environment(
+                        ApplicationEnvironment::new(LocaleId::english())
+                            .with_writing_direction(direction)
+                            .with_text_scale(TextScale::new(scale).expect("valid text scale")),
+                    );
+                let crate::layout::LayoutNode::Container(container) = surface.layout_node() else {
+                    panic!("TreeRow lowers to a row container");
+                };
+                assert_eq!(
+                    container.children[0].slot.size_cross,
+                    crate::layout::SizeModeCross::Fixed(22.0),
+                    "default guide keeps its fixed 22px slot"
+                );
+                surface.frame_at_size_with_default_theme(Vector2::new(240.0, row_height))
+            });
+            let ltr = &frames[0];
+            let rtl = &frames[1];
+            let ltr_hit = ltr.layout.rects.get(&805).expect("ltr tree hit target");
+            let rtl_hit = rtl.layout.rects.get(&805).expect("rtl tree hit target");
+
+            assert_eq!(ltr_hit.height(), row_height);
+            assert_eq!(rtl_hit.height(), row_height);
+            assert_eq!(ltr_hit.min.x, 240.0 - rtl_hit.max.x);
+            assert_eq!(ltr_hit.max.x, 240.0 - rtl_hit.min.x);
+
+            for frame in [ltr, rtl] {
+                let guide = frame
+                    .layout
+                    .rects
+                    .values()
+                    .find(|rect| rect.width() == 24.0)
+                    .expect("physical tree guide indent");
+                let expander = frame
+                    .layout
+                    .rects
+                    .values()
+                    .find(|rect| rect.width() == 28.0 && rect.height() == row_height)
+                    .expect("physical tree expander slot");
+                assert_eq!(guide.height(), row_height);
+                assert_eq!(expander.height(), row_height);
+
+                let icon = frame
+                    .paint_plan
+                    .svgs_for_widget(805)
+                    .next()
+                    .expect("tree trailing icon");
+                let hit_bounds = frame
+                    .layout
+                    .rects
+                    .get(&805)
+                    .expect("tree hit target bounds");
+                assert_eq!(icon.rect.width(), 11.0);
+                assert_eq!(icon.rect.height(), 11.0);
+                assert_eq!(icon.rect.min.x, hit_bounds.max.x - 16.0);
+                assert_eq!(
+                    icon.rect.min.y,
+                    hit_bounds.min.y + (row_height - 11.0) / 2.0
+                );
+
+                let text = row_text(&frame.paint_plan);
+                assert_eq!(text.font_size, expected_font);
+                assert_eq!(text.rect.min.x, hit_bounds.min.x + expected_inset);
+            }
+        }
+    }
+}
+
+#[test]
+fn tree_row_explicit_guide_height_stays_independent_for_mapped_and_local_builders() {
+    let configured_guide = TreeGuideMetrics::new(12.0, 17.0);
+    assert_eq!(configured_guide.indent_width, 12.0);
+    assert_eq!(configured_guide.row_height, 17.0);
+    for scale in [1.0, 1.5, 2.0] {
+        for direction in [WritingDirection::Ltr, WritingDirection::Rtl] {
+            for local in [false, true] {
+                let builder = tree_row("Folder")
+                    .depth(2)
+                    .has_children(true)
+                    .row_height(38.0)
+                    .guide_style(configured_guide)
+                    .input_id(808);
+                let view = if local {
+                    builder.interactive_actions_local(
+                        InteractiveRowLocalActions::new().activate(|| TreeRowMessage::Activate),
+                    )
+                } else {
+                    builder.interactive_actions(
+                        InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
+                    )
+                };
+                let surface = view.into_surface().with_application_environment(
+                    ApplicationEnvironment::new(LocaleId::english())
+                        .with_writing_direction(direction)
+                        .with_text_scale(TextScale::new(scale).expect("valid text scale")),
+                );
+                let crate::layout::LayoutNode::Container(container) = surface.layout_node() else {
+                    panic!("TreeRow lowers to a row container");
+                };
+                assert_eq!(container.children.len(), 3);
+                assert_eq!(
+                    container.children[0].slot.size_cross,
+                    crate::layout::SizeModeCross::Fixed(17.0),
+                    "custom guide uses the configured fixed cross-axis slot"
+                );
+                let frame = surface.frame_at_size_with_default_theme(Vector2::new(240.0, 38.0));
+
+                let hit = frame.layout.rects.get(&808).expect("tree hit target");
+                assert_eq!(hit.height(), 38.0);
+                assert!(
+                    frame
+                        .layout
+                        .rects
+                        .values()
+                        .any(|rect| rect.width() == 24.0 && rect.height() == 38.0),
+                    "custom guide indent keeps its configured width and follows the existing physical row placement"
+                );
+                assert!(
+                    frame
+                        .layout
+                        .rects
+                        .values()
+                        .any(|rect| rect.width() == 28.0 && rect.height() == 38.0)
+                );
+                let text = row_text(&frame.paint_plan);
+                assert_eq!(text.font_size, 18.0 * scale);
+                assert_eq!(text.rect.min.x, hit.min.x + 4.0 * scale);
+            }
+        }
+    }
+}
+
+#[test]
+fn tree_row_ui_local_construction_preserves_configured_hit_height() {
+    let input_id = 806;
+    let view = tree_row("Folder")
+        .row_height(38.0)
+        .input_id(input_id)
+        .interactive_actions_local(
+            InteractiveRowLocalActions::new().activate(|| TreeRowMessage::Activate),
+        );
+    let frame = view.view_frame_at_size_with_default_theme(Vector2::new(200.0, 38.0));
+    assert_eq!(
+        frame
+            .layout
+            .rects
+            .get(&input_id)
+            .expect("local tree hit target bounds")
+            .height(),
+        38.0
+    );
+    assert_eq!(row_text(&frame.paint_plan).font_size, 18.0);
+}
+
+#[test]
+fn tree_row_ltr_and_rtl_mirror_container_geometry_but_keep_label_metrics() {
+    let input_id = 807;
+    let make = |direction| {
+        tree_row("Folder")
+            .depth(2)
+            .input_id(input_id)
+            .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate))
+            .into_surface()
+            .with_application_environment(
+                ApplicationEnvironment::new(LocaleId::english())
+                    .with_writing_direction(direction)
+                    .with_text_scale(TextScale::new(1.5).expect("valid text scale")),
+            )
+            .frame_at_size_with_default_theme(Vector2::new(240.0, 22.0))
+    };
+    let ltr = make(WritingDirection::Ltr);
+    let rtl = make(WritingDirection::Rtl);
+    let ltr_hit = ltr.layout.rects.get(&input_id).expect("ltr hit target");
+    let rtl_hit = rtl.layout.rects.get(&input_id).expect("rtl hit target");
+    assert_eq!(ltr_hit.min.x, 240.0 - rtl_hit.max.x);
+    assert_eq!(ltr_hit.max.x, 240.0 - rtl_hit.min.x);
+    let ltr_text = row_text(&ltr.paint_plan);
+    let rtl_text = row_text(&rtl.paint_plan);
+    assert_eq!(ltr_text.text, rtl_text.text);
+    assert_eq!(ltr_text.font_size, 19.5);
+    assert_eq!(rtl_text.font_size, 19.5);
+    assert_eq!(ltr_text.rect.width(), rtl_text.rect.width());
 }
 
 #[test]
@@ -243,6 +586,7 @@ fn selected_hover_tree_row_paints_configured_fill_and_marker() {
     let marker = Rgba8::new(220, 80, 40, 245);
     let mut target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        row_height: 22.0,
         label_inset_x: 4.0,
         selected: true,
         focused: false,
@@ -291,6 +635,7 @@ fn selected_idle_tree_row_keeps_normal_label_color() {
     let highlighted = Rgba8::new(255, 255, 255, 255);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        row_height: 22.0,
         label_inset_x: 4.0,
         selected: true,
         focused: true,
@@ -326,6 +671,7 @@ fn selected_hovered_tree_row_uses_highlighted_label_color() {
     let highlighted = Rgba8::new(255, 255, 255, 255);
     let mut target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        row_height: 22.0,
         label_inset_x: 4.0,
         selected: true,
         focused: true,
@@ -362,6 +708,7 @@ fn focused_tree_row_paints_focus_outline_without_selected_fill() {
     let focus = Rgba8::new(220, 220, 216, 255);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        row_height: 22.0,
         label_inset_x: 4.0,
         selected: false,
         focused: true,
@@ -399,6 +746,7 @@ fn selected_focused_tree_row_paints_selected_fill_without_marker() {
     let marker = Rgba8::new(220, 80, 40, 245);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        row_height: 22.0,
         label_inset_x: 4.0,
         selected: true,
         focused: true,

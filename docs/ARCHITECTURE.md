@@ -1607,9 +1607,13 @@ locale fallback, direction, text scale, catalog generation, and shortcut
   BadgeWidget, ToggleWidget, SelectableWidget, ListItemWidget, and NumericInput
   now resolve intrinsic metrics and paint font from text scale. Explicit parent width/height
   slots remain physical constraints, and DPI is applied only at the native scene
-  boundary. Dense and interactive rows, TreeRow, menu/shell geometry, and
-  locale/direction presentation identity propagation remain staged under
-  OPT-1386. The retained bidi and complex-shaping implementation is owned
+  boundary. Dense-row helpers expose additive environment-aware label/chrome
+  entry points while existing bounds-derived helpers remain legacy-compatible.
+  Embedded interactive rows and TreeRow resolve one immutable declared
+  text-metrics witness; row, guide, expander, icon, hit, and capture geometry
+  remains physical, and TreeRow semantics preserve host/runtime ownership.
+  Menu/shell geometry and locale/direction presentation identity propagation
+  remain staged under OPT-1386. The retained bidi and complex-shaping implementation is owned
   by OPT-1402 and documented in
   [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
 

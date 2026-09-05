@@ -12,11 +12,13 @@ mod fixtures {
         dense_row_drop_outline_from_style, dense_row_fill_color, dense_row_inset_rect,
         dense_row_label_font_size, dense_row_palette_from_style, dense_row_tree_guide_color,
         dense_row_vertical_marker_rect, push_dense_row_chrome, push_dense_row_fill,
-        push_dense_row_inset_stroke, push_dense_row_label, push_dense_row_labeled_chrome,
+        push_dense_row_inset_stroke, push_dense_row_label, push_dense_row_label_with_environment,
+        push_dense_row_labeled_chrome, push_dense_row_labeled_chrome_with_environment,
         push_dense_row_vertical_marker,
     };
+    pub(super) use crate::application::{ApplicationEnvironment, LocaleId, TextScale};
     pub(super) use crate::gui::types::{Point, Rect, Rgba8, Vector2};
-    pub(super) use crate::runtime::{PaintPrimitive, PaintStrokeRect};
+    pub(super) use crate::runtime::{PaintPrimitive, PaintStrokeRect, ResolvedEnvironment};
     pub(super) use crate::theme::ThemeTokens;
     pub(super) use crate::widgets::{WidgetProminence, WidgetStyle, WidgetTone};
 
@@ -65,5 +67,28 @@ mod fixtures {
             .pressed(PRESSED)
             .active_target(ACTIVE)
             .candidate_hovered(CANDIDATE)
+    }
+
+    pub(super) fn environment(scale: f32, dpi: f64) -> ResolvedEnvironment {
+        ResolvedEnvironment::from_snapshots(
+            crate::runtime::WindowEnvironment::new(
+                crate::theme::DpiScale::new(dpi),
+                None,
+                false,
+                false,
+            ),
+            std::sync::Arc::new(
+                ApplicationEnvironment::new(LocaleId::english())
+                    .with_text_scale(TextScale::new(scale).expect("valid text scale")),
+            ),
+        )
+    }
+
+    pub(super) fn declared_metrics() -> crate::widgets::DeclaredTextMetrics {
+        crate::widgets::DeclaredTextMetrics::new(
+            crate::widgets::WidgetSizing::fixed(Vector2::new(0.0, 22.0)),
+            13.0,
+            Vector2::new(4.0, 0.0),
+        )
     }
 }

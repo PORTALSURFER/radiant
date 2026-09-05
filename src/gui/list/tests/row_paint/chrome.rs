@@ -135,3 +135,39 @@ fn push_dense_row_labeled_chrome_appends_chrome_before_label() {
             if text.widget_id == 11 && text.text == "Folder" && text.color == PRESSED
     ));
 }
+
+#[test]
+fn environment_labeled_chrome_keeps_physical_chrome_before_scaled_label() {
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
+    let mut primitives = Vec::new();
+    let count = push_dense_row_labeled_chrome_with_environment(
+        &mut primitives,
+        22,
+        bounds,
+        DenseRowChromeParts::new(
+            DenseRowVisualState {
+                selected: true,
+                ..DenseRowVisualState::default()
+            },
+            palette(),
+        )
+        .leading_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(3.0),
+            SELECTED,
+        ))
+        .outline(DenseRowOutlineStyle::new(0.5, ACTIVE, 1.0)),
+        DenseRowLabelParts::new("Folder", PRESSED),
+        declared_metrics(),
+        &environment(2.0, 2.0),
+    );
+
+    assert_eq!(count, 4);
+    assert!(matches!(&primitives[0], PaintPrimitive::FillRect(fill) if fill.rect == bounds));
+    assert!(matches!(&primitives[1], PaintPrimitive::FillRect(fill) if fill.rect.width() == 3.0));
+    assert!(
+        matches!(&primitives[2], PaintPrimitive::StrokeRect(stroke) if stroke.rect == Rect::from_min_max(Point::new(10.5, 20.5), Point::new(129.5, 41.5)))
+    );
+    assert!(
+        matches!(&primitives[3], PaintPrimitive::Text(text) if text.font_size == 26.0 && text.rect.min.x == 18.0)
+    );
+}

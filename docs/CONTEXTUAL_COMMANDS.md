@@ -9,7 +9,8 @@ The advanced `.commands(registry, project, dispatcher)` hook also accepts manual
 The Winit keyboard adapter submits native presses through this boundary for runtimes with a
 semantic command host. Menu, toolbar and palette controls consume the shared presentation
 and revalidate their opaque targets on activation. Native auxiliary windows inherit the
-registered resolver and keymap. Native menu installation remains integration work.
+registered resolver and keymap. Native adapters query current command presentations and
+submit opaque activations through the same runtime boundary.
 
 ## Ownership and precedence
 
@@ -71,6 +72,23 @@ unchanged scope to retain its incarnation. Reconstruct it when captured context 
 queued target for a replaced scope, another registry, or a newly shadowed owner is rejected
 before mapping. Unavailable and conflicting targets cannot execute. Runtime shutdown rejects
 all requests before invoking the application projection.
+
+## Native presentation queries
+
+`runtime.command_presentations(&ids, platform)` reads one current keymap, committed scope
+projection and resolved environment for up to 256 items, in request order. It needs no
+application context type, raw focus inspection, mapper call or reduction. Unknown commands,
+invalid scopes, exceeded capacity and unavailable services reject the whole batch through
+`CommandPresentationError`. Disabled or conflicting bindings retain static metadata without
+an enabled activation. Repeated IDs are allowed for commands appearing in several menus.
+
+Native adapters use each presentation's label, checked/enabled state, accessibility text and
+platform shortcut forms, then associate `activation(CommandSource::Menu)` with the native
+item. Submit its `request()` through `dispatch_command_request` when activated. Never retain
+an already-mapped domain message. This is the shared platform projection boundary; the
+embedding native adapter owns OS menu objects and event delivery. The command module does
+not install OS menus or establish OS-level menu acceptance. Exported `CommandService` values
+also provide `presentations` for custom hosts, with the same bounds and target qualification.
 
 ## Command controls
 
@@ -163,6 +181,19 @@ legacy key subset, applies the registered repeat policy, and reserves required t
 keys even when clipboard access fails. A command consumed by the semantic host cancels any
 pending legacy chord. Native tests cover the shared routing seam without opening an OS window;
 they are not OS-level keyboard, menu, or IME acceptance evidence.
+
+To migrate a `ShortcutCatalog` caller:
+
+1. Register each semantic action once with a stable `CommandId`, `TextKey` metadata and
+   explicit logical or physical defaults. Use physical defaults when preserving positional
+   legacy behavior is intentional.
+2. Move dynamic availability, checked state and context into view `.commands(...)` bindings
+   or prepared named scopes. Keep the reducer's domain checks and undo policy.
+3. Register `.command_registry(registry, dispatcher)` with one invocation-to-message mapper.
+4. Build menus, toolbar controls, palettes and help from shared presentations; load optional
+   persisted overrides through `.command_keymap(...)`.
+5. Remove the corresponding legacy bindings after validating their semantic replacements.
+   During migration only `Unhandled` reaches the old catalog, preventing duplicate actions.
 
 Run `cargo run --example contextual_commands` for a headless application/reducer example.
 Core tests cover precedence, disabled fallthrough, conflict rejection, identity retirement,

@@ -3956,8 +3956,9 @@ that resolver. `ViewNode::commands` and `.command_scope` declare ownership, whil
 `.command_registry` selects scopes from the committed focus ancestry and scene layers.
 `CommandPresentation` builds menu, toolbar, palette and help controls from the same
 metadata; activation uses the runtime mapper. Native child windows share the registered
-`CommandService` while resolving their own committed scopes. OS menu installation remains separate
-integration work. Existing catalogs retain their behavior.
+`CommandService` while resolving their own committed scopes. Native adapters query bounded
+`command_presentations` batches and submit opaque activations; they own OS menu objects.
+Existing catalogs retain their behavior.
 
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered

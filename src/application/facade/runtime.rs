@@ -19,9 +19,9 @@ pub use crate::gui::shortcuts::ShortcutPlatform;
 pub use super::super::commands::{
     CommandActivation, CommandBinding, CommandConflict, CommandDescriptor, CommandDispatch,
     CommandDispatchStatus, CommandDispatcher, CommandFocus, CommandId, CommandInput,
-    CommandInvocation, CommandKey, CommandModifiers, CommandPresentation, CommandRegistrationError,
-    CommandRegistry, CommandRequest, CommandResolution, CommandScope, CommandScopeError,
-    CommandScopeKind, CommandScopeProjection, CommandService, CommandShortcut,
+    CommandInvocation, CommandKey, CommandModifiers, CommandPresentation, CommandPresentationError,
+    CommandRegistrationError, CommandRegistry, CommandRequest, CommandResolution, CommandScope,
+    CommandScopeError, CommandScopeKind, CommandScopeProjection, CommandService, CommandShortcut,
     CommandShortcutPresentation, CommandSnapshot, CommandSource, CommandSuppression, CommandTarget,
     Keymap, KeymapConflict, KeymapConflictKind, KeymapDiagnostic, KeymapError, KeymapProblem,
     KeymapResolutionChoice, KeymapValidation,

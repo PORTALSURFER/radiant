@@ -26,7 +26,6 @@ fn main() {
     ))
     .default_binding(CommandShortcut::new(CommandKey::Character("s".into())).primary())])
     .expect("unique static registrations");
-    let presentation_registry = registry.clone();
     let controls_registry = registry.clone();
     let scope = CommandScope::new(
         "document",
@@ -79,19 +78,15 @@ fn main() {
         runtime.dispatch_command_request(CommandRequest::Input(&input), FocusSurface::None);
     assert_eq!(status, CommandDispatchStatus::Mapped);
     assert_eq!(outcome.messages_dispatched, 1);
-    // Query after dispatch: a refreshed view has new captured context.
-    let target = presentation_registry
-        .target(
-            &runtime
-                .command_scopes::<u64>()
-                .expect("typed active scopes"),
-            &save_id(),
-        )
-        .expect("active command");
-    let (status, outcome) = runtime.dispatch_command_request(
-        CommandRequest::Target(&target, CommandSource::Menu),
-        FocusSurface::None,
-    );
+    // A native menu adapter reads one current batch, then retains only the activation.
+    let native_menu_action = runtime
+        .command_presentations(&[save_id()], ShortcutPlatform::Mac)
+        .expect("current native presentation")
+        .remove(0)
+        .activation(CommandSource::Menu)
+        .expect("enabled menu item");
+    let (status, outcome) =
+        runtime.dispatch_command_request(native_menu_action.request(), FocusSurface::None);
     assert_eq!(status, CommandDispatchStatus::Mapped);
     assert_eq!(outcome.messages_dispatched, 1);
     let point = runtime.layout().rects[&101].center();

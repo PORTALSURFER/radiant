@@ -71,6 +71,33 @@ where
         )
     }
 
+    /// Project at most 256 commands for native menus or other semantic surfaces.
+    /// Uses one current keymap, committed scope projection and resolved environment.
+    /// No application invocation mapper or reducer runs while querying.
+    pub fn command_presentations(
+        &self,
+        ids: &[crate::application::CommandId],
+        platform: crate::gui::shortcuts::ShortcutPlatform,
+    ) -> Result<
+        Vec<crate::application::CommandPresentation>,
+        crate::application::CommandPresentationError,
+    > {
+        use crate::application::CommandPresentationError;
+        if ids.len() > crate::application::MAX_PRESENTATIONS {
+            return Err(CommandPresentationError::Capacity);
+        }
+        let service = self
+            .command_service()
+            .ok_or(CommandPresentationError::Unavailable)?;
+        let (scopes, error) = self.active_command_scope_records();
+        service.presentations(
+            crate::application::CommandScopeProjection::new(&scopes, error),
+            ids,
+            &self.surface.resolved_environment(),
+            platform,
+        )
+    }
+
     /// Export the current registered service for an independently owned child surface.
     /// Closed runtimes cannot grant a new service snapshot.
     pub fn command_service(&self) -> Option<crate::application::CommandService<Message>> {

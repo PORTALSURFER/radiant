@@ -2,18 +2,20 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, ResolvedEnvironment};
 use crate::theme::ThemeTokens;
 
 use super::WidgetCommon;
+use super::text::TextAlign;
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext, WidgetPointerMotion,
     WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
     CompositionRange, CompositionSample, CompositionStartContext, TextInputMessage, WidgetInput,
     WidgetOutput,
 };
+use crate::widgets::{DeclaredTextMetrics, TextScaleParticipation};
 
 mod builders;
 mod composition;
@@ -22,6 +24,8 @@ mod editing_ops;
 mod input;
 mod model;
 mod paint;
+
+pub(super) const COMPACT_INPUT_HEIGHT: f32 = 28.0;
 
 #[cfg(test)]
 mod tests;
@@ -43,6 +47,8 @@ pub struct TextInputWidget {
     pub props: TextInputProps,
     /// Mutable input state owned by the widget.
     pub state: TextInputState,
+    /// Logical alignment used by the input text and native caret geometry.
+    pub align: TextAlign,
     /// Transient IME composition state owned by this widget.
     pub(crate) composition: Option<composition::TextInputComposition>,
     native_pointer_caret: Option<(usize, NativeCaretAffinity)>,
@@ -77,6 +83,7 @@ impl TextInputWidget {
                 revision: None,
             },
             state: TextInputState::from_value(parts.value),
+            align: TextAlign::Start,
             composition: None,
             native_pointer_caret: None,
             native_pointer_caret_acceptance: None,
@@ -91,6 +98,24 @@ impl TextInputWidget {
             value: value.into(),
             sizing,
         })
+    }
+
+    /// Set logical text alignment inside the input content rectangle.
+    pub fn with_align(mut self, align: TextAlign) -> Self {
+        self.align = align;
+        self
+    }
+
+    pub(crate) fn declared_text_metrics(&self) -> DeclaredTextMetrics {
+        let compact = self.common.sizing.preferred.y <= COMPACT_INPUT_HEIGHT;
+        DeclaredTextMetrics::new(
+            self.common.sizing,
+            crate::runtime::input_font_size_for_height(self.common.sizing.preferred.y),
+            crate::layout::Vector2::new(
+                if compact { 8.0 } else { 16.0 },
+                if compact { 2.0 } else { 4.0 },
+            ),
+        )
     }
 
     /// Route one backend-neutral interaction into the single-line text input.
@@ -192,8 +217,35 @@ impl Widget for TextInputWidget {
         &mut self.common
     }
 
+    fn text_scale_participation(&self) -> TextScaleParticipation {
+        TextScaleParticipation::Scaled
+    }
+
+    fn layout_node_with_environment(
+        &self,
+        environment: &ResolvedEnvironment,
+    ) -> crate::layout::LayoutNode {
+        let sizing = DeclaredTextMetrics::new(
+            self.common.sizing,
+            crate::runtime::input_font_size_for_height(self.common.sizing.preferred.y),
+            crate::layout::Vector2::new(0.0, 0.0),
+        )
+        .resolve(environment, self.text_scale_participation());
+        crate::layout::LayoutNode::Widget(sizing.layout_node(self.common.id))
+    }
+
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         TextInputWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn handle_input_with_environment(
+        &mut self,
+        bounds: Rect,
+        input: WidgetInput,
+        environment: &ResolvedEnvironment,
+    ) -> Option<WidgetOutput> {
+        input::handle_text_input_with_environment(self, bounds, input, environment)
+            .map(WidgetOutput::typed)
     }
 
     fn accepts_composition_input(&self) -> bool {
@@ -282,5 +334,9 @@ impl Widget for TextInputWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_text_input_widget_paint(primitives, self, bounds, theme);
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        paint::push_text_input_widget_paint_with_context(context, self);
     }
 }

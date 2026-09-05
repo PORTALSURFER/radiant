@@ -226,16 +226,19 @@ impl<Message> SurfaceNode<Message> {
         Ok(())
     }
 
-    pub(super) fn handle_input(
+    pub(super) fn handle_input_with_environment(
         &mut self,
         widget_id: WidgetId,
         bounds: Rect,
         input: WidgetInput,
+        environment: &crate::runtime::ResolvedEnvironment,
     ) -> Option<WidgetOutput> {
-        self.find_widget_mut(widget_id)
-            .and_then(|widget| widget.handle_input(widget_id, bounds, input))
+        self.find_widget_mut(widget_id).and_then(|widget| {
+            widget.handle_input_with_environment(widget_id, bounds, input, environment)
+        })
     }
 
+    #[cfg(test)]
     pub(super) fn dispatch_input_at_path(
         &mut self,
         widget_id: WidgetId,
@@ -246,6 +249,21 @@ impl<Message> SurfaceNode<Message> {
         self.find_widget_mut_at_path(child_path)
             .filter(|widget| widget.id() == widget_id)
             .map(|widget| widget.dispatch_input(widget_id, bounds, input))
+    }
+
+    pub(super) fn dispatch_input_at_path_with_environment(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: Rect,
+        input: WidgetInput,
+        environment: &crate::runtime::ResolvedEnvironment,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .map(|widget| {
+                widget.dispatch_input_with_environment(widget_id, bounds, input, environment)
+            })
     }
 
     pub(super) fn dispatch_focus_changed_at_path(

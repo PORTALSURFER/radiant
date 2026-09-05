@@ -279,6 +279,7 @@ impl RetainedTextInputSnapshotSidecar {
         widget_id: WidgetId,
         text: &str,
         font_size: f32,
+        align: TextAlign,
         rect: Rect,
         fence: NativeTextInputSnapshotFence,
     ) -> Option<Arc<ParagraphSnapshot>> {
@@ -296,7 +297,7 @@ impl RetainedTextInputSnapshotSidecar {
                 && key.source_identity == source_identity
                 && key.font.size_bits == font_size.to_bits()
                 && key.constraints.available_width_bits == available_width.map(f32::to_bits)
-                && key.constraints.align == TextAlign::Left
+                && key.constraints.align == align
                 && key.constraints.wrap == TextWrap::None
                 && key.rect == rect.into()
         });
@@ -474,6 +475,13 @@ impl NativeTextRenderer {
         self.retained_text_input_snapshot.snapshot_for(key)
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "legacy left-aligned snapshot lookup remains a compatibility test seam"
+        )
+    )]
     pub(crate) fn text_input_snapshot_for_input(
         &mut self,
         widget_id: WidgetId,
@@ -482,8 +490,27 @@ impl NativeTextRenderer {
         rect: Rect,
         fence: NativeTextInputSnapshotFence,
     ) -> Option<Arc<ParagraphSnapshot>> {
+        self.text_input_snapshot_for_input_aligned(
+            widget_id,
+            text,
+            font_size,
+            TextAlign::Left,
+            rect,
+            fence,
+        )
+    }
+
+    pub(crate) fn text_input_snapshot_for_input_aligned(
+        &mut self,
+        widget_id: WidgetId,
+        text: &str,
+        font_size: f32,
+        align: TextAlign,
+        rect: Rect,
+        fence: NativeTextInputSnapshotFence,
+    ) -> Option<Arc<ParagraphSnapshot>> {
         self.retained_text_input_snapshot
-            .snapshot_for_input(widget_id, text, font_size, rect, fence)
+            .snapshot_for_input(widget_id, text, font_size, align, rect, fence)
     }
 
     pub(crate) fn invalidate_text_input_snapshots(&mut self) {
@@ -499,6 +526,13 @@ impl NativeTextRenderer {
         self.retained_text_input_snapshot.retain(key, snapshot)
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "legacy left-aligned snapshot builder remains a compatibility test seam"
+        )
+    )]
     pub(crate) fn retain_or_build_text_input_snapshot(
         &mut self,
         widget_id: WidgetId,
@@ -507,20 +541,33 @@ impl NativeTextRenderer {
         rect: Rect,
         fence: NativeTextInputSnapshotFence,
     ) -> Option<Arc<ParagraphSnapshot>> {
+        self.retain_or_build_text_input_snapshot_aligned(
+            widget_id,
+            text,
+            font_size,
+            TextAlign::Left,
+            rect,
+            fence,
+        )
+    }
+
+    pub(crate) fn retain_or_build_text_input_snapshot_aligned(
+        &mut self,
+        widget_id: WidgetId,
+        text: &str,
+        font_size: f32,
+        align: TextAlign,
+        rect: Rect,
+        fence: NativeTextInputSnapshotFence,
+    ) -> Option<Arc<ParagraphSnapshot>> {
         let available_width = Some(rect.width().max(0.0));
-        if let Some(snapshot) =
-            self.text_input_snapshot_for_input(widget_id, text, font_size, rect, fence)
+        if let Some(snapshot) = self
+            .text_input_snapshot_for_input_aligned(widget_id, text, font_size, align, rect, fence)
         {
             return Some(snapshot);
         }
         let snapshot = self
-            .layout_text_view(
-                text,
-                font_size,
-                available_width,
-                TextAlign::Left,
-                TextWrap::None,
-            )?
+            .layout_text_view(text, font_size, available_width, align, TextWrap::None)?
             .snapshot();
         let key = NativeTextInputSnapshotKey::new(
             widget_id,
@@ -528,7 +575,7 @@ impl NativeTextRenderer {
             font_size,
             self.font_stack.generation(),
             available_width,
-            TextAlign::Left,
+            align,
             TextWrap::None,
             rect,
             fence,
@@ -951,6 +998,74 @@ mod tests {
                 .is_some()
         );
         assert_eq!(snapshot.available_width, Some(240.0));
+    }
+
+    #[test]
+    fn text_input_snapshot_rejects_changed_logical_alignment_and_font() {
+        let mut renderer = NativeTextRenderer::new();
+        let fence = NativeTextInputSnapshotFence::new(4, 9);
+        let rect = Rect::from_min_max(Point::new(8.0, 10.0), Point::new(248.0, 38.0));
+        let widget_id = WidgetId::from(7_u32);
+
+        let left = renderer
+            .retain_or_build_text_input_snapshot_aligned(
+                widget_id,
+                "value",
+                26.0,
+                TextAlign::Left,
+                rect,
+                fence,
+            )
+            .expect("logical font and left alignment should publish");
+        assert!(
+            renderer
+                .text_input_snapshot_for_input_aligned(
+                    widget_id,
+                    "value",
+                    26.0,
+                    TextAlign::Left,
+                    rect,
+                    fence,
+                )
+                .is_some_and(|snapshot| Arc::ptr_eq(&snapshot, &left))
+        );
+
+        let right = renderer
+            .retain_or_build_text_input_snapshot_aligned(
+                widget_id,
+                "value",
+                26.0,
+                TextAlign::Right,
+                rect,
+                fence,
+            )
+            .expect("changed alignment should build a new paragraph");
+        assert!(!Arc::ptr_eq(&left, &right));
+        assert!(
+            renderer
+                .text_input_snapshot_for_input_aligned(
+                    widget_id,
+                    "value",
+                    26.0,
+                    TextAlign::Left,
+                    rect,
+                    fence,
+                )
+                .is_none()
+        );
+
+        assert!(
+            renderer
+                .retain_or_build_text_input_snapshot_aligned(
+                    widget_id,
+                    "value",
+                    39.0,
+                    TextAlign::Right,
+                    rect,
+                    fence,
+                )
+                .is_some()
+        );
     }
 
     #[test]

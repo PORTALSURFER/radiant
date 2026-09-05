@@ -1,10 +1,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::gui::paint::TextAlign;
 use crate::gui::types::{Point, Rect as UiRect};
 use crate::gui_runtime::native_vello::{
     text_edit::{
-        SingleLineTextEditorState, TextFieldLayoutState, build_text_field_layout,
+        SingleLineTextEditorState, TextFieldLayoutState, build_text_field_layout_aligned,
         build_text_field_layout_from_snapshot,
     },
     *,
@@ -37,12 +38,13 @@ fn focused_text_input_geometry(
         resolve_text_input_selection(text, input.state.caret, input.state.selection_anchor);
     editor.set_cursor(text, selection.start_byte, false);
     editor.set_cursor(text, selection.end_byte, true);
-    let layout = build_text_field_layout(
+    let layout = build_text_field_layout_aligned(
         text_renderer,
         &mut editor,
         text,
         input.font_size,
         input.rect.width(),
+        native_text_alignment(input.align),
     );
     let caret_affinity = text_renderer.native_caret_affinity(input.widget_id);
     let caret_offset = if selection.has_selection {
@@ -210,7 +212,7 @@ fn draw_text_input_text(
             font_size: input.font_size,
             color,
             max_width: Some(input.rect.width().max(0.0)),
-            align: TextAlign::Left,
+            align: native_text_alignment(input.align),
             wrap: TextWrap::None,
         },
     );
@@ -251,13 +253,22 @@ pub(super) fn seed_text_input_snapshot(
     if !text_input_geometry_is_renderable(input) {
         return;
     }
-    let _ = text_renderer.retain_or_build_text_input_snapshot(
+    let _ = text_renderer.retain_or_build_text_input_snapshot_aligned(
         input.widget_id,
         input.state.value.as_str(),
         input.font_size,
+        native_text_alignment(input.align),
         input.rect,
         fence,
     );
+}
+
+fn native_text_alignment(align: crate::runtime::PaintTextAlign) -> TextAlign {
+    match align {
+        crate::runtime::PaintTextAlign::Left => TextAlign::Left,
+        crate::runtime::PaintTextAlign::Center => TextAlign::Center,
+        crate::runtime::PaintTextAlign::Right => TextAlign::Right,
+    }
 }
 
 pub(super) fn text_input_pointer_target_from_snapshot(
@@ -412,6 +423,7 @@ mod tests {
             completion_suffix: None,
             state: TextInputState::from_value(String::from("text")),
             font_size: 12.0,
+            align: crate::runtime::PaintTextAlign::Left,
             baseline: None,
             color: Rgba8 {
                 r: 255,
@@ -588,6 +600,7 @@ mod tests {
                 selection_anchor,
             },
             font_size: 14.0,
+            align: crate::runtime::PaintTextAlign::Left,
             baseline: None,
             color: Rgba8::default(),
             placeholder_color: Rgba8::default(),

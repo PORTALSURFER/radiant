@@ -19,7 +19,12 @@ impl<Message> UiSurface<Message> {
         bounds: crate::gui::types::Rect,
         input: WidgetInput,
     ) -> Option<WidgetOutput> {
-        self.root.handle_input(widget_id, bounds, input)
+        self.root.handle_input_with_environment(
+            widget_id,
+            bounds,
+            input,
+            &self.resolved_environment(),
+        )
     }
 
     pub(in crate::runtime) fn dispatch_widget_input_message(
@@ -28,8 +33,10 @@ impl<Message> UiSurface<Message> {
         bounds: crate::gui::types::Rect,
         input: WidgetInput,
     ) -> Option<WidgetDispatchResult<Message>> {
-        self.find_widget_mut(widget_id)
-            .map(|widget| widget.dispatch_input(widget_id, bounds, input))
+        let environment = self.resolved_environment();
+        self.find_widget_mut(widget_id).map(|widget| {
+            widget.dispatch_input_with_environment(widget_id, bounds, input, &environment)
+        })
     }
 
     pub(in crate::runtime) fn dispatch_widget_focus_changed_message_at(
@@ -50,8 +57,13 @@ impl<Message> UiSurface<Message> {
         bounds: crate::gui::types::Rect,
         input: WidgetInput,
     ) -> Option<WidgetDispatchResult<Message>> {
-        self.root
-            .dispatch_input_at_path(widget_id, child_path.as_slice(), bounds, input)
+        self.root.dispatch_input_at_path_with_environment(
+            widget_id,
+            child_path.as_slice(),
+            bounds,
+            input,
+            &self.resolved_environment(),
+        )
     }
 
     pub(in crate::runtime) fn dispatch_widget_focus_changed_message_at_path(

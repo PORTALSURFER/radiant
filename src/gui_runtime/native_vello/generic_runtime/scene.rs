@@ -119,14 +119,23 @@ pub(super) fn focused_text_input_caret_area_from_snapshot(
         }
     }
     let input = focused_input?;
-    let snapshot = text_renderer.text_input_snapshot_for_input(
+    let snapshot = text_renderer.text_input_snapshot_for_input_aligned(
         input.widget_id,
         input.state.value.as_str(),
         input.font_size,
+        native_text_alignment(input.align),
         input.rect,
         fence,
     )?;
     text_input::focused_text_input_caret_rect_from_snapshot(input, text_renderer, snapshot)
+}
+
+fn native_text_alignment(align: crate::runtime::PaintTextAlign) -> crate::gui::paint::TextAlign {
+    match align {
+        crate::runtime::PaintTextAlign::Left => crate::gui::paint::TextAlign::Left,
+        crate::runtime::PaintTextAlign::Center => crate::gui::paint::TextAlign::Center,
+        crate::runtime::PaintTextAlign::Right => crate::gui::paint::TextAlign::Right,
+    }
 }
 
 pub(in crate::gui_runtime::native_vello) fn seed_text_input_snapshots_for_plan(
@@ -283,10 +292,11 @@ where
             PaintPrimitive::TextInput(input) => {
                 stats.text_input_count = stats.text_input_count.saturating_add(1);
                 let snapshot = text_input_snapshot_fence.and_then(|fence| {
-                    text_renderer.text_input_snapshot_for_input(
+                    text_renderer.text_input_snapshot_for_input_aligned(
                         input.widget_id,
                         input.state.value.as_str(),
                         input.font_size,
+                        native_text_alignment(input.align),
                         input.rect,
                         fence,
                     )
@@ -702,6 +712,7 @@ mod focused_text_input_tests {
             completion_suffix: None,
             state: TextInputState::from_value(String::from("candidate")),
             font_size: 14.0,
+            align: crate::runtime::PaintTextAlign::Left,
             baseline: None,
             color: Rgba8::default(),
             placeholder_color: Rgba8::default(),

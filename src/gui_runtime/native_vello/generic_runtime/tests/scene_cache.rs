@@ -138,6 +138,7 @@ fn text_input(widget_id: u64, focused: bool, value: &str, rect: Rect) -> PaintTe
         completion_suffix: None,
         state: TextInputState::from_value(value.to_owned()),
         font_size: 14.0,
+        align: crate::runtime::PaintTextAlign::Left,
         baseline: None,
         color: Rgba8::default(),
         placeholder_color: Rgba8::default(),

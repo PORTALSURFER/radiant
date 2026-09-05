@@ -442,10 +442,14 @@ impl<Message> SurfaceWidget<Message> {
             && (common.focus != FocusBehavior::None || common.paint.suppresses_container_hover)
     }
 
-    pub(super) fn layout_node(&self) -> LayoutNode {
-        self.widget.common().layout_node()
+    pub(super) fn layout_node_with_environment(
+        &self,
+        environment: &crate::runtime::ResolvedEnvironment,
+    ) -> LayoutNode {
+        self.widget.layout_node_with_environment(environment)
     }
 
+    #[cfg(test)]
     pub(super) fn handle_input(
         &mut self,
         widget_id: WidgetId,
@@ -454,6 +458,21 @@ impl<Message> SurfaceWidget<Message> {
     ) -> Option<WidgetOutput> {
         (self.id() == widget_id)
             .then(|| self.widget.handle_input(bounds, input))
+            .flatten()
+    }
+
+    pub(super) fn handle_input_with_environment(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+        environment: &crate::runtime::ResolvedEnvironment,
+    ) -> Option<WidgetOutput> {
+        (self.id() == widget_id)
+            .then(|| {
+                self.widget
+                    .handle_input_with_environment(bounds, input, environment)
+            })
             .flatten()
     }
 
@@ -494,6 +513,7 @@ impl<Message> SurfaceWidget<Message> {
             .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
     }
 
+    #[cfg(test)]
     pub(in crate::runtime) fn dispatch_input(
         &mut self,
         widget_id: WidgetId,
@@ -501,6 +521,24 @@ impl<Message> SurfaceWidget<Message> {
         input: WidgetInput,
     ) -> super::WidgetDispatchResult<Message> {
         let Some(output) = self.handle_input(widget_id, bounds, input) else {
+            return super::WidgetDispatchResult::NoOutput;
+        };
+        self.messages
+            .map_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
+    pub(in crate::runtime) fn dispatch_input_with_environment(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+        environment: &crate::runtime::ResolvedEnvironment,
+    ) -> super::WidgetDispatchResult<Message> {
+        let Some(output) =
+            self.handle_input_with_environment(widget_id, bounds, input, environment)
+        else {
             return super::WidgetDispatchResult::NoOutput;
         };
         self.messages

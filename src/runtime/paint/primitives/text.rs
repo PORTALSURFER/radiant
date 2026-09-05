@@ -206,6 +206,8 @@ pub struct PaintTextInput {
     pub state: TextInputState,
     /// Font size in logical pixels per em.
     pub font_size: f32,
+    /// Physical alignment resolved from the widget's logical declaration.
+    pub align: PaintTextAlign,
     /// Optional baseline measured from the text rectangle top edge.
     pub baseline: Option<f32>,
     /// Value text color.

@@ -134,9 +134,11 @@ impl<Message> UiSurface<Message> {
 #[cfg(test)]
 mod tests {
     use crate::{
+        application::{ApplicationEnvironment, LocaleId, TextScale},
         layout::Vector2,
-        prelude::{IntoView, text},
-        runtime::UiSurface,
+        prelude::{IntoView, column, text},
+        runtime::{SurfaceNode, UiSurface},
+        widgets::{TextInputWidget, TextWidget, WidgetSizing},
     };
 
     #[test]
@@ -158,5 +160,128 @@ mod tests {
 
         assert_eq!(frame.viewport.min, crate::gui::types::Point::default());
         assert!(frame.paint_plan.contains_text("Ready"));
+    }
+
+    #[test]
+    fn text_scale_resolves_intrinsic_layout_and_paint_metrics_once() {
+        let environment = ApplicationEnvironment::new(LocaleId::english())
+            .with_text_scale(TextScale::new(2.0).expect("valid scale"));
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+            7,
+            "Scaled",
+            WidgetSizing::fixed(Vector2::new(80.0, 24.0)),
+        )))
+        .with_application_environment(environment);
+        let crate::layout::LayoutNode::Widget(node) = surface.layout_node() else {
+            panic!("text surface should project one widget leaf");
+        };
+        assert_eq!(node.intrinsic, Vector2::new(160.0, 48.0));
+        let frame = surface.frame_at_size_with_default_theme(Vector2::new(300.0, 100.0));
+        let rect = frame.layout.rects.get(&7).expect("text layout rect");
+        assert_eq!(rect.width(), 300.0);
+        assert_eq!(rect.height(), 100.0);
+        let text = frame.paint_plan.first_text_run("Scaled").expect("text run");
+        assert_eq!(text.font_size, 26.0);
+    }
+
+    #[test]
+    fn text_scale_keeps_parent_assigned_bounds_physical_and_allows_clipping() {
+        let environment = ApplicationEnvironment::new(LocaleId::english())
+            .with_text_scale(TextScale::new(2.0).expect("valid scale"));
+        let surface: UiSurface<()> = column([text::<()>("Scaled").id(7).width(80.0).height(24.0)])
+            .align_cross(crate::layout::CrossAlign::Start)
+            .into_surface()
+            .with_application_environment(environment);
+        let frame = surface.frame_at_size_with_default_theme(Vector2::new(320.0, 120.0));
+        let rect = frame.layout.rects.get(&7).expect("text layout rect");
+        assert_eq!(rect.width(), 80.0);
+        assert_eq!(rect.height(), 24.0);
+        let text = frame.paint_plan.first_text_run("Scaled").expect("text run");
+        assert_eq!(text.font_size, 26.0);
+    }
+
+    #[test]
+    fn text_input_uses_the_same_resolved_font_metrics_as_text() {
+        let environment = ApplicationEnvironment::new(LocaleId::english())
+            .with_text_scale(TextScale::new(2.0).expect("valid scale"));
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+            TextInputWidget::new(8, "value", WidgetSizing::fixed(Vector2::new(120.0, 28.0))),
+        ))
+        .with_application_environment(environment);
+        let frame = surface.frame_at_size_with_default_theme(Vector2::new(300.0, 100.0));
+        let input = frame
+            .paint_plan
+            .first_text_input()
+            .expect("text input paint primitive");
+        assert_eq!(input.font_size, 26.0);
+        assert_eq!(input.align, crate::runtime::PaintTextAlign::Left);
+    }
+
+    #[test]
+    fn text_scale_and_direction_are_surface_local_and_repeated_frames_reuse_values() {
+        let first: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+            TextWidget::new(1, "first", WidgetSizing::fixed(Vector2::new(80.0, 24.0)))
+                .with_align(crate::widgets::TextAlign::Start),
+        ))
+        .with_application_environment(
+            ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(1.0).expect("valid scale")),
+        );
+        let second: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+            TextWidget::new(2, "second", WidgetSizing::fixed(Vector2::new(80.0, 24.0)))
+                .with_align(crate::widgets::TextAlign::Start),
+        ))
+        .with_application_environment(
+            ApplicationEnvironment::new(LocaleId::english())
+                .with_writing_direction(crate::application::WritingDirection::Rtl)
+                .with_text_scale(TextScale::new(1.5).expect("valid scale")),
+        );
+
+        let crate::layout::LayoutNode::Widget(first_node) = first.layout_node() else {
+            panic!("first surface should project one widget leaf");
+        };
+        let crate::layout::LayoutNode::Widget(second_node) = second.layout_node() else {
+            panic!("second surface should project one widget leaf");
+        };
+        assert_eq!(first_node.intrinsic, Vector2::new(80.0, 24.0));
+        assert_eq!(second_node.intrinsic, Vector2::new(120.0, 36.0));
+
+        let first_frame = first.frame_at_size_with_default_theme(Vector2::new(200.0, 80.0));
+        let second_frame = second.frame_at_size_with_default_theme(Vector2::new(200.0, 80.0));
+        let first_run = first_frame
+            .paint_plan
+            .first_text_run("first")
+            .expect("first text run");
+        let second_run = second_frame
+            .paint_plan
+            .first_text_run("second")
+            .expect("second text run");
+        assert_eq!(first_run.font_size, 13.0);
+        assert_eq!(first_run.align, crate::runtime::PaintTextAlign::Left);
+        assert_eq!(second_run.font_size, 19.5);
+        assert_eq!(second_run.align, crate::runtime::PaintTextAlign::Right);
+        assert_eq!(
+            second_frame,
+            second.frame_at_size_with_default_theme(Vector2::new(200.0, 80.0))
+        );
+    }
+
+    #[test]
+    fn text_input_start_alignment_resolves_against_rtl_environment() {
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+            TextInputWidget::new(9, "value", WidgetSizing::fixed(Vector2::new(120.0, 28.0))),
+        ))
+        .with_application_environment(
+            ApplicationEnvironment::new(LocaleId::english())
+                .with_writing_direction(crate::application::WritingDirection::Rtl)
+                .with_text_scale(TextScale::new(2.0).expect("valid scale")),
+        );
+        let frame = surface.frame_at_size_with_default_theme(Vector2::new(300.0, 100.0));
+        let input = frame
+            .paint_plan
+            .first_text_input()
+            .expect("text input paint primitive");
+        assert_eq!(input.font_size, 26.0);
+        assert_eq!(input.align, crate::runtime::PaintTextAlign::Right);
     }
 }

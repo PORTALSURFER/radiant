@@ -212,7 +212,9 @@ where
         );
     }
 
-    fn prepared_surface_refresh_native_evidence(&self) -> PreparedSurfaceRefreshNativeEvidence {
+    pub(super) fn prepared_surface_refresh_native_evidence(
+        &self,
+    ) -> PreparedSurfaceRefreshNativeEvidence {
         Self::prepared_surface_refresh_native_evidence_from_parts(
             self.adapter.as_ref(),
             &self.window,

@@ -1568,10 +1568,13 @@ scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
 shipped. The additive `ApplicationEnvironment` snapshot carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
   presentation generation. Logical RTL container geometry is implemented for
-  the phase-1 layout boundary; scale propagation, bidi, and complex shaping
-  remain staged work. The selected bidi and complex-shaping architecture is
-  recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md),
-  with implementation under OPT-1386 and OPT-1402.
+  the phase-1 layout boundary; TextWidget and TextInputWidget now resolve
+  intrinsic metrics and paint font from text scale. Explicit parent width/height
+  slots remain physical constraints, and DPI is applied only at the native
+  scene boundary. Broader scale propagation and locale/direction presentation
+  identity propagation remain staged under OPT-1386. The retained bidi and
+  complex-shaping implementation is owned by OPT-1402 and documented in
+  [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
 
 ## Platform Boundary
 

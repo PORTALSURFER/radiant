@@ -42,6 +42,34 @@ fn build_text_field_layout_uses_one_full_layout_pass() {
 }
 
 #[test]
+fn aligned_text_field_layout_projects_physical_alignment_into_caret_geometry() {
+    let mut renderer = NativeTextRenderer::new();
+    let text = "value";
+    let mut left_editor = SingleLineTextEditorState::collapsed_at_end(text);
+    left_editor.set_cursor(text, 0, false);
+    let left = super::layout::build_text_field_layout_aligned(
+        &mut renderer,
+        &mut left_editor,
+        text,
+        14.0,
+        256.0,
+        crate::gui::paint::TextAlign::Left,
+    );
+    let mut right_editor = SingleLineTextEditorState::collapsed_at_end(text);
+    right_editor.set_cursor(text, 0, false);
+    let right = super::layout::build_text_field_layout_aligned(
+        &mut renderer,
+        &mut right_editor,
+        text,
+        14.0,
+        256.0,
+        crate::gui::paint::TextAlign::Right,
+    );
+
+    assert!(right.snapshot.alignment_offset > left.snapshot.alignment_offset);
+}
+
+#[test]
 fn text_field_layout_resolves_caret_offsets_without_second_layout_pass() {
     let mut renderer = NativeTextRenderer::new();
     let text = "item alpha beta";

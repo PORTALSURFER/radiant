@@ -26,6 +26,7 @@ fn text_queries_return_runs_and_inputs_in_paint_order() {
             completion_suffix: None,
             state: crate::widgets::TextInputState::from_value(String::from("ki")),
             font_size: 12.0,
+            align: crate::runtime::PaintTextAlign::Left,
             baseline: None,
             color: theme.text_primary,
             placeholder_color: theme.text_muted,

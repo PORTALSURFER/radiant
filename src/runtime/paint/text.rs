@@ -9,9 +9,13 @@ pub(crate) fn push_text_run(primitives: &mut Vec<PaintPrimitive>, run: PaintText
 }
 
 pub(crate) fn text_font_size(rect: Rect) -> f32 {
-    if rect.height() >= 38.0 {
+    text_font_size_for_height(rect.height())
+}
+
+pub(crate) const fn text_font_size_for_height(height: f32) -> f32 {
+    if height >= 38.0 {
         18.0
-    } else if rect.height() >= 28.0 {
+    } else if height >= 28.0 {
         14.0
     } else {
         13.0
@@ -28,8 +32,8 @@ pub(crate) fn button_font_size(rect: Rect) -> f32 {
     }
 }
 
-pub(crate) fn input_font_size(rect: Rect) -> f32 {
-    if rect.height() >= 42.0 { 15.0 } else { 13.0 }
+pub(crate) const fn input_font_size_for_height(height: f32) -> f32 {
+    if height >= 42.0 { 15.0 } else { 13.0 }
 }
 
 pub(crate) fn optical_centered_baseline(rect: Rect, font_size: f32) -> Option<f32> {

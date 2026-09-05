@@ -61,12 +61,40 @@ impl TextFieldLayoutState {
 }
 
 /// Build one visible text/caret/selection layout from one retained snapshot.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "legacy left-aligned text-field helper remains covered by native text tests"
+    )
+)]
 pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
     renderer: &mut NativeTextRenderer,
     editor: &mut SingleLineTextEditorState,
     text: &str,
     font_size: f32,
     available_width: f32,
+) -> TextFieldLayoutState {
+    build_text_field_layout_aligned(
+        renderer,
+        editor,
+        text,
+        font_size,
+        available_width,
+        crate::gui::paint::TextAlign::Left,
+    )
+}
+
+/// Build one visible text/caret/selection layout using the input's physical
+/// alignment. The legacy wrapper above keeps existing internal callers
+/// source-compatible while runtime consumers pass the resolved alignment.
+pub(in crate::gui_runtime::native_vello) fn build_text_field_layout_aligned(
+    renderer: &mut NativeTextRenderer,
+    editor: &mut SingleLineTextEditorState,
+    text: &str,
+    font_size: f32,
+    available_width: f32,
+    align: crate::gui::paint::TextAlign,
 ) -> TextFieldLayoutState {
     editor.clamp_to_text(text);
     let width = text_field_width(available_width);
@@ -75,7 +103,7 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
             text,
             font_size,
             Some(width),
-            crate::gui::paint::TextAlign::Left,
+            align,
             crate::widgets::TextWrap::None,
         )
         .map(TextLayout::snapshot)

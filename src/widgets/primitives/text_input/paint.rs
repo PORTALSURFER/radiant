@@ -1,7 +1,7 @@
 use crate::gui::types::Rect;
 use crate::runtime::{
-    PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextInput, blend_color, input_font_size,
-    inset_rect, optical_centered_baseline,
+    PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextInput, ResolvedEnvironment,
+    blend_color, inset_rect, optical_centered_baseline,
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
@@ -9,8 +9,7 @@ use crate::widgets::primitives::{
     support::push_automation_active_marker,
     text_input::{TextInputChrome, TextInputWidget},
 };
-
-const COMPACT_INPUT_HEIGHT: f32 = 28.0;
+use crate::widgets::{ResolvedTextMetrics, Widget, WidgetPaintContext};
 
 fn push_text_input_chrome(
     primitives: &mut Vec<PaintPrimitive>,
@@ -77,11 +76,12 @@ pub(super) fn push_text_input_widget_paint(
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
-    push_text_input_widget_paint_with_hidden_composition(
+    push_text_input_widget_paint_resolved(
         primitives,
         input,
         bounds,
         theme,
+        &ResolvedEnvironment::default(),
         input.composition_hides_native_adornments(),
     );
 }
@@ -93,11 +93,50 @@ pub(super) fn push_text_input_widget_paint_with_hidden_composition(
     theme: &ThemeTokens,
     hidden_composition: bool,
 ) {
+    push_text_input_widget_paint_resolved(
+        primitives,
+        input,
+        bounds,
+        theme,
+        &ResolvedEnvironment::default(),
+        hidden_composition,
+    );
+}
+
+pub(super) fn push_text_input_widget_paint_with_context(
+    context: &mut WidgetPaintContext<'_>,
+    input: &TextInputWidget,
+) {
+    let environment = context.environment().clone();
+    let bounds = context.bounds();
+    let theme = context.theme();
+    let primitives = context.primitives();
+    push_text_input_widget_paint_resolved(
+        primitives,
+        input,
+        bounds,
+        theme,
+        &environment,
+        input.composition_hides_native_adornments(),
+    );
+}
+
+fn push_text_input_widget_paint_resolved(
+    primitives: &mut Vec<PaintPrimitive>,
+    input: &TextInputWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+    environment: &ResolvedEnvironment,
+    hidden_composition: bool,
+) {
     let tokens =
         crate::widgets::resolve_widget_visual_tokens(theme, input.common.style, input.common.state);
     push_text_input_chrome(primitives, &input.common, input.props.chrome, bounds, theme);
-    let rect = text_input_content_rect(bounds);
-    let font_size = input_font_size(bounds);
+    let declared = input.declared_text_metrics();
+    let metrics: ResolvedTextMetrics =
+        declared.resolve(environment, input.text_scale_participation());
+    let rect = inset_rect(bounds, metrics.insets.x, metrics.insets.y);
+    let font_size = metrics.font_size;
     let mut selection_color = text_input_selection_color(theme);
     let mut caret_color = theme.accent_danger;
     if hidden_composition {
@@ -111,6 +150,7 @@ pub(super) fn push_text_input_widget_paint_with_hidden_composition(
         completion_suffix: input.props.completion_suffix.clone(),
         state: input.state.clone(),
         font_size,
+        align: input.align.resolve(environment.writing_direction()),
         baseline: optical_centered_baseline(rect, font_size),
         color: tokens.foreground,
         placeholder_color: theme.text_muted,
@@ -119,13 +159,6 @@ pub(super) fn push_text_input_widget_paint_with_hidden_composition(
         caret_color,
         focused: input.common.state.focused,
     }));
-}
-
-fn text_input_content_rect(bounds: Rect) -> Rect {
-    if bounds.height() <= COMPACT_INPUT_HEIGHT {
-        return inset_rect(bounds, 8.0, 2.0);
-    }
-    inset_rect(bounds, 16.0, 4.0)
 }
 
 fn text_input_selection_color(theme: &ThemeTokens) -> crate::gui::types::Rgba8 {

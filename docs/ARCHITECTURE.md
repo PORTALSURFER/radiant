@@ -1612,8 +1612,12 @@ locale fallback, direction, text scale, catalog generation, and shortcut
   Embedded interactive rows and TreeRow resolve one immutable declared
   text-metrics witness; row, guide, expander, icon, hit, and capture geometry
   remains physical, and TreeRow semantics preserve host/runtime ownership.
-  Menu/shell geometry and locale/direction presentation identity propagation
-  remain staged under OPT-1386. The retained bidi and complex-shaping implementation is owned
+  Native frame publication binds the text renderer to the committed application
+  locale/direction before seeding input geometry. TextLayoutCache keys both
+  values, while DPI, shortcut display, and catalog generations remain outside
+  shape identity. Presentation changes retire the input sidecar and caret
+  affinity; an unchanged snapshot preserves them. Menu/shell geometry remains
+  staged under OPT-1386. The retained bidi and complex-shaping implementation is owned
   by OPT-1402 and documented in
   [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
 

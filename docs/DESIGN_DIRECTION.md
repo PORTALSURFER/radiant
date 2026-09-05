@@ -617,16 +617,21 @@ helpers remain the legacy path. Embedded interactive rows and TreeRow opt in
 through one immutable declared text-metrics witness, while row, guide,
 expander, icon, hit, and capture geometry remains physical. TreeRow semantics
 use the painted label and host/runtime interaction state without changing
-ownership. Menu/shell geometry and locale/direction presentation identity
-propagation remain staged follow-on work under OPT-1386; retained bidi and
-complex shaping are implemented under OPT-1402.
+ownership. Native paragraph shaping consumes the published application locale
+and writing direction; retained bidi and complex shaping are implemented under
+OPT-1402. Menu/shell geometry remains follow-on work under OPT-1386.
 
 The current foundation exposes immutable, testable snapshots at application and
 window scopes. `ApplicationEnvironment` contains explicit locale fallback,
 writing direction, validated text scale, catalog generation, and platform
 shortcut presentation; individual widgets still must not query platform state.
-Remaining OPT-1386 work propagates these values through menu/shell geometry,
-locale/direction presentation identity, and native cache identities.
+Native shape and view caches include the requested locale and explicit paragraph
+direction in their typed identity. Published presentation changes retire native
+input snapshots and caret affinity before preparing fresh geometry. Catalog-only
+changes are represented by the resolved text bytes; shortcut presentation and
+DPI do not invalidate shaping. Legacy renderer callers keep automatic bidi
+direction. Remaining OPT-1386 work covers menu/shell geometry and the shared
+localized menu, toolbar, and shortcut-help example.
 
 ```rust
 text(localized(TextKey::sample_count(), [state.samples.len().into()]));

@@ -3863,11 +3863,10 @@ where
         self.frame.reset_scene_build_outcome();
         let _ = self.apply_pending_viewport_resize_if_needed();
         let paint_plan_decision = self.core.paint_plan_into(&mut self.frame.last_paint_plan);
-        self.frame
-            .seed_text_input_snapshots_for_current_plan(matches!(
-                paint_plan_decision,
-                PaintPlanCacheDecision::Rebuilt
-            ));
+        self.frame.seed_text_input_snapshots_for_current_plan(
+            matches!(paint_plan_decision, PaintPlanCacheDecision::Rebuilt),
+            self.core.runtime.context().application_environment(),
+        );
         self.publish_native_ime_cursor_area();
         self.admit_scene_from_current_plan(paint_plan_decision, freshly_refreshed, false);
     }

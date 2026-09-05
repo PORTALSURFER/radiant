@@ -643,7 +643,13 @@ impl NativeVelloFrameState {
         self.mark_scene_texture_dirty();
     }
 
-    pub(super) fn seed_text_input_snapshots_for_current_plan(&mut self, force_new_fence: bool) {
+    pub(super) fn seed_text_input_snapshots_for_current_plan(
+        &mut self,
+        force_new_fence: bool,
+        environment: &crate::application::ApplicationEnvironment,
+    ) {
+        let presentation_changed = self.text_renderer.set_application_environment(environment);
+        let force_new_fence = force_new_fence || presentation_changed;
         if !force_new_fence && self.current_text_input_snapshot_fence.is_some() {
             return;
         }
@@ -1023,6 +1029,77 @@ mod tests {
     }
 
     #[test]
+    fn presentation_change_retires_input_geometry_even_when_plan_bytes_are_unchanged() {
+        use crate::application::{ApplicationEnvironment, LocaleId, WritingDirection};
+        let mut frame = NativeVelloFrameState::new(
+            NativeTextRenderer::new(),
+            RetainedSurfaceCachePolicy::default(),
+        );
+        let input = text_input(7, true, "A");
+        frame.last_paint_plan = SurfacePaintPlan {
+            clear_color: Rgba8::default(),
+            primitives: vec![PaintPrimitive::TextInput(input.clone())],
+        };
+        let initial = ApplicationEnvironment::new(LocaleId::english());
+        frame.seed_text_input_snapshots_for_current_plan(false, &initial);
+        let old_fence = frame.current_text_input_snapshot_fence.unwrap();
+        let old = frame
+            .text_renderer
+            .text_input_snapshot_for_input_aligned(
+                input.widget_id,
+                "A",
+                input.font_size,
+                native_text_alignment(input.align),
+                input.rect,
+                old_fence,
+            )
+            .unwrap();
+        assert_eq!(old.bidi_runs[0].level, 0);
+
+        let changed = initial.with_writing_direction(WritingDirection::Rtl);
+        frame.seed_text_input_snapshots_for_current_plan(false, &changed);
+        let new_fence = frame.current_text_input_snapshot_fence.unwrap();
+        assert_ne!(old_fence, new_fence);
+        assert!(
+            frame
+                .text_renderer
+                .text_input_snapshot_for_input_aligned(
+                    input.widget_id,
+                    "A",
+                    input.font_size,
+                    native_text_alignment(input.align),
+                    input.rect,
+                    old_fence,
+                )
+                .is_none()
+        );
+        let current = frame
+            .text_renderer
+            .text_input_snapshot_for_input_aligned(
+                input.widget_id,
+                "A",
+                input.font_size,
+                native_text_alignment(input.align),
+                input.rect,
+                new_fence,
+            )
+            .unwrap();
+        assert_eq!(current.bidi_runs[0].level, 2);
+        assert!(!Arc::ptr_eq(&old, &current));
+        assert!(frame.native_ime_cursor_area().is_some());
+        assert!(
+            frame
+                .native_text_pointer_target(
+                    Point::new(input.rect.min.x + 1.0, input.rect.min.y + 1.0),
+                    None,
+                )
+                .is_some()
+        );
+        frame.seed_text_input_snapshots_for_current_plan(false, &changed);
+        assert_eq!(frame.current_text_input_snapshot_fence, Some(new_fence));
+    }
+
+    #[test]
     fn current_text_input_fence_is_reused_until_plan_replacement() {
         let mut frame = NativeVelloFrameState::new(
             NativeTextRenderer::new(),
@@ -1034,7 +1111,7 @@ mod tests {
             primitives: vec![PaintPrimitive::TextInput(input.clone())],
         };
 
-        frame.seed_text_input_snapshots_for_current_plan(false);
+        frame.seed_text_input_snapshots_for_current_plan(false, &Default::default());
         let first_fence = frame
             .current_text_input_snapshot_fence
             .expect("current plan should have a fence");
@@ -1060,7 +1137,7 @@ mod tests {
         assert_eq!(value, input.state.value);
         assert!(scalar <= input.state.value.chars().count());
 
-        frame.seed_text_input_snapshots_for_current_plan(false);
+        frame.seed_text_input_snapshots_for_current_plan(false, &Default::default());
         assert_eq!(frame.current_text_input_snapshot_fence, Some(first_fence));
         let repeated_snapshot = frame
             .text_renderer
@@ -1080,7 +1157,7 @@ mod tests {
             clear_color: Rgba8::default(),
             primitives: vec![PaintPrimitive::TextInput(replacement.clone())],
         };
-        frame.seed_text_input_snapshots_for_current_plan(true);
+        frame.seed_text_input_snapshots_for_current_plan(true, &Default::default());
         let replacement_fence = frame
             .current_text_input_snapshot_fence
             .expect("replacement plan should have a new fence");
@@ -1129,7 +1206,7 @@ mod tests {
             primitives: vec![PaintPrimitive::TextInput(input.clone())],
         };
 
-        frame.seed_text_input_snapshots_for_current_plan(false);
+        frame.seed_text_input_snapshots_for_current_plan(false, &Default::default());
         let fence = frame
             .current_text_input_snapshot_fence
             .expect("current plan should still have a fence");

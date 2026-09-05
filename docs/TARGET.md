@@ -1615,9 +1615,11 @@ helpers expose additive environment-aware label/chrome entry points while
 their existing bounds-derived helpers remain legacy-compatible. Embedded
 interactive rows and TreeRow resolve one immutable declared text-metrics
 witness; row, guide, expander, icon, hit, and capture geometry stays physical,
-and TreeRow semantics preserve host/runtime ownership. Menu/shell geometry and
-locale/direction presentation identity propagation remain staged work under
-OPT-1386; retained bidi and complex shaping are implemented under OPT-1402.
+and TreeRow semantics preserve host/runtime ownership. Native shaping and its
+retained cache identities consume the published locale and writing direction.
+Presentation changes replace native input geometry even when text bytes remain
+unchanged. Menu/shell geometry remains staged work under OPT-1386; retained
+bidi and complex shaping are implemented under OPT-1402.
 
 At the native window scope, environment exposes only display scale, color
 scheme, contrast, and reduced-motion preference; application presentation

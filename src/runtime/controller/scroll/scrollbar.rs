@@ -5,14 +5,13 @@ use super::{
     ScrollUpdate, ScrollUpdateMetadata,
 };
 use crate::runtime::controller::interaction_state::ScrollbarAxis;
-use crate::runtime::{
-    RuntimeBridge,
-    paint::{resolve_scroll_affordance, scrollbar_visibility_allows},
-};
+use crate::runtime::{RuntimeBridge, paint::resolve_scroll_affordance};
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::NodeId,
-    runtime::paint::{resolve_horizontal_scroll_affordance, scrollbar_viewport},
+    runtime::paint::{
+        resolve_horizontal_scroll_affordance, scrollbar_viewport, scrollbar_visibility_allows,
+    },
     widgets::PointerButton,
 };
 

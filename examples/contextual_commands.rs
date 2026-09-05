@@ -1,7 +1,7 @@
 //! Headless semantic-command dispatch through the ordinary application reducer.
 //!
-//! Run with `cargo run --example contextual_commands`. Native keyboard and declarative
-//! view-scope adapters are separate from this explicit host-boundary example.
+//! Run with `cargo run --example contextual_commands`. Scopes come from the committed
+//! view; the headless host explicitly submits shortcut and presentation requests.
 use radiant::prelude::*;
 use radiant::{
     application::*,
@@ -25,26 +25,17 @@ fn main() {
     ))
     .default_binding(CommandShortcut::new(CommandKey::Character("s".into())).primary())])
     .expect("unique static registrations");
-    let snapshot = CommandSnapshot {
-        keymap: Keymap::new(),
-        scopes: vec![
-            CommandScope::new(
-                "document-42",
-                CommandScopeKind::Window,
-                [CommandBinding::new(save_id(), 42u64)],
-            )
-            .expect("unique scope bindings"),
-        ],
-    };
-    let target = registry
-        .target(&snapshot.scopes, &save_id())
-        .expect("active command");
+    let presentation_registry = registry.clone();
     let mut runtime = SurfaceRuntime::new(
-        radiant::app(snapshot)
-            .view(|_: &CommandSnapshot<u64>| text("Contextual commands"))
-            .commands(
+        radiant::app(42u64)
+            .view(|document: &u64| {
+                button("Document")
+                    .message((*document, CommandSource::Application))
+                    .id(100)
+                    .commands([CommandBinding::new(save_id(), *document)])
+            })
+            .command_registry(
                 registry,
-                |state, _| state.clone(),
                 CommandDispatcher::new(|invocation: CommandInvocation<u64>| {
                     (*invocation.context(), invocation.source())
                 }),
@@ -55,16 +46,28 @@ fn main() {
             .into_bridge(),
         Vector2::new(320.0, 180.0),
     );
+    assert!(runtime.focus_widget(100));
     let mut input = CommandInput::logical(CommandKey::Character("s".into()), ShortcutPlatform::Mac);
     input.modifiers.meta = true;
-    for request in [
-        CommandRequest::Input(&input),
+    let (status, outcome) =
+        runtime.dispatch_command_request(CommandRequest::Input(&input), FocusSurface::None);
+    assert_eq!(status, CommandDispatchStatus::Mapped);
+    assert_eq!(outcome.messages_dispatched, 1);
+    // Query after dispatch: a refreshed view has new captured context.
+    let target = presentation_registry
+        .target(
+            &runtime
+                .command_scopes::<u64>()
+                .expect("typed active scopes"),
+            &save_id(),
+        )
+        .expect("active command");
+    let (status, outcome) = runtime.dispatch_command_request(
         CommandRequest::Target(&target, CommandSource::Menu),
-    ] {
-        let (status, outcome) = runtime.dispatch_command_request(request, FocusSurface::None);
-        assert_eq!(status, CommandDispatchStatus::Mapped);
-        assert_eq!(outcome.messages_dispatched, 1);
-    }
+        FocusSurface::None,
+    );
+    assert_eq!(status, CommandDispatchStatus::Mapped);
+    assert_eq!(outcome.messages_dispatched, 1);
 }
 
 #[cfg(test)]

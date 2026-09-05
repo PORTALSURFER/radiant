@@ -3,11 +3,11 @@
 `radiant::application` provides static command registration, immutable active scope snapshots,
 a data-only keymap, presentation queries, and one invocation-to-message mapper. The explicit
 host boundary is `SurfaceRuntime::dispatch_command_request`; the application builder's
-`.commands(registry, project, dispatcher)` connects it to the ordinary reducer.
+`.command_registry(registry, dispatcher)` connects committed view scopes to the ordinary reducer.
+The advanced `.commands(registry, project, dispatcher)` hook also accepts manual scope snapshots.
 
 The Winit keyboard adapter submits native presses through this boundary for runtimes with a
-semantic command host, including ordinary applications configured with `.commands(...)`.
-Automatic view-tree scope collection, automatic menu/toolbar/palette adapters, and inheritance
+semantic command host. Automatic menu/toolbar/palette adapters and inheritance
 of a parent registry into auxiliary-window bridges remain integration work. Those adapters
 must use the same resolver and target checks.
 
@@ -30,6 +30,35 @@ It maps the selected `CommandInvocation<Context>` to a normal message; the reduc
 authority for domain changes. Resolution and presentation queries do not run the reducer.
 As with other opaque application data, interior mutability inside `Context` is the application's
 responsibility; a scope wrapper does not freeze those values.
+
+## Declarative scopes
+
+Attach `.commands([CommandBinding::new(id, context), ...])` to a view to establish a focused
+editor scope. The runtime selects the focused widget's ancestors and derives their depth;
+siblings are inactive. Use `.command_scope(prepared_scope)` for explicit selection, window,
+application, modal or overlay scopes. Modal and overlay scopes must reside in their declared
+layer category; their order comes from the scene, overriding caller-supplied numbers. Passive
+tooltips, drag previews, synthesized layer input shields and noninteractive floating content
+cannot contribute commands. Nodes omitted from the accepted layout are inactive.
+
+Register one `.command_registry(registry, dispatcher)` and optionally a read-only
+`.command_keymap(|state| state.keymap.clone())`. `runtime.command_scopes::<Context>()` queries
+current scopes for presentation without running the mapper. Advanced hosts receive the same
+borrowed `CommandScopeProjection` through `RuntimeInputHost::resolve_command_with_scopes`;
+its default delegates to the existing manual command hook.
+
+Captured context remains UI-local. Frozen reconciliation metadata carries only an incarnation
+marker. Rebuilding an attachment forces fresh ownership projection while preserving compatible
+widget focus and editing state. Component projection caching and application lowering receipts
+conservatively decline scope-bearing content. Explicit scope clones retain target identity;
+reconstruct a scope when its captured context changes. Registering either builder router replaces
+the other; manual and declarative scope lists are never implicitly combined.
+
+Collection admits 1,024 attachments in at most 65,536 source nodes, and activation admits 64
+scopes. Duplicate source identities, incompatible context types, invalid construction and
+exceeded capacity fail closed. No truncated subset can dispatch. Automatic attachment construction
+diagnostics are available on the active projection. Scope indexing is committed with the runtime
+view, so an uncommitted application projection cannot replace active command context.
 
 ## Presentation and stale activation
 

@@ -43,6 +43,25 @@ where
             })
     }
 
+    fn resolve_command_with_scopes(
+        &mut self,
+        request: crate::application::CommandRequest<'_>,
+        focus: crate::application::CommandFocus,
+        scopes: crate::application::CommandScopeProjection<'_>,
+    ) -> crate::application::CommandDispatch<Message> {
+        if let Some(router) = &self.lifecycle.declarative_command_router {
+            let keymap = self
+                .lifecycle
+                .command_keymap
+                .as_ref()
+                .map(|project| project(&self.state))
+                .unwrap_or_default();
+            router(request, scopes, &keymap)
+        } else {
+            self.resolve_command(request, focus)
+        }
+    }
+
     fn resolve_key_press(
         &mut self,
         pending_chord: Option<KeyPress>,

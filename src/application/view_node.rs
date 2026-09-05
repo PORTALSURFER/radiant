@@ -137,6 +137,7 @@ pub struct ViewNode<Message> {
     native_file_drop: Option<NativeFileDropMessageMapper<Message>>,
     overlay_layers: Vec<Layer<Message>>,
     effect_owner: Option<DeclarativeEffectOwner>,
+    command_scope: Option<crate::application::CommandScopeAttachment>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -235,7 +236,32 @@ impl<Message> ViewNode<Message> {
             native_file_drop: None,
             overlay_layers: Vec::new(),
             effect_owner: None,
+            command_scope: None,
         }
+    }
+
+    /// Attach commands to this leaf or container's focused ancestry.
+    ///
+    /// Invalid duplicate or oversized binding sets stay inactive and report a
+    /// construction diagnostic through the active command-scope projection.
+    pub fn commands<Context: 'static>(
+        mut self,
+        bindings: impl IntoIterator<Item = crate::application::CommandBinding<Context>>,
+    ) -> Self {
+        self.command_scope = Some(crate::application::CommandScopeAttachment::automatic(
+            bindings,
+        ));
+        self
+    }
+
+    /// Attach an explicitly named scope. Runtime ancestry and current layer
+    /// ownership qualify editor depth and modal/overlay order.
+    pub fn command_scope<Context: 'static>(
+        mut self,
+        scope: crate::application::CommandScope<Context>,
+    ) -> Self {
+        self.command_scope = Some(crate::application::CommandScopeAttachment::explicit(scope));
+        self
     }
 
     pub(in crate::application) fn with_reserved_descendant_identity(

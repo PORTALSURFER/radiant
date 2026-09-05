@@ -41,13 +41,15 @@ impl<Message> UiSurface<Message> {
     ) -> LayoutNode {
         traversal.clear_for_stats(stats);
         source.clear_for_stats(stats);
-        self.root.project_runtime_with_environment(
+        let result = self.root.project_runtime_with_environment(
             &mut Vec::with_capacity(stats.max_scroll_depth),
             &mut Vec::with_capacity(stats.max_depth),
             traversal,
             source,
             environment,
-        )
+        );
+        traversal.command_scopes.qualify(source);
+        result
     }
 
     pub(in crate::runtime) fn runtime_projection_reusing_with_scratch(
@@ -76,13 +78,15 @@ impl<Message> UiSurface<Message> {
         source.clear_for_reuse();
         scroll_stack.clear();
         child_path.clear();
-        self.root.project_runtime_with_environment(
+        let result = self.root.project_runtime_with_environment(
             scroll_stack,
             child_path,
             traversal,
             source,
             &self.resolved_environment(),
-        )
+        );
+        traversal.command_scopes.qualify(source);
+        result
     }
 
     pub(in crate::runtime) fn runtime_source_traversal_index_reusing(
@@ -142,18 +146,30 @@ impl<Message> SurfaceNode<Message> {
         environment: &crate::runtime::ResolvedEnvironment,
     ) -> LayoutNode {
         source.record_node(self);
-        match self {
+        let command_depth = traversal.command_scopes.enter(self, child_path);
+        let result = match self {
             Self::Scene(scene) => {
                 if !scene.has_layers() {
-                    return scene.base.project_runtime_with_environment(
+                    let result = scene.base.project_runtime_with_environment(
                         scroll_stack,
                         child_path,
                         traversal,
                         source,
                         environment,
                     );
+                    traversal.command_scopes.leave(command_depth);
+                    return result;
                 }
                 scene_layout_node(scene, |scene_child_index, child| {
+                    let command_layer = scene_child_index
+                        .checked_sub(1)
+                        .and_then(|index| scene.ordered_layer_child_for_child(index))
+                        .map(|(index, child_kind)| {
+                            traversal.command_scopes.enter_layer(
+                                scene.layers[index].kind,
+                                matches!(child_kind, super::node::SurfaceLayerChildKind::Input),
+                            )
+                        });
                     child_path.push(scene_child_index);
                     let layout = child.project_runtime_with_environment(
                         scroll_stack,
@@ -163,6 +179,9 @@ impl<Message> SurfaceNode<Message> {
                         environment,
                     );
                     child_path.pop();
+                    if let Some(previous) = command_layer {
+                        traversal.command_scopes.leave_layer(previous);
+                    }
                     layout
                 })
             }
@@ -245,7 +264,9 @@ impl<Message> SurfaceNode<Message> {
                     )
                 }
             }
-        }
+        };
+        traversal.command_scopes.leave(command_depth);
+        result
     }
 
     #[cfg(test)]

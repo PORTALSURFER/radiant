@@ -16,6 +16,8 @@ pub struct CommandConflict {
 /// A terminal decision that must not fall through to legacy shortcut routing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandSuppression {
+    /// An active declarative attachment uses a different application context type.
+    ContextMismatch,
     /// Focused text editing already handled this input.
     TextEditing,
     /// Input-method composition currently owns the key.

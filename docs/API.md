@@ -3952,7 +3952,9 @@ not change base hit testing, layer ordering, or widget state synchronization.
 Semantic command registration and the explicit host dispatch boundary are documented in
 [CONTEXTUAL_COMMANDS.md](CONTEXTUAL_COMMANDS.md). This foundation shares metadata,
 keymaps, active scope resolution and an application mapper. Native keyboard routing uses
-that resolver; automatic view/menu adapters remain separate integration work. Existing catalogs retain their behavior.
+that resolver. `ViewNode::commands` and `.command_scope` declare ownership, while
+`.command_registry` selects scopes from the committed focus ancestry and scene layers.
+Automatic menu adapters remain separate integration work. Existing catalogs retain their behavior.
 
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered
@@ -6704,8 +6706,8 @@ Run `cargo run --example rendering_baseline --release -- local /tmp/radiant-loca
 for a bounded native observation capture. See `NATIVE_BASELINE_RECORDER.md` for
 qualification, cold/warm separation and unavailable GPU timing handling.
 
-Run `cargo run --example contextual_commands` for explicit headless command dispatch
-through the application reducer and revalidated presentation targets.
+Run `cargo run --example contextual_commands` for headless command dispatch
+from declarative view scopes through the application reducer and revalidated presentation targets.
 
 Run `cargo run --example component_projection` for exact-input component reuse
 with observable callback counts. See `COMPONENT_PROJECTION.md` for dependencies,

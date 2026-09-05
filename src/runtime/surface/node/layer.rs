@@ -91,6 +91,8 @@ pub struct SurfaceOverlay {
     pub(in crate::runtime::surface) label: Option<PaintText>,
     pub(in crate::runtime::surface) style: WidgetStyle,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
+    pub(in crate::runtime::surface) command_scope:
+        Option<crate::application::CommandScopeAttachment>,
 }
 
 /// One floating child tree with explicit layout placement and input policy.
@@ -100,6 +102,8 @@ pub struct SurfaceFloatingLayer<Message> {
     pub(in crate::runtime::surface) container: SurfaceContainer<Message>,
     pub(in crate::runtime::surface) interactive: bool,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
+    pub(in crate::runtime::surface) command_scope:
+        Option<crate::application::CommandScopeAttachment>,
 }
 
 #[cfg(test)]
@@ -138,6 +142,7 @@ mod tests {
             ),
             interactive: true,
             source: None,
+            command_scope: None,
         };
 
         assert_eq!(layer.container.children.len(), 1);

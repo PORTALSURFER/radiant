@@ -180,6 +180,7 @@ impl SourceTopology {
 /// Complete private source metadata attached to one concrete surface node.
 #[derive(Clone, Debug)]
 pub(crate) struct SourceMetadata {
+    pub(crate) command_incarnation: Option<u64>,
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
     pub(crate) topology: SourceTopology,
@@ -187,6 +188,7 @@ pub(crate) struct SourceMetadata {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrozenSourceMetadata {
+    pub(crate) command_incarnation: Option<u64>,
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
     pub(crate) keyed_nodes: Vec<(
@@ -200,6 +202,7 @@ pub(crate) struct FrozenSourceMetadata {
 impl FrozenSourceMetadata {
     pub(crate) fn empty() -> Self {
         Self {
+            command_incarnation: None,
             identity: SourceIdentity {
                 resolved_id: 0,
                 structural_scope: 0,
@@ -216,6 +219,7 @@ impl FrozenSourceMetadata {
 impl SourceMetadata {
     pub(crate) fn freeze(&self) -> FrozenSourceMetadata {
         FrozenSourceMetadata {
+            command_incarnation: self.command_incarnation,
             identity: self.identity,
             compatibility: self.compatibility,
             keyed_nodes: self
@@ -236,6 +240,7 @@ impl SourceMetadata {
         topology: SourceTopology,
     ) -> Self {
         Self {
+            command_incarnation: None,
             identity,
             compatibility,
             topology,
@@ -251,6 +256,7 @@ impl SourceMetadata {
 /// cannot drift apart.
 pub(crate) fn source_metadata_matches(first: &SourceMetadata, second: &SourceMetadata) -> bool {
     first.identity == second.identity
+        && first.command_incarnation == second.command_incarnation
         && first.compatibility == second.compatibility
         && source_topology_matches(&first.topology, &second.topology)
 }

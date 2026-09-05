@@ -245,6 +245,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         });
         let source_topology = self.source_topology(&node_context);
         let previous_context = std::mem::replace(&mut self.source_context, node_context);
+        let command_scope = node.command_scope.clone();
         let style = node.style;
         let hoverable = node.hoverable;
         let split_pane_runtime = node.split_pane_runtime;
@@ -506,6 +507,14 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
                 lowered,
                 SurfaceNode::Container(_) | SurfaceNode::Scene(_) | SurfaceNode::FloatingLayer(_)
             )
+            && let Some(context) = self.application_context.as_deref_mut()
+        {
+            context.mark_unsupported();
+        }
+        if let Some(scope) = command_scope {
+            lowered = lowered.with_command_scope(scope);
+        }
+        if lowered.command_scope().is_some()
             && let Some(context) = self.application_context.as_deref_mut()
         {
             context.mark_unsupported();

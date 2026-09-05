@@ -26,6 +26,7 @@ impl<Message> SurfaceNode<Message> {
             label: Some(label.into()),
             style,
             source: None,
+            command_scope: None,
         })
     }
 
@@ -38,6 +39,7 @@ impl<Message> SurfaceNode<Message> {
             label: None,
             style,
             source: None,
+            command_scope: None,
         })
     }
 
@@ -90,6 +92,7 @@ impl<Message> SurfaceNode<Message> {
             ),
             interactive,
             source: None,
+            command_scope: None,
         })
     }
 }

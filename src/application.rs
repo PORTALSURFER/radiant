@@ -34,6 +34,7 @@ pub(in crate::application) use runtime::{
     PendingFrameRepaint,
 };
 mod commands;
+pub(crate) use commands::{CommandScopeAttachment, ResolvedCommandScope};
 
 mod builders;
 mod details_list;

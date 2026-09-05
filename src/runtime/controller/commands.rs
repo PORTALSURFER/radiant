@@ -32,11 +32,25 @@ where
         request: crate::application::CommandRequest<'_>,
         surface: crate::gui::focus::FocusSurface,
     ) -> (crate::application::CommandDispatchStatus, CommandOutcome) {
+        let dispatch = self.resolve_command_request(request, surface);
+        let outcome = dispatch
+            .message
+            .map_or_else(CommandOutcome::default, |message| {
+                self.dispatch_message(message)
+            });
+        (dispatch.status, outcome)
+    }
+
+    pub(super) fn resolve_command_request(
+        &mut self,
+        request: crate::application::CommandRequest<'_>,
+        surface: crate::gui::focus::FocusSurface,
+    ) -> crate::application::CommandDispatch<Message> {
         if !self.lifecycle_accepts_work() {
-            return (
-                crate::application::CommandDispatchStatus::Unavailable,
-                CommandOutcome::default(),
-            );
+            return crate::application::CommandDispatch {
+                message: None,
+                status: crate::application::CommandDispatchStatus::Unavailable,
+            };
         }
         let focus = crate::application::CommandFocus {
             widget: self.focused_widget(),
@@ -44,7 +58,7 @@ where
         };
         let (scopes, error) = self.active_command_scope_records();
         let projection = crate::application::CommandScopeProjection::new(&scopes, error);
-        let dispatch = self.host_capabilities.input.as_ref().map_or_else(
+        self.host_capabilities.input.as_ref().map_or_else(
             crate::application::CommandDispatch::unhandled,
             |capability| {
                 (capability.resolve_command_with_scopes)(
@@ -54,13 +68,7 @@ where
                     projection,
                 )
             },
-        );
-        let outcome = dispatch
-            .message
-            .map_or_else(CommandOutcome::default, |message| {
-                self.dispatch_message(message)
-            });
-        (dispatch.status, outcome)
+        )
     }
 
     /// Query active typed command scopes from the current committed view and focus.
@@ -84,9 +92,23 @@ where
         Vec<crate::application::ResolvedCommandScope>,
         Option<crate::application::CommandSuppression>,
     ) {
-        let focused = self
+        let focused_widget = self
             .focused_widget()
-            .filter(|id| self.is_authoritative_focus_target(*id))
+            .filter(|id| self.is_authoritative_focus_target(*id));
+        let context_widget = focused_widget.and_then(|id| {
+            if self
+                .surface_widget(id)
+                .is_some_and(|widget| widget.is_command_control())
+            {
+                self.interaction
+                    .focus
+                    .command_context_widget
+                    .filter(|id| self.is_live_focus_target(*id))
+            } else {
+                Some(id)
+            }
+        });
+        let focused = context_widget
             .and_then(|id| self.traversal.widgets.paths.current.get(&id))
             .map(|path| path.as_slice());
         self.traversal.command_scopes.active(&self.layout, focused)

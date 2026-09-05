@@ -14,7 +14,14 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
+pub(in crate::runtime) enum ResolvedWidgetDispatchResult<Message> {
+    NoOutput,
+    UnmappedOutput,
+    Message(Message),
+}
+
 pub(in crate::runtime) enum WidgetDispatchResult<Message> {
+    Command(crate::application::CommandActivation),
     NoOutput,
     UnmappedOutput,
     Message(Message),

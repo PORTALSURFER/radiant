@@ -3954,7 +3954,9 @@ Semantic command registration and the explicit host dispatch boundary are docume
 keymaps, active scope resolution and an application mapper. Native keyboard routing uses
 that resolver. `ViewNode::commands` and `.command_scope` declare ownership, while
 `.command_registry` selects scopes from the committed focus ancestry and scene layers.
-Automatic menu adapters remain separate integration work. Existing catalogs retain their behavior.
+`CommandPresentation` builds menu, toolbar, palette and help controls from the same
+metadata; activation uses the runtime mapper. OS menu installation remains separate
+integration work. Existing catalogs retain their behavior.
 
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered

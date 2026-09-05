@@ -276,6 +276,7 @@ where
     fn invalidate_separator_focus(&mut self, owner: RuntimeSplitPaneSeparatorFocusOwner) {
         if self.interaction.focus.owner == Some(RuntimeFocusOwner::SplitPaneSeparator(owner)) {
             self.interaction.focus.owner = None;
+            self.interaction.focus.command_context_widget = None;
         }
         self.revalidate_focus_owner();
     }

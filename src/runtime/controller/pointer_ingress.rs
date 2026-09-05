@@ -1006,17 +1006,17 @@ where
         let Some(result) = result else {
             return false;
         };
-        match result {
-            WidgetDispatchResult::Message(message) => {
+        match self.resolve_widget_dispatch(result) {
+            crate::runtime::ResolvedWidgetDispatchResult::Message(message) => {
                 let outcome = self.dispatch_message(message);
                 self.pending_input_command_outcome.merge(outcome);
                 true
             }
-            WidgetDispatchResult::UnmappedOutput => {
+            crate::runtime::ResolvedWidgetDispatchResult::UnmappedOutput => {
                 self.relayout();
                 true
             }
-            WidgetDispatchResult::NoOutput => false,
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput => false,
         }
     }
 }

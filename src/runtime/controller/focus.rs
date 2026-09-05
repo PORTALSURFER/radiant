@@ -124,6 +124,7 @@ where
             self.mark_focused_key_capture_stale(previous_widget);
         }
         self.interaction.focus.owner = None;
+        self.interaction.focus.command_context_widget = None;
         self.interaction.focus.focused_key_host_block = None;
         self.interaction.focus.focused_semantic_key_block = None;
         if let Some(previous_widget) = previous_widget
@@ -166,6 +167,7 @@ where
                         return FocusTransition::Unchanged;
                     }
                     self.interaction.focus.owner = None;
+                    self.interaction.focus.command_context_widget = None;
                     return FocusTransition::InvalidTarget;
                 }
                 RuntimeFocusOwner::SplitPaneSeparator(_) => {
@@ -219,6 +221,7 @@ where
                     )
                 {
                     self.interaction.focus.owner = None;
+                    self.interaction.focus.command_context_widget = None;
                 }
                 SplitPaneSeparatorFocusAdmission::Invalidated
             }
@@ -250,6 +253,26 @@ where
             // can emit a message and synchronously reproject the surface.
             self.mark_focused_key_capture_stale(previous_widget);
         }
+        self.interaction.focus.command_context_widget = match next {
+            RuntimeFocusOwner::Widget(widget_id)
+                if self
+                    .surface_widget(widget_id)
+                    .is_some_and(|widget| widget.is_command_control()) =>
+            {
+                previous_widget.and_then(|previous| {
+                    if self
+                        .surface_widget(previous)
+                        .is_some_and(|widget| widget.is_command_control())
+                    {
+                        self.interaction.focus.command_context_widget
+                    } else {
+                        previous_is_live.then_some(previous)
+                    }
+                })
+            }
+            _ => None,
+        };
+
         self.interaction.focus.owner = Some(next);
         let application_projection_before = self.refresh_counters().application_projection;
         if let Some(previous_widget) = previous_widget
@@ -274,6 +297,7 @@ where
                     // A focus-loss output may remove or supersede the proposed
                     // target while the old owner is being routed out.
                     self.interaction.focus.owner = None;
+                    self.interaction.focus.command_context_widget = None;
                     return FocusTransition::InvalidTarget;
                 }
                 if self.interaction.focus.owner == Some(next) {
@@ -316,6 +340,7 @@ where
                         })
                     {
                         self.interaction.focus.owner = None;
+                        self.interaction.focus.command_context_widget = None;
                     }
                     FocusTransition::InvalidTarget
                 }
@@ -425,6 +450,14 @@ where
     }
 
     pub(super) fn revalidate_focus_owner(&mut self) {
+        if self
+            .interaction
+            .focus
+            .command_context_widget
+            .is_some_and(|id| !self.is_live_focus_target(id))
+        {
+            self.interaction.focus.command_context_widget = None;
+        }
         let Some(owner) = self.interaction.focus.owner else {
             return;
         };
@@ -432,12 +465,14 @@ where
             RuntimeFocusOwner::Widget(widget_id) => {
                 if !self.traversal.widgets.focusable.contains(widget_id) {
                     self.interaction.focus.owner = None;
+                    self.interaction.focus.command_context_widget = None;
                 }
             }
             RuntimeFocusOwner::SplitPaneSeparator(owner) => {
                 let Some(projection) = self.current_split_pane_separator_projection(owner.target)
                 else {
                     self.interaction.focus.owner = None;
+                    self.interaction.focus.command_context_widget = None;
                     return;
                 };
                 if owner.mounted_state_id != projection.mounted_state_id
@@ -445,6 +480,7 @@ where
                     || !owner.behavior.compatible_with(projection.behavior)
                 {
                     self.interaction.focus.owner = None;
+                    self.interaction.focus.command_context_widget = None;
                 } else if owner.behavior != projection.behavior {
                     self.interaction.focus.owner = Some(RuntimeFocusOwner::SplitPaneSeparator(
                         RuntimeSplitPaneSeparatorFocusOwner {
@@ -463,6 +499,7 @@ where
             Some(RuntimeFocusOwner::SplitPaneSeparator(_))
         ) {
             self.interaction.focus.owner = None;
+            self.interaction.focus.command_context_widget = None;
             true
         } else {
             false

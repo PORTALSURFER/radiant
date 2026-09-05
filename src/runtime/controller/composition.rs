@@ -3,7 +3,7 @@
 use super::SurfaceRuntime;
 use super::interaction_state::RuntimeManagedCompositionState;
 use crate::gui::input::InputTimestamp;
-use crate::runtime::{RuntimeBridge, WidgetDispatchResult};
+use crate::runtime::RuntimeBridge;
 use crate::widgets::{CompositionPhase, CompositionSample, WidgetId};
 
 #[cfg(test)]
@@ -218,20 +218,22 @@ where
         }
         let result = self.dispatch_surface_composition_sample(widget_id, sample)?;
         let retained = result.1;
-        let dispatch = match result.0 {
-            WidgetDispatchResult::Message(message) => {
+        let dispatch = match self.resolve_widget_dispatch(result.0) {
+            crate::runtime::ResolvedWidgetDispatchResult::Message(message) => {
                 let outcome = self.dispatch_message(message);
                 self.pending_input_command_outcome.merge(outcome);
                 CompositionWidgetDispatch::Handled { retained }
             }
-            WidgetDispatchResult::UnmappedOutput => {
+            crate::runtime::ResolvedWidgetDispatchResult::UnmappedOutput => {
                 self.relayout();
                 CompositionWidgetDispatch::Handled { retained }
             }
-            WidgetDispatchResult::NoOutput if retained => {
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput if retained => {
                 CompositionWidgetDispatch::RetainedNoOutput
             }
-            WidgetDispatchResult::NoOutput => CompositionWidgetDispatch::Unhandled,
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput => {
+                CompositionWidgetDispatch::Unhandled
+            }
         };
         Some(dispatch)
     }
@@ -245,20 +247,22 @@ where
         let result =
             self.dispatch_surface_hidden_composition_update(widget_id, preedit, timestamp)?;
         let retained = result.1;
-        let dispatch = match result.0 {
-            WidgetDispatchResult::Message(message) => {
+        let dispatch = match self.resolve_widget_dispatch(result.0) {
+            crate::runtime::ResolvedWidgetDispatchResult::Message(message) => {
                 let outcome = self.dispatch_message(message);
                 self.pending_input_command_outcome.merge(outcome);
                 CompositionWidgetDispatch::Handled { retained }
             }
-            WidgetDispatchResult::UnmappedOutput => {
+            crate::runtime::ResolvedWidgetDispatchResult::UnmappedOutput => {
                 self.relayout();
                 CompositionWidgetDispatch::Handled { retained }
             }
-            WidgetDispatchResult::NoOutput if retained => {
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput if retained => {
                 CompositionWidgetDispatch::RetainedNoOutput
             }
-            WidgetDispatchResult::NoOutput => CompositionWidgetDispatch::Unhandled,
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput => {
+                CompositionWidgetDispatch::Unhandled
+            }
         };
         Some(dispatch)
     }

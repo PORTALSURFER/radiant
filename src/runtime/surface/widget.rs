@@ -537,10 +537,7 @@ impl<Message> SurfaceWidget<Message> {
         else {
             return super::WidgetDispatchResult::NoOutput;
         };
-        self.messages
-            .map_output(output)
-            .map(super::WidgetDispatchResult::Message)
-            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+        self.messages.dispatch_output(output)
     }
 
     pub(in crate::runtime) fn dispatch_pointer_event(
@@ -561,6 +558,10 @@ impl<Message> SurfaceWidget<Message> {
             .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
     }
 
+    pub(in crate::runtime) fn is_command_control(&self) -> bool {
+        self.messages.is_command_control()
+    }
+
     pub(in crate::runtime) fn has_pointer_output(&self) -> bool {
         self.messages.has_pointer_output()
     }
@@ -578,10 +579,7 @@ impl<Message> SurfaceWidget<Message> {
         else {
             return super::WidgetDispatchResult::NoOutput;
         };
-        self.messages
-            .map_output(output)
-            .map(super::WidgetDispatchResult::Message)
-            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+        self.messages.dispatch_output(output)
     }
 
     #[cfg(test)]
@@ -594,10 +592,7 @@ impl<Message> SurfaceWidget<Message> {
         let Some(output) = self.handle_input(widget_id, bounds, input) else {
             return super::WidgetDispatchResult::NoOutput;
         };
-        self.messages
-            .map_output(output)
-            .map(super::WidgetDispatchResult::Message)
-            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+        self.messages.dispatch_output(output)
     }
 
     pub(in crate::runtime) fn dispatch_input_with_environment(
@@ -612,10 +607,7 @@ impl<Message> SurfaceWidget<Message> {
         else {
             return super::WidgetDispatchResult::NoOutput;
         };
-        self.messages
-            .map_output(output)
-            .map(super::WidgetDispatchResult::Message)
-            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+        self.messages.dispatch_output(output)
     }
 
     pub(in crate::runtime) fn dispatch_accessibility_action(
@@ -652,11 +644,7 @@ impl<Message> SurfaceWidget<Message> {
             );
         };
         let retains = self.widget.retains_managed_wheel_sequence();
-        let result = self
-            .messages
-            .map_output(output)
-            .map(super::WidgetDispatchResult::Message)
-            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput);
+        let result = self.messages.dispatch_output(output);
         (result, retains)
     }
 
@@ -675,11 +663,7 @@ impl<Message> SurfaceWidget<Message> {
             );
         };
         let retains = self.widget.retains_managed_composition();
-        let result = self
-            .messages
-            .map_output(output)
-            .map(super::WidgetDispatchResult::Message)
-            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput);
+        let result = self.messages.dispatch_output(output);
         (result, retains)
     }
 
@@ -702,11 +686,7 @@ impl<Message> SurfaceWidget<Message> {
             );
         };
         let retains = self.widget.retains_managed_composition();
-        let result = self
-            .messages
-            .map_output(output)
-            .map(super::WidgetDispatchResult::Message)
-            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput);
+        let result = self.messages.dispatch_output(output);
         (result, retains)
     }
 

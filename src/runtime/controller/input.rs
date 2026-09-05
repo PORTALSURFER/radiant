@@ -9,6 +9,26 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn resolve_widget_dispatch(
+        &mut self,
+        result: WidgetDispatchResult<Message>,
+    ) -> crate::runtime::ResolvedWidgetDispatchResult<Message> {
+        use crate::runtime::ResolvedWidgetDispatchResult as Resolved;
+        match result {
+            WidgetDispatchResult::NoOutput => Resolved::NoOutput,
+            WidgetDispatchResult::UnmappedOutput => Resolved::UnmappedOutput,
+            WidgetDispatchResult::Message(message) => Resolved::Message(message),
+            WidgetDispatchResult::Command(activation) => self
+                .resolve_command_request(
+                    activation.request(),
+                    crate::gui::focus::FocusSurface::None,
+                )
+                .message
+                .map(Resolved::Message)
+                .unwrap_or(Resolved::UnmappedOutput),
+        }
+    }
+
     pub(super) fn dispatch_surface_input(
         &mut self,
         widget_id: WidgetId,

@@ -662,8 +662,8 @@ where
             )
         };
         let retained = result.1;
-        let dispatch = match result.0 {
-            WidgetDispatchResult::Message(message) => {
+        let dispatch = match self.resolve_widget_dispatch(result.0) {
+            crate::runtime::ResolvedWidgetDispatchResult::Message(message) => {
                 if refresh_after_message {
                     let outcome = self.dispatch_message(message);
                     self.pending_input_command_outcome.merge(outcome);
@@ -674,12 +674,16 @@ where
                 }
                 WheelWidgetDispatch::Handled { retained }
             }
-            WidgetDispatchResult::UnmappedOutput => {
+            crate::runtime::ResolvedWidgetDispatchResult::UnmappedOutput => {
                 self.relayout();
                 WheelWidgetDispatch::Handled { retained }
             }
-            WidgetDispatchResult::NoOutput if retained => WheelWidgetDispatch::RetainedNoOutput,
-            WidgetDispatchResult::NoOutput => WheelWidgetDispatch::Unhandled,
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput if retained => {
+                WheelWidgetDispatch::RetainedNoOutput
+            }
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput => {
+                WheelWidgetDispatch::Unhandled
+            }
         };
         Some(dispatch)
     }

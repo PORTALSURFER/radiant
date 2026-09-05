@@ -242,9 +242,9 @@ pub(crate) use surface::{
     application_container_kind_matches, application_node_kind, classify_interaction_leaf_evidence,
 };
 pub(in crate::runtime) use surface::{
-    ClipAncestors, SurfaceLayoutInteractionRecord, SurfaceRuntimeProjection,
-    SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex, WheelHitTarget,
-    WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
+    ClipAncestors, ResolvedWidgetDispatchResult, SurfaceLayoutInteractionRecord,
+    SurfaceRuntimeProjection, SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex,
+    WheelHitTarget, WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
 pub use surface::{
     Element, EventMapper, LayerKind, MessageMapper, NativeFileDropMessageMapper,

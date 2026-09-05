@@ -17,11 +17,12 @@ pub use super::super::runtime::{
 pub use crate::gui::shortcuts::ShortcutPlatform;
 
 pub use super::super::commands::{
-    CommandBinding, CommandConflict, CommandDescriptor, CommandDispatch, CommandDispatchStatus,
-    CommandDispatcher, CommandFocus, CommandId, CommandInput, CommandInvocation, CommandKey,
-    CommandModifiers, CommandPresentation, CommandRegistrationError, CommandRegistry,
-    CommandRequest, CommandResolution, CommandScope, CommandScopeError, CommandScopeKind,
-    CommandScopeProjection, CommandShortcut, CommandShortcutPresentation, CommandSnapshot,
-    CommandSource, CommandSuppression, CommandTarget, Keymap, KeymapConflict, KeymapConflictKind,
-    KeymapDiagnostic, KeymapError, KeymapProblem, KeymapResolutionChoice, KeymapValidation,
+    CommandActivation, CommandBinding, CommandConflict, CommandDescriptor, CommandDispatch,
+    CommandDispatchStatus, CommandDispatcher, CommandFocus, CommandId, CommandInput,
+    CommandInvocation, CommandKey, CommandModifiers, CommandPresentation, CommandRegistrationError,
+    CommandRegistry, CommandRequest, CommandResolution, CommandScope, CommandScopeError,
+    CommandScopeKind, CommandScopeProjection, CommandShortcut, CommandShortcutPresentation,
+    CommandSnapshot, CommandSource, CommandSuppression, CommandTarget, Keymap, KeymapConflict,
+    KeymapConflictKind, KeymapDiagnostic, KeymapError, KeymapProblem, KeymapResolutionChoice,
+    KeymapValidation,
 };

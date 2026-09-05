@@ -4395,6 +4395,9 @@ where
         widget_id: WidgetId,
     ) -> SurfaceIdentityOwnership {
         self.mark_focused_key_capture_stale(widget_id);
+        if self.interaction.focus.command_context_widget == Some(widget_id) {
+            self.interaction.focus.command_context_widget = None;
+        }
         self.clear_managed_composition_for_widget(widget_id);
         let focus = matches!(
             self.interaction.focus.owner,
@@ -4417,6 +4420,7 @@ where
         }
         if focus {
             self.interaction.focus.owner = None;
+            self.interaction.focus.command_context_widget = None;
         }
         if pointer_capture {
             self.clear_managed_pointer_capture_for_widget(widget_id);

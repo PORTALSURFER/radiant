@@ -3,6 +3,8 @@
 //! Registries own static metadata. Applications project active immutable scopes;
 //! resolution selects one typed invocation without performing a domain action.
 
+mod activation;
+mod control;
 mod declarative;
 mod dispatch;
 mod host;
@@ -14,6 +16,7 @@ mod resolution;
 mod scope;
 mod validation;
 
+pub use activation::CommandActivation;
 pub use declarative::CommandScopeProjection;
 pub(crate) use declarative::{CommandScopeAttachment, ResolvedCommandScope};
 pub use dispatch::{CommandDispatch, CommandDispatchStatus, CommandDispatcher};
@@ -37,3 +40,6 @@ mod tests;
 
 #[cfg(test)]
 mod host_tests;
+
+#[cfg(test)]
+mod control_tests;

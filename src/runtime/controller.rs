@@ -85,7 +85,7 @@ use super::{
     ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragCompletion,
     ExternalDragIdentity, ExternalDragSession, PendingExternalDragCompletion, RuntimeBridge,
     RuntimeDiagnosticsRecorder, RuntimeLifecycleController, SurfaceTraversalIndex, UiSurface,
-    UiUpdateHandlerDiagnosticsPolicy, WidgetDispatchResult, WidgetPath, WindowEnvironment,
+    UiUpdateHandlerDiagnosticsPolicy, WidgetPath, WindowEnvironment,
 };
 use crate::{
     UiAffinity,
@@ -450,9 +450,13 @@ where
         let bounds = self.layout.rects.get(&widget_id).copied()?;
         let result = self.dispatch_surface_input(widget_id, bounds, input)?;
         self.capture_pointer_capture_state(widget_id);
-        let emitted_output = !matches!(result, WidgetDispatchResult::NoOutput);
+        let result = self.resolve_widget_dispatch(result);
+        let emitted_output = !matches!(
+            result,
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput
+        );
         match result {
-            WidgetDispatchResult::Message(message) => {
+            crate::runtime::ResolvedWidgetDispatchResult::Message(message) => {
                 let outcome = if refresh_after_message {
                     self.dispatch_message(message)
                 } else {
@@ -462,8 +466,8 @@ where
                 };
                 self.pending_input_command_outcome.merge(outcome);
             }
-            WidgetDispatchResult::UnmappedOutput => self.relayout(),
-            WidgetDispatchResult::NoOutput => {}
+            crate::runtime::ResolvedWidgetDispatchResult::UnmappedOutput => self.relayout(),
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput => {}
         }
         Some(emitted_output)
     }

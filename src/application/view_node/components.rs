@@ -58,6 +58,9 @@ pub struct ComponentProjectionCounters {
 /// mapper, and resource dependency in the comparable input. Functions receive
 /// the current window and application environment automatically. Results with
 /// application Scene bindings are projected normally rather than cached.
+/// Retention currently admits only built-in text, button and text-input leaves
+/// under plain containers. Other widgets project freshly so arbitrary custom
+/// Clone behavior cannot change the returned declaration across cache hits.
 /// This caches declarative snapshots, never runtime focus, capture or edit state.
 pub struct ComponentProjectionContext<'a, Message> {
     cache: &'a mut ComponentProjectionCache<Message>,

@@ -473,3 +473,74 @@ fn actual_component_and_widget_lowering_callbacks_skip_unchanged_sibling() {
     assert_eq!(stable.callbacks.get(), 1);
     assert_eq!(stable.lowered_widgets.get(), 32);
 }
+
+struct StatefulCloneWidget {
+    common: crate::widgets::WidgetCommon,
+    generation: u32,
+}
+
+impl Clone for StatefulCloneWidget {
+    fn clone(&self) -> Self {
+        Self {
+            common: self.common.clone(),
+            generation: self.generation + 1,
+        }
+    }
+}
+
+impl crate::widgets::Widget for StatefulCloneWidget {
+    fn common(&self) -> &crate::widgets::WidgetCommon {
+        &self.common
+    }
+    fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+        &mut self.common
+    }
+    fn handle_input(
+        &mut self,
+        _: crate::gui::types::Rect,
+        _: crate::widgets::WidgetInput,
+    ) -> Option<crate::widgets::WidgetOutput> {
+        None
+    }
+    fn append_paint(
+        &self,
+        _: &mut Vec<crate::runtime::PaintPrimitive>,
+        _: crate::gui::types::Rect,
+        _: &crate::layout::LayoutOutput,
+        _: &crate::theme::ThemeTokens,
+    ) {
+    }
+}
+
+fn stateful_clone_component(_: &(), _: &ResolvedEnvironment) -> ViewNode<()> {
+    crate::application::view_node_from_widget(StatefulCloneWidget {
+        common: crate::widgets::WidgetCommon::fixed(8, 20.0, 20.0),
+        generation: 0,
+    })
+}
+
+#[test]
+fn custom_clone_behavior_falls_back_without_reconstructing_from_cached_widget() {
+    let mut cache = ComponentProjectionCache::<()>::default();
+    for _ in 0..3 {
+        let mut context = cache.begin(environment());
+        let view = context.project("custom", (), stateful_clone_component);
+        assert_eq!(context.counters().callbacks, 1);
+        assert_eq!(context.counters().cache_hits, 0);
+        assert_eq!(context.counters().retained_nodes, 0);
+        let root = view.into_surface().into_root();
+        let SurfaceNode::Widget(widget) = root else {
+            panic!("expected custom widget");
+        };
+        assert_eq!(
+            widget
+                .widget()
+                .as_any()
+                .downcast_ref::<StatefulCloneWidget>()
+                .unwrap()
+                .generation,
+            0
+        );
+        context.finish();
+    }
+}

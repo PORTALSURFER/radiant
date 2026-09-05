@@ -674,8 +674,23 @@ impl<Message> SurfaceNode<Message> {
                 return None;
             }
             match node {
-                Self::Widget(_) => {}
+                Self::Widget(widget) => {
+                    let value = widget.widget().as_any();
+                    if !value.is::<crate::widgets::TextWidget>()
+                        && !value.is::<crate::widgets::ButtonWidget>()
+                        && !value.is::<crate::widgets::TextInputWidget>()
+                    {
+                        return None;
+                    }
+                }
                 Self::Container(container) => {
+                    if container.layout_policy.is_some()
+                        || container.layout_capabilities.is_some()
+                        || container.virtual_layout.is_some()
+                        || container.split_pane_runtime.is_some()
+                    {
+                        return None;
+                    }
                     if container.children.len() > limit - count - pending.len() {
                         return None;
                     }

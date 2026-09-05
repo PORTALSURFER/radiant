@@ -66,12 +66,14 @@ normally without retention. Unvisited entries retire at the end of the call.
 These bounds constrain retained entry/node counts, not memory hidden inside
 application-owned input values or widget resources.
 
-Scene lifecycle bindings, overlays, effect owners, scroll/virtual wrappers and
-other unsupported application shapes use ordinary fresh projection. Compatible
-plain container/widget snapshots use the existing runtime surface path, which
-preserves runtime-local widget state. Text-only subtree snapshots can share
-immutable child storage; arbitrary custom widgets keep their existing deep clone
-semantics. A cache hit does not imply zero cloning for custom widgets.
+Scene lifecycle bindings, custom layout policies/capabilities, overlays, effect
+owners, scroll/virtual wrappers and
+other unsupported application shapes use ordinary fresh projection. Only built-in text, button and text-input leaves under plain containers currently
+qualify for retention. Custom and other widgets project freshly, preserving
+arbitrary Clone behavior instead of assuming that cloning a cached declaration
+is equivalent to constructing it again. Qualified snapshots use the existing
+runtime surface path, preserving runtime-local state. Text-only subtrees can
+share immutable child storage; button and text-input snapshots still clone.
 
 ## Evidence
 

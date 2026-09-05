@@ -169,4 +169,14 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "public_pointer_builder_delivers_one_sequence_and_rejects_replayed_terminal",
         ],
     ),
+    (
+        "rendering_baseline",
+        &[
+            ".on_frame_profile(State::observe)",
+            ".on_frame_gpu_timing(",
+            "native_fixture",
+            "native_run",
+            "profiles_preserve_window_identity_and_distinct_cpu_stages",
+        ],
+    ),
 ];

@@ -52,7 +52,7 @@ pub struct SurfaceWidget<Message> {
 /// Immutable widget evidence captured when the widget crosses the erased
 /// `SurfaceWidget` boundary.  View-delta classification borrows this record
 /// and never dispatches back into the live widget object.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SurfaceWidgetRevisionEvidence {
     pub(crate) id: WidgetId,
     pub(crate) compatibility_kind: &'static str,
@@ -61,7 +61,7 @@ pub(crate) struct SurfaceWidgetRevisionEvidence {
     pub(crate) valid: bool,
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct WidgetCapabilityEvidence {
     /// Source-compatible v1 contract version and semantics evidence.
     pub(crate) contract_version: u16,

@@ -6,6 +6,8 @@ mod lowering;
 mod lowering_defaults;
 #[path = "view_node/modifiers.rs"]
 mod modifiers;
+#[path = "view_node/reconciliation.rs"]
+pub(crate) mod reconciliation;
 #[path = "view_node/slot.rs"]
 mod slot;
 #[path = "view_node/virtual_layout.rs"]

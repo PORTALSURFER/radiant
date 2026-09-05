@@ -1178,6 +1178,7 @@ mod tests {
         mapper_calls: Option<Rc<Cell<usize>>>,
         update_calls: Option<Rc<Cell<usize>>>,
         reduce_calls: Option<Rc<Cell<usize>>>,
+        offset_settled_old: bool,
     }
 
     impl Bridge {
@@ -1288,7 +1289,7 @@ mod tests {
                     },
                 ));
             }
-            let mut surface = crate::runtime::UiSurface::new(SurfaceNode::container(
+            let mut root = SurfaceNode::container(
                 1,
                 ContainerPolicy::default(),
                 vec![
@@ -1318,7 +1319,11 @@ mod tests {
                         ),
                     ),
                 ],
-            ));
+            );
+            if self.offset_settled_old && !self.revision {
+                root = root.on_offset_settled(|_| ());
+            }
+            let mut surface = crate::runtime::UiSurface::new(root);
             if let Some(environment) = &self.surface_application_environment {
                 surface = surface.with_application_environment(environment.clone());
             }
@@ -1842,6 +1847,34 @@ mod tests {
         assert_eq!(
             runtime.surface.find_widget(20).unwrap().revision(),
             WidgetRevision::exact((), false, false, false)
+        );
+    }
+
+    #[test]
+    fn retained_ancestor_offset_callback_forces_full_refresh() {
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                offset_settled_old: true,
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        runtime.bridge_mut().revision = true;
+        assert!(
+            inspect_interaction_path(
+                runtime.surface.root(),
+                runtime.bridge().surface().root(),
+                &[0],
+            )
+            .is_none(),
+            "an old offset callback cannot survive an exact leaf update"
+        );
+        let before = runtime.refresh_counters();
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection + 1,
+            "ancestor callback drift must take the Full refresh"
         );
     }
 

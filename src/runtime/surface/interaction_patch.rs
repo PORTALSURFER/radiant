@@ -158,6 +158,8 @@ fn same_retained_container_ancestor<Message>(
         && current.layout_capabilities.is_none()
         && previous.split_pane_ratio_settled.is_none()
         && current.split_pane_ratio_settled.is_none()
+        && previous.offset_settled.is_none()
+        && current.offset_settled.is_none()
         && previous.virtual_layout.is_none()
         && current.virtual_layout.is_none()
         && previous.policy == current.policy

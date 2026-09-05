@@ -236,6 +236,11 @@ pub use resource::{
     ResourceCompletion, ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState,
     ResourceRequest, ResourceSlot,
 };
+pub(crate) use surface::{
+    ApplicationNodeKind, ApplicationNodeReceipt, FrozenSourceMetadata, InteractionLeafRevision,
+    KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
+    application_container_kind_matches, application_node_kind, classify_interaction_leaf_evidence,
+};
 pub(in crate::runtime) use surface::{
     ClipAncestors, SurfaceLayoutInteractionRecord, SurfaceRuntimeProjection,
     SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex, WheelHitTarget,
@@ -245,9 +250,6 @@ pub use surface::{
     Element, EventMapper, LayerKind, MessageMapper, NativeFileDropMessageMapper,
     ScrollMessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceLayer, SurfaceNode,
     SurfaceOverlay, SurfaceScene, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
-};
-pub(crate) use surface::{
-    KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
 };
 pub(crate) use surface::{TextScaledExtent, TextScaledSize, lower_public_virtual_layout};
 pub use update_snapshot::RuntimeUpdateSnapshot;

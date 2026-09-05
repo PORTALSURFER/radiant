@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "backend": "backend-neutral SurfaceRuntime and paint planning; no native frames or GPU submission",
+    "build_mode": "release",
+    "commit": "aa3e2db1cf641349073e84b39e99e10d99234b2a",
+    "dataset": "32 components x 100 text leaves with explicit 100px-wide slots, 20/21px first-leaf height, 3400x2700 viewport; one actual layout per local edit; existing large-tree paint and refresh controls",
+    "features": {
+      "cargo": "default",
+      "rustc": "1.97.1 (8bab26f4f 2026-07-14)",
+      "target": "aarch64-apple-darwin"
+    },
+    "hardware": {
+      "chip": "Apple M5 Pro",
+      "memory": "24 GB",
+      "model": "Mac17,9"
+    },
+    "measurement_kind": "deterministic_harness",
+    "os": "macOS 26.6.2 (25G83)",
+    "power_state": "AC Power; battery 100%",
+    "refresh_hz": 60,
+    "sampling": {
+      "batch_size": 8,
+      "iterations": 100,
+      "ordering": "three baseline runs, then three final candidate runs; same scenario order in each pack",
+      "percentiles": "per-batch average, nearest rank",
+      "scale_refresh": "synthetic harness settings; not display measurements",
+      "warmup": "construct runtime outside timing, then one scenario call"
+    },
+    "scale": 1
+  },
+  "metrics_jsonl": "{\"type\":\"radiant_perf\",\"scenario\":\"runtime_component_local_geometry_3200\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":119271,\"avg_us\":1192.710,\"p50_us\":1184.802,\"p95_us\":1267.781,\"p99_us\":1267.781,\"layout_count\":100,\"layout_node_visit_count\":10200}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_surface_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":6599,\"avg_us\":65.990,\"p50_us\":64.510,\"p95_us\":70.141,\"p99_us\":70.141,\"scene_rebuild_count\":100,\"paint_primitive_count\":8900,\"paint_plan_rebuild_count\":100}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":34518,\"avg_us\":345.180,\"p50_us\":346.427,\"p95_us\":358.708,\"p99_us\":358.708,\"surface_refresh_count\":100,\"application_projection_count\":100,\"runtime_projection_count\":100,\"widget_state_sync_count\":100,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_projection_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":35069,\"avg_us\":350.690,\"p50_us\":349.010,\"p95_us\":369.401,\"p99_us\":369.401,\"surface_refresh_count\":100,\"application_projection_count\":100,\"runtime_projection_count\":100,\"widget_state_sync_count\":100,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n",
+  "metrics_sha256": "b924e13de525be52078a07924fa7559639c5cf3244570a3e9fca9d5d46110dbc",
+  "schema": 1
+}

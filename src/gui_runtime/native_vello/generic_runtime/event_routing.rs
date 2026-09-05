@@ -465,6 +465,7 @@ where
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_focus_lost(&mut self) -> GenericRouteOutcome {
+        self.runtime.cancel_pointer_ingress_sequences();
         self.runtime.clear_focus();
         self.runtime.cancel_pointer_capture();
         self.route_outcome(true)

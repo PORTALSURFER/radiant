@@ -2,6 +2,7 @@
 
 use super::{FrameWork, GenericNativeVelloRunner, RenderFrameProfile, maybe_log_route_profile};
 use crate::gui::input::{InputSequenceRange, InputTimestamp};
+use crate::gui::pointer_ingress::{InputDeviceId, PointerContactId, PointerSequenceToken};
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
 
@@ -63,6 +64,15 @@ pub(super) struct PendingScrollbarDrag {
     pub(super) modifiers: PointerModifiers,
     pub(super) timestamp: Option<InputTimestamp>,
     pub(super) sequence_range: Option<InputSequenceRange>,
+    pub(super) native_sample: bool,
+    pub(super) native_identity: Option<PendingScrollbarNativeIdentity>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PendingScrollbarNativeIdentity {
+    pub(super) device: InputDeviceId,
+    pub(super) contact: PointerContactId,
+    pub(super) token: PointerSequenceToken,
 }
 
 /// Pending wheel routes produced while an ImmediateTransient ticket is live.
@@ -330,12 +340,50 @@ where
         sequence_range: Option<InputSequenceRange>,
         apply_route_effects: bool,
     ) {
+        let native_identity = self.input.last_native_mouse_device.and_then(|device| {
+            self.input
+                .native_pointer_ingress
+                .retain_mouse_contact(device)
+                .ok()
+        });
+        let native_identity = native_identity.and_then(|(device, contact)| {
+            let token = self
+                .input
+                .native_pointer_ingress
+                .contact_token_for_identity(device, contact);
+            token.map(|token| PendingScrollbarNativeIdentity {
+                device,
+                contact,
+                token,
+            })
+        });
+        let native_sample = self.input.last_native_mouse_device.is_some();
+        // A known native arrival without an admitted token is explicitly
+        // unadmitted. It must not replace or legacy-route an already queued
+        // valid sequence.
+        if native_sample && native_identity.is_none() {
+            return;
+        }
+        if self
+            .input
+            .pending_scrollbar_drag
+            .as_ref()
+            .is_some_and(|pending| pending.native_identity != native_identity)
+        {
+            if apply_route_effects {
+                self.flush_pending_scrollbar_drag_now();
+            } else {
+                self.input.pending_scrollbar_drag = None;
+            }
+        }
         match &mut self.input.pending_scrollbar_drag {
             Some(pending) => {
                 pending.position = position;
                 pending.modifiers = modifiers;
                 pending.timestamp = timestamp;
                 extend_pending_sequence_range(&mut pending.sequence_range, sequence_range);
+                // Identity is atomic: metadata from a later stream can never
+                // splice into an earlier queued sequence.
             }
             None => {
                 self.input.pending_scrollbar_drag = Some(PendingScrollbarDrag {
@@ -343,6 +391,8 @@ where
                     modifiers,
                     timestamp,
                     sequence_range,
+                    native_sample,
+                    native_identity,
                 });
             }
         }
@@ -355,12 +405,40 @@ where
         let Some(pending) = self.input.pending_scrollbar_drag.take() else {
             return;
         };
-        let outcome = self.core.route_pointer_move_with_metadata(
-            pending.position,
-            pending.modifiers,
-            pending.timestamp,
-            pending.sequence_range,
-        );
+        let outcome = if let Some(identity) = pending.native_identity {
+            let disposition = self.core.runtime.dispatch_native_pointer_continuation(
+                crate::gui::pointer_ingress::DeviceKind::Mouse,
+                identity.device,
+                identity.contact,
+                identity.token,
+                crate::gui::pointer_ingress::PointerPhase::Moved,
+                pending.position,
+                crate::gui::pointer_ingress::PointerButtons::empty(),
+                pending.modifiers,
+                None,
+                None,
+                pending.timestamp,
+                pending.sequence_range,
+            );
+            self.core.route_outcome(matches!(
+                disposition,
+                crate::gui::pointer_ingress::PointerIngressDisposition::RoutedWidget(_)
+                    | crate::gui::pointer_ingress::PointerIngressDisposition::HandledLayout
+                    | crate::gui::pointer_ingress::PointerIngressDisposition::HandledScrollbar
+                    | crate::gui::pointer_ingress::PointerIngressDisposition::AdmittedUnsupportedConsumer
+            ))
+        } else if pending.native_sample {
+            // Native identity normalization/admission failed at arrival.
+            // Preserve the bounded route fence and produce no owner output.
+            super::GenericRouteOutcome::default()
+        } else {
+            self.core.route_pointer_move_with_metadata(
+                pending.position,
+                pending.modifiers,
+                pending.timestamp,
+                pending.sequence_range,
+            )
+        };
         maybe_log_route_profile(
             "coalesced_scrollbar_drag",
             std::time::Duration::ZERO,

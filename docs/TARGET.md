@@ -11,6 +11,14 @@ The canonical interpretation of platform claims, acceptance lanes, outcomes,
 baselines, and evidence artifacts is the
 [`Platform Acceptance and Evidence Policy`](PLATFORM_ACCEPTANCE.md).
 
+The bounded pointer ingress phase is shipped: normalized device/contact
+identity, hover/start/move/end/cancel evidence, checked pressure and tilt,
+runtime-fenced sequence tokens, and explicit pan/pinch/rotate unsupported
+outcomes are available to opt-in canvas and GPU consumers. The controller uses
+sixteen fixed records and preserves legacy event contracts. Gesture arena
+recognition, typed drag payloads, cross-window payloads, and external offers
+remain future target work.
+
 ## Vision
 
 Radiant should become a clean, reusable, high-performance, general-purpose GUI library for building serious desktop applications in Rust.

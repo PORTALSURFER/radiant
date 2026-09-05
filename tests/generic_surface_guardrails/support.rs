@@ -25,6 +25,7 @@ pub(crate) const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/focus.rs",
     "src/gui/frame.rs",
     "src/gui/input.rs",
+    "src/gui/pointer_ingress.rs",
     "src/gui/invalidation.rs",
     "src/gui/layout_core",
     "src/gui/list.rs",

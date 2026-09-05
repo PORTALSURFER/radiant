@@ -1,5 +1,8 @@
 use super::command::{RepaintScope, SurfaceInvalidation};
+use crate::application::{ApplicationEnvironment, LocaleId, LocalizedText, TextKey};
+use crate::gui::layout_core::WritingDirection;
 use crate::theme::DpiScale;
+use std::sync::Arc;
 
 /// The system color scheme resolved for one native presentation surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -12,7 +15,7 @@ pub enum WindowColorScheme {
 
 /// Immutable, backend-neutral native environment for one window.
 ///
-/// The snapshot is deliberately small and copyable. `display_scale` is the
+/// The window snapshot is deliberately small and copyable. `display_scale` is the
 /// effective [`DpiScale`] used by Radiant after any host override; an unknown
 /// native color scheme remains `None`. Contrast and reduced motion default to
 /// `false` when the platform does not report an accessibility preference.
@@ -24,17 +27,20 @@ pub struct WindowEnvironment {
     reduced_motion: bool,
 }
 
-/// Immutable widget-facing environment resolved from one window snapshot.
+/// Immutable widget-facing environment resolved from one window and one
+/// application snapshot.
 ///
-/// This is a lossless, copyable projection of [`WindowEnvironment`] for paint
-/// and other widget contexts. It deliberately does not select fallbacks or
-/// apply theme, layout, or animation policy.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Window values remain scalar and the application snapshot is shared behind
+/// an [`Arc`], so durable runtime witnesses clone this combined projection
+/// without cloning the application catalog for every widget. It deliberately
+/// does not apply theme, layout, or animation policy.
+#[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedEnvironment {
     display_scale: DpiScale,
     color_scheme: Option<WindowColorScheme>,
     contrast: bool,
     reduced_motion: bool,
+    application: Arc<ApplicationEnvironment>,
 }
 
 impl ResolvedEnvironment {
@@ -44,53 +50,115 @@ impl ResolvedEnvironment {
         color_scheme: Option<WindowColorScheme>,
         contrast: bool,
         reduced_motion: bool,
+        application: Arc<ApplicationEnvironment>,
     ) -> Self {
         Self {
             display_scale,
             color_scheme,
             contrast,
             reduced_motion,
+            application,
         }
     }
 
     /// Build a widget-facing environment from one window snapshot.
-    pub const fn from_window_environment(environment: WindowEnvironment) -> Self {
+    pub fn from_window_environment(environment: WindowEnvironment) -> Self {
         Self::new(
             environment.display_scale,
             environment.color_scheme,
             environment.contrast,
             environment.reduced_motion,
+            Arc::new(ApplicationEnvironment::default()),
+        )
+    }
+
+    /// Build a combined projection from one window and application snapshot.
+    pub fn from_snapshots(
+        environment: WindowEnvironment,
+        application: Arc<ApplicationEnvironment>,
+    ) -> Self {
+        Self::new(
+            environment.display_scale,
+            environment.color_scheme,
+            environment.contrast,
+            environment.reduced_motion,
+            application,
         )
     }
 
     /// Return the effective display scale.
-    pub const fn display_scale(self) -> DpiScale {
+    pub const fn display_scale(&self) -> DpiScale {
         self.display_scale
     }
 
     /// Alias for [`Self::display_scale`].
-    pub const fn scale(self) -> DpiScale {
+    pub const fn scale(&self) -> DpiScale {
         self.display_scale
     }
 
     /// Return the system color scheme, when known.
-    pub const fn color_scheme(self) -> Option<WindowColorScheme> {
+    pub const fn color_scheme(&self) -> Option<WindowColorScheme> {
         self.color_scheme
     }
 
     /// Return whether higher contrast is enabled.
-    pub const fn contrast(self) -> bool {
+    pub const fn contrast(&self) -> bool {
         self.contrast
     }
 
     /// Alias for [`Self::contrast`].
-    pub const fn high_contrast(self) -> bool {
+    pub const fn high_contrast(&self) -> bool {
         self.contrast
     }
 
     /// Return whether nonessential motion should be reduced.
-    pub const fn reduced_motion(self) -> bool {
+    pub const fn reduced_motion(&self) -> bool {
         self.reduced_motion
+    }
+
+    /// Return the ordered requested locale and explicit fallbacks.
+    pub fn fallback_chain(&self) -> &[LocaleId] {
+        self.application.fallback_chain()
+    }
+
+    /// Return the requested locale, when the fallback chain is non-empty.
+    pub fn locale(&self) -> Option<&LocaleId> {
+        self.fallback_chain().first()
+    }
+
+    /// Return the effective writing direction.
+    pub fn writing_direction(&self) -> WritingDirection {
+        self.application.writing_direction()
+    }
+
+    /// Return the validated text scale.
+    pub fn text_scale(&self) -> crate::application::TextScale {
+        self.application.text_scale()
+    }
+
+    /// Return the immutable catalog generation.
+    pub fn catalog_generation(&self) -> u64 {
+        self.application.catalog_generation()
+    }
+
+    /// Return the application snapshot backing this projection.
+    pub fn application(&self) -> &ApplicationEnvironment {
+        self.application.as_ref()
+    }
+
+    /// Resolve one text key through the explicit application snapshot.
+    pub fn localized(&self, key: &TextKey) -> LocalizedText {
+        self.application.localized(key)
+    }
+
+    /// Return the shortcut platform family.
+    pub fn shortcut_platform(&self) -> crate::gui::shortcuts::ShortcutPlatform {
+        self.application.shortcut_platform()
+    }
+
+    /// Return the presentation generation.
+    pub fn presentation_generation(&self) -> u64 {
+        self.application.presentation_generation()
     }
 }
 
@@ -102,7 +170,7 @@ impl From<WindowEnvironment> for ResolvedEnvironment {
 
 impl From<&WindowEnvironment> for ResolvedEnvironment {
     fn from(environment: &WindowEnvironment) -> Self {
-        (*environment).into()
+        Self::from_window_environment(*environment)
     }
 }
 
@@ -115,17 +183,18 @@ impl Default for ResolvedEnvironment {
 impl WindowEnvironment {
     /// Resolve this window snapshot for widget-facing contexts without applying
     /// any fallback or presentation policy.
-    pub const fn resolved(self) -> ResolvedEnvironment {
+    pub fn resolved(self) -> ResolvedEnvironment {
         ResolvedEnvironment::new(
             self.display_scale,
             self.color_scheme,
             self.contrast,
             self.reduced_motion,
+            Arc::new(ApplicationEnvironment::default()),
         )
     }
 
     /// Alias for [`Self::resolved`].
-    pub const fn resolved_environment(self) -> ResolvedEnvironment {
+    pub fn resolved_environment(self) -> ResolvedEnvironment {
         self.resolved()
     }
 }
@@ -252,9 +321,12 @@ mod tests {
         ResolvedEnvironment, WindowColorScheme, WindowEnvironment, WindowEnvironmentChange,
     };
     use crate::{
+        application::{ApplicationEnvironment, LocaleId, TextCatalog, TextKey, TextScale},
+        gui::{layout_core::WritingDirection, shortcuts::ShortcutPlatform},
         runtime::{RepaintScope, SurfaceInvalidation},
         theme::DpiScale,
     };
+    use std::sync::Arc;
 
     #[test]
     fn window_environment_defaults_are_backend_neutral() {
@@ -283,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn resolved_environment_is_lossless_and_copyable() {
+    fn resolved_environment_is_lossless_and_cloneable() {
         let window = WindowEnvironment::new(
             DpiScale::new(1.75),
             Some(WindowColorScheme::Light),
@@ -292,7 +364,7 @@ mod tests {
         );
 
         let resolved = window.resolved();
-        let copied: ResolvedEnvironment = resolved;
+        let copied = resolved.clone();
         assert_eq!(copied.display_scale().factor(), 1.75);
         assert_eq!(copied.scale().factor(), 1.75);
         assert_eq!(copied.color_scheme(), Some(WindowColorScheme::Light));
@@ -308,6 +380,40 @@ mod tests {
             ResolvedEnvironment::default(),
             WindowEnvironment::default().resolved()
         );
+    }
+
+    #[test]
+    fn resolved_environment_combines_window_and_application_snapshots() {
+        let locale = LocaleId::new("fr").expect("valid locale");
+        let key = TextKey::new("save", "Save");
+        let application = Arc::new(
+            ApplicationEnvironment::new(locale.clone())
+                .with_writing_direction(WritingDirection::Rtl)
+                .with_text_scale(TextScale::new(1.25).expect("valid scale"))
+                .with_catalog(Arc::new(TextCatalog::default().insert(
+                    locale.clone(),
+                    key.clone(),
+                    "Enregistrer",
+                )))
+                .with_shortcut_platform(ShortcutPlatform::Windows),
+        );
+        let resolved = ResolvedEnvironment::from_snapshots(
+            WindowEnvironment::new(
+                DpiScale::new(2.0),
+                Some(WindowColorScheme::Dark),
+                true,
+                false,
+            ),
+            Arc::clone(&application),
+        );
+
+        assert_eq!(resolved.locale(), Some(&locale));
+        assert_eq!(resolved.fallback_chain(), &[locale]);
+        assert_eq!(resolved.writing_direction(), WritingDirection::Rtl);
+        assert_eq!(resolved.text_scale().factor(), 1.25);
+        assert_eq!(resolved.localized(&key).as_str(), "Enregistrer");
+        assert_eq!(resolved.shortcut_platform(), ShortcutPlatform::Windows);
+        assert_eq!(resolved.application(), application.as_ref());
     }
 
     const MAPPINGS: &[(WindowEnvironmentChange, RepaintScope, SurfaceInvalidation)] = &[

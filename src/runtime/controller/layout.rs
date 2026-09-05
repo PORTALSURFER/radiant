@@ -349,7 +349,8 @@ where
             binding.container_bounds,
             binding.target_bounds,
             binding.divider_bounds,
-        );
+        )
+        .with_direction(self.surface.resolved_environment().writing_direction());
         if !matches!(input, LayoutInput::PointerCaptureCancelled { .. }) {
             let fallback_position = self
                 .interaction

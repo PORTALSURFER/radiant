@@ -54,13 +54,18 @@ impl SplitPaneDividerDescriptor {
         })
     }
 
-    pub(crate) fn witness(self, container_bounds: Rect) -> SplitPaneCaptureWitness {
+    pub(crate) fn witness(
+        self,
+        container_bounds: Rect,
+        direction: crate::gui::layout_core::WritingDirection,
+    ) -> SplitPaneCaptureWitness {
         SplitPaneCaptureWitness {
             container_bounds,
             axis: self.axis,
             first_min_extent: self.first_min_extent,
             second_min_extent: self.second_min_extent,
             divider_extent: self.divider_extent,
+            direction,
         }
     }
 }
@@ -72,6 +77,7 @@ pub(crate) struct SplitPaneCaptureWitness {
     pub(crate) first_min_extent: f32,
     pub(crate) second_min_extent: f32,
     pub(crate) divider_extent: f32,
+    pub(crate) direction: crate::gui::layout_core::WritingDirection,
 }
 
 #[allow(dead_code)]
@@ -599,7 +605,14 @@ fn ratio_for_pointer(
         SplitPaneAxis::Horizontal => bounds.min.x,
         SplitPaneAxis::Vertical => bounds.min.y,
     };
-    let raw = ((pointer - start) / movable).clamp(0.0, 1.0);
+    let physical = ((pointer - start) / movable).clamp(0.0, 1.0);
+    let raw = if policy.axis == SplitPaneAxis::Horizontal
+        && context.writing_direction() == crate::gui::layout_core::WritingDirection::Rtl
+    {
+        1.0 - physical
+    } else {
+        physical
+    };
     let ratio = if resolved.minima_satisfied {
         let minimum = resolved.first_min_extent / movable;
         let maximum = 1.0 - resolved.second_min_extent / movable;
@@ -706,5 +719,43 @@ mod tests {
             ratio_for_pointer(Point::new(20.0, 10.0), &context, policy),
             Some(2.0 / 3.0)
         );
+    }
+
+    #[test]
+    fn rtl_pointer_ratio_grows_first_logical_pane_from_the_right() {
+        let context = LayoutEventContext::<()>::with_geometry(
+            LayoutTargetIdentity::new(1, SPLIT_PANE_DIVIDER_REGION_ID),
+            Some(Rect::from_size(100.0, 20.0)),
+            Some(Rect::from_xy_size(20.0, 0.0, 10.0, 20.0)),
+            Some(Rect::from_xy_size(50.0, 0.0, 10.0, 20.0)),
+        )
+        .with_direction(crate::gui::layout_core::WritingDirection::Rtl);
+        let policy = SplitPanePolicy {
+            divider_extent: 10.0,
+            ..SplitPanePolicy::default()
+        };
+        assert_eq!(
+            ratio_for_pointer(Point::new(20.0, 10.0), &context, policy),
+            Some(7.0 / 9.0)
+        );
+        assert!(
+            (ratio_for_pointer(Point::new(80.0, 10.0), &context, policy).unwrap() - (1.0 / 9.0))
+                .abs()
+                < f32::EPSILON
+        );
+    }
+
+    #[test]
+    fn split_capture_witness_direction_fences_mid_drag_reprojection() {
+        let descriptor = SplitPaneDividerDescriptor::from_policy(
+            NodeId::from(1_u64),
+            SplitPanePolicy::default(),
+            &[NodeId::from(2_u64), NodeId::from(3_u64)],
+        )
+        .expect("two split children");
+        let bounds = Rect::from_size(100.0, 20.0);
+        let ltr = descriptor.witness(bounds, crate::gui::layout_core::WritingDirection::Ltr);
+        let rtl = descriptor.witness(bounds, crate::gui::layout_core::WritingDirection::Rtl);
+        assert_ne!(ltr, rtl);
     }
 }

@@ -117,7 +117,7 @@ pub use controlled::Controlled;
 pub use engine::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutEngine, LayoutOutput, LayoutState, LayoutStats, OverflowInfo,
-    VirtualWindowInfo, layout_tree, layout_tree_with_state,
+    VirtualWindowInfo, layout_tree, layout_tree_with_direction, layout_tree_with_state,
 };
 pub(crate) use engine::{
     LayoutAuthorityEvidence, LayoutContainerStateReadSource, LayoutInputEvidence,
@@ -128,7 +128,7 @@ pub use model::{
     ContainerKind, ContainerPolicy, CrossAlign, FloatingLayerHorizontalOverflow,
     FloatingLayerPolicy, FloatingLayerVerticalOverflow, GridPolicy, Insets, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams, SplitPanePolicy, SwitchBreakpoint,
-    VirtualizationAxis, VirtualizationPolicy, WrapPolicy,
+    VirtualizationAxis, VirtualizationPolicy, WrapPolicy, WritingDirection,
 };
 pub use policy::{
     LayoutOmissionReason, LayoutPolicy, LayoutPolicyOmissionReason, LayoutPolicyPlacementError,

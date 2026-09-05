@@ -1,7 +1,9 @@
 //! Child placement for row and column layout.
 
 use super::super::super::LayoutContext;
-use super::super::super::helpers::{LinearLayoutState, place_child_rect, resolved_main_size};
+use super::super::super::helpers::{
+    LinearLayoutState, place_child_rect_with_direction, resolved_main_size,
+};
 use super::super::layout_node;
 use super::sizing::resolve_cross_layout;
 use crate::gui::layout_core::tree::ContainerNode;
@@ -40,6 +42,7 @@ pub(super) struct LinearPlacement<'a, 'state> {
     pub(super) sizes: LinearChildSizes<'a>,
     pub(super) leading: f32,
     pub(super) distributed_spacing: f32,
+    pub(super) direction: crate::gui::layout_core::WritingDirection,
 }
 
 pub(super) fn place_linear_children(
@@ -54,12 +57,20 @@ pub(super) fn place_linear_children(
         let slot_child = state.slot_child;
         let slot = slot_child.slot;
         let main_margin_before = if placement.horizontal {
-            slot.margin.left
+            if placement.direction == crate::gui::layout_core::WritingDirection::Rtl {
+                slot.margin.right
+            } else {
+                slot.margin.left
+            }
         } else {
             slot.margin.top
         };
         let main_margin_after = if placement.horizontal {
-            slot.margin.right
+            if placement.direction == crate::gui::layout_core::WritingDirection::Rtl {
+                slot.margin.left
+            } else {
+                slot.margin.right
+            }
         } else {
             slot.margin.bottom
         };
@@ -79,7 +90,7 @@ pub(super) fn place_linear_children(
         let cross_align = slot
             .align_cross_override
             .unwrap_or(placement.container.policy.align_cross);
-        let child_rect = place_child_rect(
+        let child_rect = place_child_rect_with_direction(
             placement.content,
             placement.horizontal,
             cursor,
@@ -87,6 +98,7 @@ pub(super) fn place_linear_children(
             child_cross,
             slot,
             cross_align,
+            placement.direction,
         );
         context.record_slot_margin(slot_child.child.id(), child_rect, slot.margin);
         layout_node(&slot_child.child, child_rect, context);

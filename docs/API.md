@@ -4343,23 +4343,25 @@ does not reproject the app while a changed locale or catalog promotes the
 request to surface work. Custom `RuntimeBridge` hosts may implement the same
 optional snapshot hook directly.
 
-Widget paint receives the same snapshot through the copyable
+Widget paint receives the same snapshot through the cloneable combined
 `ResolvedEnvironment` projection. `WidgetPaintContext` exposes the assigned
 logical bounds, layout, theme, and environment to additive
 `Widget::append_paint_with_context(...)` and
 `Widget::append_runtime_overlay_paint_with_context(...)` hooks. Their defaults
 delegate once to the existing required paint hooks, so legacy widgets and
 object-safe trait callers keep the same behavior. The projection is lossless:
-it carries display scale, optional color scheme, contrast, and reduced-motion
-preference without choosing fallbacks or changing layout, theme, or animation
-semantics.
+it carries window display scale, optional color scheme, contrast, reduced-motion
+preference, and the immutable application snapshot without choosing theme or
+animation policy. Widget paint borrows the projection, while durable runtime
+witnesses clone it.
 
 Current shipped boundary: the native environment exposes display scale, color
 scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
 shipped. The additive `ApplicationEnvironment` snapshot carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
-presentation generation. Full RTL geometry, scale propagation, bidi, and
-complex shaping remain staged work under OPT-1386 and OPT-1402.
+presentation generation. Phase-1 logical RTL container geometry is shipped;
+scale propagation, bidi, and complex shaping remain staged work under OPT-1386
+and OPT-1402.
 
 Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
 resolves light, dark, and high-contrast tokens from the current window snapshot;
@@ -4533,8 +4535,9 @@ composition state and final text commits; the widget model should own the
 logical composition range once that generic event exists. Unicode-scalar editing
 is shipped. The additive `ApplicationEnvironment` snapshot provides explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
-presentation generation. Full RTL geometry, scale propagation, bidi, and
-complex shaping remain staged under OPT-1386 and OPT-1402. The selected
+presentation generation. Phase-1 logical RTL container geometry is shipped;
+scale propagation, bidi, and complex shaping remain staged under OPT-1386 and
+OPT-1402. The selected
 bidirectional text and complex-shaping architecture is recorded in
 [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
 Bidirectional text and complex shaping belong to renderer text layout and
@@ -5634,14 +5637,14 @@ Runtime context is split deliberately:
 - Style context is the active `ThemeTokens`.
 - Runtime context is exposed as `RuntimeContext`, a borrowed view over
   `SurfaceRuntime` containing the current viewport, surface, and resolved
-  layout. `RuntimeContext::resolved_environment()` exposes the same copyable
+  layout. `RuntimeContext::resolved_environment()` exposes the same cloneable
   widget-facing environment projection used by paint traversal.
   `SurfaceRuntime` owns focus target, widget hit testing, and message dispatch.
 
 Paint traversal derives one `ResolvedEnvironment` from the current
 `UiSurface` snapshot per plan and carries it through clipped base traversal and
-runtime overlays. `WidgetPaintContext` borrows layout/theme data and stores
-only that copyable value, keeping environment-aware widget paint allocation-free
+runtime overlays. `WidgetPaintContext` borrows layout/theme data and borrows
+the combined environment, keeping environment-aware widget paint allocation-free
 per widget while preserving the legacy `Widget` hooks through default
 delegation.
 

@@ -12,6 +12,7 @@ mod types;
 use super::MountedContainerStateRead;
 use super::constraints::Constraints;
 use super::tree::{LayoutNode, NodeId};
+use crate::gui::layout_core::WritingDirection;
 use crate::gui::types::{Rect, Vector2};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
@@ -139,6 +140,7 @@ pub(crate) struct LayoutInputEvidence {
     mounted: Option<MountedLayoutSourceAuthorityEvidence>,
     viewport: LayoutViewportEvidence,
     debug: LayoutDebugOptions,
+    direction: WritingDirection,
 }
 
 impl LayoutInputEvidence {
@@ -150,24 +152,53 @@ impl LayoutInputEvidence {
         viewport: Rect,
         debug: LayoutDebugOptions,
     ) -> Self {
+        Self::new_with_direction(root, state, mounted, viewport, debug, WritingDirection::Ltr)
+    }
+
+    pub(crate) const fn new_with_direction(
+        root: Option<RootLayoutAuthorityEvidence>,
+        state: Option<LayoutStateAuthorityEvidence>,
+        mounted: Option<MountedLayoutSourceAuthorityEvidence>,
+        viewport: Rect,
+        debug: LayoutDebugOptions,
+        direction: WritingDirection,
+    ) -> Self {
         Self {
             root,
             state,
             mounted,
             viewport: LayoutViewportEvidence::from_rect(viewport),
             debug,
+            direction,
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn is_valid_for_prepare(
         &self,
         viewport: Rect,
         debug: LayoutDebugOptions,
         mounted_source_present: bool,
     ) -> bool {
+        self.is_valid_for_prepare_with_direction(
+            viewport,
+            debug,
+            mounted_source_present,
+            WritingDirection::Ltr,
+        )
+    }
+
+    pub(crate) fn is_valid_for_prepare_with_direction(
+        &self,
+        viewport: Rect,
+        debug: LayoutDebugOptions,
+        mounted_source_present: bool,
+        direction: WritingDirection,
+    ) -> bool {
         self.is_valid_for_presence(mounted_source_present)
             && self.viewport == LayoutViewportEvidence::from_rect(viewport)
             && self.debug == debug
+            && self.direction == direction
     }
 
     pub(crate) fn is_valid_for_presence(&self, mounted_source_present: bool) -> bool {
@@ -688,6 +719,28 @@ impl LayoutEngine {
         container_state_source: Option<&dyn LayoutContainerStateReadSource>,
         output: &mut LayoutOutput,
     ) {
+        self.layout_with_state_and_direction_and_source_into(
+            root,
+            root_rect,
+            state,
+            debug,
+            WritingDirection::Ltr,
+            container_state_source,
+            output,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn layout_with_state_and_direction_and_source_into(
+        &mut self,
+        root: &LayoutNode,
+        root_rect: Rect,
+        state: &LayoutState,
+        debug: LayoutDebugOptions,
+        direction: WritingDirection,
+        container_state_source: Option<&dyn LayoutContainerStateReadSource>,
+        output: &mut LayoutOutput,
+    ) {
         self.note_mutation(true);
         let constraints = Constraints {
             min_w: 0.0,
@@ -715,6 +768,7 @@ impl LayoutEngine {
                 debug_node_filter,
                 container_state_source,
                 cache_key_ambiguity: None,
+                direction,
             });
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
@@ -757,12 +811,38 @@ impl LayoutEngine {
         container_state_source: Option<&dyn LayoutContainerStateReadSource>,
         input_evidence: LayoutInputEvidence,
     ) -> PreparedLayoutPass {
+        self.prepare_layout_with_direction_and_source(
+            root,
+            root_rect,
+            state,
+            debug,
+            WritingDirection::Ltr,
+            container_state_source,
+            input_evidence,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn prepare_layout_with_direction_and_source(
+        &mut self,
+        root: &LayoutNode,
+        root_rect: Rect,
+        state: &LayoutState,
+        debug: LayoutDebugOptions,
+        direction: WritingDirection,
+        container_state_source: Option<&dyn LayoutContainerStateReadSource>,
+        input_evidence: LayoutInputEvidence,
+    ) -> PreparedLayoutPass {
         let workspace = self
             .preparation_workspace
             .get_or_insert_with(LayoutPreparationWorkspace::default)
             .clone();
-        if !input_evidence.is_valid_for_prepare(root_rect, debug, container_state_source.is_some())
-        {
+        if !input_evidence.is_valid_for_prepare_with_direction(
+            root_rect,
+            debug,
+            container_state_source.is_some(),
+            direction,
+        ) {
             return PreparedLayoutPass::invalid_input(&workspace, self);
         }
         let Some(mut storage) = workspace.take_storage() else {
@@ -800,6 +880,7 @@ impl LayoutEngine {
                 debug_node_filter,
                 container_state_source,
                 cache_key_ambiguity: Some(&mut storage.cache_key_ambiguity),
+                direction,
             });
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
@@ -896,6 +977,27 @@ impl LayoutEngine {
 pub fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
     let mut engine = LayoutEngine::default();
     engine.layout(root, root_rect)
+}
+
+/// Measure and layout a strict slot tree using the requested logical writing
+/// direction. Existing entry points remain LTR for compatibility.
+pub fn layout_tree_with_direction(
+    root: &LayoutNode,
+    root_rect: Rect,
+    direction: WritingDirection,
+) -> LayoutOutput {
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+    engine.layout_with_state_and_direction_and_source_into(
+        root,
+        root_rect,
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+        direction,
+        None,
+        &mut output,
+    );
+    output
 }
 
 /// Measure and layout a strict slot tree with stateful container input.

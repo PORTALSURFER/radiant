@@ -30,7 +30,7 @@ fn direct_runtime_refresh_and_relayout_do_not_publish_prepared_candidates() {
     assert!(
         !layout.contains("prepare_runtime_layout_candidate")
             && !layout.contains("RuntimeLayoutCandidate")
-            && layout.contains("self.layout_engine.layout_with_state_and_source_into(")
+            && layout.contains("layout_with_state_and_direction_and_source_into(")
             && layout.contains("self.install_traversal_with_candidate(traversal, candidate)"),
         "relayout_with_traversal must remain the direct fallback path"
     );

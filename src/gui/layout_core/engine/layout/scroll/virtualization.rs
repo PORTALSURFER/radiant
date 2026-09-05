@@ -89,7 +89,7 @@ pub(super) fn layout_virtualized_child(
     let available_cross = axis.cross_extent(child_rect).max(0.0);
 
     let viewport_main_size = axis.main_extent(viewport_rect);
-    let viewport_main_start = if horizontal { offset.x } else { offset.y };
+    let physical_viewport_main_start = if horizontal { offset.x } else { offset.y };
 
     let constraints = if horizontal {
         Constraints::new(0.0, available_main, 0.0, available_cross)
@@ -115,9 +115,17 @@ pub(super) fn layout_virtualized_child(
             "virtualization overscan was non-finite or negative and was clamped",
         );
     }
+    let rtl = horizontal && context.direction() == crate::gui::layout_core::WritingDirection::Rtl;
+    let logical_viewport_main_start = if rtl {
+        // Scroll offsets remain physical. Convert the visible physical slice
+        // to the logical span used by the source-order metrics.
+        (metrics.total_main - physical_viewport_main_start - viewport_main_size).max(0.0)
+    } else {
+        physical_viewport_main_start
+    };
     let window = compute_virtual_window(
         &metrics,
-        viewport_main_start,
+        logical_viewport_main_start,
         viewport_main_size,
         overscan_px,
     );
@@ -142,6 +150,7 @@ pub(super) fn layout_virtualized_child(
         content_container.children.as_slice(),
         window.first,
         horizontal,
+        rtl,
     );
     let cursor_main_start = cursor_before_first(first_before_margin, window.first, &metrics);
     context.set_linear_window(
@@ -162,6 +171,8 @@ pub(super) fn layout_virtualized_child(
         horizontal,
         window.start,
         window.end,
+        metrics.total_main,
+        context.direction(),
         context,
     );
     context.record_virtual_window_info(
@@ -175,8 +186,8 @@ pub(super) fn layout_virtualized_child(
                 .children
                 .len()
                 .saturating_sub(window.last_exclusive),
-            viewport_main_start,
-            viewport_main_end: viewport_main_start + viewport_main_size,
+            viewport_main_start: physical_viewport_main_start,
+            viewport_main_end: physical_viewport_main_start + viewport_main_size,
             window_main_start: window.start,
             window_main_end: window.end,
             resolved_total_main: metrics.total_main,
@@ -199,6 +210,7 @@ fn cached_or_build_metrics(
         axis,
         expected_len,
         virtualization_policy_fingerprint(content),
+        context.direction(),
     );
     if let Some(metrics) = context.cached_virtual_metrics(key) {
         if metrics_is_valid(&metrics, expected_len) {
@@ -217,12 +229,16 @@ fn cached_or_build_metrics(
     Some(metrics)
 }
 
-fn first_before_margin(children: &[SlotChild], first: usize, horizontal: bool) -> f32 {
+fn first_before_margin(children: &[SlotChild], first: usize, horizontal: bool, rtl: bool) -> f32 {
     if first >= children.len() {
         return 0.0;
     }
     if horizontal {
-        children[first].slot.margin.left
+        if rtl {
+            children[first].slot.margin.right
+        } else {
+            children[first].slot.margin.left
+        }
     } else {
         children[first].slot.margin.top
     }

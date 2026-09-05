@@ -393,6 +393,7 @@ pub struct LayoutEventContext<Message> {
     container_bounds: Option<Rect>,
     target_bounds: Option<Rect>,
     divider_bounds: Option<Rect>,
+    direction: crate::gui::layout_core::WritingDirection,
     handled: bool,
     capture_requested: bool,
     release_requested: bool,
@@ -409,6 +410,7 @@ impl<Message> LayoutEventContext<Message> {
             container_bounds: None,
             target_bounds: None,
             divider_bounds: None,
+            direction: crate::gui::layout_core::WritingDirection::Ltr,
             handled: false,
             capture_requested: false,
             release_requested: false,
@@ -429,6 +431,18 @@ impl<Message> LayoutEventContext<Message> {
         context.target_bounds = target_bounds;
         context.divider_bounds = divider_bounds;
         context
+    }
+
+    pub(crate) fn with_direction(
+        mut self,
+        direction: crate::gui::layout_core::WritingDirection,
+    ) -> Self {
+        self.direction = direction;
+        self
+    }
+
+    pub(crate) const fn writing_direction(&self) -> crate::gui::layout_core::WritingDirection {
+        self.direction
     }
 
     /// Return the target identity receiving this event.

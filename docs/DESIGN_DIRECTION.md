@@ -606,9 +606,9 @@ The shipped native window environment remains deliberately small:
 scheme, contrast, and reduced-motion preference. `ApplicationEnvironment` is
 an additive immutable application snapshot for explicit locale fallback chains,
 writing direction, validated text scale, catalog generation, and shortcut
-presentation generation. Unicode-scalar editing is shipped; full RTL geometry,
-scale propagation, bidi, and complex shaping remain follow-on work under
-OPT-1386 and OPT-1402.
+presentation generation. Unicode-scalar editing and phase-1 logical RTL
+container geometry are shipped; scale propagation, bidi, and complex shaping
+remain follow-on work under OPT-1386 and OPT-1402.
 
 The current foundation exposes immutable, testable snapshots at application and
 window scopes. `ApplicationEnvironment` contains explicit locale fallback,
@@ -634,13 +634,13 @@ and help without changing semantic bindings. Environment changes are intended
 to remain owned events, replayable in the deterministic host, and profiled like
 other invalidation causes.
 
-The shipped window subset is available to widget paint as a lossless,
-copyable `ResolvedEnvironment` derived from `WindowEnvironment`. It carries
-display scale, optional color scheme, contrast, and reduced-motion preference;
-the projection does not select fallbacks or apply theme, layout, or animation
-policy. Base and runtime-overlay paint receive it through `WidgetPaintContext`,
-while existing legacy paint hooks remain valid through additive default
-delegation.
+The shipped environment is available to widget paint as a lossless,
+cloneable `ResolvedEnvironment` combining `WindowEnvironment` with the
+immutable application snapshot. Window values remain scalar and the
+application catalog is shared through `Arc`; the projection does not apply
+theme, layout, or animation policy. Base and runtime-overlay paint borrow it
+through `WidgetPaintContext`, while durable witnesses clone the snapshot and
+existing legacy paint hooks remain valid through additive default delegation.
 
 ## Components and Workspace Composition
 

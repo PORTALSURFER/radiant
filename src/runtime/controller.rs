@@ -225,6 +225,7 @@ struct CompletedLayoutContext {
     window_environment: WindowEnvironment,
     layout_state_generation: u64,
     layout_debug_options: LayoutDebugOptions,
+    direction: crate::application::WritingDirection,
 }
 
 /// Runtime controller for shared-surface declarative hosts.

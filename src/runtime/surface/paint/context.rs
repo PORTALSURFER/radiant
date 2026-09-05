@@ -55,7 +55,7 @@ impl<'a> SurfacePaintContext<'a> {
             theme: self.theme,
             hovered_container: self.hovered_container,
             active_scroll_affordance: self.active_scroll_affordance,
-            environment: self.environment,
+            environment: self.environment.clone(),
             appearance: self.appearance,
             clip_rect: Some(clip_rect),
         }

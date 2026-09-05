@@ -28,14 +28,47 @@ pub(super) fn cursor_before_first(
 }
 
 /// Record debug primitives for virtualization window and culled regions.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn record_window_debug(
     node_id: u64,
     rect: Rect,
     horizontal: bool,
     window_start: f32,
     window_end: f32,
+    total_main: f32,
+    direction: crate::gui::layout_core::WritingDirection,
     context: &mut LayoutContext,
 ) {
+    if horizontal && direction == crate::gui::layout_core::WritingDirection::Rtl {
+        let physical_start = (rect.max.x - window_end).max(rect.min.x);
+        let physical_end = (rect.max.x - window_start).min(rect.max.x);
+        context.record_virtual_window_bounds(
+            node_id,
+            Rect::from_min_size(
+                Point::new(physical_start, rect.min.y),
+                Vector2::new((physical_end - physical_start).max(0.0), rect.height()),
+            ),
+        );
+        if window_start > 0.0 {
+            context.record_culled_region(
+                node_id,
+                Rect::from_min_size(
+                    Point::new(physical_end, rect.min.y),
+                    Vector2::new((rect.max.x - physical_end).max(0.0), rect.height()),
+                ),
+            );
+        }
+        if window_end < total_main {
+            context.record_culled_region(
+                node_id,
+                Rect::from_min_size(
+                    rect.min,
+                    Vector2::new((physical_start - rect.min.x).max(0.0), rect.height()),
+                ),
+            );
+        }
+        return;
+    }
     let window_rect = if horizontal {
         Rect::from_min_size(
             Point::new(rect.min.x + window_start, rect.min.y),

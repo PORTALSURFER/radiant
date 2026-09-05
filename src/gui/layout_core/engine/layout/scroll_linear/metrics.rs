@@ -2,6 +2,7 @@
 
 use super::state::collect_layout_states;
 use super::uniform::build_uniform_linear_metrics;
+use crate::gui::layout_core::WritingDirection;
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::engine::LayoutContext;
 use crate::gui::layout_core::engine::cache::{LinearVirtualMetrics, VirtualSpan};
@@ -19,6 +20,7 @@ pub(in crate::gui::layout_core::engine::layout) fn build_linear_metrics(
     axis: VirtualizationAxis,
     context: &mut LayoutContext,
 ) -> LinearVirtualMetrics {
+    let direction = context.direction();
     let horizontal = matches!(axis, VirtualizationAxis::Horizontal);
     let available_main = if horizontal {
         constraints.max_w
@@ -87,12 +89,20 @@ pub(in crate::gui::layout_core::engine::layout) fn build_linear_metrics(
     for (index, state) in states.iter().enumerate() {
         let slot_child = state.slot_child;
         let margin_before = if horizontal {
-            slot_child.slot.margin.left
+            if direction == WritingDirection::Rtl {
+                slot_child.slot.margin.right
+            } else {
+                slot_child.slot.margin.left
+            }
         } else {
             slot_child.slot.margin.top
         };
         let margin_after = if horizontal {
-            slot_child.slot.margin.right
+            if direction == WritingDirection::Rtl {
+                slot_child.slot.margin.left
+            } else {
+                slot_child.slot.margin.right
+            }
         } else {
             slot_child.slot.margin.bottom
         };

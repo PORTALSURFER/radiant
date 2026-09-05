@@ -16,7 +16,7 @@ where
 {
     /// Resolve one appearance policy against this window's current snapshot.
     pub fn resolved_appearance(&self, policy: AppearancePolicy) -> ResolvedAppearance {
-        policy.resolve(self.surface.window_environment().resolved())
+        policy.resolve(&self.surface.resolved_environment())
     }
 
     /// Alias for [`Self::resolved_appearance`].
@@ -36,10 +36,10 @@ where
     /// This avoids reallocating primitive storage for renderers that rebuild a
     /// paint plan every frame.
     pub fn paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
-        let environment = self.surface.window_environment().resolved();
+        let environment = self.surface.resolved_environment();
         self.paint_plan_with_appearance_into(
-            ResolvedAppearance::resolve(AppearancePolicy::fixed(*theme), environment),
-            environment,
+            ResolvedAppearance::resolve(AppearancePolicy::fixed(*theme), &environment),
+            environment.clone(),
             plan,
         );
     }
@@ -47,11 +47,11 @@ where
     /// Resolve and project one appearance policy across base content and all
     /// runtime overlays in a single paint pass.
     pub fn paint_plan_with_policy(&self, policy: AppearancePolicy) -> SurfacePaintPlan {
-        let environment = self.surface.window_environment().resolved();
-        let appearance = policy.resolve(environment);
+        let environment = self.surface.resolved_environment();
+        let appearance = policy.resolve(&environment);
         let theme = appearance.tokens();
         let mut plan = empty_paint_plan_for_layout(&self.layout, &theme);
-        self.paint_plan_with_appearance_into(appearance, environment, &mut plan);
+        self.paint_plan_with_appearance_into(appearance, environment.clone(), &mut plan);
         plan
     }
 
@@ -61,9 +61,9 @@ where
         policy: AppearancePolicy,
         plan: &mut SurfacePaintPlan,
     ) {
-        let environment = self.surface.window_environment().resolved();
-        let appearance = policy.resolve(environment);
-        self.paint_plan_with_appearance_into(appearance, environment, plan);
+        let environment = self.surface.resolved_environment();
+        let appearance = policy.resolve(&environment);
+        self.paint_plan_with_appearance_into(appearance, environment.clone(), plan);
     }
 
     fn paint_plan_with_appearance_into(
@@ -73,11 +73,11 @@ where
         plan: &mut SurfacePaintPlan,
     ) {
         let theme = appearance.tokens();
-        self.base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
+        self.base_paint_plan_with_appearance_into(&theme, appearance, environment.clone(), plan);
         self.runtime_overlay_paint_with_appearance_into(
             &theme,
             appearance,
-            environment,
+            environment.clone(),
             &mut plan.primitives,
         );
     }
@@ -90,7 +90,7 @@ where
     pub fn base_paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
         self.base_paint_plan_with_environment_into(
             theme,
-            self.surface.window_environment().resolved(),
+            self.surface.resolved_environment(),
             plan,
         );
     }
@@ -101,8 +101,8 @@ where
         policy: AppearancePolicy,
         plan: &mut SurfacePaintPlan,
     ) {
-        let environment = self.surface.window_environment().resolved();
-        let appearance = policy.resolve(environment);
+        let environment = self.surface.resolved_environment();
+        let appearance = policy.resolve(&environment);
         let theme = appearance.tokens();
         self.base_paint_plan_with_appearance_into(&theme, appearance, environment, plan);
     }
@@ -154,7 +154,7 @@ where
     ) {
         self.runtime_overlay_paint_with_environment_into(
             theme,
-            self.surface.window_environment().resolved(),
+            self.surface.resolved_environment(),
             primitives,
         );
     }
@@ -165,13 +165,13 @@ where
         policy: AppearancePolicy,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        let environment = self.surface.window_environment().resolved();
-        let appearance = policy.resolve(environment);
+        let environment = self.surface.resolved_environment();
+        let appearance = policy.resolve(&environment);
         let theme = appearance.tokens();
         self.runtime_overlay_paint_with_appearance_into(
             &theme,
             appearance,
-            environment,
+            environment.clone(),
             primitives,
         );
     }
@@ -185,7 +185,7 @@ where
         self.runtime_overlay_paint_with_appearance_into(
             theme,
             ResolvedAppearance::fixed(*theme),
-            environment,
+            environment.clone(),
             primitives,
         );
     }
@@ -201,7 +201,7 @@ where
             self.interaction.hover.widget,
             theme,
             appearance,
-            environment,
+            environment.clone(),
             primitives,
         );
         if self.interaction.pointer.capture != self.interaction.hover.widget {
@@ -324,7 +324,7 @@ where
             bounds,
             &self.layout,
             theme,
-            environment,
+            &environment,
             appearance,
         );
         widget

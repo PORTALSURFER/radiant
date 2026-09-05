@@ -1,6 +1,6 @@
 use crate::{
     gui::types::{Point, Rect},
-    layout::{LayoutDebugOptions, LayoutOutput, LayoutState, layout_tree, layout_tree_with_state},
+    layout::{LayoutDebugOptions, LayoutOutput, LayoutState, layout_tree_with_direction},
     runtime::SurfacePaintPlan,
     theme::ThemeTokens,
 };
@@ -30,7 +30,11 @@ impl<Message> UiSurface<Message> {
     /// project declarative Radiant surfaces into an existing renderer or
     /// compatibility layer and only need geometry.
     pub fn layout(&self, viewport: Rect) -> LayoutOutput {
-        layout_tree(&self.layout_node(), viewport)
+        layout_tree_with_direction(
+            &self.layout_node(),
+            viewport,
+            self.resolved_environment().writing_direction(),
+        )
     }
 
     /// Resolve this surface into layout rectangles for an origin-based viewport.
@@ -52,7 +56,18 @@ impl<Message> UiSurface<Message> {
         layout_state: &LayoutState,
         debug_options: LayoutDebugOptions,
     ) -> LayoutOutput {
-        layout_tree_with_state(&self.layout_node(), viewport, layout_state, debug_options)
+        let mut engine = crate::layout::LayoutEngine::default();
+        let mut output = LayoutOutput::default();
+        engine.layout_with_state_and_direction_and_source_into(
+            &self.layout_node(),
+            viewport,
+            layout_state,
+            debug_options,
+            self.resolved_environment().writing_direction(),
+            None,
+            &mut output,
+        );
+        output
     }
 
     /// Prepare one layout plus paint-plan frame for a host-controlled viewport.

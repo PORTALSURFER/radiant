@@ -25,6 +25,7 @@ pub(super) fn layout_linear(
         return;
     }
     let axis = LayoutAxis::from_horizontal(horizontal);
+    let direction = context.direction();
     let policy = &container.policy;
     let spacing = policy.spacing.max(0.0);
     let available_main = axis.main_extent(content).max(0.0);
@@ -58,6 +59,7 @@ pub(super) fn layout_linear(
                         },
                         leading: cursor_main_start,
                         distributed_spacing,
+                        direction,
                     },
                     context,
                 );
@@ -82,6 +84,7 @@ pub(super) fn layout_linear(
                         sizes: LinearChildSizes::Slice(sizes),
                         leading: cursor_main_start,
                         distributed_spacing,
+                        direction,
                     },
                     context,
                 );
@@ -154,6 +157,7 @@ pub(super) fn layout_linear(
                 sizes: LinearChildSizes::Slice(&sizes),
                 leading,
                 distributed_spacing,
+                direction,
             },
             context,
         );
@@ -182,6 +186,7 @@ pub(super) fn layout_linear(
             sizes: LinearChildSizes::Resolved,
             leading,
             distributed_spacing,
+            direction,
         },
         context,
     );

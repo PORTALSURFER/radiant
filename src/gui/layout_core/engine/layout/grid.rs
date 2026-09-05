@@ -1,6 +1,6 @@
 //! Grid container layout strategy.
 
-use super::boxes::place_aligned_rect;
+use super::boxes::place_aligned_rect_with_direction;
 use super::layout_node;
 use super::linear::resolve_nonfill_main;
 use crate::gui::layout_core::constraints::Constraints;
@@ -35,7 +35,12 @@ pub(super) fn layout_grid(container: &ContainerNode, content: Rect, context: &mu
     for (index, (child, measured)) in measured_children.into_iter().enumerate() {
         let row = index / columns;
         let col = index % columns;
-        let cell_x = content.min.x + (col as f32 * (cell_w + column_gap));
+        let logical_col = if context.direction() == crate::gui::layout_core::WritingDirection::Rtl {
+            columns - 1 - col
+        } else {
+            col
+        };
+        let cell_x = content.min.x + (logical_col as f32 * (cell_w + column_gap));
         let cell_y = content.min.y + (row as f32 * (max_cell_h + row_gap));
         let cell =
             Rect::from_min_size(Point::new(cell_x, cell_y), Vector2::new(cell_w, max_cell_h));
@@ -56,7 +61,7 @@ pub(super) fn layout_grid(container: &ContainerNode, content: Rect, context: &mu
             context,
             child.child.id(),
         );
-        let rect = place_aligned_rect(
+        let rect = place_aligned_rect_with_direction(
             cell,
             width,
             height,
@@ -65,6 +70,7 @@ pub(super) fn layout_grid(container: &ContainerNode, content: Rect, context: &mu
                 .slot
                 .align_cross_override
                 .unwrap_or(container.policy.align_cross),
+            context.direction(),
         );
         context.record_slot_margin(child.child.id(), rect, child.slot.margin);
         layout_node(&child.child, rect, context);

@@ -15,6 +15,7 @@ use super::cache::{
     CachedVirtualMetrics, MeasureCacheKey, ResolvedLinearWindow, VirtualizationCacheKey,
 };
 use super::{LayoutDebugOptions, LayoutOutput, LayoutState};
+use crate::gui::layout_core::WritingDirection;
 use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::Vector2;
 use std::collections::{HashMap, HashSet};
@@ -56,6 +57,7 @@ pub(super) struct LayoutContext<'a> {
     container_state_source: Option<&'a dyn LayoutContainerStateReadSource>,
     cache_key_ambiguity: Option<&'a mut bool>,
     pub(super) output: &'a mut LayoutOutput,
+    direction: WritingDirection,
 }
 
 pub(super) struct LayoutContextParts<'a> {
@@ -72,6 +74,7 @@ pub(super) struct LayoutContextParts<'a> {
     pub(super) debug_node_filter: Option<&'a HashSet<NodeId>>,
     pub(super) container_state_source: Option<&'a dyn LayoutContainerStateReadSource>,
     pub(super) cache_key_ambiguity: Option<&'a mut bool>,
+    pub(super) direction: WritingDirection,
 }
 
 impl<'a> LayoutContext<'a> {
@@ -109,6 +112,7 @@ impl<'a> LayoutContext<'a> {
             container_state_source: parts.container_state_source,
             cache_key_ambiguity: parts.cache_key_ambiguity,
             output: parts.output,
+            direction: parts.direction,
         }
     }
 }

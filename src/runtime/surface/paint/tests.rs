@@ -64,7 +64,7 @@ impl Widget for PaintProbe {
     fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
         let mut record = self.record.lock().unwrap();
         record.bounds = Some(context.bounds());
-        record.environment = Some(context.environment());
+        record.environment = Some(context.environment().clone());
         record.base_calls += 1;
         drop(record);
     }
@@ -82,7 +82,7 @@ impl Widget for PaintProbe {
     fn append_runtime_overlay_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
         let mut record = self.record.lock().unwrap();
         record.bounds = Some(context.bounds());
-        record.environment = Some(context.environment());
+        record.environment = Some(context.environment().clone());
         record.overlay_calls += 1;
     }
 }
@@ -386,13 +386,14 @@ fn legacy_context_defaults_delegate_once_for_base_and_overlay() {
     let probe = LegacyPaintProbe::new(4, Arc::clone(&record));
     let layout = LayoutOutput::default();
     let theme = ThemeTokens::default();
+    let environment = crate::runtime::ResolvedEnvironment::default();
     let mut primitives = Vec::new();
     let context = WidgetPaintContext::new(
         &mut primitives,
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 20.0)),
         &layout,
         &theme,
-        crate::runtime::ResolvedEnvironment::default(),
+        &environment,
     );
     let mut context = context;
     probe.append_paint_with_context(&mut context);

@@ -195,7 +195,7 @@ impl<Message> SurfaceNode<Message> {
                     bounds,
                     context.layout,
                     context.theme,
-                    context.environment,
+                    &context.environment,
                     context.appearance,
                 );
                 widget

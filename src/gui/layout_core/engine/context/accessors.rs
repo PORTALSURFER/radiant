@@ -9,6 +9,9 @@ use crate::gui::types::Vector2;
 use std::sync::Arc;
 
 impl<'a> LayoutContext<'a> {
+    pub(crate) const fn direction(&self) -> crate::gui::layout_core::WritingDirection {
+        self.direction
+    }
     pub(crate) fn cached_measure(
         &mut self,
         key: MeasureCacheKey,

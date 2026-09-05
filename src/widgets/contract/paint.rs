@@ -11,14 +11,14 @@ use crate::{
 /// widget paint traversal.
 ///
 /// The context borrows the caller-owned primitive buffer and existing layout
-/// and theme values. It carries one copyable environment projection and does
+/// and theme values. It borrows one resolved environment projection and does
 /// not allocate per widget.
 pub struct WidgetPaintContext<'a> {
     primitives: &'a mut Vec<PaintPrimitive>,
     bounds: Rect,
     layout: &'a LayoutOutput,
     theme: &'a ThemeTokens,
-    environment: ResolvedEnvironment,
+    environment: &'a ResolvedEnvironment,
     appearance: ResolvedAppearance,
 }
 
@@ -29,7 +29,7 @@ impl<'a> WidgetPaintContext<'a> {
         bounds: Rect,
         layout: &'a LayoutOutput,
         theme: &'a ThemeTokens,
-        environment: ResolvedEnvironment,
+        environment: &'a ResolvedEnvironment,
     ) -> Self {
         Self {
             primitives,
@@ -47,7 +47,7 @@ impl<'a> WidgetPaintContext<'a> {
         bounds: Rect,
         layout: &'a LayoutOutput,
         theme: &'a ThemeTokens,
-        environment: ResolvedEnvironment,
+        environment: &'a ResolvedEnvironment,
         appearance: ResolvedAppearance,
     ) -> Self {
         Self {
@@ -90,13 +90,13 @@ impl<'a> WidgetPaintContext<'a> {
         self.appearance
     }
 
-    /// Return the copyable environment resolved from the current window.
-    pub const fn environment(&self) -> ResolvedEnvironment {
+    /// Return the environment resolved from the current surface snapshot.
+    pub const fn environment(&self) -> &'a ResolvedEnvironment {
         self.environment
     }
 
     /// Alias for [`Self::environment`].
-    pub const fn resolved_environment(&self) -> ResolvedEnvironment {
+    pub const fn resolved_environment(&self) -> &'a ResolvedEnvironment {
         self.environment
     }
 

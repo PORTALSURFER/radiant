@@ -3462,6 +3462,7 @@ where
     };
     completed.viewport == effective_layout_viewport(runtime.viewport)
         && completed.window_environment == runtime.window_environment
+        && completed.direction == runtime.surface.resolved_environment().writing_direction()
         && completed.layout_state_generation == runtime.layout_state_generation
         && completed.layout_debug_options == runtime.layout_debug_options
         && !runtime.external_layout_dirty

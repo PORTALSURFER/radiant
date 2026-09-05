@@ -147,10 +147,13 @@ impl ScrollPolicy {
         }
     }
 
-    /// Preserve the pre-policy scroll view's ability to consume horizontal
-    /// movement when no explicit axis policy was supplied.
-    pub(crate) const fn allows_legacy_horizontal(self) -> bool {
-        self.legacy_both_axes
+    /// Return whether offset mutation may consume horizontal movement.
+    ///
+    /// The legacy default preserves the pre-policy scroll view's horizontal
+    /// offset behavior. This is intentionally about offset mutation authority;
+    /// layout and scrollbar chrome continue to inspect the raw configured axes.
+    pub(crate) const fn allows_horizontal(self) -> bool {
+        self.axes.includes_horizontal() || self.legacy_both_axes
     }
 
     /// Project a stored offset onto the axes currently admitted by this
@@ -158,7 +161,7 @@ impl ScrollPolicy {
     /// this helper only clears disabled components.
     pub(crate) fn project_offset_axes(self, offset: Vector2) -> Vector2 {
         Vector2::new(
-            if self.axes.includes_horizontal() || self.allows_legacy_horizontal() {
+            if self.allows_horizontal() {
                 offset.x
             } else {
                 0.0
@@ -323,5 +326,17 @@ mod tests {
     fn policy_normalizes_non_finite_page_fraction() {
         let policy = ScrollPolicy::default().page_fraction(f32::NAN).normalized();
         assert_eq!(policy.page_fraction, 1.0);
+    }
+
+    #[test]
+    fn effective_horizontal_offset_authority_preserves_legacy_default() {
+        for (policy, expected) in [
+            (ScrollPolicy::default(), true),
+            (ScrollPolicy::default().axes(ScrollAxis::Vertical), false),
+            (ScrollPolicy::default().axes(ScrollAxis::Horizontal), true),
+            (ScrollPolicy::default().axes(ScrollAxis::Both), true),
+        ] {
+            assert_eq!(policy.allows_horizontal(), expected);
+        }
     }
 }

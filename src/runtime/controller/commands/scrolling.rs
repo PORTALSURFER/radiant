@@ -78,7 +78,7 @@ where
             let target_min_y = target.min.y - content.min.y;
             let target_max_y = target.max.y - content.min.y;
             let mut next = current;
-            if policy.axes.includes_horizontal() {
+            if policy.allows_horizontal() {
                 next.x = crate::gui::layout_core::resolve_scroll_alignment(
                     current.x,
                     viewport.width(),

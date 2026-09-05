@@ -319,7 +319,7 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
                 ScrollEdge::Left => (0.0, current.y, 0.0, 0.0),
                 ScrollEdge::Right => (content.width(), current.y, 0.0, 0.0),
                 ScrollEdge::Start => (
-                    if policy.scroll_policy.axes.includes_horizontal() {
+                    if policy.scroll_policy.allows_horizontal() {
                         0.0
                     } else {
                         current.x
@@ -333,7 +333,7 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
                     0.0,
                 ),
                 ScrollEdge::End => (
-                    if policy.scroll_policy.axes.includes_horizontal() {
+                    if policy.scroll_policy.allows_horizontal() {
                         content.width()
                     } else {
                         current.x
@@ -350,7 +350,7 @@ pub(in crate::runtime::controller) fn apply_declarative_scroll_requests_for(
             _ => continue,
         };
         let mut next = current;
-        if policy.scroll_policy.axes.includes_horizontal() {
+        if policy.scroll_policy.allows_horizontal() {
             next.x = resolve_scroll_alignment(
                 current.x,
                 viewport.width(),
@@ -539,11 +539,14 @@ mod tests {
             ScrollbarPlacement, SizeModeCross, SizeModeMain, SlotParams,
         },
         runtime::{
-            ClipAncestors, LayerKind, RuntimeBridge, SurfaceChild, SurfaceLayer, SurfaceNode,
-            UiSurface, WidgetMessageMapper,
+            ClipAncestors, Event, LayerKind, RuntimeBridge, SurfaceChild, SurfaceLayer,
+            SurfaceNode, UiSurface, WidgetMessageMapper,
         },
         theme::ThemeTokens,
-        widgets::{ButtonWidget, TextWidget, Widget, WidgetCommon, WidgetOutput, WidgetSizing},
+        widgets::{
+            ButtonWidget, KeyboardModifiers, TextWidget, Widget, WidgetCommon, WidgetKey,
+            WidgetOutput, WidgetSizing,
+        },
     };
     use std::{
         sync::Arc,
@@ -1056,6 +1059,111 @@ mod tests {
     }
 
     #[test]
+    fn horizontal_rect_requests_follow_effective_axis_and_generation_fence() {
+        for (policy, expected_offset, expected_settlements) in [
+            (
+                ScrollPolicy::default(),
+                Vector2::new(300.0, 0.0),
+                vec![Vector2::new(300.0, 0.0)],
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Vertical),
+                Vector2::default(),
+                Vec::new(),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Horizontal),
+                Vector2::new(300.0, 0.0),
+                vec![Vector2::new(300.0, 0.0)],
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Both),
+                Vector2::new(300.0, 0.0),
+                vec![Vector2::new(300.0, 0.0)],
+            ),
+        ] {
+            let mut runtime = SurfaceRuntime::new(
+                RequestSettlementBridge {
+                    request: ScrollRequest::rect(
+                        Rect::from_min_size(Point::new(300.0, 0.0), Vector2::new(20.0, 20.0)),
+                        ScrollAlignment::Start,
+                        7,
+                    ),
+                    initial: Vector2::default(),
+                    policy,
+                    settled: Vec::new(),
+                },
+                Vector2::new(100.0, 80.0),
+            );
+
+            assert_eq!(runtime.layout_state.scroll_offset(1), expected_offset);
+            assert_eq!(runtime.bridge().settled, expected_settlements);
+            assert_eq!(
+                runtime.layout_state.scroll_runtime[&1].request_generation,
+                Some(7)
+            );
+
+            // A committed generation is consumed once, including the no-op
+            // vertical policy and an already-settled effective change.
+            runtime.refresh();
+            assert_eq!(runtime.layout_state.scroll_offset(1), expected_offset);
+            assert_eq!(runtime.bridge().settled, expected_settlements);
+        }
+    }
+
+    #[test]
+    fn horizontal_right_and_end_requests_follow_effective_axis_once() {
+        for edge in [ScrollEdge::Right, ScrollEdge::End] {
+            for policy in [
+                ScrollPolicy::default(),
+                ScrollPolicy::default().axes(ScrollAxis::Vertical),
+                ScrollPolicy::default().axes(ScrollAxis::Horizontal),
+                ScrollPolicy::default().axes(ScrollAxis::Both),
+            ] {
+                let expected_offset = Vector2::new(
+                    if policy.allows_horizontal() {
+                        300.0
+                    } else {
+                        0.0
+                    },
+                    if edge == ScrollEdge::End && policy.axes.includes_vertical() {
+                        320.0
+                    } else {
+                        0.0
+                    },
+                );
+                let expected_settlements = if expected_offset == Vector2::default() {
+                    Vec::new()
+                } else {
+                    vec![expected_offset]
+                };
+                let mut runtime = SurfaceRuntime::new(
+                    RequestSettlementBridge {
+                        request: ScrollRequest::new(
+                            ScrollTarget::Edge(edge),
+                            ScrollAlignment::Start,
+                            11,
+                        ),
+                        initial: Vector2::default(),
+                        policy,
+                        settled: Vec::new(),
+                    },
+                    Vector2::new(100.0, 80.0),
+                );
+
+                assert_eq!(runtime.layout_state.scroll_offset(1), expected_offset);
+                assert_eq!(runtime.bridge().settled, expected_settlements);
+                assert_eq!(
+                    runtime.layout_state.scroll_runtime[&1].request_generation,
+                    Some(11)
+                );
+                runtime.refresh();
+                assert_eq!(runtime.bridge().settled, expected_settlements);
+            }
+        }
+    }
+
+    #[test]
     fn request_at_boundary_consumes_generation_without_settlement() {
         let request = ScrollRequest::new(
             ScrollTarget::Edge(crate::layout::ScrollEdge::Bottom),
@@ -1433,7 +1541,12 @@ mod tests {
 
     #[test]
     fn focus_reveal_uses_translated_content_coordinates_at_nonzero_offset() {
-        let mut runtime = SurfaceRuntime::new(FocusRevealBridge, Vector2::new(100.0, 80.0));
+        let mut runtime = SurfaceRuntime::new(
+            FocusRevealBridge {
+                policy: ScrollPolicy::default(),
+            },
+            Vector2::new(100.0, 80.0),
+        );
         let content = runtime.layout().rects[&FocusRevealBridge::CONTENT_ID];
         let target = runtime.layout().rects[&FocusRevealBridge::TARGET_ID];
         let viewport = runtime.layout().viewport_bounds[&FocusRevealBridge::SCROLL_ID];
@@ -1455,6 +1568,104 @@ mod tests {
             expected,
             "revealing a translated target must subtract the translated content origin once"
         );
+    }
+
+    #[test]
+    fn focused_home_end_and_page_keys_follow_effective_axes() {
+        for (policy, expected_end, expected_page_up, expected_page_down) in [
+            (
+                ScrollPolicy::default(),
+                Vector2::new(60.0, 880.0),
+                Vector2::new(60.0, 800.0),
+                Vector2::new(0.0, 80.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Vertical),
+                Vector2::new(0.0, 880.0),
+                Vector2::new(0.0, 800.0),
+                Vector2::new(0.0, 80.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Horizontal),
+                Vector2::new(60.0, 0.0),
+                Vector2::new(60.0, 0.0),
+                Vector2::new(0.0, 0.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Both),
+                Vector2::new(60.0, 880.0),
+                Vector2::new(60.0, 800.0),
+                Vector2::new(0.0, 80.0),
+            ),
+        ] {
+            let mut runtime =
+                SurfaceRuntime::new(FocusRevealBridge { policy }, Vector2::new(100.0, 80.0));
+            assert!(runtime.focus_widget(FocusRevealBridge::TARGET_ID));
+
+            assert_eq!(
+                runtime.dispatch_event(Event::KeyPress {
+                    key: WidgetKey::End,
+                    modifiers: KeyboardModifiers::default(),
+                    repeat: false,
+                    timestamp: None,
+                }),
+                Some(FocusRevealBridge::TARGET_ID)
+            );
+            assert_eq!(
+                runtime
+                    .layout_state
+                    .scroll_offset(FocusRevealBridge::SCROLL_ID),
+                expected_end
+            );
+
+            assert_eq!(
+                runtime.dispatch_event(Event::KeyPress {
+                    key: WidgetKey::PageUp,
+                    modifiers: KeyboardModifiers::default(),
+                    repeat: false,
+                    timestamp: None,
+                }),
+                Some(FocusRevealBridge::TARGET_ID)
+            );
+            assert_eq!(
+                runtime
+                    .layout_state
+                    .scroll_offset(FocusRevealBridge::SCROLL_ID),
+                expected_page_up
+            );
+
+            assert_eq!(
+                runtime.dispatch_event(Event::KeyPress {
+                    key: WidgetKey::Home,
+                    modifiers: KeyboardModifiers::default(),
+                    repeat: false,
+                    timestamp: None,
+                }),
+                Some(FocusRevealBridge::TARGET_ID)
+            );
+            assert_eq!(
+                runtime
+                    .layout_state
+                    .scroll_offset(FocusRevealBridge::SCROLL_ID),
+                Vector2::default()
+            );
+
+            assert_eq!(
+                runtime.dispatch_event(Event::KeyPress {
+                    key: WidgetKey::PageDown,
+                    modifiers: KeyboardModifiers::default(),
+                    repeat: false,
+                    timestamp: None,
+                }),
+                Some(FocusRevealBridge::TARGET_ID)
+            );
+            assert_eq!(
+                runtime
+                    .layout_state
+                    .scroll_offset(FocusRevealBridge::SCROLL_ID),
+                expected_page_down
+            );
+        }
     }
 
     #[test]
@@ -1505,6 +1716,57 @@ mod tests {
             let viewport = runtime.layout().viewport_bounds[&node_id];
             assert!(target.min.y >= viewport.min.y);
             assert!(target.max.y <= viewport.max.y);
+        }
+    }
+
+    #[test]
+    fn default_horizontal_focus_reveal_settles_recorded_ancestors_inside_out() {
+        let mut runtime = SurfaceRuntime::new(
+            NestedFocusRevealBridge::horizontal(),
+            Vector2::new(100.0, 80.0),
+        );
+        let unrelated_before = runtime
+            .layout_state
+            .scroll_offset(NestedFocusRevealBridge::UNRELATED_ID);
+
+        assert!(runtime.focus_widget(NestedFocusRevealBridge::TARGET_ID));
+        assert_eq!(
+            runtime.bridge().settled.len(),
+            2,
+            "only recorded inner and outer ancestors settle"
+        );
+        assert_eq!(
+            runtime.bridge().settled[0].0,
+            NestedFocusRevealBridge::INNER_ID
+        );
+        assert_eq!(
+            runtime.bridge().settled[1].0,
+            NestedFocusRevealBridge::OUTER_ID
+        );
+        assert_eq!(runtime.bridge().settled[0].1.x, 100.0);
+        assert_eq!(runtime.bridge().settled[1].1.x, 120.0);
+        assert_eq!(
+            runtime
+                .layout_state
+                .scroll_offset(NestedFocusRevealBridge::UNRELATED_ID),
+            unrelated_before
+        );
+        assert!(
+            !runtime
+                .bridge()
+                .settled
+                .iter()
+                .any(|(id, _)| *id == NestedFocusRevealBridge::UNRELATED_ID)
+        );
+
+        let target = runtime.layout().rects[&NestedFocusRevealBridge::TARGET_ID];
+        for node_id in [
+            NestedFocusRevealBridge::INNER_ID,
+            NestedFocusRevealBridge::OUTER_ID,
+        ] {
+            let viewport = runtime.layout().viewport_bounds[&node_id];
+            assert!(target.min.x >= viewport.min.x);
+            assert!(target.max.x <= viewport.max.x);
         }
     }
 
@@ -1675,7 +1937,9 @@ mod tests {
 
     struct PaddedScrollBridge;
 
-    struct FocusRevealBridge;
+    struct FocusRevealBridge {
+        policy: ScrollPolicy,
+    }
 
     impl FocusRevealBridge {
         const SCROLL_ID: u64 = 1;
@@ -1687,12 +1951,17 @@ mod tests {
         fn project_surface(&mut self) -> Arc<UiSurface<()>> {
             let rows = (0..12)
                 .map(|index| {
+                    let size_cross = if index == 7 {
+                        SizeModeCross::Intrinsic
+                    } else {
+                        SizeModeCross::Fill
+                    };
                     let widget = if index == 7 {
                         SurfaceNode::widget(
                             ButtonWidget::new(
                                 10 + index,
                                 format!("Row {index}"),
-                                WidgetSizing::fixed(Vector2::new(80.0, 30.0)),
+                                WidgetSizing::fixed(Vector2::new(160.0, 30.0)),
                             ),
                             WidgetMessageMapper::none(),
                         )
@@ -1709,7 +1978,7 @@ mod tests {
                     SurfaceChild::new(
                         SlotParams {
                             size_main: SizeModeMain::Fixed(80.0),
-                            size_cross: SizeModeCross::Fill,
+                            size_cross,
                             constraints: Constraints::unconstrained(),
                             margin: Default::default(),
                             align_cross_override: None,
@@ -1724,6 +1993,7 @@ mod tests {
                 ContainerPolicy {
                     kind: ContainerKind::ScrollView,
                     overflow: OverflowPolicy::Scroll,
+                    scroll_policy: self.policy,
                     initial_offset: Some(Vector2::new(0.0, 40.0)),
                     ..ContainerPolicy::default()
                 },
@@ -1741,6 +2011,7 @@ mod tests {
     #[derive(Default)]
     struct NestedFocusRevealBridge {
         settled: Vec<(u64, Vector2)>,
+        horizontal: bool,
     }
 
     impl NestedFocusRevealBridge {
@@ -1750,10 +2021,19 @@ mod tests {
         const INNER_CONTENT_ID: u64 = 4;
         const PREFIX_ID: u64 = 5;
         const TARGET_ID: u64 = 17;
+        const UNRELATED_ID: u64 = 50;
+
+        fn horizontal() -> Self {
+            Self {
+                horizontal: true,
+                ..Self::default()
+            }
+        }
     }
 
     impl RuntimeBridge<(u64, Vector2)> for NestedFocusRevealBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<(u64, Vector2)>> {
+            let horizontal = self.horizontal;
             let rows = (0..12)
                 .map(|index| {
                     let widget = if index == 7 {
@@ -1775,10 +2055,51 @@ mod tests {
                             WidgetMessageMapper::none(),
                         )
                     };
+                    let size_cross = if horizontal && index == 7 {
+                        SizeModeCross::Intrinsic
+                    } else {
+                        SizeModeCross::Fill
+                    };
+                    let widget = if horizontal && index == 7 {
+                        SurfaceNode::row(
+                            170,
+                            0.0,
+                            vec![
+                                SurfaceChild::new(
+                                    SlotParams {
+                                        size_main: SizeModeMain::Fixed(120.0),
+                                        size_cross: SizeModeCross::Fixed(30.0),
+                                        constraints: Constraints::unconstrained(),
+                                        margin: Default::default(),
+                                        align_cross_override: None,
+                                        allow_fixed_compress: false,
+                                    },
+                                    SurfaceNode::text(
+                                        171,
+                                        "Spacer",
+                                        WidgetSizing::fixed(Vector2::new(120.0, 30.0)),
+                                    ),
+                                ),
+                                SurfaceChild::new(
+                                    SlotParams {
+                                        size_main: SizeModeMain::Fixed(80.0),
+                                        size_cross: SizeModeCross::Fixed(30.0),
+                                        constraints: Constraints::unconstrained(),
+                                        margin: Default::default(),
+                                        align_cross_override: None,
+                                        allow_fixed_compress: false,
+                                    },
+                                    widget,
+                                ),
+                            ],
+                        )
+                    } else {
+                        widget
+                    };
                     SurfaceChild::new(
                         SlotParams {
                             size_main: SizeModeMain::Fixed(80.0),
-                            size_cross: SizeModeCross::Fill,
+                            size_cross,
                             constraints: Constraints::unconstrained(),
                             margin: Default::default(),
                             align_cross_override: None,
@@ -1788,6 +2109,22 @@ mod tests {
                     )
                 })
                 .collect();
+            let inner_content = SurfaceNode::column(Self::INNER_CONTENT_ID, 0.0, rows);
+            let inner_content = if horizontal {
+                SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Intrinsic,
+                        size_cross: SizeModeCross::Intrinsic,
+                        constraints: Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    inner_content,
+                )
+            } else {
+                SurfaceChild::fill(inner_content)
+            };
             let inner = SurfaceNode::container(
                 Self::INNER_ID,
                 ContainerPolicy {
@@ -1796,13 +2133,45 @@ mod tests {
                     initial_offset: Some(Vector2::new(0.0, 20.0)),
                     ..ContainerPolicy::default()
                 },
-                vec![SurfaceChild::fill(SurfaceNode::column(
-                    Self::INNER_CONTENT_ID,
-                    0.0,
-                    rows,
-                ))],
+                vec![inner_content],
             )
             .on_offset_settled(|offset| (Self::INNER_ID, offset));
+            let inner = if horizontal {
+                SurfaceNode::row(
+                    180,
+                    0.0,
+                    vec![
+                        SurfaceChild::new(
+                            SlotParams {
+                                size_main: SizeModeMain::Fixed(120.0),
+                                size_cross: SizeModeCross::Fixed(80.0),
+                                constraints: Constraints::unconstrained(),
+                                margin: Default::default(),
+                                align_cross_override: None,
+                                allow_fixed_compress: false,
+                            },
+                            SurfaceNode::text(
+                                181,
+                                "Outer spacer",
+                                WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
+                            ),
+                        ),
+                        SurfaceChild::new(
+                            SlotParams {
+                                size_main: SizeModeMain::Fixed(100.0),
+                                size_cross: SizeModeCross::Fixed(100.0),
+                                constraints: Constraints::unconstrained(),
+                                margin: Default::default(),
+                                align_cross_override: None,
+                                allow_fixed_compress: false,
+                            },
+                            inner,
+                        ),
+                    ],
+                )
+            } else {
+                inner
+            };
             let outer_content = SurfaceNode::column(
                 Self::OUTER_CONTENT_ID,
                 0.0,
@@ -1828,7 +2197,11 @@ mod tests {
                     SurfaceChild::new(
                         SlotParams {
                             size_main: SizeModeMain::Fixed(80.0),
-                            size_cross: SizeModeCross::Fill,
+                            size_cross: if horizontal {
+                                SizeModeCross::Intrinsic
+                            } else {
+                                SizeModeCross::Fill
+                            },
                             constraints: Constraints::unconstrained(),
                             margin: Default::default(),
                             align_cross_override: None,
@@ -1838,19 +2211,51 @@ mod tests {
                     ),
                 ],
             );
-            crate::runtime::test_arc_surface(UiSurface::new(
-                SurfaceNode::container(
-                    Self::OUTER_ID,
-                    ContainerPolicy {
-                        kind: ContainerKind::ScrollView,
-                        overflow: OverflowPolicy::Scroll,
-                        initial_offset: Some(Vector2::new(0.0, 10.0)),
-                        ..ContainerPolicy::default()
+            let outer_content = if horizontal {
+                SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Intrinsic,
+                        size_cross: SizeModeCross::Intrinsic,
+                        constraints: Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
                     },
-                    vec![SurfaceChild::fill(outer_content)],
+                    outer_content,
                 )
-                .on_offset_settled(|offset| (Self::OUTER_ID, offset)),
-            ))
+            } else {
+                SurfaceChild::fill(outer_content)
+            };
+            let outer = SurfaceNode::container(
+                Self::OUTER_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    initial_offset: Some(Vector2::new(0.0, 10.0)),
+                    ..ContainerPolicy::default()
+                },
+                vec![outer_content],
+            )
+            .on_offset_settled(|offset| (Self::OUTER_ID, offset));
+            let root = if horizontal {
+                SurfaceNode::stack(
+                    99,
+                    vec![
+                        SurfaceChild::fill(SurfaceNode::scroll_area(
+                            Self::UNRELATED_ID,
+                            SurfaceNode::text(
+                                51,
+                                "Unrelated",
+                                WidgetSizing::fixed(Vector2::new(180.0, 400.0)),
+                            ),
+                        )),
+                        SurfaceChild::fill(outer),
+                    ],
+                )
+            } else {
+                outer
+            };
+            crate::runtime::test_arc_surface(UiSurface::new(root))
         }
 
         fn reduce_message(&mut self, message: (u64, Vector2)) {

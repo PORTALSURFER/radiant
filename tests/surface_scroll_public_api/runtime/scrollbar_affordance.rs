@@ -211,27 +211,20 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
     let bridge = declarative_runtime_bridge(
         crate::arc_surface(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
             31,
-            SurfaceNode::column(
-                32,
-                2.0,
-                (0..20)
-                    .map(|index| {
-                        SurfaceChild::new(
-                            intrinsic_slot(),
-                            SurfaceNode::text(
-                                100 + index,
-                                format!("Row {index}"),
-                                WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
-                            ),
-                        )
-                    })
-                    .collect(),
+            SurfaceNode::text(
+                100,
+                "Long content",
+                WidgetSizing::fixed(Vector2::new(320.0, 400.0)),
             ),
         ))),
         |surface| Arc::clone(surface),
         |_, _message| {},
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+    let content = runtime.layout().rects[&100];
+    let viewport = runtime.layout().viewport_bounds[&31];
+    assert!(content.width() > viewport.width());
+    assert!(content.height() > viewport.height());
     let before = runtime.layout().rects[&100];
     let thumb = runtime
         .paint_plan(&Default::default())
@@ -242,6 +235,18 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
             _ => None,
         })
         .expect("scroll area should paint a draggable thumb");
+    assert_eq!(
+        runtime
+            .paint_plan(&Default::default())
+            .primitives
+            .iter()
+            .filter(|primitive| {
+                matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 31)
+            })
+            .count(),
+        1,
+        "legacy default overflow paints exactly one vertical bar"
+    );
 
     runtime.dispatch_event(Event::PointerPress {
         position: thumb.center(),
@@ -270,6 +275,7 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
     });
 
     let after = runtime.layout().rects[&100];
+    assert_eq!(after.min.x, before.min.x);
     assert!(after.min.y < before.min.y);
 }
 

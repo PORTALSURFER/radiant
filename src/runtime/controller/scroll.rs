@@ -114,8 +114,7 @@ where
                 continue;
             };
             let mut effective = remaining;
-            let allows_horizontal =
-                policy.axes.includes_horizontal() || policy.allows_legacy_horizontal();
+            let allows_horizontal = policy.allows_horizontal();
             if !allows_horizontal {
                 effective.x = 0.0;
             }
@@ -340,7 +339,7 @@ where
                     if policy.axes.includes_vertical() {
                         next.y = 0.0;
                     }
-                    if policy.axes.includes_horizontal() {
+                    if policy.allows_horizontal() {
                         next.x = 0.0;
                     }
                 }
@@ -348,7 +347,7 @@ where
                     if policy.axes.includes_vertical() {
                         next.y = (content.height() - viewport.height()).max(0.0);
                     }
-                    if policy.axes.includes_horizontal() {
+                    if policy.allows_horizontal() {
                         next.x = (content.width() - viewport.width()).max(0.0);
                     }
                 }

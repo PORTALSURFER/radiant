@@ -6082,6 +6082,13 @@ performance history parseable without scraping prose or losing which target
 area and review-risk group the scenario validates.
 The `p50_us`, `p95_us`, and `p99_us` are finite nearest-rank percentiles.
 
+The `runtime_component_local_geometry_3200` scenario uses fixed parent slots,
+asserts one actual layout pass per edit and reports both `layout_count` and
+`layout_node_visit_count`. The retained
+[geometry-fragment experiment](../evidence/performance/2026-09-05/layout-fragment-experiment/README.md)
+shows why fewer layout calls alone do not establish a faster runtime refresh;
+its candidate failed the qualified performance gate and is not enabled on main.
+
 The maintained `examples/arrangement_shell` implementation is used directly by
 the standalone GUI consumer contract; the harness does not copy or simplify
 that workload. Run the focused lanes with:

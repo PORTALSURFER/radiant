@@ -56,3 +56,59 @@ pub(super) fn projection(fresh: bool) -> impl FnMut() -> crate::runner::Scenario
             .with_component_projection_cache_hit_count(work.cache_hits as u64)
     }
 }
+
+fn geometry_component(expanded: &bool, _: &ResolvedEnvironment) -> View<()> {
+    column(
+        (0..100)
+            .map(|index| {
+                text(format!("Row {index}"))
+                    .width(100.0)
+                    .height(if index == 0 && *expanded { 21.0 } else { 20.0 })
+                    .size(100.0, if index == 0 && *expanded { 21.0 } else { 20.0 })
+            })
+            .collect::<Vec<_>>(),
+    )
+    .width(100.0)
+    .height(2600.0)
+}
+
+pub(super) fn local_geometry() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    use radiant::{
+        application::row,
+        layout::Vector2,
+        runtime::{RepaintScope, SurfaceRuntime},
+    };
+    let changed = Rc::new(Cell::new(false));
+    let bridge = app(Rc::clone(&changed))
+        .view_with_components(
+            |_| Default::default(),
+            |changed, context| {
+                row((0..32)
+                    .map(|index| {
+                        context.project(
+                            format!("geometry-{index}"),
+                            index == 0 && changed.get(),
+                            geometry_component,
+                        )
+                    })
+                    .collect::<Vec<_>>())
+            },
+        )
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(3400.0, 2700.0));
+    assert!(
+        runtime.layout().overflowed.is_empty(),
+        "fixture must fit the viewport"
+    );
+    move || {
+        let before = runtime.refresh_counters();
+        changed.set(!changed.get());
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        let layouts = runtime.refresh_counters().layout - before.layout;
+        assert_eq!(layouts, 1, "each measured edit must run layout");
+        assert!(runtime.layout().overflowed.is_empty());
+        crate::runner::ScenarioCounters::default()
+            .with_layout_count(layouts)
+            .with_layout_node_visit_count(runtime.layout().stats.laid_out_nodes as u64)
+    }
+}

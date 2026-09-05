@@ -49,6 +49,8 @@ pub mod list;
 pub mod paint;
 /// Generic panel and split-pane primitives.
 pub mod panel;
+/// Typed backend-neutral pointer and gesture ingress.
+pub mod pointer_ingress;
 /// Normalized interval primitives for reusable UI models.
 pub mod range;
 /// Backend-neutral repaint signaling primitives used by runtimes and background jobs.

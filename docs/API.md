@@ -4414,8 +4414,17 @@ geometry remains physical, and TreeRow semantics preserve host/runtime
 ownership. Native paragraph shaping receives the requested locale and explicit
 writing direction from the published application snapshot. Both values qualify
 shape/view cache reuse; a change retires native input geometry before reseeding
-the current plan. Menu/shell geometry remains staged work under OPT-1386.
+the current plan. Shell geometry remains staged work under OPT-1386.
 Retained bidi and complex shaping are implemented under OPT-1402.
+
+Framework-owned menus resolve title and command-row intrinsic heights from the
+application text scale. Each command owns its visible label, shortcut hint,
+accessible name, and input state under one widget identity; RTL mirrors the
+label and shortcut columns. Automatic context-menu width scales its character
+estimate within the declared physical limits, and automatic height scales text
+rows while retaining physical padding and gaps. Explicit `.width(...)` and
+`.size(...)` constraints remain physical. The `localization_foundation` example
+cycles English, French, and Arabic with a larger text scale and an RTL menu.
 
 Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
 resolves light, dark, and high-contrast tokens from the current window snapshot;
@@ -4604,7 +4613,7 @@ locale fallback, direction, text scale, catalog generation, and shortcut
 presentation generation. Phase-1 logical RTL container geometry is shipped;
 built-in dense/interactive row and TreeRow text-scale propagation is shipped,
 and native shaping/cache identity consumes the application locale and direction.
-Menu/shell geometry remains staged under OPT-1386. Bidirectional text and complex shaping belong to renderer text
+Shell geometry remains staged under OPT-1386. Bidirectional text and complex shaping belong to renderer text
 layout and cursor-stop mapping; their retained implementation is under
 OPT-1402, while `TextInputState` continues to store logical Unicode-scalar
 positions instead of renderer glyph positions. The selected architecture is
@@ -5913,6 +5922,32 @@ Accepted wheel edits from `KnobWidget` emit one `KnobMessage::WheelGesture` with
 the existing three ordered `KnobAutomationEvent` values and a copyable
 `KnobWheelMetadata` payload. Its modifiers, optional timestamp, and optional
 sequence range are copied unchanged from the accepted `WidgetInput::Wheel`.
+Typed pointer ingress is an additive API in `gui::pointer_ingress`. Hosts may
+construct checked `PointerIngress` and `GestureIngress` values with device,
+contact, phase, logical-coordinate, button, modifier, pressure, tilt, timestamp,
+and sample-range evidence. Surface runtimes route these through a fixed
+sixteen-record device/contact table. A started or hover sample has no sequence
+token; only the runtime can issue a nonzero opaque token, and a continuation is
+admitted only when its token, device, contact, and runtime identity match.
+`dispatch_pointer_ingress_with_admission` returns that opaque token for a
+started sequence, including layout, scrollbar, and explicitly unsupported
+admissions that have no widget callback; hosts can pass it to the checked
+continuation constructor without minting or inspecting the token.
+`Widget::handle_pointer_event` is the opt-in extension used by
+`RetainedCanvasBuilder::on_pointer`, `gpu_surface_pointer`, and
+`render_canvas_pointer`; existing `Event`, `WidgetInput`, and canvas gesture
+contracts remain source-compatible. Valid pan, pinch, and rotate ingress is
+reported as an explicitly admitted unsupported consumer until the later gesture
+arena phase. Typed drag payloads, cross-window payloads, and external offers
+remain outside this phase.
+
+Run `cargo run --example typed_pointer` for an ordinary application update
+handler receiving an admitted mouse sequence from `render_canvas_pointer`.
+The example also checks public token admission and replayed-terminal rejection
+through `SurfaceRuntime`. Malformed native touch terminals cancel only their
+exact retained contact at its last valid logical position, preserving the
+issued token and freeing both native and runtime sequence slots.
+
 `KnobWheelGesture::new(...)` remains the compatibility constructor and uses
 `KnobWheelMetadata::default()`; use `KnobWheelGesture::new_with_metadata(...)`
 or `input_metadata()` for explicit provenance. The added public `metadata`
@@ -6641,6 +6676,7 @@ manual validation:
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Localization and shortcut presentation | `localization_foundation` |
 | Qualified native rendering workload observations | `rendering_baseline` |
+| Typed pointer admission and capture continuity | `typed_pointer` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
@@ -6817,6 +6853,13 @@ Use `ToolbarParts`, `ToolbarAlignment`, `toolbar(...)`, or
 `toolbar_from_parts(...)` when top bars, transport strips, inspector toolbars,
 or similar app-owned control strips need Radiant-owned height, padding, spacing,
 alignment, and optional trailing controls.
+`toolbar(...)` honors its controls' intrinsic heights, including application
+text scale, with a 34-pixel minimum strip height and physical vertical padding.
+For example, a default 36-pixel button produces a 42-pixel strip at text scale
+1 and a 78-pixel strip at scale 2. `toolbar_from_parts(...)` retains the fixed
+physical height declared by `ToolbarParts`; `.height(...)` also remains an
+explicit physical constraint. Both paths share the controls' localized visible
+and accessible labels and logical RTL ordering.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.
@@ -7580,6 +7623,20 @@ opaque mapper evidence, stale fences, and ambiguous paths use the complete
 refresh candidate and its normal fallback behavior. The bridge remains the
 authority for the exact changed-root list; recursive classifiers and
 diagnostics do not authorize admission.
+
+The stateful application bridge now produces this bounded evidence directly
+from built-in view lowering. Immutable receipts compare exact source, slot,
+container, and widget evidence; the producer qualifies them with runtime,
+request, surface-generation, environment, and owner-revision fences. A pending
+receipt becomes the next baseline only after a subsequent request observes its
+published successor generation. Held candidates, stale requests, external
+projections, exhausted authority, and projection panics cannot promote it.
+Custom `IntoView` wrappers default to full refresh unless they explicitly
+forward the hidden application-projection method; Scene lifecycle bindings,
+virtual content, geometry/paint changes, and unsupported evidence remain full
+refreshes. This still lowers the complete application view and records its
+nodes. It avoids runtime traversal/layout on eligible interaction leaves;
+general application subtree non-visitation remains future OPT-1388 work.
 
 ### Native visual request packet handoff (private native-window contract)
 

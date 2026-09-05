@@ -6,7 +6,7 @@ use crate::{
 };
 use std::rc::Rc;
 
-impl<Message> ViewLowering<'_, Message> {
+impl<Message> ViewLowering<'_, '_, Message> {
     pub(super) fn lower_container(
         &mut self,
         id: NodeId,

@@ -21,6 +21,50 @@ pub struct ViewProjection<Message> {
     scene: SceneProjection<Message>,
 }
 
+/// Lowering evidence supplied by the application-owned view producer.
+///
+/// This is intentionally hidden from normal application code.  Only the
+/// built-in `ViewNode` implementation can opt into the bounded interaction
+/// reconciliation path; custom `IntoView` implementations retain the full
+/// refresh contract unless they explicitly forward this method.
+#[doc(hidden)]
+pub struct ApplicationProjectionContext<'a> {
+    recorder:
+        &'a mut crate::application::view_node::reconciliation::ApplicationProjectionRecorder<'a>,
+}
+
+impl<'a> ApplicationProjectionContext<'a> {
+    #[allow(dead_code)]
+    pub(crate) fn new(
+        recorder: &'a mut crate::application::view_node::reconciliation::ApplicationProjectionRecorder<'a>,
+    ) -> Self {
+        Self { recorder }
+    }
+
+    pub(crate) fn mark_unsupported(&mut self) {
+        self.recorder.mark_unsupported();
+    }
+
+    pub(crate) fn record<Message>(
+        &mut self,
+        path: &[usize],
+        incoming_slot: Option<crate::layout::SlotParams>,
+        node: &crate::runtime::SurfaceNode<Message>,
+    ) {
+        self.recorder.record(path, incoming_slot, node);
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn finish(
+        &mut self,
+    ) -> (
+        crate::application::view_node::reconciliation::ApplicationProjectionReceipt,
+        crate::application::view_node::reconciliation::ReceiptComparison,
+    ) {
+        self.recorder.finish()
+    }
+}
+
 impl<Message> ViewProjection<Message> {
     /// Build an explicitly metadata-free projection from a lowered surface.
     pub fn from_surface(surface: UiSurface<Message>) -> Self {
@@ -122,6 +166,20 @@ pub trait IntoView<Message> {
     /// This method is required so custom wrappers must explicitly preserve a
     /// wrapped projection or construct a metadata-free one.
     fn into_projection(self) -> ViewProjection<Message>;
+
+    /// Lower one application view while recording whether Radiant-owned
+    /// source evidence is available for bounded interaction reconciliation.
+    #[doc(hidden)]
+    fn into_application_projection(
+        self,
+        context: &mut ApplicationProjectionContext<'_>,
+    ) -> ViewProjection<Message>
+    where
+        Self: Sized,
+    {
+        context.mark_unsupported();
+        self.into_projection()
+    }
 
     /// Lower this value into a runtime surface node.
     ///

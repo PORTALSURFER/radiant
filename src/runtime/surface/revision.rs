@@ -192,6 +192,91 @@ pub(crate) enum WidgetRevisionEffect {
     Unchanged,
 }
 
+/// Immutable widget evidence retained by an application projection receipt.
+/// Callback bodies are never retained; mapper descriptors carry only their
+/// declared equality relation.
+#[derive(Clone)]
+pub(crate) struct InteractionLeafEvidence {
+    pub(crate) revision: SurfaceWidgetRevisionEvidence,
+    pub(crate) output_mapper: MapperDescriptor,
+    pub(crate) native_file_drop_mapper: MapperDescriptor,
+    pub(crate) accepts_native_file_drop: bool,
+    pub(crate) membership: [bool; 7],
+}
+
+pub(crate) fn capture_interaction_leaf_evidence<Message>(
+    widget: &super::SurfaceWidget<Message>,
+) -> InteractionLeafEvidence {
+    InteractionLeafEvidence {
+        revision: widget.revision_evidence().clone(),
+        output_mapper: widget.output_mapper_descriptor(),
+        native_file_drop_mapper: widget.native_file_drop_mapper_descriptor(),
+        accepts_native_file_drop: widget.accepts_native_file_drop(),
+        membership: widget.prepared_state_membership(),
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum InteractionLeafRevision {
+    Interaction,
+    Unchanged,
+    Reject,
+}
+
+pub(crate) fn classify_interaction_leaf_evidence(
+    previous: &InteractionLeafEvidence,
+    current: &InteractionLeafEvidence,
+) -> InteractionLeafRevision {
+    if previous.membership != current.membership
+        || previous.accepts_native_file_drop != current.accepts_native_file_drop
+        || previous.output_mapper.relation(&current.output_mapper) != MapperRelation::Unchanged
+        || previous
+            .native_file_drop_mapper
+            .relation(&current.native_file_drop_mapper)
+            != MapperRelation::Unchanged
+    {
+        return InteractionLeafRevision::Reject;
+    }
+    let revision = classify_cached_widget_revision(&previous.revision, &current.revision);
+    if matches!(
+        revision,
+        WidgetRevisionEffect::Structural
+            | WidgetRevisionEffect::Geometry
+            | WidgetRevisionEffect::Paint
+    ) {
+        return InteractionLeafRevision::Reject;
+    }
+    let capabilities = classify_cached_widget_capabilities(
+        &previous.revision.capabilities,
+        &current.revision.capabilities,
+    );
+    if matches!(
+        capabilities,
+        WidgetRevisionEffect::Structural
+            | WidgetRevisionEffect::Geometry
+            | WidgetRevisionEffect::Paint
+    ) {
+        return InteractionLeafRevision::Reject;
+    }
+    if matches!(revision, WidgetRevisionEffect::Interaction)
+        || matches!(capabilities, WidgetRevisionEffect::Interaction)
+    {
+        InteractionLeafRevision::Interaction
+    } else {
+        InteractionLeafRevision::Unchanged
+    }
+}
+
+pub(crate) fn classify_interaction_leaf<PreviousMessage, CurrentMessage>(
+    previous: &super::SurfaceWidget<PreviousMessage>,
+    current: &super::SurfaceWidget<CurrentMessage>,
+) -> InteractionLeafRevision {
+    classify_interaction_leaf_evidence(
+        &capture_interaction_leaf_evidence(previous),
+        &capture_interaction_leaf_evidence(current),
+    )
+}
+
 /// Minimal comparison input for a same-ID retained widget pair.
 #[derive(Clone, Debug)]
 pub(crate) struct WidgetRevisionSnapshot {
@@ -250,65 +335,6 @@ fn classify_cached_widget_revision(
         return WidgetRevisionEffect::Structural;
     };
     classify_exact_components(previous, current)
-}
-
-/// Narrow leaf relation admitted by the interaction-only refresh path.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum InteractionLeafRevision {
-    Interaction,
-    Unchanged,
-    Reject,
-}
-
-/// Compare one old/new widget pair using only cached exact evidence.
-///
-/// This intentionally rejects geometry, paint, structural, conservative, and
-/// opaque mapper changes. It never calls widget behavior or a host callback.
-pub(crate) fn classify_interaction_leaf<PreviousMessage, CurrentMessage>(
-    previous: &super::SurfaceWidget<PreviousMessage>,
-    current: &super::SurfaceWidget<CurrentMessage>,
-) -> InteractionLeafRevision {
-    let revision =
-        classify_cached_widget_revision(previous.revision_evidence(), current.revision_evidence());
-    if matches!(
-        revision,
-        WidgetRevisionEffect::Structural
-            | WidgetRevisionEffect::Geometry
-            | WidgetRevisionEffect::Paint
-    ) {
-        return InteractionLeafRevision::Reject;
-    }
-    let capabilities = classify_cached_widget_capabilities(
-        &previous.revision_evidence().capabilities,
-        &current.revision_evidence().capabilities,
-    );
-    if matches!(
-        capabilities,
-        WidgetRevisionEffect::Structural
-            | WidgetRevisionEffect::Geometry
-            | WidgetRevisionEffect::Paint
-    ) {
-        return InteractionLeafRevision::Reject;
-    }
-    if previous
-        .output_mapper_descriptor()
-        .relation(&current.output_mapper_descriptor())
-        != MapperRelation::Unchanged
-        || previous
-            .native_file_drop_mapper_descriptor()
-            .relation(&current.native_file_drop_mapper_descriptor())
-            != MapperRelation::Unchanged
-        || previous.accepts_native_file_drop() != current.accepts_native_file_drop()
-    {
-        return InteractionLeafRevision::Reject;
-    }
-    if matches!(revision, WidgetRevisionEffect::Interaction)
-        || matches!(capabilities, WidgetRevisionEffect::Interaction)
-    {
-        InteractionLeafRevision::Interaction
-    } else {
-        InteractionLeafRevision::Unchanged
-    }
 }
 
 /// Classify the v1 and v2 capability descriptors without evaluating
@@ -1606,6 +1632,13 @@ fn compare_node<Message>(
                 delta,
                 scratch,
             );
+            if previous.text_scaled_size != current.text_scaled_size {
+                delta.record(
+                    ViewDeltaEffect::Geometry,
+                    ViewDeltaCause::ContainerPolicy,
+                    path.path,
+                );
+            }
             if previous.interactive != current.interactive {
                 delta.record(
                     ViewDeltaEffect::Interaction,
@@ -3712,6 +3745,41 @@ mod view_delta_tests {
                 .iter()
                 .flatten()
                 .all(|event| event.path.len <= 8)
+        );
+    }
+
+    #[test]
+    fn floating_text_size_declaration_changes_geometry() {
+        let node = || {
+            SurfaceNode::floating_layer(
+                1,
+                Point::new(0.0, 0.0),
+                Vector2::new(20.0, 20.0),
+                SurfaceNode::overlay_marker(
+                    2,
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 2.0)),
+                    WidgetStyle::normal(WidgetTone::Neutral),
+                ),
+                false,
+            )
+        };
+        let scaled = node().with_text_scaled_floating_size(Some(crate::runtime::TextScaledSize {
+            width: Some(crate::runtime::TextScaledExtent {
+                characters: 2,
+                metrics: crate::gui::text_layout::TextWidthEstimate::new(10.0, 0.0),
+                minimum: 1.0,
+                maximum: 100.0,
+            }),
+            height: None,
+        }));
+        let cloned = scaled.clone();
+        assert_eq!(
+            classify_view_delta(&surface(node()), &surface(scaled)).effect,
+            ViewDeltaEffect::Geometry
+        );
+        assert_eq!(
+            classify_view_delta(&surface(node()), &surface(cloned)).effect,
+            ViewDeltaEffect::Geometry
         );
     }
 

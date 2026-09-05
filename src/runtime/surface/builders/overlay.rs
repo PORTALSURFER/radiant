@@ -81,6 +81,7 @@ impl<Message> SurfaceNode<Message> {
             ..ContainerPolicy::default()
         };
         Self::FloatingLayer(SurfaceFloatingLayer {
+            text_scaled_size: None,
             _ui_affinity: crate::UiAffinity::new(),
             container: SurfaceContainer::new(
                 id,

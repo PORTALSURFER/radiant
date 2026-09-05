@@ -12,6 +12,12 @@ module ownership and the migration seams between it and that target; a boundary
 described here is not evidence that every target-state node, scheduling, or
 renderer contract is already implemented.
 
+Pointer ingress has a backend-neutral checked boundary before controller
+routing. It uses nonzero host identities and runtime-fenced sequence tokens,
+with sixteen fixed sequence records per surface and no queue, coalescer, or
+history. The additive widget pointer hook lets opted-in canvas and GPU leaves
+receive exact five-phase evidence while legacy input remains unchanged.
+
 Only canonical merged source counts for shipped status; branch, draft,
 acceptance-only, and unverified evidence do not. X11 and product-specific
 behavior remain explicit non-goals for Radiant.
@@ -1167,6 +1173,20 @@ path with explicit prepared witnesses and terminal fences; broader subtree
 reconciliation, topology edits, geometry and paint fragments, and deep
 differential benchmarking remain future work.
 
+The stateful application bridge now produces this bounded evidence directly
+from built-in view lowering. Immutable receipts compare exact source, slot,
+container, and widget evidence; the producer qualifies them with runtime,
+request, surface-generation, environment, and owner-revision fences. A pending
+receipt becomes the next baseline only after a subsequent request observes its
+published successor generation. Held candidates, stale requests, external
+projections, exhausted authority, and projection panics cannot promote it.
+Custom `IntoView` wrappers default to full refresh unless they explicitly
+forward the hidden application-projection method; Scene lifecycle bindings,
+virtual content, geometry/paint changes, and unsupported evidence remain full
+refreshes. This still lowers the complete application view and records its
+nodes. It avoids runtime traversal/layout on eligible interaction leaves;
+general application subtree non-visitation remains future OPT-1388 work.
+
 ### Native visual request packet handoff (private native-window contract)
 
 The native event loop has one crate-private `NativeVisualRequestPacket` handoff
@@ -1616,10 +1636,19 @@ locale fallback, direction, text scale, catalog generation, and shortcut
   locale/direction before seeding input geometry. TextLayoutCache keys both
   values, while DPI, shortcut display, and catalog generations remain outside
   shape identity. Presentation changes retire the input sidecar and caret
-  affinity; an unchanged snapshot preserves them. Menu/shell geometry remains
+  affinity; an unchanged snapshot preserves them. Shell geometry remains
   staged under OPT-1386. The retained bidi and complex-shaping implementation is owned
   by OPT-1402 and documented in
   [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
+
+Framework-owned menus resolve title and command-row intrinsic heights from the
+application text scale. Each command owns its visible label, shortcut hint,
+accessible name, and input state under one widget identity; RTL mirrors the
+label and shortcut columns. Automatic context-menu width scales its character
+estimate within the declared physical limits, and automatic height scales text
+rows while retaining physical padding and gaps. Explicit `.width(...)` and
+`.size(...)` constraints remain physical. The `localization_foundation` example
+cycles English, French, and Arabic with a larger text scale and an RTL menu.
 
 ## Platform Boundary
 

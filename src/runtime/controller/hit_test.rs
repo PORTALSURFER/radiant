@@ -141,8 +141,9 @@ where
     }
 
     pub(super) fn widget_accepts_stable_pointer_move(&self, widget_id: WidgetId) -> bool {
-        self.surface_widget(widget_id)
-            .is_some_and(SurfaceWidget::accepts_pointer_move)
+        self.surface_widget(widget_id).is_some_and(|widget| {
+            widget.accepts_pointer_move() || self.surface.widget_has_pointer_mapper(widget_id)
+        })
     }
 
     pub(super) fn widget_accepts_pointer_input(

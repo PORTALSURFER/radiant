@@ -79,7 +79,7 @@ fn app_view_projection_carries_scene_lifecycle_without_concrete_type_probes() {
         .expect("application view lowering should be readable");
 
     assert!(
-        adapter.contains(".into_projection()")
+        adapter.contains(".into_application_projection(&mut context)")
             && adapter.contains("projection.into_parts()")
             && adapter.contains("scene.apply(&mut self.lifecycle)")
             && !adapter.contains("dyn Any")

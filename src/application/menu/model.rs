@@ -156,7 +156,7 @@ impl MessageMenuWidthPolicy {
     }
 }
 
-fn command_menu_width_chars<Message>(command: &MenuCommand<Message>) -> usize {
+pub(super) fn command_menu_width_chars<Message>(command: &MenuCommand<Message>) -> usize {
     let label_chars = command.label.chars().count();
     let Some(hint) = command.hotkey_hint.as_ref() else {
         return label_chars;

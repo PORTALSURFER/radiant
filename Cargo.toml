@@ -311,6 +311,10 @@ name = "perf_harness"
 path = "benches/perf_harness.rs"
 harness = false
 
+[[example]]
+name = "typed_pointer"
+path = "examples/typed_pointer.rs"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",

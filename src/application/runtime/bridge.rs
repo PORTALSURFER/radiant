@@ -22,6 +22,8 @@ use std::{
 mod adapter;
 
 pub(in crate::application) struct AppBridge<State, Message, Project, Update, View> {
+    projection_producer:
+        crate::application::launch::projection_producer::ApplicationProjectionProducer,
     pub(in crate::application) state: State,
     pub(in crate::application) project: Project,
     pub(in crate::application) update: Update,
@@ -222,6 +224,9 @@ where
         application_environment_source: Option<ApplicationEnvironmentSource<State>>,
     ) -> Self {
         Self {
+            projection_producer:
+                crate::application::launch::projection_producer::ApplicationProjectionProducer::new(
+                ),
             state,
             project,
             update,

@@ -23,6 +23,10 @@ pub(super) enum NativeImmediateTransientKind {
     CursorMoved,
     CursorLeft,
     MouseWheel(TouchPhase),
+    Touch(TouchPhase),
+    PinchGesture(TouchPhase),
+    RotationGesture(TouchPhase),
+    DesktopPanUnsupported(TouchPhase),
 }
 
 /// Complete native evidence captured before one transient event is routed.
@@ -199,6 +203,13 @@ mod tests {
             NativeImmediateTransientKind::MouseWheel(TouchPhase::Moved),
             NativeImmediateTransientKind::MouseWheel(TouchPhase::Ended),
             NativeImmediateTransientKind::MouseWheel(TouchPhase::Cancelled),
+            NativeImmediateTransientKind::Touch(TouchPhase::Started),
+            NativeImmediateTransientKind::Touch(TouchPhase::Moved),
+            NativeImmediateTransientKind::Touch(TouchPhase::Ended),
+            NativeImmediateTransientKind::Touch(TouchPhase::Cancelled),
+            NativeImmediateTransientKind::PinchGesture(TouchPhase::Moved),
+            NativeImmediateTransientKind::RotationGesture(TouchPhase::Moved),
+            NativeImmediateTransientKind::DesktopPanUnsupported(TouchPhase::Moved),
         ] {
             let mut owner = WindowStageOwner::new(FrameScheduleKey::Primary);
             let captured = evidence(kind);

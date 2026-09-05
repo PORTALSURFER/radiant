@@ -19,7 +19,9 @@ mod projection;
 mod revision;
 mod source;
 mod state_sync;
+mod text_scaled_size;
 mod traversal;
+pub(crate) use text_scaled_size::{TextScaledExtent, TextScaledSize};
 mod view;
 mod virtual_layout;
 mod widget;
@@ -34,8 +36,8 @@ pub use node::{
 pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
 pub(crate) use source::{
-    KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
-    SourceTraversalIndex, source_metadata_matches,
+    FrozenSourceMetadata, KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata,
+    SourceTopology, SourceTraversalIndex, source_metadata_matches,
 };
 #[cfg(test)]
 pub(crate) use source::{OverlayEvidence, OverlayIdentity, SurfaceSourceKind};
@@ -62,7 +64,6 @@ pub use widget::{
 
 pub(in crate::runtime) use crate::widgets::WidgetId;
 pub(crate) use interaction_patch::inspect_interaction_path;
-pub(crate) use revision::InteractionLeafRevision;
 #[cfg(test)]
 pub(in crate::runtime) use revision::SurfaceDamageCandidate;
 #[cfg(test)]
@@ -72,6 +73,99 @@ pub(in crate::runtime) use revision::{
     SurfaceDamage, ViewDelta, ViewDeltaDiagnostics, ViewDeltaEffect, ViewDeltaScratch,
     classify_view_delta,
 };
+pub(crate) use revision::{
+    InteractionLeafEvidence, InteractionLeafRevision, capture_interaction_leaf_evidence,
+    classify_interaction_leaf_evidence,
+};
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub(crate) enum ApplicationNodeKind {
+    Container {
+        policy: crate::layout::ContainerPolicy,
+        style: Option<crate::widgets::WidgetStyle>,
+        hoverable: bool,
+        split_pane_runtime: Option<crate::gui::layout_core::SplitPaneRuntimeMode>,
+        child_count: usize,
+        unsupported_fence: bool,
+        scroll_mapper: crate::runtime::surface::widget::MapperDescriptor,
+    },
+    Widget {
+        evidence: InteractionLeafEvidence,
+    },
+    Unsupported,
+}
+
+#[allow(dead_code)]
+#[derive(Clone)]
+pub(crate) struct ApplicationNodeReceipt {
+    pub(crate) path: Box<[usize]>,
+    pub(crate) incoming_slot: Option<crate::layout::SlotParams>,
+    pub(crate) id: crate::layout::NodeId,
+    pub(crate) source: FrozenSourceMetadata,
+    pub(crate) kind: ApplicationNodeKind,
+}
+
+pub(crate) fn application_node_kind<Message>(node: &SurfaceNode<Message>) -> ApplicationNodeKind {
+    match node {
+        SurfaceNode::Container(container) => ApplicationNodeKind::Container {
+            policy: container.policy.clone(),
+            style: container.style,
+            hoverable: container.hoverable,
+            split_pane_runtime: container.split_pane_runtime,
+            child_count: container.children.len(),
+            unsupported_fence: container.layout_policy.is_some()
+                || container.layout_capabilities.is_some()
+                || container.split_pane_ratio_settled.is_some()
+                || container.offset_settled.is_some()
+                || container.virtual_layout.is_some(),
+            scroll_mapper: container.scroll_mapper_descriptor(),
+        },
+        SurfaceNode::Widget(widget) => ApplicationNodeKind::Widget {
+            evidence: capture_interaction_leaf_evidence(widget),
+        },
+        _ => ApplicationNodeKind::Unsupported,
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn application_container_kind_matches(
+    previous: &ApplicationNodeKind,
+    current: &ApplicationNodeKind,
+) -> bool {
+    let (
+        ApplicationNodeKind::Container {
+            policy: previous_policy,
+            style: previous_style,
+            hoverable: previous_hoverable,
+            split_pane_runtime: previous_split,
+            child_count: previous_count,
+            unsupported_fence: previous_fence,
+            scroll_mapper: previous_mapper,
+        },
+        ApplicationNodeKind::Container {
+            policy: current_policy,
+            style: current_style,
+            hoverable: current_hoverable,
+            split_pane_runtime: current_split,
+            child_count: current_count,
+            unsupported_fence: current_fence,
+            scroll_mapper: current_mapper,
+        },
+    ) = (previous, current)
+    else {
+        return false;
+    };
+    previous_policy == current_policy
+        && previous_style == current_style
+        && previous_hoverable == current_hoverable
+        && previous_split == current_split
+        && previous_count == current_count
+        && !previous_fence
+        && !current_fence
+        && previous_mapper.relation(current_mapper)
+            == crate::runtime::surface::widget::MapperRelation::Unchanged
+}
 
 /// Top-level immutable UI surface projected by a generic Radiant host.
 ///

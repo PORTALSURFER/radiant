@@ -52,7 +52,7 @@ pub struct SurfaceWidget<Message> {
 /// Immutable widget evidence captured when the widget crosses the erased
 /// `SurfaceWidget` boundary.  View-delta classification borrows this record
 /// and never dispatches back into the live widget object.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SurfaceWidgetRevisionEvidence {
     pub(crate) id: WidgetId,
     pub(crate) compatibility_kind: &'static str,
@@ -61,7 +61,7 @@ pub(crate) struct SurfaceWidgetRevisionEvidence {
     pub(crate) valid: bool,
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct WidgetCapabilityEvidence {
     /// Source-compatible v1 contract version and semantics evidence.
     pub(crate) contract_version: u16,
@@ -537,6 +537,28 @@ impl<Message> SurfaceWidget<Message> {
             .map_output(output)
             .map(super::WidgetDispatchResult::Message)
             .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
+    pub(in crate::runtime) fn dispatch_pointer_event(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        event: crate::gui::pointer_ingress::PointerEvent,
+    ) -> super::WidgetDispatchResult<Message> {
+        let Some(output) = (self.id() == widget_id)
+            .then(|| self.widget.handle_pointer_event(bounds, event))
+            .flatten()
+        else {
+            return super::WidgetDispatchResult::NoOutput;
+        };
+        self.messages
+            .map_pointer_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
+    pub(in crate::runtime) fn has_pointer_output(&self) -> bool {
+        self.messages.has_pointer_output()
     }
 
     pub(in crate::runtime) fn dispatch_focus_changed_at(

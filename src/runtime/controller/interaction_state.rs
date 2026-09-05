@@ -1,5 +1,6 @@
 //! Focus, hover, pointer-capture, and drag state for the surface controller.
 
+use super::pointer_ingress::PointerIngressState;
 use super::{
     DragSession, ExternalDragCompletion, ExternalDragIdentity, ExternalDragSession,
     PendingExternalDragCompletion, layout_state::RuntimeLayoutContainerStateStore,
@@ -49,6 +50,15 @@ impl<Message> Default for RuntimeInteractionState<Message> {
             layout_capture: None,
             layout_state: RuntimeLayoutContainerStateStore::default(),
             drag: RuntimeDragState::default(),
+        }
+    }
+}
+
+impl<Message> RuntimeInteractionState<Message> {
+    pub(super) fn with_runtime_identity(runtime_identity: u64) -> Self {
+        Self {
+            pointer: RuntimePointerState::new(runtime_identity),
+            ..Self::default()
         }
     }
 }
@@ -251,7 +261,7 @@ pub(super) struct RuntimeTooltipState {
     pub(super) revealed: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct RuntimePointerState {
     pub(super) current_position: Option<Point>,
     pub(super) capture: Option<WidgetId>,
@@ -260,6 +270,28 @@ pub(super) struct RuntimePointerState {
     pub(super) managed_capture: Option<RuntimeManagedPointerCapture>,
     pub(super) release_tombstones: [bool; POINTER_BUTTON_COUNT],
     pub(super) scroll_drag_capture: Option<ScrollDragCapture>,
+    pub(super) ingress: PointerIngressState,
+}
+
+impl Default for RuntimePointerState {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
+impl RuntimePointerState {
+    pub(super) fn new(runtime_identity: u64) -> Self {
+        Self {
+            current_position: None,
+            capture: None,
+            capture_button: None,
+            capture_state: None,
+            managed_capture: None,
+            release_tombstones: [false; POINTER_BUTTON_COUNT],
+            scroll_drag_capture: None,
+            ingress: PointerIngressState::new(runtime_identity),
+        }
+    }
 }
 
 const POINTER_BUTTON_COUNT: usize = 3;

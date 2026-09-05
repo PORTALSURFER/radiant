@@ -1,6 +1,6 @@
-use crate::application::{ViewNode, row, spacer};
+use crate::application::{ViewNode, row, spacer, stack};
 
-/// Default toolbar height for compact application control strips.
+/// Minimum height of the default toolbar and fixed height of default named parts.
 pub const DEFAULT_TOOLBAR_HEIGHT: f32 = 34.0;
 /// Default horizontal spacing between toolbar controls.
 pub const DEFAULT_TOOLBAR_SPACING: f32 = 4.0;
@@ -104,10 +104,20 @@ impl<Message> ToolbarParts<Message> {
 }
 
 /// Build a compact toolbar/control strip from app-owned controls.
+///
+/// The default strip grows with its controls' intrinsic heights, including text
+/// scale, with a minimum height of 34 logical pixels. Use
+/// [`toolbar_from_parts`] or an explicit `.height(...)` for a fixed physical slot.
 pub fn toolbar<Message: 'static>(
     controls: impl IntoIterator<Item = ViewNode<Message>>,
 ) -> ViewNode<Message> {
-    toolbar_from_parts(ToolbarParts::new(controls))
+    stack([
+        toolbar_from_parts(ToolbarParts::new(controls))
+            .intrinsic()
+            .fill_width(),
+        spacer().width(0.0).height(DEFAULT_TOOLBAR_HEIGHT),
+    ])
+    .fill_width()
 }
 
 /// Build a compact toolbar/control strip from named parts.
@@ -176,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    fn toolbar_applies_compact_default_spacing_and_height() {
+    fn toolbar_applies_default_spacing_and_honors_control_height() {
         let layout = column([toolbar([
             button("A").message(Message::Run).id(10).width(32.0),
             button("B").message(Message::Run).id(11).width(32.0),
@@ -184,9 +194,51 @@ mod tests {
         .id(1)])
         .view_layout_at_size(Vector2::new(120.0, 50.0));
 
-        assert_eq!(layout.rects[&1].height(), 34.0);
-        assert_eq!(layout.rects[&10].height(), 28.0);
+        assert_eq!(layout.rects[&1].height(), 42.0);
+        assert_eq!(layout.rects[&10].height(), 36.0);
         assert!((layout.rects[&11].min.x - layout.rects[&10].max.x - 4.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn default_toolbar_grows_with_localized_controls_but_explicit_height_stays_physical() {
+        use crate::{
+            application::{ApplicationEnvironment, LocaleId, TextScale, WritingDirection},
+            gui::types::Rect,
+            runtime::UiSurface,
+        };
+        for scale in [1.0, 1.5, 2.0] {
+            for direction in [WritingDirection::Ltr, WritingDirection::Rtl] {
+                let controls = || [button("حفظ").message(Message::Run).id(10).width(100.0)];
+                let environment = ApplicationEnvironment::new(LocaleId::new("ar").unwrap())
+                    .with_text_scale(TextScale::new(scale).unwrap())
+                    .with_writing_direction(direction);
+                for (strip, expected_height) in [
+                    (toolbar(controls()), 36.0 * scale + 6.0),
+                    (toolbar_from_parts(ToolbarParts::new(controls())), 34.0),
+                    (toolbar(controls()).height(40.0), 40.0),
+                ] {
+                    let surface = UiSurface::new(column([strip.id(1)]).into_node())
+                        .with_application_environment(environment.clone());
+                    let frame = surface.frame(
+                        Rect::from_xy_size(0.0, 0.0, 400.0, 200.0),
+                        &Default::default(),
+                    );
+                    assert_eq!(frame.layout.rects[&1].height(), expected_height);
+                    let text = frame.paint_plan.first_text_run("حفظ").unwrap();
+                    assert_eq!(text.font_size, 14.0 * scale);
+                    assert_eq!(
+                        surface
+                            .find_widget(10)
+                            .unwrap()
+                            .widget()
+                            .automation_semantics()
+                            .label
+                            .as_deref(),
+                        Some("حفظ")
+                    );
+                }
+            }
+        }
     }
 
     #[test]

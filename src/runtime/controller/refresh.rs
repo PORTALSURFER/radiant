@@ -3883,10 +3883,20 @@ where
         } else {
             replacement_commit
         };
-        let terminal_messages = replacement_commit.terminal_messages;
+        let mut terminal_messages = replacement_commit.terminal_messages;
         let retired_widget_ids = replacement_commit.retired_widget_ids;
         let wheel_focus_before_refresh = self.interaction.focus.focused_widget();
         let composition_focus_before_refresh = self.interaction.focus.focused_widget();
+        // The ingress witness and its opt-in mapper belong to the old
+        // surface. Retire incompatible sequences before generic ownership
+        // cleanup clears that evidence or the old widget object.
+        self.reconcile_pointer_ingress_before_surface_replace(
+            &next_surface,
+            previous_paths_for_refresh,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+            &mut terminal_messages,
+        );
         let identity = self.discard_incompatible_widget_ownership(
             &next_surface,
             &traversal.widget_paint_order,
@@ -3979,6 +3989,7 @@ where
             self.capture_pointer_capture_state(capture.widget_id);
         }
         self.clear_stale_interaction_state();
+        self.reconcile_pointer_ingress_sequences();
         if let Some(widget_id) = self.interaction.focus.focused_widget() {
             self.restore_focused_widget_state(widget_id);
         }

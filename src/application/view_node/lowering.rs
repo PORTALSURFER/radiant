@@ -2,9 +2,9 @@ use super::{ExtractedLayerRoot, ViewNode, ViewNodeKind};
 use crate::{
     UiAffinity,
     application::{
-        DeclarativeSourceContext, IdGenerator, IntoView, ROOT_KEY_SCOPE, SourceIdentitySeed,
-        ViewProjection, WidgetViewContext, ids::StructuralRole, launch::SceneProjection,
-        view_node::lowering_defaults::ViewNodeContainerDefaults,
+        ApplicationProjectionContext, DeclarativeSourceContext, IdGenerator, IntoView,
+        ROOT_KEY_SCOPE, SourceIdentitySeed, ViewProjection, WidgetViewContext, ids::StructuralRole,
+        launch::SceneProjection, view_node::lowering_defaults::ViewNodeContainerDefaults,
     },
     layout::{
         ContainerKind, ContainerPolicy, LayoutPolicy, NodeId, VirtualizationAxis,
@@ -50,7 +50,42 @@ where
             panic_any("ambiguous keyed identity");
         }
         let mut scene = SceneProjection::default();
-        let root = ViewLowering::new(&mut ids, &mut scene).lower_node(
+        let root = ViewLowering::new(&mut ids, &mut scene, None).lower_node(
+            self,
+            ROOT_KEY_SCOPE,
+            StructuralRole::Root,
+        );
+        ViewProjection::with_scene(UiSurface::new(root), scene)
+    }
+
+    fn into_application_projection(
+        self,
+        context: &mut ApplicationProjectionContext<'_>,
+    ) -> ViewProjection<Message> {
+        let mut reserved = Vec::new();
+        self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
+        let mut ids = IdGenerator::new(reserved);
+        let mut keyed_candidates = std::collections::HashSet::new();
+        if self
+            .collect_keyed_collisions(ROOT_KEY_SCOPE, &mut keyed_candidates)
+            .is_err()
+        {
+            panic_any("ambiguous keyed identity");
+        }
+        let mut continuity_keys = std::collections::HashSet::new();
+        let mut explicit_ids = std::collections::HashSet::new();
+        if self
+            .collect_explicit_identity_collisions(
+                ROOT_KEY_SCOPE,
+                &mut continuity_keys,
+                &mut explicit_ids,
+            )
+            .is_err()
+        {
+            panic_any("ambiguous keyed identity");
+        }
+        let mut scene = SceneProjection::default();
+        let root = ViewLowering::new(&mut ids, &mut scene, Some(context)).lower_node(
             self,
             ROOT_KEY_SCOPE,
             StructuralRole::Root,
@@ -59,22 +94,32 @@ where
     }
 }
 
-pub(super) struct ViewLowering<'a, Message> {
+pub(super) struct ViewLowering<'lower, 'record, Message> {
     _ui_affinity: UiAffinity,
-    ids: &'a mut IdGenerator,
-    scene: &'a mut SceneProjection<Message>,
+    ids: &'lower mut IdGenerator,
+    scene: &'lower mut SceneProjection<Message>,
     source_context: DeclarativeSourceContext,
     keyed_candidates: HashMap<NodeId, Rc<KeyedNodeEvidence>>,
+    application_context: Option<&'lower mut ApplicationProjectionContext<'record>>,
+    path: Vec<usize>,
+    incoming_slot: Option<crate::layout::SlotParams>,
 }
 
-impl<'a, Message: 'static> ViewLowering<'a, Message> {
-    pub(super) fn new(ids: &'a mut IdGenerator, scene: &'a mut SceneProjection<Message>) -> Self {
+impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
+    pub(super) fn new(
+        ids: &'lower mut IdGenerator,
+        scene: &'lower mut SceneProjection<Message>,
+        application_context: Option<&'lower mut ApplicationProjectionContext<'record>>,
+    ) -> Self {
         Self {
             _ui_affinity: UiAffinity::new(),
             ids,
             scene,
             source_context: DeclarativeSourceContext::default(),
             keyed_candidates: HashMap::new(),
+            application_context,
+            path: Vec::new(),
+            incoming_slot: None,
         }
     }
 
@@ -148,6 +193,23 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
     ) -> SurfaceNode<Message> {
         let source_seed = node.source_identity_seed(scope, role);
         self.lower_node_with_source_seed(node, scope, role, source_seed)
+    }
+
+    pub(super) fn lower_node_at(
+        &mut self,
+        node: ViewNode<Message>,
+        scope: u64,
+        role: StructuralRole,
+        index: usize,
+        incoming_slot: Option<crate::layout::SlotParams>,
+    ) -> SurfaceNode<Message> {
+        self.path.push(index);
+        let previous_slot = self.incoming_slot;
+        self.incoming_slot = incoming_slot;
+        let lowered = self.lower_node(node, scope, role);
+        self.incoming_slot = previous_slot;
+        self.path.pop();
+        lowered
     }
 
     fn lower_node_with_source_seed(
@@ -249,6 +311,20 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 container
             };
 
+        if matches!(
+            &node.kind,
+            ViewNodeKind::Runtime(_)
+                | ViewNodeKind::VirtualLayout(_)
+                | ViewNodeKind::CustomLayout { .. }
+                | ViewNodeKind::Scroll { .. }
+                | ViewNodeKind::VirtualScroll { .. }
+                | ViewNodeKind::OverlayPanel { .. }
+                | ViewNodeKind::FloatingLayer { .. }
+        ) && let Some(context) = self.application_context.as_deref_mut()
+        {
+            context.mark_unsupported();
+        }
+
         let lowered = match node.kind {
             ViewNodeKind::Scene {
                 base,
@@ -256,6 +332,11 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 presentation,
                 shortcuts,
             } => {
+                if (presentation.is_some() || shortcuts.is_some() || !layers.is_empty())
+                    && let Some(context) = self.application_context.as_deref_mut()
+                {
+                    context.mark_unsupported();
+                }
                 self.scene.capture(presentation, shortcuts);
                 let mut base = *base;
                 let mut collected_layers = Vec::new();
@@ -345,8 +426,12 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     overflow: crate::layout::OverflowPolicy::Scroll,
                     ..base_policy()
                 };
-                let children =
-                    vec![self.lower_fill_child(*child, child_scope, StructuralRole::ScrollChild)];
+                let children = vec![self.lower_fill_child(
+                    *child,
+                    child_scope,
+                    StructuralRole::ScrollChild,
+                    0,
+                )];
                 styled_container(self, policy, None, children)
             }
             ViewNodeKind::VirtualScroll { child, overscan_px } => {
@@ -364,6 +449,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     *child,
                     child_scope,
                     StructuralRole::VirtualScrollChild,
+                    0,
                 )];
                 styled_container(self, policy, None, children)
             }
@@ -380,6 +466,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 }
             }
             ViewNodeKind::FloatingLayer {
+                text_scaled_size,
                 offset,
                 size,
                 child,
@@ -387,8 +474,13 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                 horizontal_overflow,
                 vertical_overflow,
             } => {
-                let child =
-                    self.lower_node(*child, child_scope, StructuralRole::FloatingLayerChild);
+                let child = self.lower_node_at(
+                    *child,
+                    child_scope,
+                    StructuralRole::FloatingLayerChild,
+                    0,
+                    Some(crate::layout::SlotParams::fill()),
+                );
                 SurfaceNode::floating_layer_with_vertical_overflow(
                     id,
                     offset,
@@ -398,6 +490,7 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     horizontal_overflow,
                     vertical_overflow,
                 )
+                .with_text_scaled_floating_size(text_scaled_size)
             }
         };
         let mut lowered = if accepts_native_file_drop {
@@ -408,6 +501,15 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         if let Some(mapper) = native_file_drop {
             lowered = lowered.with_native_file_drop_mapper(mapper);
         }
+        if accepts_native_file_drop
+            && matches!(
+                lowered,
+                SurfaceNode::Container(_) | SurfaceNode::Scene(_) | SurfaceNode::FloatingLayer(_)
+            )
+            && let Some(context) = self.application_context.as_deref_mut()
+        {
+            context.mark_unsupported();
+        }
         let compatibility = SourceCompatibility::from_surface_node(&lowered);
         if let Some(candidate) = current_keyed_candidate {
             candidate.set_compatibility(compatibility);
@@ -417,6 +519,9 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
             compatibility,
             source_topology,
         ));
+        if let Some(context) = self.application_context.as_deref_mut() {
+            context.record(&self.path, self.incoming_slot, &lowered);
+        }
         self.source_context = previous_context;
         lowered
     }

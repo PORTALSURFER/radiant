@@ -11,6 +11,14 @@ The canonical interpretation of platform claims, acceptance lanes, outcomes,
 baselines, and evidence artifacts is the
 [`Platform Acceptance and Evidence Policy`](PLATFORM_ACCEPTANCE.md).
 
+The bounded pointer ingress phase is shipped: normalized device/contact
+identity, hover/start/move/end/cancel evidence, checked pressure and tilt,
+runtime-fenced sequence tokens, and explicit pan/pinch/rotate unsupported
+outcomes are available to opt-in canvas and GPU consumers. The controller uses
+sixteen fixed records and preserves legacy event contracts. Gesture arena
+recognition, typed drag payloads, cross-window payloads, and external offers
+remain future target work.
+
 ## Vision
 
 Radiant should become a clean, reusable, high-performance, general-purpose GUI library for building serious desktop applications in Rust.
@@ -1618,8 +1626,17 @@ witness; row, guide, expander, icon, hit, and capture geometry stays physical,
 and TreeRow semantics preserve host/runtime ownership. Native shaping and its
 retained cache identities consume the published locale and writing direction.
 Presentation changes replace native input geometry even when text bytes remain
-unchanged. Menu/shell geometry remains staged work under OPT-1386; retained
+unchanged. Shell geometry remains staged work under OPT-1386; retained
 bidi and complex shaping are implemented under OPT-1402.
+
+Framework-owned menus resolve title and command-row intrinsic heights from the
+application text scale. Each command owns its visible label, shortcut hint,
+accessible name, and input state under one widget identity; RTL mirrors the
+label and shortcut columns. Automatic context-menu width scales its character
+estimate within the declared physical limits, and automatic height scales text
+rows while retaining physical padding and gaps. Explicit `.width(...)` and
+`.size(...)` constraints remain physical. The `localization_foundation` example
+cycles English, French, and Arabic with a larger text scale and an RTL menu.
 
 At the native window scope, environment exposes only display scale, color
 scheme, contrast, and reduced-motion preference; application presentation

@@ -360,6 +360,18 @@ impl<Message> SurfaceNode<Message> {
             .map(|widget| widget.dispatch_input(widget_id, bounds, input))
     }
 
+    pub(super) fn dispatch_pointer_event_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: Rect,
+        event: crate::gui::pointer_ingress::PointerEvent,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .map(|widget| widget.dispatch_pointer_event(widget_id, bounds, event))
+    }
+
     pub(super) fn dispatch_input_at_path_with_environment(
         &mut self,
         widget_id: WidgetId,

@@ -1,5 +1,6 @@
 //! Reusable retained GPU surface primitive.
 
+use crate::gui::pointer_ingress::PointerEvent;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{
@@ -150,8 +151,14 @@ impl Widget for GpuSurfaceWidget {
     }
 
     fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        self.emits_input
-            .then(|| WidgetOutput::typed(GpuSurfaceMessage::Input { input }))
+        if !self.emits_input {
+            return None;
+        }
+        Some(WidgetOutput::typed(GpuSurfaceMessage::Input { input }))
+    }
+
+    fn handle_pointer_event(&mut self, _bounds: Rect, event: PointerEvent) -> Option<WidgetOutput> {
+        self.emits_input.then(|| WidgetOutput::typed(event))
     }
 
     fn accepts_wheel_input(&self) -> bool {

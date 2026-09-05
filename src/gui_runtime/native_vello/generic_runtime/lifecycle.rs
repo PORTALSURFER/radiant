@@ -5,6 +5,10 @@ use super::frame_scheduler_policy::NativeInputStageDisposition;
 use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::native_immediate_transient_stage::NativeImmediateTransientKind;
+use super::native_pointer_ingress::{
+    GestureInput, NativeGestureSample, NativeTouchSample, NativeUnsupportedInput,
+    normalize_gesture, normalize_touch,
+};
 use super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL;
 use super::runner::select_due_admitted_auxiliary_index;
 use super::{
@@ -18,6 +22,10 @@ use super::{
     timed_frame_target_fps,
 };
 use crate::gui::input::InputTimestamp;
+use crate::gui::pointer_ingress::{
+    DeviceKind, GestureIngress, GestureIngressDisposition, PointerButtons, PointerIngress,
+    PointerIngressDisposition, PointerPhase,
+};
 use crate::runtime::{
     FrameGpuTimingSample, FrameProfile, NativeCpuFrameFairnessDiagnostics,
     NativeCpuFrameObservationDiagnostics, RuntimeAnimationActivity, RuntimeBridge,
@@ -57,6 +65,212 @@ fn should_request_native_maximize_redraw(outcome: GenericRouteOutcome) -> bool {
     )
 }
 
+impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    pub(super) fn retain_native_mouse_device(
+        &mut self,
+        device_id: winit::event::DeviceId,
+        hover: Option<bool>,
+    ) {
+        self.input.last_native_mouse_device = Some(device_id);
+        if let Some(hover) = hover {
+            let _ = self
+                .input
+                .native_pointer_ingress
+                .set_hover(device_id, hover);
+        } else {
+            let _ = self
+                .input
+                .native_pointer_ingress
+                .retain_device(device_id, DeviceKind::Mouse);
+        }
+    }
+
+    pub(super) fn normalize_native_touch_transient(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        touch: winit::event::Touch,
+    ) {
+        let timestamp = InputTimestamp::capture();
+        let Some(adapter_generation) = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+        else {
+            return;
+        };
+        let Some(ticket) = self.begin_native_immediate_transient_event(
+            event_loop,
+            NativeImmediateTransientKind::Touch(touch.phase),
+            timestamp,
+            adapter_generation,
+            true,
+        ) else {
+            return;
+        };
+        let Some(ticket) =
+            self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+        else {
+            return;
+        };
+        let modifiers = self.pointer_modifiers();
+        if let Ok(sample) = normalize_touch(
+            &mut self.input.native_pointer_ingress,
+            touch,
+            self.window.dpi_scale,
+            modifiers,
+            timestamp,
+        ) {
+            let _ = self.dispatch_native_touch_sample(sample);
+        }
+        let _ = self.complete_native_immediate_transient(ticket);
+    }
+
+    fn dispatch_native_touch_sample(
+        &mut self,
+        sample: NativeTouchSample,
+    ) -> PointerIngressDisposition {
+        let phase = match sample.phase {
+            winit::event::TouchPhase::Started => PointerPhase::Started {
+                button: crate::widgets::PointerButton::Primary,
+            },
+            winit::event::TouchPhase::Moved => PointerPhase::Moved,
+            winit::event::TouchPhase::Ended => PointerPhase::Ended {
+                button: crate::widgets::PointerButton::Primary,
+            },
+            winit::event::TouchPhase::Cancelled => PointerPhase::Cancelled,
+        };
+        let sequence_range = self.input.input_sequence_allocator.allocate();
+        if matches!(sample.phase, winit::event::TouchPhase::Started) {
+            PointerIngress::new(
+                DeviceKind::Touch,
+                sample.device,
+                sample.contact,
+                phase,
+                sample.position,
+                PointerButtons::empty(),
+                sample.modifiers,
+                sample.pressure,
+                sample.tilt,
+                Some(sample.timestamp),
+                sequence_range,
+            )
+            .map(|ingress| {
+                let admission = self
+                    .core
+                    .runtime
+                    .dispatch_pointer_ingress_with_admission(ingress);
+                if let Some(token) = admission.sequence_token() {
+                    let _ = self.input.native_pointer_ingress.set_token_for_identity(
+                        sample.device,
+                        sample.contact,
+                        token,
+                    );
+                }
+                admission.disposition()
+            })
+            .unwrap_or(PointerIngressDisposition::Invalid)
+        } else {
+            sample
+                .sequence_token
+                .map_or(PointerIngressDisposition::Stale, |token| {
+                    self.core.runtime.dispatch_native_pointer_continuation(
+                        DeviceKind::Touch,
+                        sample.device,
+                        sample.contact,
+                        token,
+                        phase,
+                        sample.position,
+                        PointerButtons::empty(),
+                        sample.modifiers,
+                        sample.pressure,
+                        sample.tilt,
+                        Some(sample.timestamp),
+                        sequence_range,
+                    )
+                })
+        }
+    }
+
+    pub(super) fn normalize_native_gesture_transient(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        kind: NativeImmediateTransientKind,
+        device_id: winit::event::DeviceId,
+        gesture: GestureInput,
+    ) {
+        let timestamp = InputTimestamp::capture();
+        let Some(adapter_generation) = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+        else {
+            return;
+        };
+        let Some(ticket) = self.begin_native_immediate_transient_event(
+            event_loop,
+            kind,
+            timestamp,
+            adapter_generation,
+            true,
+        ) else {
+            return;
+        };
+        let Some(ticket) =
+            self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+        else {
+            return;
+        };
+        let modifiers = self.pointer_modifiers();
+        let normalized = normalize_gesture(
+            &mut self.input.native_pointer_ingress,
+            device_id,
+            gesture,
+            self.window.dpi_scale,
+            modifiers,
+            timestamp,
+        );
+        if let Ok(Ok(sample)) = normalized {
+            let _ = self.dispatch_native_gesture_sample(sample);
+        } else if let Ok(Err(NativeUnsupportedInput::DesktopPan)) = normalized {
+            // Desktop pan remains an explicit unsupported transport in this
+            // phase, while the native transient is still completed exactly
+            // once.
+        }
+        let _ = self.complete_native_immediate_transient(ticket);
+    }
+
+    fn dispatch_native_gesture_sample(
+        &mut self,
+        sample: NativeGestureSample,
+    ) -> GestureIngressDisposition {
+        let phase = match sample.phase {
+            winit::event::TouchPhase::Started => crate::gui::pointer_ingress::GesturePhase::Started,
+            winit::event::TouchPhase::Moved => crate::gui::pointer_ingress::GesturePhase::Changed,
+            winit::event::TouchPhase::Ended => crate::gui::pointer_ingress::GesturePhase::Ended,
+            winit::event::TouchPhase::Cancelled => {
+                crate::gui::pointer_ingress::GesturePhase::Cancelled
+            }
+        };
+        let Ok(gesture) = GestureIngress::new(
+            sample.kind,
+            phase,
+            sample.unit,
+            crate::gui::types::Vector2::new(sample.value, 0.0),
+            sample.device,
+            None,
+            sample.modifiers,
+            Some(sample.timestamp),
+            self.input.input_sequence_allocator.allocate(),
+        ) else {
+            return GestureIngressDisposition::Invalid;
+        };
+        self.core.runtime.dispatch_gesture_ingress(gesture)
+    }
+}
+
 fn is_native_interactive_window_event(event: &WindowEvent) -> bool {
     matches!(
         event,
@@ -66,6 +280,10 @@ fn is_native_interactive_window_event(event: &WindowEvent) -> bool {
             | WindowEvent::CursorLeft { .. }
             | WindowEvent::MouseInput { .. }
             | WindowEvent::MouseWheel { .. }
+            | WindowEvent::Touch(_)
+            | WindowEvent::PinchGesture { .. }
+            | WindowEvent::PanGesture { .. }
+            | WindowEvent::RotationGesture { .. }
             | WindowEvent::KeyboardInput { .. }
             | WindowEvent::ModifiersChanged(_)
     )
@@ -381,7 +599,8 @@ where
                     self.republish_native_semantic_accessibility_passively();
                 }
             }
-            WindowEvent::CursorEntered { .. } => {
+            WindowEvent::CursorEntered { device_id } => {
+                self.retain_native_mouse_device(device_id, Some(true));
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = self
                     .adapter
@@ -412,7 +631,11 @@ where
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
-            WindowEvent::CursorMoved { position, .. } => {
+            WindowEvent::CursorMoved {
+                device_id,
+                position,
+            } => {
+                self.retain_native_mouse_device(device_id, None);
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = self
                     .adapter
@@ -446,7 +669,8 @@ where
             WindowEvent::HoveredFile(path) => self.handle_native_file_hover(event_loop, path),
             WindowEvent::HoveredFileCancelled => self.handle_native_file_cancel(event_loop),
             WindowEvent::DroppedFile(path) => self.handle_native_file_drop(event_loop, path),
-            WindowEvent::CursorLeft { .. } => {
+            WindowEvent::CursorLeft { device_id } => {
+                self.retain_native_mouse_device(device_id, Some(false));
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = self
                     .adapter
@@ -479,7 +703,12 @@ where
                     self.handle_route_outcome(event_loop, routed);
                 }
             }
-            WindowEvent::MouseInput { button, state, .. } => {
+            WindowEvent::MouseInput {
+                device_id,
+                button,
+                state,
+            } => {
+                self.retain_native_mouse_device(device_id, None);
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = self
                     .adapter
@@ -541,7 +770,12 @@ where
                 }
                 self.handle_route_outcome(event_loop, route_outcome);
             }
-            WindowEvent::MouseWheel { delta, phase, .. } => {
+            WindowEvent::MouseWheel {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.retain_native_mouse_device(device_id, None);
                 let timestamp = InputTimestamp::capture();
                 let Some(adapter_generation) = self
                     .adapter
@@ -573,6 +807,80 @@ where
                     self.apply_native_mouse_wheel_route(route);
                     self.handle_route_outcome(event_loop, outcome);
                 }
+            }
+            WindowEvent::Touch(touch) => {
+                let timestamp = InputTimestamp::capture();
+                let Some(adapter_generation) = self
+                    .adapter
+                    .as_ref()
+                    .and_then(GenericNativeAdapterOwner::capture_generation)
+                else {
+                    return;
+                };
+                let Some(ticket) = self.begin_native_immediate_transient_event(
+                    event_loop,
+                    NativeImmediateTransientKind::Touch(touch.phase),
+                    timestamp,
+                    adapter_generation,
+                    true,
+                ) else {
+                    return;
+                };
+                let Some(ticket) =
+                    self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
+                else {
+                    return;
+                };
+                let modifiers = self.pointer_modifiers();
+                if let Ok(sample) = normalize_touch(
+                    &mut self.input.native_pointer_ingress,
+                    touch,
+                    self.window.dpi_scale,
+                    modifiers,
+                    timestamp,
+                ) {
+                    let _ = self.dispatch_native_touch_sample(sample);
+                }
+                let _ = self.complete_native_immediate_transient(ticket);
+            }
+            WindowEvent::PinchGesture {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.normalize_native_gesture_transient(
+                    event_loop,
+                    NativeImmediateTransientKind::PinchGesture(phase),
+                    device_id,
+                    GestureInput::Pinch { delta, phase },
+                );
+            }
+            WindowEvent::RotationGesture {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.normalize_native_gesture_transient(
+                    event_loop,
+                    NativeImmediateTransientKind::RotationGesture(phase),
+                    device_id,
+                    GestureInput::Rotate {
+                        delta_degrees: delta,
+                        phase,
+                    },
+                );
+            }
+            WindowEvent::PanGesture {
+                device_id,
+                delta,
+                phase,
+            } => {
+                self.normalize_native_gesture_transient(
+                    event_loop,
+                    NativeImmediateTransientKind::DesktopPanUnsupported(phase),
+                    device_id,
+                    GestureInput::Pan { delta, phase },
+                );
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.handle_keyboard_event(event_loop, event)

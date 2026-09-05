@@ -156,4 +156,13 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "DragHandleMessage",
         ],
     ),
+    (
+        "component_projection",
+        &[
+            ".view_with_components(",
+            "context.project(",
+            "context.counters()",
+            "public_component_example_skips_unchanged_sibling_after_click",
+        ],
+    ),
 ];

@@ -668,6 +668,12 @@ existing legacy paint hooks remain valid through additive default delegation.
 
 ## Components and Workspace Composition
 
+The opt-in `view_with_components` path can reuse pure component function results
+under exact explicit inputs and environment snapshots. Its bounded cache owns
+only declarative projection artifacts; component functions retain the ordinary
+authoring model below. See `COMPONENT_PROJECTION.md` for the shipped scope and
+remaining runtime geometry work.
+
 Application components are ordinary Rust functions that accept owned or
 borrowed application state and return an owned `ViewNode<Message>`. They have
 no renderer lifecycle, hidden callback state, or framework-specific component

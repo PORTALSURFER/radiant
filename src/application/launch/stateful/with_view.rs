@@ -16,6 +16,8 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     pub(super) project: Project,
     pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(super) window_environment: Option<Rc<RefCell<crate::runtime::WindowEnvironment>>>,
+    pub(super) component_environment_source:
+        Option<crate::application::view_node::components::ComponentEnvironmentSource<State>>,
     pub(super) application_environment_source:
         Option<crate::application::runtime::ApplicationEnvironmentSource<State>>,
     pub(super) _message: PhantomData<Message>,
@@ -32,7 +34,12 @@ impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project,
     where
         Source: Fn(&State) -> crate::application::ApplicationEnvironment + 'static,
     {
-        self.application_environment_source = Some(Box::new(source));
+        let source: Rc<dyn Fn(&State) -> crate::application::ApplicationEnvironment> =
+            Rc::new(source);
+        if let Some(shared) = self.component_environment_source.as_ref() {
+            *shared.borrow_mut() = Rc::clone(&source);
+        }
+        self.application_environment_source = Some(source);
         self
     }
 }

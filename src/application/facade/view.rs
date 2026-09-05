@@ -9,3 +9,7 @@ pub use super::super::view_node::{ContinuityKey, DeclarativeEffectOwner, preserv
 pub use super::super::widget_view::{
     MappedWidget, MappedWidgetParts, WidgetView, WidgetViewContext,
 };
+
+pub use super::super::view_node::components::{
+    ComponentProjectionContext, ComponentProjectionCounters,
+};

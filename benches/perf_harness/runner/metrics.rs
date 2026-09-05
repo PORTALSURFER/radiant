@@ -7,7 +7,7 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 31] = [
+const COUNTER_FIELDS: [&str; 33] = [
     "scene_rebuild_count",
     "static_rebuild_count",
     "paint_only_count",
@@ -39,11 +39,21 @@ const COUNTER_FIELDS: [&str; 31] = [
     "reconciliation_applied",
     "reconciliation_unsupported",
     "reconciliation_fallbacks",
+    "component_projection_callback_count",
+    "component_projection_cache_hit_count",
 ];
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ScenarioCounters {
     values: [Option<u64>; COUNTER_FIELDS.len()],
+}
+
+impl Default for ScenarioCounters {
+    fn default() -> Self {
+        Self {
+            values: [None; COUNTER_FIELDS.len()],
+        }
+    }
 }
 
 impl ScenarioCounters {
@@ -78,6 +88,16 @@ impl ScenarioCounters {
     const RECONCILIATION_APPLIED: usize = 28;
     const RECONCILIATION_UNSUPPORTED: usize = 29;
     const RECONCILIATION_FALLBACKS: usize = 30;
+
+    pub(crate) fn with_component_projection_callback_count(mut self, value: u64) -> Self {
+        self.values[31] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_component_projection_cache_hit_count(mut self, value: u64) -> Self {
+        self.values[32] = Some(value);
+        self
+    }
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {

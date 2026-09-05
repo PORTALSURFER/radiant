@@ -663,3 +663,27 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 }
+
+impl<Message> SurfaceNode<Message> {
+    pub(crate) fn component_cache_node_count(&self, limit: usize) -> Option<usize> {
+        let mut pending = vec![self];
+        let mut count = 0usize;
+        while let Some(node) = pending.pop() {
+            count = count.checked_add(1)?;
+            if count > limit {
+                return None;
+            }
+            match node {
+                Self::Widget(_) => {}
+                Self::Container(container) => {
+                    if container.children.len() > limit - count - pending.len() {
+                        return None;
+                    }
+                    pending.extend(container.children.iter().map(|child| &child.child));
+                }
+                _ => return None,
+            }
+        }
+        Some(count)
+    }
+}

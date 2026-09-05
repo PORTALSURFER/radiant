@@ -338,3 +338,7 @@ naga = { version = "27.0.3", features = ["wgsl-in"] }
 
 [build-dependencies]
 cc = "1.2.55"
+
+[[example]]
+name = "component_projection"
+path = "examples/component_projection.rs"

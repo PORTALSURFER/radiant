@@ -57,3 +57,15 @@ pub(super) fn control_modifier_from_winit(modifiers: ModifiersState) -> bool {
 pub(super) fn control_modifier_from_winit(_modifiers: ModifiersState) -> bool {
     false
 }
+
+/// Platform family for semantic primary-modifier matching and presentation.
+pub(super) fn native_shortcut_platform() -> crate::application::ShortcutPlatform {
+    use crate::application::ShortcutPlatform;
+    if cfg!(target_os = "macos") {
+        ShortcutPlatform::Mac
+    } else if cfg!(target_os = "windows") {
+        ShortcutPlatform::Windows
+    } else {
+        ShortcutPlatform::Other
+    }
+}

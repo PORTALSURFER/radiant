@@ -16,6 +16,7 @@ use winit::{
     keyboard::{Key, NamedKey, PhysicalKey},
 };
 
+mod commands;
 mod repeat;
 mod text_edit;
 
@@ -99,7 +100,13 @@ where
             return None;
         }
         self.sync_runtime_pointer_from_native_cursor();
-        let repeat = event.repeat;
+        let command = commands::command_input(
+            &event.logical_key,
+            event.physical_key,
+            self.input.modifiers,
+            event.repeat,
+            self.core.managed_composition_is_active(),
+        );
         let logical_text = keyboard_event_text(&event);
         let physical_key = match event.physical_key {
             PhysicalKey::Code(code) => key_code_from_winit(code),
@@ -110,7 +117,7 @@ where
             &event.logical_key,
             logical_text,
             Some(timestamp),
-            repeat,
+            command,
         )
     }
 
@@ -120,20 +127,33 @@ where
         logical_key: &Key,
         logical_text: Option<&str>,
         timestamp: Option<InputTimestamp>,
-        repeat: bool,
+        mut command: crate::application::CommandInput,
     ) -> Option<GenericRouteOutcome> {
+        let logical_text = logical_text.or(match logical_key {
+            Key::Character(text) => Some(text.as_str()),
+            _ => None,
+        });
+        let editing_key = if self.core.has_focused_text_input() {
+            commands::logical_editing_key(logical_key).or(physical_key)
+        } else {
+            physical_key
+        };
+        command.text_consumed |= self.core.has_focused_text_input()
+            && commands::required_text_key(editing_key, logical_text, self.input.modifiers);
+        let command = &command;
+        let repeat = command.repeat;
         let mut repeat_accepted = !repeat;
         let mut route_outcome = GenericRouteOutcome::default();
         let widget_modifiers = keyboard_modifiers_from_winit(self.input.modifiers);
         if repeat && physical_key == Some(KeyCode::Tab) && self.input.tab_sequence_latch.is_some() {
             return Some(self.core.route_consumed_input());
         }
-        if let Some(outcome) = self.core.route_metadata_key_press_with_timestamp(
+        if let Some(outcome) = self.core.route_metadata_command_key_press(
             physical_key.map(|key| keypress_from_input(key, self.input.modifiers)),
             physical_key.and_then(WidgetKey::from_key_code),
             widget_modifiers,
             timestamp,
-            repeat,
+            command,
         ) {
             return Some(outcome);
         }
@@ -149,7 +169,9 @@ where
                 &mut self.input.last_navigation_key_repeat,
                 Instant::now(),
             ) {
-                return None;
+                // Preserve legacy text-repeat behavior. Other repeated keys still
+                // reach the explicit semantic repeat policy before legacy fallback.
+                return self.core.route_semantic_key_input(command);
             }
             repeat_accepted = true;
             Some(key)
@@ -157,34 +179,20 @@ where
             None
         };
         if !repeat_accepted {
-            return None;
+            return self.core.route_semantic_key_input(command);
         }
         if let Some(key) = physical_key {
-            if self.route_text_input_shortcut(key, timestamp, &mut route_outcome) {
-                return Some(route_outcome);
-            }
-            if self.route_text_navigation_key(key, timestamp, &mut route_outcome) {
-                return Some(route_outcome);
-            }
-            if self.route_focused_widget_preempting_shortcut_key(
-                key,
-                timestamp,
-                repeat,
-                &mut route_outcome,
-            ) {
-                return Some(route_outcome);
-            }
-            if self.route_space_text_input(key, timestamp, &mut route_outcome) {
-                return Some(route_outcome);
-            }
-            if self.route_focused_text_input_before_shortcuts(
-                key,
+            if self.route_required_text_key(
+                editing_key.unwrap_or(key),
                 logical_text,
                 timestamp,
                 repeat,
                 &mut route_outcome,
             ) {
                 return Some(route_outcome);
+            }
+            if let Some(outcome) = self.core.route_semantic_key_input(command) {
+                return Some(outcome);
             }
             if !repeat
                 && key == KeyCode::Tab
@@ -207,6 +215,34 @@ where
                 repeat,
             );
             route_outcome.merge(outcome);
+        }
+        if physical_key.is_none()
+            && self.core.has_focused_text_input()
+            && let Some(key) = editing_key
+            && self.route_required_text_key(
+                key,
+                logical_text,
+                timestamp,
+                repeat,
+                &mut route_outcome,
+            )
+        {
+            return Some(route_outcome);
+        }
+        if physical_key.is_none()
+            && !self.input.modifiers.control_key()
+            && !self.input.modifiers.super_key()
+            && !self.input.modifiers.alt_key()
+            && self.core.has_focused_text_input()
+            && let Some(text) = logical_text
+        {
+            self.route_text_input(text, timestamp, &mut route_outcome);
+            return Some(route_outcome);
+        }
+        if physical_key.is_none()
+            && let Some(outcome) = self.core.route_semantic_key_input(command)
+        {
+            return Some(outcome);
         }
         if !route_outcome.routed
             && !self.core.has_focused_text_input()
@@ -296,12 +332,19 @@ where
     ) -> Option<GenericRouteOutcome> {
         self.sync_runtime_pointer_from_native_cursor();
         let logical_key = Key::Named(NamedKey::Tab);
+        let command = commands::command_input(
+            &logical_key,
+            PhysicalKey::Code(winit::keyboard::KeyCode::Tab),
+            self.input.modifiers,
+            repeat,
+            self.core.managed_composition_is_active(),
+        );
         self.route_native_key_press_inner(
             Some(KeyCode::Tab),
             &logical_key,
             None,
             Some(InputTimestamp::capture()),
-            repeat,
+            command,
         )
     }
 

@@ -187,7 +187,7 @@ fn native_keyboard_routing_uses_explicit_imports() {
         keyboard.contains("fn handle_keyboard_event(")
             && keyboard.contains("event: KeyEvent")
             && keyboard.contains("should_route_keypress(")
-            && keyboard.contains("route_text_input_shortcut")
+            && keyboard.contains("route_required_text_key")
             && keyboard.contains("WidgetKey::from_key_code")
             && !keyboard.contains("winit::event::KeyEvent"),
         "native keyboard routing should keep physical-key, shortcut, text, and widget-key paths focused"

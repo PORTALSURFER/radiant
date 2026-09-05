@@ -413,20 +413,29 @@ where
         self.route_outcome(true)
     }
 
-    pub(in crate::gui_runtime::native_vello) fn route_metadata_key_press_with_timestamp(
+    pub(in crate::gui_runtime::native_vello) fn route_semantic_key_input(
+        &mut self,
+        input: &crate::application::CommandInput,
+    ) -> Option<GenericRouteOutcome> {
+        self.runtime
+            .dispatch_semantic_key_input(input, FocusSurface::None)
+            .then(|| self.route_outcome(true))
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_metadata_command_key_press(
         &mut self,
         press: Option<KeyPress>,
         widget_key: Option<WidgetKey>,
         widget_modifiers: KeyboardModifiers,
         timestamp: Option<InputTimestamp>,
-        repeat: bool,
+        command: &crate::application::CommandInput,
     ) -> Option<GenericRouteOutcome> {
-        let route = self.runtime.dispatch_metadata_focused_key_press(
+        let route = self.runtime.dispatch_metadata_command_key_press(
             press,
             widget_key,
             widget_modifiers,
             timestamp,
-            repeat,
+            command,
             FocusSurface::None,
         )?;
         Some(self.route_outcome(route.routed))

@@ -67,14 +67,17 @@ pub(crate) struct FocusedInputDispatch {
 }
 
 #[derive(Clone, Copy)]
-enum FocusedKeySample {
-    Press { repeat: bool },
+enum FocusedKeySample<'a> {
+    Press {
+        repeat: bool,
+        command: Option<&'a crate::application::CommandInput>,
+    },
     Release,
 }
 
-impl FocusedKeySample {
+impl FocusedKeySample<'_> {
     fn is_initial_press(self) -> bool {
-        matches!(self, Self::Press { repeat: false })
+        matches!(self, Self::Press { repeat: false, .. })
     }
 }
 
@@ -122,6 +125,7 @@ where
         }
         self.interaction.focus.owner = None;
         self.interaction.focus.focused_key_host_block = None;
+        self.interaction.focus.focused_semantic_key_block = None;
         if let Some(previous_widget) = previous_widget
             && previous_is_live
         {
@@ -617,7 +621,32 @@ where
             widget_key,
             modifiers,
             timestamp,
-            FocusedKeySample::Press { repeat },
+            FocusedKeySample::Press {
+                repeat,
+                command: None,
+            },
+            focus,
+        )
+    }
+
+    pub(crate) fn dispatch_metadata_command_key_press(
+        &mut self,
+        host_press: Option<KeyPress>,
+        widget_key: Option<WidgetKey>,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+        command: &crate::application::CommandInput,
+        focus: FocusSurface,
+    ) -> Option<FocusedKeyDispatch> {
+        self.dispatch_metadata_focused_key_sample(
+            host_press,
+            widget_key,
+            modifiers,
+            timestamp,
+            FocusedKeySample::Press {
+                repeat: command.repeat,
+                command: Some(command),
+            },
             focus,
         )
     }
@@ -645,7 +674,7 @@ where
         widget_key: Option<WidgetKey>,
         modifiers: KeyboardModifiers,
         timestamp: Option<InputTimestamp>,
-        sample: FocusedKeySample,
+        sample: FocusedKeySample<'_>,
         focus: FocusSurface,
     ) -> Option<FocusedKeyDispatch> {
         if let Some(capture) = self.interaction.focus.focused_key_capture {
@@ -677,12 +706,24 @@ where
         if !self.focused_key_participates(widget_id) {
             return None;
         }
-        if matches!(sample, FocusedKeySample::Press { repeat: true })
+        if matches!(sample, FocusedKeySample::Press { repeat: true, .. })
             && self.interaction.focus.focused_key_host_block == Some((widget_id, key))
         {
+            if self.interaction.focus.focused_semantic_key_block == Some((widget_id, key))
+                && let FocusedKeySample::Press {
+                    command: Some(input),
+                    ..
+                } = sample
+            {
+                let _ = self.dispatch_semantic_key_input(input, focus);
+                return Some(FocusedKeyDispatch {
+                    routed: true,
+                    ..FocusedKeyDispatch::default()
+                });
+            }
             return Some(FocusedKeyDispatch::default());
         }
-        if let FocusedKeySample::Press { repeat: true } = sample {
+        if let FocusedKeySample::Press { repeat: true, .. } = sample {
             let delivery = self.dispatch_focused_key_input(WidgetInput::key_press_with_metadata(
                 key, modifiers, true, timestamp,
             ));
@@ -703,6 +744,33 @@ where
             return Some(FocusedKeyDispatch::default());
         }
 
+        if let FocusedKeySample::Press {
+            command: Some(input),
+            ..
+        } = sample
+        {
+            if input.text_consumed {
+                // A semantic host declines to map editing keys. With no semantic
+                // host installed, retain the existing compatibility path.
+                if self.dispatch_semantic_key_input(input, focus) {
+                    return self.deliver_uncaptured_focused_key_press(key, modifiers, timestamp);
+                }
+            } else {
+                // Install before reducing so focus retirement can clear the owner.
+                self.interaction.focus.focused_key_host_block = Some((widget_id, key));
+                self.interaction.focus.focused_semantic_key_block = Some((widget_id, key));
+                if self.dispatch_semantic_key_input(input, focus) {
+                    return Some(FocusedKeyDispatch {
+                        widget_id: None,
+                        routed: true,
+                        fallback_eligible: false,
+                    });
+                }
+                self.interaction.focus.focused_key_host_block = None;
+                self.interaction.focus.focused_semantic_key_block = None;
+            }
+        }
+
         let press = host_press.unwrap_or(KeyPress {
             key: key.to_key_code(),
             command: modifiers.command,
@@ -714,6 +782,7 @@ where
             self.host_resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
         self.interaction.focus.pending_key_chord = resolution.pending_chord;
         self.interaction.focus.focused_key_host_block = None;
+        self.interaction.focus.focused_semantic_key_block = None;
         if let Some(message) = resolution.action {
             self.interaction.focus.focused_key_host_block = Some((widget_id, key));
             let outcome = self.dispatch_message(message);
@@ -741,6 +810,15 @@ where
         {
             return Some(FocusedKeyDispatch::default());
         }
+        self.deliver_uncaptured_focused_key_press(key, modifiers, timestamp)
+    }
+
+    fn deliver_uncaptured_focused_key_press(
+        &mut self,
+        key: WidgetKey,
+        modifiers: KeyboardModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> Option<FocusedKeyDispatch> {
         let delivery = self.dispatch_focused_key_input(WidgetInput::key_press_with_metadata(
             key, modifiers, false, timestamp,
         ));
@@ -765,7 +843,7 @@ where
         widget_key: Option<WidgetKey>,
         modifiers: KeyboardModifiers,
         timestamp: Option<InputTimestamp>,
-        sample: FocusedKeySample,
+        sample: FocusedKeySample<'_>,
     ) -> FocusedKeyDispatch {
         if !self.focused_key_capture_is_current(capture) {
             self.mark_focused_key_capture_stale(capture.widget_id);
@@ -777,7 +855,9 @@ where
         let matching_key = key == capture.key;
         let owner_cancellation = self.focused_widget_preempts_host_shortcut_key(key);
         let deliver = match sample {
-            FocusedKeySample::Press { repeat } => (repeat && matching_key) || owner_cancellation,
+            FocusedKeySample::Press { repeat, .. } => {
+                (repeat && matching_key) || owner_cancellation
+            }
             FocusedKeySample::Release => matching_key || owner_cancellation,
         };
         if !deliver {
@@ -785,7 +865,7 @@ where
         }
 
         let input = match sample {
-            FocusedKeySample::Press { repeat } => {
+            FocusedKeySample::Press { repeat, .. } => {
                 WidgetInput::key_press_with_metadata(key, modifiers, repeat, timestamp)
             }
             FocusedKeySample::Release => {

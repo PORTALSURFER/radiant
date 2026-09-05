@@ -34,7 +34,7 @@ build or test ran concurrently with measurement.
 
 The ordinary refresh averages overlap (before 339–392 µs, after 343–381 µs), as
 do projection refresh averages (before 336–390 µs, after 339–354 µs). Paired 5%
-tail/average gates fail in runs 1 and 3 and pass in run 2. These noisy controls
+tail/average gates fail in run 1 and pass in runs 2 and 3. These noisy controls
 are inconclusive for a general refresh performance claim; all outcomes are
 retained, including failures. The optimization claim is limited to immutable
 text-tree cloning. Work counters remain unchanged across each scenario.

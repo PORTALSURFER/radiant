@@ -8,6 +8,7 @@ use radiant::{
     gui::{focus::FocusSurface, shortcuts::ShortcutPlatform},
     layout::Vector2,
     runtime::SurfaceRuntime,
+    widgets::{WidgetInput, WidgetKey},
 };
 
 fn save_id() -> CommandId {
@@ -26,13 +27,37 @@ fn main() {
     .default_binding(CommandShortcut::new(CommandKey::Character("s".into())).primary())])
     .expect("unique static registrations");
     let presentation_registry = registry.clone();
+    let controls_registry = registry.clone();
+    let scope = CommandScope::new(
+        "document",
+        CommandScopeKind::Editor { depth: 0 },
+        [CommandBinding::new(save_id(), 42u64)],
+    )
+    .expect("valid editor scope");
+    let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+    let observed = std::rc::Rc::clone(&calls);
     let mut runtime = SurfaceRuntime::new(
-        radiant::app(42u64)
-            .view(|document: &u64| {
-                button("Document")
-                    .message((*document, CommandSource::Application))
-                    .id(100)
-                    .commands([CommandBinding::new(save_id(), *document)])
+        radiant::app(scope)
+            .view(move |scope: &CommandScope<u64>| {
+                let presentation = controls_registry
+                    .present(
+                        std::slice::from_ref(scope),
+                        &Keymap::new(),
+                        &save_id(),
+                        &Default::default(),
+                        ShortcutPlatform::Mac,
+                    )
+                    .expect("registered command");
+                column([
+                    button("Document")
+                        .message((42, CommandSource::Application))
+                        .id(100)
+                        .command_scope(scope.clone()),
+                    toolbar([presentation.clone().toolbar_button().id(101)]),
+                    presentation.clone().menu_item().id(102),
+                    presentation.clone().palette_item().id(103),
+                    presentation.shortcut_help(),
+                ])
             })
             .command_registry(
                 registry,
@@ -40,11 +65,12 @@ fn main() {
                     (*invocation.context(), invocation.source())
                 }),
             )
-            .update(|_, (document, source)| {
+            .update(move |_, (document, source)| {
+                observed.set(observed.get() + 1);
                 println!("Reducer received save for document {document} from {source:?}")
             })
             .into_bridge(),
-        Vector2::new(320.0, 180.0),
+        Vector2::new(320.0, 400.0),
     );
     assert!(runtime.focus_widget(100));
     let mut input = CommandInput::logical(CommandKey::Character("s".into()), ShortcutPlatform::Mac);
@@ -68,6 +94,14 @@ fn main() {
     );
     assert_eq!(status, CommandDispatchStatus::Mapped);
     assert_eq!(outcome.messages_dispatched, 1);
+    let point = runtime.layout().rects[&101].center();
+    runtime.dispatch_input_at(point, WidgetInput::primary_press(point));
+    runtime.dispatch_input_at(point, WidgetInput::primary_release(point));
+    for control in [102, 103] {
+        assert!(runtime.focus_widget(control));
+        runtime.dispatch_focused_input(WidgetInput::key_press(WidgetKey::Enter));
+    }
+    assert_eq!(calls.get(), 5);
 }
 
 #[cfg(test)]

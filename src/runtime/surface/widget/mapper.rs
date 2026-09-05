@@ -12,6 +12,7 @@ use std::sync::Arc;
 type DynamicOutputMapper<Message> = EventMapper<WidgetOutput, Option<Message>>;
 
 enum OutputMapper<Message> {
+    Command(crate::application::CommandActivation),
     Dynamic(DynamicOutputMapper<Message>),
     Constant(ConstantOutputMapper<Message>),
 }
@@ -36,6 +37,7 @@ enum ConstantMessage<Message> {
 impl<Message> Clone for OutputMapper<Message> {
     fn clone(&self) -> Self {
         match self {
+            Self::Command(activation) => Self::Command(activation.clone()),
             Self::Dynamic(map) => Self::Dynamic(map.clone()),
             Self::Constant(map) => Self::Constant(map.clone()),
         }
@@ -304,6 +306,41 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
 }
 
 impl<Message> WidgetMessageMapper<Message> {
+    pub(crate) fn command(activation: crate::application::CommandActivation) -> Self {
+        Self {
+            map: Some(OutputMapper::Command(activation)),
+            pointer: None,
+            accessibility_action: None,
+            native_file_drop: None,
+        }
+    }
+
+    pub(super) fn is_command_control(&self) -> bool {
+        matches!(self.map, Some(OutputMapper::Command(_)))
+    }
+
+    pub(super) fn dispatch_output(
+        &self,
+        output: WidgetOutput,
+    ) -> super::super::WidgetDispatchResult<Message> {
+        if let Some(OutputMapper::Command(activation)) = &self.map {
+            return if matches!(
+                output.typed_ref::<crate::widgets::ButtonMessage>(),
+                Some(
+                    crate::widgets::ButtonMessage::Activate { .. }
+                        | crate::widgets::ButtonMessage::ActivateWithModifiers { .. }
+                )
+            ) {
+                super::super::WidgetDispatchResult::Command(activation.clone())
+            } else {
+                super::super::WidgetDispatchResult::UnmappedOutput
+            };
+        }
+        self.map_output(output)
+            .map(super::super::WidgetDispatchResult::Message)
+            .unwrap_or(super::super::WidgetDispatchResult::UnmappedOutput)
+    }
+
     /// Build a mapper that does not emit host-defined messages.
     pub fn none() -> Self {
         Self {
@@ -447,7 +484,8 @@ impl<Message> WidgetMessageMapper<Message> {
             (Some(OutputMapper::Dynamic(map)), None) | (None, Some(OutputMapper::Dynamic(map))) => {
                 map.descriptor()
             }
-            (Some(OutputMapper::Constant(_)), None) | (None, Some(OutputMapper::Constant(_))) => {
+            (Some(OutputMapper::Constant(_) | OutputMapper::Command(_)), None)
+            | (None, Some(OutputMapper::Constant(_) | OutputMapper::Command(_))) => {
                 MapperDescriptor::Conservative
             }
             (Some(_), Some(_)) => MapperDescriptor::Conservative,
@@ -467,6 +505,7 @@ impl<Message> WidgetMessageMapper<Message> {
         match self.map.as_ref()? {
             OutputMapper::Dynamic(map) => map.invoke(output),
             OutputMapper::Constant(map) => map.map_output(&output),
+            OutputMapper::Command(_) => None,
         }
     }
 
@@ -474,6 +513,7 @@ impl<Message> WidgetMessageMapper<Message> {
         match self.pointer.as_ref()? {
             OutputMapper::Dynamic(map) => map.invoke(output),
             OutputMapper::Constant(map) => map.map_output(&output),
+            OutputMapper::Command(_) => None,
         }
     }
 
@@ -485,6 +525,7 @@ impl<Message> WidgetMessageMapper<Message> {
         match self.accessibility_action.as_ref()? {
             OutputMapper::Dynamic(map) => map.invoke(output),
             OutputMapper::Constant(map) => map.map_output(&output),
+            OutputMapper::Command(_) => None,
         }
     }
 

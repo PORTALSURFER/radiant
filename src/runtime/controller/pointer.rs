@@ -819,13 +819,13 @@ where
         if previous_state != next_state {
             self.repaint_requested = true;
         }
-        match result {
-            Some(crate::runtime::WidgetDispatchResult::Message(message)) => {
+        match result.map(|result| self.resolve_widget_dispatch(result)) {
+            Some(crate::runtime::ResolvedWidgetDispatchResult::Message(message)) => {
                 let outcome = self.dispatch_message(message);
                 self.pending_input_command_outcome.merge(outcome);
             }
-            Some(crate::runtime::WidgetDispatchResult::UnmappedOutput) => self.relayout(),
-            Some(crate::runtime::WidgetDispatchResult::NoOutput) | None => {}
+            Some(crate::runtime::ResolvedWidgetDispatchResult::UnmappedOutput) => self.relayout(),
+            Some(crate::runtime::ResolvedWidgetDispatchResult::NoOutput) | None => {}
         }
     }
 

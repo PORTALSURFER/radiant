@@ -7,9 +7,9 @@ host boundary is `SurfaceRuntime::dispatch_command_request`; the application bui
 The advanced `.commands(registry, project, dispatcher)` hook also accepts manual scope snapshots.
 
 The Winit keyboard adapter submits native presses through this boundary for runtimes with a
-semantic command host. Automatic menu/toolbar/palette adapters and inheritance
-of a parent registry into auxiliary-window bridges remain integration work. Those adapters
-must use the same resolver and target checks.
+semantic command host. Menu, toolbar and palette controls consume the shared presentation
+and revalidate their opaque targets on activation. Native menu installation and inheritance
+of a parent registry into auxiliary-window bridges remain integration work.
 
 ## Ownership and precedence
 
@@ -71,6 +71,32 @@ unchanged scope to retain its incarnation. Reconstruct it when captured context 
 queued target for a replaced scope, another registry, or a newly shadowed owner is rejected
 before mapping. Unavailable and conflicting targets cannot execute. Runtime shutdown rejects
 all requests before invoking the application projection.
+
+## Command controls
+
+A `CommandPresentation` builds `toolbar_button`, `menu_item`, `palette_item`, or passive
+`shortcut_help` views without another label, binding or enabled callback. The first three
+retain only a qualified activation; the ordinary runtime input path resolves it through the
+registered mapper and then reduces one message. They require no `Message: Clone` bound.
+Disabled presentations remain visible but cannot focus or dispatch. Checked state uses the
+control's selected treatment; accessibility uses the registered accessible label and expanded
+shortcut description. Help lists all effective bindings with expanded platform key names.
+
+Project the presentation again when locale, keymap, availability or captured scope changes.
+An old visible control cannot bypass current scope validation: a replaced or newly shadowed
+target is rejected. Changing a target or presentation source while its control is pressed
+cancels that press; release cannot invoke the replacement context. `activation(source)`
+returns an owned, opaque `CommandActivation` whose
+`request()` can be submitted by a native adapter through `dispatch_command_request`; it does
+not install an OS menu or run the mapper itself. A standalone `UiSurface` does not execute
+semantic activations because it has no registered application command host.
+
+Moving focus from an editor to command controls preserves that editor's command context.
+The runtime keeps actual keyboard focus on the control and qualifies the retained editor
+against the current tree. Normal focus changes, window focus clearing, removal, incompatible
+replacement and omitted layout retire that retained context. Traversing between command
+controls preserves it; visiting an unrelated control replaces it. Selection/window scopes
+remain explicitly application-owned and do not become implicit selections.
 
 ## Logical and physical keymaps
 

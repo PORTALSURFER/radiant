@@ -5,7 +5,7 @@ use crate::{
     gui::automation::{AutomationNodeId, AutomationTarget},
     runtime::{
         NumericAccessibilityDispatchResult, NumericAccessibilityRequest,
-        NumericAccessibilityUnavailableReason, RuntimeBridge, WidgetDispatchResult,
+        NumericAccessibilityUnavailableReason, RuntimeBridge,
     },
     widgets::{
         NumericAccessibilityAction, NumericAccessibilityBlockOwner,
@@ -99,13 +99,13 @@ where
             };
         };
 
-        match dispatch {
-            WidgetDispatchResult::Message(message) => {
+        match self.resolve_widget_dispatch(dispatch) {
+            crate::runtime::ResolvedWidgetDispatchResult::Message(message) => {
                 let outcome = self.dispatch_message(message);
                 self.pending_input_command_outcome.merge(outcome);
             }
-            WidgetDispatchResult::UnmappedOutput => self.relayout(),
-            WidgetDispatchResult::NoOutput => {}
+            crate::runtime::ResolvedWidgetDispatchResult::UnmappedOutput => self.relayout(),
+            crate::runtime::ResolvedWidgetDispatchResult::NoOutput => {}
         }
 
         NumericAccessibilityDispatchResult::Accepted { widget_id, output }

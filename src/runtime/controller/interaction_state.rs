@@ -103,6 +103,7 @@ impl<Message> Clone for RuntimeLayoutPointerCapture<Message> {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct RuntimeFocusState {
+    pub(super) command_context_widget: Option<WidgetId>,
     pub(super) owner: Option<RuntimeFocusOwner>,
     pub(super) pending_key_chord: Option<KeyPress>,
     pub(super) focused_key_capture: Option<RuntimeFocusedKeyCapture>,

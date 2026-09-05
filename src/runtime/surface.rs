@@ -29,7 +29,7 @@ mod virtual_layout;
 mod widget;
 
 pub use frame::SurfaceFrame;
-pub(in crate::runtime) use input::WidgetDispatchResult;
+pub(in crate::runtime) use input::{ResolvedWidgetDispatchResult, WidgetDispatchResult};
 pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{
     LayerKind, SurfaceChild, SurfaceContainer, SurfaceFloatingLayer, SurfaceLayer, SurfaceNode,

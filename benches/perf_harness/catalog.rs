@@ -147,6 +147,7 @@ macro_rules! perf_scenario_catalog {
             ("app_static_text_controls_projection_1k", "application_projection", "text_layout", STATIC_TEXT_COUNTERS, RUNTIME_ITERATIONS, app_projection::static_text_controls_projection_1k),
             ("app_component_projection_cached_9600", "application_projection", "scene_cache", COMPONENT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::component_projection_cached),
             ("app_component_projection_fresh_9600", "application_projection", "scene_cache", COMPONENT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::component_projection_fresh),
+            ("runtime_component_local_geometry_3200", "runtime_surface", "scene_cache", &["layout_count", "layout_node_visit_count"], RUNTIME_ITERATIONS, runtime_scenarios::component_local_geometry),
             ("runtime_surface_tree_clone_10k", "runtime_surface", "scene_cache", NO_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_tree_clone_10k),
             ("runtime_surface_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
             ("runtime_text_paint_plan_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),

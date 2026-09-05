@@ -2,6 +2,7 @@
 
 use super::{
     SurfaceRuntime,
+    interaction_patch::DirectInteractionPatchResult,
     interaction_state::{
         RuntimeFocusOwner, RuntimeManagedPointerCaptureState, RuntimeManagedWheelSequenceState,
     },
@@ -3579,7 +3580,7 @@ where
                             update_request.expected_provider_authority,
                             candidate,
                         ) {
-                            Ok(commit) => {
+                            DirectInteractionPatchResult::Applied(commit) => {
                                 let changed_count = commit.changed_count;
                                 let application_projection =
                                     application_projection_started.elapsed();
@@ -3614,10 +3615,12 @@ where
                                     view_delta,
                                     scope,
                                 );
+                                let terminal_messages = commit.terminal_messages;
                                 drop(commit.retired_candidate);
-                                return Vec::new();
+                                return terminal_messages;
                             }
-                            Err(candidate) => candidate.surface,
+                            DirectInteractionPatchResult::Full(candidate) => candidate.surface,
+                            DirectInteractionPatchResult::Terminal => return Vec::new(),
                         }
                     } else {
                         candidate.surface

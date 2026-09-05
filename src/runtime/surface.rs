@@ -40,8 +40,9 @@ pub(crate) use source::{
 #[cfg(test)]
 pub(crate) use source::{OverlayEvidence, OverlayIdentity, SurfaceSourceKind};
 pub(in crate::runtime) use state_sync::{
-    PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, WidgetReplacementCommitResult,
-    WidgetReplacementPlan, WidgetReplacementPlanVeto, WidgetStateSyncPolicy,
+    PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, ValidatedWidgetReplacementPlan,
+    WidgetReplacementCommitResult, WidgetReplacementPlan, WidgetReplacementPlanVeto,
+    WidgetStateSyncPolicy,
 };
 pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord,

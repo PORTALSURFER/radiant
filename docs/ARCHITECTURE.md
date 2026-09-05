@@ -930,6 +930,17 @@ controller dispatch after installation, while compatible unchanged widgets use
 the existing state synchronization hook. Missing or ambiguous evidence is
 conservative and never transfers authority, and successor objects are not
 retained.
+The exact interaction transaction extends this boundary to qualified changed
+stateful leaves for projection-only requests. It preflights every selected
+leaf, synchronizes only those detached successors whose old and new widgets
+opt into prepared synchronization, and revalidates the same revision,
+capability, membership, source, path, and runtime fences before publication.
+Selected predecessor replacement hooks run once in installed traversal order;
+their old-surface mappers are deferred until after the successor leaves and
+appearance are published. Unsupported or broadened evidence falls back to the
+same pulled full candidate before callbacks, while a synchronization panic or
+post-sync currentness loss discards the candidate without replay, second
+synchronization, partial publication, or terminal delivery.
 
 ## Rendering Boundary
 

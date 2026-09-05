@@ -4705,6 +4705,16 @@ controller-owned focus, pointer capture, and hover ownership before restoration
 and expose bounded `SurfaceIdentityReplacement` entries through
 `SurfaceRefreshDiagnostics`. Existing custom widgets remain source-compatible;
 same-kind keyed reorders keep the normal retained-state behavior.
+An exact interaction update may also admit a changed stateful leaf when the
+request is a projection-only update, the old and new leaves both advertise
+`supports_prepared_state_synchronization()`, and the complete identity,
+revision, capability, membership, path, source, and interaction-ownership
+witnesses remain exact. The successor synchronizes its retained state in the
+detached candidate before publication; selected old leaves then receive the
+same replacement hook and mapper ordering as a full refresh. Any unsupported,
+ambiguous, conservative, or broader-scope evidence takes the single-pull full
+refresh path, while a candidate callback panic or later authority loss drops
+the inert candidate without replaying projection or synchronization.
 Custom widgets also expose an additive `Widget::revision()` hook. Its
 `WidgetRevision::conservative()` default is correct for existing custom widgets
 and for any widget that cannot prove exact immutable-input changes. A widget

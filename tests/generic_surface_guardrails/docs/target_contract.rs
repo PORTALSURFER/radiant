@@ -515,7 +515,7 @@ fn target_alignment_scorecard_has_current_estimates() {
         "| Category | Estimate |",
         "| --- | ---: |",
         "| Public API and module boundaries | 99.5% |",
-        "| Declarative model, identity, reconciliation | 84.5% |",
+        "| Declarative model, identity, reconciliation | 84.8% |",
         "| Input, provenance, and edit lifecycle | 98.5% |",
         "| Layout, composition, virtualization | ~87% |",
         "| Text, focus, and selection | ~90.5% |",

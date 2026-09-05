@@ -1,13 +1,16 @@
-//! The phase-one interaction-only refresh transaction.
+//! The bounded interaction-only refresh transaction.
 
 use super::SurfaceRuntime;
 use super::fresh_surface_preparation::FreshSurfaceRefreshRequest;
 use crate::runtime::bridge::{ExactChangedRoots, SurfaceUpdateProviderAuthority};
-use crate::runtime::surface::{InteractionLeafRevision, inspect_interaction_path};
+use crate::runtime::surface::{
+    InteractionLeafRevision, PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto,
+    WidgetReplacementPlan, WidgetStateSyncPolicy, inspect_interaction_path,
+};
 use crate::runtime::{RuntimeBridge, RuntimeLifecyclePhase, WidgetPath};
 use crate::theme::ResolvedAppearance;
 use crate::widgets::WidgetId;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 /// Candidate owned by the native refresh gates for a bounded interaction
@@ -18,11 +21,33 @@ pub(crate) struct InteractionPatchCandidate<Message> {
     pub(in crate::runtime::controller) expected_provider: SurfaceUpdateProviderAuthority,
     pub(in crate::runtime::controller) appearance: ResolvedAppearance,
     pub(in crate::runtime::controller) application_projection: Duration,
+    stateful_sync: Option<InteractionStateSync>,
+}
+
+struct InteractionStateSync {
+    selected_ids: Vec<WidgetId>,
+    previous_paths: HashMap<WidgetId, WidgetPath>,
+    current_paths: HashMap<WidgetId, WidgetPath>,
+    policy: WidgetStateSyncPolicy,
+    replacement_plan: WidgetReplacementPlan,
+}
+
+pub(crate) enum InteractionPatchPreparation<Message> {
+    Candidate(Box<InteractionPatchCandidate<Message>>),
+    Full(Box<ExactChangedRoots<Message>>),
+    Terminal,
 }
 
 pub(crate) struct InteractionPatchCommit<Message> {
     pub(crate) changed_count: u32,
+    pub(crate) terminal_messages: Vec<Message>,
     pub(crate) retired_candidate: ExactChangedRoots<Message>,
+}
+
+pub(crate) enum DirectInteractionPatchResult<Message> {
+    Applied(InteractionPatchCommit<Message>),
+    Full(ExactChangedRoots<Message>),
+    Terminal,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -47,18 +72,25 @@ where
         request: FreshSurfaceRefreshRequest,
         expected_provider: Option<SurfaceUpdateProviderAuthority>,
         candidate: ExactChangedRoots<Message>,
-    ) -> Result<InteractionPatchCommit<Message>, ExactChangedRoots<Message>> {
-        if !self.interaction_update_is_admissible(request, expected_provider, &candidate) {
-            return Err(candidate);
+    ) -> DirectInteractionPatchResult<Message> {
+        match self.prepare_interaction_update(
+            request,
+            expected_provider,
+            candidate,
+            ResolvedAppearance::fixed(crate::theme::ThemeTokens::default()),
+            Duration::ZERO,
+        ) {
+            InteractionPatchPreparation::Candidate(candidate) => {
+                match self.publish_interaction_update(*candidate) {
+                    Some(commit) => DirectInteractionPatchResult::Applied(commit),
+                    None => DirectInteractionPatchResult::Terminal,
+                }
+            }
+            InteractionPatchPreparation::Full(candidate) => {
+                DirectInteractionPatchResult::Full(*candidate)
+            }
+            InteractionPatchPreparation::Terminal => DirectInteractionPatchResult::Terminal,
         }
-        let Some(paths) = self.interaction_update_paths(&candidate) else {
-            return Err(candidate);
-        };
-
-        if !self.consume_fresh_surface_refresh_authority(request) {
-            return Err(candidate);
-        }
-        Ok(self.commit_interaction_update(candidate, paths))
     }
 
     #[allow(clippy::result_large_err)]
@@ -66,23 +98,121 @@ where
         &self,
         request: FreshSurfaceRefreshRequest,
         expected_provider: Option<SurfaceUpdateProviderAuthority>,
-        candidate: ExactChangedRoots<Message>,
+        mut candidate: ExactChangedRoots<Message>,
         appearance: ResolvedAppearance,
         application_projection: Duration,
-    ) -> Result<InteractionPatchCandidate<Message>, ExactChangedRoots<Message>> {
+    ) -> InteractionPatchPreparation<Message> {
         let Some(expected_provider) = expected_provider else {
-            return Err(candidate);
+            return InteractionPatchPreparation::Full(Box::new(candidate));
         };
-        if !self.interaction_update_is_admissible(request, Some(expected_provider), &candidate) {
-            return Err(candidate);
+        if !self.interaction_update_is_admissible(
+            request,
+            Some(expected_provider),
+            &candidate,
+            true,
+        ) {
+            return InteractionPatchPreparation::Full(Box::new(candidate));
         }
-        Ok(InteractionPatchCandidate {
+        let selected_ids = self.interaction_stateful_ids(&candidate);
+        if !selected_ids.is_empty() && request.scope != crate::runtime::RepaintScope::Projection {
+            return InteractionPatchPreparation::Full(Box::new(candidate));
+        }
+
+        let stateful_sync = if selected_ids.is_empty() {
+            None
+        } else {
+            let mut previous_paths = HashMap::with_capacity(selected_ids.len());
+            let mut current_paths = HashMap::with_capacity(selected_ids.len());
+            for widget_id in &selected_ids {
+                let Some(previous_path) = self.traversal.widgets.paths.current.get(widget_id)
+                else {
+                    return InteractionPatchPreparation::Full(Box::new(candidate));
+                };
+                let Some(changed) = candidate
+                    .changed_roots
+                    .iter()
+                    .find(|changed| changed.node_id == *widget_id)
+                else {
+                    return InteractionPatchPreparation::Full(Box::new(candidate));
+                };
+                previous_paths.insert(*widget_id, previous_path.clone());
+                current_paths.insert(*widget_id, WidgetPath::from_slice(&changed.child_path));
+            }
+            let policy = self.widget_state_sync_policy();
+            let evidence = PreparedWidgetStateSyncEvidence {
+                stateful_widget_order: &selected_ids,
+                current_paths: &current_paths,
+                previous_paths: &previous_paths,
+                previous_widget_order: &selected_ids,
+                current_widget_order: &selected_ids,
+                policy,
+            };
+            match candidate
+                .surface
+                .preflight_prepared_widget_state_sync(&self.surface, evidence)
+            {
+                Ok(()) => {}
+                Err(PreparedWidgetStateSyncVeto::Panicked)
+                | Err(PreparedWidgetStateSyncVeto::Unsupported)
+                | Err(PreparedWidgetStateSyncVeto::Ambiguous)
+                | Err(PreparedWidgetStateSyncVeto::InvalidIdentity)
+                | Err(PreparedWidgetStateSyncVeto::InvalidPath)
+                | Err(PreparedWidgetStateSyncVeto::InvalidRevision)
+                | Err(PreparedWidgetStateSyncVeto::Incompatible) => {
+                    return InteractionPatchPreparation::Full(Box::new(candidate));
+                }
+            }
+            let replacement_plan = self.surface.plan_widget_replacements_for_ids(
+                &candidate.surface,
+                &selected_ids,
+                &selected_ids,
+                &selected_ids,
+                &current_paths,
+                &previous_paths,
+            );
+            let sync_evidence = PreparedWidgetStateSyncEvidence {
+                stateful_widget_order: &selected_ids,
+                current_paths: &current_paths,
+                previous_paths: &previous_paths,
+                previous_widget_order: &selected_ids,
+                current_widget_order: &selected_ids,
+                policy,
+            };
+            match candidate
+                .surface
+                .synchronize_prepared_widget_state(&self.surface, sync_evidence)
+            {
+                Ok(()) => {}
+                Err(_) => return InteractionPatchPreparation::Terminal,
+            }
+            let stateful_sync = InteractionStateSync {
+                selected_ids,
+                previous_paths,
+                current_paths,
+                policy,
+                replacement_plan,
+            };
+            if !self.interaction_update_is_admissible(
+                request,
+                Some(expected_provider),
+                &candidate,
+                true,
+            ) {
+                return InteractionPatchPreparation::Terminal;
+            }
+            // Keep this witness owned by the candidate until the publication
+            // authority and replacement-plan validation have both succeeded.
+            Some(stateful_sync)
+        };
+
+        InteractionPatchPreparation::Candidate(Box::new(InteractionPatchCandidate {
             candidate,
             request,
             expected_provider,
             appearance,
             application_projection,
-        })
+            stateful_sync,
+        }))
     }
 
     pub(in crate::runtime::controller) fn publish_interaction_update(
@@ -93,25 +223,71 @@ where
             prepared.request,
             Some(prepared.expected_provider),
             &prepared.candidate,
+            true,
         ) {
             return None;
         }
         let paths = self.interaction_update_paths(&prepared.candidate)?;
+        let mut prepared = prepared;
+        let validated_plan = if let Some(sync) = prepared.stateful_sync.as_mut() {
+            let plan =
+                std::mem::replace(&mut sync.replacement_plan, WidgetReplacementPlan::empty());
+            self.surface
+                .validate_selected_widget_replacement_plan(
+                    &prepared.candidate.surface,
+                    plan,
+                    &sync.previous_paths,
+                    &sync.current_paths,
+                )
+                .ok()
+        } else {
+            None
+        };
+        if prepared.stateful_sync.is_some() && validated_plan.is_none() {
+            return None;
+        }
         if !self.consume_fresh_surface_refresh_authority(prepared.request) {
             return None;
         }
-        Some(self.commit_interaction_update(prepared.candidate, paths))
+        Some(self.commit_interaction_update(
+            prepared.candidate,
+            paths,
+            prepared.stateful_sync,
+            validated_plan,
+        ))
     }
 
     pub(in crate::runtime::controller) fn interaction_patch_candidate_is_current(
         &self,
         prepared: &InteractionPatchCandidate<Message>,
     ) -> bool {
-        self.interaction_update_is_admissible(
+        if !self.interaction_update_is_admissible(
             prepared.request,
             Some(prepared.expected_provider),
             &prepared.candidate,
-        )
+            true,
+        ) {
+            return false;
+        }
+        let Some(sync) = prepared.stateful_sync.as_ref() else {
+            return true;
+        };
+        let evidence = PreparedWidgetStateSyncEvidence {
+            stateful_widget_order: &sync.selected_ids,
+            current_paths: &sync.current_paths,
+            previous_paths: &sync.previous_paths,
+            previous_widget_order: &sync.selected_ids,
+            current_widget_order: &sync.selected_ids,
+            policy: sync.policy,
+        };
+        // The selected list is canonical and retained by the candidate; build
+        // no fresh authority here. The evidence check is read-only and only
+        // confirms that candidate and active witnesses still agree.
+        prepared
+            .candidate
+            .surface
+            .prepared_widget_state_sync_is_current(&self.surface, evidence)
+            .is_ok()
     }
 
     fn interaction_update_is_admissible(
@@ -119,6 +295,7 @@ where
         request: FreshSurfaceRefreshRequest,
         expected_provider: Option<SurfaceUpdateProviderAuthority>,
         candidate: &ExactChangedRoots<Message>,
+        allow_stateful: bool,
     ) -> bool {
         if !self.interaction_patch_request_is_current(request)
             || request.lifecycle_phase != RuntimeLifecyclePhase::Running
@@ -136,6 +313,7 @@ where
             || candidate.window_environment != request.window_environment
             || candidate.surface.window_environment() != self.window_environment
             || candidate.surface.application_environment() != self.surface.application_environment()
+            || candidate.surface.resolved_environment() != self.surface.resolved_environment()
             || candidate.changed_roots.is_empty()
             || candidate.changed_roots.len() > crate::runtime::MAX_EXACT_CHANGED_ROOTS
             || candidate
@@ -156,9 +334,21 @@ where
             .iter()
             .map(|changed| changed.node_id)
             .collect();
-        if changed_ids.len() != candidate.changed_roots.len()
-            || !self.interaction_patch_state_is_safe_for(&changed_ids)
-        {
+        if changed_ids.len() != candidate.changed_roots.len() {
+            return false;
+        }
+        let stateful_ids = if allow_stateful {
+            self.interaction_stateful_ids(candidate)
+        } else {
+            Vec::new()
+        };
+        let stateful_ids: HashSet<WidgetId> = stateful_ids.into_iter().collect();
+        let unsafe_ids: HashSet<WidgetId> = changed_ids
+            .iter()
+            .copied()
+            .filter(|widget_id| !stateful_ids.contains(widget_id))
+            .collect();
+        if !self.interaction_patch_state_is_safe_for(&unsafe_ids) {
             return false;
         }
 
@@ -190,8 +380,8 @@ where
                 return false;
             };
             if matches!(evidence.relation, InteractionLeafRevision::Reject)
-                || evidence.previous_membership[5]
-                || evidence.current_membership[5]
+                || (!allow_stateful
+                    && (evidence.previous_membership[5] || evidence.current_membership[5]))
                 || evidence.previous_membership != evidence.current_membership
                 || !membership_matches_installed(
                     self,
@@ -210,13 +400,128 @@ where
         true
     }
 
+    fn interaction_stateful_ids(&self, candidate: &ExactChangedRoots<Message>) -> Vec<WidgetId> {
+        let mut changed_ids = HashSet::with_capacity(candidate.changed_roots.len());
+        for changed in &candidate.changed_roots {
+            if inspect_interaction_path(
+                self.surface.root(),
+                candidate.surface.root(),
+                &changed.child_path,
+            )
+            .is_some_and(|evidence| {
+                matches!(evidence.relation, InteractionLeafRevision::Interaction)
+                    && evidence.previous_membership[5]
+                    && evidence.current_membership[5]
+            }) {
+                changed_ids.insert(changed.node_id);
+            }
+        }
+        let mut selected = Vec::with_capacity(changed_ids.len());
+        for widget_id in changed_ids {
+            if let Some(ordinal) = self.traversal.widgets.stateful_ordinals.get(&widget_id) {
+                selected.push((*ordinal, widget_id));
+            }
+        }
+        selected.sort_unstable_by_key(|(ordinal, _)| *ordinal);
+        selected.dedup_by_key(|(_, widget_id)| *widget_id);
+        selected
+            .into_iter()
+            .map(|(_, widget_id)| widget_id)
+            .collect()
+    }
+
     fn commit_interaction_update(
         &mut self,
         mut candidate: ExactChangedRoots<Message>,
         paths: Vec<WidgetPath>,
+        stateful_sync: Option<InteractionStateSync>,
+        validated_plan: Option<crate::runtime::surface::ValidatedWidgetReplacementPlan>,
     ) -> InteractionPatchCommit<Message> {
-        // Every check has completed. Leaf swaps are infallible, with no user
-        // callback or fallible allocation in flight.
+        let (terminal_messages, retired_widget_ids) = validated_plan
+            .map(|plan| {
+                let result = self
+                    .surface
+                    .commit_validated_widget_replacements(&candidate.surface, plan);
+                (result.terminal_messages, result.retired_widget_ids)
+            })
+            .unwrap_or_default();
+        if let Some(sync) = stateful_sync {
+            let identity = self.discard_incompatible_widget_ownership(
+                &candidate.surface,
+                &sync.selected_ids,
+                &sync.current_paths,
+                &sync.previous_paths,
+            );
+            self.enforce_identity_audit(identity);
+            for widget_id in &retired_widget_ids {
+                self.discard_widget_ownership(*widget_id);
+            }
+            let focused_before = self.interaction.focus.focused_widget();
+            if self
+                .interaction
+                .focus
+                .focused_key_capture
+                .is_some_and(|capture| sync.selected_ids.contains(&capture.widget_id))
+            {
+                self.reconcile_focused_key_capture_after_refresh(
+                    &candidate.surface,
+                    &sync.selected_ids,
+                    &sync.selected_ids,
+                    &sync.selected_ids,
+                    &sync.selected_ids,
+                    &sync.previous_paths,
+                    &sync.current_paths,
+                    &retired_widget_ids,
+                );
+            }
+            if matches!(
+                self.interaction.wheel.managed_sequence,
+                super::interaction_state::RuntimeManagedWheelSequenceState::Active { widget_id }
+                    if sync.selected_ids.contains(&widget_id)
+            ) {
+                self.reconcile_managed_wheel_sequence_after_refresh(
+                    &candidate.surface,
+                    &sync.selected_ids,
+                    &sync.selected_ids,
+                    &sync.previous_paths,
+                    &sync.current_paths,
+                    &retired_widget_ids,
+                    focused_before,
+                );
+            }
+            if matches!(
+                self.interaction.composition.managed_composition,
+                super::interaction_state::RuntimeManagedCompositionState::Active { widget_id }
+                    if sync.selected_ids.contains(&widget_id)
+            ) {
+                self.reconcile_managed_composition_after_refresh(
+                    &candidate.surface,
+                    &sync.selected_ids,
+                    &sync.selected_ids,
+                    &sync.previous_paths,
+                    &sync.current_paths,
+                    &retired_widget_ids,
+                    focused_before,
+                );
+            }
+            if self
+                .interaction
+                .pointer
+                .managed_capture
+                .is_some_and(|capture| sync.selected_ids.contains(&capture.widget_id))
+            {
+                self.reconcile_managed_pointer_capture_after_refresh(
+                    &candidate.surface,
+                    &sync.selected_ids,
+                    &sync.selected_ids,
+                    &sync.previous_paths,
+                    &sync.current_paths,
+                    &retired_widget_ids,
+                );
+            }
+        }
+        // Every check and callback has completed. Leaf swaps are infallible,
+        // with no user callback or fallible allocation in flight.
         for (changed, path) in candidate.changed_roots.iter().zip(paths.iter()) {
             if !self
                 .surface
@@ -227,6 +532,7 @@ where
         }
         InteractionPatchCommit {
             changed_count: candidate.changed_roots.len() as u32,
+            terminal_messages,
             retired_candidate: candidate,
         }
     }
@@ -380,6 +686,8 @@ mod tests {
         geometry_changed: bool,
         paint_changed: bool,
         stateful: bool,
+        panic_on_sync: bool,
+        replacement_output: bool,
     }
 
     impl InteractionWidget {
@@ -389,6 +697,8 @@ mod tests {
             geometry_changed: bool,
             paint_changed: bool,
             stateful: bool,
+            panic_on_sync: bool,
+            replacement_output: bool,
         ) -> Self {
             Self {
                 common: WidgetCommon::fixed(id, 20.0, 20.0).with_keyboard_focus(),
@@ -396,6 +706,8 @@ mod tests {
                 geometry_changed,
                 paint_changed,
                 stateful,
+                panic_on_sync,
+                replacement_output,
             }
         }
     }
@@ -415,6 +727,23 @@ mod tests {
 
         fn needs_state_synchronization(&self) -> bool {
             self.stateful
+        }
+
+        fn supports_prepared_state_synchronization(&self) -> bool {
+            self.stateful
+        }
+
+        fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+            if self.stateful {
+                if self.panic_on_sync {
+                    panic!("state synchronization probe panic");
+                }
+                self.common.state = previous.common().state;
+            }
+        }
+
+        fn prepare_replacement(&mut self, _successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+            self.replacement_output.then(|| WidgetOutput::typed(()))
         }
 
         fn handle_input(
@@ -451,6 +780,8 @@ mod tests {
         sibling_stateful: bool,
         overlap: bool,
         mapper_opaque: bool,
+        panic_on_sync: bool,
+        replacement_output: bool,
     }
 
     impl Bridge {
@@ -468,8 +799,15 @@ mod tests {
                                 self.geometry_changed && self.revision,
                                 self.paint_changed && self.revision,
                                 self.stateful,
+                                self.panic_on_sync,
+                                self.replacement_output,
                             ),
-                            if self.mapper_opaque {
+                            if self.replacement_output {
+                                crate::runtime::WidgetMessageMapper::dynamic_mapped(
+                                    crate::runtime::EventMapper::with_revision((), |_: ()| ())
+                                        .typed_mapped(),
+                                )
+                            } else if self.mapper_opaque {
                                 crate::runtime::WidgetMessageMapper::dynamic(|_| None)
                             } else {
                                 crate::runtime::WidgetMessageMapper::none()
@@ -485,6 +823,8 @@ mod tests {
                                 false,
                                 false,
                                 self.sibling_stateful,
+                                false,
+                                false,
                             ),
                             crate::runtime::WidgetMessageMapper::none(),
                         ),
@@ -576,7 +916,7 @@ mod tests {
                 30,
                 ContainerPolicy::default(),
                 vec![crate::runtime::SurfaceChild::fill(SurfaceNode::widget(
-                    InteractionWidget::new(10, self.revision, false, false, false),
+                    InteractionWidget::new(10, self.revision, false, false, false, false, false),
                     crate::runtime::WidgetMessageMapper::none(),
                 ))],
             );
@@ -784,7 +1124,15 @@ mod tests {
                 ContainerPolicy::default(),
                 vec![crate::runtime::SurfaceChild::fill(
                     SurfaceNode::widget(
-                        InteractionWidget::new(10, self.revision, false, false, false),
+                        InteractionWidget::new(
+                            10,
+                            self.revision,
+                            false,
+                            false,
+                            false,
+                            false,
+                            false,
+                        ),
                         crate::runtime::WidgetMessageMapper::none(),
                     )
                     .with_source_metadata(self.source_metadata()),
@@ -1213,6 +1561,174 @@ mod tests {
     }
 
     #[test]
+    fn native_preparation_synchronizes_a_qualified_changed_stateful_leaf() {
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                revision: false,
+                path: vec![0],
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                ..Default::default()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        runtime
+            .surface
+            .find_widget_mut(10)
+            .expect("installed stateful widget")
+            .widget_object_mut_runtime()
+            .common_mut()
+            .state
+            .focused = true;
+        runtime.bridge_mut().revision = true;
+        let before = runtime.refresh_counters();
+        let prepared = runtime
+            .prepare_fresh_surface_refresh(
+                crate::runtime::RepaintScope::Projection,
+                ResolvedAppearance::fixed(ThemeTokens::dark()),
+            )
+            .expect("qualified stateful interaction candidate should prepare");
+        assert!(matches!(
+            &prepared,
+            super::super::fresh_surface_preparation::PreparedSurfaceRefresh::Interaction { .. }
+        ));
+        let publication = runtime
+            .publish_prepared_surface_refresh(prepared)
+            .expect("qualified stateful interaction should publish");
+        let (_, _, terminal_messages, retired_candidate) = publication.into_parts();
+        assert!(terminal_messages.is_empty());
+        assert!(retired_candidate.is_some());
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection
+        );
+        assert_eq!(runtime.refresh_counters().layout, before.layout);
+        assert_eq!(
+            runtime.refresh_counters().widget_state_sync,
+            before.widget_state_sync
+        );
+        assert_eq!(
+            runtime.surface.find_widget(10).unwrap().revision(),
+            WidgetRevision::exact((), false, false, true)
+        );
+        assert!(
+            runtime
+                .surface
+                .find_widget(10)
+                .expect("published stateful widget")
+                .widget_object()
+                .common()
+                .state
+                .focused
+        );
+    }
+
+    #[test]
+    fn direct_exact_refresh_synchronizes_stateful_focus_without_replaying_projection() {
+        let make = |exact| Bridge {
+            authority_revision: 1,
+            exact,
+            stateful: true,
+            ..base_bridge()
+        };
+        let mut exact = SurfaceRuntime::new(make(true), Vector2::new(80.0, 40.0));
+        let mut full = SurfaceRuntime::new(make(false), Vector2::new(80.0, 40.0));
+        for runtime in [&mut exact, &mut full] {
+            assert!(runtime.focus_widget(10));
+            runtime
+                .surface
+                .find_widget_mut(10)
+                .expect("focused stateful widget")
+                .widget_object_mut_runtime()
+                .common_mut()
+                .state
+                .focused = true;
+            runtime.bridge_mut().revision = true;
+        }
+        let before = exact.refresh_counters();
+        exact.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        full.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(
+            exact.refresh_counters().runtime_projection,
+            before.runtime_projection
+        );
+        assert_eq!(exact.refresh_counters().layout, before.layout);
+        assert_eq!(exact.layout(), full.layout());
+        assert_eq!(exact.automation_snapshot(), full.automation_snapshot());
+        assert!(
+            exact
+                .surface
+                .find_widget(10)
+                .expect("published stateful widget")
+                .widget_object()
+                .common()
+                .state
+                .focused
+        );
+    }
+
+    #[test]
+    fn stateful_sync_panic_is_terminal_without_replay_or_partial_publish() {
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                panic_on_sync: true,
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let before_surface = runtime.surface().find_widget(10).unwrap().revision();
+        let before = runtime.refresh_counters();
+        runtime.bridge_mut().revision = true;
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection
+        );
+        assert_eq!(runtime.refresh_counters().layout, before.layout);
+        assert_eq!(
+            runtime.surface().find_widget(10).unwrap().revision(),
+            before_surface
+        );
+    }
+
+    #[test]
+    fn stateful_replacement_uses_the_old_mapper_once_before_deferred_delivery() {
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                replacement_output: true,
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        runtime.bridge_mut().revision = true;
+        let prepared = runtime
+            .prepare_fresh_surface_refresh(
+                crate::runtime::RepaintScope::Projection,
+                ResolvedAppearance::fixed(ThemeTokens::dark()),
+            )
+            .expect("stateful replacement candidate should prepare");
+        let publication = runtime
+            .publish_prepared_surface_refresh(prepared)
+            .expect("stateful replacement candidate should publish");
+        let (_, _, terminal_messages, retired_candidate) = publication.into_parts();
+
+        assert_eq!(terminal_messages, vec![()]);
+        assert!(retired_candidate.is_some());
+        assert_eq!(
+            runtime.surface().find_widget(10).unwrap().revision(),
+            WidgetRevision::exact((), false, false, true)
+        );
+    }
+
+    #[test]
     fn sampled_application_environment_change_prepares_the_full_variant() {
         let old_environment = crate::application::ApplicationEnvironment::default();
         let new_environment = crate::application::ApplicationEnvironment::new(
@@ -1341,13 +1857,6 @@ mod tests {
                 },
             ),
             (
-                "stateful",
-                Bridge {
-                    stateful: true,
-                    ..base_bridge()
-                },
-            ),
-            (
                 "opaque mapper",
                 Bridge {
                     mapper_opaque: true,
@@ -1465,7 +1974,17 @@ mod tests {
             if let Ok(mut counts) = self.counts.lock() {
                 counts.state_sync = counts.state_sync.saturating_add(1);
             }
-            false
+            true
+        }
+
+        fn supports_prepared_state_synchronization(&self) -> bool {
+            true
+        }
+
+        fn synchronize_from_previous(&mut self, _previous: &dyn Widget) {
+            if let Ok(mut counts) = self.counts.lock() {
+                counts.state_sync = counts.state_sync.saturating_add(1);
+            }
         }
 
         fn automation_semantics(&self) -> crate::gui::automation::AutomationNodeSemantics {
@@ -1611,7 +2130,7 @@ mod tests {
                     width,
                     depth,
                     old_sentinel: Arc::clone(&old_sentinel),
-                    candidate_sentinel,
+                    candidate_sentinel: Arc::clone(&candidate_sentinel),
                     old_changed,
                     candidate_changed,
                 },

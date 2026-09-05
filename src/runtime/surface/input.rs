@@ -183,7 +183,9 @@ impl<Message> SurfaceNode<Message> {
             if previous_widget.compatibility_kind() != current_widget.compatibility_kind() {
                 return Err(PreparedWidgetStateSyncVeto::Incompatible);
             }
-            if !current_widget.supports_prepared_state_synchronization() {
+            if !previous_widget.supports_prepared_state_synchronization()
+                || !current_widget.supports_prepared_state_synchronization()
+            {
                 return Err(PreparedWidgetStateSyncVeto::Unsupported);
             }
         }

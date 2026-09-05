@@ -8,7 +8,7 @@
 #![allow(dead_code)]
 
 use super::SurfaceRuntime;
-use super::interaction_patch::InteractionPatchCandidate;
+use super::interaction_patch::{InteractionPatchCandidate, InteractionPatchPreparation};
 use super::interaction_state::RuntimeManagedPointerCaptureState;
 use super::layout_state::RuntimeLayoutContainerStateCandidate;
 use super::refresh::SurfaceIdentityDiagnostics;
@@ -354,13 +354,14 @@ where
                         appearance,
                         application_projection,
                     ) {
-                        Ok(candidate) => {
+                        InteractionPatchPreparation::Candidate(candidate) => {
                             return Some(PreparedSurfaceRefresh::Interaction {
-                                candidate: Box::new(candidate),
+                                candidate,
                                 application_environment,
                             });
                         }
-                        Err(candidate) => candidate.surface,
+                        InteractionPatchPreparation::Full(candidate) => candidate.surface,
+                        InteractionPatchPreparation::Terminal => return None,
                     }
                 } else {
                     candidate.surface
@@ -464,6 +465,7 @@ where
         let application_projection = prepared.application_projection;
         let commit = self.publish_interaction_update(*prepared)?;
         let changed_count = commit.changed_count;
+        let terminal_messages = commit.terminal_messages;
         self.refresh_counters.application_projection = self
             .refresh_counters
             .application_projection
@@ -497,7 +499,7 @@ where
         Some(PreparedSurfaceRefreshPublication {
             paint_plan: None,
             appearance,
-            terminal_messages: Vec::new(),
+            terminal_messages,
             retired_candidate: Some(commit.retired_candidate),
         })
     }

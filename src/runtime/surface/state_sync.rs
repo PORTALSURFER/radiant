@@ -48,6 +48,14 @@ pub(in crate::runtime) struct WidgetReplacementPlan {
     entries: Vec<WidgetReplacementPlanEntry>,
 }
 
+impl WidgetReplacementPlan {
+    pub(in crate::runtime) fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+}
+
 /// A replacement plan whose complete read-only evidence has been validated.
 ///
 /// This token intentionally does not implement `Clone`.  Its only consumer is
@@ -159,12 +167,33 @@ impl<Message> UiSurface<Message> {
         previous: &Self,
         evidence: PreparedWidgetStateSyncEvidence<'_>,
     ) -> Result<(), PreparedWidgetStateSyncVeto> {
+        self.preflight_prepared_widget_state_sync(previous, evidence)?;
+        self.synchronize_prepared_widget_state(previous, evidence)
+    }
+
+    pub(in crate::runtime) fn preflight_prepared_widget_state_sync(
+        &self,
+        previous: &Self,
+        evidence: PreparedWidgetStateSyncEvidence<'_>,
+    ) -> Result<(), PreparedWidgetStateSyncVeto> {
         let result = catch_unwind(AssertUnwindSafe(|| {
             self.root
-                .preflight_prepared_widget_state_sync(&evidence, &previous.root)?;
+                .preflight_prepared_widget_state_sync(&evidence, &previous.root)
+        }));
+        match result {
+            Ok(result) => result,
+            Err(_) => Err(PreparedWidgetStateSyncVeto::Panicked),
+        }
+    }
+
+    pub(in crate::runtime) fn synchronize_prepared_widget_state(
+        &mut self,
+        previous: &Self,
+        evidence: PreparedWidgetStateSyncEvidence<'_>,
+    ) -> Result<(), PreparedWidgetStateSyncVeto> {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             self.root
-                .synchronize_prepared_widget_state(&evidence, &previous.root)?;
-            Ok(())
+                .synchronize_prepared_widget_state(&evidence, &previous.root)
         }));
         match result {
             Ok(result) => result,
@@ -198,10 +227,29 @@ impl<Message> UiSurface<Message> {
         current_paths: &HashMap<WidgetId, WidgetPath>,
         previous_paths: &HashMap<WidgetId, WidgetPath>,
     ) -> WidgetReplacementPlan {
-        let mut entries = Vec::with_capacity(previous_stateful_widget_order.len());
-        let mut visited = HashSet::with_capacity(previous_stateful_widget_order.len());
+        self.plan_widget_replacements_for_ids(
+            successor,
+            previous_stateful_widget_order,
+            previous_widget_order,
+            current_widget_order,
+            current_paths,
+            previous_paths,
+        )
+    }
 
-        for widget_id in previous_stateful_widget_order {
+    pub(in crate::runtime) fn plan_widget_replacements_for_ids(
+        &self,
+        successor: &Self,
+        stateful_widget_order: &[WidgetId],
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> WidgetReplacementPlan {
+        let mut entries = Vec::with_capacity(stateful_widget_order.len());
+        let mut visited = HashSet::with_capacity(stateful_widget_order.len());
+
+        for widget_id in stateful_widget_order {
             if !visited.insert(*widget_id) {
                 continue;
             }
@@ -226,6 +274,40 @@ impl<Message> UiSurface<Message> {
         }
 
         WidgetReplacementPlan { entries }
+    }
+
+    pub(in crate::runtime) fn validate_selected_widget_replacement_plan(
+        &self,
+        successor: &Self,
+        plan: WidgetReplacementPlan,
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> Result<ValidatedWidgetReplacementPlan, WidgetReplacementPlanVeto> {
+        if !plan.entries.iter().all(|entry| {
+            entry.previous_unique
+                && entry.successor_unique
+                && path_evidence_matches(
+                    previous_paths.get(&entry.widget_id),
+                    entry.previous_path.as_ref(),
+                )
+                && path_evidence_matches(
+                    current_paths.get(&entry.widget_id),
+                    entry.successor_path.as_ref(),
+                )
+                && self.replacement_evidence_matches(
+                    entry.previous_path.as_ref(),
+                    entry.previous_evidence.as_ref(),
+                )
+                && successor.replacement_evidence_matches(
+                    entry.successor_path.as_ref(),
+                    entry.successor_evidence.as_ref(),
+                )
+        }) {
+            return Err(WidgetReplacementPlanVeto::StaleEvidence);
+        }
+        Ok(ValidatedWidgetReplacementPlan {
+            entries: plan.entries,
+        })
     }
 
     pub(in crate::runtime) fn commit_widget_replacements(

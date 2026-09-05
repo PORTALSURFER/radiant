@@ -48,6 +48,7 @@ pub(super) struct RuntimeWidgetTraversal {
     pub(super) wheel: HitOrderIndex,
     pub(super) wheel_targets: RuntimeWheelTargetTraversal,
     pub(super) stateful_order: Vec<WidgetId>,
+    pub(super) stateful_ordinals: HashMap<WidgetId, usize>,
     pub(super) paths: RuntimeWidgetPathState,
     pub(super) duplicate_widget_ids: HashSet<WidgetId>,
     pub(super) membership: HashMap<WidgetId, [bool; 7]>,

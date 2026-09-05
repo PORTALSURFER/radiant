@@ -8,7 +8,7 @@ use crate::{
 impl<Message> UiSurface<Message> {
     /// Resolve one appearance policy against this surface's current snapshot.
     pub fn resolved_appearance(&self, policy: AppearancePolicy) -> ResolvedAppearance {
-        policy.resolve(self.window_environment().resolved())
+        policy.resolve(&self.resolved_environment())
     }
 
     /// Project the surface and its layout output into backend-neutral paint data.
@@ -40,7 +40,8 @@ impl<Message> UiSurface<Message> {
         layout: &LayoutOutput,
         policy: AppearancePolicy,
     ) -> SurfacePaintPlan {
-        let appearance = policy.resolve(self.window_environment().resolved());
+        let environment = self.resolved_environment();
+        let appearance = policy.resolve(&environment);
         let theme = appearance.tokens();
         let mut plan = empty_paint_plan_for_layout(layout, &theme);
         self.paint_plan_with_appearance_into(layout, appearance, &mut plan);
@@ -63,7 +64,8 @@ impl<Message> UiSurface<Message> {
         policy: AppearancePolicy,
         plan: &mut SurfacePaintPlan,
     ) {
-        let appearance = policy.resolve(self.window_environment().resolved());
+        let environment = self.resolved_environment();
+        let appearance = policy.resolve(&environment);
         self.paint_plan_with_appearance_into(layout, appearance, plan);
     }
 
@@ -77,7 +79,7 @@ impl<Message> UiSurface<Message> {
         self.paint_plan_with_hover_and_environment_and_appearance_into(
             layout,
             &theme,
-            self.window_environment().resolved(),
+            self.resolved_environment(),
             appearance,
             None,
             None,
@@ -96,7 +98,7 @@ impl<Message> UiSurface<Message> {
         self.paint_plan_with_hover_and_environment_into(
             layout,
             theme,
-            self.window_environment().resolved(),
+            self.resolved_environment(),
             hovered_container,
             active_scroll_affordance,
             plan,

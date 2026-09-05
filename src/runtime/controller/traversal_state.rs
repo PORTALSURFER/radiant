@@ -325,7 +325,11 @@ fn split_pane_focus_order_candidate_matches(
 }
 
 impl<Message> RuntimeContainerTraversal<Message> {
-    pub(super) fn project_layout_targets(&mut self, layout: &LayoutOutput) {
+    pub(super) fn project_layout_targets(
+        &mut self,
+        layout: &LayoutOutput,
+        direction: crate::application::WritingDirection,
+    ) {
         self.layout_targets.clear();
         self.layout_hit_region_diagnostics = LayoutHitRegionDiagnostics::default();
         for interaction in &self.layout_interactions {
@@ -420,7 +424,7 @@ impl<Message> RuntimeContainerTraversal<Message> {
                 target_bounds: Some(target_bounds),
                 divider_bounds: Some(divider_bounds),
                 mounted_state_id: None,
-                split_capture_witness: Some(descriptor.witness(container_bounds)),
+                split_capture_witness: Some(descriptor.witness(container_bounds, direction)),
             });
         }
     }

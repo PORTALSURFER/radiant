@@ -1,7 +1,7 @@
 //! Container-specific layout routines for non-linear container kinds.
 
 use super::super::LayoutContext;
-use super::super::helpers::{fit_aspect_box, place_child_rect, select_switch_child};
+use super::super::helpers::{fit_aspect_box, place_child_rect_with_direction, select_switch_child};
 use super::layout_node;
 use super::linear::{resolve_cross_layout, resolve_nonfill_main};
 use crate::gui::layout_core::model::{CrossAlign, MainAlign};
@@ -34,7 +34,16 @@ pub(super) fn layout_stack(container: &ContainerNode, content: Rect, context: &m
             .slot
             .align_cross_override
             .unwrap_or(container.policy.align_cross);
-        let rect = place_child_rect(content, false, 0.0, height, width, child.slot, align);
+        let rect = place_child_rect_with_direction(
+            content,
+            false,
+            0.0,
+            height,
+            width,
+            child.slot,
+            align,
+            context.direction(),
+        );
         context.record_slot_margin(child.child.id(), rect, child.slot.margin);
         layout_node(&child.child, rect, context);
     }
@@ -96,12 +105,13 @@ pub(super) fn layout_align_box(
         context,
         child.child.id(),
     );
-    let rect = place_aligned_rect(
+    let rect = place_aligned_rect_with_direction(
         content,
         width,
         height,
         container.policy.align_main,
         container.policy.align_cross,
+        context.direction(),
     );
     context.record_slot_margin(child.child.id(), rect, child.slot.margin);
     layout_node(&child.child, rect, context);
@@ -117,12 +127,13 @@ pub(super) fn layout_aspect_box(
     };
     let ratio = container.policy.aspect_ratio.unwrap_or(1.0).max(0.0001);
     let (w, h) = fit_aspect_box(content.width(), content.height(), ratio);
-    let aspect_rect = place_aligned_rect(
+    let aspect_rect = place_aligned_rect_with_direction(
         content,
         w,
         h,
         container.policy.align_main,
         container.policy.align_cross,
+        context.direction(),
     );
     context.record_slot_margin(child.child.id(), aspect_rect, child.slot.margin);
     layout_node(&child.child, aspect_rect, context);
@@ -204,17 +215,30 @@ fn floating_layer_flip_up_y_offset(anchor_y: f32, layer_height: f32, container_h
     }
 }
 
-pub(super) fn place_aligned_rect(
+pub(super) fn place_aligned_rect_with_direction(
     content: Rect,
     width: f32,
     height: f32,
     main_align: MainAlign,
     cross_align: CrossAlign,
+    direction: crate::gui::layout_core::WritingDirection,
 ) -> Rect {
     let x = match cross_align {
-        CrossAlign::Start | CrossAlign::Stretch => content.min.x,
+        CrossAlign::Start | CrossAlign::Stretch => {
+            if direction == crate::gui::layout_core::WritingDirection::Rtl {
+                content.max.x - width
+            } else {
+                content.min.x
+            }
+        }
         CrossAlign::Center => content.min.x + ((content.width() - width) * 0.5),
-        CrossAlign::End => content.max.x - width,
+        CrossAlign::End => {
+            if direction == crate::gui::layout_core::WritingDirection::Rtl {
+                content.min.x
+            } else {
+                content.max.x - width
+            }
+        }
     };
     let y = match main_align {
         MainAlign::Start

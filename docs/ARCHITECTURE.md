@@ -1030,12 +1030,14 @@ internal, while a veto, candidate failure, or repeated same-generation failure
 enters `Closing` with the original `FrameRender` cause.
 
 Environment-aware widget paint is additive and remains in the core contract:
-`ResolvedEnvironment` is a lossless copyable projection of the current
-`WindowEnvironment`, and `WidgetPaintContext` borrows the existing bounds,
-layout, and theme inputs while carrying that value. Surface traversal derives
-one projection per plan and preserves it through clipped descendants and
-runtime overlays. Context-aware hooks default to one-call delegation to the
-legacy hooks, preserving object safety and existing callers.
+`ResolvedEnvironment` is a lossless combined snapshot of the current
+`WindowEnvironment` and immutable application environment. It shares the
+application catalog through `Arc`, and `WidgetPaintContext` borrows the
+resolved snapshot alongside existing bounds, layout, and theme inputs.
+Surface traversal derives one projection per plan and preserves it through
+clipped descendants and runtime overlays. Context-aware hooks default to
+one-call delegation to the legacy hooks, preserving object safety and existing
+callers.
 
 Appearance policy is layered above that environment projection. The
 backend-neutral `AppearancePolicy` either follows the snapshot or fixes an
@@ -1565,10 +1567,11 @@ Current shipped boundary: the native environment exposes display scale, color
 scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
 shipped. The additive `ApplicationEnvironment` snapshot carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
-presentation generation. Full RTL geometry, scale propagation, bidi, and
-complex shaping remain staged work; the selected bidi and complex-shaping
-architecture is recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md),
-with implementation under OPT-1386 and OPT-1402.
+  presentation generation. Logical RTL container geometry is implemented for
+  the phase-1 layout boundary; scale propagation, bidi, and complex shaping
+  remain staged work. The selected bidi and complex-shaping architecture is
+  recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md),
+  with implementation under OPT-1386 and OPT-1402.
 
 ## Platform Boundary
 

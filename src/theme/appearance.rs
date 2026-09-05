@@ -17,7 +17,7 @@ pub enum AppearancePolicy {
 
 impl AppearancePolicy {
     /// Resolve one immutable appearance snapshot for a paint pass.
-    pub fn resolve(self, environment: ResolvedEnvironment) -> ResolvedAppearance {
+    pub fn resolve(self, environment: &ResolvedEnvironment) -> ResolvedAppearance {
         ResolvedAppearance::resolve(self, environment)
     }
 
@@ -42,7 +42,7 @@ pub struct ResolvedAppearance {
 
 impl ResolvedAppearance {
     /// Resolve a policy against one lossless environment snapshot.
-    pub fn resolve(policy: AppearancePolicy, environment: ResolvedEnvironment) -> Self {
+    pub fn resolve(policy: AppearancePolicy, environment: &ResolvedEnvironment) -> Self {
         let (theme, color_scheme, contrast) = match policy {
             AppearancePolicy::Fixed(theme) => (theme, None, false),
             AppearancePolicy::FollowEnvironment => {
@@ -132,7 +132,7 @@ mod tests {
             (None, true, ThemeTokens::dark_high_contrast()),
         ];
         for (scheme, contrast, expected) in cases {
-            let resolved = AppearancePolicy::FollowEnvironment.resolve(environment(
+            let resolved = AppearancePolicy::FollowEnvironment.resolve(&environment(
                 scheme,
                 contrast,
                 DpiScale::ONE,
@@ -152,7 +152,7 @@ mod tests {
             Some(WindowColorScheme::Light),
             Some(WindowColorScheme::Dark),
         ] {
-            let resolved = AppearancePolicy::fixed(fixed).resolve(environment(
+            let resolved = AppearancePolicy::fixed(fixed).resolve(&environment(
                 scheme,
                 true,
                 DpiScale::new(2.0),
@@ -167,13 +167,13 @@ mod tests {
 
     #[test]
     fn scale_and_motion_do_not_change_followed_appearance() {
-        let a = AppearancePolicy::FollowEnvironment.resolve(environment(
+        let a = AppearancePolicy::FollowEnvironment.resolve(&environment(
             Some(WindowColorScheme::Light),
             false,
             DpiScale::ONE,
             false,
         ));
-        let b = AppearancePolicy::FollowEnvironment.resolve(environment(
+        let b = AppearancePolicy::FollowEnvironment.resolve(&environment(
             Some(WindowColorScheme::Light),
             false,
             DpiScale::new(3.0),

@@ -1606,8 +1606,9 @@ Current shipped boundary: the native environment exposes display scale, color
 scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
 shipped. The additive `ApplicationEnvironment` snapshot now carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
-presentation generation. Full RTL geometry, scale propagation, bidi, and
-complex shaping remain staged work under OPT-1386 and OPT-1402.
+presentation generation. Phase-1 logical RTL container geometry is shipped;
+scale propagation, bidi, and complex shaping remain staged work under OPT-1386
+and OPT-1402.
 
 At the native window scope, environment exposes only display scale, color
 scheme, contrast, and reduced-motion preference; application presentation

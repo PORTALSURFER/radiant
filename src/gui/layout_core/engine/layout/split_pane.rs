@@ -6,7 +6,7 @@ use crate::gui::layout_core::engine::LayoutDiagnosticCode;
 use crate::gui::layout_core::tree::ContainerNode;
 use crate::gui::layout_core::{SplitPaneRuntimeState, sanitize_runtime_ratio};
 use crate::gui::panel::{SplitPaneLayout, SplitPaneLayoutParts, quantized_split_pane_rects};
-use crate::gui::types::Rect;
+use crate::gui::types::{Point, Rect};
 
 pub(super) fn layout_split_pane(
     container: &ContainerNode,
@@ -62,6 +62,22 @@ pub(super) fn layout_split_pane(
         );
     }
     let (first, _divider, second) = quantized_split_pane_rects(resolved);
-    layout_node(&container.children[0].child, first, context);
-    layout_node(&container.children[1].child, second, context);
+    if context.direction() == crate::gui::layout_core::WritingDirection::Rtl
+        && policy.axis == crate::gui::panel::SplitPaneAxis::Horizontal
+    {
+        let first = mirror_horizontal(first, content);
+        let second = mirror_horizontal(second, content);
+        layout_node(&container.children[0].child, first, context);
+        layout_node(&container.children[1].child, second, context);
+    } else {
+        layout_node(&container.children[0].child, first, context);
+        layout_node(&container.children[1].child, second, context);
+    }
+}
+
+fn mirror_horizontal(rect: Rect, bounds: Rect) -> Rect {
+    Rect::from_min_max(
+        Point::new(bounds.max.x - rect.max.x + bounds.min.x, rect.min.y),
+        Point::new(bounds.max.x - rect.min.x + bounds.min.x, rect.max.y),
+    )
 }

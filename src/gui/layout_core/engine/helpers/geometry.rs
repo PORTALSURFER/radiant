@@ -3,7 +3,8 @@
 use crate::gui::layout_core::model::{CrossAlign, Insets, SlotParams};
 use crate::gui::types::{Point, Rect, Vector2};
 
-pub(in crate::gui::layout_core::engine) fn place_child_rect(
+#[allow(clippy::too_many_arguments)]
+pub(in crate::gui::layout_core::engine) fn place_child_rect_with_direction(
     content: Rect,
     horizontal: bool,
     cursor_main: f32,
@@ -11,9 +12,14 @@ pub(in crate::gui::layout_core::engine) fn place_child_rect(
     child_cross: f32,
     slot: SlotParams,
     align: CrossAlign,
+    direction: crate::gui::layout_core::WritingDirection,
 ) -> Rect {
     if horizontal {
-        let x = content.min.x + cursor_main;
+        let x = if direction == crate::gui::layout_core::WritingDirection::Rtl {
+            content.max.x - cursor_main - child_main
+        } else {
+            content.min.x + cursor_main
+        };
         let avail_cross = content.height() - slot.margin.top - slot.margin.bottom;
         let y = match align {
             CrossAlign::Start | CrossAlign::Stretch => content.min.y + slot.margin.top,
@@ -34,9 +40,21 @@ pub(in crate::gui::layout_core::engine) fn place_child_rect(
     let y = content.min.y + cursor_main;
     let avail_cross = content.width() - slot.margin.left - slot.margin.right;
     let x = match align {
-        CrossAlign::Start | CrossAlign::Stretch => content.min.x + slot.margin.left,
+        CrossAlign::Start | CrossAlign::Stretch => {
+            if direction == crate::gui::layout_core::WritingDirection::Rtl {
+                content.max.x - child_cross - slot.margin.right
+            } else {
+                content.min.x + slot.margin.left
+            }
+        }
         CrossAlign::Center => content.min.x + ((content.width() - child_cross) * 0.5),
-        CrossAlign::End => content.max.x - child_cross - slot.margin.right,
+        CrossAlign::End => {
+            if direction == crate::gui::layout_core::WritingDirection::Rtl {
+                content.min.x + slot.margin.left
+            } else {
+                content.max.x - child_cross - slot.margin.right
+            }
+        }
     };
     let w = if matches!(align, CrossAlign::Stretch) {
         avail_cross.max(0.0)

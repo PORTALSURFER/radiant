@@ -85,14 +85,16 @@ where
     ) {
         let candidate = self.prepare_layout_container_state_candidate(&traversal);
         let container_state_source = self.interaction.layout_state.read_source(&candidate);
-        self.layout_engine.layout_with_state_and_source_into(
-            &self.layout_root,
-            self.viewport,
-            &self.layout_state,
-            self.layout_debug_options,
-            Some(&container_state_source),
-            &mut self.layout,
-        );
+        self.layout_engine
+            .layout_with_state_and_direction_and_source_into(
+                &self.layout_root,
+                self.viewport,
+                &self.layout_state,
+                self.layout_debug_options,
+                self.surface.resolved_environment().writing_direction(),
+                Some(&container_state_source),
+                &mut self.layout,
+            );
         self.install_traversal_with_candidate(traversal, candidate);
         self.sync_scroll_offsets();
         self.record_completed_layout();
@@ -103,6 +105,7 @@ where
         self.completed_layout = Some(super::super::CompletedLayoutContext {
             viewport: effective_layout_viewport(self.viewport),
             window_environment: self.window_environment,
+            direction: self.surface.resolved_environment().writing_direction(),
             layout_state_generation: self.layout_state_generation,
             layout_debug_options: self.layout_debug_options,
         });

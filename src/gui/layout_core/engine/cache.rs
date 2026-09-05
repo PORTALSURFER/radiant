@@ -3,6 +3,7 @@
 use super::super::constraints::Constraints;
 use super::super::model::VirtualizationAxis;
 use super::super::tree::{ContainerNode, LayoutNode, NodeId};
+use crate::gui::layout_core::WritingDirection;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -49,6 +50,7 @@ pub(in crate::gui::layout_core::engine) struct VirtualizationCacheKey {
     axis: VirtualizationAxis,
     child_count: usize,
     policy_fingerprint: u64,
+    direction: WritingDirection,
 }
 
 impl VirtualizationCacheKey {
@@ -58,6 +60,7 @@ impl VirtualizationCacheKey {
         axis: VirtualizationAxis,
         child_count: usize,
         policy_fingerprint: u64,
+        direction: WritingDirection,
     ) -> Self {
         Self {
             node_id,
@@ -65,6 +68,7 @@ impl VirtualizationCacheKey {
             axis,
             child_count,
             policy_fingerprint,
+            direction,
         }
     }
 }
@@ -191,6 +195,7 @@ mod tests {
             VirtualizationAxis::Vertical,
             3,
             0,
+            crate::gui::layout_core::WritingDirection::Ltr,
         );
         cache.insert(
             key,

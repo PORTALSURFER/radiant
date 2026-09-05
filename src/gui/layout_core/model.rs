@@ -5,7 +5,9 @@ mod container;
 mod slot;
 mod virtualization;
 
-pub use alignment::{CrossAlign, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain};
+pub use alignment::{
+    CrossAlign, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, WritingDirection,
+};
 pub use container::{
     ContainerKind, ContainerPolicy, FloatingLayerHorizontalOverflow, FloatingLayerPolicy,
     FloatingLayerVerticalOverflow, GridPolicy, SplitPanePolicy, SwitchBreakpoint, WrapPolicy,

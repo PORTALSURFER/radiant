@@ -263,20 +263,22 @@ where
 
         let prepared_layout = if candidate_mounted_source_present {
             let container_state_source = self.interaction.layout_state.read_source(&mounted_state);
-            self.layout_engine.prepare_layout_with_state_and_source(
+            self.layout_engine.prepare_layout_with_direction_and_source(
                 layout_root,
                 self.viewport,
                 &self.layout_state,
                 self.layout_debug_options,
+                self.surface.resolved_environment().writing_direction(),
                 Some(&container_state_source),
                 authority.input,
             )
         } else {
-            self.layout_engine.prepare_layout_with_state_and_source(
+            self.layout_engine.prepare_layout_with_direction_and_source(
                 layout_root,
                 self.viewport,
                 &self.layout_state,
                 self.layout_debug_options,
+                self.surface.resolved_environment().writing_direction(),
                 None,
                 authority.input,
             )
@@ -306,18 +308,20 @@ where
         if self.layout_authority_exhausted {
             return None;
         }
-        let input = LayoutInputEvidence::new(
+        let input = LayoutInputEvidence::new_with_direction(
             Some(self.layout_root_authority),
             Some(self.layout_state_authority),
             mounted_source_present.then_some(self.mounted_layout_source_authority),
             self.viewport,
             self.layout_debug_options,
+            self.surface.resolved_environment().writing_direction(),
         );
         input
-            .is_valid_for_prepare(
+            .is_valid_for_prepare_with_direction(
                 self.viewport,
                 self.layout_debug_options,
                 mounted_source_present,
+                self.surface.resolved_environment().writing_direction(),
             )
             .then_some(input)
     }
@@ -327,21 +331,36 @@ where
         root_authority: LayoutAuthorityEvidence<RootLayoutAuthorityOwner>,
         mounted_source_present: bool,
     ) -> Option<LayoutInputEvidence> {
+        self.runtime_layout_input_evidence_for_root_with_direction(
+            root_authority,
+            mounted_source_present,
+            self.surface.resolved_environment().writing_direction(),
+        )
+    }
+
+    pub(in crate::runtime::controller) fn runtime_layout_input_evidence_for_root_with_direction(
+        &self,
+        root_authority: LayoutAuthorityEvidence<RootLayoutAuthorityOwner>,
+        mounted_source_present: bool,
+        direction: crate::gui::layout_core::WritingDirection,
+    ) -> Option<LayoutInputEvidence> {
         if self.layout_authority_exhausted {
             return None;
         }
-        let input = LayoutInputEvidence::new(
+        let input = LayoutInputEvidence::new_with_direction(
             Some(root_authority),
             Some(self.layout_state_authority),
             mounted_source_present.then_some(self.mounted_layout_source_authority),
             self.viewport,
             self.layout_debug_options,
+            direction,
         );
         input
-            .is_valid_for_prepare(
+            .is_valid_for_prepare_with_direction(
                 self.viewport,
                 self.layout_debug_options,
                 mounted_source_present,
+                direction,
             )
             .then_some(input)
     }

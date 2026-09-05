@@ -1,5 +1,15 @@
 //! Alignment, sizing, and overflow policy enums.
 
+/// Logical writing direction for layout and text presentation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum WritingDirection {
+    /// Left-to-right writing order.
+    #[default]
+    Ltr,
+    /// Right-to-left writing order.
+    Rtl,
+}
+
 /// Main-axis sizing mode for a slot.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeModeMain {

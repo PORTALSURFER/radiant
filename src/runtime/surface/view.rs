@@ -37,6 +37,15 @@ impl<Message> UiSurface<Message> {
         self.window_environment
     }
 
+    /// Resolve the current window and application snapshots together for one
+    /// surface traversal or paint pass.
+    pub(crate) fn resolved_environment(&self) -> crate::runtime::ResolvedEnvironment {
+        crate::runtime::ResolvedEnvironment::from_snapshots(
+            self.window_environment,
+            std::sync::Arc::clone(&self.application_environment),
+        )
+    }
+
     /// Return the immutable application presentation snapshot attached to this
     /// surface.
     pub fn application_environment(&self) -> &crate::application::ApplicationEnvironment {
@@ -203,5 +212,26 @@ mod tests {
             surface.application_environment().fallback_chain()[0].as_str(),
             "ar"
         );
+    }
+
+    #[test]
+    fn resolved_environment_is_isolated_per_surface() {
+        let root =
+            || SurfaceNode::button(1, "Save", WidgetSizing::fixed(Vector2::new(80.0, 24.0)), ());
+        let ltr = UiSurface::new(root())
+            .with_application_environment(ApplicationEnvironment::new(LocaleId::english()));
+        let rtl = UiSurface::new(root()).with_application_environment(
+            ApplicationEnvironment::new(LocaleId::new("ar").unwrap())
+                .with_writing_direction(crate::application::WritingDirection::Rtl),
+        );
+        assert_eq!(
+            ltr.resolved_environment().writing_direction(),
+            crate::application::WritingDirection::Ltr
+        );
+        assert_eq!(
+            rtl.resolved_environment().writing_direction(),
+            crate::application::WritingDirection::Rtl
+        );
+        assert_ne!(ltr.resolved_environment(), rtl.resolved_environment());
     }
 }

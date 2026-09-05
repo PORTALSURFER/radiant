@@ -11,7 +11,8 @@ pub(super) fn layout_wrap(container: &ContainerNode, content: Rect, context: &mu
     let item_gap = container.policy.wrap.item_gap.max(0.0);
     let line_gap = container.policy.wrap.line_gap.max(0.0);
 
-    let mut line_x = content.min.x;
+    let rtl = context.direction() == crate::gui::layout_core::WritingDirection::Rtl;
+    let mut line_x = if rtl { content.max.x } else { content.min.x };
     let mut line_y = content.min.y;
     let mut line_h = 0.0;
 
@@ -38,26 +39,41 @@ pub(super) fn layout_wrap(container: &ContainerNode, content: Rect, context: &mu
         );
         let span_w = width + child.slot.margin.left + child.slot.margin.right;
 
-        if line_x > content.min.x && (line_x + span_w) > content.max.x {
-            line_x = content.min.x;
+        let would_overflow = if rtl {
+            line_x < content.max.x && (line_x - span_w) < content.min.x
+        } else {
+            line_x > content.min.x && (line_x + span_w) > content.max.x
+        };
+        if would_overflow {
+            line_x = if rtl { content.max.x } else { content.min.x };
             line_y += line_h + line_gap;
             line_h = 0.0;
         }
 
+        let item_x = if rtl {
+            line_x - slot_margin_right(child) - width
+        } else {
+            line_x + child.slot.margin.left
+        };
         let item_rect = Rect::from_min_size(
-            Point::new(
-                line_x + child.slot.margin.left,
-                line_y + child.slot.margin.top,
-            ),
+            Point::new(item_x, line_y + child.slot.margin.top),
             Vector2::new(width, height),
         );
         context.record_slot_margin(child.child.id(), item_rect, child.slot.margin);
         layout_node(&child.child, item_rect, context);
-        line_x += span_w + item_gap;
+        line_x = if rtl {
+            line_x - span_w - item_gap
+        } else {
+            line_x + span_w + item_gap
+        };
         line_h = line_h.max(height + child.slot.margin.top + child.slot.margin.bottom);
     }
 
     if (line_y + line_h) > content.max.y {
         context.record_overflow(container.id, container.policy.overflow, false, true);
     }
+}
+
+fn slot_margin_right(child: &crate::gui::layout_core::tree::SlotChild) -> f32 {
+    child.slot.margin.right
 }

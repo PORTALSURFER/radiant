@@ -5,6 +5,7 @@ use super::super::{
 };
 use super::*;
 use crate::{
+    application::WritingDirection,
     gui::automation::AutomationRole,
     gui::input::{InputSequence, InputSequenceRange, InputTimestamp},
     gui::layout_core::{
@@ -1195,6 +1196,7 @@ struct SplitInteractionBridge {
     mounted: bool,
     nested: bool,
     focusable_panes: bool,
+    writing_direction: WritingDirection,
 }
 
 impl SplitInteractionBridge {
@@ -1215,6 +1217,7 @@ impl SplitInteractionBridge {
             mounted: true,
             nested: false,
             focusable_panes: false,
+            writing_direction: WritingDirection::Ltr,
         }
     }
 
@@ -1387,7 +1390,10 @@ impl SplitInteractionBridge {
                 vec![SurfaceChild::fill(split)],
             ))
         } else {
-            UiSurface::new(split)
+            UiSurface::new(split).with_application_environment(
+                crate::application::ApplicationEnvironment::default()
+                    .with_writing_direction(self.writing_direction),
+            )
         }
     }
 }
@@ -7325,6 +7331,21 @@ fn runtime_owned_split_capture_cancels_on_mode_and_container_geometry_changes() 
         PointerModifiers::default(),
     ));
     assert_eq!(geometry_runtime.layout().rects[&2].width(), 58.0);
+
+    let mut direction_runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    direction_runtime.dispatch_event(Event::primary_press(Point::new(52.0, 40.0)));
+    direction_runtime.dispatch_event(Event::pointer_move(Point::new(130.0, 100.0)));
+    assert_eq!(direction_runtime.layout().rects[&2].width(), 130.0);
+    assert!(direction_runtime.layout_pointer_capture().is_some());
+    direction_runtime.bridge_mut().writing_direction = WritingDirection::Rtl;
+    direction_runtime.refresh();
+    assert_eq!(direction_runtime.layout_pointer_capture(), None);
+    assert_eq!(direction_runtime.layout().rects[&2].width(), 48.0);
+    direction_runtime.dispatch_event(Event::pointer_move(Point::new(150.0, 100.0)));
+    assert_eq!(direction_runtime.layout().rects[&2].width(), 48.0);
 }
 
 #[test]

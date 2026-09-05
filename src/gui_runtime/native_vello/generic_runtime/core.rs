@@ -126,7 +126,7 @@ where
         plan: &mut crate::runtime::SurfacePaintPlan,
     ) -> PaintPlanCacheDecision {
         let environment = self.runtime.context().resolved_environment();
-        let appearance = self.appearance_policy.resolve(environment);
+        let appearance = self.appearance_policy.resolve(&environment);
         let context = self.runtime.base_paint_plan_context();
         if self.runtime.base_paint_plan_reuse_eligible()
             && self
@@ -254,7 +254,7 @@ where
         scope: crate::runtime::RepaintScope,
     ) -> Option<PreparedSurfaceRefresh<Message>> {
         let environment = self.runtime.context().resolved_environment();
-        let appearance = self.appearance_policy.resolve(environment);
+        let appearance = self.appearance_policy.resolve(&environment);
         self.runtime
             .prepare_fresh_surface_refresh(scope, appearance)
     }

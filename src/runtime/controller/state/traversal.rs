@@ -82,9 +82,10 @@ where
             .containers
             .scroll
             .refresh_visible(&self.layout);
-        self.traversal
-            .containers
-            .project_layout_targets(&self.layout);
+        self.traversal.containers.project_layout_targets(
+            &self.layout,
+            self.surface.resolved_environment().writing_direction(),
+        );
         self.reconcile_layout_pointer_capture();
     }
 

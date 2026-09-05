@@ -2,6 +2,7 @@ use super::super::super::{
     LayoutContainerStateReadSource, LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine,
     LayoutOutput, LayoutState, LayoutStats, layout_tree,
 };
+use crate::gui::layout_core::WritingDirection;
 use crate::gui::layout_core::{
     Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, ContainerStateId, Controlled,
     DebugPrimitiveKind, Insets, LayoutNode, MountedContainerStateId, MountedContainerStateRead,
@@ -73,6 +74,31 @@ fn split_policy(
         },
         ..ContainerPolicy::default()
     }
+}
+
+#[test]
+fn horizontal_split_rtl_places_first_logical_child_on_the_right() {
+    let policy = split_policy(SplitPaneAxis::Horizontal, 0.25, 4.0, 0.0, 0.0);
+    let root = split_node(
+        policy,
+        vec![
+            SlotChild {
+                slot: SlotParams::fill(),
+                child: LayoutNode::widget(2, Vector2::new(10.0, 10.0)),
+            },
+            SlotChild {
+                slot: SlotParams::fill(),
+                child: LayoutNode::widget(3, Vector2::new(10.0, 10.0)),
+            },
+        ],
+    );
+    let output = crate::layout::layout_tree_with_direction(
+        &root,
+        Rect::from_size(100.0, 20.0),
+        WritingDirection::Rtl,
+    );
+    assert!(output.rects[&2].min.x > output.rects[&3].min.x);
+    assert_eq!(output.rects[&2].width(), 24.0);
 }
 
 fn split_node(policy: ContainerPolicy, children: Vec<SlotChild>) -> LayoutNode {

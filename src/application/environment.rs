@@ -1,19 +1,10 @@
 //! Application-owned presentation environment.
 
 use super::localization::{LocaleId, LocalizedText, TextCatalog, TextKey};
+pub use crate::gui::layout_core::WritingDirection;
 use crate::gui::shortcuts::ShortcutPlatform;
 use crate::runtime::{RepaintScope, SurfaceInvalidation};
 use std::sync::Arc;
-
-/// Logical writing direction for layout and text presentation.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum WritingDirection {
-    /// Left-to-right writing order.
-    #[default]
-    Ltr,
-    /// Right-to-left writing order.
-    Rtl,
-}
 
 /// A change to application-owned presentation inputs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

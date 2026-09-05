@@ -38,8 +38,8 @@ impl<'a, Message> RuntimeContext<'a, Message> {
     }
 
     /// Return the current widget-facing environment projection.
-    pub const fn resolved_environment(&self) -> ResolvedEnvironment {
-        self.surface.window_environment().resolved()
+    pub fn resolved_environment(&self) -> ResolvedEnvironment {
+        self.surface.resolved_environment()
     }
 
     /// Return the immutable application presentation snapshot for this surface.
@@ -428,11 +428,11 @@ mod tests {
         }
 
         fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
-            *self.base.lock().unwrap() = Some(context.environment());
+            *self.base.lock().unwrap() = Some(context.environment().clone());
         }
 
         fn append_runtime_overlay_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
-            *self.overlay.lock().unwrap() = Some(context.environment());
+            *self.overlay.lock().unwrap() = Some(context.environment().clone());
         }
     }
 

@@ -30,6 +30,19 @@ where
         self.native_focus_regained_command()
     }
 
+    fn resolve_command(
+        &mut self,
+        request: crate::application::CommandRequest<'_>,
+        focus: crate::application::CommandFocus,
+    ) -> crate::application::CommandDispatch<Message> {
+        self.lifecycle
+            .command_router
+            .as_ref()
+            .map_or_else(crate::application::CommandDispatch::unhandled, |router| {
+                router(&self.state, request, focus)
+            })
+    }
+
     fn resolve_key_press(
         &mut self,
         pending_chord: Option<KeyPress>,

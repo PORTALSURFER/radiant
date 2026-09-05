@@ -350,3 +350,7 @@ path = "examples/rendering_baseline.rs"
 [[example]]
 name = "component_projection"
 path = "examples/component_projection.rs"
+
+[[example]]
+name = "contextual_commands"
+path = "examples/contextual_commands.rs"

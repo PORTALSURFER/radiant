@@ -55,6 +55,36 @@ where
         self
     }
 
+    /// Register one semantic command mapper and a read-only current-scope projection.
+    ///
+    /// The projection supplies active scopes from current application state and runtime
+    /// focus. Clone unchanged scope snapshots; replace them when captured context changes.
+    /// Mapped invocations enter the ordinary application reducer. Only an unmatched input
+    /// permits subsequent legacy shortcut handling.
+    pub fn commands<Context: 'static>(
+        mut self,
+        registry: crate::application::CommandRegistry,
+        project: impl Fn(
+            &State,
+            crate::application::CommandFocus,
+        ) -> crate::application::CommandSnapshot<Context>
+        + 'static,
+        dispatcher: crate::application::CommandDispatcher<Context, Message>,
+    ) -> Self {
+        self.lifecycle.command_router = Some(Box::new(move |state, request, focus| {
+            let snapshot = project(state, focus);
+            match request {
+                crate::application::CommandRequest::Input(input) => {
+                    dispatcher.input(&registry, &snapshot.scopes, &snapshot.keymap, input)
+                }
+                crate::application::CommandRequest::Target(target, source) => {
+                    dispatcher.target(&registry, &snapshot.scopes, target, source)
+                }
+            }
+        }));
+        self
+    }
+
     /// Resolve app-level keyboard shortcuts before focused-widget key routing.
     pub fn shortcuts(
         mut self,

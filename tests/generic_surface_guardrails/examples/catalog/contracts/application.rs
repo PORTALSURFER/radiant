@@ -188,4 +188,14 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "public_component_example_skips_unchanged_sibling_after_click",
         ],
     ),
+    (
+        "contextual_commands",
+        &[
+            "CommandRegistry::new(",
+            "CommandDispatcher::new(",
+            "CommandRequest::Target(",
+            "dispatch_command_request(",
+            "example_routes_shortcut_and_menu_through_reducer",
+        ],
+    ),
 ];

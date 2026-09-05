@@ -3949,6 +3949,11 @@ per host animation poll and consumed by the corresponding paint. Direct paint
 or a newly projected scene evaluates an unsampled predicate once as a fallback.
 Presentation declarations do not become layout or input children, so they do
 not change base hit testing, layer ordering, or widget state synchronization.
+Semantic command registration and the explicit host dispatch boundary are documented in
+[CONTEXTUAL_COMMANDS.md](CONTEXTUAL_COMMANDS.md). This foundation shares metadata,
+keymaps, active scope resolution and an application mapper; native keyboard and automatic
+view/menu adapters remain separate integration work. Existing catalogs retain their behavior.
+
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered
 `ShortcutLayer` values plus an optional fallback resolver for dynamic keys such
@@ -6675,6 +6680,7 @@ manual validation:
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Localization and shortcut presentation | `localization_foundation` |
+| Contextual command registry, keymaps and explicit host/reducer dispatch | `contextual_commands` |
 | Exact-input component projection reuse | `component_projection` |
 | Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
@@ -6690,6 +6696,9 @@ manual validation:
 Run `cargo run --example rendering_baseline --release -- local /tmp/radiant-local.jsonl`
 for a bounded native observation capture. See `NATIVE_BASELINE_RECORDER.md` for
 qualification, cold/warm separation and unavailable GPU timing handling.
+
+Run `cargo run --example contextual_commands` for explicit headless command dispatch
+through the application reducer and revalidated presentation targets.
 
 Run `cargo run --example component_projection` for exact-input component reuse
 with observable callback counts. See `COMPONENT_PROJECTION.md` for dependencies,

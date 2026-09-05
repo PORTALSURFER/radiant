@@ -7,7 +7,7 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 33] = [
+const COUNTER_FIELDS: [&str; 34] = [
     "scene_rebuild_count",
     "static_rebuild_count",
     "paint_only_count",
@@ -41,6 +41,7 @@ const COUNTER_FIELDS: [&str; 33] = [
     "reconciliation_fallbacks",
     "component_projection_callback_count",
     "component_projection_cache_hit_count",
+    "layout_node_visit_count",
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,6 +97,11 @@ impl ScenarioCounters {
 
     pub(crate) fn with_component_projection_cache_hit_count(mut self, value: u64) -> Self {
         self.values[32] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_layout_node_visit_count(mut self, value: u64) -> Self {
+        self.values[33] = Some(value);
         self
     }
 

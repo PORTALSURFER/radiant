@@ -109,11 +109,11 @@ impl<'a> LayoutContext<'a> {
         node: &super::LayoutNode,
         rect: crate::gui::types::Rect,
     ) {
-        if let Some(trace) = self.fragment_trace.take() {
-            if self.linear_windows.is_empty() {
-                self.fragments
-                    .capture(node, rect, self.direction, self.output, trace);
-            }
+        if let Some(trace) = self.fragment_trace.take()
+            && self.linear_windows.is_empty()
+        {
+            self.fragments
+                .capture(node, rect, self.direction, self.output, trace);
         }
     }
 

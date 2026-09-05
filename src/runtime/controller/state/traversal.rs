@@ -42,6 +42,17 @@ where
             .wheel_targets
             .set_order(traversal.wheel_target_order);
         self.traversal.widgets.stateful_order = traversal.stateful_widget_order;
+        self.traversal.widgets.stateful_ordinals.clear();
+        self.traversal
+            .widgets
+            .stateful_ordinals
+            .reserve(self.traversal.widgets.stateful_order.len());
+        for (ordinal, widget_id) in self.traversal.widgets.stateful_order.iter().enumerate() {
+            self.traversal
+                .widgets
+                .stateful_ordinals
+                .insert(*widget_id, ordinal);
+        }
         self.traversal
             .containers
             .styled
@@ -100,6 +111,7 @@ where
         &mut self,
         reuse_widget_paths: bool,
     ) -> SurfaceTraversalIndex<Message> {
+        self.traversal.widgets.stateful_ordinals.clear();
         SurfaceTraversalIndex {
             widget_paint_order: std::mem::take(&mut self.traversal.widgets.hit_order),
             focusable_widget_order: self.traversal.widgets.focusable.take_order(),

@@ -63,6 +63,10 @@ impl Widget for UnsupportedPreparedRefreshWidget {
         true
     }
 
+    fn needs_state_synchronization(&self) -> bool {
+        true
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -434,12 +438,17 @@ pub(super) struct PreparedRefreshTerminalMessage;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PreparedRefreshEvent {
+    Sync(u64),
+    Replacement { old: u64, new: u64 },
+    Mapper(u64),
+    Drop(u64),
     ProjectionAdmitted,
     CandidateHeld,
     ProjectionCompleted,
     LayoutAdmitted,
     LayoutCompleted,
     PaintPlanAdmitted,
+    InteractionPublished,
     Published,
     PaintPlanCompleted,
     SceneEncode,
@@ -456,24 +465,48 @@ struct PreparedRefreshTerminalOutput;
 struct PreparedRefreshReplacementWidget {
     common: crate::widgets::WidgetCommon,
     paint_revision: u64,
+    generation: u64,
+    recorder: PreparedRefreshRecorder,
 }
 
 impl PreparedRefreshReplacementWidget {
-    fn new(paint_revision: u64, root_id: u64) -> Self {
+    fn new(
+        _paint_revision: u64,
+        root_id: u64,
+        generation: u64,
+        recorder: PreparedRefreshRecorder,
+    ) -> Self {
         Self {
-            common: crate::widgets::WidgetCommon::fixed(root_id, 120.0, 28.0),
-            paint_revision,
+            common: crate::widgets::WidgetCommon::fixed(root_id, 120.0, 28.0).with_keyboard_focus(),
+            paint_revision: 1,
+            generation,
+            recorder,
         }
+    }
+}
+
+impl Drop for PreparedRefreshReplacementWidget {
+    fn drop(&mut self) {
+        self.recorder
+            .borrow_mut()
+            .push(PreparedRefreshEvent::Drop(self.generation));
     }
 }
 
 impl crate::widgets::Widget for PreparedRefreshReplacementWidget {
     fn revision(&self) -> crate::widgets::WidgetRevision {
-        crate::widgets::WidgetRevision::exact((), (), self.paint_revision, ())
+        let _paint_revision = self.paint_revision;
+        crate::widgets::WidgetRevision::exact((), (), (), self.generation)
     }
 
     fn supports_prepared_state_synchronization(&self) -> bool {
         true
+    }
+
+    fn synchronize_from_previous(&mut self, _previous: &dyn crate::widgets::Widget) {
+        self.recorder
+            .borrow_mut()
+            .push(PreparedRefreshEvent::Sync(self.generation));
     }
 
     fn common(&self) -> &crate::widgets::WidgetCommon {
@@ -497,7 +530,13 @@ impl crate::widgets::Widget for PreparedRefreshReplacementWidget {
         successor: Option<&dyn crate::widgets::Widget>,
     ) -> Option<crate::widgets::WidgetOutput> {
         let successor = successor?.as_any().downcast_ref::<Self>()?;
-        (successor.paint_revision != self.paint_revision)
+        self.recorder
+            .borrow_mut()
+            .push(PreparedRefreshEvent::Replacement {
+                old: self.generation,
+                new: successor.generation,
+            });
+        (successor.generation != self.generation)
             .then(|| crate::widgets::WidgetOutput::typed(PreparedRefreshTerminalOutput))
     }
 
@@ -518,11 +557,20 @@ impl crate::widgets::Widget for PreparedRefreshReplacementWidget {
     }
 }
 
-fn prepared_refresh_message_mapper() -> WidgetMessageMapper<PreparedRefreshTerminalMessage> {
+fn prepared_refresh_message_mapper(
+    recorder: PreparedRefreshRecorder,
+    generation: u64,
+) -> WidgetMessageMapper<PreparedRefreshTerminalMessage> {
     WidgetMessageMapper::dynamic_mapped(
-        crate::runtime::EventMapper::with_revision((), |_output: PreparedRefreshTerminalOutput| {
-            PreparedRefreshTerminalMessage
-        })
+        crate::runtime::EventMapper::with_revision(
+            (),
+            move |_output: PreparedRefreshTerminalOutput| {
+                recorder
+                    .borrow_mut()
+                    .push(PreparedRefreshEvent::Mapper(generation));
+                PreparedRefreshTerminalMessage
+            },
+        )
         .typed_mapped(),
     )
 }
@@ -545,6 +593,24 @@ impl PreparedRefreshReplacementBridge {
             recorder,
         }
     }
+
+    fn surface(&self) -> UiSurface<PreparedRefreshTerminalMessage> {
+        let paint_revision = if self.replace { 2 } else { 1 };
+        let generation = paint_revision;
+        UiSurface::new(SurfaceNode::container(
+            100,
+            crate::layout::ContainerPolicy::default(),
+            vec![crate::runtime::SurfaceChild::fill(SurfaceNode::widget(
+                PreparedRefreshReplacementWidget::new(
+                    paint_revision,
+                    self.root_id,
+                    generation,
+                    Rc::clone(&self.recorder),
+                ),
+                prepared_refresh_message_mapper(Rc::clone(&self.recorder), generation),
+            ))],
+        ))
+    }
 }
 
 impl RuntimeBridge<PreparedRefreshTerminalMessage> for PreparedRefreshReplacementBridge {
@@ -554,11 +620,35 @@ impl RuntimeBridge<PreparedRefreshTerminalMessage> for PreparedRefreshReplacemen
 
     fn project_surface(&mut self) -> Arc<UiSurface<PreparedRefreshTerminalMessage>> {
         self.project_count += 1;
-        let paint_revision = if self.replace { 2 } else { 1 };
-        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::widget(
-            PreparedRefreshReplacementWidget::new(paint_revision, self.root_id),
-            prepared_refresh_message_mapper(),
-        )))
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn surface_update_provider_authority(
+        &self,
+    ) -> Option<crate::runtime::SurfaceUpdateProviderAuthority> {
+        Some(crate::runtime::SurfaceUpdateProviderAuthority {
+            owner: 901,
+            checked_revision: 1,
+        })
+    }
+
+    fn pull_surface_update(
+        &mut self,
+        request: crate::runtime::SurfaceRefreshRequest,
+    ) -> crate::runtime::SurfaceUpdate<PreparedRefreshTerminalMessage> {
+        crate::runtime::SurfaceUpdate::ExactChangedRoots(crate::runtime::ExactChangedRoots {
+            surface: self.surface(),
+            runtime_identity: request.runtime_identity,
+            request_revision: request.request_revision,
+            active_surface_generation: request.active_surface_generation,
+            viewport: request.viewport,
+            window_environment: request.window_environment,
+            provider_authority: request.expected_provider_authority,
+            changed_roots: vec![crate::runtime::ExactChangedRoot {
+                node_id: self.root_id,
+                child_path: vec![0],
+            }],
+        })
     }
 
     fn update(

@@ -1608,6 +1608,7 @@ fn post_projection_layout_veto_discards_without_running_active_refresh_tail() {
                 let event = match phase {
                     "projection-admitted" => PreparedRefreshEvent::ProjectionAdmitted,
                     "projection-complete" => PreparedRefreshEvent::ProjectionCompleted,
+                    "interaction-published" => return,
                     _ => panic!("unexpected prepared refresh phase: {phase}"),
                 };
                 recorder.borrow_mut().push(event);
@@ -1623,8 +1624,8 @@ fn post_projection_layout_veto_discards_without_running_active_refresh_tail() {
 
     assert_eq!(
         runner.core.runtime.bridge().project_count,
-        before_project_count + 1,
-        "the held candidate may pull once, but a post-Projection veto must not replay projection"
+        before_project_count,
+        "the held candidate may pull once, but a post-Projection veto must not project again"
     );
     assert_eq!(runner.frame.last_paint_plan, before_plan);
     assert_eq!(runner.frame.last_scene_stats, before_scene_stats);
@@ -1642,6 +1643,7 @@ fn post_projection_layout_veto_discards_without_running_active_refresh_tail() {
         prepared_refresh_events(&recorder),
         vec![
             PreparedRefreshEvent::ProjectionAdmitted,
+            PreparedRefreshEvent::Drop(1),
             PreparedRefreshEvent::ProjectionCompleted,
         ],
         "a Layout veto must not publish scene or terminal work"
@@ -1755,48 +1757,54 @@ fn prepared_refresh_dispatches_replacement_terminal_after_scene_admission() {
         let recorder = Rc::clone(&recorder);
         move || record_prepared_refresh_scene_admission(&recorder)
     }));
-    let before_refresh = runner.core.runtime.refresh_counters();
+    runner
+        .core
+        .set_test_prepared_surface_refresh_phase_observer(Rc::new({
+            let recorder = Rc::clone(&recorder);
+            move |phase| {
+                let event = match phase {
+                    "interaction-published" => PreparedRefreshEvent::InteractionPublished,
+                    "published" => PreparedRefreshEvent::Published,
+                    _ => return,
+                };
+                recorder.borrow_mut().push(event);
+            }
+        }));
     runner.core.runtime.bridge_mut().replace = true;
-    // The native owner needs a real window/device resource bundle; exercise
-    // the same prepared transaction directly and keep completion on the
-    // production ordering helper below.
-    let prepared = runner
-        .core
-        .prepare_prepared_surface_refresh(crate::runtime::RepaintScope::Projection)
-        .expect("prepared refresh candidate");
-    let terminal_messages = runner
-        .core
-        .publish_prepared_surface_refresh(&mut runner.frame.last_paint_plan, prepared);
-    let terminal_messages = terminal_messages.expect("prepared replacement terminal messages");
-    assert_eq!(terminal_messages.len(), 1);
-
-    let after_plan = runner.core.runtime.refresh_counters();
-    assert_eq!(
-        after_plan.base_paint_plan_rebuilds,
-        before_refresh.base_paint_plan_rebuilds + 1
+    runner.timing.deferred_surface_refresh = true;
+    runner.timing.deferred_surface_refresh_scope = Some(crate::runtime::RepaintScope::Projection);
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
     );
-    runner.frame.scene_texture_dirty = false;
-    runner.complete_prepared_surface_refresh(terminal_messages);
+    assert!(runner.core.prepared_surface_refresh_was_interaction());
 
-    assert_eq!(runner.frame.scene_encode_count, 2);
-    assert_eq!(runner.frame.scene_reuse_count, 0);
-    assert_eq!(
-        prepared_refresh_events(&recorder),
-        vec![
-            PreparedRefreshEvent::SceneEncode,
-            PreparedRefreshEvent::SceneAdmitted,
-            PreparedRefreshEvent::TerminalUpdate(PreparedRefreshTerminalMessage),
-        ]
-    );
+    let events = prepared_refresh_events(&recorder);
+    let position = |event: PreparedRefreshEvent| {
+        events
+            .iter()
+            .position(|candidate| *candidate == event)
+            .unwrap_or_else(|| panic!("missing event {event:?} in {events:?}"))
+    };
+    let sync = position(PreparedRefreshEvent::Sync(2));
+    let replacement = position(PreparedRefreshEvent::Replacement { old: 1, new: 2 });
+    let mapper = position(PreparedRefreshEvent::Mapper(1));
+    let interaction_published = position(PreparedRefreshEvent::InteractionPublished);
+    let published = position(PreparedRefreshEvent::Published);
+    let drop = position(PreparedRefreshEvent::Drop(1));
+    let scene_admitted = position(PreparedRefreshEvent::SceneAdmitted);
+    let terminal = position(PreparedRefreshEvent::TerminalUpdate(
+        PreparedRefreshTerminalMessage,
+    ));
+    assert!(sync < replacement);
+    assert!(replacement < mapper);
+    assert!(mapper < interaction_published);
+    assert!(interaction_published < drop, "{events:?}");
+    assert!(drop < published);
+    assert!(drop < scene_admitted);
+    assert!(scene_admitted < terminal);
+    assert!(!events.contains(&PreparedRefreshEvent::Mapper(2)));
     assert!(runner.frame.scene_texture_dirty);
-    assert_eq!(
-        runner
-            .core
-            .runtime
-            .refresh_counters()
-            .base_paint_plan_rebuilds,
-        after_plan.base_paint_plan_rebuilds
-    );
 }
 
 #[test]
@@ -1818,6 +1826,7 @@ fn prepared_refresh_orders_projection_candidate_layout_publication_scene_and_ter
                     "projection-admitted" => PreparedRefreshEvent::ProjectionAdmitted,
                     "candidate-held" => PreparedRefreshEvent::CandidateHeld,
                     "projection-complete" => PreparedRefreshEvent::ProjectionCompleted,
+                    "interaction-published" => return,
                     "layout-admitted" => PreparedRefreshEvent::LayoutAdmitted,
                     "layout-complete" => PreparedRefreshEvent::LayoutCompleted,
                     "paint-plan-admitted" => PreparedRefreshEvent::PaintPlanAdmitted,
@@ -1838,6 +1847,7 @@ fn prepared_refresh_orders_projection_candidate_layout_publication_scene_and_ter
     }));
     runner.core.runtime.bridge_mut().replace = true;
     runner.timing.deferred_surface_refresh = true;
+    runner.timing.deferred_surface_refresh_scope = Some(crate::runtime::RepaintScope::Surface);
 
     runner.refresh_deferred_surface_if_needed_for_test(
         &mut RenderFrameProfile::default(),
@@ -1848,16 +1858,23 @@ fn prepared_refresh_orders_projection_candidate_layout_publication_scene_and_ter
         prepared_refresh_events(&recorder),
         vec![
             PreparedRefreshEvent::ProjectionAdmitted,
+            PreparedRefreshEvent::Sync(2),
             PreparedRefreshEvent::CandidateHeld,
             PreparedRefreshEvent::ProjectionCompleted,
             PreparedRefreshEvent::LayoutAdmitted,
             PreparedRefreshEvent::LayoutCompleted,
             PreparedRefreshEvent::PaintPlanAdmitted,
+            PreparedRefreshEvent::Replacement { old: 1, new: 2 },
+            PreparedRefreshEvent::Mapper(1),
+            PreparedRefreshEvent::Drop(1),
             PreparedRefreshEvent::Published,
             PreparedRefreshEvent::PaintPlanCompleted,
             PreparedRefreshEvent::SceneEncode,
             PreparedRefreshEvent::SceneAdmitted,
             PreparedRefreshEvent::TerminalUpdate(PreparedRefreshTerminalMessage),
+            PreparedRefreshEvent::Replacement { old: 2, new: 2 },
+            PreparedRefreshEvent::Sync(2),
+            PreparedRefreshEvent::Drop(2),
         ]
     );
     assert!(!runner.frame_stage_owner.has_in_flight());

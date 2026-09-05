@@ -1,4 +1,7 @@
+use super::source::{OverlayEvidence, SourceCompatibility, SourceIdentity, SourceMetadata};
+use super::widget::WidgetCapabilityEvidence;
 use super::{UiSurface, WidgetDispatchResult, WidgetPath};
+use crate::application::DeclarativeEffectOwner;
 use crate::widgets::{WidgetId, WidgetRevision};
 use std::collections::{HashMap, HashSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -46,6 +49,14 @@ struct WidgetReplacementPlanEntry {
 /// message mapping occur only through [`UiSurface::commit_widget_replacements`].
 pub(in crate::runtime) struct WidgetReplacementPlan {
     entries: Vec<WidgetReplacementPlanEntry>,
+}
+
+impl WidgetReplacementPlan {
+    pub(in crate::runtime) fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
 }
 
 /// A replacement plan whose complete read-only evidence has been validated.
@@ -118,6 +129,162 @@ pub(in crate::runtime) struct PreparedWidgetStateSyncEvidence<'a> {
     pub(in crate::runtime) policy: WidgetStateSyncPolicy,
 }
 
+/// Immutable witness captured for every selected predecessor/successor leaf
+/// before the first synchronization callback.  The live fields are queried
+/// from the erased widget object; the cached fields come from the
+/// `SurfaceWidget` boundary record. Keeping both prevents runtime-owned state
+/// mutation from masquerading as unchanged declarative evidence.
+pub(in crate::runtime) struct PreparedWidgetStateSyncWitness {
+    pub(in crate::runtime) entries: Vec<PreparedWidgetStateSyncLeafWitness>,
+}
+
+pub(in crate::runtime) struct PreparedWidgetStateSyncLeafWitness {
+    pub(in crate::runtime) widget_id: WidgetId,
+    pub(in crate::runtime) previous_path: WidgetPath,
+    pub(in crate::runtime) current_path: WidgetPath,
+    previous_cached_revision: WidgetRevision,
+    previous_live_revision: WidgetRevision,
+    current_cached_revision: WidgetRevision,
+    current_live_revision: WidgetRevision,
+    previous_cached_capabilities: WidgetCapabilityEvidence,
+    previous_live_capabilities: WidgetCapabilityEvidence,
+    current_cached_capabilities: WidgetCapabilityEvidence,
+    current_live_capabilities: WidgetCapabilityEvidence,
+    previous_support: bool,
+    current_support: bool,
+    previous_membership: [bool; 7],
+    current_membership: [bool; 7],
+    previous_cached_id: WidgetId,
+    previous_live_id: WidgetId,
+    current_cached_id: WidgetId,
+    current_live_id: WidgetId,
+    previous_sources: Vec<Option<PreparedSourceMetadataWitness>>,
+    current_sources: Vec<Option<PreparedSourceMetadataWitness>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PreparedSourceMetadataWitness {
+    identity: SourceIdentity,
+    compatibility: SourceCompatibility,
+    keyed_nodes: Vec<(
+        SourceIdentity,
+        SourceCompatibility,
+        Option<DeclarativeEffectOwner>,
+    )>,
+    overlays: Vec<OverlayEvidence>,
+}
+
+impl PreparedSourceMetadataWitness {
+    fn capture(metadata: &SourceMetadata) -> Self {
+        Self {
+            identity: metadata.identity,
+            compatibility: metadata.compatibility,
+            keyed_nodes: metadata
+                .topology
+                .keyed_nodes
+                .iter()
+                .map(|node| (node.identity(), node.compatibility(), node.effect_owner()))
+                .collect(),
+            overlays: metadata.topology.overlays.clone(),
+        }
+    }
+}
+
+fn freeze_source_path(
+    sources: &[Option<std::rc::Rc<SourceMetadata>>],
+) -> Vec<Option<PreparedSourceMetadataWitness>> {
+    sources
+        .iter()
+        .map(|source| {
+            source
+                .as_deref()
+                .map(PreparedSourceMetadataWitness::capture)
+        })
+        .collect()
+}
+
+impl PreparedWidgetStateSyncLeafWitness {
+    pub(super) fn capture<Message>(
+        widget_id: WidgetId,
+        previous_path: WidgetPath,
+        current_path: WidgetPath,
+        previous: &super::SurfaceWidget<Message>,
+        current: &super::SurfaceWidget<Message>,
+        previous_sources: Vec<Option<std::rc::Rc<SourceMetadata>>>,
+        current_sources: Vec<Option<std::rc::Rc<SourceMetadata>>>,
+    ) -> Self {
+        let previous_cached = previous.revision_evidence();
+        let current_cached = current.revision_evidence();
+        Self {
+            widget_id,
+            previous_path,
+            current_path,
+            previous_cached_revision: previous_cached.revision.clone(),
+            previous_live_revision: previous.live_revision(),
+            current_cached_revision: current_cached.revision.clone(),
+            current_live_revision: current.live_revision(),
+            previous_cached_capabilities: previous_cached.capabilities.clone(),
+            previous_live_capabilities: previous.live_capability_evidence(),
+            current_cached_capabilities: current_cached.capabilities.clone(),
+            current_live_capabilities: current.live_capability_evidence(),
+            previous_support: previous.supports_prepared_state_synchronization(),
+            current_support: current.supports_prepared_state_synchronization(),
+            previous_membership: previous.prepared_state_membership(),
+            current_membership: current.prepared_state_membership(),
+            previous_cached_id: previous_cached.id,
+            previous_live_id: previous.id(),
+            current_cached_id: current_cached.id,
+            current_live_id: current.id(),
+            previous_sources: freeze_source_path(&previous_sources),
+            current_sources: freeze_source_path(&current_sources),
+        }
+    }
+
+    fn current_is_unchanged<Message>(
+        &self,
+        current: &super::SurfaceWidget<Message>,
+        current_sources: &[Option<std::rc::Rc<SourceMetadata>>],
+    ) -> bool {
+        let cached = current.revision_evidence();
+        cached.valid
+            && current.cached_revision_is_exact()
+            && cached.revision == self.current_cached_revision
+            && current.live_revision() == self.current_live_revision
+            && cached.revision == current.live_revision()
+            && cached.capabilities == self.current_cached_capabilities
+            && current.live_capability_evidence() == self.current_live_capabilities
+            && cached.capabilities == current.live_capability_evidence()
+            && current.supports_prepared_state_synchronization() == self.current_support
+            && current.prepared_state_membership() == self.current_membership
+            && cached.id == self.current_cached_id
+            && current.id() == self.current_live_id
+            && cached.id == current.id()
+            && freeze_source_path(current_sources) == self.current_sources
+    }
+
+    pub(super) fn previous_is_unchanged<Message>(
+        &self,
+        previous: &super::SurfaceWidget<Message>,
+        previous_sources: &[Option<std::rc::Rc<SourceMetadata>>],
+    ) -> bool {
+        let cached = previous.revision_evidence();
+        cached.valid
+            && previous.cached_revision_is_exact()
+            && cached.revision == self.previous_cached_revision
+            && previous.live_revision() == self.previous_live_revision
+            && cached.revision == previous.live_revision()
+            && cached.capabilities == self.previous_cached_capabilities
+            && previous.live_capability_evidence() == self.previous_live_capabilities
+            && cached.capabilities == previous.live_capability_evidence()
+            && previous.supports_prepared_state_synchronization() == self.previous_support
+            && previous.prepared_state_membership() == self.previous_membership
+            && cached.id == self.previous_cached_id
+            && previous.id() == self.previous_live_id
+            && cached.id == previous.id()
+            && freeze_source_path(previous_sources) == self.previous_sources
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::runtime) struct WidgetStateSyncPolicy {
     exclusive_pointer_capture: Option<WidgetId>,
@@ -148,23 +315,30 @@ impl WidgetStateSyncPolicy {
 }
 
 impl<Message> UiSurface<Message> {
-    /// Preflight and then synchronize one detached successor batch.
-    ///
-    /// This operation is intentionally separate from the established direct
-    /// refresh method. It performs no mapper, output, replacement, owner, or
-    /// runtime dispatch, and catches unwind across only the candidate-owned
-    /// callbacks.
-    pub(in crate::runtime) fn prepare_and_synchronize_widget_state(
+    pub(in crate::runtime) fn preflight_prepared_widget_state_sync(
+        &self,
+        previous: &Self,
+        evidence: PreparedWidgetStateSyncEvidence<'_>,
+    ) -> Result<PreparedWidgetStateSyncWitness, PreparedWidgetStateSyncVeto> {
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            self.root
+                .preflight_prepared_widget_state_sync(&evidence, &previous.root)
+        }));
+        match result {
+            Ok(result) => result,
+            Err(_) => Err(PreparedWidgetStateSyncVeto::Panicked),
+        }
+    }
+
+    pub(in crate::runtime) fn synchronize_prepared_widget_state(
         &mut self,
         previous: &Self,
         evidence: PreparedWidgetStateSyncEvidence<'_>,
+        witness: &PreparedWidgetStateSyncWitness,
     ) -> Result<(), PreparedWidgetStateSyncVeto> {
         let result = catch_unwind(AssertUnwindSafe(|| {
             self.root
-                .preflight_prepared_widget_state_sync(&evidence, &previous.root)?;
-            self.root
-                .synchronize_prepared_widget_state(&evidence, &previous.root)?;
-            Ok(())
+                .synchronize_prepared_widget_state(&evidence, witness, &previous.root)
         }));
         match result {
             Ok(result) => result,
@@ -177,11 +351,36 @@ impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn prepared_widget_state_sync_is_current(
         &self,
         previous: &Self,
-        evidence: PreparedWidgetStateSyncEvidence<'_>,
+        witness: &PreparedWidgetStateSyncWitness,
     ) -> Result<(), PreparedWidgetStateSyncVeto> {
         let result = catch_unwind(AssertUnwindSafe(|| {
-            self.root
-                .preflight_prepared_widget_state_sync(&evidence, &previous.root)
+            for entry in &witness.entries {
+                let previous_widget = previous
+                    .root
+                    .find_widget_at_path(entry.previous_path.as_slice())
+                    .filter(|widget| widget.id() == entry.widget_id)
+                    .ok_or(PreparedWidgetStateSyncVeto::InvalidIdentity)?;
+                let previous_sources = previous
+                    .root
+                    .source_metadata_path_at(entry.previous_path.as_slice())
+                    .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+                if !entry.previous_is_unchanged(previous_widget, &previous_sources) {
+                    return Err(PreparedWidgetStateSyncVeto::InvalidRevision);
+                }
+                let current = self
+                    .root
+                    .find_widget_at_path(entry.current_path.as_slice())
+                    .filter(|widget| widget.id() == entry.widget_id)
+                    .ok_or(PreparedWidgetStateSyncVeto::InvalidIdentity)?;
+                let current_sources = self
+                    .root
+                    .source_metadata_path_at(entry.current_path.as_slice())
+                    .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+                if !entry.current_is_unchanged(current, &current_sources) {
+                    return Err(PreparedWidgetStateSyncVeto::InvalidRevision);
+                }
+            }
+            Ok(())
         }));
         match result {
             Ok(result) => result,
@@ -198,10 +397,29 @@ impl<Message> UiSurface<Message> {
         current_paths: &HashMap<WidgetId, WidgetPath>,
         previous_paths: &HashMap<WidgetId, WidgetPath>,
     ) -> WidgetReplacementPlan {
-        let mut entries = Vec::with_capacity(previous_stateful_widget_order.len());
-        let mut visited = HashSet::with_capacity(previous_stateful_widget_order.len());
+        self.plan_widget_replacements_for_ids(
+            successor,
+            previous_stateful_widget_order,
+            previous_widget_order,
+            current_widget_order,
+            current_paths,
+            previous_paths,
+        )
+    }
 
-        for widget_id in previous_stateful_widget_order {
+    pub(in crate::runtime) fn plan_widget_replacements_for_ids(
+        &self,
+        successor: &Self,
+        stateful_widget_order: &[WidgetId],
+        previous_widget_order: &[WidgetId],
+        current_widget_order: &[WidgetId],
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> WidgetReplacementPlan {
+        let mut entries = Vec::with_capacity(stateful_widget_order.len());
+        let mut visited = HashSet::with_capacity(stateful_widget_order.len());
+
+        for widget_id in stateful_widget_order {
             if !visited.insert(*widget_id) {
                 continue;
             }
@@ -226,6 +444,40 @@ impl<Message> UiSurface<Message> {
         }
 
         WidgetReplacementPlan { entries }
+    }
+
+    pub(in crate::runtime) fn validate_selected_widget_replacement_plan(
+        &self,
+        successor: &Self,
+        plan: WidgetReplacementPlan,
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+    ) -> Result<ValidatedWidgetReplacementPlan, WidgetReplacementPlanVeto> {
+        if !plan.entries.iter().all(|entry| {
+            entry.previous_unique
+                && entry.successor_unique
+                && path_evidence_matches(
+                    previous_paths.get(&entry.widget_id),
+                    entry.previous_path.as_ref(),
+                )
+                && path_evidence_matches(
+                    current_paths.get(&entry.widget_id),
+                    entry.successor_path.as_ref(),
+                )
+                && self.replacement_evidence_matches(
+                    entry.previous_path.as_ref(),
+                    entry.previous_evidence.as_ref(),
+                )
+                && successor.replacement_evidence_matches(
+                    entry.successor_path.as_ref(),
+                    entry.successor_evidence.as_ref(),
+                )
+        }) {
+            return Err(WidgetReplacementPlanVeto::StaleEvidence);
+        }
+        Ok(ValidatedWidgetReplacementPlan {
+            entries: plan.entries,
+        })
     }
 
     pub(in crate::runtime) fn commit_widget_replacements(

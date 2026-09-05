@@ -1,5 +1,7 @@
 //! Runtime surface performance scenarios.
 
+use radiant::application::IntoView;
+
 #[path = "runtime_scenarios/arrangement_shell.rs"]
 mod arrangement_shell;
 #[path = "runtime_scenarios/frame_cadence.rs"]

@@ -1,7 +1,7 @@
 //! Static two-pane split layout builder.
 
 use crate::{
-    application::{IntoView, ViewNode, ViewNodeKind},
+    application::{ApplicationProjectionContext, IntoView, ViewNode, ViewNodeKind},
     gui::layout_core::{Controlled, SplitPaneRuntimeMode},
     gui::panel::{SplitPaneAxis, SplitPaneCollapsePolicy},
     layout::{ContainerKind, ContainerPolicy, SplitPanePolicy},
@@ -141,5 +141,12 @@ pub fn split_pane<Message>(
 impl<Message: 'static> IntoView<Message> for SplitPaneBuilder<Message> {
     fn into_projection(self) -> crate::application::ViewProjection<Message> {
         self.into_view().into_projection()
+    }
+
+    fn into_application_projection(
+        self,
+        context: &mut ApplicationProjectionContext<'_>,
+    ) -> crate::application::ViewProjection<Message> {
+        self.into_view().into_application_projection(context)
     }
 }

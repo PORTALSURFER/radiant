@@ -11,10 +11,11 @@ pub fn app<State>(state: State) -> StatefulAppBuilder<State> {
 }
 
 mod into_view;
+pub(in crate::application) mod projection_producer;
 mod stateful;
 mod window;
 
 pub(in crate::application) use into_view::SceneProjection;
-pub use into_view::{IntoView, ViewProjection};
+pub use into_view::{ApplicationProjectionContext, IntoView, ViewProjection};
 pub use stateful::{RunnableStatefulApp, StatefulAppBuilder, StatefulAppWithView};
 pub use window::WindowBuilder;

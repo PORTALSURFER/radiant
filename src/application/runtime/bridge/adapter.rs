@@ -35,6 +35,19 @@ where
         self.pull_surface_owned()
     }
 
+    fn pull_surface_update(
+        &mut self,
+        request: crate::runtime::SurfaceRefreshRequest,
+    ) -> crate::runtime::SurfaceUpdate<Message> {
+        self.pull_application_update(request)
+    }
+
+    fn surface_update_provider_authority(
+        &self,
+    ) -> Option<crate::runtime::SurfaceUpdateProviderAuthority> {
+        self.projection_producer.current_authority()
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         self.update_message(message)
     }

@@ -40,6 +40,7 @@ pub(super) struct LayoutScratch {
 /// recording needed by the engine's measure and layout passes so those passes
 /// can share one consistent view of normalization and overflow state.
 pub(super) struct LayoutContext<'a> {
+    pub(super) fragment_trace: Option<super::fragments::Trace>,
     fragments: &'a mut super::fragments::LayoutFragmentCache,
     measured: &'a mut HashMap<MeasureCacheKey, Vector2>,
     measured_by_node: &'a mut HashMap<NodeId, Vector2>,
@@ -85,10 +86,22 @@ impl<'a> LayoutContext<'a> {
         node: &super::LayoutNode,
         rect: crate::gui::types::Rect,
     ) -> bool {
-        self.linear_windows.is_empty()
-            && self
-                .fragments
-                .reuse(node, rect, self.direction, self.output)
+        if !self.linear_windows.is_empty() || self.fragment_trace.is_some() {
+            return false;
+        }
+        let Some(fragment) = self.fragments.reuse(node, rect, self.direction) else {
+            return false;
+        };
+        fragment.replay(node, self);
+        true
+    }
+
+    pub(super) fn begin_layout_fragment(&mut self, node: &super::LayoutNode) -> bool {
+        if !self.linear_windows.is_empty() || self.fragment_trace.is_some() {
+            return false;
+        }
+        self.fragment_trace = self.fragments.start_trace(node);
+        self.fragment_trace.is_some()
     }
 
     pub(super) fn capture_layout_fragment(
@@ -96,9 +109,11 @@ impl<'a> LayoutContext<'a> {
         node: &super::LayoutNode,
         rect: crate::gui::types::Rect,
     ) {
-        if self.linear_windows.is_empty() {
-            self.fragments
-                .capture(node, rect, self.direction, self.output);
+        if let Some(trace) = self.fragment_trace.take() {
+            if self.linear_windows.is_empty() {
+                self.fragments
+                    .capture(node, rect, self.direction, self.output, trace);
+            }
         }
     }
 
@@ -119,6 +134,7 @@ impl<'a> LayoutContext<'a> {
         parts.scratch.dirty_marked.clear();
         parts.output.clear_reusing_storage();
         Self {
+            fragment_trace: None,
             fragments: parts.fragments,
             measured: &mut parts.scratch.measured,
             measured_by_node: &mut parts.scratch.measured_by_node,

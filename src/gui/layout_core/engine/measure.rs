@@ -12,6 +12,21 @@ pub(super) fn measure_node(
     constraints: Constraints,
     context: &mut LayoutContext,
 ) -> Vector2 {
+    if let Some(trace) = context.fragment_trace.as_mut() {
+        trace.begin_measure(node, constraints);
+    }
+    let measured = measure_node_inner(node, constraints, context);
+    if let Some(trace) = context.fragment_trace.as_mut() {
+        trace.end_measure();
+    }
+    measured
+}
+
+fn measure_node_inner(
+    node: &LayoutNode,
+    constraints: Constraints,
+    context: &mut LayoutContext,
+) -> Vector2 {
     let normalized = context.normalize_constraints(node.id(), constraints);
     let key = MeasureCacheKey::new(node, normalized);
     let is_container = matches!(node, LayoutNode::Container(_));

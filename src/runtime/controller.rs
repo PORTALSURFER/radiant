@@ -23,6 +23,8 @@ mod input;
 mod interaction_patch;
 mod interaction_state;
 mod layout;
+#[cfg(test)]
+mod layout_fragments_tests;
 mod layout_state;
 mod owner;
 mod platform;

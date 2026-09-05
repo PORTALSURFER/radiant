@@ -130,11 +130,15 @@ impl<'a> LayoutContext<'a> {
         code: LayoutDiagnosticCode,
         message: impl Into<Cow<'static, str>>,
     ) {
-        self.output.diagnostics.push(LayoutDiagnostic {
+        let diagnostic = LayoutDiagnostic {
             node_id,
             code,
             message: message.into(),
-        });
+        };
+        if let Some(trace) = self.fragment_trace.as_mut() {
+            trace.diagnostic(&diagnostic);
+        }
+        self.output.diagnostics.push(diagnostic);
     }
 
     fn record_debug(&mut self, node_id: NodeId, kind: DebugPrimitiveKind, rect: Rect) {

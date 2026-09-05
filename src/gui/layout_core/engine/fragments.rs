@@ -14,13 +14,19 @@ use std::{
     sync::Arc,
 };
 
+mod trace;
+pub(super) use trace::Trace;
+
+const MAX_FRAGMENT_EVENTS: usize = 16_384;
+const MAX_RETAINED_EVENTS: usize = 131_072;
+
 const MAX_FRAGMENTS: usize = 64;
 const MAX_FRAGMENT_NODES: usize = 1024;
 const MAX_RETAINED_NODES: usize = 32_768;
 const MAX_ADMISSION_NODES: usize = 65_536;
 const MIN_FRAGMENT_NODES: usize = 16;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct PlainPolicy {
     kind: ContainerKind,
     spacing: u32,
@@ -48,7 +54,7 @@ impl PlainPolicy {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum NodeKind {
     Widget {
         x: u32,
@@ -62,7 +68,7 @@ enum NodeKind {
     },
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct NodeInput {
     id: NodeId,
     slot: Option<SlotParams>,
@@ -154,7 +160,8 @@ impl NodeInput {
     }
 }
 
-struct Fragment {
+pub(super) struct Fragment {
+    events: Vec<trace::Event>,
     bounds: [u32; 4],
     direction: WritingDirection,
     nodes: Vec<(NodeInput, Rect)>,
@@ -204,6 +211,12 @@ impl Fragment {
         {
             return None;
         }
+        let invalid_diagnostics: HashSet<_> = output
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| !compatibility_diagnostic(diagnostic))
+            .map(|diagnostic| diagnostic.node_id)
+            .collect();
         let mut pending = vec![(root, None)];
         let mut nodes = Vec::new();
         while let Some((node, slot)) = pending.pop() {
@@ -216,10 +229,7 @@ impl Fragment {
                 || output.viewport_bounds.contains_key(&id)
                 || output.virtual_windows.contains_key(&id)
                 || output.scrollbar_placements.contains_key(&id)
-                || output
-                    .diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.node_id == id)
+                || invalid_diagnostics.contains(&id)
             {
                 return None;
             }
@@ -238,6 +248,7 @@ impl Fragment {
             }
         }
         (nodes.len() >= MIN_FRAGMENT_NODES).then(|| Self {
+            events: Vec::new(),
             bounds: bounds(rect),
             direction,
             nodes,
@@ -252,6 +263,7 @@ pub(super) struct LayoutFragmentCache {
     entries: HashMap<NodeId, Arc<Fragment>>,
     touched: HashSet<NodeId>,
     retained_nodes: usize,
+    retained_events: usize,
     admission: HashSet<NodeId>,
 }
 
@@ -261,6 +273,7 @@ impl LayoutFragmentCache {
         self.admitted = false;
         self.entries.clone_from(&active.entries);
         self.retained_nodes = active.retained_nodes;
+        self.retained_events = active.retained_events;
         self.touched.clear();
         self.admission.clear();
     }
@@ -273,28 +286,25 @@ impl LayoutFragmentCache {
             && unique_ids(root, &mut self.admission);
     }
 
+    pub(super) fn start_trace(&self, root: &LayoutNode) -> Option<Trace> {
+        self.admitted.then(|| Trace::new(root)).flatten()
+    }
+
     pub(super) fn reuse(
         &mut self,
         root: &LayoutNode,
         rect: Rect,
         direction: WritingDirection,
-        output: &mut LayoutOutput,
-    ) -> bool {
+    ) -> Option<Arc<Fragment>> {
         if !self.admitted {
-            return false;
+            return None;
         }
-        let Some(fragment) = self.entries.get(&root.id()) else {
-            return false;
-        };
+        let fragment = self.entries.get(&root.id())?;
         if !fragment.matches(root, rect, direction) {
-            return false;
+            return None;
         }
         self.touched.insert(root.id());
-        for (node, rect) in &fragment.nodes {
-            output.rects.insert(node.id, *rect);
-        }
-        output.stats.materialized_nodes += fragment.nodes.len();
-        true
+        Some(Arc::clone(fragment))
     }
 
     pub(super) fn capture(
@@ -303,22 +313,29 @@ impl LayoutFragmentCache {
         rect: Rect,
         direction: WritingDirection,
         output: &LayoutOutput,
+        trace: Trace,
     ) {
-        if !self.admitted {
+        if !self.admitted || trace.aborted {
             return;
         }
         if let Some(old) = self.entries.remove(&root.id()) {
             self.retained_nodes -= old.nodes.len();
+            self.retained_events -= old.events.len();
         }
         if self.entries.len() == MAX_FRAGMENTS {
             return;
         }
-        let Some(fragment) = Fragment::capture(root, rect, direction, output) else {
+        let Some(mut fragment) = Fragment::capture(root, rect, direction, output) else {
             return;
         };
         if fragment.nodes.len() > MAX_RETAINED_NODES - self.retained_nodes {
             return;
         }
+        if trace.events.len() > MAX_RETAINED_EVENTS - self.retained_events {
+            return;
+        }
+        fragment.events = trace.events;
+        self.retained_events += fragment.events.len();
         self.retained_nodes += fragment.nodes.len();
         self.touched.insert(root.id());
         self.entries.insert(root.id(), Arc::new(fragment));
@@ -326,12 +343,26 @@ impl LayoutFragmentCache {
 
     pub(super) fn finish(&mut self) {
         self.entries.retain(|key, _| self.touched.contains(key));
+        self.retained_events = self
+            .entries
+            .values()
+            .map(|fragment| fragment.events.len())
+            .sum();
         self.retained_nodes = self
             .entries
             .values()
             .map(|fragment| fragment.nodes.len())
             .sum();
     }
+}
+
+fn compatibility_diagnostic(diagnostic: &super::LayoutDiagnostic) -> bool {
+    diagnostic.code == super::LayoutDiagnosticCode::NegativeSizeClamped
+        && matches!(
+            diagnostic.message.as_ref(),
+            "max width was non-finite and was clamped"
+                | "max height was non-finite and was clamped"
+        )
 }
 
 fn unique_ids(root: &LayoutNode, seen: &mut HashSet<NodeId>) -> bool {

@@ -16,13 +16,17 @@ fn slot() -> SlotParams {
 }
 
 fn tree(changed: bool) -> LayoutNode {
+    tree_columns(changed, 3)
+}
+
+fn tree_columns(changed: bool, columns: u64) -> LayoutNode {
     LayoutNode::container(
         1,
         ContainerPolicy {
             kind: ContainerKind::Row,
             ..Default::default()
         },
-        (0..3)
+        (0..columns)
             .map(|column| {
                 SlotChild::new(
                     slot(),
@@ -317,4 +321,24 @@ fn invalid_or_nonplain_output_is_not_retained() {
         .children
         .resize(MAX_FRAGMENT_NODES, container.children[0].clone());
     assert!(Fragment::capture(&oversized, rect, WritingDirection::Ltr, &output).is_none());
+}
+
+#[test]
+fn retained_fragment_capacity_is_bounded_and_unused_entries_retire() {
+    let root = tree_columns(false, 70);
+    let mut engine = LayoutEngine::with_static_geometry_fragments();
+    let mut output = LayoutOutput::default();
+    engine.layout_with_state_into(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(3000.0, 300.0)),
+        &Default::default(),
+        Default::default(),
+        &mut output,
+    );
+    assert_eq!(engine.fragments.entries.len(), MAX_FRAGMENTS);
+    assert!(engine.fragments.retained_nodes <= MAX_RETAINED_NODES);
+    assert!(engine.fragments.retained_events <= MAX_RETAINED_EVENTS);
+    run(&mut engine, &tree(false));
+    assert_eq!(engine.fragments.entries.len(), 3);
+    assert_eq!(engine.fragments.retained_nodes, 63);
 }

@@ -32,6 +32,7 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
     if context.reuse_layout_fragment(node, rounded) {
         return;
     }
+    let capturing = context.begin_layout_fragment(node);
     context.record_layout_visit();
     context.output.rects.insert(node.id(), rounded);
     context.record_node_bounds(node.id(), rounded);
@@ -40,6 +41,9 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
     };
     let policy = &container.policy;
     let Some(content) = content_rect(rounded, policy.padding) else {
+        if capturing {
+            context.fragment_trace = None;
+        }
         for child in &container.children {
             context.omit_subtree(&child.child);
         }
@@ -69,5 +73,7 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         ContainerKind::FloatingLayer => boxes::layout_floating_layer(container, content, context),
         ContainerKind::SplitPane => split_pane::layout_split_pane(container, content, context),
     }
-    context.capture_layout_fragment(node, rounded);
+    if capturing {
+        context.capture_layout_fragment(node, rounded);
+    }
 }

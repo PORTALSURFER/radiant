@@ -347,6 +347,10 @@ impl Widget for TextInputWidget {
         self.selected_text_slice()
     }
 
+    fn native_text_input_delegate_mut(&mut self) -> Option<&mut TextInputWidget> {
+        Some(self)
+    }
+
     fn selected_text(&self) -> Option<String> {
         self.selected_text()
     }

@@ -1,7 +1,7 @@
 use super::super::frame_scheduler_policy::{FrameStageBudgetStatus, ImmediateTransientCompletion};
 use super::super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::*;
-use crate::application::IntoView;
+use crate::application::{ApplicationEnvironment, IntoView, LocaleId, TextScale};
 use crate::gui::{
     focus::FocusSurface,
     input::{InputSequenceRange, InputTimestamp, KeyCode, KeyPress},
@@ -13,19 +13,267 @@ use crate::{
     layout::LayoutOutput,
     theme::ThemeTokens,
     widgets::{
-        PointerModifiers, WheelDelta, WheelPhase, WheelSample, Widget, WidgetCommon, WidgetInput,
-        WidgetKey, WidgetOutput, WidgetSizing,
+        EditPhase, KeyboardModifier, NumericAdjustment, NumericCodec, NumericInputInteraction,
+        NumericInputInteractionBatch, NumericParseResult, NumericStep, NumericStepDirection,
+        NumericStepModifiers, PointerModifiers, WheelDelta, WheelPhase, WheelSample, Widget,
+        WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::{
     cell::Cell,
+    convert::Infallible,
+    fmt,
     time::{Duration, Instant},
 };
 use winit::{
     dpi::PhysicalPosition,
     event::{MouseButton, MouseScrollDelta, TouchPhase},
-    keyboard::ModifiersState,
+    keyboard::{KeyCode as WinitKeyCode, ModifiersState, PhysicalKey},
 };
+
+const NATIVE_NUMERIC_ID: u64 = 1386;
+const NATIVE_NUMERIC_SOURCE: &str = "iiiiWאב";
+
+#[derive(Clone, Copy, Debug, Default)]
+struct NativeNumericCodec;
+
+impl NumericCodec<String> for NativeNumericCodec {
+    type Error = fmt::Error;
+
+    fn parse(&self, text: &str) -> NumericParseResult<String> {
+        if text.is_empty() {
+            NumericParseResult::Incomplete
+        } else {
+            NumericParseResult::Valid(text.to_owned())
+        }
+    }
+
+    fn format_editable(
+        &self,
+        value: &String,
+        output: &mut dyn fmt::Write,
+    ) -> Result<(), Self::Error> {
+        output.write_str(value)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct NativeNumericAdjustment;
+
+impl NumericAdjustment<String> for NativeNumericAdjustment {
+    type Error = Infallible;
+
+    fn normalized_to_value(&self, _normalized: f32) -> Result<String, Self::Error> {
+        Ok(String::new())
+    }
+
+    fn value_to_normalized(&self, _value: &String) -> Result<f32, Self::Error> {
+        Ok(0.5)
+    }
+
+    fn step(
+        &self,
+        value: &String,
+        _direction: NumericStepDirection,
+        _step: NumericStep,
+    ) -> Result<String, Self::Error> {
+        Ok(format!("{value}!"))
+    }
+
+    fn scrub(
+        &self,
+        value: &String,
+        _normalized_delta: f32,
+        _step: NumericStep,
+    ) -> Result<String, Self::Error> {
+        Ok(value.clone())
+    }
+
+    fn wheel(
+        &self,
+        value: &String,
+        _delta: f32,
+        _step: NumericStep,
+    ) -> Result<String, Self::Error> {
+        Ok(value.clone())
+    }
+}
+
+enum NativeNumericMessage {
+    Interaction(NumericInputInteractionBatch<String, Infallible, fmt::Error>),
+}
+
+struct NativeNumericBridge {
+    value: String,
+    environment: ApplicationEnvironment,
+    interactions: Vec<Vec<(EditPhase, String)>>,
+}
+
+impl Default for NativeNumericBridge {
+    fn default() -> Self {
+        Self {
+            value: String::from(NATIVE_NUMERIC_SOURCE),
+            environment: ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(1.5).expect("valid native numeric text scale")),
+            interactions: Vec::new(),
+        }
+    }
+}
+
+impl RuntimeBridge<NativeNumericMessage> for NativeNumericBridge {
+    fn application_environment(&mut self) -> Option<ApplicationEnvironment> {
+        Some(self.environment.clone())
+    }
+
+    fn project_surface(&mut self) -> Arc<UiSurface<NativeNumericMessage>> {
+        crate::application::numeric_input(
+            self.value.clone(),
+            NativeNumericCodec,
+            NativeNumericAdjustment,
+        )
+        .expect("native numeric fixture should construct")
+        .step_modifiers(NumericStepModifiers::new(
+            KeyboardModifier::Shift,
+            KeyboardModifier::Command,
+        ))
+        .on_interaction(NativeNumericMessage::Interaction)
+        .id(NATIVE_NUMERIC_ID)
+        .into_projection()
+        .into_surface()
+        .into()
+    }
+
+    fn reduce_message(&mut self, message: NativeNumericMessage) {
+        let NativeNumericMessage::Interaction(batch) = message;
+        for part in batch.parts() {
+            if let NumericInputInteraction::Edit(edit) = part {
+                self.interactions.push(
+                    edit.events()
+                        .iter()
+                        .map(|event| (event.phase, event.value.clone()))
+                        .collect(),
+                );
+            }
+        }
+    }
+}
+
+fn native_numeric_paint_input(
+    runner: &GenericNativeVelloRunner<NativeNumericBridge, NativeNumericMessage>,
+) -> crate::runtime::PaintTextInput {
+    runner
+        .frame
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) => Some(input.clone()),
+            _ => None,
+        })
+        .expect("numeric input should emit a text-input paint primitive")
+}
+
+fn focus_native_numeric_with_tab(
+    harness: &mut NativePointerHarness<NativeNumericBridge, NativeNumericMessage>,
+) {
+    let outcome = harness
+        .runner
+        .route_native_tab_for_test(false)
+        .expect("native Tab focus should produce a route outcome");
+    assert!(outcome.routed, "native Tab should focus Numeric");
+    harness.runner.apply_route_outcome(outcome);
+    assert_eq!(
+        harness.runner.core.runtime.focused_widget(),
+        Some(crate::widgets::WidgetId::from(NATIVE_NUMERIC_ID))
+    );
+
+    let release = harness
+        .runner
+        .route_native_key_release(PhysicalKey::Code(WinitKeyCode::Tab))
+        .expect("native Tab release should produce a route outcome");
+    assert!(release.routed, "native Tab release should be routed");
+    harness.runner.apply_route_outcome(release);
+}
+
+fn generic_numeric_caret_at(position: Point) -> usize {
+    let mut fallback = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        NativeNumericBridge::default(),
+        Vector2::new(260.0, 60.0),
+    );
+    fallback.rebuild_scene();
+    let target = fallback
+        .core
+        .runtime
+        .dispatch_event(crate::runtime::Event::PointerPress {
+            position,
+            button: crate::widgets::PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        });
+    assert_eq!(
+        target,
+        Some(crate::widgets::WidgetId::from(NATIVE_NUMERIC_ID))
+    );
+    fallback.rebuild_scene();
+    native_numeric_paint_input(&fallback).state.caret
+}
+
+fn generic_numeric_caret_at_value(position: Point, value: &str) -> usize {
+    let bridge = NativeNumericBridge {
+        value: value.to_owned(),
+        ..NativeNumericBridge::default()
+    };
+    let mut fallback = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        bridge,
+        Vector2::new(260.0, 60.0),
+    );
+    fallback.rebuild_scene();
+    let target = fallback
+        .core
+        .runtime
+        .dispatch_event(crate::runtime::Event::PointerPress {
+            position,
+            button: crate::widgets::PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+            timestamp: None,
+        });
+    assert_eq!(
+        target,
+        Some(crate::widgets::WidgetId::from(NATIVE_NUMERIC_ID))
+    );
+    fallback.rebuild_scene();
+    native_numeric_paint_input(&fallback).state.caret
+}
+
+fn native_numeric_divergence(
+    runner: &mut GenericNativeVelloRunner<NativeNumericBridge, NativeNumericMessage>,
+) -> (Point, usize, CaretAffinity, usize) {
+    let input = native_numeric_paint_input(runner);
+    (0..=(input.rect.width() * 2.0).ceil() as usize)
+        .map(|offset| {
+            Point::new(
+                input.rect.min.x + offset as f32 * 0.5,
+                input.rect.center().y,
+            )
+        })
+        .find_map(|position| {
+            let (_, source, caret, affinity) =
+                runner.frame.native_text_pointer_target(position, None)?;
+            if source != NATIVE_NUMERIC_SOURCE || affinity != CaretAffinity::Upstream {
+                return None;
+            }
+            let fallback_caret = generic_numeric_caret_at(position);
+            (caret != fallback_caret && affinity == CaretAffinity::Upstream).then_some((
+                position,
+                caret,
+                affinity,
+                fallback_caret,
+            ))
+        })
+        .expect("shaped native caret and generic fallback should diverge")
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ModifierWheelMessage {
@@ -957,6 +1205,134 @@ fn native_text_pointer_affinity_commits_only_for_current_target_and_text_source(
             .text_renderer
             .native_caret_affinity(crate::widgets::WidgetId::from(12_u32)),
         affinity
+    );
+}
+
+#[test]
+fn native_numeric_pointer_uses_shaped_caret_and_keeps_numeric_as_owner() {
+    let mut harness =
+        NativePointerHarness::new(NativeNumericBridge::default(), Vector2::new(260.0, 60.0));
+    focus_native_numeric_with_tab(&mut harness);
+    harness.runner.rebuild_scene();
+    harness
+        .runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let (position, native_caret, native_affinity, generic_caret) =
+        native_numeric_divergence(&mut harness.runner);
+    assert_ne!(native_caret, generic_caret);
+    assert_eq!(native_affinity, CaretAffinity::Upstream);
+
+    harness.cursor_moved_logical(position);
+    let press = harness.mouse_pressed(MouseButton::Left);
+    assert!(press.routed, "native Numeric press should be routed");
+    harness.runner.rebuild_scene();
+    let pressed = native_numeric_paint_input(&harness.runner);
+    assert_eq!(pressed.state.caret, native_caret);
+    assert_eq!(pressed.state.selection_anchor, native_caret);
+    assert_eq!(
+        harness
+            .runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(NATIVE_NUMERIC_ID)),
+        native_affinity
+    );
+
+    let before_character = pressed.state.value.clone();
+    assert!(
+        harness.runner.core.runtime.bridge().interactions.is_empty(),
+        "Numeric owns active text editing without emitting a host message while typing"
+    );
+    let mut expected = before_character
+        .chars()
+        .take(native_caret)
+        .collect::<String>();
+    expected.push('X');
+    expected.extend(before_character.chars().skip(native_caret));
+    let character = harness.runner.core.route_character('X');
+    assert!(
+        character.routed,
+        "focused Numeric should own character input"
+    );
+    harness.runner.apply_route_outcome(character);
+    harness.runner.rebuild_scene();
+    let after_character = native_numeric_paint_input(&harness.runner);
+    assert_eq!(after_character.state.value, expected);
+    assert_eq!(after_character.state.caret, native_caret + 1);
+    assert_eq!(after_character.state.selection_anchor, native_caret + 1);
+    assert!(
+        harness.runner.core.runtime.bridge().interactions.is_empty(),
+        "Numeric typing should remain local until the edit is committed"
+    );
+
+    let committed = harness.runner.core.route_key_press(
+        KeyPress::new(KeyCode::Enter),
+        WidgetKey::from_key_code(KeyCode::Enter),
+    );
+    harness.runner.apply_route_outcome(committed);
+    let interactions = &harness.runner.core.runtime.bridge().interactions;
+    assert_eq!(
+        interactions.as_slice(),
+        &[vec![
+            (EditPhase::Begin, NATIVE_NUMERIC_SOURCE.to_owned()),
+            (EditPhase::Commit, expected.clone()),
+        ]],
+        "Numeric Enter should emit exactly one mapped edit batch"
+    );
+}
+
+#[test]
+fn native_numeric_pointer_rejects_stale_shaped_source_after_reprojection() {
+    let mut harness =
+        NativePointerHarness::new(NativeNumericBridge::default(), Vector2::new(260.0, 60.0));
+    focus_native_numeric_with_tab(&mut harness);
+    harness
+        .runner
+        .frame
+        .seed_text_input_snapshots_for_current_plan(false);
+    let (position, _, _, _) = native_numeric_divergence(&mut harness.runner);
+    let (_, stale_source, _, stale_affinity) = harness
+        .runner
+        .frame
+        .native_text_pointer_target(position, None)
+        .expect("seeded native snapshot should expose the old Numeric source");
+    assert_eq!(stale_source, NATIVE_NUMERIC_SOURCE);
+    assert!(matches!(
+        stale_affinity,
+        CaretAffinity::Upstream | CaretAffinity::Downstream
+    ));
+    harness.cursor_moved_logical(position);
+
+    harness.runner.core.runtime.bridge_mut().value = String::from("WWWW");
+    harness
+        .runner
+        .core
+        .refresh_surface_with_scope(crate::runtime::RepaintScope::Surface);
+    assert_eq!(
+        harness.runner.core.runtime.focused_widget(),
+        Some(crate::widgets::WidgetId::from(NATIVE_NUMERIC_ID))
+    );
+    let generic_caret = generic_numeric_caret_at_value(position, "WWWW");
+
+    let press = harness.mouse_pressed(MouseButton::Left);
+    assert!(
+        press.routed,
+        "stale native press should use generic fallback"
+    );
+    harness.runner.rebuild_scene();
+    let after = native_numeric_paint_input(&harness.runner);
+    assert_eq!(after.state.value, "WWWW");
+    assert_eq!(after.state.caret, generic_caret);
+    assert_eq!(after.state.selection_anchor, generic_caret);
+    assert_eq!(
+        harness
+            .runner
+            .frame
+            .text_renderer
+            .native_caret_affinity(crate::widgets::WidgetId::from(NATIVE_NUMERIC_ID)),
+        CaretAffinity::Downstream,
+        "stale native affinity must not be committed"
     );
 }
 

@@ -64,11 +64,7 @@ where
         let Some(widget) = self.surface_widget_mut(widget_id) else {
             return;
         };
-        let Some(text_input) = widget
-            .widget_object_mut_runtime()
-            .as_any_mut()
-            .downcast_mut::<crate::widgets::TextInputWidget>()
-        else {
+        let Some(text_input) = widget.native_text_input_delegate_mut() else {
             return;
         };
         if text_input.state.value == source {
@@ -90,12 +86,7 @@ where
         }
         let accepted = self
             .surface_widget_mut(widget_id)
-            .and_then(|widget| {
-                widget
-                    .widget_object_mut_runtime()
-                    .as_any_mut()
-                    .downcast_mut::<crate::widgets::TextInputWidget>()
-            })
+            .and_then(|widget| widget.native_text_input_delegate_mut())
             .is_some_and(|text_input| {
                 let accepted = text_input.state.value == source
                     && text_input.take_native_pointer_caret_acceptance() == Some(affinity);

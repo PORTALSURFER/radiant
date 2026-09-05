@@ -558,6 +558,12 @@ pub trait Widget: WidgetClone + Any {
         None
     }
 
+    /// Return the embedded text-input lane used for native caret delegation.
+    #[doc(hidden)]
+    fn native_text_input_delegate_mut(&mut self) -> Option<&mut crate::widgets::TextInputWidget> {
+        None
+    }
+
     /// Return the selected text for focused text-editing widgets as an owned string.
     fn selected_text(&self) -> Option<String> {
         self.selected_text_slice().map(str::to_owned)

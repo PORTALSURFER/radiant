@@ -4598,7 +4598,9 @@ fn numeric_text_scale_start_alignment_maps_generic_caret_and_drag_in_ltr_and_rtl
 }
 
 #[test]
-fn numeric_text_scale_preserves_staged_native_caret_priority() {
+fn numeric_text_input_forwards_staged_native_caret_to_embedded_text_lane() {
+    // This is forwarding-unit evidence only. Native acceptance is covered by
+    // the generic runtime's production pointer route tests.
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(300.0, 60.0));
     let environment = numeric_test_environment(2.0, crate::application::WritingDirection::Ltr, 1.0);
     let mut input = u32_input();

@@ -1997,6 +1997,10 @@ where
         self.handle_input_with_resolved_environment(bounds, input, environment)
     }
 
+    fn native_text_input_delegate_mut(&mut self) -> Option<&mut TextInputWidget> {
+        Some(&mut self.text_input)
+    }
+
     fn text_scale_participation(&self) -> TextScaleParticipation {
         TextScaleParticipation::Scaled
     }

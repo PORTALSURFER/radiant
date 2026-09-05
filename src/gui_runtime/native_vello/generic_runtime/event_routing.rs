@@ -168,7 +168,6 @@ where
         self.route_pointer_press_with_timestamp(position, button, modifiers, None)
     }
 
-    #[allow(dead_code)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_press_with_timestamp(
         &mut self,
         position: Point,
@@ -213,7 +212,6 @@ where
         self.route_pointer_release_with_timestamp(position, button, modifiers, None)
     }
 
-    #[allow(dead_code)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_release_with_timestamp(
         &mut self,
         position: Point,

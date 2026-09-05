@@ -1393,7 +1393,6 @@ pub(super) struct NativeRunnerInputState {
     pub(super) effective_pointer_gesture: Option<NativePointerGestureLatch>,
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) input_sequence_allocator: NativeInputSequenceAllocator,
-    #[allow(dead_code)]
     pub(super) native_pointer_ingress: super::native_pointer_ingress::NativePointerIngressState,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scroll_container_wheel: Option<PendingGpuSurfaceWheel>,

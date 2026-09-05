@@ -15,6 +15,6 @@
 | Numeric controls | 91% |
 | Runtime, effects, and scheduling | 97% |
 | Rendering, invalidation, retained GPU surfaces | ~89.2% |
-| Platform, windowing, and host boundaries | 72.5% |
+| Platform, windowing, and host boundaries | 72% |
 | Diagnostics, profiling, and performance validation | ~95.5% |
 | Examples, documentation, and CI guardrails | 97% |

@@ -261,10 +261,12 @@ where
                     return PointerIngressDisposition::Blocked;
                 };
                 let (index, event) = match delivery.event {
-                    Some(event) => (
-                        delivery.record_index.expect("typed record installed"),
-                        event,
-                    ),
+                    Some(event) => {
+                        let Some(index) = delivery.record_index else {
+                            return PointerIngressDisposition::Invalid;
+                        };
+                        (index, event)
+                    }
                     None => match self.interaction.pointer.ingress.issue(ingress) {
                         Ok(value) => value,
                         Err(disposition) => return disposition,

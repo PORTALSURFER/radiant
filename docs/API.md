@@ -5941,6 +5941,13 @@ reported as an explicitly admitted unsupported consumer until the later gesture
 arena phase. Typed drag payloads, cross-window payloads, and external offers
 remain outside this phase.
 
+Run `cargo run --example typed_pointer` for an ordinary application update
+handler receiving an admitted mouse sequence from `render_canvas_pointer`.
+The example also checks public token admission and replayed-terminal rejection
+through `SurfaceRuntime`. Malformed native touch terminals cancel only their
+exact retained contact at its last valid logical position, preserving the
+issued token and freeing both native and runtime sequence slots.
+
 `KnobWheelGesture::new(...)` remains the compatibility constructor and uses
 `KnobWheelMetadata::default()`; use `KnobWheelGesture::new_with_metadata(...)`
 or `input_metadata()` for explicit provenance. The added public `metadata`

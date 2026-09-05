@@ -318,7 +318,6 @@ mod native_file_open;
 mod native_immediate_transient_stage;
 mod native_lifecycle_stage;
 mod native_pointer;
-#[allow(dead_code)]
 mod native_pointer_ingress;
 mod native_render_target;
 mod native_resource_maintenance;

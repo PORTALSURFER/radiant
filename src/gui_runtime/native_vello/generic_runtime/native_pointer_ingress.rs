@@ -68,7 +68,7 @@ impl NativeIdentityAllocator {
 
     #[cfg(test)]
     fn exhaust(&mut self) {
-        self.next = Some(NonZeroU64::new(u64::MAX).unwrap());
+        self.next = NonZeroU64::new(u64::MAX);
     }
 }
 
@@ -81,13 +81,14 @@ struct NativePointerDeviceRecord {
     hover: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct NativePointerContactRecord {
     native_device: DeviceId,
     device: InputDeviceId,
     raw_contact: u64,
     normalized: PointerContactId,
     sequence_token: Option<PointerSequenceToken>,
+    last_position: Option<Point>,
 }
 
 /// Native pointer state retained per window.
@@ -124,7 +125,9 @@ impl NativePointerIngressState {
         kind: DeviceKind,
     ) -> Result<InputDeviceId, NativePointerIdentityError> {
         if let Some(index) = self.find_device(native) {
-            let record = self.devices[index].as_mut().expect("device index exists");
+            let record = self.devices[index]
+                .as_mut()
+                .ok_or(NativePointerIdentityError::WrongDevice)?;
             record.kind = kind;
             return Ok(record.normalized);
         }
@@ -155,10 +158,12 @@ impl NativePointerIngressState {
         entered: bool,
     ) -> Result<InputDeviceId, NativePointerIdentityError> {
         let normalized = self.retain_device(native, DeviceKind::Mouse)?;
-        let index = self.find_device(native).expect("retained device exists");
+        let index = self
+            .find_device(native)
+            .ok_or(NativePointerIdentityError::WrongDevice)?;
         self.devices[index]
             .as_mut()
-            .expect("device index exists")
+            .ok_or(NativePointerIdentityError::WrongDevice)?
             .hover = entered;
         Ok(normalized)
     }
@@ -189,11 +194,14 @@ impl NativePointerIngressState {
             raw_contact,
             normalized,
             sequence_token: None,
+            last_position: None,
         });
-        let device_index = self.find_device(native).expect("retained device exists");
+        let device_index = self
+            .find_device(native)
+            .ok_or(NativePointerIdentityError::WrongDevice)?;
         self.devices[device_index]
             .as_mut()
-            .expect("device index exists")
+            .ok_or(NativePointerIdentityError::WrongDevice)?
             .active_contacts += 1;
         Ok((device, normalized))
     }
@@ -268,24 +276,6 @@ impl NativePointerIngressState {
         })
     }
 
-    pub(super) fn set_contact_token(
-        &mut self,
-        native: DeviceId,
-        raw_contact: u64,
-        token: PointerSequenceToken,
-    ) -> Result<(), NativePointerIdentityError> {
-        let Some(record) = self
-            .contacts
-            .iter_mut()
-            .flatten()
-            .find(|record| record.native_device == native && record.raw_contact == raw_contact)
-        else {
-            return Err(NativePointerIdentityError::MissingContact);
-        };
-        record.sequence_token = Some(token);
-        Ok(())
-    }
-
     pub(super) fn set_token_for_identity(
         &mut self,
         device: InputDeviceId,
@@ -333,11 +323,13 @@ impl NativePointerIngressState {
                 })
             })
             .ok_or(NativePointerIdentityError::MissingContact)?;
-        let record = self.contacts[index].take().expect("contact index exists");
+        let record = self.contacts[index]
+            .take()
+            .ok_or(NativePointerIdentityError::MissingContact)?;
         if let Some(device_index) = self.find_device(native) {
             let device = self.devices[device_index]
                 .as_mut()
-                .expect("device index exists");
+                .ok_or(NativePointerIdentityError::WrongDevice)?;
             device.active_contacts = device.active_contacts.saturating_sub(1);
         }
         Ok((record.device, record.normalized))
@@ -377,9 +369,7 @@ pub(super) struct NativeTouchSample {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NativeUnsupportedInput {
-    Pen,
     DesktopPan,
-    GestureTransport,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -401,24 +391,28 @@ pub(super) fn normalize_touch(
     timestamp: InputTimestamp,
 ) -> Result<NativeTouchSample, NativePointerIdentityError> {
     let terminal = matches!(touch.phase, TouchPhase::Ended | TouchPhase::Cancelled);
-    let position = logical_point_from_winit(touch.location, dpi_scale)
-        .ok_or(NativePointerIdentityError::InvalidSample);
-    let pressure = touch
-        .force
-        .map(normalize_force)
-        .transpose()
-        .map_err(|_| NativePointerIdentityError::InvalidSample)?;
-    let result = position.and_then(|position| {
+    let result = (|| {
+        let position = logical_point_from_winit(touch.location, dpi_scale)
+            .ok_or(NativePointerIdentityError::InvalidSample)?;
+        let pressure = touch
+            .force
+            .map(normalize_force)
+            .transpose()
+            .map_err(|_| NativePointerIdentityError::InvalidSample)?;
         let (device, contact, sequence_token) = match touch.phase {
             TouchPhase::Started => {
                 let (device, contact) = state.begin_contact(touch.device_id, touch.id)?;
                 (device, contact, None)
             }
-            TouchPhase::Moved => state.continue_contact(touch.device_id, touch.id)?,
-            TouchPhase::Ended | TouchPhase::Cancelled => {
-                state.continue_contact(touch.device_id, touch.id)?
-            }
+            _ => state.continue_contact(touch.device_id, touch.id)?,
         };
+        let record = state
+            .contacts
+            .iter_mut()
+            .flatten()
+            .find(|record| record.device == device && record.normalized == contact)
+            .ok_or(NativePointerIdentityError::MissingContact)?;
+        record.last_position = Some(position);
         Ok(NativeTouchSample {
             device,
             contact,
@@ -430,7 +424,35 @@ pub(super) fn normalize_touch(
             timestamp,
             sequence_token,
         })
-    });
+    })();
+    // A malformed terminal cannot become a motion/drop, but must retire its
+    // exact admitted sequence. Preserve the last valid logical position and
+    // token; never cancel another contact or the legacy mouse capture.
+    let result = if terminal && result.is_err() {
+        state
+            .contacts
+            .iter()
+            .flatten()
+            .find(|record| {
+                record.native_device == touch.device_id && record.raw_contact == touch.id
+            })
+            .and_then(|record| {
+                record.last_position.map(|position| NativeTouchSample {
+                    device: record.device,
+                    contact: record.normalized,
+                    phase: TouchPhase::Cancelled,
+                    position,
+                    pressure: None,
+                    tilt: None,
+                    modifiers,
+                    timestamp,
+                    sequence_token: record.sequence_token,
+                })
+            })
+            .ok_or(NativePointerIdentityError::MissingContact)
+    } else {
+        result
+    };
     if terminal {
         let _ = state.end_contact(touch.device_id, touch.id);
     }
@@ -552,6 +574,75 @@ mod tests {
         // The native table has a fixed 16-slot bound; no eviction is allowed
         // while the sole retained device is marked as hovering.
         assert!(state.devices.iter().flatten().all(|record| record.hover));
+    }
+
+    #[test]
+    fn allocator_boundary_issues_last_identity_once_without_reuse() {
+        let mut state = NativePointerIngressState::default();
+        state.exhaust_allocators();
+        let native = DeviceId::dummy();
+        let last = state.begin_contact(native, 7).unwrap();
+        assert_eq!(state.active_contact_count(), 1);
+        assert_eq!(state.end_contact(native, 7).unwrap(), last);
+        assert_eq!(
+            state.begin_contact(native, 8),
+            Err(NativePointerIdentityError::Exhausted)
+        );
+        assert_eq!(state.active_contact_count(), 0);
+        assert_eq!(
+            state.device_allocator.allocate_device(),
+            Err(NativePointerIdentityError::Exhausted)
+        );
+    }
+
+    #[test]
+    fn malformed_terminal_cancels_exact_token_at_last_valid_position() {
+        let native = DeviceId::dummy();
+        let mut tokens = crate::gui::pointer_ingress::PointerSequenceAllocator::new(7).unwrap();
+        for invalid_force in [false, true] {
+            let mut state = NativePointerIngressState::default();
+            let first = normalize_touch(
+                &mut state,
+                touch(native, 7, TouchPhase::Started),
+                DpiScale::ONE,
+                PointerModifiers::default(),
+                InputTimestamp::capture(),
+            )
+            .unwrap();
+            let token = tokens.issue().unwrap();
+            state
+                .set_token_for_identity(first.device, first.contact, token)
+                .unwrap();
+            let mut terminal = touch(native, 7, TouchPhase::Ended);
+            if invalid_force {
+                terminal.force = Some(Force::Normalized(f64::NAN));
+            } else {
+                terminal.location.x = f64::NAN;
+            }
+            let cancelled = normalize_touch(
+                &mut state,
+                terminal,
+                DpiScale::ONE,
+                PointerModifiers::default(),
+                InputTimestamp::capture(),
+            )
+            .unwrap();
+            assert_eq!(cancelled.phase, TouchPhase::Cancelled);
+            assert_eq!(cancelled.position, first.position);
+            assert_eq!(cancelled.sequence_token, Some(token));
+            assert_eq!(cancelled.contact, first.contact);
+            assert_eq!(state.active_contact_count(), 0);
+            assert!(
+                normalize_touch(
+                    &mut state,
+                    terminal,
+                    DpiScale::ONE,
+                    PointerModifiers::default(),
+                    InputTimestamp::capture()
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]

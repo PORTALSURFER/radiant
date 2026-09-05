@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 const DOUBLE_CLICK_MAX_INTERVAL: Duration = Duration::from_millis(500);
 const DOUBLE_CLICK_MAX_DISTANCE: f32 = 5.0;
 
-#[allow(dead_code)]
 pub(in crate::gui_runtime::native_vello) fn pointer_press_event(
     last: Option<PointerPressStamp>,
     now: Instant,

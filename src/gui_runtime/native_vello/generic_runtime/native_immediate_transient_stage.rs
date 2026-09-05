@@ -16,7 +16,6 @@ use crate::gui::input::InputTimestamp;
 use winit::event::TouchPhase;
 
 /// The native event families admitted by ImmediateTransient.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NativeImmediateTransientKind {
     Focused(bool),

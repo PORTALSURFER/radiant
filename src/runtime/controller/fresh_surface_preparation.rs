@@ -109,7 +109,7 @@ struct FreshSurfaceLayoutAuthority {
 /// requires them to be neutral.  The candidate therefore owns the exact
 /// context supplied to the detached surface instead of rereading active state
 /// during or after widget callbacks.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct FreshSurfacePaintProjectionContext {
     theme: ThemeTokens,
     environment: ResolvedEnvironment,
@@ -127,7 +127,7 @@ impl FreshSurfacePaintProjectionContext {
     where
         Bridge: RuntimeBridge<Message>,
     {
-        let environment = candidate.surface.window_environment().resolved();
+        let environment = candidate.surface.resolved_environment();
         Self {
             theme: appearance.tokens(),
             environment,
@@ -137,12 +137,12 @@ impl FreshSurfacePaintProjectionContext {
         }
     }
 
-    fn is_neutral(self) -> bool {
+    fn is_neutral(&self) -> bool {
         self.hovered_container.is_none() && self.active_scroll_affordance.is_none()
     }
 
     fn is_current<Bridge, Message>(
-        self,
+        &self,
         runtime: &SurfaceRuntime<Bridge, Message>,
         candidate: &FreshSurfaceLayoutCandidate<Message>,
         appearance: ResolvedAppearance,
@@ -150,8 +150,8 @@ impl FreshSurfacePaintProjectionContext {
     where
         Bridge: RuntimeBridge<Message>,
     {
-        self.environment == candidate.surface.window_environment().resolved()
-            && self.environment == runtime.window_environment.resolved()
+        self.environment == candidate.surface.resolved_environment()
+            && candidate.surface.window_environment() == runtime.window_environment
             && self.appearance == appearance
             && self.hovered_container == runtime.interaction.hover.container
             && self.active_scroll_affordance == runtime.interaction.hover.scroll_affordance
@@ -908,29 +908,33 @@ where
             return Ok(None);
         }
         let candidate_mounted_source_present = mounted_state.source_present();
-        let Some(input) = self.runtime_layout_input_evidence_for_root(
+        let candidate_direction = candidate.surface.resolved_environment().writing_direction();
+        let Some(input) = self.runtime_layout_input_evidence_for_root_with_direction(
             candidate_root_authority,
             candidate_mounted_source_present,
+            candidate_direction,
         ) else {
             return Ok(None);
         };
 
         let preflight_layout = if candidate_mounted_source_present {
             let container_state_source = self.interaction.layout_state.read_source(&mounted_state);
-            self.layout_engine.prepare_layout_with_state_and_source(
+            self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
                 &self.layout_state,
                 self.layout_debug_options,
+                candidate_direction,
                 Some(&container_state_source),
                 input,
             )
         } else {
-            self.layout_engine.prepare_layout_with_state_and_source(
+            self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
                 &self.layout_state,
                 self.layout_debug_options,
+                candidate_direction,
                 None,
                 input,
             )
@@ -988,20 +992,22 @@ where
 
         let prepared_layout = if candidate_mounted_source_present {
             let container_state_source = self.interaction.layout_state.read_source(&mounted_state);
-            self.layout_engine.prepare_layout_with_state_and_source(
+            self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
                 &self.layout_state,
                 self.layout_debug_options,
+                candidate.surface.resolved_environment().writing_direction(),
                 Some(&container_state_source),
                 input,
             )
         } else {
-            self.layout_engine.prepare_layout_with_state_and_source(
+            self.layout_engine.prepare_layout_with_direction_and_source(
                 &candidate.layout_root,
                 self.viewport,
                 &self.layout_state,
                 self.layout_debug_options,
+                candidate.surface.resolved_environment().writing_direction(),
                 None,
                 input,
             )
@@ -1104,7 +1110,7 @@ where
                 .paint_plan_with_hover_and_environment_and_appearance_into(
                     layout,
                     &projection_context.theme,
-                    projection_context.environment,
+                    projection_context.environment.clone(),
                     projection_context.appearance,
                     projection_context.hovered_container,
                     projection_context.active_scroll_affordance,
@@ -1248,9 +1254,10 @@ impl<Message> FreshSurfaceLayoutCandidate<Message> {
                 authority.preparation,
             )
             && runtime
-                .runtime_layout_input_evidence_for_root(
+                .runtime_layout_input_evidence_for_root_with_direction(
                     authority.candidate_root_authority,
                     authority.candidate_mounted_source_present,
+                    self.surface.resolved_environment().writing_direction(),
                 )
                 .is_some_and(|input| input == authority.input)
             && self
@@ -2249,7 +2256,7 @@ mod tests {
             .paint_plan_with_hover_and_environment_and_appearance_into(
                 layout,
                 &context.theme,
-                context.environment,
+                context.environment.clone(),
                 context.appearance,
                 context.hovered_container,
                 context.active_scroll_affordance,

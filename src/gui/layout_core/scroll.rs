@@ -148,9 +148,27 @@ impl ScrollPolicy {
     }
 
     /// Preserve the pre-policy scroll view's ability to consume horizontal
-    /// wheel deltas when no explicit axis policy was supplied.
+    /// movement when no explicit axis policy was supplied.
     pub(crate) const fn allows_legacy_horizontal(self) -> bool {
         self.legacy_both_axes
+    }
+
+    /// Project a stored offset onto the axes currently admitted by this
+    /// policy. Declaration boundaries validate finiteness and non-negativity;
+    /// this helper only clears disabled components.
+    pub(crate) fn project_offset_axes(self, offset: Vector2) -> Vector2 {
+        Vector2::new(
+            if self.axes.includes_horizontal() || self.allows_legacy_horizontal() {
+                offset.x
+            } else {
+                0.0
+            },
+            if self.axes.includes_vertical() {
+                offset.y
+            } else {
+                0.0
+            },
+        )
     }
 }
 

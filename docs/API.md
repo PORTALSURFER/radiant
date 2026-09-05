@@ -96,6 +96,15 @@ malformed, unavailable, or no-op request is consumed silently. Focus reveal,
 wheel chaining, keyboard page/Home/End commands, and horizontal or vertical
 scrollbar interaction use the same policy and committed geometry.
 
+Explicit `ScrollPolicy` axes constrain both declarative offsets and retained
+runtime state: disabled components are silently projected to zero for mount
+seeds, newer controlled values, and policy changes. `ScrollPolicy::default()`
+keeps the legacy two-axis declaration behavior; re-enabling an axis does not
+restore a component discarded by an earlier policy without a newer input
+generation. Policy-only normalization preserves accepted generations; a newer
+valid controlled value consumes its generation even when projection leaves the
+effective offset unchanged.
+
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. Application code imports `radiant::prelude::*`, declares view
 structure, emits explicit messages from widgets, and mutates durable state in

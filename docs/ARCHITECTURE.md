@@ -330,6 +330,12 @@ container identity and environment generation. `initial_offset` seeds only a
 new mount; a `Controlled<Vector2>` value is admitted only when its generation
 is newer than the accepted generation; and a `ScrollRequest` is consumed once
 after finite committed geometry or a currently materialized key is verified.
+Explicit `ScrollPolicy` axes constrain every declarative input and retained
+offset: disabled components are projected to zero at admission and after a
+policy change, while `ScrollPolicy::default()` preserves the legacy two-axis
+behavior. This normalization is silent, does not admit stale or malformed
+generations, and does not resurrect a discarded component when an axis is
+re-enabled without newer input.
 Wheel, scrollbar, keyboard, focus reveal, and programmatic requests all pass
 through the same clamping and settlement path. Rejected or stale evidence has
 no layout or callback side effects.

@@ -207,9 +207,12 @@ pub(in crate::runtime::controller) fn sync_declarative_scroll_inputs_for(
                 .initial_offset
                 .filter(|offset| offset.x.is_finite() && offset.y.is_finite())
             {
-                layout_state
-                    .scroll_offsets
-                    .insert(id, Vector2::new(offset.x.max(0.0), offset.y.max(0.0)));
+                layout_state.scroll_offsets.insert(
+                    id,
+                    policy
+                        .scroll_policy
+                        .project_offset_axes(Vector2::new(offset.x.max(0.0), offset.y.max(0.0))),
+                );
             }
             entry.initial_seeded = true;
         }
@@ -222,10 +225,19 @@ pub(in crate::runtime::controller) fn sync_declarative_scroll_inputs_for(
             .is_none_or(|generation| controlled.generation() > generation)
         {
             let value = *controlled.value();
-            layout_state
-                .scroll_offsets
-                .insert(id, Vector2::new(value.x.max(0.0), value.y.max(0.0)));
+            layout_state.scroll_offsets.insert(
+                id,
+                policy
+                    .scroll_policy
+                    .project_offset_axes(Vector2::new(value.x.max(0.0), value.y.max(0.0))),
+            );
             entry.controlled_generation = Some(controlled.generation());
+        }
+        if let Some(current) = layout_state.scroll_offsets.get(&id).copied() {
+            let projected = policy.scroll_policy.project_offset_axes(current);
+            if projected != current {
+                layout_state.scroll_offsets.insert(id, projected);
+            }
         }
     }
 }
@@ -664,6 +676,197 @@ mod tests {
                 .and_then(|state| state.request_generation),
             Some(7)
         );
+    }
+
+    #[test]
+    fn declarative_offsets_project_axes_and_generation_fences_are_exact() {
+        for (scroll_policy, expected, controlled_expected, projected_noop_input) in [
+            (
+                ScrollPolicy::default(),
+                Vector2::new(13.0, 17.0),
+                Vector2::new(31.0, 37.0),
+                Vector2::new(31.0, 37.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Vertical),
+                Vector2::new(0.0, 17.0),
+                Vector2::new(0.0, 37.0),
+                Vector2::new(99.0, 37.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Horizontal),
+                Vector2::new(13.0, 0.0),
+                Vector2::new(31.0, 0.0),
+                Vector2::new(31.0, 99.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Both),
+                Vector2::new(13.0, 17.0),
+                Vector2::new(31.0, 37.0),
+                Vector2::new(31.0, 37.0),
+            ),
+        ] {
+            let policy = ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                scroll_policy,
+                initial_offset: Some(Vector2::new(13.0, 17.0)),
+                ..ContainerPolicy::default()
+            };
+            let mut state = crate::gui::layout_core::LayoutState::default();
+            sync_declarative_scroll_inputs_for(vec![(1, 2, &policy)], &mut state, 9);
+            assert_eq!(state.scroll_offset(1), expected);
+            assert_eq!(state.scroll_runtime[&1].mount_generation, 9);
+            assert!(state.scroll_runtime[&1].initial_seeded);
+
+            let controlled = ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                scroll_policy,
+                controlled_offset: Some(Controlled::new(Vector2::new(31.0, 37.0), 4)),
+                ..ContainerPolicy::default()
+            };
+            sync_declarative_scroll_inputs_for(vec![(1, 2, &controlled)], &mut state, 10);
+            assert_eq!(state.scroll_offset(1), controlled_expected);
+            assert_eq!(state.scroll_runtime[&1].controlled_generation, Some(4));
+
+            // A newer value is consumed even when projection makes it a no-op.
+            let projected_noop = ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                scroll_policy,
+                controlled_offset: Some(Controlled::new(projected_noop_input, 5)),
+                ..ContainerPolicy::default()
+            };
+            sync_declarative_scroll_inputs_for(vec![(1, 2, &projected_noop)], &mut state, 10);
+            assert_eq!(state.scroll_offset(1), controlled_expected);
+            assert_eq!(state.scroll_runtime[&1].controlled_generation, Some(5));
+        }
+
+        let policy = ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            scroll_policy: ScrollPolicy::default().axes(ScrollAxis::Horizontal),
+            controlled_offset: Some(Controlled::new(Vector2::new(31.0, 37.0), 9)),
+            ..ContainerPolicy::default()
+        };
+        let mut state = crate::gui::layout_core::LayoutState::default();
+        sync_declarative_scroll_inputs_for(vec![(1, 2, &policy)], &mut state, 1);
+        assert_eq!(state.scroll_offset(1), Vector2::new(31.0, 0.0));
+        assert_eq!(state.scroll_runtime[&1].controlled_generation, Some(9));
+
+        for controlled in [
+            Controlled::new(Vector2::new(99.0, 99.0), 8),
+            Controlled::new(Vector2::new(99.0, 99.0), 9),
+            Controlled::new(Vector2::new(99.0, 99.0), u64::MAX),
+            Controlled::new(Vector2::new(f32::NAN, 99.0), 10),
+            Controlled::new(Vector2::new(99.0, f32::INFINITY), 10),
+        ] {
+            let invalid_or_stale = ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                scroll_policy: policy.scroll_policy,
+                controlled_offset: Some(controlled),
+                ..ContainerPolicy::default()
+            };
+            sync_declarative_scroll_inputs_for(vec![(1, 2, &invalid_or_stale)], &mut state, 2);
+            assert_eq!(state.scroll_offset(1), Vector2::new(31.0, 0.0));
+            assert_eq!(state.scroll_runtime[&1].controlled_generation, Some(9));
+        }
+    }
+
+    #[test]
+    fn policy_reprojection_clears_only_disabled_retained_axis_without_resurrection() {
+        for (axes, expected) in [
+            (ScrollAxis::Vertical, Vector2::new(0.0, 50.0)),
+            (ScrollAxis::Horizontal, Vector2::new(40.0, 0.0)),
+        ] {
+            let request = ScrollRequest::rect(
+                Rect::from_min_size(Point::new(40.0, 50.0), Vector2::new(20.0, 20.0)),
+                ScrollAlignment::Nearest,
+                11,
+            );
+            let mut runtime = SurfaceRuntime::new(
+                ScrollInputRefreshBridge {
+                    policy: ScrollPolicy::default().axes(ScrollAxis::Both),
+                    initial: Vector2::new(40.0, 50.0),
+                    controlled: Some(Controlled::new(Vector2::new(40.0, 50.0), 7)),
+                    request: Some(request.clone()),
+                    scroll: true,
+                },
+                Vector2::new(100.0, 80.0),
+            );
+            assert_eq!(
+                runtime.layout_state.scroll_offset(1),
+                Vector2::new(40.0, 50.0)
+            );
+            let before = runtime.layout_state.scroll_runtime[&1].clone();
+
+            runtime.bridge_mut().policy = ScrollPolicy::default().axes(axes);
+            runtime.bridge_mut().controlled = Some(Controlled::new(Vector2::new(40.0, 50.0), 7));
+            runtime.bridge_mut().request = Some(request.clone());
+            runtime.refresh();
+
+            assert_eq!(runtime.layout_state.scroll_offset(1), expected);
+            assert_eq!(
+                runtime.layout_state.scroll_runtime[&1].mount_generation,
+                before.mount_generation
+            );
+            assert_eq!(
+                runtime.layout_state.scroll_runtime[&1].controlled_generation,
+                Some(7)
+            );
+            assert_eq!(
+                runtime.layout_state.scroll_runtime[&1].request_generation,
+                Some(11)
+            );
+
+            // Re-enabling both axes with the same generations must not restore
+            // the component discarded by the policy reprojection.
+            runtime.bridge_mut().policy = ScrollPolicy::default().axes(ScrollAxis::Both);
+            runtime.bridge_mut().controlled = Some(Controlled::new(Vector2::new(40.0, 50.0), 7));
+            runtime.bridge_mut().request = Some(request);
+            runtime.refresh();
+            assert_eq!(runtime.layout_state.scroll_offset(1), expected);
+            assert_eq!(
+                runtime.layout_state.scroll_runtime[&1].controlled_generation,
+                Some(7)
+            );
+            assert_eq!(
+                runtime.layout_state.scroll_runtime[&1].request_generation,
+                Some(11)
+            );
+        }
+    }
+
+    #[test]
+    fn direct_runtime_projects_axes_before_clamping_allowed_content_bounds() {
+        for (policy, expected) in [
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Vertical),
+                Vector2::new(0.0, 320.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Horizontal),
+                Vector2::new(300.0, 0.0),
+            ),
+            (
+                ScrollPolicy::default().axes(ScrollAxis::Both),
+                Vector2::new(300.0, 320.0),
+            ),
+            (ScrollPolicy::default(), Vector2::new(300.0, 320.0)),
+        ] {
+            let runtime = SurfaceRuntime::new(
+                RequestSettlementBridge {
+                    request: ScrollRequest::edge(ScrollEdge::Bottom, ScrollAlignment::Nearest, 1),
+                    initial: Vector2::new(10_000.0, 10_000.0),
+                    policy,
+                    settled: Vec::new(),
+                },
+                Vector2::new(100.0, 80.0),
+            );
+            assert_eq!(runtime.layout_state.scroll_offset(1), expected);
+            assert_eq!(
+                runtime.layout().rects[&2].min,
+                Point::new(-expected.x, -expected.y)
+            );
+            assert!(runtime.bridge().settled.is_empty());
+        }
     }
 
     #[test]
@@ -2412,7 +2615,7 @@ mod tests {
                             TextWidget::new(
                                 2,
                                 "Tall",
-                                WidgetSizing::fixed(Vector2::new(80.0, 400.0)),
+                                WidgetSizing::fixed(Vector2::new(400.0, 400.0)),
                             ),
                             WidgetMessageMapper::none(),
                         ),

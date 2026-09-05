@@ -164,6 +164,9 @@ enum PreparedScrollMessage {
 
 struct PreparedScrollBridge {
     project_count: usize,
+    policy: crate::layout::ScrollPolicy,
+    initial: Option<Vector2>,
+    content: Vector2,
     controlled: Option<crate::layout::Controlled<Vector2>>,
     request: Option<crate::layout::ScrollRequest>,
     settled: Rc<std::cell::RefCell<Vec<Vector2>>>,
@@ -177,6 +180,9 @@ impl PreparedScrollBridge {
     ) -> Self {
         Self {
             project_count: 0,
+            policy: crate::layout::ScrollPolicy::default(),
+            initial: None,
+            content: Vector2::new(80.0, 400.0),
             controlled: None,
             request: None,
             settled,
@@ -194,6 +200,8 @@ impl crate::runtime::RuntimeBridge<PreparedScrollMessage> for PreparedScrollBrid
         let policy = crate::layout::ContainerPolicy {
             kind: crate::layout::ContainerKind::ScrollView,
             overflow: crate::layout::OverflowPolicy::Scroll,
+            scroll_policy: self.policy,
+            initial_offset: self.initial,
             controlled_offset: self.controlled,
             scroll_request: self.request.clone(),
             ..crate::layout::ContainerPolicy::default()
@@ -206,7 +214,7 @@ impl crate::runtime::RuntimeBridge<PreparedScrollMessage> for PreparedScrollBrid
                     crate::widgets::TextWidget::new(
                         2,
                         "prepared scroll",
-                        crate::widgets::WidgetSizing::fixed(Vector2::new(80.0, 400.0)),
+                        crate::widgets::WidgetSizing::fixed(self.content),
                     ),
                     crate::runtime::WidgetMessageMapper::none(),
                 ),
@@ -331,6 +339,78 @@ fn prepared_native_scroll_gate_veto_preserves_active_state_before_retry() {
     );
     assert_eq!(runner.core.runtime.layout().rects[&2].min.y, -300.0);
     assert_eq!(&*settled.borrow(), &[Vector2::new(0.0, 300.0)]);
+}
+
+#[test]
+fn prepared_native_controlled_axes_publish_without_initial_or_request() {
+    let settled = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let observed_projects = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedScrollBridge::new(Rc::clone(&settled), Rc::clone(&observed_projects)),
+        Vector2::new(100.0, 80.0),
+    );
+    runner.core.runtime.bridge_mut().content = Vector2::new(400.0, 400.0);
+    assert!(runner.window.target_generation.advance());
+    runner.rebuild_scene();
+    let before_rect = runner.core.runtime.layout().rects[&2];
+    assert_eq!(before_rect.min, crate::gui::types::Point::new(0.0, 0.0));
+
+    {
+        let bridge = runner.core.runtime.bridge_mut();
+        bridge.policy =
+            crate::layout::ScrollPolicy::default().axes(crate::layout::ScrollAxis::Vertical);
+        bridge.initial = None;
+        bridge.request = None;
+        bridge.controlled = Some(crate::layout::Controlled::new(
+            Vector2::new(40.0, 10_000.0),
+            1,
+        ));
+    }
+    runner.timing.deferred_surface_refresh = true;
+    let mut stale = valid_prepared_surface_refresh_native_evidence();
+    stale.target_generation =
+        super::super::super::runner_state::NativeTargetGeneration::from_test_serial(2);
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+        stale,
+    );
+    assert_eq!(runner.core.runtime.layout().rects[&2], before_rect);
+    assert!(settled.borrow().is_empty());
+
+    runner.timing.deferred_surface_refresh = true;
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+    assert_eq!(
+        runner.core.runtime.layout().rects[&2].min,
+        crate::gui::types::Point::new(0.0, -320.0)
+    );
+    assert!(settled.borrow().is_empty());
+
+    {
+        let bridge = runner.core.runtime.bridge_mut();
+        bridge.policy =
+            crate::layout::ScrollPolicy::default().axes(crate::layout::ScrollAxis::Horizontal);
+        bridge.controlled = Some(crate::layout::Controlled::new(
+            Vector2::new(10_000.0, 40.0),
+            2,
+        ));
+        bridge.initial = None;
+        bridge.request = None;
+    }
+    runner.timing.deferred_surface_refresh = true;
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+    assert_eq!(
+        runner.core.runtime.layout().rects[&2].min,
+        crate::gui::types::Point::new(-300.0, 0.0)
+    );
+    assert!(settled.borrow().is_empty());
 }
 
 #[test]

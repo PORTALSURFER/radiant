@@ -3951,8 +3951,8 @@ Presentation declarations do not become layout or input children, so they do
 not change base hit testing, layer ordering, or widget state synchronization.
 Semantic command registration and the explicit host dispatch boundary are documented in
 [CONTEXTUAL_COMMANDS.md](CONTEXTUAL_COMMANDS.md). This foundation shares metadata,
-keymaps, active scope resolution and an application mapper; native keyboard and automatic
-view/menu adapters remain separate integration work. Existing catalogs retain their behavior.
+keymaps, active scope resolution and an application mapper. Native keyboard routing uses
+that resolver; automatic view/menu adapters remain separate integration work. Existing catalogs retain their behavior.
 
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered

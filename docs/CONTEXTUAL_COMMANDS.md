@@ -5,9 +5,11 @@ a data-only keymap, presentation queries, and one invocation-to-message mapper. 
 host boundary is `SurfaceRuntime::dispatch_command_request`; the application builder's
 `.commands(registry, project, dispatcher)` connects it to the ordinary reducer.
 
-This delivery establishes that host boundary. Native keyboard ingestion, automatic view-tree
-scope collection, and automatic menu/toolbar/palette adapters are not installed by this API.
-Those remaining OPT-1366 integrations must use the same resolver and target checks.
+The Winit keyboard adapter submits native presses through this boundary for runtimes with a
+semantic command host, including ordinary applications configured with `.commands(...)`.
+Automatic view-tree scope collection, automatic menu/toolbar/palette adapters, and inheritance
+of a parent registry into auxiliary-window bridges remain integration work. Those adapters
+must use the same resolver and target checks.
 
 ## Ownership and precedence
 
@@ -82,10 +84,16 @@ reinterpret its physical `KeyCode` values as logical characters.
 Menus and other semantic surfaces submit `CommandRequest::Target` with the original target and
 source, rather than retaining an already-mapped message that could outlive its context. Observe
 the returned `CommandOutcome` using the host's normal repaint and command scheduling path.
-The native adapters must also respect focused-key sequence ownership; inserting a second
-shortcut pass before an existing owner route is not sufficient integration.
+The native adapter keeps captured widget-key sequences and their retirement fence ahead of
+semantic commands. It preserves logical text and full positional codes independently of the
+legacy key subset, applies the registered repeat policy, and reserves required text-editing
+keys even when clipboard access fails. A command consumed by the semantic host cancels any
+pending legacy chord. Native tests cover the shared routing seam without opening an OS window;
+they are not OS-level keyboard, menu, or IME acceptance evidence.
 
 Run `cargo run --example contextual_commands` for a headless application/reducer example.
 Core tests cover precedence, disabled fallthrough, conflict rejection, identity retirement,
 logical/physical distinctions, repeat/text/IME policy, loss-preserving persistence, localization,
-and actual reducer dispatch. They do not constitute native keyboard or OS menu acceptance.
+and actual reducer dispatch. Native routing tests additionally cover actual composition
+ownership, logical/physical conflicts, text precedence and captured-key priority. They do not
+constitute OS keyboard or menu acceptance.

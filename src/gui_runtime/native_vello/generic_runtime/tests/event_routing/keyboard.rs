@@ -1,3 +1,6 @@
+#[path = "keyboard/semantic_commands.rs"]
+mod semantic_commands;
+
 use super::super::*;
 use crate::{
     gui::{
@@ -273,6 +276,8 @@ struct FocusedKeyRoutingBridge {
     messages: Vec<FocusedKeyRouteMessage>,
     host_presses: Vec<KeyPress>,
     host_handled: bool,
+    semantic_handled: bool,
+    semantic_presses: usize,
     host_binding: Option<KeyPress>,
     cancel_escape: bool,
 }
@@ -283,6 +288,8 @@ impl FocusedKeyRoutingBridge {
             messages: Vec::new(),
             host_presses: Vec::new(),
             host_handled,
+            semantic_handled: false,
+            semantic_presses: 0,
             host_binding: None,
             cancel_escape,
         }
@@ -294,6 +301,8 @@ impl FocusedKeyRoutingBridge {
             messages: Vec::new(),
             host_presses: Vec::new(),
             host_handled: false,
+            semantic_handled: false,
+            semantic_presses: 0,
             host_binding: Some(host_binding),
             cancel_escape,
         }
@@ -318,6 +327,22 @@ impl RuntimeBridge<FocusedKeyRouteMessage> for FocusedKeyRoutingBridge {
 }
 
 impl RuntimeInputHost<FocusedKeyRouteMessage> for FocusedKeyRoutingBridge {
+    fn resolve_command(
+        &mut self,
+        _: crate::application::CommandRequest<'_>,
+        _: crate::application::CommandFocus,
+    ) -> crate::application::CommandDispatch<FocusedKeyRouteMessage> {
+        self.semantic_presses += 1;
+        if self.semantic_handled {
+            crate::application::CommandDispatch {
+                message: None,
+                status: crate::application::CommandDispatchStatus::Unavailable,
+            }
+        } else {
+            crate::application::CommandDispatch::unhandled()
+        }
+    }
+
     fn resolve_key_press(
         &mut self,
         _pending_chord: Option<KeyPress>,

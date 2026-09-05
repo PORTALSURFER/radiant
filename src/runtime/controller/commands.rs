@@ -54,6 +54,21 @@ where
         (dispatch.status, outcome)
     }
 
+    pub(crate) fn dispatch_semantic_key_input(
+        &mut self,
+        input: &crate::application::CommandInput,
+        surface: crate::gui::focus::FocusSurface,
+    ) -> bool {
+        let (status, outcome) = self
+            .dispatch_command_request(crate::application::CommandRequest::Input(input), surface);
+        self.pending_input_command_outcome.merge(outcome);
+        let handled = status != crate::application::CommandDispatchStatus::Unhandled;
+        if handled {
+            self.interaction.focus.pending_key_chord = None;
+        }
+        handled
+    }
+
     /// Reduce one host-defined message and execute its runtime-visible command.
     pub fn dispatch_message(&mut self, message: Message) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();

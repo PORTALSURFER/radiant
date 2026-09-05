@@ -107,6 +107,7 @@ pub(super) struct RuntimeFocusState {
     pub(super) pending_key_chord: Option<KeyPress>,
     pub(super) focused_key_capture: Option<RuntimeFocusedKeyCapture>,
     pub(super) focused_key_host_block: Option<(WidgetId, WidgetKey)>,
+    pub(super) focused_semantic_key_block: Option<(WidgetId, WidgetKey)>,
 }
 
 /// Fixed-size behavior evidence required to retain a private separator owner.

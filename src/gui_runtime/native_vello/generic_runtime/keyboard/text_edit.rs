@@ -10,6 +10,21 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn route_required_text_key(
+        &mut self,
+        key: KeyCode,
+        text: Option<&str>,
+        timestamp: Option<InputTimestamp>,
+        repeat: bool,
+        outcome: &mut GenericRouteOutcome,
+    ) -> bool {
+        self.route_text_input_shortcut(key, timestamp, outcome)
+            || self.route_text_navigation_key(key, timestamp, outcome)
+            || self.route_focused_widget_preempting_shortcut_key(key, timestamp, repeat, outcome)
+            || self.route_space_text_input(key, timestamp, outcome)
+            || self.route_focused_text_input_before_shortcuts(key, text, timestamp, repeat, outcome)
+    }
+
     pub(super) fn route_space_text_input(
         &mut self,
         key: KeyCode,

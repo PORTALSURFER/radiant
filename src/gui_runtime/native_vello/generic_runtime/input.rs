@@ -111,6 +111,10 @@ pub(super) fn keyboard_modifiers_from_winit(
     }
 }
 
+pub(super) fn native_shortcut_platform() -> crate::application::ShortcutPlatform {
+    platform::native_shortcut_platform()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

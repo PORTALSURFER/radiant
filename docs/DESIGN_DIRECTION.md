@@ -619,7 +619,16 @@ expander, icon, hit, and capture geometry remains physical. TreeRow semantics
 use the painted label and host/runtime interaction state without changing
 ownership. Native paragraph shaping consumes the published application locale
 and writing direction; retained bidi and complex shaping are implemented under
-OPT-1402. Menu/shell geometry remains follow-on work under OPT-1386.
+OPT-1402. Shell geometry remains follow-on work under OPT-1386.
+
+Framework-owned menus resolve title and command-row intrinsic heights from the
+application text scale. Each command owns its visible label, shortcut hint,
+accessible name, and input state under one widget identity; RTL mirrors the
+label and shortcut columns. Automatic context-menu width scales its character
+estimate within the declared physical limits, and automatic height scales text
+rows while retaining physical padding and gaps. Explicit `.width(...)` and
+`.size(...)` constraints remain physical. The `localization_foundation` example
+cycles English, French, and Arabic with a larger text scale and an RTL menu.
 
 The current foundation exposes immutable, testable snapshots at application and
 window scopes. `ApplicationEnvironment` contains explicit locale fallback,
@@ -630,8 +639,7 @@ direction in their typed identity. Published presentation changes retire native
 input snapshots and caret affinity before preparing fresh geometry. Catalog-only
 changes are represented by the resolved text bytes; shortcut presentation and
 DPI do not invalidate shaping. Legacy renderer callers keep automatic bidi
-direction. Remaining OPT-1386 work covers menu/shell geometry and the shared
-localized menu, toolbar, and shortcut-help example.
+direction. Remaining OPT-1386 work covers shell geometry and integrated toolbar/shortcut-help example coverage.
 
 ```rust
 text(localized(TextKey::sample_count(), [state.samples.len().into()]));

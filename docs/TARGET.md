@@ -1618,8 +1618,17 @@ witness; row, guide, expander, icon, hit, and capture geometry stays physical,
 and TreeRow semantics preserve host/runtime ownership. Native shaping and its
 retained cache identities consume the published locale and writing direction.
 Presentation changes replace native input geometry even when text bytes remain
-unchanged. Menu/shell geometry remains staged work under OPT-1386; retained
+unchanged. Shell geometry remains staged work under OPT-1386; retained
 bidi and complex shaping are implemented under OPT-1402.
+
+Framework-owned menus resolve title and command-row intrinsic heights from the
+application text scale. Each command owns its visible label, shortcut hint,
+accessible name, and input state under one widget identity; RTL mirrors the
+label and shortcut columns. Automatic context-menu width scales its character
+estimate within the declared physical limits, and automatic height scales text
+rows while retaining physical padding and gaps. Explicit `.width(...)` and
+`.size(...)` constraints remain physical. The `localization_foundation` example
+cycles English, French, and Arabic with a larger text scale and an RTL menu.
 
 At the native window scope, environment exposes only display scale, color
 scheme, contrast, and reduced-motion preference; application presentation

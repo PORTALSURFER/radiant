@@ -107,6 +107,7 @@ impl<Message> AnchoredContextMenuBuilder<Message> {
         Message: Clone + 'static,
     {
         let size = self.size_for_content();
+        let text_scaled_size = self.text_scaled_size();
         let menu = anchored_popover_from_parts(AnchoredPopoverParts::below(
             message_menu_from_parts(MessageMenuParts {
                 title: self.title,
@@ -116,12 +117,51 @@ impl<Message> AnchoredContextMenuBuilder<Message> {
             AnchoredPopoverAnchor::pointer(self.anchor),
             Vector2::new(size.x.max(1.0), size.y.max(1.0)),
         ));
+        let menu = menu.with_text_scaled_floating_size(text_scaled_size);
         match self.dismiss_message {
             Some(message) => {
                 stack([dismiss_layer(message).key("context-menu-dismiss"), menu]).fill()
             }
             None => menu,
         }
+    }
+
+    fn text_scaled_size(&self) -> Option<crate::runtime::TextScaledSize> {
+        use crate::{
+            gui::text_layout::TextWidthEstimate,
+            runtime::{TextScaledExtent, TextScaledSize},
+        };
+        if matches!(self.sizing, ContextMenuSizing::Exact(_)) {
+            return None;
+        }
+        let count = self.commands.len();
+        let text_height =
+            super::actions::MENU_TITLE_HEIGHT + count as f32 * super::actions::MENU_ITEM_HEIGHT;
+        let height = TextScaledExtent {
+            characters: 1,
+            metrics: TextWidthEstimate::new(text_height, message_menu_height(count) - text_height),
+            minimum: 1.0,
+            maximum: f32::MAX,
+        };
+        let width = match self.sizing {
+            ContextMenuSizing::WidthPolicy(policy) => Some(TextScaledExtent {
+                characters: self.title.chars().count().max(
+                    self.commands
+                        .iter()
+                        .map(super::model::command_menu_width_chars)
+                        .max()
+                        .unwrap_or(0),
+                ),
+                metrics: policy.metrics,
+                minimum: policy.min_width,
+                maximum: policy.max_width,
+            }),
+            _ => None,
+        };
+        Some(TextScaledSize {
+            width,
+            height: Some(height),
+        })
     }
 
     fn size_for_content(&self) -> Vector2 {

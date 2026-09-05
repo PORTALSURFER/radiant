@@ -1616,10 +1616,19 @@ locale fallback, direction, text scale, catalog generation, and shortcut
   locale/direction before seeding input geometry. TextLayoutCache keys both
   values, while DPI, shortcut display, and catalog generations remain outside
   shape identity. Presentation changes retire the input sidecar and caret
-  affinity; an unchanged snapshot preserves them. Menu/shell geometry remains
+  affinity; an unchanged snapshot preserves them. Shell geometry remains
   staged under OPT-1386. The retained bidi and complex-shaping implementation is owned
   by OPT-1402 and documented in
   [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
+
+Framework-owned menus resolve title and command-row intrinsic heights from the
+application text scale. Each command owns its visible label, shortcut hint,
+accessible name, and input state under one widget identity; RTL mirrors the
+label and shortcut columns. Automatic context-menu width scales its character
+estimate within the declared physical limits, and automatic height scales text
+rows while retaining physical padding and gaps. Explicit `.width(...)` and
+`.size(...)` constraints remain physical. The `localization_foundation` example
+cycles English, French, and Arabic with a larger text scale and an RTL menu.
 
 ## Platform Boundary
 

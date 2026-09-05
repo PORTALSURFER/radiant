@@ -350,10 +350,23 @@ impl<Message> UiSurface<Message> {
     /// without invoking any widget callback.
     pub(in crate::runtime) fn prepared_widget_state_sync_is_current(
         &self,
+        previous: &Self,
         witness: &PreparedWidgetStateSyncWitness,
     ) -> Result<(), PreparedWidgetStateSyncVeto> {
         let result = catch_unwind(AssertUnwindSafe(|| {
             for entry in &witness.entries {
+                let previous_widget = previous
+                    .root
+                    .find_widget_at_path(entry.previous_path.as_slice())
+                    .filter(|widget| widget.id() == entry.widget_id)
+                    .ok_or(PreparedWidgetStateSyncVeto::InvalidIdentity)?;
+                let previous_sources = previous
+                    .root
+                    .source_metadata_path_at(entry.previous_path.as_slice())
+                    .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+                if !entry.previous_is_unchanged(previous_widget, &previous_sources) {
+                    return Err(PreparedWidgetStateSyncVeto::InvalidRevision);
+                }
                 let current = self
                     .root
                     .find_widget_at_path(entry.current_path.as_slice())

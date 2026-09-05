@@ -186,6 +186,13 @@ where
                 Ok(()) => {}
                 Err(_) => return InteractionPatchPreparation::Terminal,
             }
+            if candidate
+                .surface
+                .prepared_widget_state_sync_is_current(&self.surface, &witness)
+                .is_err()
+            {
+                return InteractionPatchPreparation::Terminal;
+            }
             let stateful_sync = InteractionStateSync {
                 selected_ids,
                 previous_paths,
@@ -228,17 +235,17 @@ where
         ) {
             return None;
         }
-        let paths = self.interaction_update_paths(&prepared.candidate)?;
         let mut prepared = prepared;
         if let Some(sync) = prepared.stateful_sync.as_ref()
             && prepared
                 .candidate
                 .surface
-                .prepared_widget_state_sync_is_current(&sync.witness)
+                .prepared_widget_state_sync_is_current(&self.surface, &sync.witness)
                 .is_err()
         {
             return None;
         }
+        let paths = self.interaction_update_paths(&prepared.candidate)?;
         let validated_plan = if let Some(sync) = prepared.stateful_sync.as_mut() {
             let plan =
                 std::mem::replace(&mut sync.replacement_plan, WidgetReplacementPlan::empty());
@@ -288,7 +295,7 @@ where
         prepared
             .candidate
             .surface
-            .prepared_widget_state_sync_is_current(&sync.witness)
+            .prepared_widget_state_sync_is_current(&self.surface, &sync.witness)
             .is_ok()
     }
 
@@ -680,11 +687,23 @@ mod tests {
         },
         theme::{ResolvedAppearance, ThemeTokens},
         widgets::{
-            FocusBehavior, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetKey,
-            WidgetOutput, WidgetRevision, WidgetState, WidgetStyle, WidgetTone,
+            FocusBehavior, PointerButton, Widget, WidgetCapabilities, WidgetCommon, WidgetInput,
+            WidgetKey, WidgetOutput, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision,
+            WidgetState, WidgetStyle, WidgetTone,
         },
     };
     use std::{cell::Cell, rc::Rc, sync::Arc};
+
+    #[derive(Clone)]
+    struct RevisionCapability {
+        revision: Rc<Cell<u64>>,
+    }
+
+    impl WidgetSemantics for RevisionCapability {
+        fn revision(&self) -> WidgetSemanticsRevision {
+            WidgetSemanticsRevision::exact(self.revision.get())
+        }
+    }
 
     #[derive(Clone)]
     struct InteractionWidget {
@@ -696,10 +715,19 @@ mod tests {
         panic_on_sync: bool,
         replacement_output: bool,
         drift_revision_on_sync: bool,
+        mutate_previous_revision_on_sync: bool,
         prepared_support: bool,
         sync_calls: Option<Rc<Cell<usize>>>,
+        live_revision_handle: Option<Rc<Cell<bool>>>,
+        live_capability_revision: Option<Rc<Cell<u64>>>,
+        capability: Option<RevisionCapability>,
+        live_stateful_handle: Option<Rc<Cell<bool>>>,
+        mutate_previous_capability_on_sync: bool,
+        mutate_previous_stateful_on_sync: bool,
         replacement_calls: Option<Rc<Cell<usize>>>,
         mutate_shared_source: Option<Rc<KeyedNodeEvidence>>,
+        source_drift_on_sync: bool,
+        mutate_previous_source_on_sync: bool,
         drift_support_on_sync: bool,
         drift_disabled_on_sync: bool,
         drift_stateful_on_sync: bool,
@@ -727,10 +755,19 @@ mod tests {
                 panic_on_sync,
                 replacement_output,
                 drift_revision_on_sync,
+                mutate_previous_revision_on_sync: false,
                 prepared_support: stateful,
                 sync_calls: None,
+                live_revision_handle: None,
+                live_capability_revision: None,
+                capability: None,
+                live_stateful_handle: None,
+                mutate_previous_capability_on_sync: false,
+                mutate_previous_stateful_on_sync: false,
                 replacement_calls: None,
                 mutate_shared_source: None,
+                source_drift_on_sync: false,
+                mutate_previous_source_on_sync: false,
                 drift_support_on_sync: false,
                 drift_disabled_on_sync: false,
                 drift_stateful_on_sync: false,
@@ -741,7 +778,11 @@ mod tests {
 
     impl Widget for InteractionWidget {
         fn revision(&self) -> WidgetRevision {
-            WidgetRevision::exact((), self.geometry_changed, self.paint_changed, self.revision)
+            let revision = self
+                .live_revision_handle
+                .as_ref()
+                .map_or(self.revision, |handle| handle.get());
+            WidgetRevision::exact((), self.geometry_changed, self.paint_changed, revision)
         }
 
         fn common(&self) -> &WidgetCommon {
@@ -753,11 +794,21 @@ mod tests {
         }
 
         fn needs_state_synchronization(&self) -> bool {
-            self.stateful
+            self.live_stateful_handle
+                .as_ref()
+                .map_or(self.stateful, |handle| handle.get())
         }
 
         fn supports_prepared_state_synchronization(&self) -> bool {
             self.prepared_support
+        }
+
+        fn capabilities(&self) -> WidgetCapabilities<'_> {
+            self.capability
+                .as_ref()
+                .map_or_else(WidgetCapabilities::none, |capability| {
+                    WidgetCapabilities::none().semantics(capability)
+                })
         }
 
         fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
@@ -769,7 +820,19 @@ mod tests {
                     panic!("state synchronization probe panic");
                 }
                 self.common.state = previous.common().state;
-                if let Some(keyed) = &self.mutate_shared_source {
+                if self.source_drift_on_sync
+                    && let Some(keyed) = &self.mutate_shared_source
+                {
+                    keyed.set_identity(SourceIdentity {
+                        resolved_id: 999,
+                        structural_scope: 11,
+                        origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+                    });
+                }
+                if self.mutate_previous_source_on_sync
+                    && let Some(previous) = previous.as_any().downcast_ref::<Self>()
+                    && let Some(keyed) = &previous.mutate_shared_source
+                {
                     keyed.set_identity(SourceIdentity {
                         resolved_id: 999,
                         structural_scope: 11,
@@ -790,6 +853,24 @@ mod tests {
                 }
                 if self.drift_revision_on_sync {
                     self.revision = !self.revision;
+                }
+                if self.mutate_previous_revision_on_sync
+                    && let Some(previous) = previous.as_any().downcast_ref::<Self>()
+                    && let Some(handle) = &previous.live_revision_handle
+                {
+                    handle.set(!handle.get());
+                }
+                if self.mutate_previous_capability_on_sync
+                    && let Some(previous) = previous.as_any().downcast_ref::<Self>()
+                    && let Some(handle) = &previous.live_capability_revision
+                {
+                    handle.set(handle.get().saturating_add(1));
+                }
+                if self.mutate_previous_stateful_on_sync
+                    && let Some(previous) = previous.as_any().downcast_ref::<Self>()
+                    && let Some(handle) = &previous.live_stateful_handle
+                {
+                    handle.set(!handle.get());
                 }
             }
         }
@@ -1069,6 +1150,7 @@ mod tests {
         panic_on_sync: bool,
         replacement_output: bool,
         drift_revision_on_sync: bool,
+        mutate_previous_revision_on_sync: bool,
         support_flip: bool,
         support_drop: bool,
         second_revision: bool,
@@ -1082,6 +1164,20 @@ mod tests {
         drift_disabled_on_sync: bool,
         drift_stateful_on_sync: bool,
         drift_focusability_on_sync: bool,
+        old_revision_handle: Option<Rc<Cell<bool>>>,
+        new_revision_handle: Option<Rc<Cell<bool>>>,
+        mutate_previous_capability_on_sync: bool,
+        mutate_previous_stateful_on_sync: bool,
+        old_capability_revision: Option<Rc<Cell<u64>>>,
+        new_capability_revision: Option<Rc<Cell<u64>>>,
+        old_stateful_handle: Option<Rc<Cell<bool>>>,
+        new_stateful_handle: Option<Rc<Cell<bool>>>,
+        mutate_previous_source_on_sync: bool,
+        old_source: Option<Rc<KeyedNodeEvidence>>,
+        new_source: Option<Rc<KeyedNodeEvidence>>,
+        mapper_calls: Option<Rc<Cell<usize>>>,
+        update_calls: Option<Rc<Cell<usize>>>,
+        reduce_calls: Option<Rc<Cell<usize>>>,
     }
 
     impl Bridge {
@@ -1107,11 +1203,47 @@ mod tests {
                             true
                         };
                     widget.sync_calls = self.sync_calls.clone();
+                    widget.live_revision_handle = if self.revision {
+                        self.new_revision_handle.clone()
+                    } else {
+                        self.old_revision_handle.clone()
+                    };
+                    widget.live_capability_revision = if self.revision {
+                        self.new_capability_revision.clone()
+                    } else {
+                        self.old_capability_revision.clone()
+                    };
+                    widget.capability = widget.live_capability_revision.as_ref().map(|revision| {
+                        RevisionCapability {
+                            revision: Rc::clone(revision),
+                        }
+                    });
+                    widget.live_stateful_handle = if self.revision {
+                        self.new_stateful_handle.clone()
+                    } else {
+                        self.old_stateful_handle.clone()
+                    };
+                    widget.mutate_previous_revision_on_sync = self.mutate_previous_revision_on_sync;
+                    widget.mutate_previous_capability_on_sync =
+                        self.mutate_previous_capability_on_sync;
+                    widget.mutate_previous_stateful_on_sync = self.mutate_previous_stateful_on_sync;
                     widget.replacement_calls = self.replacement_calls.clone();
-                    widget.mutate_shared_source = self
-                        .source_drift_on_sync
-                        .then(|| self.shared_source.clone())
+                    widget.mutate_shared_source = (self.source_drift_on_sync
+                        || self.mutate_previous_source_on_sync)
+                        .then(|| {
+                            if self.revision {
+                                self.new_source
+                                    .clone()
+                                    .or_else(|| self.shared_source.clone())
+                            } else {
+                                self.old_source
+                                    .clone()
+                                    .or_else(|| self.shared_source.clone())
+                            }
+                        })
                         .flatten();
+                    widget.source_drift_on_sync = self.source_drift_on_sync;
+                    widget.mutate_previous_source_on_sync = self.mutate_previous_source_on_sync;
                     widget.drift_support_on_sync = self.drift_support_on_sync;
                     widget.drift_disabled_on_sync = self.drift_disabled_on_sync;
                     widget.drift_stateful_on_sync = self.drift_stateful_on_sync;
@@ -1119,8 +1251,14 @@ mod tests {
                     widget
                 },
                 if self.replacement_output {
+                    let mapper_calls = self.mapper_calls.clone();
                     crate::runtime::WidgetMessageMapper::dynamic_mapped(
-                        crate::runtime::EventMapper::with_revision((), |_: ()| ()).typed_mapped(),
+                        crate::runtime::EventMapper::with_revision((), move |_: ()| {
+                            if let Some(calls) = &mapper_calls {
+                                calls.set(calls.get() + 1);
+                            }
+                        })
+                        .typed_mapped(),
                     )
                 } else if self.mapper_opaque {
                     crate::runtime::WidgetMessageMapper::dynamic(|_| None)
@@ -1128,7 +1266,12 @@ mod tests {
                     crate::runtime::WidgetMessageMapper::none()
                 },
             );
-            if let Some(keyed) = &self.shared_source {
+            let source = if self.revision {
+                self.new_source.as_ref().or(self.shared_source.as_ref())
+            } else {
+                self.old_source.as_ref().or(self.shared_source.as_ref())
+            };
+            if let Some(keyed) = source {
                 first_node = first_node.with_source_metadata(SourceMetadata::new(
                     SourceIdentity {
                         resolved_id: 10,
@@ -1190,6 +1333,20 @@ mod tests {
             self.application_environment.clone()
         }
 
+        fn reduce_message(&mut self, _message: ()) {
+            if let Some(calls) = &self.reduce_calls {
+                calls.set(calls.get() + 1);
+            }
+        }
+
+        fn update(&mut self, message: ()) -> crate::runtime::Command<()> {
+            if let Some(calls) = &self.update_calls {
+                calls.set(calls.get() + 1);
+            }
+            <Self as RuntimeBridge<()>>::reduce_message(self, message);
+            crate::runtime::Command::RequestPaintOnly
+        }
+
         fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<()>> {
             crate::runtime::test_arc_surface(self.surface())
         }
@@ -1246,7 +1403,7 @@ mod tests {
         }
     }
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     enum FloatingMutation {
         Offset,
         Size,
@@ -2085,6 +2242,356 @@ mod tests {
     }
 
     #[test]
+    fn stateful_sync_predecessor_live_revision_drift_is_terminal_without_publication() {
+        let old_revision = Rc::new(Cell::new(false));
+        let new_revision = Rc::new(Cell::new(true));
+        let sync_calls = Rc::new(Cell::new(0));
+        let replacement_calls = Rc::new(Cell::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                mutate_previous_revision_on_sync: true,
+                old_revision_handle: Some(Rc::clone(&old_revision)),
+                new_revision_handle: Some(Rc::clone(&new_revision)),
+                sync_calls: Some(Rc::clone(&sync_calls)),
+                replacement_calls: Some(Rc::clone(&replacement_calls)),
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let before = runtime.refresh_counters();
+        let cached_before = runtime.surface().find_widget(10).unwrap().revision();
+        runtime.bridge_mut().revision = true;
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+        assert_eq!(sync_calls.get(), 1, "one prepared synchronization");
+        assert_eq!(
+            replacement_calls.get(),
+            0,
+            "predecessor drift vetoes replacement"
+        );
+        assert!(old_revision.get(), "successor mutated predecessor only");
+        assert!(
+            new_revision.get(),
+            "successor live evidence stayed unchanged"
+        );
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection,
+            "no projection publication"
+        );
+        assert_eq!(
+            runtime.refresh_counters().layout,
+            before.layout,
+            "no layout"
+        );
+        let installed = runtime.surface().find_widget(10).unwrap();
+        assert_eq!(
+            installed.revision(),
+            cached_before,
+            "cached evidence is retained"
+        );
+        assert_ne!(
+            installed.widget_object().revision(),
+            cached_before,
+            "installed predecessor exposes the live drift"
+        );
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum PredecessorEvidenceDrift {
+        LiveRevision,
+        CapabilityRevision,
+        Membership,
+        Source,
+    }
+
+    type PredecessorEvidenceHandles = (
+        Bridge,
+        Rc<Cell<bool>>,
+        Rc<Cell<u64>>,
+        Rc<Cell<bool>>,
+        Rc<KeyedNodeEvidence>,
+        Rc<KeyedNodeEvidence>,
+    );
+
+    fn predecessor_evidence_bridge(
+        drift: Option<PredecessorEvidenceDrift>,
+        pull_calls: Rc<Cell<usize>>,
+        sync_calls: Rc<Cell<usize>>,
+        replacement_calls: Rc<Cell<usize>>,
+    ) -> PredecessorEvidenceHandles {
+        let old_revision = Rc::new(Cell::new(false));
+        let new_revision = Rc::new(Cell::new(true));
+        let old_capability = Rc::new(Cell::new(1));
+        let new_capability = Rc::new(Cell::new(1));
+        let old_membership = Rc::new(Cell::new(true));
+        let new_membership = Rc::new(Cell::new(true));
+        let old_source = Rc::new(KeyedNodeEvidence::new(SourceIdentitySeed {
+            resolved_id: 10,
+            structural_scope: 11,
+            origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+            effect_owner: None,
+        }));
+        old_source.set_compatibility(SourceCompatibility {
+            surface_kind: SurfaceSourceKind::Widget,
+            widget_compatibility_kind: Some("interaction"),
+        });
+        let new_source = Rc::new(KeyedNodeEvidence::new(SourceIdentitySeed {
+            resolved_id: 10,
+            structural_scope: 11,
+            origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+            effect_owner: None,
+        }));
+        new_source.set_compatibility(SourceCompatibility {
+            surface_kind: SurfaceSourceKind::Widget,
+            widget_compatibility_kind: Some("interaction"),
+        });
+        let bridge = Bridge {
+            authority_revision: 1,
+            exact: true,
+            stateful: true,
+            replacement_output: true,
+            pull_calls: Some(pull_calls),
+            sync_calls: Some(sync_calls),
+            replacement_calls: Some(replacement_calls),
+            mutate_previous_revision_on_sync: matches!(
+                drift,
+                Some(PredecessorEvidenceDrift::LiveRevision)
+            ),
+            mutate_previous_capability_on_sync: matches!(
+                drift,
+                Some(PredecessorEvidenceDrift::CapabilityRevision)
+            ),
+            mutate_previous_stateful_on_sync: matches!(
+                drift,
+                Some(PredecessorEvidenceDrift::Membership)
+            ),
+            mutate_previous_source_on_sync: matches!(drift, Some(PredecessorEvidenceDrift::Source)),
+            old_revision_handle: Some(Rc::clone(&old_revision)),
+            new_revision_handle: Some(Rc::clone(&new_revision)),
+            old_capability_revision: Some(Rc::clone(&old_capability)),
+            new_capability_revision: Some(Rc::clone(&new_capability)),
+            old_stateful_handle: Some(Rc::clone(&old_membership)),
+            new_stateful_handle: Some(Rc::clone(&new_membership)),
+            old_source: Some(Rc::clone(&old_source)),
+            new_source: Some(Rc::clone(&new_source)),
+            mapper_calls: Some(Rc::new(Cell::new(0))),
+            update_calls: Some(Rc::new(Cell::new(0))),
+            reduce_calls: Some(Rc::new(Cell::new(0))),
+            ..base_bridge()
+        };
+        (
+            bridge,
+            old_revision,
+            old_capability,
+            old_membership,
+            old_source,
+            new_source,
+        )
+    }
+
+    #[test]
+    fn predecessor_evidence_drift_during_sync_vetoes_every_exact_publication() {
+        for drift in [
+            PredecessorEvidenceDrift::LiveRevision,
+            PredecessorEvidenceDrift::CapabilityRevision,
+            PredecessorEvidenceDrift::Membership,
+            PredecessorEvidenceDrift::Source,
+        ] {
+            let pull_calls = Rc::new(Cell::new(0));
+            let sync_calls = Rc::new(Cell::new(0));
+            let replacement_calls = Rc::new(Cell::new(0));
+            let (bridge, old_revision, old_capability, old_membership, old_source, new_source) =
+                predecessor_evidence_bridge(
+                    Some(drift),
+                    Rc::clone(&pull_calls),
+                    Rc::clone(&sync_calls),
+                    Rc::clone(&replacement_calls),
+                );
+            let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+            let old_identity =
+                runtime.surface().find_widget(10).unwrap().widget_object() as *const dyn Widget;
+            let before = runtime.refresh_counters();
+            runtime.bridge_mut().revision = true;
+            runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            assert_eq!(pull_calls.get(), 1, "{drift:?}: one pull");
+            assert_eq!(sync_calls.get(), 1, "{drift:?}: one sync");
+            assert_eq!(replacement_calls.get(), 0, "{drift:?}: no replacement");
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .mapper_calls
+                    .as_ref()
+                    .expect("mapper counter")
+                    .get(),
+                0,
+                "{drift:?}: old mapper stays untouched"
+            );
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .update_calls
+                    .as_ref()
+                    .expect("update counter")
+                    .get(),
+                0,
+                "{drift:?}: bridge update stays untouched"
+            );
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .reduce_calls
+                    .as_ref()
+                    .expect("reduce counter")
+                    .get(),
+                0,
+                "{drift:?}: bridge reducer stays untouched"
+            );
+            assert_eq!(
+                runtime.refresh_counters().runtime_projection,
+                before.runtime_projection,
+                "{drift:?}: no publication"
+            );
+            assert_eq!(
+                runtime.refresh_counters().layout,
+                before.layout,
+                "{drift:?}: no layout"
+            );
+            let installed = runtime.surface().find_widget(10).unwrap();
+            assert_eq!(
+                installed.widget_object() as *const dyn Widget,
+                old_identity,
+                "{drift:?}: old object remains installed"
+            );
+            match drift {
+                PredecessorEvidenceDrift::LiveRevision => assert!(old_revision.get()),
+                PredecessorEvidenceDrift::CapabilityRevision => {
+                    assert_eq!(old_capability.get(), 2)
+                }
+                PredecessorEvidenceDrift::Membership => assert!(!old_membership.get()),
+                PredecessorEvidenceDrift::Source => {
+                    assert_eq!(old_source.identity().resolved_id, 999);
+                    assert_eq!(new_source.identity().resolved_id, 10)
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn held_predecessor_evidence_drift_vetoes_before_authority_or_replacement() {
+        for drift in [
+            PredecessorEvidenceDrift::LiveRevision,
+            PredecessorEvidenceDrift::CapabilityRevision,
+            PredecessorEvidenceDrift::Membership,
+            PredecessorEvidenceDrift::Source,
+        ] {
+            let pull_calls = Rc::new(Cell::new(0));
+            let sync_calls = Rc::new(Cell::new(0));
+            let replacement_calls = Rc::new(Cell::new(0));
+            let (mut bridge, old_revision, old_capability, old_membership, old_source, new_source) =
+                predecessor_evidence_bridge(
+                    None,
+                    Rc::clone(&pull_calls),
+                    Rc::clone(&sync_calls),
+                    Rc::clone(&replacement_calls),
+                );
+            bridge.mutate_previous_revision_on_sync = false;
+            let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(80.0, 40.0));
+            let old_identity =
+                runtime.surface().find_widget(10).unwrap().widget_object() as *const dyn Widget;
+            runtime.bridge_mut().revision = true;
+            let prepared = runtime
+                .prepare_fresh_surface_refresh(
+                    crate::runtime::RepaintScope::Projection,
+                    ResolvedAppearance::fixed(ThemeTokens::dark()),
+                )
+                .expect("fixture should successfully prepare a fresh refresh");
+            assert!(matches!(
+                &prepared,
+                super::super::fresh_surface_preparation::PreparedSurfaceRefresh::Interaction { .. }
+            ));
+            match drift {
+                PredecessorEvidenceDrift::LiveRevision => old_revision.set(true),
+                PredecessorEvidenceDrift::CapabilityRevision => old_capability.set(2),
+                PredecessorEvidenceDrift::Membership => old_membership.set(false),
+                PredecessorEvidenceDrift::Source => old_source.set_identity(SourceIdentity {
+                    resolved_id: 999,
+                    structural_scope: 11,
+                    origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+                }),
+            }
+            assert_eq!(
+                new_source.identity().resolved_id,
+                10,
+                "{drift:?}: successor source stays current"
+            );
+            let before = runtime.refresh_counters();
+            let candidate_current = match &prepared {
+                super::super::fresh_surface_preparation::PreparedSurfaceRefresh::Interaction {
+                    candidate,
+                    ..
+                } => runtime.interaction_patch_candidate_is_current(candidate),
+                super::super::fresh_surface_preparation::PreparedSurfaceRefresh::Full {
+                    ..
+                } => {
+                    panic!("fixture should hold an interaction candidate")
+                }
+            };
+            assert!(
+                !candidate_current,
+                "{drift:?}: candidate currentness rejects drift"
+            );
+            assert!(runtime.publish_prepared_surface_refresh(prepared).is_none());
+            assert_eq!(pull_calls.get(), 1, "{drift:?}: one pull");
+            assert_eq!(sync_calls.get(), 1, "{drift:?}: one sync");
+            assert_eq!(replacement_calls.get(), 0, "{drift:?}: no replacement");
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .mapper_calls
+                    .as_ref()
+                    .expect("mapper counter")
+                    .get(),
+                0,
+                "{drift:?}: old mapper stays untouched"
+            );
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .update_calls
+                    .as_ref()
+                    .expect("update counter")
+                    .get(),
+                0,
+                "{drift:?}: bridge update stays untouched"
+            );
+            assert_eq!(
+                runtime
+                    .bridge()
+                    .reduce_calls
+                    .as_ref()
+                    .expect("reduce counter")
+                    .get(),
+                0,
+                "{drift:?}: bridge reducer stays untouched"
+            );
+            assert_eq!(runtime.refresh_counters(), before, "{drift:?}: no counters");
+            assert!(
+                runtime.fresh_surface_request.is_some(),
+                "{drift:?}: authority retained"
+            );
+            assert_eq!(
+                runtime.surface().find_widget(10).unwrap().widget_object() as *const dyn Widget,
+                old_identity,
+                "{drift:?}: old object remains installed"
+            );
+        }
+    }
+
+    #[test]
     fn stateful_sync_shared_keyed_source_drift_is_terminal_without_replay_or_publication() {
         let keyed = Rc::new(KeyedNodeEvidence::new(SourceIdentitySeed {
             resolved_id: 10,
@@ -2385,12 +2892,18 @@ mod tests {
 
     #[test]
     fn stateful_replacement_uses_the_old_mapper_once_before_deferred_delivery() {
+        let mapper_calls = Rc::new(Cell::new(0));
+        let update_calls = Rc::new(Cell::new(0));
+        let reduce_calls = Rc::new(Cell::new(0));
         let mut runtime = SurfaceRuntime::new(
             Bridge {
                 authority_revision: 1,
                 exact: true,
                 stateful: true,
                 replacement_output: true,
+                mapper_calls: Some(Rc::clone(&mapper_calls)),
+                update_calls: Some(Rc::clone(&update_calls)),
+                reduce_calls: Some(Rc::clone(&reduce_calls)),
                 ..base_bridge()
             },
             Vector2::new(80.0, 40.0),
@@ -2409,6 +2922,18 @@ mod tests {
 
         assert_eq!(terminal_messages, vec![()]);
         assert!(retired_candidate.is_some());
+        assert_eq!(mapper_calls.get(), 1, "old mapper invoked once at commit");
+        runtime.finish_prepared_surface_refresh(terminal_messages);
+        assert_eq!(
+            update_calls.get(),
+            1,
+            "bridge update handles deferred message"
+        );
+        assert_eq!(
+            reduce_calls.get(),
+            1,
+            "bridge reducer handles deferred message"
+        );
         assert_eq!(
             runtime.surface().find_widget(10).unwrap().revision(),
             WidgetRevision::exact((), false, false, true)

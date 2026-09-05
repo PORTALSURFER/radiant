@@ -1006,7 +1006,7 @@ where
         )?;
         candidate
             .surface
-            .prepared_widget_state_sync_is_current(&sync_witness)?;
+            .prepared_widget_state_sync_is_current(&self.surface, &sync_witness)?;
         let widget_state_sync = widget_state_sync_started.elapsed();
 
         let SurfaceRuntimeProjection {

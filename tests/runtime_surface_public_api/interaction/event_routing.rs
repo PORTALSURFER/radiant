@@ -1,12 +1,14 @@
 use super::*;
 use radiant::{
-    application::numeric_input,
+    application::{ApplicationEnvironment, LocaleId, TextScale, numeric_input},
+    runtime::{NumericAccessibilityDispatchResult, NumericAccessibilityRequest},
     widgets::{
         CompositionRange, CompositionSample, EditPhase, InteractionProvenance, KeyboardModifier,
-        KeyboardModifiers, NumericAdjustment, NumericCodec, NumericInputInteraction,
-        NumericInputInteractionBatch, NumericParseResult, NumericScrubPolicy, NumericStep,
-        NumericStepDirection, NumericStepModifiers, NumericWheelPolicy, PointerModifiers,
-        TextInputWidget, ToggleWidget, WheelDelta, WheelPhase, WheelSample,
+        KeyboardModifiers, NumericAccessibilityAction, NumericAdjustment, NumericCodec,
+        NumericInputInteraction, NumericInputInteractionBatch, NumericParseResult,
+        NumericScrubPolicy, NumericStep, NumericStepDirection, NumericStepModifiers,
+        NumericWheelPolicy, PointerModifiers, TextInputWidget, ToggleWidget, WheelDelta,
+        WheelPhase, WheelSample,
     },
 };
 use std::{
@@ -791,6 +793,8 @@ enum RuntimeNumericMessage {
 
 struct RuntimeNumericBridge {
     value: RuntimeNumericValue,
+    application_environment: ApplicationEnvironment,
+    projected_text_scales: Vec<f32>,
     host_calls: usize,
     host_handled: bool,
     mapped_phases: Vec<Vec<EditPhase>>,
@@ -806,6 +810,8 @@ impl Default for RuntimeNumericBridge {
     fn default() -> Self {
         Self {
             value: RuntimeNumericValue(7),
+            application_environment: ApplicationEnvironment::new(LocaleId::english()),
+            projected_text_scales: Vec::new(),
             host_calls: 0,
             host_handled: true,
             mapped_phases: Vec::new(),
@@ -831,7 +837,13 @@ impl RuntimeNumericBridge {
 }
 
 impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
+    fn application_environment(&mut self) -> Option<ApplicationEnvironment> {
+        Some(self.application_environment.clone())
+    }
+
     fn project_surface(&mut self) -> Arc<UiSurface<RuntimeNumericMessage>> {
+        self.projected_text_scales
+            .push(self.application_environment.text_scale().factor());
         arc_surface(
             numeric_input(
                 self.value.clone(),
@@ -854,7 +866,8 @@ impl RuntimeBridge<RuntimeNumericMessage> for RuntimeNumericBridge {
             .wheel_policy(NumericWheelPolicy::default())
             .on_interaction(RuntimeNumericMessage::Interaction)
             .id(150)
-            .into_surface(),
+            .into_surface()
+            .with_application_environment(self.application_environment.clone()),
         )
     }
 
@@ -893,6 +906,350 @@ impl RuntimeInputHost<RuntimeNumericMessage> for RuntimeNumericBridge {
         } else {
             ShortcutResolution::unhandled()
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LiveNumericOwner {
+    TextEdit,
+    ImeComposition,
+    KeyboardAdjustment,
+    PointerScrub,
+    WheelSequence,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct RuntimeNumericProjectionSnapshot {
+    draft: String,
+    caret: usize,
+    selection_anchor: usize,
+    bounds: Rect,
+    text_rect: Rect,
+    font_size: f32,
+    automation_value: Option<String>,
+}
+
+fn runtime_numeric_projection(
+    runtime: &SurfaceRuntime<RuntimeNumericBridge, RuntimeNumericMessage>,
+) -> RuntimeNumericProjectionSnapshot {
+    let paint = runtime
+        .paint_plan(&ThemeTokens::default())
+        .primitives
+        .into_iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) if input.widget_id == 150 => Some(input),
+            _ => None,
+        })
+        .expect("runtime numeric projection should paint its text input");
+    let target = runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|target| target.id.0 == "150")
+        .expect("runtime numeric target should be materialized");
+    RuntimeNumericProjectionSnapshot {
+        draft: paint.state.value.clone(),
+        caret: paint.state.caret,
+        selection_anchor: paint.state.selection_anchor,
+        bounds: runtime.layout().rects[&150],
+        text_rect: paint.rect,
+        font_size: paint.font_size,
+        automation_value: target.value,
+    }
+}
+
+fn runtime_numeric_target(
+    runtime: &SurfaceRuntime<RuntimeNumericBridge, RuntimeNumericMessage>,
+) -> radiant::gui::automation::AutomationTarget {
+    runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|target| target.id.0 == "150")
+        .expect("runtime numeric target should be materialized")
+}
+
+#[test]
+fn public_numeric_text_scale_refresh_retains_each_live_owner_and_geometry() {
+    for owner in [
+        LiveNumericOwner::TextEdit,
+        LiveNumericOwner::ImeComposition,
+        LiveNumericOwner::KeyboardAdjustment,
+        LiveNumericOwner::PointerScrub,
+        LiveNumericOwner::WheelSequence,
+    ] {
+        let mut runtime =
+            SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+        assert!(runtime.focus_widget(150));
+
+        match owner {
+            LiveNumericOwner::TextEdit => {
+                assert_eq!(
+                    runtime.dispatch_event(Event::Character {
+                        character: '8',
+                        timestamp: None,
+                    }),
+                    Some(150)
+                );
+                assert_eq!(
+                    runtime.dispatch_focused_input(WidgetInput::text_edit(
+                        TextEditCommand::SelectAll,
+                    )),
+                    Some(150)
+                );
+            }
+            LiveNumericOwner::ImeComposition => {
+                let replacement =
+                    CompositionRange::new(0, 1, 1).expect("numeric replacement range");
+                let selection = CompositionRange::new(1, 1, 1).expect("numeric selection");
+                assert_eq!(
+                    runtime.dispatch_composition_sample(
+                        CompositionSample::start(replacement, selection)
+                            .expect("numeric composition start"),
+                    ),
+                    Some(150)
+                );
+                assert_eq!(
+                    runtime.dispatch_composition_sample(
+                        CompositionSample::update(
+                            "12",
+                            CompositionRange::new(0, 1, 2).expect("numeric preedit selection"),
+                        )
+                        .expect("numeric composition update"),
+                    ),
+                    Some(150)
+                );
+            }
+            LiveNumericOwner::KeyboardAdjustment => {
+                runtime.bridge_mut().host_handled = false;
+                assert_eq!(
+                    runtime.dispatch_event(Event::KeyPress {
+                        key: WidgetKey::ArrowUp,
+                        modifiers: KeyboardModifiers::default(),
+                        repeat: false,
+                        timestamp: None,
+                    }),
+                    Some(150)
+                );
+                assert_eq!(
+                    runtime.dispatch_event(Event::KeyPress {
+                        key: WidgetKey::ArrowUp,
+                        modifiers: KeyboardModifiers::default(),
+                        repeat: true,
+                        timestamp: None,
+                    }),
+                    Some(150)
+                );
+            }
+            LiveNumericOwner::PointerScrub => {
+                let modifiers = PointerModifiers {
+                    alt: true,
+                    ..PointerModifiers::default()
+                };
+                assert_eq!(
+                    runtime.dispatch_event(Event::PointerPress {
+                        position: Point::new(10.0, 16.0),
+                        button: PointerButton::Primary,
+                        modifiers,
+                        timestamp: None,
+                    }),
+                    Some(150)
+                );
+                assert_eq!(runtime.pointer_capture(), Some(150));
+                assert_eq!(
+                    runtime.dispatch_event(Event::PointerMove {
+                        position: Point::new(110.0, 16.0),
+                        modifiers,
+                        timestamp: None,
+                        sequence_range: None,
+                    }),
+                    Some(150)
+                );
+            }
+            LiveNumericOwner::WheelSequence => {
+                let point = Point::new(40.0, 16.0);
+                assert!(
+                    runtime.wheel_or_scroll_at_with_sample(
+                        point,
+                        WheelSample::new(
+                            WheelDelta::lines(Vector2::new(0.0, 1.0)).expect("wheel start delta"),
+                            Some(WheelPhase::Started),
+                            PointerModifiers::default(),
+                        )
+                        .expect("wheel start sample"),
+                    )
+                );
+                assert!(
+                    runtime.wheel_or_scroll_at_with_sample(
+                        point,
+                        WheelSample::new(
+                            WheelDelta::pixels(Vector2::new(0.0, 40.0))
+                                .expect("wheel changed delta"),
+                            Some(WheelPhase::Changed),
+                            PointerModifiers::default(),
+                        )
+                        .expect("wheel changed sample"),
+                    )
+                );
+            }
+        }
+
+        let before = runtime_numeric_projection(&runtime);
+        assert_ne!(before.draft, "7");
+        if matches!(
+            owner,
+            LiveNumericOwner::TextEdit | LiveNumericOwner::ImeComposition
+        ) {
+            assert_ne!(
+                before.caret, before.selection_anchor,
+                "owner {owner:?} should retain a noncollapsed live selection: {before:?}"
+            );
+        }
+        let before_counters = runtime.refresh_counters();
+        let mapped_before = runtime.bridge().mapped_phases.clone();
+        runtime.bridge_mut().application_environment =
+            ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(1.5).expect("numeric runtime scale"));
+        runtime.refresh_with_scope(RepaintScope::PaintOnly);
+
+        let after = runtime_numeric_projection(&runtime);
+        assert_eq!(
+            runtime.refresh_counters().layout,
+            before_counters.layout + 1
+        );
+        assert_eq!(after.bounds, before.bounds);
+        assert_eq!(after.draft, before.draft);
+        assert_eq!(after.caret, before.caret);
+        assert_eq!(after.selection_anchor, before.selection_anchor);
+        assert_eq!(after.font_size, before.font_size * 1.5);
+        assert_eq!(after.text_rect.min.x, after.bounds.min.x + 24.0);
+        assert_eq!(after.text_rect.min.y, after.bounds.min.y + 6.0);
+        assert_eq!(after.automation_value, Some(after.draft.clone()));
+        assert_eq!(runtime.bridge().mapped_phases, mapped_before);
+        assert_eq!(runtime.bridge().projected_text_scales.last(), Some(&1.5));
+
+        let current_target = runtime_numeric_target(&runtime);
+        assert!(current_target.interaction_target);
+        assert!(
+            current_target
+                .authority
+                .is_some_and(|authority| authority.materialized)
+        );
+        let blocked = runtime.dispatch_numeric_accessibility_action(
+            NumericAccessibilityRequest::new(current_target, NumericAccessibilityAction::Increment),
+        );
+        assert_eq!(
+            blocked,
+            NumericAccessibilityDispatchResult::Blocked {
+                owner: match owner {
+                    LiveNumericOwner::TextEdit => {
+                        radiant::widgets::NumericAccessibilityBlockOwner::TextEdit
+                    }
+                    LiveNumericOwner::ImeComposition => {
+                        radiant::widgets::NumericAccessibilityBlockOwner::ImeComposition
+                    }
+                    LiveNumericOwner::KeyboardAdjustment => {
+                        radiant::widgets::NumericAccessibilityBlockOwner::KeyboardAdjustment
+                    }
+                    LiveNumericOwner::PointerScrub => {
+                        radiant::widgets::NumericAccessibilityBlockOwner::PointerScrub
+                    }
+                    LiveNumericOwner::WheelSequence => {
+                        radiant::widgets::NumericAccessibilityBlockOwner::WheelSequence
+                    }
+                }
+            }
+        );
+        assert_eq!(runtime.bridge().mapped_phases, mapped_before);
+
+        match owner {
+            LiveNumericOwner::TextEdit => {
+                assert_eq!(
+                    runtime.dispatch_focused_input(WidgetInput::key_press(WidgetKey::Enter)),
+                    Some(150)
+                );
+            }
+            LiveNumericOwner::ImeComposition => {
+                assert_eq!(
+                    runtime.dispatch_composition_sample(CompositionSample::commit("8")),
+                    Some(150)
+                );
+            }
+            LiveNumericOwner::KeyboardAdjustment => {
+                assert_eq!(
+                    runtime.dispatch_event(Event::KeyRelease {
+                        key: WidgetKey::ArrowUp,
+                        modifiers: KeyboardModifiers::default(),
+                        timestamp: None,
+                    }),
+                    Some(150)
+                );
+            }
+            LiveNumericOwner::PointerScrub => {
+                let modifiers = PointerModifiers {
+                    alt: true,
+                    ..PointerModifiers::default()
+                };
+                assert_eq!(
+                    runtime.dispatch_event(Event::PointerRelease {
+                        position: Point::new(110.0, 16.0),
+                        button: PointerButton::Primary,
+                        modifiers,
+                        timestamp: None,
+                    }),
+                    Some(150)
+                );
+                assert_eq!(runtime.pointer_capture(), None);
+            }
+            LiveNumericOwner::WheelSequence => {
+                assert!(
+                    runtime.wheel_or_scroll_at_with_sample(
+                        Point::new(40.0, 16.0),
+                        WheelSample::new(
+                            WheelDelta::pixels(Vector2::new(0.0, 0.0)).expect("wheel end delta"),
+                            Some(WheelPhase::Ended),
+                            PointerModifiers::default(),
+                        )
+                        .expect("wheel end sample"),
+                    )
+                );
+            }
+        }
+
+        let expected_terminal = match owner {
+            LiveNumericOwner::TextEdit | LiveNumericOwner::ImeComposition => {
+                vec![vec![EditPhase::Begin, EditPhase::Commit]]
+            }
+            LiveNumericOwner::KeyboardAdjustment => vec![
+                vec![EditPhase::Begin, EditPhase::Update],
+                vec![EditPhase::Update],
+                vec![EditPhase::Commit],
+            ],
+            LiveNumericOwner::PointerScrub | LiveNumericOwner::WheelSequence => vec![
+                vec![EditPhase::Begin, EditPhase::Update],
+                vec![EditPhase::Commit],
+            ],
+        };
+        assert_eq!(runtime.bridge().mapped_phases, expected_terminal);
+        if owner == LiveNumericOwner::WheelSequence {
+            let wheel_calls = runtime.bridge().wheel_calls.get();
+            assert!(
+                !runtime.wheel_or_scroll_at_with_sample(
+                    Point::new(40.0, 16.0),
+                    WheelSample::new(
+                        WheelDelta::pixels(Vector2::new(0.0, 40.0)).expect("orphan wheel delta"),
+                        Some(WheelPhase::Changed),
+                        PointerModifiers::default(),
+                    )
+                    .expect("orphan wheel sample"),
+                )
+            );
+            assert_eq!(runtime.bridge().wheel_calls.get(), wheel_calls);
+            assert_eq!(runtime.bridge().mapped_phases, expected_terminal);
+        }
+        assert_eq!(runtime.dispatch_event(Event::ClearFocus), None);
+        assert_eq!(runtime.focused_widget(), None);
+        assert_eq!(runtime.pointer_capture(), None);
     }
 }
 

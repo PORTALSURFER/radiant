@@ -141,6 +141,83 @@ fn numeric_hidden_composition_suppresses_embedded_text_input_adornments() {
 }
 
 #[test]
+fn numeric_hidden_composition_context_paint_scales_and_preserves_owner_state() {
+    let mut input = super::u32_input();
+    super::focus(&mut input);
+    assert_eq!(dispatch(&mut input, start((0, 1), 1)), None);
+    assert_eq!(dispatch(&mut input, update("12", (0, 1))), None);
+
+    let environment =
+        crate::runtime::ResolvedEnvironment::from_snapshots(
+            crate::runtime::WindowEnvironment::default(),
+            std::sync::Arc::new(
+                crate::application::ApplicationEnvironment::new(
+                    crate::application::LocaleId::english(),
+                )
+                .with_text_scale(
+                    crate::application::TextScale::new(1.5)
+                        .expect("composition test scale should be valid"),
+                ),
+            ),
+        );
+    let bounds = Rect::from_min_size(
+        crate::gui::types::Point::new(10.0, 20.0),
+        crate::gui::types::Vector2::new(300.0, 60.0),
+    );
+    let layout = crate::layout::LayoutOutput::default();
+    let theme = crate::theme::ThemeTokens::default();
+    let state_before = input.text_input.state.clone();
+    let composition_before = input.composition.clone();
+    let owner_before = input.interaction_gate.incumbent();
+
+    let paint = |input: &NumericInputWidget<u32, U32Codec, U32Adjustment>| {
+        let mut primitives = Vec::new();
+        let mut context = crate::widgets::WidgetPaintContext::new(
+            &mut primitives,
+            bounds,
+            &layout,
+            &theme,
+            &environment,
+        );
+        Widget::append_paint_with_context(input, &mut context);
+        primitives
+            .into_iter()
+            .find_map(|primitive| match primitive {
+                crate::runtime::PaintPrimitive::TextInput(input) => Some(input),
+                _ => None,
+            })
+            .expect("numeric context paint should emit text input")
+    };
+
+    let visible = paint(&input);
+    assert_eq!(visible.font_size, 19.5);
+    assert_eq!(visible.rect.min.x, 22.0);
+    assert_eq!(visible.rect.min.y, 23.0);
+    assert_eq!(visible.align, crate::runtime::PaintTextAlign::Left);
+    assert_ne!(visible.selection_color.a, 0);
+    assert_ne!(visible.caret_color.a, 0);
+    assert_eq!(input.text_input.state, state_before);
+    assert_eq!(input.composition, composition_before);
+    assert_eq!(input.interaction_gate.incumbent(), owner_before);
+
+    assert_eq!(dispatch_hidden(&mut input, "hidden"), None);
+    let hidden = paint(&input);
+    assert_eq!(hidden.font_size, 19.5);
+    assert_eq!(hidden.rect.min.x, 22.0);
+    assert_eq!(hidden.rect.min.y, 23.0);
+    assert_eq!(hidden.align, crate::runtime::PaintTextAlign::Left);
+    assert_eq!(hidden.selection_color.a, 0);
+    assert_eq!(hidden.caret_color.a, 0);
+    assert_eq!(input.interaction_gate.incumbent(), owner_before);
+    assert_eq!(input.text_input.state.value, "hidden");
+    assert_eq!(input.text_input.state.caret, state_before.caret);
+    assert_eq!(
+        input.text_input.state.selection_anchor,
+        state_before.selection_anchor
+    );
+}
+
+#[test]
 fn numeric_composition_commit_reuses_text_sanitization_and_commits_once() {
     let mut input = super::u32_input();
     input.text_input.props.character_limit = Some(2);

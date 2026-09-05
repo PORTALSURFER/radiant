@@ -103,9 +103,10 @@ pub(super) fn push_text_input_widget_paint_with_hidden_composition(
     );
 }
 
-pub(super) fn push_text_input_widget_paint_with_context(
+pub(super) fn push_text_input_widget_paint_with_context_hidden_composition(
     context: &mut WidgetPaintContext<'_>,
     input: &TextInputWidget,
+    hidden_composition: bool,
 ) {
     let environment = context.environment().clone();
     let bounds = context.bounds();
@@ -117,7 +118,7 @@ pub(super) fn push_text_input_widget_paint_with_context(
         bounds,
         theme,
         &environment,
-        input.composition_hides_native_adornments(),
+        hidden_composition,
     );
 }
 

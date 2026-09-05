@@ -3,7 +3,7 @@
 | Overall measure | Estimate |
 | --- | ---: |
 | Generic architecture-sequence completion | ~100% |
-| Broad end-to-end target coverage | ~91.0% |
+| Broad end-to-end target coverage | ~91.1% |
 
 | Category | Estimate |
 | --- | ---: |
@@ -12,7 +12,7 @@
 | Input, provenance, and edit lifecycle | 98.5% |
 | Layout, composition, virtualization | ~87% |
 | Text, focus, and selection | ~90.5% |
-| Numeric controls | 90% |
+| Numeric controls | 91% |
 | Runtime, effects, and scheduling | 97% |
 | Rendering, invalidation, retained GPU surfaces | ~89.2% |
 | Platform, windowing, and host boundaries | 72% |

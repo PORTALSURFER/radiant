@@ -14,7 +14,50 @@ use crate::{
         PointerModifiers, TextEditCommand, WheelDelta, WheelPhase, WheelSample,
     },
 };
-use std::{cell::Cell, fmt, rc::Rc};
+use std::{cell::Cell, fmt, rc::Rc, sync::Arc};
+
+fn numeric_test_environment(
+    scale: f32,
+    direction: crate::application::WritingDirection,
+    dpi: f64,
+) -> ResolvedEnvironment {
+    let application =
+        crate::application::ApplicationEnvironment::new(crate::application::LocaleId::english())
+            .with_writing_direction(direction)
+            .with_text_scale(
+                crate::application::TextScale::new(scale)
+                    .expect("numeric test scale should be valid"),
+            );
+    ResolvedEnvironment::from_snapshots(
+        crate::runtime::WindowEnvironment::new(
+            crate::theme::DpiScale::new(dpi),
+            None,
+            false,
+            false,
+        ),
+        Arc::new(application),
+    )
+}
+
+fn numeric_text_input_paint(
+    input: &NumericInputWidget<u32, U32Codec, U32Adjustment>,
+    bounds: Rect,
+    environment: &ResolvedEnvironment,
+) -> crate::runtime::PaintTextInput {
+    let mut primitives = Vec::new();
+    let layout = crate::layout::LayoutOutput::default();
+    let theme = crate::theme::ThemeTokens::default();
+    let mut context =
+        WidgetPaintContext::new(&mut primitives, bounds, &layout, &theme, environment);
+    Widget::append_paint_with_context(input, &mut context);
+    primitives
+        .into_iter()
+        .find_map(|primitive| match primitive {
+            crate::runtime::PaintPrimitive::TextInput(input) => Some(input),
+            _ => None,
+        })
+        .expect("numeric input should emit one text input primitive")
+}
 
 #[derive(Debug, PartialEq)]
 struct CodecError;
@@ -4393,4 +4436,195 @@ fn ui_local_non_clone_policies_are_accepted_by_the_consumer() {
     )
     .expect("non-Clone, UI-local policies should construct");
     let _ = PointerModifiers::default();
+}
+
+#[test]
+fn numeric_text_scale_resolves_intrinsic_metrics_and_context_paint_once() {
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(300.0, 60.0));
+    for (scale, expected_size, expected_font, expected_insets) in [
+        (1.0, Vector2::new(120.0, 28.0), 13.0, Vector2::new(8.0, 2.0)),
+        (
+            1.5,
+            Vector2::new(180.0, 42.0),
+            19.5,
+            Vector2::new(12.0, 3.0),
+        ),
+        (
+            2.0,
+            Vector2::new(240.0, 56.0),
+            26.0,
+            Vector2::new(16.0, 4.0),
+        ),
+    ] {
+        let input = u32_input();
+        assert_eq!(
+            input.text_scale_participation(),
+            TextScaleParticipation::Scaled
+        );
+        let environment =
+            numeric_test_environment(scale, crate::application::WritingDirection::Ltr, 1.0);
+        let crate::layout::LayoutNode::Widget(node) =
+            Widget::layout_node_with_environment(&input, &environment)
+        else {
+            panic!("numeric input should project one widget leaf");
+        };
+        assert_eq!(node.intrinsic, expected_size);
+
+        let paint = numeric_text_input_paint(&input, bounds, &environment);
+        assert_eq!(paint.font_size, expected_font);
+        assert_eq!(
+            paint.rect,
+            Rect::from_min_max(
+                Point::new(
+                    bounds.min.x + expected_insets.x,
+                    bounds.min.y + expected_insets.y,
+                ),
+                Point::new(
+                    bounds.max.x - expected_insets.x,
+                    bounds.max.y - expected_insets.y,
+                ),
+            )
+        );
+
+        let mut repeated = Vec::new();
+        let layout = crate::layout::LayoutOutput::default();
+        let theme = crate::theme::ThemeTokens::default();
+        let mut context =
+            WidgetPaintContext::new(&mut repeated, bounds, &layout, &theme, &environment);
+        Widget::append_paint_with_context(&input, &mut context);
+        assert_eq!(
+            repeated
+                .into_iter()
+                .find_map(|primitive| match primitive {
+                    crate::runtime::PaintPrimitive::TextInput(input) => Some(input),
+                    _ => None,
+                })
+                .expect("repeated numeric paint should emit text input"),
+            paint
+        );
+    }
+
+    let dpi_one = numeric_test_environment(1.5, crate::application::WritingDirection::Ltr, 1.0);
+    let dpi_two = numeric_test_environment(1.5, crate::application::WritingDirection::Ltr, 2.0);
+    let input = u32_input();
+    assert_eq!(
+        Widget::layout_node_with_environment(&input, &dpi_one),
+        Widget::layout_node_with_environment(&input, &dpi_two)
+    );
+    assert_eq!(
+        numeric_text_input_paint(&input, bounds, &dpi_one),
+        numeric_text_input_paint(&input, bounds, &dpi_two)
+    );
+}
+
+#[test]
+fn numeric_text_scale_start_alignment_maps_generic_caret_and_drag_in_ltr_and_rtl() {
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(300.0, 60.0));
+    for (scale, direction) in [
+        (1.0, crate::application::WritingDirection::Ltr),
+        (1.0, crate::application::WritingDirection::Rtl),
+        (1.5, crate::application::WritingDirection::Ltr),
+        (1.5, crate::application::WritingDirection::Rtl),
+        (2.0, crate::application::WritingDirection::Ltr),
+        (2.0, crate::application::WritingDirection::Rtl),
+    ] {
+        let mut input = u32_input();
+        input.text_input.state.value = String::from("12345");
+        input.text_input.state.caret = 0;
+        input.text_input.state.selection_anchor = 0;
+        focus(&mut input);
+        let environment = numeric_test_environment(scale, direction, 1.0);
+        let char_width = 13.0 * scale * 0.58;
+        let inset = 8.0 * scale;
+        let content_min = bounds.min.x + inset;
+        let content_max = bounds.max.x - inset;
+        let caret_x = |index: usize| match direction {
+            crate::application::WritingDirection::Ltr => content_min + char_width * index as f32,
+            crate::application::WritingDirection::Rtl => {
+                content_max - char_width * (5 - index) as f32
+            }
+        };
+        let press_x = caret_x(1) + char_width * 0.1;
+        let move_x = caret_x(4) - char_width * 0.1;
+
+        assert!(
+            Widget::handle_input_with_environment(
+                &mut input,
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(press_x, 40.0),
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                    timestamp: None,
+                },
+                &environment,
+            )
+            .is_none()
+        );
+        assert_eq!(input.text_input.state.caret, 1);
+        assert_eq!(input.text_input.state.selection_anchor, 1);
+
+        assert!(
+            Widget::handle_input_with_environment(
+                &mut input,
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(move_x, 40.0),
+                    modifiers: PointerModifiers::default(),
+                    timestamp: None,
+                    sequence_range: None,
+                },
+                &environment,
+            )
+            .is_none()
+        );
+        assert_eq!(input.text_input.state.caret, 4);
+        assert_eq!(input.text_input.state.selection_anchor, 1);
+        assert!(
+            Widget::handle_input_with_environment(
+                &mut input,
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(move_x, 40.0),
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                    timestamp: None,
+                },
+                &environment,
+            )
+            .is_none()
+        );
+    }
+}
+
+#[test]
+fn numeric_text_scale_preserves_staged_native_caret_priority() {
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(300.0, 60.0));
+    let environment = numeric_test_environment(2.0, crate::application::WritingDirection::Ltr, 1.0);
+    let mut input = u32_input();
+    input.text_input.state.value = String::from("12345");
+    focus(&mut input);
+    input.text_input.set_native_pointer_caret(
+        4,
+        crate::widgets::primitives::text_input::NativeCaretAffinity::Upstream,
+    );
+    assert!(
+        Widget::handle_input_with_environment(
+            &mut input,
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(bounds.min.x + 16.0, 40.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+                timestamp: None,
+            },
+            &environment,
+        )
+        .is_none()
+    );
+    assert_eq!(input.text_input.state.caret, 4);
+    assert_eq!(
+        input.text_input.take_native_pointer_caret_acceptance(),
+        Some(crate::widgets::primitives::text_input::NativeCaretAffinity::Upstream)
+    );
 }

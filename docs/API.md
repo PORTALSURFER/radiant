@@ -6821,6 +6821,13 @@ Use `ToolbarParts`, `ToolbarAlignment`, `toolbar(...)`, or
 `toolbar_from_parts(...)` when top bars, transport strips, inspector toolbars,
 or similar app-owned control strips need Radiant-owned height, padding, spacing,
 alignment, and optional trailing controls.
+`toolbar(...)` honors its controls' intrinsic heights, including application
+text scale, with a 34-pixel minimum strip height and physical vertical padding.
+For example, a default 36-pixel button produces a 42-pixel strip at text scale
+1 and a 78-pixel strip at scale 2. `toolbar_from_parts(...)` retains the fixed
+physical height declared by `ToolbarParts`; `.height(...)` also remains an
+explicit physical constraint. Both paths share the controls' localized visible
+and accessible labels and logical RTL ordering.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.

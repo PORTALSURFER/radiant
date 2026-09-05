@@ -5,7 +5,7 @@ use super::fresh_surface_preparation::FreshSurfaceRefreshRequest;
 use crate::runtime::bridge::{ExactChangedRoots, SurfaceUpdateProviderAuthority};
 use crate::runtime::surface::{
     InteractionLeafRevision, PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto,
-    WidgetReplacementPlan, WidgetStateSyncPolicy, inspect_interaction_path,
+    PreparedWidgetStateSyncWitness, WidgetReplacementPlan, inspect_interaction_path,
 };
 use crate::runtime::{RuntimeBridge, RuntimeLifecyclePhase, WidgetPath};
 use crate::theme::ResolvedAppearance;
@@ -28,8 +28,8 @@ struct InteractionStateSync {
     selected_ids: Vec<WidgetId>,
     previous_paths: HashMap<WidgetId, WidgetPath>,
     current_paths: HashMap<WidgetId, WidgetPath>,
-    policy: WidgetStateSyncPolicy,
     replacement_plan: WidgetReplacementPlan,
+    witness: PreparedWidgetStateSyncWitness,
 }
 
 pub(crate) enum InteractionPatchPreparation<Message> {
@@ -147,11 +147,11 @@ where
                 current_widget_order: &selected_ids,
                 policy,
             };
-            match candidate
+            let witness = match candidate
                 .surface
                 .preflight_prepared_widget_state_sync(&self.surface, evidence)
             {
-                Ok(()) => {}
+                Ok(witness) => witness,
                 Err(PreparedWidgetStateSyncVeto::Panicked)
                 | Err(PreparedWidgetStateSyncVeto::Unsupported)
                 | Err(PreparedWidgetStateSyncVeto::Ambiguous)
@@ -161,7 +161,7 @@ where
                 | Err(PreparedWidgetStateSyncVeto::Incompatible) => {
                     return InteractionPatchPreparation::Full(Box::new(candidate));
                 }
-            }
+            };
             let replacement_plan = self.surface.plan_widget_replacements_for_ids(
                 &candidate.surface,
                 &selected_ids,
@@ -178,10 +178,11 @@ where
                 current_widget_order: &selected_ids,
                 policy,
             };
-            match candidate
-                .surface
-                .synchronize_prepared_widget_state(&self.surface, sync_evidence)
-            {
+            match candidate.surface.synchronize_prepared_widget_state(
+                &self.surface,
+                sync_evidence,
+                &witness,
+            ) {
                 Ok(()) => {}
                 Err(_) => return InteractionPatchPreparation::Terminal,
             }
@@ -189,8 +190,8 @@ where
                 selected_ids,
                 previous_paths,
                 current_paths,
-                policy,
                 replacement_plan,
+                witness,
             };
             if !self.interaction_update_is_admissible(
                 request,
@@ -229,6 +230,15 @@ where
         }
         let paths = self.interaction_update_paths(&prepared.candidate)?;
         let mut prepared = prepared;
+        if let Some(sync) = prepared.stateful_sync.as_ref()
+            && prepared
+                .candidate
+                .surface
+                .prepared_widget_state_sync_is_current(&sync.witness)
+                .is_err()
+        {
+            return None;
+        }
         let validated_plan = if let Some(sync) = prepared.stateful_sync.as_mut() {
             let plan =
                 std::mem::replace(&mut sync.replacement_plan, WidgetReplacementPlan::empty());
@@ -272,21 +282,13 @@ where
         let Some(sync) = prepared.stateful_sync.as_ref() else {
             return true;
         };
-        let evidence = PreparedWidgetStateSyncEvidence {
-            stateful_widget_order: &sync.selected_ids,
-            current_paths: &sync.current_paths,
-            previous_paths: &sync.previous_paths,
-            previous_widget_order: &sync.selected_ids,
-            current_widget_order: &sync.selected_ids,
-            policy: sync.policy,
-        };
         // The selected list is canonical and retained by the candidate; build
         // no fresh authority here. The evidence check is read-only and only
         // confirms that candidate and active witnesses still agree.
         prepared
             .candidate
             .surface
-            .prepared_widget_state_sync_is_current(&self.surface, evidence)
+            .prepared_widget_state_sync_is_current(&sync.witness)
             .is_ok()
     }
 
@@ -660,6 +662,11 @@ fn same_rect_bits(left: crate::gui::types::Rect, right: crate::gui::types::Rect)
 
 #[cfg(test)]
 mod tests {
+    use super::super::interaction_state::{
+        RuntimeFocusOwner, RuntimeFocusedKeyCapture, RuntimeManagedCompositionState,
+        RuntimeManagedPointerCapture, RuntimeManagedPointerCaptureState,
+        RuntimeManagedWheelSequenceState,
+    };
     use super::*;
     use crate::{
         application::{DeclarativeEffectOwner, DeclarativeIdentityOrigin, SourceIdentitySeed},
@@ -673,8 +680,8 @@ mod tests {
         },
         theme::{ResolvedAppearance, ThemeTokens},
         widgets::{
-            Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetStyle,
-            WidgetTone,
+            FocusBehavior, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetKey,
+            WidgetOutput, WidgetRevision, WidgetState, WidgetStyle, WidgetTone,
         },
     };
     use std::{cell::Cell, rc::Rc, sync::Arc};
@@ -688,9 +695,19 @@ mod tests {
         stateful: bool,
         panic_on_sync: bool,
         replacement_output: bool,
+        drift_revision_on_sync: bool,
+        prepared_support: bool,
+        sync_calls: Option<Rc<Cell<usize>>>,
+        replacement_calls: Option<Rc<Cell<usize>>>,
+        mutate_shared_source: Option<Rc<KeyedNodeEvidence>>,
+        drift_support_on_sync: bool,
+        drift_disabled_on_sync: bool,
+        drift_stateful_on_sync: bool,
+        drift_focusability_on_sync: bool,
     }
 
     impl InteractionWidget {
+        #[allow(clippy::too_many_arguments)]
         fn new(
             id: u64,
             revision: bool,
@@ -699,6 +716,7 @@ mod tests {
             stateful: bool,
             panic_on_sync: bool,
             replacement_output: bool,
+            drift_revision_on_sync: bool,
         ) -> Self {
             Self {
                 common: WidgetCommon::fixed(id, 20.0, 20.0).with_keyboard_focus(),
@@ -708,6 +726,15 @@ mod tests {
                 stateful,
                 panic_on_sync,
                 replacement_output,
+                drift_revision_on_sync,
+                prepared_support: stateful,
+                sync_calls: None,
+                replacement_calls: None,
+                mutate_shared_source: None,
+                drift_support_on_sync: false,
+                drift_disabled_on_sync: false,
+                drift_stateful_on_sync: false,
+                drift_focusability_on_sync: false,
             }
         }
     }
@@ -730,19 +757,47 @@ mod tests {
         }
 
         fn supports_prepared_state_synchronization(&self) -> bool {
-            self.stateful
+            self.prepared_support
         }
 
         fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
             if self.stateful {
+                if let Some(calls) = &self.sync_calls {
+                    calls.set(calls.get() + 1);
+                }
                 if self.panic_on_sync {
                     panic!("state synchronization probe panic");
                 }
                 self.common.state = previous.common().state;
+                if let Some(keyed) = &self.mutate_shared_source {
+                    keyed.set_identity(SourceIdentity {
+                        resolved_id: 999,
+                        structural_scope: 11,
+                        origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+                    });
+                }
+                if self.drift_support_on_sync {
+                    self.prepared_support = !self.prepared_support;
+                }
+                if self.drift_disabled_on_sync {
+                    self.common.state.disabled = true;
+                }
+                if self.drift_stateful_on_sync {
+                    self.stateful = false;
+                }
+                if self.drift_focusability_on_sync {
+                    self.common.focus = FocusBehavior::None;
+                }
+                if self.drift_revision_on_sync {
+                    self.revision = !self.revision;
+                }
             }
         }
 
         fn prepare_replacement(&mut self, _successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+            if let Some(calls) = &self.replacement_calls {
+                calls.set(calls.get() + 1);
+            }
             self.replacement_output.then(|| WidgetOutput::typed(()))
         }
 
@@ -764,6 +819,237 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum StatefulEditEvent {
+        Sync { old: u64, new: u64 },
+        Replacement { old: u64, new: u64 },
+        Drop { generation: u64 },
+    }
+
+    /// A production-shaped stateful edit fixture. Its edit state is deliberately
+    /// separate from `WidgetCommon::state`: prepared synchronization must carry
+    /// the draft, caret, selection, composition, and active gesture state too.
+    #[allow(dead_code)]
+    #[derive(Clone)]
+    struct StatefulEditWidget {
+        common: WidgetCommon,
+        draft: String,
+        caret: usize,
+        selection: (usize, usize),
+        composition: Option<String>,
+        pointer_gesture: Option<u8>,
+        wheel_gesture: u32,
+        structure_revision: u64,
+        layout_revision: u64,
+        paint_revision: u64,
+        interaction_revision: u64,
+        generation: u64,
+        prepared_support: bool,
+        panic_on_sync: bool,
+        recorder: Rc<std::cell::RefCell<Vec<StatefulEditEvent>>>,
+    }
+
+    impl StatefulEditWidget {
+        fn new(
+            id: u64,
+            generation: u64,
+            prepared_support: bool,
+            recorder: Rc<std::cell::RefCell<Vec<StatefulEditEvent>>>,
+        ) -> Self {
+            Self {
+                common: WidgetCommon::fixed(id, 20.0, 20.0).with_keyboard_focus(),
+                draft: format!("draft-{generation}"),
+                caret: generation as usize,
+                selection: (0, generation as usize),
+                composition: Some(format!("compose-{generation}")),
+                pointer_gesture: Some(generation as u8),
+                wheel_gesture: generation as u32,
+                structure_revision: 1,
+                layout_revision: 1,
+                paint_revision: 1,
+                interaction_revision: generation,
+                generation,
+                prepared_support,
+                panic_on_sync: false,
+                recorder,
+            }
+        }
+    }
+
+    impl Drop for StatefulEditWidget {
+        fn drop(&mut self) {
+            self.recorder.borrow_mut().push(StatefulEditEvent::Drop {
+                generation: self.generation,
+            });
+        }
+    }
+
+    impl Widget for StatefulEditWidget {
+        fn revision(&self) -> WidgetRevision {
+            WidgetRevision::exact(
+                self.structure_revision,
+                self.layout_revision,
+                self.paint_revision,
+                self.interaction_revision,
+            )
+        }
+
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn needs_state_synchronization(&self) -> bool {
+            true
+        }
+
+        fn supports_prepared_state_synchronization(&self) -> bool {
+            self.prepared_support
+        }
+
+        fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+            if self.panic_on_sync {
+                panic!("stateful edit synchronization probe panic");
+            }
+            let previous = previous
+                .as_any()
+                .downcast_ref::<Self>()
+                .expect("stateful edit predecessor type");
+            self.draft = previous.draft.clone();
+            self.caret = previous.caret;
+            self.selection = previous.selection;
+            self.composition = previous.composition.clone();
+            self.pointer_gesture = previous.pointer_gesture;
+            self.wheel_gesture = previous.wheel_gesture;
+            self.common.state = previous.common.state;
+            self.recorder.borrow_mut().push(StatefulEditEvent::Sync {
+                old: previous.generation,
+                new: self.generation,
+            });
+        }
+
+        fn prepare_replacement(&mut self, successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+            let successor = successor?.as_any().downcast_ref::<Self>()?;
+            self.recorder
+                .borrow_mut()
+                .push(StatefulEditEvent::Replacement {
+                    old: self.generation,
+                    new: successor.generation,
+                });
+            None
+        }
+
+        fn retains_managed_pointer_capture(&self) -> bool {
+            true
+        }
+
+        fn retains_managed_wheel_sequence(&self) -> bool {
+            true
+        }
+
+        fn accepts_wheel_input(&self) -> bool {
+            true
+        }
+
+        fn retains_managed_composition(&self) -> bool {
+            true
+        }
+
+        fn accepts_text_input(&self) -> bool {
+            true
+        }
+
+        fn accepts_composition_input(&self) -> bool {
+            true
+        }
+
+        fn participates_in_focused_key_routing(&self) -> bool {
+            true
+        }
+
+        fn captured_focused_key(&self) -> Option<WidgetKey> {
+            Some(WidgetKey::Enter)
+        }
+
+        fn handle_input(
+            &mut self,
+            _: crate::gui::types::Rect,
+            _: WidgetInput,
+        ) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _: &mut Vec<crate::runtime::PaintPrimitive>,
+            _: crate::gui::types::Rect,
+            _: &crate::layout::LayoutOutput,
+            _: &crate::theme::ThemeTokens,
+        ) {
+        }
+    }
+
+    struct StatefulEditBridge {
+        exact: bool,
+        generation: u64,
+        common_state: WidgetState,
+        recorder: Rc<std::cell::RefCell<Vec<StatefulEditEvent>>>,
+    }
+
+    impl StatefulEditBridge {
+        fn surface(&self) -> crate::runtime::UiSurface<()> {
+            let mut widget =
+                StatefulEditWidget::new(10, self.generation, true, Rc::clone(&self.recorder));
+            widget.common.state = self.common_state;
+            crate::runtime::UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                vec![crate::runtime::SurfaceChild::fill(SurfaceNode::widget(
+                    widget,
+                    crate::runtime::WidgetMessageMapper::none(),
+                ))],
+            ))
+        }
+    }
+
+    impl RuntimeBridge<()> for StatefulEditBridge {
+        fn project_surface(&mut self) -> Arc<crate::runtime::UiSurface<()>> {
+            crate::runtime::test_arc_surface(self.surface())
+        }
+
+        fn surface_update_provider_authority(&self) -> Option<SurfaceUpdateProviderAuthority> {
+            Some(SurfaceUpdateProviderAuthority {
+                owner: 177,
+                checked_revision: 1,
+            })
+        }
+
+        fn pull_surface_update(
+            &mut self,
+            request: crate::runtime::SurfaceRefreshRequest,
+        ) -> SurfaceUpdate<()> {
+            if !self.exact {
+                return SurfaceUpdate::Full(self.surface());
+            }
+            SurfaceUpdate::ExactChangedRoots(crate::runtime::ExactChangedRoots {
+                surface: self.surface(),
+                runtime_identity: request.runtime_identity,
+                request_revision: request.request_revision,
+                active_surface_generation: request.active_surface_generation,
+                viewport: request.viewport,
+                window_environment: request.window_environment,
+                provider_authority: request.expected_provider_authority,
+                changed_roots: vec![ExactChangedRoot {
+                    node_id: 10,
+                    child_path: vec![0],
+                }],
+            })
+        }
+    }
+
     #[derive(Default)]
     struct Bridge {
         revision: bool,
@@ -782,50 +1068,109 @@ mod tests {
         mapper_opaque: bool,
         panic_on_sync: bool,
         replacement_output: bool,
+        drift_revision_on_sync: bool,
+        support_flip: bool,
+        support_drop: bool,
+        second_revision: bool,
+        second_panic_on_sync: bool,
+        second_support: bool,
+        sync_calls: Option<Rc<Cell<usize>>>,
+        replacement_calls: Option<Rc<Cell<usize>>>,
+        source_drift_on_sync: bool,
+        shared_source: Option<Rc<KeyedNodeEvidence>>,
+        drift_support_on_sync: bool,
+        drift_disabled_on_sync: bool,
+        drift_stateful_on_sync: bool,
+        drift_focusability_on_sync: bool,
     }
 
     impl Bridge {
         fn surface(&self) -> crate::runtime::UiSurface<()> {
+            let mut first_node = SurfaceNode::widget(
+                {
+                    let mut widget = InteractionWidget::new(
+                        10,
+                        self.revision,
+                        self.geometry_changed && self.revision,
+                        self.paint_changed && self.revision,
+                        self.stateful,
+                        self.panic_on_sync,
+                        self.replacement_output,
+                        self.drift_revision_on_sync,
+                    );
+                    widget.prepared_support = self.stateful
+                        && if self.support_flip {
+                            self.revision
+                        } else if self.support_drop {
+                            !self.revision
+                        } else {
+                            true
+                        };
+                    widget.sync_calls = self.sync_calls.clone();
+                    widget.replacement_calls = self.replacement_calls.clone();
+                    widget.mutate_shared_source = self
+                        .source_drift_on_sync
+                        .then(|| self.shared_source.clone())
+                        .flatten();
+                    widget.drift_support_on_sync = self.drift_support_on_sync;
+                    widget.drift_disabled_on_sync = self.drift_disabled_on_sync;
+                    widget.drift_stateful_on_sync = self.drift_stateful_on_sync;
+                    widget.drift_focusability_on_sync = self.drift_focusability_on_sync;
+                    widget
+                },
+                if self.replacement_output {
+                    crate::runtime::WidgetMessageMapper::dynamic_mapped(
+                        crate::runtime::EventMapper::with_revision((), |_: ()| ()).typed_mapped(),
+                    )
+                } else if self.mapper_opaque {
+                    crate::runtime::WidgetMessageMapper::dynamic(|_| None)
+                } else {
+                    crate::runtime::WidgetMessageMapper::none()
+                },
+            );
+            if let Some(keyed) = &self.shared_source {
+                first_node = first_node.with_source_metadata(SourceMetadata::new(
+                    SourceIdentity {
+                        resolved_id: 10,
+                        structural_scope: 11,
+                        origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+                    },
+                    SourceCompatibility {
+                        surface_kind: SurfaceSourceKind::Widget,
+                        widget_compatibility_kind: Some("interaction"),
+                    },
+                    SourceTopology {
+                        keyed_nodes: vec![Rc::clone(keyed)],
+                        overlays: Vec::new(),
+                    },
+                ));
+            }
             let mut surface = crate::runtime::UiSurface::new(SurfaceNode::container(
                 1,
                 ContainerPolicy::default(),
                 vec![
+                    crate::runtime::SurfaceChild::new(SlotParams::fill(), first_node),
                     crate::runtime::SurfaceChild::new(
                         SlotParams::fill(),
                         SurfaceNode::widget(
-                            InteractionWidget::new(
-                                10,
-                                self.revision,
-                                self.geometry_changed && self.revision,
-                                self.paint_changed && self.revision,
-                                self.stateful,
-                                self.panic_on_sync,
-                                self.replacement_output,
-                            ),
-                            if self.replacement_output {
-                                crate::runtime::WidgetMessageMapper::dynamic_mapped(
-                                    crate::runtime::EventMapper::with_revision((), |_: ()| ())
-                                        .typed_mapped(),
-                                )
-                            } else if self.mapper_opaque {
-                                crate::runtime::WidgetMessageMapper::dynamic(|_| None)
-                            } else {
-                                crate::runtime::WidgetMessageMapper::none()
+                            {
+                                let mut widget = InteractionWidget::new(
+                                    if self.duplicate { 10 } else { 20 },
+                                    self.revision && self.second_revision,
+                                    false,
+                                    false,
+                                    self.sibling_stateful,
+                                    self.second_panic_on_sync,
+                                    self.sibling_stateful,
+                                    false,
+                                );
+                                widget.prepared_support =
+                                    self.sibling_stateful && self.second_support;
+                                widget.sync_calls = self.sync_calls.clone();
+                                widget.replacement_calls = self.replacement_calls.clone();
+                                widget.mutate_shared_source = None;
+                                widget
                             },
-                        ),
-                    ),
-                    crate::runtime::SurfaceChild::new(
-                        SlotParams::fill(),
-                        SurfaceNode::widget(
-                            InteractionWidget::new(
-                                if self.duplicate { 10 } else { 20 },
-                                false,
-                                false,
-                                false,
-                                self.sibling_stateful,
-                                false,
-                                false,
-                            ),
                             crate::runtime::WidgetMessageMapper::none(),
                         ),
                     ),
@@ -883,6 +1228,12 @@ mod tests {
                         node_id: 10,
                         child_path: self.path.clone(),
                     }];
+                    if self.second_revision {
+                        roots.push(ExactChangedRoot {
+                            node_id: if self.duplicate { 10 } else { 20 },
+                            child_path: vec![1],
+                        });
+                    }
                     if self.overlap {
                         roots.push(ExactChangedRoot {
                             node_id: 10,
@@ -916,7 +1267,16 @@ mod tests {
                 30,
                 ContainerPolicy::default(),
                 vec![crate::runtime::SurfaceChild::fill(SurfaceNode::widget(
-                    InteractionWidget::new(10, self.revision, false, false, false, false, false),
+                    InteractionWidget::new(
+                        10,
+                        self.revision,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                    ),
                     crate::runtime::WidgetMessageMapper::none(),
                 ))],
             );
@@ -1127,6 +1487,7 @@ mod tests {
                         InteractionWidget::new(
                             10,
                             self.revision,
+                            false,
                             false,
                             false,
                             false,
@@ -1697,6 +2058,332 @@ mod tests {
     }
 
     #[test]
+    fn stateful_sync_live_revision_drift_is_terminal_without_replay_or_publication() {
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                drift_revision_on_sync: true,
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let before_surface = runtime.surface().find_widget(10).unwrap().revision();
+        let before = runtime.refresh_counters();
+        runtime.bridge_mut().revision = true;
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection
+        );
+        assert_eq!(runtime.refresh_counters().layout, before.layout);
+        assert_eq!(
+            runtime.surface().find_widget(10).unwrap().revision(),
+            before_surface
+        );
+    }
+
+    #[test]
+    fn stateful_sync_shared_keyed_source_drift_is_terminal_without_replay_or_publication() {
+        let keyed = Rc::new(KeyedNodeEvidence::new(SourceIdentitySeed {
+            resolved_id: 10,
+            structural_scope: 11,
+            origin: DeclarativeIdentityOrigin::ExplicitContinuityKey,
+            effect_owner: None,
+        }));
+        keyed.set_compatibility(SourceCompatibility {
+            surface_kind: SurfaceSourceKind::Widget,
+            widget_compatibility_kind: Some("interaction"),
+        });
+        let sync_calls = Rc::new(Cell::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                source_drift_on_sync: true,
+                shared_source: Some(Rc::clone(&keyed)),
+                sync_calls: Some(Rc::clone(&sync_calls)),
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let before_surface = runtime.surface().find_widget(10).unwrap().revision();
+        let before = runtime.refresh_counters();
+        runtime.bridge_mut().revision = true;
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        assert_eq!(sync_calls.get(), 1);
+        assert_eq!(keyed.identity().resolved_id, 999);
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection
+        );
+        assert_eq!(runtime.refresh_counters().layout, before.layout);
+        assert_eq!(
+            runtime.surface().find_widget(10).unwrap().revision(),
+            before_surface
+        );
+    }
+
+    #[test]
+    fn stateful_sync_live_support_and_membership_drift_is_terminal_without_publication() {
+        for (name, drift_support, drift_disabled, drift_stateful, drift_focusability) in [
+            ("support", true, false, false, false),
+            ("disabled", false, true, false, false),
+            ("stateful membership", false, false, true, false),
+            ("focusability", false, false, false, true),
+        ] {
+            let sync_calls = Rc::new(Cell::new(0));
+            let replacement_calls = Rc::new(Cell::new(0));
+            let mut runtime = SurfaceRuntime::new(
+                Bridge {
+                    authority_revision: 1,
+                    exact: true,
+                    stateful: true,
+                    drift_support_on_sync: drift_support,
+                    drift_disabled_on_sync: drift_disabled,
+                    drift_stateful_on_sync: drift_stateful,
+                    drift_focusability_on_sync: drift_focusability,
+                    sync_calls: Some(Rc::clone(&sync_calls)),
+                    replacement_calls: Some(Rc::clone(&replacement_calls)),
+                    ..base_bridge()
+                },
+                Vector2::new(80.0, 40.0),
+            );
+            let before_surface = runtime.surface().find_widget(10).unwrap().revision();
+            let before = runtime.refresh_counters();
+            runtime.bridge_mut().revision = true;
+            runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            assert_eq!(sync_calls.get(), 1, "{name}: one sync pass");
+            assert_eq!(
+                replacement_calls.get(),
+                0,
+                "{name}: no replacement after drift"
+            );
+            assert_eq!(
+                runtime.refresh_counters().runtime_projection,
+                before.runtime_projection,
+                "{name}: no projection publication"
+            );
+            assert_eq!(
+                runtime.refresh_counters().layout,
+                before.layout,
+                "{name}: no layout"
+            );
+            assert_eq!(
+                runtime.surface().find_widget(10).unwrap().revision(),
+                before_surface,
+                "{name}: installed leaf remains active"
+            );
+        }
+    }
+
+    #[test]
+    fn prepared_stateful_preflight_support_matrix_falls_back_before_callbacks() {
+        for (name, support_flip, support_drop) in [
+            ("old unsupported, new supported", true, false),
+            ("old supported, new unsupported", false, true),
+            ("both supported", false, false),
+        ] {
+            let mut runtime = SurfaceRuntime::new(
+                Bridge {
+                    authority_revision: 1,
+                    exact: true,
+                    stateful: true,
+                    support_flip,
+                    support_drop,
+                    ..base_bridge()
+                },
+                Vector2::new(80.0, 40.0),
+            );
+            let before = runtime.refresh_counters();
+            runtime.bridge_mut().revision = true;
+            runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            if support_flip {
+                assert_eq!(
+                    runtime.refresh_counters().runtime_projection,
+                    before.runtime_projection + 1,
+                    "unsupported old support must use Full"
+                );
+            } else if support_drop {
+                assert_eq!(
+                    runtime.refresh_counters().runtime_projection,
+                    before.runtime_projection + 1,
+                    "{name} must use Full"
+                );
+            } else {
+                assert_eq!(
+                    runtime.refresh_counters().runtime_projection,
+                    before.runtime_projection,
+                    "supported old and new leaves should use exact"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn late_preflight_unsupported_second_leaf_has_no_first_sync_or_replacement() {
+        let sync_calls = Rc::new(Cell::new(0));
+        let replacement_calls = Rc::new(Cell::new(0));
+        let mut prepared_runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                second_revision: true,
+                sibling_stateful: true,
+                second_support: false,
+                sync_calls: Some(Rc::clone(&sync_calls)),
+                replacement_calls: Some(Rc::clone(&replacement_calls)),
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        prepared_runtime.bridge_mut().revision = true;
+        let request = prepared_runtime
+            .issue_fresh_surface_refresh_request(crate::runtime::RepaintScope::Projection)
+            .expect("preflight request");
+        let expected_provider = prepared_runtime
+            .bridge()
+            .surface_update_provider_authority();
+        let update = prepared_runtime.bridge_mut().pull_surface_update(
+            crate::runtime::SurfaceRefreshRequest {
+                runtime_identity: request.runtime_identity,
+                request_revision: request.request_revision,
+                active_surface_generation: request.active_surface_generation,
+                viewport: request.viewport,
+                window_environment: request.window_environment,
+                expected_provider_authority: expected_provider,
+            },
+        );
+        let SurfaceUpdate::ExactChangedRoots(candidate) = update else {
+            panic!("late unsupported fixture must provide exact roots");
+        };
+        let prepared = prepared_runtime.prepare_interaction_update(
+            request,
+            expected_provider,
+            candidate,
+            ResolvedAppearance::fixed(ThemeTokens::dark()),
+            std::time::Duration::ZERO,
+        );
+        assert!(matches!(prepared, InteractionPatchPreparation::Full(_)));
+        assert_eq!(sync_calls.get(), 0);
+        assert_eq!(replacement_calls.get(), 0);
+
+        let exact_pulls = Rc::new(Cell::new(0));
+        let full_pulls = Rc::new(Cell::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                second_revision: true,
+                sibling_stateful: true,
+                second_support: false,
+                pull_calls: Some(Rc::clone(&exact_pulls)),
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let mut full = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: false,
+                stateful: true,
+                second_revision: true,
+                sibling_stateful: true,
+                second_support: false,
+                pull_calls: Some(Rc::clone(&full_pulls)),
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let before = runtime.refresh_counters();
+        runtime.bridge_mut().revision = true;
+        full.bridge_mut().revision = true;
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        full.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        assert_eq!(exact_pulls.get(), 1, "ordinary refresh consumes one pull");
+        assert_eq!(full_pulls.get(), 1, "Full twin consumes one pull");
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection + 1,
+            "ordinary refresh must consume the same-pull Full fallback"
+        );
+        assert_eq!(
+            runtime.refresh_counters().widget_state_sync,
+            full.refresh_counters().widget_state_sync,
+            "ordinary fallback may synchronize only in its Full pass"
+        );
+        assert_eq!(runtime.layout(), full.layout());
+        assert_eq!(runtime.automation_snapshot(), full.automation_snapshot());
+    }
+
+    #[test]
+    fn late_sync_panic_on_second_leaf_is_terminal_without_partial_publication() {
+        let sync_calls = Rc::new(Cell::new(0));
+        let replacement_calls = Rc::new(Cell::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                authority_revision: 1,
+                exact: true,
+                stateful: true,
+                second_revision: true,
+                sibling_stateful: true,
+                second_support: true,
+                second_panic_on_sync: true,
+                sync_calls: Some(Rc::clone(&sync_calls)),
+                replacement_calls: Some(Rc::clone(&replacement_calls)),
+                ..base_bridge()
+            },
+            Vector2::new(80.0, 40.0),
+        );
+        let before_first = runtime.surface().find_widget(10).unwrap().revision();
+        let before_second = runtime.surface().find_widget(20).unwrap().revision();
+        runtime.bridge_mut().revision = true;
+        let second_evidence = inspect_interaction_path(
+            runtime.surface().root(),
+            runtime.bridge().surface().root(),
+            &[1],
+        )
+        .expect("second selected path evidence");
+        assert!(matches!(
+            second_evidence.relation,
+            InteractionLeafRevision::Interaction
+        ));
+        assert!(second_evidence.current_membership[5]);
+        assert!(
+            runtime
+                .traversal
+                .widgets
+                .stateful_ordinals
+                .contains_key(&20)
+        );
+        let before = runtime.refresh_counters();
+        runtime.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+        assert_eq!(
+            sync_calls.get(),
+            2,
+            "first leaf synchronized before second panic"
+        );
+        assert_eq!(replacement_calls.get(), 0, "panic veto forbids replacement");
+        assert_eq!(
+            runtime.refresh_counters().runtime_projection,
+            before.runtime_projection
+        );
+        assert_eq!(runtime.refresh_counters().layout, before.layout);
+        assert_eq!(
+            runtime.surface().find_widget(10).unwrap().revision(),
+            before_first
+        );
+        assert_eq!(
+            runtime.surface().find_widget(20).unwrap().revision(),
+            before_second
+        );
+    }
+
+    #[test]
     fn stateful_replacement_uses_the_old_mapper_once_before_deferred_delivery() {
         let mut runtime = SurfaceRuntime::new(
             Bridge {
@@ -1938,9 +2625,14 @@ mod tests {
     struct HookCounts {
         clones: u32,
         revisions: u32,
+        capabilities: u32,
+        stateful: u32,
+        support: u32,
         state_sync: u32,
+        replacement: u32,
         paint: u32,
         semantics: u32,
+        drops: u32,
     }
 
     struct SentinelWidget {
@@ -1962,6 +2654,14 @@ mod tests {
         }
     }
 
+    impl Drop for SentinelWidget {
+        fn drop(&mut self) {
+            if let Ok(mut counts) = self.counts.lock() {
+                counts.drops = counts.drops.saturating_add(1);
+            }
+        }
+    }
+
     impl Widget for SentinelWidget {
         fn revision(&self) -> WidgetRevision {
             if let Ok(mut counts) = self.counts.lock() {
@@ -1972,12 +2672,15 @@ mod tests {
 
         fn needs_state_synchronization(&self) -> bool {
             if let Ok(mut counts) = self.counts.lock() {
-                counts.state_sync = counts.state_sync.saturating_add(1);
+                counts.stateful = counts.stateful.saturating_add(1);
             }
             true
         }
 
         fn supports_prepared_state_synchronization(&self) -> bool {
+            if let Ok(mut counts) = self.counts.lock() {
+                counts.support = counts.support.saturating_add(1);
+            }
             true
         }
 
@@ -1985,6 +2688,20 @@ mod tests {
             if let Ok(mut counts) = self.counts.lock() {
                 counts.state_sync = counts.state_sync.saturating_add(1);
             }
+        }
+
+        fn prepare_replacement(&mut self, _successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+            if let Ok(mut counts) = self.counts.lock() {
+                counts.replacement = counts.replacement.saturating_add(1);
+            }
+            None
+        }
+
+        fn capabilities(&self) -> crate::widgets::WidgetCapabilities<'_> {
+            if let Ok(mut counts) = self.counts.lock() {
+                counts.capabilities = counts.capabilities.saturating_add(1);
+            }
+            crate::widgets::WidgetCapabilities::none()
         }
 
         fn automation_semantics(&self) -> crate::gui::automation::AutomationNodeSemantics {
@@ -2160,12 +2877,292 @@ mod tests {
                 runtime.refresh_counters().base_paint_plan_rebuilds,
                 before.base_paint_plan_rebuilds
             );
+            let candidate = candidate_sentinel.lock().unwrap().clone();
+            let candidate_construction_visits = (width - 1) as u32;
+            assert_eq!(
+                candidate.revisions, candidate_construction_visits,
+                "candidate sentinel was rescanned"
+            );
+            assert_eq!(
+                candidate.capabilities, candidate_construction_visits,
+                "candidate capability was rescanned"
+            );
+            assert_eq!(
+                candidate.stateful, 0,
+                "candidate statefulness was rescanned"
+            );
+            assert_eq!(candidate.support, 0, "candidate support was rescanned");
+            assert!(candidate.drops > 0, "candidate widgets were not retired");
             let before_ax = old_sentinel.lock().unwrap().clone();
             let _ = runtime.automation_snapshot();
             let after_ax = old_sentinel.lock().unwrap().clone();
             assert!(
                 after_ax.semantics > before_ax.semantics,
                 "explicit AX snapshot should account for its own semantic traversal"
+            );
+        }
+    }
+
+    #[test]
+    fn stateful_edit_fixture_syncs_edit_and_gesture_state_with_ordered_hooks() {
+        let recorder = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut previous = StatefulEditWidget::new(10, 1, true, Rc::clone(&recorder));
+        previous.draft = "authoritative draft".into();
+        previous.caret = 7;
+        previous.selection = (2, 7);
+        previous.composition = Some("ime".into());
+        previous.pointer_gesture = Some(4);
+        previous.wheel_gesture = 9;
+        let mut successor = StatefulEditWidget::new(10, 2, true, Rc::clone(&recorder));
+
+        successor.synchronize_from_previous(&previous);
+        assert_eq!(successor.draft, previous.draft);
+        assert_eq!(successor.caret, previous.caret);
+        assert_eq!(successor.selection, previous.selection);
+        assert_eq!(successor.composition, previous.composition);
+        assert_eq!(successor.pointer_gesture, previous.pointer_gesture);
+        assert_eq!(successor.wheel_gesture, previous.wheel_gesture);
+        successor.prepare_replacement(Some(&previous));
+        assert_eq!(
+            *recorder.borrow(),
+            vec![
+                StatefulEditEvent::Sync { old: 1, new: 2 },
+                StatefulEditEvent::Replacement { old: 2, new: 1 },
+            ]
+        );
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct StatefulEditPayload {
+        draft: String,
+        caret: usize,
+        selection: (usize, usize),
+        composition: Option<String>,
+        pointer_gesture: Option<u8>,
+        wheel_gesture: u32,
+        common_focused: bool,
+        common_hovered: bool,
+    }
+
+    #[derive(Clone, Copy)]
+    enum StatefulEditOwnerCase {
+        DraftFocus,
+        OrdinaryPointer,
+        ManagedPointer,
+        ManagedWheel,
+        ManagedComposition,
+    }
+
+    impl StatefulEditOwnerCase {
+        const ALL: [Self; 5] = [
+            Self::DraftFocus,
+            Self::OrdinaryPointer,
+            Self::ManagedPointer,
+            Self::ManagedWheel,
+            Self::ManagedComposition,
+        ];
+
+        const fn name(self) -> &'static str {
+            match self {
+                Self::DraftFocus => "draft/caret/selection+focus",
+                Self::OrdinaryPointer => "ordinary pointer capture+hover",
+                Self::ManagedPointer => "managed pointer",
+                Self::ManagedWheel => "managed wheel",
+                Self::ManagedComposition => "managed composition",
+            }
+        }
+    }
+
+    fn seed_stateful_edit_owner(
+        runtime: &mut SurfaceRuntime<StatefulEditBridge, ()>,
+        case: StatefulEditOwnerCase,
+    ) {
+        let common_state = WidgetState {
+            focused: matches!(case, StatefulEditOwnerCase::DraftFocus),
+            hovered: matches!(case, StatefulEditOwnerCase::OrdinaryPointer),
+            ..WidgetState::default()
+        };
+        runtime.bridge_mut().common_state = common_state;
+        runtime
+            .surface
+            .find_widget_mut(10)
+            .expect("stateful edit owner")
+            .widget_object_mut_runtime()
+            .common_mut()
+            .state = common_state;
+        runtime.interaction.focus.owner = Some(RuntimeFocusOwner::Widget(10));
+        match case {
+            StatefulEditOwnerCase::DraftFocus => {
+                runtime.interaction.focus.focused_key_capture = Some(RuntimeFocusedKeyCapture {
+                    widget_id: 10,
+                    key: WidgetKey::Enter,
+                    stale: false,
+                });
+            }
+            StatefulEditOwnerCase::OrdinaryPointer => {
+                runtime.interaction.hover.widget = Some(10);
+                runtime.interaction.pointer.capture = Some(10);
+                runtime.interaction.pointer.capture_button = Some(PointerButton::Primary);
+                runtime.interaction.pointer.capture_state = Some((10, common_state));
+            }
+            StatefulEditOwnerCase::ManagedPointer => {
+                runtime.interaction.pointer.capture = Some(10);
+                runtime.interaction.pointer.capture_button = Some(PointerButton::Primary);
+                runtime.interaction.pointer.capture_state = Some((10, WidgetState::default()));
+                runtime.interaction.pointer.managed_capture = Some(RuntimeManagedPointerCapture {
+                    widget_id: 10,
+                    button: PointerButton::Primary,
+                    state: RuntimeManagedPointerCaptureState::Active,
+                });
+            }
+            StatefulEditOwnerCase::ManagedWheel => {
+                runtime.interaction.wheel.managed_sequence =
+                    RuntimeManagedWheelSequenceState::Active { widget_id: 10 };
+            }
+            StatefulEditOwnerCase::ManagedComposition => {
+                runtime.interaction.composition.managed_composition =
+                    RuntimeManagedCompositionState::Active { widget_id: 10 };
+            }
+        }
+    }
+
+    fn stateful_edit_owner_snapshot(runtime: &SurfaceRuntime<StatefulEditBridge, ()>) -> String {
+        format!(
+            "focus={:?};key={:?};hover={:?};capture={:?}/{:?}/{:?};managed_pointer={:?};wheel={:?};composition={:?}",
+            runtime.interaction.focus.owner,
+            runtime.interaction.focus.focused_key_capture,
+            runtime.interaction.hover.widget,
+            runtime.interaction.pointer.capture,
+            runtime.interaction.pointer.capture_button,
+            runtime.interaction.pointer.capture_state,
+            runtime.interaction.pointer.managed_capture,
+            runtime.interaction.wheel.managed_sequence,
+            runtime.interaction.composition.managed_composition,
+        )
+    }
+
+    fn assert_stateful_edit_owner_active(
+        runtime: &SurfaceRuntime<StatefulEditBridge, ()>,
+        case: StatefulEditOwnerCase,
+    ) {
+        let snapshot = stateful_edit_owner_snapshot(runtime);
+        match case {
+            StatefulEditOwnerCase::DraftFocus => {
+                assert!(
+                    snapshot.contains("stale: false"),
+                    "{}: key capture lost",
+                    case.name()
+                );
+            }
+            StatefulEditOwnerCase::OrdinaryPointer => {
+                assert!(
+                    snapshot.contains("capture=Some(10)"),
+                    "{}: pointer capture lost",
+                    case.name()
+                );
+                assert!(
+                    snapshot.contains("hover=Some(10)"),
+                    "{}: hover owner lost",
+                    case.name()
+                );
+            }
+            StatefulEditOwnerCase::ManagedPointer => {
+                assert!(
+                    snapshot.contains("managed_pointer=Some"),
+                    "{}: managed pointer lost",
+                    case.name()
+                );
+            }
+            StatefulEditOwnerCase::ManagedWheel => {
+                assert!(
+                    snapshot.contains("wheel=Active"),
+                    "{}: wheel sequence lost",
+                    case.name()
+                );
+            }
+            StatefulEditOwnerCase::ManagedComposition => {
+                assert!(
+                    snapshot.contains("composition=Active"),
+                    "{}: composition lost",
+                    case.name()
+                );
+            }
+        }
+    }
+
+    fn stateful_edit_payload(
+        runtime: &SurfaceRuntime<StatefulEditBridge, ()>,
+    ) -> StatefulEditPayload {
+        let widget = runtime
+            .surface()
+            .find_widget(10)
+            .expect("stateful edit widget")
+            .widget_object()
+            .as_any()
+            .downcast_ref::<StatefulEditWidget>()
+            .expect("stateful edit fixture payload");
+        StatefulEditPayload {
+            draft: widget.draft.clone(),
+            caret: widget.caret,
+            selection: widget.selection,
+            composition: widget.composition.clone(),
+            pointer_gesture: widget.pointer_gesture,
+            wheel_gesture: widget.wheel_gesture,
+            common_focused: widget.common.state.focused,
+            common_hovered: widget.common.state.hovered,
+        }
+    }
+
+    #[test]
+    fn stateful_edit_exact_and_forced_full_twins_preserve_edit_owner_payloads() {
+        for case in StatefulEditOwnerCase::ALL {
+            let make = |exact| StatefulEditBridge {
+                exact,
+                generation: 1,
+                common_state: WidgetState::default(),
+                recorder: Rc::new(std::cell::RefCell::new(Vec::new())),
+            };
+            let mut exact = SurfaceRuntime::new(make(true), Vector2::new(80.0, 40.0));
+            let mut full = SurfaceRuntime::new(make(false), Vector2::new(80.0, 40.0));
+            seed_stateful_edit_owner(&mut exact, case);
+            seed_stateful_edit_owner(&mut full, case);
+            exact.bridge_mut().generation = 2;
+            full.bridge_mut().generation = 2;
+            let exact_before = exact.refresh_counters();
+            exact.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            full.refresh_with_scope(crate::runtime::RepaintScope::Projection);
+            assert_eq!(
+                exact.surface().find_widget(10).unwrap().revision(),
+                full.surface().find_widget(10).unwrap().revision(),
+                "{}: installed revision",
+                case.name()
+            );
+            assert_eq!(
+                stateful_edit_payload(&exact),
+                stateful_edit_payload(&full),
+                "{}: edit payload",
+                case.name()
+            );
+            assert_eq!(exact.layout(), full.layout(), "{}: layout", case.name());
+            assert_eq!(
+                exact.automation_snapshot(),
+                full.automation_snapshot(),
+                "{}: automation",
+                case.name()
+            );
+            assert_eq!(
+                stateful_edit_owner_snapshot(&exact),
+                stateful_edit_owner_snapshot(&full),
+                "{}: authoritative owner state",
+                case.name()
+            );
+            assert_stateful_edit_owner_active(&exact, case);
+            assert_stateful_edit_owner_active(&full, case);
+            assert_eq!(
+                exact.refresh_counters().runtime_projection,
+                exact_before.runtime_projection,
+                "{}: exact must avoid projection",
+                case.name()
             );
         }
     }

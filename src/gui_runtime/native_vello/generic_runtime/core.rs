@@ -9,6 +9,8 @@ use crate::runtime::{
 };
 use crate::theme::{AppearancePolicy, ResolvedAppearance};
 use crate::widgets::{PointerButton, WidgetKey};
+#[cfg(test)]
+use std::cell::Cell;
 use std::time::Instant;
 
 #[cfg(test)]
@@ -26,6 +28,8 @@ where
     paint_segment_observer: crate::runtime::PaintSegmentObserver,
     #[cfg(test)]
     prepared_surface_refresh_phase_observer: Option<Rc<dyn Fn(&'static str)>>,
+    #[cfg(test)]
+    prepared_surface_refresh_was_interaction: Cell<bool>,
 }
 
 /// Result of one backend-neutral base paint-plan preparation pass.
@@ -105,6 +109,8 @@ where
             paint_segment_observer: crate::runtime::PaintSegmentObserver::new(),
             #[cfg(test)]
             prepared_surface_refresh_phase_observer: None,
+            #[cfg(test)]
+            prepared_surface_refresh_was_interaction: Cell::new(false),
         }
     }
 
@@ -255,8 +261,20 @@ where
     ) -> Option<PreparedSurfaceRefresh<Message>> {
         let environment = self.runtime.context().resolved_environment();
         let appearance = self.appearance_policy.resolve(&environment);
-        self.runtime
-            .prepare_fresh_surface_refresh(scope, appearance)
+        let prepared = self
+            .runtime
+            .prepare_fresh_surface_refresh(scope, appearance);
+        #[cfg(test)]
+        self.prepared_surface_refresh_was_interaction
+            .set(prepared.as_ref().is_some_and(|candidate| {
+                matches!(candidate, PreparedSurfaceRefresh::Interaction { .. })
+            }));
+        prepared
+    }
+
+    #[cfg(test)]
+    pub(super) fn prepared_surface_refresh_was_interaction(&self) -> bool {
+        self.prepared_surface_refresh_was_interaction.get()
     }
 
     /// Publish one candidate after all native gates have passed.

@@ -996,12 +996,17 @@ where
             policy: self.widget_state_sync_policy(),
         };
         let widget_state_sync_started = Instant::now();
+        let sync_witness = candidate
+            .surface
+            .preflight_prepared_widget_state_sync(&self.surface, sync_evidence)?;
+        candidate.surface.synchronize_prepared_widget_state(
+            &self.surface,
+            sync_evidence,
+            &sync_witness,
+        )?;
         candidate
             .surface
-            .prepare_and_synchronize_widget_state(&self.surface, sync_evidence)?;
-        candidate
-            .surface
-            .prepared_widget_state_sync_is_current(&self.surface, sync_evidence)?;
+            .prepared_widget_state_sync_is_current(&sync_witness)?;
         let widget_state_sync = widget_state_sync_started.elapsed();
 
         let SurfaceRuntimeProjection {

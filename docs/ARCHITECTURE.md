@@ -935,9 +935,10 @@ stateful leaves for projection-only requests. It preflights every selected
 leaf, synchronizes only those detached successors whose old and new widgets
 opt into prepared synchronization, and revalidates the same revision,
 capability, membership, source, path, and runtime fences before publication.
-Selected predecessor replacement hooks run once in installed traversal order;
-their old-surface mappers are deferred until after the successor leaves and
-appearance are published. Unsupported or broadened evidence falls back to the
+Selected predecessor replacement hooks and their old-surface mappers run once
+in installed traversal order before successor leaves are published; only the
+resulting terminal message dispatch is deferred until after runtime publication.
+Unsupported or broadened evidence falls back to the
 same pulled full candidate before callbacks, while a synchronization panic or
 post-sync currentness loss discards the candidate without replay, second
 synchronization, partial publication, or terminal delivery.
@@ -1161,8 +1162,10 @@ layout, opaque mapper evidence, stale fences, duplicate or ambiguous paths,
 and missing authority conservatively retain the complete refresh path. The
 bridge's exact changed-root response is the authority; recursive classifiers
 and diagnostics are observational only. Broader subtree reconciliation,
-stateful-leaf synchronization and retirement, topology edits, geometry and
-paint fragments, and deep differential benchmarking remain future work.
+qualified stateful-leaf synchronization and retirement follow the same bounded
+path with explicit prepared witnesses and terminal fences; broader subtree
+reconciliation, topology edits, geometry and paint fragments, and deep
+differential benchmarking remain future work.
 
 ### Native visual request packet handoff (private native-window contract)
 

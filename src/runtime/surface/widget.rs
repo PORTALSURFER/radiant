@@ -61,7 +61,7 @@ pub(crate) struct SurfaceWidgetRevisionEvidence {
     pub(crate) valid: bool,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub(crate) struct WidgetCapabilityEvidence {
     /// Source-compatible v1 contract version and semantics evidence.
     pub(crate) contract_version: u16,
@@ -209,6 +209,36 @@ impl<Message> SurfaceWidget<Message> {
     /// Return the declarative revision metadata supplied by the widget.
     pub fn revision(&self) -> WidgetRevision {
         self.revision_evidence.revision.clone()
+    }
+
+    /// Return live revision evidence from the erased widget object.
+    ///
+    /// The cached revision record is intentionally immutable across runtime
+    /// state mutation. Prepared synchronization therefore captures this live
+    /// value separately and admits it only when it still equals the cached
+    /// declarative witness.
+    pub(in crate::runtime::surface) fn live_revision(&self) -> WidgetRevision {
+        self.widget.revision()
+    }
+
+    pub(in crate::runtime::surface) fn live_capability_evidence(&self) -> WidgetCapabilityEvidence {
+        WidgetCapabilityEvidence::capture(self.widget.as_ref())
+    }
+
+    pub(in crate::runtime::surface) fn cached_revision_is_exact(&self) -> bool {
+        self.revision_evidence.revision.exact_components().is_some()
+    }
+
+    pub(in crate::runtime::surface) fn prepared_state_membership(&self) -> [bool; 7] {
+        [
+            self.is_focusable(),
+            self.is_keyboard_focusable(),
+            self.receives_pointer_hit_testing(),
+            self.receives_wheel_input(),
+            self.accepts_native_file_drop(),
+            self.needs_state_synchronization(),
+            self.suppresses_container_hover(),
+        ]
     }
 
     pub(in crate::runtime::surface) fn revision_evidence(&self) -> &SurfaceWidgetRevisionEvidence {

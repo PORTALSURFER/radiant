@@ -1,5 +1,7 @@
+use super::source::SourceMetadata;
 use super::state_sync::{
-    PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, WidgetStateSyncEvidence,
+    PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncLeafWitness,
+    PreparedWidgetStateSyncVeto, PreparedWidgetStateSyncWitness, WidgetStateSyncEvidence,
 };
 use super::{
     SurfaceNode, SurfaceWidget, WidgetPath, WidgetStateSyncPolicy, node::SurfaceLayerChildKind,
@@ -9,6 +11,7 @@ use crate::{
     widgets::{CompositionSample, WidgetId, WidgetInput, WidgetOutput},
 };
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Instant;
 
 pub(in crate::runtime) enum WidgetDispatchResult<Message> {
@@ -18,6 +21,70 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    /// Capture source metadata for every retained node on one exact path.
+    ///
+    /// Keyed source evidence is shared through `Rc` records whose contents can
+    /// be revised by the producer. Keeping these handles in the prepared
+    /// witness lets post-sync admission observe such a mutation without
+    /// traversing unrelated siblings.
+    pub(super) fn source_metadata_path_at(
+        &self,
+        child_path: &[usize],
+    ) -> Option<Vec<Option<Rc<SourceMetadata>>>> {
+        let mut metadata = Vec::with_capacity(child_path.len() + 1);
+        self.collect_source_metadata_path(child_path, &mut metadata)?;
+        Some(metadata)
+    }
+
+    fn collect_source_metadata_path(
+        &self,
+        child_path: &[usize],
+        metadata: &mut Vec<Option<Rc<SourceMetadata>>>,
+    ) -> Option<()> {
+        metadata.push(self.source_metadata_handle());
+        match (self, child_path.split_first()) {
+            (Self::Widget(_), None) => Some(()),
+            (Self::Scene(scene), _) if !scene.has_layers() => scene
+                .base
+                .collect_source_metadata_path(child_path, metadata),
+            (Self::Scene(scene), Some((child_index, remaining_path))) => {
+                if *child_index == 0 {
+                    scene
+                        .base
+                        .collect_source_metadata_path(remaining_path, metadata)
+                } else {
+                    let (layer_index, child_kind) =
+                        scene.ordered_layer_child_for_child(*child_index - 1)?;
+                    match child_kind {
+                        SurfaceLayerChildKind::Input => scene.layers[layer_index]
+                            .input
+                            .as_ref()?
+                            .collect_source_metadata_path(remaining_path, metadata),
+                        SurfaceLayerChildKind::Foreground => scene.layers[layer_index]
+                            .node
+                            .collect_source_metadata_path(remaining_path, metadata),
+                    }
+                }
+            }
+            (Self::Container(container), Some((child_index, remaining_path))) => container
+                .children
+                .get(*child_index)?
+                .child
+                .collect_source_metadata_path(remaining_path, metadata),
+            (Self::FloatingLayer(layer), Some((child_index, remaining_path)))
+                if layer.interactive =>
+            {
+                layer
+                    .container
+                    .children
+                    .get(*child_index)?
+                    .child
+                    .collect_source_metadata_path(remaining_path, metadata)
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn commit_widget_replacement_at_path(
         &mut self,
         widget_id: WidgetId,
@@ -149,7 +216,8 @@ impl<Message> SurfaceNode<Message> {
         &self,
         evidence: &PreparedWidgetStateSyncEvidence<'_>,
         previous: &Self,
-    ) -> Result<(), PreparedWidgetStateSyncVeto> {
+    ) -> Result<PreparedWidgetStateSyncWitness, PreparedWidgetStateSyncVeto> {
+        let mut entries = Vec::with_capacity(evidence.stateful_widget_order.len());
         for widget_id in evidence.stateful_widget_order {
             if !has_unique_widget_id_prepared(evidence.previous_widget_order, *widget_id)
                 || !has_unique_widget_id_prepared(evidence.current_widget_order, *widget_id)
@@ -188,36 +256,75 @@ impl<Message> SurfaceNode<Message> {
             {
                 return Err(PreparedWidgetStateSyncVeto::Unsupported);
             }
+            let previous_cached = previous_widget.revision_evidence();
+            let current_cached = current_widget.revision_evidence();
+            let previous_live_revision = previous_widget.live_revision();
+            let current_live_revision = current_widget.live_revision();
+            if !previous_cached.valid
+                || !current_cached.valid
+                || !previous_widget.cached_revision_is_exact()
+                || !current_widget.cached_revision_is_exact()
+                || previous_cached.revision != previous_live_revision
+                || current_cached.revision != current_live_revision
+                || previous_cached.capabilities != previous_widget.live_capability_evidence()
+                || current_cached.capabilities != current_widget.live_capability_evidence()
+                || previous_cached.id != previous_widget.id()
+                || current_cached.id != current_widget.id()
+            {
+                return Err(PreparedWidgetStateSyncVeto::InvalidRevision);
+            }
+            let previous_sources = previous
+                .source_metadata_path_at(previous_path.as_slice())
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let current_sources = self
+                .source_metadata_path_at(current_path.as_slice())
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            let witness = PreparedWidgetStateSyncLeafWitness::capture(
+                *widget_id,
+                previous_path.clone(),
+                current_path.clone(),
+                previous_widget,
+                current_widget,
+                previous_sources,
+                current_sources,
+            );
+            let previous_sources = previous
+                .source_metadata_path_at(previous_path.as_slice())
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+            if !witness.previous_is_unchanged(previous_widget, &previous_sources) {
+                return Err(PreparedWidgetStateSyncVeto::InvalidRevision);
+            }
+            entries.push(witness);
         }
-        Ok(())
+        Ok(PreparedWidgetStateSyncWitness { entries })
     }
 
     pub(super) fn synchronize_prepared_widget_state(
         &mut self,
         evidence: &PreparedWidgetStateSyncEvidence<'_>,
+        witness: &PreparedWidgetStateSyncWitness,
         previous: &Self,
     ) -> Result<(), PreparedWidgetStateSyncVeto> {
-        for widget_id in evidence.stateful_widget_order {
-            let previous_path = evidence
-                .previous_paths
-                .get(widget_id)
-                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
-            let current_path = evidence
-                .current_paths
-                .get(widget_id)
-                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+        if witness.entries.len() != evidence.stateful_widget_order.len() {
+            return Err(PreparedWidgetStateSyncVeto::InvalidPath);
+        }
+        for entry in &witness.entries {
+            let widget_id = entry.widget_id;
+            let previous_path = &entry.previous_path;
+            let current_path = &entry.current_path;
             let previous_widget = previous
                 .find_widget_at_path(previous_path.as_slice())
-                .ok_or(PreparedWidgetStateSyncVeto::InvalidPath)?;
+                .filter(|widget| widget.id() == widget_id)
+                .ok_or(PreparedWidgetStateSyncVeto::InvalidIdentity)?;
             let current_widget = self
                 .find_widget_mut_at_path(current_path.as_slice())
-                .filter(|widget| widget.id() == *widget_id)
+                .filter(|widget| widget.id() == widget_id)
                 .ok_or(PreparedWidgetStateSyncVeto::InvalidIdentity)?;
 
             current_widget
                 .widget_object_mut_runtime()
                 .synchronize_from_previous(previous_widget.widget_object());
-            if evidence.policy.clears_retained_hover_for(*widget_id) {
+            if evidence.policy.clears_retained_hover_for(widget_id) {
                 current_widget
                     .widget_object_mut_runtime()
                     .common_mut()

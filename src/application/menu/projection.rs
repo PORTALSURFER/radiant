@@ -1,12 +1,13 @@
 //! Menu-command row projection and shortcut-hint layout inputs.
 
 use crate::{
-    application::{ViewNode, button, row, stack, text},
+    application::{MappedWidget, ViewNode, view_node_from_widget},
     gui::text_layout::{TextWidthEstimate, estimated_text_width_for_char_count},
-    widgets::{TextAlign, TextColorRole, WidgetProminence, WidgetStyle, WidgetTone},
+    runtime::WidgetMessageMapper,
+    widgets::{TextColorRole, WidgetProminence, WidgetStyle, WidgetTone},
 };
 
-use super::{MenuCommand, MessageMenuWidthPolicy, actions::MENU_ITEM_HEIGHT};
+use super::{MenuCommand, MessageMenuWidthPolicy, widget::MenuCommandWidget};
 
 pub(super) const MENU_ROW_TEXT_PADDING_X: f32 = 8.0;
 pub(super) const MENU_LABEL_HOTKEY_GAP: f32 = 16.0;
@@ -41,50 +42,20 @@ pub(super) fn menu_command_row<Message>(
 where
     Message: Clone + 'static,
 {
-    let label_color = menu_command_label_color(command.style);
-    let hint_color = menu_command_hotkey_hint_color(command.style);
-    let hotkey_hint = command.hotkey_hint.clone();
-    let mut label_row = vec![
-        text(command.label.clone())
-            .align_text(TextAlign::Left)
-            .text_color(label_color)
-            .truncate()
-            .fill_width()
-            .height(MENU_ITEM_HEIGHT),
-    ];
-    let has_hotkey_hint = hotkey_hint.is_some() && text_columns.hotkey_hint_width > 0.0;
-    if let Some(hotkey_hint) = hotkey_hint {
-        label_row.push(
-            text(hotkey_hint)
-                .align_text(TextAlign::Right)
-                .text_color(hint_color)
-                .truncate()
-                .width(text_columns.hotkey_hint_width)
-                .height(MENU_ITEM_HEIGHT),
-        );
-    }
-    stack([
-        button("")
-            .message(command.message)
-            .key(format!("menu-command-{index}"))
-            .style(command.style)
-            .fill_width()
-            .height(MENU_ITEM_HEIGHT),
-        row(label_row)
-            .fill_width()
-            .height(MENU_ITEM_HEIGHT)
-            .padding_x(MENU_ROW_TEXT_PADDING_X)
-            .spacing(if has_hotkey_hint {
-                MENU_LABEL_HOTKEY_GAP
-            } else {
-                0.0
-            }),
-    ])
+    view_node_from_widget(MappedWidget::new(
+        MenuCommandWidget::new(
+            command.label,
+            command.hotkey_hint,
+            text_columns.hotkey_hint_width,
+        ),
+        WidgetMessageMapper::button_message(command.message),
+    ))
+    .key(format!("menu-command-{index}"))
+    .style(command.style)
     .fill_width()
-    .height(MENU_ITEM_HEIGHT)
 }
 
-fn menu_command_label_color(style: WidgetStyle) -> TextColorRole {
+pub(super) fn menu_command_label_color(style: WidgetStyle) -> TextColorRole {
     if matches!(
         (style.prominence, style.tone),
         (WidgetProminence::Subtle, WidgetTone::Neutral)
@@ -95,7 +66,7 @@ fn menu_command_label_color(style: WidgetStyle) -> TextColorRole {
     }
 }
 
-fn menu_command_hotkey_hint_color(style: WidgetStyle) -> TextColorRole {
+pub(super) fn menu_command_hotkey_hint_color(style: WidgetStyle) -> TextColorRole {
     if matches!(style.prominence, WidgetProminence::Strong)
         && !matches!(style.tone, WidgetTone::Neutral)
     {

@@ -151,3 +151,33 @@ fn menu_overlay(anchor: Point, size: Vector2) -> crate::application::ViewNode<Me
     .size(size)
     .view()
 }
+
+#[test]
+fn fixed_menu_width_keeps_its_physical_constraint_while_default_height_scales() {
+    use crate::application::{ApplicationEnvironment, TextScale};
+    let environment =
+        ApplicationEnvironment::default().with_text_scale(TextScale::new(2.0).unwrap());
+    for exact in [false, true] {
+        let menu = context_menu("Actions", [MenuCommand::new("Open", MenuMessage::Open)])
+            .anchor(Point::new(20.0, 20.0));
+        let menu = if exact {
+            menu.size(Vector2::new(300.0, 180.0))
+        } else {
+            menu.width(300.0)
+        };
+        let surface = UiSurface::new(menu.view().into_node())
+            .with_application_environment(environment.clone());
+        let frame = surface.frame(
+            Rect::from_xy_size(0.0, 0.0, 1280.0, 720.0),
+            &Default::default(),
+        );
+        let height = if exact {
+            180.0
+        } else {
+            22.0 + 2.0 * (22.0 + 28.0)
+        };
+        let rect = painted_menu_rect(&frame.paint_plan.primitives, Vector2::new(300.0, height));
+        assert_eq!(rect.width(), 300.0);
+        assert_eq!(rect.height(), height);
+    }
+}

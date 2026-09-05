@@ -2,7 +2,9 @@
 
 use radiant::prelude::*;
 use radiant::{
-    application::{ApplicationEnvironment, LocaleId, TextCatalog, TextKey},
+    application::{
+        ApplicationEnvironment, LocaleId, TextCatalog, TextKey, TextScale, WritingDirection,
+    },
     gui::{
         input::KeyCode,
         shortcuts::{
@@ -20,18 +22,27 @@ enum Message {
 
 #[derive(Default)]
 struct State {
-    french: bool,
+    locale_index: usize,
 }
 
 fn environment(state: &State) -> ApplicationEnvironment {
     let french = LocaleId::new("fr").expect("example locale is valid");
+    let arabic = LocaleId::new("ar").expect("example locale is valid");
     let key = TextKey::new("save", "Save");
-    let catalog = TextCatalog::default().insert(french.clone(), key, "Enregistrer");
-    ApplicationEnvironment::new(if state.french {
-        french
-    } else {
-        LocaleId::english()
+    let catalog = TextCatalog::default()
+        .insert(french.clone(), key.clone(), "Enregistrer")
+        .insert(arabic.clone(), key, "حفظ");
+    ApplicationEnvironment::new(match state.locale_index {
+        1 => french,
+        2 => arabic,
+        _ => LocaleId::english(),
     })
+    .with_writing_direction(if state.locale_index == 2 {
+        WritingDirection::Rtl
+    } else {
+        WritingDirection::Ltr
+    })
+    .with_text_scale(TextScale::new(if state.locale_index == 0 { 1.0 } else { 1.5 }).unwrap())
     .with_catalog(Arc::new(catalog))
     .with_shortcut_platform(ShortcutPlatform::Mac)
 }
@@ -39,7 +50,7 @@ fn environment(state: &State) -> ApplicationEnvironment {
 fn main() -> radiant::Result {
     radiant::app(State::default())
         .title("Radiant Localization Foundation")
-        .size(420, 160)
+        .size(520, 320)
         .view(|state| {
             let environment = environment(state);
             let key = TextKey::new("save", "Save");
@@ -58,7 +69,14 @@ fn main() -> radiant::Result {
                     shortcut.compact_text(),
                     shortcut.spoken_text()
                 )),
-                button("Toggle locale")
+                message_menu(
+                    "Actions",
+                    [
+                        MenuCommand::new(localized.to_content(), Message::ToggleLocale)
+                            .hotkey_hint(shortcut.compact_text().to_owned()),
+                    ],
+                ),
+                button("Next locale: English / French / Arabic")
                     .message(Message::ToggleLocale)
                     .primary(),
             ])
@@ -66,6 +84,6 @@ fn main() -> radiant::Result {
             .spacing(8.0)
         })
         .application_environment(environment)
-        .update(|state, Message::ToggleLocale| state.french = !state.french)
+        .update(|state, Message::ToggleLocale| state.locale_index = (state.locale_index + 1) % 3)
         .run()
 }

@@ -236,7 +236,6 @@ pub use resource::{
     ResourceCompletion, ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState,
     ResourceRequest, ResourceSlot,
 };
-pub(crate) use surface::lower_public_virtual_layout;
 pub(in crate::runtime) use surface::{
     ClipAncestors, SurfaceLayoutInteractionRecord, SurfaceRuntimeProjection,
     SurfaceSplitPaneFocusOrderCandidate, SurfaceTraversalIndex, WheelHitTarget,
@@ -250,6 +249,7 @@ pub use surface::{
 pub(crate) use surface::{
     KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
 };
+pub(crate) use surface::{TextScaledExtent, TextScaledSize, lower_public_virtual_layout};
 pub use update_snapshot::RuntimeUpdateSnapshot;
 pub use virtual_layout::{
     VirtualLayoutRevisions, VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,

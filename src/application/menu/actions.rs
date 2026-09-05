@@ -1,7 +1,9 @@
 //! Message-menu composition and command activation projection.
 
 use crate::{
-    application::{TextContent, ViewNode, column, text},
+    application::{TextContent, ViewNode, column, view_node_from_widget},
+    layout::Vector2,
+    widgets::{TextAlign, TextWidget, WidgetSizing},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -41,7 +43,15 @@ where
 {
     let command_text = super::projection::MenuCommandTextColumns::for_commands(&parts.commands);
     column([
-        text(parts.title).fill_width().height(MENU_TITLE_HEIGHT),
+        view_node_from_widget(
+            TextWidget::new(
+                0,
+                parts.title.into_paint_text(),
+                WidgetSizing::fixed(Vector2::new(0.0, MENU_TITLE_HEIGHT)),
+            )
+            .with_align(TextAlign::Start),
+        )
+        .fill_width(),
         column(
             parts
                 .commands

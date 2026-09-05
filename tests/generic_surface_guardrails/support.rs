@@ -52,6 +52,7 @@ pub(crate) const REQUIRED_BEHAVIOR_TESTS: &[&str] = &[
     "deterministic_trace_replay.rs",
     "effect_public_api.rs",
     "generic_surface_guardrails.rs",
+    "headless_scroll_acceptance.rs",
     "layout_policy_public_api.rs",
     "layout_public_api.rs",
     "perf_harness_runner.rs",

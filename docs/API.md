@@ -65,6 +65,50 @@ ordinary application code should stay message-first. See `docs/API_STYLE.md`.
 
 ## Application API
 
+### Controlled scrolling
+
+`scroll(content)` owns its live logical offset in the runtime. Use
+`ScrollPolicy` for axis, locking, scrollbar placement and visibility, and use
+`initial_offset` only to seed a newly mounted container. `controlled_offset`
+accepts a strictly newer `Controlled<Vector2>` generation; `scroll_request`
+consumes each generation once after resolving a materialized key, rectangle, or
+edge. `on_offset_settled` is called once after an accepted offset settles, so
+applications can persist the resulting value without driving every wheel
+update through application state.
+
+```rust
+use radiant::layout::{ScrollAxis, ScrollPolicy, ScrollbarPlacement, Vector2};
+use radiant::prelude::*;
+
+scroll(content)
+    .scroll_policy(
+        ScrollPolicy::default()
+            .axes(ScrollAxis::Vertical)
+            .scrollbar_placement(ScrollbarPlacement::Reserved),
+    )
+    .initial_offset(Vector2::new(0.0, 96.0))
+    .on_offset_settled(Message::ScrollSettled);
+```
+
+Configure the raw layout and chrome axes with `.axes(...)`, and inspect that
+selection with `ScrollPolicy::configured_axes()`; the default retains legacy
+horizontal offset mutation authority separately.
+
+The runtime validates generations, finite geometry, mount identity, and
+current committed layout evidence before mutating scroll state. A stale,
+malformed, unavailable, or no-op request is consumed silently. Focus reveal,
+wheel chaining, keyboard page/Home/End commands, and horizontal or vertical
+scrollbar interaction use the same policy and committed geometry.
+
+Explicit `ScrollPolicy` axes constrain both declarative offsets and retained
+runtime state: disabled components are silently projected to zero for mount
+seeds, newer controlled values, and policy changes. `ScrollPolicy::default()`
+keeps the legacy two-axis declaration behavior; re-enabling an axis does not
+restore a component discarded by an earlier policy without a newer input
+generation. Policy-only normalization preserves accepted generations; a newer
+valid controlled value consumes its generation even when projection leaves the
+effective offset unchanged.
+
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. Application code imports `radiant::prelude::*`, declares view
 structure, emits explicit messages from widgets, and mutates durable state in
@@ -6575,7 +6619,7 @@ manual validation:
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Localization and shortcut presentation | `localization_foundation` |
-| Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
+| Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
@@ -6587,6 +6631,9 @@ manual validation:
 Run `cargo run --example logical_provider_attachment` to inspect the portable
 declarative provider attachment shape; the qualified custom-coordinate resolver
 is an additional application-owned option on the same parts declaration.
+
+Run `cargo run --example controlled_scroll` to inspect generation-fenced
+controlled offsets, one-shot reveal requests, and settled offset messages.
 
 For multi-region application shells, use `workspace_shell(main_workspace)` when
 the readable app shape is a top bar, central workspace row, optional leading or

@@ -138,6 +138,30 @@ impl<Message> UiSurface<Message> {
         active_scroll_affordance: Option<crate::layout::NodeId>,
         plan: &mut SurfacePaintPlan,
     ) {
+        self.paint_plan_with_hover_and_environment_and_appearance_and_scroll_visibility_into(
+            layout,
+            theme,
+            environment,
+            appearance,
+            hovered_container,
+            active_scroll_affordance,
+            &[],
+            plan,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::runtime) fn paint_plan_with_hover_and_environment_and_appearance_and_scroll_visibility_into(
+        &self,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+        environment: crate::runtime::ResolvedEnvironment,
+        appearance: ResolvedAppearance,
+        hovered_container: Option<crate::layout::NodeId>,
+        active_scroll_affordance: Option<crate::layout::NodeId>,
+        auto_scroll_visible: &[crate::layout::NodeId],
+        plan: &mut SurfacePaintPlan,
+    ) {
         clear_paint_plan_for_layout(plan, layout, theme);
         self.root.append_paint(
             layout,
@@ -147,6 +171,7 @@ impl<Message> UiSurface<Message> {
             plan,
             hovered_container,
             active_scroll_affordance,
+            auto_scroll_visible,
         );
     }
 }

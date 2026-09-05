@@ -362,6 +362,24 @@ where
             .is_some_and(|node_id| !self.traversal.containers.scroll.contains(node_id))
         {
             self.interaction.hover.scroll_affordance = None;
+            self.note_scroll_visibility_mutation();
+        }
+        if self
+            .interaction
+            .hover
+            .scroll_viewport
+            .is_some_and(|node_id| !self.traversal.containers.scroll.contains(node_id))
+        {
+            self.interaction.hover.scroll_viewport = None;
+            self.note_scroll_visibility_mutation();
+        }
+        let activity_count = self.interaction.wheel.scroll_activity.len();
+        self.interaction
+            .wheel
+            .scroll_activity
+            .retain(|node_id, _| self.traversal.containers.scroll.contains(*node_id));
+        if self.interaction.wheel.scroll_activity.len() != activity_count {
+            self.note_scroll_visibility_mutation();
         }
         if self.interaction.hover.widget.is_some_and(|widget_id| {
             !self

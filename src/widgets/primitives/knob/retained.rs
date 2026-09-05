@@ -5,10 +5,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{
-    Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics,
+    FocusedKeyDisposition, Widget, WidgetCapabilities, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSemantics,
 };
 use crate::widgets::interaction::{
-    EditEvent, KnobEditBatch, ValueFormat, WidgetInput, WidgetOutput,
+    EditEvent, KnobEditBatch, ValueFormat, WidgetInput, WidgetKey, WidgetOutput,
 };
 
 use super::{KnobWidget, input};
@@ -79,6 +80,14 @@ impl WidgetPointerMotion for RetainedKnobWidget {
 }
 
 impl Widget for RetainedKnobWidget {
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        if self.active_edit.is_some() && matches!(key, WidgetKey::PageUp | WidgetKey::PageDown) {
+            FocusedKeyDisposition::Consumed
+        } else {
+            self.knob.focused_key_disposition(key)
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.knob.common
     }

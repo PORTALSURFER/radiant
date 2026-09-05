@@ -52,6 +52,10 @@ pub enum WidgetKey {
     Home,
     /// Move to the end of the value or range.
     End,
+    /// Move one viewport toward the leading edge.
+    PageUp,
+    /// Move one viewport toward the trailing edge.
+    PageDown,
     /// Delete the codepoint before the caret.
     Backspace,
     /// Delete the codepoint after the caret.
@@ -73,6 +77,8 @@ impl WidgetKey {
             KeyCode::ArrowDown => Self::ArrowDown,
             KeyCode::Home => Self::Home,
             KeyCode::End => Self::End,
+            KeyCode::PageUp => Self::PageUp,
+            KeyCode::PageDown => Self::PageDown,
             KeyCode::Delete => Self::Delete,
             _ => return None,
         })
@@ -91,10 +97,20 @@ impl WidgetKey {
             Self::ArrowDown => KeyCode::ArrowDown,
             Self::Home => KeyCode::Home,
             Self::End => KeyCode::End,
+            Self::PageUp => KeyCode::PageUp,
+            Self::PageDown => KeyCode::PageDown,
             Self::Backspace => KeyCode::Backspace,
             Self::Delete => KeyCode::Delete,
         }
     }
+}
+
+/// Return whether a focused key may be offered to the runtime scroll fallback.
+pub const fn is_scroll_fallback_key(key: WidgetKey) -> bool {
+    matches!(
+        key,
+        WidgetKey::PageUp | WidgetKey::PageDown | WidgetKey::Home | WidgetKey::End
+    )
 }
 
 impl From<WidgetKey> for KeyCode {

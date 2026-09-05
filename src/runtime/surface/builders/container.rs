@@ -229,6 +229,10 @@ impl<Message> SurfaceNode<Message> {
             ContainerPolicy {
                 kind: ContainerKind::ScrollView,
                 overflow: OverflowPolicy::Scroll,
+                // Preserve the historical scroll-area appearance. Callers
+                // that need transient chrome can opt into Auto explicitly.
+                scroll_policy: crate::layout::ScrollPolicy::default()
+                    .scrollbar_visibility(crate::layout::ScrollbarVisibility::Always),
                 virtualization,
                 ..ContainerPolicy::default()
             },

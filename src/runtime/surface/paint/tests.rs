@@ -150,6 +150,7 @@ fn child_is_past_ordered_clip_for(
         theme: &theme,
         hovered_container: None,
         active_scroll_affordance: None,
+        auto_scroll_visible: &[],
         environment: crate::runtime::ResolvedEnvironment::default(),
         appearance: crate::theme::ResolvedAppearance::fixed(theme),
         clip_rect: Some(clip_rect),

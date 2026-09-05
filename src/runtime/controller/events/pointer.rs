@@ -364,15 +364,14 @@ where
             .scroll_drag_capture
             .is_some_and(|capture| capture.button == button);
         if scroll_capture_matches_button
-            && self
-                .interaction
-                .pointer
-                .scroll_drag_capture
-                .take()
-                .is_some()
+            && let Some(capture) = self.interaction.pointer.scroll_drag_capture.take()
         {
             self.cancel_layout_pointer_capture();
             self.reset_tooltip_hover_intent();
+            let offset = self.layout_state.scroll_offset(capture.node_id);
+            if offset != capture.start_offset {
+                self.emit_scroll_offset_settled(capture.node_id, offset, true);
+            }
             return None;
         }
         if self.interaction.pointer.capture.is_none() && self.layout_pointer_capture_active() {

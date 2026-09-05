@@ -5,9 +5,10 @@ use crate::{
     gui::types::{Point, Rect},
     layout::LayoutNode,
     widgets::{
-        CompositionSample, FocusBehavior, PointerCapturePolicy, PointerPressAdmission, WheelSample,
-        Widget, WidgetCursor, WidgetHitTestResult, WidgetId, WidgetInput, WidgetOutput,
-        WidgetPointerMotionRevision, WidgetRevision, WidgetSemanticsRevision,
+        CompositionSample, FocusBehavior, FocusedKeyDisposition, PointerCapturePolicy,
+        PointerPressAdmission, WheelSample, Widget, WidgetCursor, WidgetHitTestResult, WidgetId,
+        WidgetInput, WidgetOutput, WidgetPointerMotionRevision, WidgetRevision,
+        WidgetSemanticsRevision,
     },
 };
 use std::rc::Rc;
@@ -290,6 +291,13 @@ impl<Message> SurfaceWidget<Message> {
 
     pub(in crate::runtime) fn accepts_composition_input(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.accepts_composition_input()
+    }
+
+    pub(in crate::runtime) fn focused_key_disposition(
+        &self,
+        key: crate::widgets::WidgetKey,
+    ) -> FocusedKeyDisposition {
+        self.widget.focused_key_disposition(key)
     }
 
     pub(in crate::runtime) fn supports_accessibility_action(

@@ -113,4 +113,8 @@ pub enum KeyCode {
     Home,
     /// End key.
     End,
+    /// Page-up navigation key.
+    PageUp,
+    /// Page-down navigation key.
+    PageDown,
 }

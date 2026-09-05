@@ -28,7 +28,9 @@ pub use primitives::{
     SvgParseError, TransientOverlayContext,
 };
 pub(super) use scroll::{
-    push_scroll_affordance, resolve_scroll_affordance, scroll_content_clip_rect,
+    push_horizontal_scroll_affordance, push_scroll_affordance,
+    resolve_horizontal_scroll_affordance, resolve_scroll_affordance, scroll_content_clip_rect,
+    scrollbar_viewport, scrollbar_visibility_allows,
 };
 pub(crate) use segments::{
     MAX_PAINT_SEGMENTS, PaintSegmentIdentity, PaintSegmentObservation, PaintSegmentObserver,

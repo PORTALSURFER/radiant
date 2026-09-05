@@ -82,6 +82,14 @@ impl<'a> LayoutContext<'a> {
         self.record_debug(node_id, DebugPrimitiveKind::ViewportBounds, rect);
     }
 
+    pub(crate) fn record_scrollbar_placement(
+        &mut self,
+        node_id: NodeId,
+        placement: crate::gui::layout_core::ScrollbarPlacement,
+    ) {
+        self.output.scrollbar_placements.insert(node_id, placement);
+    }
+
     pub(crate) fn record_virtual_window_bounds(&mut self, node_id: NodeId, rect: Rect) {
         self.record_debug(node_id, DebugPrimitiveKind::VirtualWindowBounds, rect);
     }

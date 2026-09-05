@@ -96,6 +96,7 @@ pub(super) struct RuntimeFocusState {
     pub(super) owner: Option<RuntimeFocusOwner>,
     pub(super) pending_key_chord: Option<KeyPress>,
     pub(super) focused_key_capture: Option<RuntimeFocusedKeyCapture>,
+    pub(super) focused_key_host_block: Option<(WidgetId, WidgetKey)>,
 }
 
 /// Fixed-size behavior evidence required to retain a private separator owner.
@@ -190,9 +191,19 @@ pub(super) struct RuntimeFocusedKeyCapture {
 /// The slot deliberately stores no history or orphan metadata. `Blocked` is a
 /// current identityless state that prevents stale continuations from being
 /// rebound to the widget currently under the pointer.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(super) struct RuntimeWheelState {
     pub(super) managed_sequence: RuntimeManagedWheelSequenceState,
+    /// The latest accepted offset for each container in an explicit scroll
+    /// sequence. Nested chaining may settle more than one owner per sample.
+    pub(super) pending_scroll_settlement: Vec<(NodeId, crate::gui::types::Vector2)>,
+    pub(super) scroll_settlement_deadline: Option<Instant>,
+    /// Scroll owners whose Auto affordance is currently visible because of
+    /// wheel activity. `None` means a phaseful sequence or drag is live;
+    /// `Some` is the visual-idle expiry for phase-less/discrete input.
+    pub(super) scroll_activity: std::collections::BTreeMap<NodeId, Option<Instant>>,
+    pub(super) scroll_visibility_revision: u64,
+    pub(super) scroll_visibility_revision_exhausted: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -230,6 +241,7 @@ pub(super) struct RuntimeHoverState {
     pub(super) container: Option<NodeId>,
     pub(super) widget: Option<WidgetId>,
     pub(super) scroll_affordance: Option<NodeId>,
+    pub(super) scroll_viewport: Option<NodeId>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -300,6 +312,14 @@ pub(super) struct ScrollDragCapture {
     pub(super) node_id: NodeId,
     pub(super) grip_fraction: f32,
     pub(super) button: PointerButton,
+    pub(super) axis: ScrollbarAxis,
+    pub(super) start_offset: crate::gui::types::Vector2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ScrollbarAxis {
+    Horizontal,
+    Vertical,
 }
 
 pub(super) struct RuntimeDragState<Message> {

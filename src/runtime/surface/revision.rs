@@ -39,6 +39,10 @@ pub(crate) struct SurfaceContainerRevision<'a, Message> {
     pub(crate) hoverable: bool,
     pub(crate) layout_capabilities: Option<&'a LayoutCapabilities<Message>>,
     pub(crate) scroll_mapper: MapperDescriptor,
+    pub(crate) scroll_policy: &'a crate::layout::ScrollPolicy,
+    pub(crate) initial_offset: Option<crate::gui::types::Vector2>,
+    pub(crate) controlled_offset: Option<crate::layout::Controlled<crate::gui::types::Vector2>>,
+    pub(crate) scroll_request: Option<&'a crate::layout::ScrollRequest>,
     pub(crate) children: &'a [super::SurfaceChild<Message>],
 }
 
@@ -154,6 +158,10 @@ impl<Message> super::SurfaceContainer<Message> {
             hoverable: self.hoverable,
             layout_capabilities: self.layout_capabilities.as_ref(),
             scroll_mapper: self.scroll_mapper_descriptor(),
+            scroll_policy: &self.policy.scroll_policy,
+            initial_offset: self.policy.initial_offset,
+            controlled_offset: self.policy.controlled_offset,
+            scroll_request: self.policy.scroll_request.as_ref(),
             children: &self.children,
         }
     }
@@ -1713,6 +1721,17 @@ fn compare_container<Message>(
     let previous_revision = previous_container.revision();
     let current_revision = current_container.revision();
     if previous_revision.policy_changed(&current_revision) {
+        delta.record(
+            ViewDeltaEffect::Geometry,
+            ViewDeltaCause::ContainerPolicy,
+            path.path,
+        );
+    }
+    if previous_revision.scroll_policy != current_revision.scroll_policy
+        || previous_revision.initial_offset != current_revision.initial_offset
+        || previous_revision.controlled_offset != current_revision.controlled_offset
+        || previous_revision.scroll_request != current_revision.scroll_request
+    {
         delta.record(
             ViewDeltaEffect::Geometry,
             ViewDeltaCause::ContainerPolicy,

@@ -176,6 +176,17 @@ impl ToggleWidget {
 }
 
 impl Widget for ToggleWidget {
+    fn focused_key_disposition(
+        &self,
+        key: crate::widgets::WidgetKey,
+    ) -> crate::widgets::FocusedKeyDisposition {
+        if crate::widgets::interaction::is_scroll_fallback_key(key) {
+            crate::widgets::FocusedKeyDisposition::Unhandled
+        } else {
+            crate::widgets::FocusedKeyDisposition::Consumed
+        }
+    }
+
     fn revision(&self) -> WidgetRevision {
         self.exact_revision()
             .unwrap_or_else(WidgetRevision::conservative)

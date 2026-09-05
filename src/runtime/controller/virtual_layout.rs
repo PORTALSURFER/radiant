@@ -855,6 +855,27 @@ impl<Message> Default for RuntimeVirtualLayoutState<Message> {
 }
 
 impl<Message> RuntimeVirtualLayoutState<Message> {
+    /// Resolve a key only through the currently committed materialized slots.
+    /// The returned payload id is later checked against the committed layout,
+    /// so an unavailable virtual item never causes speculative scrolling.
+    pub(super) fn materialized_key_payload(
+        &self,
+        owner_id: NodeId,
+        key: &VirtualLayoutItemKey,
+    ) -> Option<(NodeId, NodeId)> {
+        self.records
+            .iter()
+            .filter(|record| !record.retired && record.registration.container_id == owner_id)
+            .find_map(|record| {
+                record
+                    .materialization
+                    .active_slots()
+                    .into_iter()
+                    .find(|slot| slot.item().key() == key)
+                    .map(|slot| (record.registration.container_id, slot.payload().id()))
+            })
+    }
+
     #[cfg(target_os = "macos")]
     /// Return only current logical registrations with one unambiguous ordinary
     /// automation anchor and an exact cardinality.  This is a passive view:

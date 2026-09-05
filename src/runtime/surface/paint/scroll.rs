@@ -6,8 +6,8 @@ use crate::{
     runtime::{
         SurfaceContainer,
         paint::{
-            SurfacePaintPlan, push_clip_end, push_clip_start, push_scroll_affordance,
-            scroll_content_clip_rect,
+            SurfacePaintPlan, push_clip_end, push_clip_start, push_horizontal_scroll_affordance,
+            push_scroll_affordance, scroll_content_clip_rect,
         },
     },
 };
@@ -36,13 +36,42 @@ impl<Message> SurfaceContainer<Message> {
         let Some(content_id) = self.children.first().map(|child| child.child.id()) else {
             return;
         };
-        push_scroll_affordance(
-            &mut plan.primitives,
+        if !crate::runtime::paint::scrollbar_visibility_allows(
+            self.policy.scroll_policy.scrollbar_visibility,
             self.id,
-            content_id,
-            context.layout,
-            context.theme,
-            context.active_scroll_affordance == Some(self.id),
-        );
+            context.auto_scroll_visible,
+        ) {
+            return;
+        }
+        if self
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_vertical()
+        {
+            push_scroll_affordance(
+                &mut plan.primitives,
+                self.id,
+                content_id,
+                context.layout,
+                context.theme,
+                context.active_scroll_affordance == Some(self.id),
+            );
+        }
+        if self
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_horizontal()
+        {
+            push_horizontal_scroll_affordance(
+                &mut plan.primitives,
+                self.id,
+                content_id,
+                context.layout,
+                context.theme,
+                context.active_scroll_affordance == Some(self.id),
+            );
+        }
     }
 }

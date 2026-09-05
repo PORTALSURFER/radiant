@@ -130,6 +130,76 @@ fn generic_core_reuses_cached_base_paint_plan_after_exact_refresh() {
     );
 }
 
+struct AutoScrollPlanBridge;
+
+impl crate::runtime::RuntimeBridge<()> for AutoScrollPlanBridge {
+    fn project_surface(&mut self) -> std::sync::Arc<crate::runtime::UiSurface<()>> {
+        crate::runtime::test_arc_surface(crate::runtime::UiSurface::new(
+            crate::runtime::SurfaceNode::container(
+                1,
+                crate::layout::ContainerPolicy {
+                    kind: crate::layout::ContainerKind::ScrollView,
+                    overflow: crate::layout::OverflowPolicy::Scroll,
+                    scroll_policy: crate::layout::ScrollPolicy::default()
+                        .scrollbar_visibility(crate::layout::ScrollbarVisibility::Auto),
+                    ..crate::layout::ContainerPolicy::default()
+                },
+                vec![crate::runtime::SurfaceChild::fill(
+                    crate::runtime::SurfaceNode::widget(
+                        crate::widgets::TextWidget::new(
+                            2,
+                            "Tall",
+                            crate::widgets::WidgetSizing::fixed(crate::gui::types::Vector2::new(
+                                80.0, 400.0,
+                            )),
+                        ),
+                        crate::runtime::WidgetMessageMapper::none(),
+                    ),
+                )],
+            ),
+        ))
+    }
+}
+
+#[test]
+fn generic_core_rebuilds_native_base_plan_when_auto_scroll_visibility_changes() {
+    let mut core = GenericNativeRuntimeCore::new(
+        AutoScrollPlanBridge,
+        crate::gui::types::Vector2::new(100.0, 80.0),
+    );
+    let mut plan = crate::runtime::SurfacePaintPlan::empty(&crate::theme::ThemeTokens::default());
+    core.paint_plan_into(&mut plan);
+    let initial_rebuilds = core.runtime.refresh_counters().base_paint_plan_rebuilds;
+    assert!(!plan.primitives.iter().any(|primitive| matches!(
+        primitive,
+        crate::runtime::PaintPrimitive::FillRect(fill) if fill.widget_id == 1
+    )));
+
+    core.runtime
+        .dispatch_pointer_move_with_outcome(crate::gui::types::Point::new(8.0, 8.0));
+    core.paint_plan_into(&mut plan);
+    assert_eq!(
+        core.runtime.refresh_counters().base_paint_plan_rebuilds,
+        initial_rebuilds + 1
+    );
+    assert!(plan.primitives.iter().any(|primitive| matches!(
+        primitive,
+        crate::runtime::PaintPrimitive::FillRect(fill) if fill.widget_id == 1
+    )));
+
+    core.runtime
+        .dispatch_pointer_move_with_outcome(crate::gui::types::Point::new(-8.0, -8.0));
+    core.paint_plan_into(&mut plan);
+    assert_eq!(
+        core.runtime.refresh_counters().base_paint_plan_rebuilds,
+        initial_rebuilds + 2
+    );
+    assert!(!plan.primitives.iter().any(|primitive| matches!(
+        primitive,
+        crate::runtime::PaintPrimitive::FillRect(fill) if fill.widget_id == 1
+    )));
+}
+
 #[test]
 fn generic_core_publishes_rebuilt_and_reused_segment_observations() {
     let mut core = GenericNativeRuntimeCore::new(ExactPlanBridge, Vector2::new(320.0, 40.0));

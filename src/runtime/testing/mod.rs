@@ -1156,6 +1156,18 @@ where
         self.finish_adapter_operation(())
     }
 
+    /// Replace the deterministic host's logical window environment and retain
+    /// the change through the next explicit refresh or publication turn.
+    pub fn set_window_environment(
+        &mut self,
+        environment: WindowEnvironment,
+    ) -> Result<bool, DeterministicHostError> {
+        self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
+        let changed = self.runtime.set_window_environment(environment);
+        self.finish_adapter_operation(changed)
+    }
+
     /// Build a normalized snapshot of current runtime state without publishing it.
     pub fn snapshot(&self) -> Result<NormalizedSnapshot, DeterministicHostError> {
         self.build_snapshot()

@@ -164,6 +164,40 @@ fn scroll_view_records_padded_viewport_bounds() {
 }
 
 #[test]
+fn reserved_scrollbars_share_the_gutter_with_layout_viewport() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            scroll_policy: crate::gui::layout_core::ScrollPolicy::default()
+                .axes(crate::gui::layout_core::ScrollAxis::Both)
+                .scrollbar_placement(crate::gui::layout_core::ScrollbarPlacement::Reserved),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: intrinsic_slot(),
+            child: LayoutNode::widget(2, Vector2::new(200.0, 160.0)),
+        }],
+    );
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::default(), Vector2::new(100.0, 80.0)),
+    );
+    assert_eq!(
+        output.viewport_bounds.get(&1),
+        Some(&Rect::from_min_size(
+            Point::default(),
+            Vector2::new(97.0, 77.0)
+        ))
+    );
+    assert_eq!(
+        output.scrollbar_placements.get(&1),
+        Some(&crate::gui::layout_core::ScrollbarPlacement::Reserved)
+    );
+}
+
+#[test]
 fn finite_overpadding_preserves_zero_size_scroll_viewport() {
     let root = LayoutNode::container(
         1,

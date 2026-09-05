@@ -22,6 +22,7 @@ mod runtime;
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Increment,
+    ScrollSettled,
 }
 
 fn intrinsic_slot() -> SlotParams {

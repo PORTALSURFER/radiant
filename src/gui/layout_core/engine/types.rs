@@ -10,6 +10,6 @@ mod virtualization;
 pub use debug::{DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive};
 pub use diagnostics::{LayoutDiagnostic, LayoutDiagnosticCode};
 pub use output::LayoutOutput;
-pub use state::LayoutState;
+pub use state::{LayoutState, ScrollRuntimeState};
 pub use stats::LayoutStats;
 pub use virtualization::{OverflowInfo, VirtualWindowInfo};

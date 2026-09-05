@@ -8,12 +8,12 @@ use crate::theme::ThemeTokens;
 use super::WidgetCommon;
 use super::text::TextAlign;
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext, WidgetPointerMotion,
-    WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
+    FocusBehavior, FocusedKeyDisposition, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext,
+    WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
     CompositionRange, CompositionSample, CompositionStartContext, TextInputMessage, WidgetInput,
-    WidgetOutput,
+    WidgetKey, WidgetOutput,
 };
 use crate::widgets::{DeclaredTextMetrics, TextScaleParticipation};
 
@@ -209,6 +209,19 @@ impl WidgetPointerMotion for TextInputWidget {
 }
 
 impl Widget for TextInputWidget {
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        match key {
+            WidgetKey::Home | WidgetKey::End => FocusedKeyDisposition::Consumed,
+            WidgetKey::PageUp | WidgetKey::PageDown
+                if self.composition.is_some() || self.common.state.pressed =>
+            {
+                FocusedKeyDisposition::Consumed
+            }
+            WidgetKey::PageUp | WidgetKey::PageDown => FocusedKeyDisposition::Unhandled,
+            _ => FocusedKeyDisposition::Consumed,
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }

@@ -21,7 +21,7 @@ pub(super) fn layout_scroll_view(
         return;
     };
     let slot = child.slot;
-    let Some(viewport_rect) =
+    let Some(mut viewport_rect) =
         crate::gui::layout_core::validated_geometry::checked_inset_rect(content, slot.margin)
     else {
         omit_invalid_scroll_subtree(container, &child.child, context);
@@ -30,6 +30,28 @@ pub(super) fn layout_scroll_view(
     if has_invalid_content_margin(container, &child.child, viewport_rect) {
         omit_invalid_scroll_subtree(container, &child.child, context);
         return;
+    }
+    if container.policy.scroll_policy.scrollbar_placement
+        == crate::layout::ScrollbarPlacement::Reserved
+    {
+        let mut max = viewport_rect.max;
+        if container
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_vertical()
+        {
+            max.x = (max.x - 3.0).max(viewport_rect.min.x);
+        }
+        if container
+            .policy
+            .scroll_policy
+            .configured_axes()
+            .includes_horizontal()
+        {
+            max.y = (max.y - 3.0).max(viewport_rect.min.y);
+        }
+        viewport_rect = Rect::from_min_max(viewport_rect.min, max);
     }
     let viewport_w = viewport_rect.width();
     let viewport_h = viewport_rect.height();
@@ -60,6 +82,10 @@ pub(super) fn layout_scroll_view(
     context.record_slot_margin(child.child.id(), rect, slot.margin);
 
     context.record_viewport_bounds(container.id, viewport_rect);
+    context.record_scrollbar_placement(
+        container.id,
+        container.policy.scroll_policy.scrollbar_placement,
+    );
 
     if !layout_virtualized_child(
         container,

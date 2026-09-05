@@ -2,6 +2,11 @@ mod layout;
 mod lifecycle;
 mod traversal;
 
+pub(in crate::runtime::controller) use layout::{
+    apply_declarative_scroll_requests_for, collect_scroll_declarations, collect_scroll_requests,
+    sync_declarative_scroll_inputs_for, sync_scroll_offsets_for,
+};
+
 use super::SurfaceRuntime;
 use crate::{runtime::RuntimeBridge, widgets::WidgetId};
 

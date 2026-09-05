@@ -276,7 +276,18 @@ where
         }
         earlier_deadline(
             self.surface.timed_repaint_deadline(),
-            self.interaction.tooltip.deadline,
+            earlier_deadline(
+                self.interaction.tooltip.deadline,
+                earlier_deadline(
+                    self.interaction.wheel.scroll_settlement_deadline,
+                    self.interaction
+                        .wheel
+                        .scroll_activity
+                        .values()
+                        .filter_map(|deadline| *deadline)
+                        .min(),
+                ),
+            ),
         )
     }
 
@@ -326,6 +337,32 @@ where
             return false;
         }
         let mut changed = self.surface.advance_timed_repaints(now);
+        if self
+            .interaction
+            .wheel
+            .scroll_settlement_deadline
+            .is_some_and(|deadline| now >= deadline)
+        {
+            self.emit_pending_scroll_settlements(true);
+            changed = true;
+        }
+        let expired_activity: Vec<_> = self
+            .interaction
+            .wheel
+            .scroll_activity
+            .iter()
+            .filter_map(|(node_id, deadline)| {
+                deadline
+                    .is_some_and(|deadline| now >= deadline)
+                    .then_some(*node_id)
+            })
+            .collect();
+        for node_id in expired_activity {
+            self.interaction.wheel.scroll_activity.remove(&node_id);
+            self.note_scroll_visibility_mutation();
+            self.repaint_requested = true;
+            changed = true;
+        }
         let Some(deadline) = self.interaction.tooltip.deadline else {
             return changed;
         };

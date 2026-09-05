@@ -1,5 +1,7 @@
 //! Container-specific layout policy values.
 
+use super::super::controlled::Controlled;
+use super::super::scroll::{ScrollPolicy, ScrollRequest};
 use super::{CrossAlign, Insets, MainAlign, OverflowPolicy, VirtualizationPolicy};
 use crate::gui::panel::SplitPaneAxis;
 use crate::gui::types::{Point, Vector2};
@@ -198,6 +200,14 @@ pub struct ContainerPolicy {
     pub switch_breakpoints: Vec<SwitchBreakpoint>,
     /// Optional virtualization policy for scroll containers.
     pub virtualization: Option<VirtualizationPolicy>,
+    /// Backend-neutral behavior for scroll-view containers.
+    pub scroll_policy: ScrollPolicy,
+    /// One-time initial scroll offset for a scroll-view mount.
+    pub initial_offset: Option<crate::gui::types::Vector2>,
+    /// Strictly generation-ordered controlled scroll offset.
+    pub controlled_offset: Option<Controlled<crate::gui::types::Vector2>>,
+    /// One-shot generation-bearing reveal request.
+    pub scroll_request: Option<ScrollRequest>,
 }
 
 impl Default for ContainerPolicy {
@@ -216,6 +226,10 @@ impl Default for ContainerPolicy {
             aspect_ratio: None,
             switch_breakpoints: Vec::new(),
             virtualization: None,
+            scroll_policy: ScrollPolicy::default(),
+            initial_offset: None,
+            controlled_offset: None,
+            scroll_request: None,
         }
     }
 }

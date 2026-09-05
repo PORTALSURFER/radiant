@@ -49,6 +49,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             split_pane_ratio_settled: self.split_pane_ratio_settled.clone(),
             virtual_layout: self.virtual_layout.clone(),
             scroll_message: self.scroll_message.clone(),
+            offset_settled: self.offset_settled.clone(),
             children: self.children.clone(),
             source: self.source.clone(),
         }

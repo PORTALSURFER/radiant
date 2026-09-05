@@ -131,6 +131,14 @@ impl Widget for FocusedKeyWidget {
         true
     }
 
+    fn focused_key_disposition(&self, key: WidgetKey) -> crate::widgets::FocusedKeyDisposition {
+        if key == WidgetKey::PageDown {
+            crate::widgets::FocusedKeyDisposition::Unhandled
+        } else {
+            crate::widgets::FocusedKeyDisposition::Consumed
+        }
+    }
+
     fn captured_focused_key(&self) -> Option<WidgetKey> {
         self.captured
     }
@@ -523,6 +531,30 @@ fn focused_key_owner_without_output_still_bypasses_host() {
     );
     assert_eq!(runtime.bridge().host_calls, 1);
     assert_eq!(runtime.bridge().messages.len(), 1);
+}
+
+#[test]
+fn unhandled_metadata_page_repeat_delivers_without_acquiring_capture() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusedKeyBridge::new(false, false),
+        crate::gui::types::Vector2::new(120.0, 40.0),
+    );
+    assert!(runtime.focus_widget(50));
+
+    for repeat in [false, true] {
+        assert_eq!(
+            runtime.dispatch_event(Event::key_press_with_metadata(
+                WidgetKey::PageDown,
+                KeyboardModifiers::default(),
+                repeat,
+                None,
+            )),
+            Some(50)
+        );
+    }
+    assert_eq!(runtime.bridge().host_calls, 1);
+    assert_eq!(runtime.bridge().messages.len(), 2);
+    assert_eq!(runtime.interaction.focus.focused_key_capture, None);
 }
 
 #[test]

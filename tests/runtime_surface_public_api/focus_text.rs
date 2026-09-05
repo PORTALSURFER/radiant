@@ -26,6 +26,11 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
         runtime.dispatch_focused_input(WidgetInput::key_press(WidgetKey::Enter)),
         Some(11)
     );
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::key_press(WidgetKey::PageDown)),
+        Some(11),
+        "public focused dispatch keeps its Some(target) compatibility projection"
+    );
 
     assert_eq!(
         widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,

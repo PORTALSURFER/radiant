@@ -6,13 +6,328 @@ use radiant::{
         KeyboardModifiers, NumericAdjustment, NumericCodec, NumericInputInteraction,
         NumericInputInteractionBatch, NumericParseResult, NumericScrubPolicy, NumericStep,
         NumericStepDirection, NumericStepModifiers, NumericWheelPolicy, PointerModifiers,
-        WheelDelta, WheelPhase, WheelSample,
+        TextInputWidget, ToggleWidget, WheelDelta, WheelPhase, WheelSample,
     },
 };
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
+
+#[derive(Clone, Copy)]
+enum ScrollFocusedControl {
+    Button,
+    Toggle,
+    TextInput,
+}
+
+fn intrinsic_scroll_slot() -> SlotParams {
+    SlotParams {
+        size_main: SizeModeMain::Intrinsic,
+        size_cross: SizeModeCross::Fill,
+        constraints: Constraints::unconstrained(),
+        margin: Default::default(),
+        align_cross_override: None,
+        allow_fixed_compress: false,
+    }
+}
+
+struct ScrollFocusedBridge {
+    control: ScrollFocusedControl,
+    host_calls: usize,
+    host_handled: bool,
+}
+
+impl ScrollFocusedBridge {
+    fn new(control: ScrollFocusedControl) -> Self {
+        Self {
+            control,
+            host_calls: 0,
+            host_handled: false,
+        }
+    }
+}
+
+impl RuntimeBridge<()> for ScrollFocusedBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        let child = match self.control {
+            ScrollFocusedControl::Button => SurfaceNode::widget(
+                ButtonWidget::new(50, "Button", WidgetSizing::fixed(Vector2::new(120.0, 40.0))),
+                WidgetMessageMapper::none(),
+            ),
+            ScrollFocusedControl::Toggle => SurfaceNode::widget(
+                ToggleWidget::new(50, "Toggle", WidgetSizing::fixed(Vector2::new(120.0, 40.0))),
+                WidgetMessageMapper::none(),
+            ),
+            ScrollFocusedControl::TextInput => SurfaceNode::widget(
+                TextInputWidget::new(
+                    50,
+                    "initial text",
+                    WidgetSizing::fixed(Vector2::new(120.0, 40.0)),
+                ),
+                WidgetMessageMapper::none(),
+            ),
+        };
+        let content = SurfaceNode::column(
+            2,
+            0.0,
+            vec![
+                SurfaceChild::new(intrinsic_scroll_slot(), child),
+                SurfaceChild::new(
+                    intrinsic_scroll_slot(),
+                    SurfaceNode::text(
+                        70,
+                        "filler",
+                        WidgetSizing::fixed(Vector2::new(120.0, 360.0)),
+                    ),
+                ),
+            ],
+        );
+        arc_surface(UiSurface::new(SurfaceNode::scroll_area(1, content)))
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<()> for ScrollFocusedBridge {
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        _press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<()> {
+        self.host_calls += 1;
+        if self.host_handled {
+            ShortcutResolution::handled()
+        } else {
+            ShortcutResolution::unhandled()
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ReprojectMessage {
+    KeyPress,
+}
+
+#[derive(Clone)]
+struct ReprojectingFocusedWidget {
+    common: WidgetCommon,
+}
+
+impl ReprojectingFocusedWidget {
+    fn new() -> Self {
+        Self {
+            common: WidgetCommon::new(61, WidgetSizing::fixed(Vector2::new(120.0, 40.0)))
+                .with_keyboard_focus(),
+        }
+    }
+}
+
+impl Widget for ReprojectingFocusedWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn focused_key_disposition(&self, key: WidgetKey) -> radiant::widgets::FocusedKeyDisposition {
+        if matches!(
+            key,
+            WidgetKey::PageUp | WidgetKey::PageDown | WidgetKey::Home | WidgetKey::End
+        ) {
+            radiant::widgets::FocusedKeyDisposition::Unhandled
+        } else {
+            radiant::widgets::FocusedKeyDisposition::Consumed
+        }
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        matches!(
+            input,
+            WidgetInput::KeyPress {
+                key: WidgetKey::PageDown,
+                ..
+            }
+        )
+        .then(|| WidgetOutput::typed(ReprojectMessage::KeyPress))
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+struct ReprojectingBridge {
+    reductions: usize,
+}
+
+impl RuntimeBridge<ReprojectMessage> for ReprojectingBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<ReprojectMessage>> {
+        let content = SurfaceNode::column(
+            62,
+            0.0,
+            vec![
+                SurfaceChild::new(
+                    intrinsic_scroll_slot(),
+                    SurfaceNode::widget(
+                        ReprojectingFocusedWidget::new(),
+                        WidgetMessageMapper::typed(|message: ReprojectMessage| message),
+                    ),
+                ),
+                SurfaceChild::new(
+                    intrinsic_scroll_slot(),
+                    SurfaceNode::text(
+                        70,
+                        "filler",
+                        WidgetSizing::fixed(Vector2::new(120.0, 360.0)),
+                    ),
+                ),
+            ],
+        );
+        arc_surface(UiSurface::new(SurfaceNode::scroll_area(60, content)))
+    }
+
+    fn reduce_message(&mut self, _message: ReprojectMessage) {
+        self.reductions += 1;
+    }
+}
+
+#[test]
+fn focused_activation_controls_admit_page_keys_and_preserve_event_projection() {
+    for control in [ScrollFocusedControl::Button, ScrollFocusedControl::Toggle] {
+        let mut runtime =
+            SurfaceRuntime::new(ScrollFocusedBridge::new(control), Vector2::new(120.0, 80.0));
+        assert!(runtime.focus_widget(50));
+        let initial = runtime.layout().rects[&50];
+        assert!(runtime.scroll_at(Point::new(10.0, 10.0), Vector2::new(0.0, 40.0)));
+        let manually_scrolled = runtime.layout().rects[&50];
+        assert!(manually_scrolled.min.y < initial.min.y);
+        runtime.dispatch_event(Event::key_press(WidgetKey::Home));
+        let initial = runtime.layout().rects[&50];
+
+        assert_eq!(
+            runtime.dispatch_event(Event::key_press(WidgetKey::PageDown)),
+            Some(50)
+        );
+        let paged = runtime.layout().rects[&50];
+        assert!(paged.min.y < initial.min.y);
+
+        assert_eq!(
+            runtime.dispatch_event(Event::key_press(WidgetKey::End)),
+            Some(50)
+        );
+        let ended = runtime.layout().rects[&50];
+        assert!(ended.min.y < paged.min.y);
+
+        assert_eq!(
+            runtime.dispatch_event(Event::key_press(WidgetKey::Home)),
+            Some(50)
+        );
+        assert_eq!(runtime.layout().rects[&50].min.y, initial.min.y);
+    }
+}
+
+#[test]
+fn host_first_page_down_falls_back_once_for_focused_button() {
+    let mut runtime = SurfaceRuntime::new(
+        ScrollFocusedBridge::new(ScrollFocusedControl::Button),
+        Vector2::new(120.0, 80.0),
+    );
+    assert!(runtime.focus_widget(50));
+    let initial = runtime.layout().rects[&50];
+    assert!(runtime.scroll_at(Point::new(10.0, 10.0), Vector2::new(0.0, 40.0)));
+    let manually_scrolled = runtime.layout().rects[&50];
+    assert!(manually_scrolled.min.y < initial.min.y);
+    runtime.dispatch_event(Event::key_press(WidgetKey::Home));
+    let initial = runtime.layout().rects[&50];
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::PageDown),
+        Some(WidgetKey::PageDown),
+        FocusSurface::None,
+    ));
+    assert_eq!(runtime.bridge().host_calls, 1);
+    assert!(runtime.layout().rects[&50].min.y < initial.min.y);
+}
+
+#[test]
+fn host_handled_page_down_blocks_focused_delivery_and_scroll_fallback() {
+    let mut runtime = SurfaceRuntime::new(
+        ScrollFocusedBridge::new(ScrollFocusedControl::Button),
+        Vector2::new(120.0, 80.0),
+    );
+    runtime.bridge_mut().host_handled = true;
+    assert!(runtime.focus_widget(50));
+    let initial = runtime.layout().rects[&50];
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::PageDown),
+        Some(WidgetKey::PageDown),
+        FocusSurface::None,
+    ));
+    assert_eq!(runtime.bridge().host_calls, 1);
+    assert_eq!(runtime.layout().rects[&50], initial);
+}
+
+#[test]
+fn text_input_home_and_end_are_consumed_without_scroll_fallback() {
+    let mut runtime = SurfaceRuntime::new(
+        ScrollFocusedBridge::new(ScrollFocusedControl::TextInput),
+        Vector2::new(120.0, 80.0),
+    );
+    assert!(runtime.focus_widget(50));
+    let initial = runtime.layout().rects[&50];
+    assert!(runtime.scroll_at(Point::new(10.0, 10.0), Vector2::new(0.0, 40.0)));
+    let manually_scrolled = runtime.layout().rects[&50];
+    assert!(manually_scrolled.min.y < initial.min.y);
+    runtime.dispatch_event(Event::key_press(WidgetKey::Home));
+    let initial = runtime.layout().rects[&50];
+
+    assert_eq!(
+        runtime.dispatch_event(Event::key_press(WidgetKey::PageDown)),
+        Some(50)
+    );
+    let paged = runtime.layout().rects[&50];
+    assert!(paged.min.y < initial.min.y);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::key_press(WidgetKey::Home)),
+        Some(50)
+    );
+    assert_eq!(runtime.layout().rects[&50].min.y, paged.min.y);
+    assert_eq!(
+        runtime.dispatch_event(Event::key_press(WidgetKey::End)),
+        Some(50)
+    );
+    assert_eq!(runtime.layout().rects[&50].min.y, paged.min.y);
+}
+
+#[test]
+fn focused_delivery_reprojection_disables_stale_keyboard_fallback() {
+    let mut runtime = SurfaceRuntime::new(
+        ReprojectingBridge { reductions: 0 },
+        Vector2::new(120.0, 80.0),
+    );
+    assert!(runtime.focus_widget(61));
+    let initial = runtime.layout().rects[&61];
+
+    assert_eq!(
+        runtime.dispatch_event(Event::key_press(WidgetKey::PageDown)),
+        Some(61)
+    );
+    assert_eq!(runtime.bridge().reductions, 1);
+    assert_eq!(runtime.layout().rects[&61].min.y, initial.min.y);
+}
 
 #[test]
 fn surface_runtime_resolves_host_shortcuts_before_widget_key_routing() {
@@ -672,6 +987,30 @@ fn public_numeric_keyboard_owner_conflict_still_resolves_host_first() {
     assert_eq!(runtime.bridge().value, before_value);
     assert_eq!(runtime.bridge().numeric_policy_calls(), before_policy_calls);
     assert_eq!(runtime.bridge().mapped_phases, before_mapped_phases);
+}
+
+#[test]
+fn public_retained_numeric_home_end_are_consumed_and_page_keys_are_unhandled() {
+    let mut runtime =
+        SurfaceRuntime::new(RuntimeNumericBridge::default(), Vector2::new(120.0, 32.0));
+    assert!(runtime.focus_widget(150));
+    runtime.bridge_mut().host_handled = false;
+
+    for key in [
+        WidgetKey::Home,
+        WidgetKey::End,
+        WidgetKey::PageUp,
+        WidgetKey::PageDown,
+    ] {
+        assert_eq!(
+            runtime.dispatch_event(Event::key_press(key)),
+            Some(150),
+            "retained numeric wrapper should admit {key:?} exactly once"
+        );
+    }
+    assert_eq!(runtime.bridge().value, RuntimeNumericValue(7));
+    assert!(runtime.bridge().mapped_phases.is_empty());
+    assert_eq!(runtime.bridge().host_calls, 4);
 }
 
 #[test]

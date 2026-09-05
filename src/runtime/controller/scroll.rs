@@ -14,6 +14,7 @@ use crate::{
     runtime::RuntimeBridge,
     widgets::PointerModifiers,
 };
+use std::collections::BTreeSet;
 
 /// Observational input provenance carried by a runtime-owned scroll update.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -92,41 +93,95 @@ where
         metadata: ScrollUpdateMetadata,
         refresh_after_message: bool,
     ) -> bool {
-        let Some(node_id) = self.scroll_container_at(point) else {
+        let Some(deepest) = self.scroll_container_at(point) else {
             return false;
         };
-        let current = self.layout_state.scroll_offset(node_id);
-        let requested = Vector2::new(
-            (current.x + delta.x).max(0.0),
-            (current.y + delta.y).max(0.0),
-        );
-        if current == Vector2::default() && requested == current {
-            return true;
+        let mut candidates = vec![deepest];
+        if let Some(ancestors) = self.traversal.containers.clip_ancestors.get(&deepest) {
+            candidates.extend(ancestors.as_slice().iter().rev().copied());
         }
-        self.layout_state.scroll_offsets.insert(node_id, requested);
-        self.note_layout_state_mutation();
-        self.relayout_current_surface();
-        let offset = self.layout_state.scroll_offset(node_id);
-        if offset == current {
-            return true;
+        let mut remaining = delta;
+        let mut accepted = false;
+        for node_id in candidates {
+            if node_id != deepest && !self.scroll_container_accepts_point(node_id, point) {
+                continue;
+            }
+            accepted = true;
+            let Some(policy) = self
+                .scroll_policy_for_node(node_id)
+                .map(|container| container.scroll_policy)
+            else {
+                continue;
+            };
+            let mut effective = remaining;
+            let allows_horizontal = policy.allows_horizontal();
+            if !allows_horizontal {
+                effective.x = 0.0;
+            }
+            if !policy.configured_axes().includes_vertical() {
+                effective.y = 0.0;
+            }
+            match policy.axis_lock {
+                crate::layout::ScrollAxisLock::Horizontal => effective.y = 0.0,
+                crate::layout::ScrollAxisLock::Vertical => effective.x = 0.0,
+                crate::layout::ScrollAxisLock::None => {}
+            }
+            let current = self.layout_state.scroll_offset(node_id);
+            let requested = Vector2::new(
+                (current.x + effective.x).max(0.0),
+                (current.y + effective.y).max(0.0),
+            );
+            if requested == current {
+                if !policy.chaining {
+                    return true;
+                }
+                continue;
+            }
+            self.layout_state.scroll_offsets.insert(node_id, requested);
+            self.note_layout_state_mutation();
+            self.relayout_current_surface();
+            let offset = self.layout_state.scroll_offset(node_id);
+            if offset != current {
+                let consumed = Vector2::new(offset.x - current.x, offset.y - current.y);
+                let mut residual = remaining;
+                if allows_horizontal {
+                    residual.x -= consumed.x;
+                }
+                if policy.configured_axes().includes_vertical() {
+                    residual.y -= consumed.y;
+                }
+                let viewport = self
+                    .layout
+                    .rects
+                    .get(&node_id)
+                    .map(|rect| Vector2::new(rect.width(), rect.height()))
+                    .unwrap_or_default();
+                self.report_scroll_update_with_refresh(
+                    ScrollUpdate {
+                        node_id,
+                        position: point,
+                        delta: effective,
+                        previous_offset: current,
+                        offset,
+                        viewport,
+                        metadata,
+                    },
+                    refresh_after_message,
+                );
+                if !policy.chaining
+                    || (residual.x.abs() <= f32::EPSILON && residual.y.abs() <= f32::EPSILON)
+                {
+                    return true;
+                }
+                remaining = residual;
+                continue;
+            }
+            // A boundary may offer its unconsumed delta to the next ancestor.
+            if !policy.chaining {
+                return true;
+            }
         }
-        let viewport = self
-            .layout
-            .rects
-            .get(&node_id)
-            .map(|rect| Vector2::new(rect.width(), rect.height()))
-            .unwrap_or_default();
-        let update = ScrollUpdate {
-            node_id,
-            position: point,
-            delta,
-            previous_offset: current,
-            offset,
-            viewport,
-            metadata,
-        };
-        self.report_scroll_update_with_refresh(update, refresh_after_message);
-        true
+        accepted
     }
 
     pub(super) fn report_scroll_update(&mut self, update: ScrollUpdate) {
@@ -186,6 +241,28 @@ where
             .find(|node_id| self.scroll_container_accepts_point(*node_id, point))
     }
 
+    pub(in crate::runtime::controller) fn scroll_policy_for_node(
+        &self,
+        node_id: NodeId,
+    ) -> Option<&crate::layout::ContainerPolicy> {
+        fn find(
+            node: &crate::layout::LayoutNode,
+            id: NodeId,
+        ) -> Option<&crate::layout::ContainerPolicy> {
+            let crate::layout::LayoutNode::Container(container) = node else {
+                return None;
+            };
+            if container.id == id {
+                return Some(&container.policy);
+            }
+            container
+                .children
+                .iter()
+                .find_map(|child| find(&child.child, id))
+        }
+        find(&self.layout_root, node_id)
+    }
+
     pub(in crate::runtime::controller) fn scroll_container_accepts_point(
         &self,
         node_id: NodeId,
@@ -203,5 +280,85 @@ where
                     overflow.policy == OverflowPolicy::Scroll && (overflow.x || overflow.y)
                 })
             && self.container_clip_contains_point(node_id, point)
+    }
+
+    pub(in crate::runtime::controller) fn scroll_keyboard_fallback(
+        &mut self,
+        widget_id: crate::widgets::WidgetId,
+        key: crate::widgets::WidgetKey,
+    ) -> bool {
+        let candidates = self
+            .traversal
+            .widgets
+            .paths
+            .clip_ancestors
+            .get(&widget_id)
+            .map(|path| path.as_slice().iter().rev().copied().collect::<Vec<_>>())
+            .unwrap_or_default();
+        let mut seen = BTreeSet::new();
+        for node_id in candidates {
+            if !seen.insert(node_id) {
+                continue;
+            }
+            let Some(policy) = self
+                .scroll_policy_for_node(node_id)
+                .map(|c| c.scroll_policy)
+            else {
+                continue;
+            };
+            let Some(viewport) = self.layout.viewport_bounds.get(&node_id).copied() else {
+                continue;
+            };
+            let Some(content_id) = self
+                .traversal
+                .containers
+                .scroll_content_by_container
+                .get(&node_id)
+                .copied()
+            else {
+                continue;
+            };
+            let Some(content) = self.layout.rects.get(&content_id).copied() else {
+                continue;
+            };
+            let current = self.layout_state.scroll_offset(node_id);
+            let page = policy.page_fraction.clamp(0.1, 4.0);
+            let mut next = current;
+            match key {
+                crate::widgets::WidgetKey::PageUp => {
+                    if policy.configured_axes().includes_vertical() {
+                        next.y -= viewport.height().max(1.0) * page;
+                    }
+                }
+                crate::widgets::WidgetKey::PageDown => {
+                    if policy.configured_axes().includes_vertical() {
+                        next.y += viewport.height().max(1.0) * page;
+                    }
+                }
+                crate::widgets::WidgetKey::Home => {
+                    if policy.configured_axes().includes_vertical() {
+                        next.y = 0.0;
+                    }
+                    if policy.allows_horizontal() {
+                        next.x = 0.0;
+                    }
+                }
+                crate::widgets::WidgetKey::End => {
+                    if policy.configured_axes().includes_vertical() {
+                        next.y = (content.height() - viewport.height()).max(0.0);
+                    }
+                    if policy.allows_horizontal() {
+                        next.x = (content.width() - viewport.width()).max(0.0);
+                    }
+                }
+                _ => return false,
+            }
+            if next == current {
+                continue;
+            }
+            self.scroll_to_offset(node_id, next);
+            return true;
+        }
+        false
     }
 }

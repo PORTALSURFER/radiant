@@ -244,6 +244,12 @@ new focused export leaf or a module split, not a formatting workaround.
   evidence before delegating to the generic controller. The kernel is generic
   and numeric-policy-free, while widgets retain the existing key-only fallback
   unless they opt in.
+- Focused keyboard scroll fallback has an explicit pre-dispatch admission: the
+  focused widget receives each key exactly once and reports `Consumed` or
+  `Unhandled` independently of output production. Only an authoritative
+  `Unhandled` delivery may scroll that widget's actual clip/scroll ancestors;
+  host actions, modal or private owners, stale authority, and missing focus are
+  terminal, and no unrelated visible scroll container is searched.
 - Pointer-press admission has the same generic ownership split: the qualified
   `radiant::widgets::PointerPressAdmission` hook selects Legacy, ManagedCapture,
   or Blocked after scrollbar/layout target precedence; `src/runtime/controller`
@@ -318,6 +324,21 @@ clamping; layout places content at `origin - offset`. AppKit/winit adapters own
 the only platform conversion, negating content-direction deltas once, applying
 40 logical pixels per line or one DPI conversion for pixels, and passing the
 normalized result through generic routing without an origin flip.
+
+Each mounted scroll container has one runtime-owned offset slot fenced by its
+container identity and environment generation. `initial_offset` seeds only a
+new mount; a `Controlled<Vector2>` value is admitted only when its generation
+is newer than the accepted generation; and a `ScrollRequest` is consumed once
+after finite committed geometry or a currently materialized key is verified.
+Explicit `ScrollPolicy` axes constrain every declarative input and retained
+offset: disabled components are projected to zero at admission and after a
+policy change, while `ScrollPolicy::default()` preserves the legacy two-axis
+behavior. This normalization is silent, does not admit stale or malformed
+generations, and does not resurrect a discarded component when an axis is
+re-enabled without newer input.
+Wheel, scrollbar, keyboard, focus reveal, and programmatic requests all pass
+through the same clamping and settlement path. Rejected or stale evidence has
+no layout or callback side effects.
 
 ## Virtual Layout Semantic Provider Boundary
 

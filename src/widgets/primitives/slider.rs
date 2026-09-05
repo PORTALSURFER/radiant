@@ -16,8 +16,8 @@ use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, clamp_fraction};
 use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
-    WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
+    FocusBehavior, FocusedKeyDisposition, PaintBounds, Widget, WidgetCapabilities, WidgetId,
+    WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{SliderMessage, WidgetInput, WidgetOutput};
 
@@ -131,6 +131,23 @@ impl WidgetPointerMotion for SliderWidget {
 }
 
 impl Widget for SliderWidget {
+    fn focused_key_disposition(&self, key: crate::widgets::WidgetKey) -> FocusedKeyDisposition {
+        match key {
+            crate::widgets::WidgetKey::Home | crate::widgets::WidgetKey::End => {
+                FocusedKeyDisposition::Consumed
+            }
+            crate::widgets::WidgetKey::PageUp | crate::widgets::WidgetKey::PageDown
+                if self.common.state.pressed =>
+            {
+                FocusedKeyDisposition::Consumed
+            }
+            crate::widgets::WidgetKey::PageUp | crate::widgets::WidgetKey::PageDown => {
+                FocusedKeyDisposition::Unhandled
+            }
+            _ => FocusedKeyDisposition::Consumed,
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }

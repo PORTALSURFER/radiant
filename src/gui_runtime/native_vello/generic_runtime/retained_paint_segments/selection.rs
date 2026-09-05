@@ -370,6 +370,7 @@ mod tests {
                 hovered_container: None,
                 hovered_widget: None,
                 hovered_scroll_affordance: None,
+                scroll_auto_visibility_revision: 0,
                 focused_widget: None,
                 pointer_capture: None,
                 pointer_capture_state: None,

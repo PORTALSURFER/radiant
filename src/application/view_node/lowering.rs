@@ -188,6 +188,11 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
         let split_pane_runtime = node.split_pane_runtime;
         let split_pane_ratio_settled = node.split_pane_ratio_settled;
         let scroll_message = node.scroll_message;
+        let scroll_policy = node.scroll_policy;
+        let initial_offset = node.initial_offset;
+        let controlled_offset = node.controlled_offset;
+        let scroll_request = node.scroll_request;
+        let offset_settled = node.offset_settled;
         let accepts_native_file_drop = node.accepts_native_file_drop;
         let native_file_drop = node.native_file_drop.clone();
         let defaults =
@@ -213,6 +218,15 @@ impl<'a, Message: 'static> ViewLowering<'a, Message> {
                     lowering.lower_container(id, policy, layout_policy, style, hoverable, children);
                 if let Some(scroll_message) = scroll_message.clone() {
                     container = container.with_scroll_message_local(scroll_message);
+                }
+                container = container.with_scroll_declaration(
+                    scroll_policy.map(crate::layout::ScrollPolicy::normalized),
+                    initial_offset,
+                    controlled_offset,
+                    scroll_request.clone(),
+                );
+                if let Some(map) = offset_settled.clone() {
+                    container = container.on_offset_settled(move |offset| map(offset));
                 }
                 container = container.with_split_pane_runtime_mode(split_pane_runtime);
                 container =

@@ -37,6 +37,11 @@ impl SourceCompatibility {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn is_known(self) -> bool {
+        self.surface_kind != SurfaceSourceKind::Unknown
+    }
+
     pub(crate) fn from_surface_node<Message>(node: &SurfaceNode<Message>) -> Self {
         match node {
             SurfaceNode::Scene(_) => Self {
@@ -178,6 +183,50 @@ pub(crate) struct SourceMetadata {
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
     pub(crate) topology: SourceTopology,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FrozenSourceMetadata {
+    pub(crate) identity: SourceIdentity,
+    pub(crate) compatibility: SourceCompatibility,
+    pub(crate) keyed_nodes: Vec<(
+        SourceIdentity,
+        SourceCompatibility,
+        Option<DeclarativeEffectOwner>,
+    )>,
+    pub(crate) overlays: Vec<OverlayEvidence>,
+}
+
+impl FrozenSourceMetadata {
+    pub(crate) fn empty() -> Self {
+        Self {
+            identity: SourceIdentity {
+                resolved_id: 0,
+                structural_scope: 0,
+                origin:
+                    crate::application::DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot,
+            },
+            compatibility: SourceCompatibility::unknown(),
+            keyed_nodes: Vec::new(),
+            overlays: Vec::new(),
+        }
+    }
+}
+
+impl SourceMetadata {
+    pub(crate) fn freeze(&self) -> FrozenSourceMetadata {
+        FrozenSourceMetadata {
+            identity: self.identity,
+            compatibility: self.compatibility,
+            keyed_nodes: self
+                .topology
+                .keyed_nodes
+                .iter()
+                .map(|node| (node.identity(), node.compatibility(), node.effect_owner()))
+                .collect(),
+            overlays: self.topology.overlays.clone(),
+        }
+    }
 }
 
 impl SourceMetadata {

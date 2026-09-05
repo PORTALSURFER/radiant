@@ -97,7 +97,7 @@ pub(crate) fn lower_virtual_layout_item<Message: 'static>(
         wrapper.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
         let mut scene = SceneProjection::default();
-        let mut lowering = ViewLowering::new(&mut ids, &mut scene);
+        let mut lowering = ViewLowering::new(&mut ids, &mut scene, None);
         Ok(lowering.lower_node(wrapper, ROOT_KEY_SCOPE, StructuralRole::Root))
     }));
 
@@ -176,7 +176,7 @@ pub(crate) fn lower_virtual_layout_batch<Message: 'static>(
         admission_root.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
         let mut scene = SceneProjection::default();
-        let mut lowering = ViewLowering::new(&mut ids, &mut scene);
+        let mut lowering = ViewLowering::new(&mut ids, &mut scene, None);
         let ViewNode {
             kind: ViewNodeKind::Container { children, .. },
             ..

@@ -37,6 +37,7 @@ fn visibility_scroll_surface(visibility: ScrollbarVisibility) -> UiSurface<DemoM
 }
 
 #[test]
+#[allow(clippy::arc_with_non_send_sync)]
 fn auto_scrollbar_capture_requires_the_same_visibility_as_paint() {
     let always = SurfaceRuntime::new(
         declarative_runtime_bridge(
@@ -106,6 +107,7 @@ fn auto_scrollbar_capture_requires_the_same_visibility_as_paint() {
 }
 
 #[test]
+#[allow(clippy::arc_with_non_send_sync)]
 fn phase_less_settlement_is_finalized_before_a_new_explicit_scroll_sequence() {
     let settled_a = Rc::new(Cell::new(0_usize));
     let settled_b = Rc::new(Cell::new(0_usize));

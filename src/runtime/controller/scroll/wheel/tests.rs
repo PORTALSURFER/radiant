@@ -4,11 +4,12 @@ use crate::{
     runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface},
     widgets::{PointerModifiers, WheelDelta, WheelPhase, WheelSample, WidgetSizing},
 };
-use std::{cell::Cell, sync::Arc, time::Duration};
+use std::{cell::Cell, rc::Rc, sync::Arc, time::Duration};
 
 struct WheelTestBridge;
 
 impl RuntimeBridge<()> for WheelTestBridge {
+    #[allow(clippy::arc_with_non_send_sync)]
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         Arc::new(UiSurface::new(SurfaceNode::scroll_area(
             1,
@@ -28,11 +29,12 @@ enum SettlementMessage {
 }
 
 struct SettlementTraceBridge {
-    settled_a: Arc<Cell<usize>>,
-    settled_b: Arc<Cell<usize>>,
+    settled_a: Rc<Cell<usize>>,
+    settled_b: Rc<Cell<usize>>,
 }
 
 impl RuntimeBridge<SettlementMessage> for SettlementTraceBridge {
+    #[allow(clippy::arc_with_non_send_sync)]
     fn project_surface(&mut self) -> Arc<UiSurface<SettlementMessage>> {
         Arc::new(UiSurface::new(SurfaceNode::column(
             1,
@@ -154,12 +156,12 @@ fn invalid_non_started_samples_are_rejected_before_scroll_routing() {
 
 #[test]
 fn replacement_started_settles_a_before_old_deadline_and_keeps_b_pending() {
-    let settled_a = Arc::new(Cell::new(0));
-    let settled_b = Arc::new(Cell::new(0));
+    let settled_a = Rc::new(Cell::new(0));
+    let settled_b = Rc::new(Cell::new(0));
     let mut runtime = SurfaceRuntime::new(
         SettlementTraceBridge {
-            settled_a: Arc::clone(&settled_a),
-            settled_b: Arc::clone(&settled_b),
+            settled_a: Rc::clone(&settled_a),
+            settled_b: Rc::clone(&settled_b),
         },
         Vector2::new(120.0, 80.0),
     );

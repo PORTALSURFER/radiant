@@ -28,7 +28,7 @@ use self::wheel::{
 use crate::{
     gui::types::{Point, Rect},
     layout::LayoutOutput,
-    runtime::PaintPrimitive,
+    runtime::{PaintPrimitive, ResolvedEnvironment},
     theme::ThemeTokens,
     widgets::{
         CompositionRange, CompositionSample, CompositionSelectionState, EditEvent,
@@ -40,9 +40,9 @@ use crate::{
         NumericStepAttempt, NumericStepDirection, NumericStepModifiers, NumericWheelAttempt,
         NumericWheelPolicy, PointerButton, PointerModifiers, PointerPressAdmission, TextAlign,
         TextBackgroundRole, TextColorRole, TextInputChrome, TextInputState, TextInputWidget,
-        TextWrap, WheelPhase, WheelSample, Widget, WidgetCapabilities, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics,
-        WidgetSizing,
+        TextScaleParticipation, TextWrap, WheelPhase, WheelSample, Widget, WidgetCapabilities,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetPaintContext, WidgetPointerMotion,
+        WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
         interaction::{NumericInteractionGate, NumericInteractionOwner},
     },
 };
@@ -1596,26 +1596,39 @@ where
         }
     }
 
-    fn handle_focus_loss(&mut self, bounds: Rect) -> Option<NumericInputEditBatch<T>> {
+    fn handle_focus_loss(
+        &mut self,
+        bounds: Rect,
+        environment: &ResolvedEnvironment,
+    ) -> Option<NumericInputEditBatch<T>> {
         if self.composition.is_some() {
             let output = self.cancel_composition(None);
-            let _ = self
-                .text_input
-                .handle_input(bounds, WidgetInput::FocusChanged(false));
+            let _ = Widget::handle_input_with_environment(
+                &mut self.text_input,
+                bounds,
+                WidgetInput::FocusChanged(false),
+                environment,
+            );
             return output;
         }
         if self.active.is_some() {
             let output = self.commit_active(None);
             if output.is_some() {
-                let _ = self
-                    .text_input
-                    .handle_input(bounds, WidgetInput::FocusChanged(false));
+                let _ = Widget::handle_input_with_environment(
+                    &mut self.text_input,
+                    bounds,
+                    WidgetInput::FocusChanged(false),
+                    environment,
+                );
             }
             output
         } else {
-            let _ = self
-                .text_input
-                .handle_input(bounds, WidgetInput::FocusChanged(false));
+            let _ = Widget::handle_input_with_environment(
+                &mut self.text_input,
+                bounds,
+                WidgetInput::FocusChanged(false),
+                environment,
+            );
             None
         }
     }
@@ -1673,81 +1686,17 @@ where
     }
 }
 
-impl<T, C, A> Widget for NumericInputWidget<T, C, A>
+impl<T, C, A> NumericInputWidget<T, C, A>
 where
     T: Clone + PartialEq + 'static,
     C: NumericCodec<T> + 'static,
     A: NumericAdjustment<T> + 'static,
 {
-    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
-        match key {
-            WidgetKey::Home | WidgetKey::End => FocusedKeyDisposition::Consumed,
-            WidgetKey::PageUp | WidgetKey::PageDown
-                if self.interaction_gate.incumbent().is_some() =>
-            {
-                FocusedKeyDisposition::Consumed
-            }
-            WidgetKey::PageUp | WidgetKey::PageDown => FocusedKeyDisposition::Unhandled,
-            _ => FocusedKeyDisposition::Consumed,
-        }
-    }
-
-    fn common(&self) -> &crate::widgets::WidgetCommon {
-        &self.text_input.common
-    }
-
-    fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
-        &mut self.text_input.common
-    }
-
-    fn prepare_focus_loss(&mut self) -> FocusLossDecision {
-        if self.pointer.is_some() {
-            return FocusLossDecision::Allow;
-        }
-        if self.composition.is_some() {
-            return FocusLossDecision::Allow;
-        }
-        let Some(active) = self.active.as_ref() else {
-            return FocusLossDecision::Allow;
-        };
-
-        match active.draft_result.as_ref() {
-            Some(NumericParseResult::Valid(_)) => FocusLossDecision::Allow,
-            Some(NumericParseResult::Incomplete)
-            | Some(NumericParseResult::Invalid)
-            | Some(NumericParseResult::OutOfRange)
-            | None => FocusLossDecision::Veto,
-        }
-    }
-
-    fn supports_accessibility_action(&self, action: &NumericAccessibilityAction) -> bool {
-        self.accessibility_action_handler.is_some()
-            && matches!(
-                action,
-                NumericAccessibilityAction::Increment
-                    | NumericAccessibilityAction::Decrement
-                    | NumericAccessibilityAction::SetValueText(_)
-            )
-    }
-
-    fn accessibility_action_owner(&self) -> Option<NumericAccessibilityBlockOwner> {
-        self.interaction_gate
-            .incumbent()
-            .map(NumericAccessibilityBlockOwner::from)
-    }
-
-    fn handle_accessibility_action(
-        &mut self,
-        action: NumericAccessibilityAction,
-    ) -> Option<WidgetOutput> {
-        let handler = self.accessibility_action_handler.as_ref().map(Rc::clone)?;
-        handler(self, action)
-    }
-
-    fn handle_input(
+    fn handle_input_with_resolved_environment(
         &mut self,
         bounds: Rect,
         input: WidgetInput,
+        environment: &ResolvedEnvironment,
     ) -> Option<crate::widgets::WidgetOutput> {
         if self.wheel.is_some() {
             match input {
@@ -1757,9 +1706,12 @@ where
                 } => return self.cancel_wheel_sequence(Self::default_wheel_provenance()),
                 WidgetInput::FocusChanged(false) => {
                     let output = self.cancel_wheel_sequence(Self::default_wheel_provenance());
-                    let _ = self
-                        .text_input
-                        .handle_input(bounds, WidgetInput::FocusChanged(false));
+                    let _ = Widget::handle_input_with_environment(
+                        &mut self.text_input,
+                        bounds,
+                        WidgetInput::FocusChanged(false),
+                        environment,
+                    );
                     return output;
                 }
                 _ => return None,
@@ -1793,9 +1745,12 @@ where
                 } => return self.cancel_pointer_scrub(Self::default_pointer_provenance()),
                 WidgetInput::FocusChanged(false) => {
                     let output = self.cancel_pointer_scrub(Self::default_pointer_provenance());
-                    let _ = self
-                        .text_input
-                        .handle_input(bounds, WidgetInput::FocusChanged(false));
+                    let _ = Widget::handle_input_with_environment(
+                        &mut self.text_input,
+                        bounds,
+                        WidgetInput::FocusChanged(false),
+                        environment,
+                    );
                     return output;
                 }
                 _ => return None,
@@ -1819,19 +1774,25 @@ where
         if matches!(&input, WidgetInput::FocusChanged(false)) {
             if self.active.is_some() {
                 return self
-                    .handle_focus_loss(bounds)
+                    .handle_focus_loss(bounds, environment)
                     .map(|batch| self.encode_output(batch));
             }
             if self.keyboard.is_some() {
                 let output = self.cancel_keyboard(None);
-                let _ = self
-                    .text_input
-                    .handle_input(bounds, WidgetInput::FocusChanged(false));
+                let _ = Widget::handle_input_with_environment(
+                    &mut self.text_input,
+                    bounds,
+                    WidgetInput::FocusChanged(false),
+                    environment,
+                );
                 return output;
             }
-            let _ = self
-                .text_input
-                .handle_input(bounds, WidgetInput::FocusChanged(false));
+            let _ = Widget::handle_input_with_environment(
+                &mut self.text_input,
+                bounds,
+                WidgetInput::FocusChanged(false),
+                environment,
+            );
             return None;
         }
 
@@ -1931,7 +1892,8 @@ where
             }
             self.begin_text_edit_session(Self::keyboard_timestamp(&input));
         }
-        let _ = self.text_input.handle_input(bounds, input);
+        let _ =
+            Widget::handle_input_with_environment(&mut self.text_input, bounds, input, environment);
         let value_changed = self
             .active
             .as_ref()
@@ -1944,6 +1906,110 @@ where
                 .release(NumericInteractionOwner::TextEdit);
         }
         None
+    }
+}
+
+impl<T, C, A> Widget for NumericInputWidget<T, C, A>
+where
+    T: Clone + PartialEq + 'static,
+    C: NumericCodec<T> + 'static,
+    A: NumericAdjustment<T> + 'static,
+{
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        match key {
+            WidgetKey::Home | WidgetKey::End => FocusedKeyDisposition::Consumed,
+            WidgetKey::PageUp | WidgetKey::PageDown
+                if self.interaction_gate.incumbent().is_some() =>
+            {
+                FocusedKeyDisposition::Consumed
+            }
+            WidgetKey::PageUp | WidgetKey::PageDown => FocusedKeyDisposition::Unhandled,
+            _ => FocusedKeyDisposition::Consumed,
+        }
+    }
+
+    fn common(&self) -> &crate::widgets::WidgetCommon {
+        &self.text_input.common
+    }
+
+    fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+        &mut self.text_input.common
+    }
+
+    fn prepare_focus_loss(&mut self) -> FocusLossDecision {
+        if self.pointer.is_some() {
+            return FocusLossDecision::Allow;
+        }
+        if self.composition.is_some() {
+            return FocusLossDecision::Allow;
+        }
+        let Some(active) = self.active.as_ref() else {
+            return FocusLossDecision::Allow;
+        };
+
+        match active.draft_result.as_ref() {
+            Some(NumericParseResult::Valid(_)) => FocusLossDecision::Allow,
+            Some(NumericParseResult::Incomplete)
+            | Some(NumericParseResult::Invalid)
+            | Some(NumericParseResult::OutOfRange)
+            | None => FocusLossDecision::Veto,
+        }
+    }
+
+    fn supports_accessibility_action(&self, action: &NumericAccessibilityAction) -> bool {
+        self.accessibility_action_handler.is_some()
+            && matches!(
+                action,
+                NumericAccessibilityAction::Increment
+                    | NumericAccessibilityAction::Decrement
+                    | NumericAccessibilityAction::SetValueText(_)
+            )
+    }
+
+    fn accessibility_action_owner(&self) -> Option<NumericAccessibilityBlockOwner> {
+        self.interaction_gate
+            .incumbent()
+            .map(NumericAccessibilityBlockOwner::from)
+    }
+
+    fn handle_accessibility_action(
+        &mut self,
+        action: NumericAccessibilityAction,
+    ) -> Option<WidgetOutput> {
+        let handler = self.accessibility_action_handler.as_ref().map(Rc::clone)?;
+        handler(self, action)
+    }
+
+    fn handle_input(
+        &mut self,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<crate::widgets::WidgetOutput> {
+        self.handle_input_with_resolved_environment(bounds, input, &ResolvedEnvironment::default())
+    }
+
+    fn handle_input_with_environment(
+        &mut self,
+        bounds: Rect,
+        input: WidgetInput,
+        environment: &ResolvedEnvironment,
+    ) -> Option<crate::widgets::WidgetOutput> {
+        self.handle_input_with_resolved_environment(bounds, input, environment)
+    }
+
+    fn native_text_input_delegate_mut(&mut self) -> Option<&mut TextInputWidget> {
+        Some(&mut self.text_input)
+    }
+
+    fn text_scale_participation(&self) -> TextScaleParticipation {
+        TextScaleParticipation::Scaled
+    }
+
+    fn layout_node_with_environment(
+        &self,
+        environment: &ResolvedEnvironment,
+    ) -> crate::layout::LayoutNode {
+        self.text_input.layout_node_with_environment(environment)
     }
 
     fn handle_wheel_sample(
@@ -2229,5 +2295,15 @@ where
                 .as_ref()
                 .is_some_and(|composition| composition.preedit_selection.is_hidden()),
         );
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        self.text_input
+            .append_paint_with_context_hidden_composition(
+                context,
+                self.composition
+                    .as_ref()
+                    .is_some_and(|composition| composition.preedit_selection.is_hidden()),
+            );
     }
 }

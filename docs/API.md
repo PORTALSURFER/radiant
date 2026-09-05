@@ -4405,8 +4405,8 @@ shipped. The additive `ApplicationEnvironment` snapshot carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
 presentation generation. Phase-1 logical RTL container geometry is shipped;
 TextWidget, TextInputWidget, ButtonWidget, BadgeWidget, ToggleWidget,
-SelectableWidget, and ListItemWidget resolve intrinsic metrics and paint font
-from text scale. NumericInput, dense and interactive rows, TreeRow, menu/shell
+SelectableWidget, ListItemWidget, and NumericInput resolve intrinsic metrics and
+paint font from text scale. Dense and interactive rows, TreeRow, menu/shell
 geometry, and locale/direction presentation identity propagation remain staged
 work under OPT-1386. Retained bidi and complex shaping are implemented under
 OPT-1402.

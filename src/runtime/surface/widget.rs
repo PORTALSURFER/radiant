@@ -251,6 +251,13 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.as_mut()
     }
 
+    pub(in crate::runtime) fn native_text_input_delegate_mut(
+        &mut self,
+    ) -> Option<&mut crate::widgets::TextInputWidget> {
+        self.widget_object_mut_runtime()
+            .native_text_input_delegate_mut()
+    }
+
     /// Reidentify a projected widget during lowering without invalidating the
     /// declarative evidence captured for its concrete widget.
     pub(in crate::runtime::surface) fn set_id_runtime(&mut self, id: WidgetId) {

@@ -153,6 +153,18 @@ impl TextInputWidget {
         );
     }
 
+    pub(crate) fn append_paint_with_context_hidden_composition(
+        &self,
+        context: &mut WidgetPaintContext<'_>,
+        hidden_composition: bool,
+    ) {
+        paint::push_text_input_widget_paint_with_context_hidden_composition(
+            context,
+            self,
+            hidden_composition,
+        );
+    }
+
     pub(crate) fn set_native_pointer_caret(&mut self, caret: usize, affinity: NativeCaretAffinity) {
         self.native_pointer_caret = Some((caret, affinity));
         self.native_pointer_caret_acceptance = None;
@@ -335,6 +347,10 @@ impl Widget for TextInputWidget {
         self.selected_text_slice()
     }
 
+    fn native_text_input_delegate_mut(&mut self) -> Option<&mut TextInputWidget> {
+        Some(self)
+    }
+
     fn selected_text(&self) -> Option<String> {
         self.selected_text()
     }
@@ -350,6 +366,9 @@ impl Widget for TextInputWidget {
     }
 
     fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
-        paint::push_text_input_widget_paint_with_context(context, self);
+        self.append_paint_with_context_hidden_composition(
+            context,
+            self.composition_hides_native_adornments(),
+        );
     }
 }

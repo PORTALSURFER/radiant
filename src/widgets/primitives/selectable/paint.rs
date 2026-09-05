@@ -2,13 +2,14 @@
 
 use crate::gui::types::Rect;
 use crate::runtime::{
-    PaintFillRect, PaintPrimitive, PaintTextAlign, PaintTextRun, inset_rect,
-    optical_centered_baseline, push_text_run, text_font_size,
+    PaintFillRect, PaintPrimitive, PaintTextAlign, PaintTextRun, ResolvedEnvironment, inset_rect,
+    optical_centered_baseline, push_text_run,
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
     ColorMarkerAlign, selectable::SelectableWidget, support::push_control_chrome, text::TextWrap,
 };
+use crate::widgets::{Widget, WidgetPaintContext};
 
 const SELECTABLE_MARKER_TEXT_GAP: f32 = 4.0;
 
@@ -18,10 +19,43 @@ pub(super) fn push_selectable_widget_paint(
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
+    push_selectable_widget_paint_resolved(
+        primitives,
+        selectable,
+        bounds,
+        theme,
+        &ResolvedEnvironment::default(),
+    );
+}
+
+pub(super) fn push_selectable_widget_paint_with_context(
+    context: &mut WidgetPaintContext<'_>,
+    selectable: &SelectableWidget,
+) {
+    let bounds = context.bounds();
+    let theme = context.theme();
+    let environment = context.environment().clone();
+    let primitives = context.primitives();
+    push_selectable_widget_paint_resolved(primitives, selectable, bounds, theme, &environment);
+}
+
+fn push_selectable_widget_paint_resolved(
+    primitives: &mut Vec<PaintPrimitive>,
+    selectable: &SelectableWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+    environment: &ResolvedEnvironment,
+) {
     push_control_chrome(primitives, &selectable.common, bounds, theme);
     let marker = push_color_marker(primitives, selectable, bounds);
-    let font_size = text_font_size(bounds);
-    let rect = text_rect_for_marker(inset_rect(bounds, 8.0, 3.0), marker);
+    let metrics = selectable
+        .declared_text_metrics()
+        .resolve(environment, selectable.text_scale_participation());
+    let font_size = metrics.font_size;
+    let rect = text_rect_for_marker(
+        inset_rect(bounds, metrics.insets.x, metrics.insets.y),
+        marker,
+    );
     push_text_run(
         primitives,
         PaintTextRun {

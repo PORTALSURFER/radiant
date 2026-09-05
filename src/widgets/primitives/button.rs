@@ -6,9 +6,9 @@ mod model;
 mod paint;
 
 use crate::gui::svg::{SvgIcon, SvgIconTintCache};
-use crate::gui::types::Rect;
+use crate::gui::types::{Point, Rect, Vector2};
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, PaintText};
+use crate::runtime::{PaintPrimitive, PaintText, ResolvedEnvironment, button_font_size};
 use crate::theme::ThemeTokens;
 
 use super::support::{
@@ -20,7 +20,7 @@ use super::support::{
 };
 use crate::widgets::TextAlign;
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext, WidgetPointerMotion,
     WidgetPointerMotionRevision, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision,
     WidgetSizing,
 };
@@ -55,6 +55,17 @@ pub struct ButtonWidgetParts {
 }
 
 impl ButtonWidget {
+    pub(super) fn declared_text_metrics(&self) -> crate::widgets::DeclaredTextMetrics {
+        crate::widgets::DeclaredTextMetrics::new(
+            self.common.sizing,
+            button_font_size(Rect::from_min_size(
+                Point::default(),
+                Vector2::new(0.0, self.common.sizing.preferred.y),
+            )),
+            Vector2::new(8.0, 4.0),
+        )
+    }
+
     /// Build a button descriptor from named parts.
     pub fn from_parts(parts: ButtonWidgetParts) -> Self {
         let mut common = WidgetCommon::new(parts.id, parts.sizing);
@@ -238,6 +249,21 @@ impl Widget for ButtonWidget {
         }
     }
 
+    fn text_scale_participation(&self) -> crate::widgets::TextScaleParticipation {
+        crate::widgets::TextScaleParticipation::Scaled
+    }
+
+    fn layout_node_with_environment(
+        &self,
+        environment: &ResolvedEnvironment,
+    ) -> crate::layout::LayoutNode {
+        crate::layout::LayoutNode::Widget(
+            self.declared_text_metrics()
+                .resolve(environment, self.text_scale_participation())
+                .layout_node(self.common.id),
+        )
+    }
+
     fn revision(&self) -> WidgetRevision {
         self.exact_revision()
             .unwrap_or_else(WidgetRevision::conservative)
@@ -300,6 +326,10 @@ impl Widget for ButtonWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_button_widget_paint(primitives, self, bounds, theme);
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        paint::push_button_widget_paint_with_context(context, self);
     }
 }
 

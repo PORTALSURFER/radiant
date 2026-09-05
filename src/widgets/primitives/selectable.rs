@@ -1,13 +1,13 @@
 //! Reusable selectable surface primitive.
 
-use crate::gui::types::{Rect, Rgba8};
+use crate::gui::types::{Rect, Rgba8, Vector2};
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, PaintText};
+use crate::runtime::{PaintPrimitive, PaintText, ResolvedEnvironment, text_font_size_for_height};
 use crate::theme::ThemeTokens;
 
 use super::{ColorMarkerProps, support::WidgetCommon};
 use crate::widgets::contract::{
-    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
+    FocusBehavior, Widget, WidgetCapabilities, WidgetId, WidgetPaintContext, WidgetPointerMotion,
     WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{SelectableMessage, WidgetInput, WidgetOutput};
@@ -42,6 +42,14 @@ pub struct SelectableWidgetParts {
 }
 
 impl SelectableWidget {
+    pub(super) fn declared_text_metrics(&self) -> crate::widgets::DeclaredTextMetrics {
+        crate::widgets::DeclaredTextMetrics::new(
+            self.common.sizing,
+            text_font_size_for_height(self.common.sizing.preferred.y),
+            Vector2::new(8.0, 3.0),
+        )
+    }
+
     /// Build a selectable descriptor from named identity, content, state, and sizing fields.
     pub fn from_parts(parts: SelectableWidgetParts) -> Self {
         let mut common = WidgetCommon::new(parts.id, parts.sizing);
@@ -121,6 +129,21 @@ impl Widget for SelectableWidget {
         }
     }
 
+    fn text_scale_participation(&self) -> crate::widgets::TextScaleParticipation {
+        crate::widgets::TextScaleParticipation::Scaled
+    }
+
+    fn layout_node_with_environment(
+        &self,
+        environment: &ResolvedEnvironment,
+    ) -> crate::layout::LayoutNode {
+        crate::layout::LayoutNode::Widget(
+            self.declared_text_metrics()
+                .resolve(environment, self.text_scale_participation())
+                .layout_node(self.common.id),
+        )
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -149,5 +172,9 @@ impl Widget for SelectableWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_selectable_widget_paint(primitives, self, bounds, theme);
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        paint::push_selectable_widget_paint_with_context(context, self);
     }
 }

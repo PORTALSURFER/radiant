@@ -135,10 +135,13 @@ impl<Message> UiSurface<Message> {
 mod tests {
     use crate::{
         application::{ApplicationEnvironment, LocaleId, TextScale},
-        layout::Vector2,
+        layout::{SizeModeCross, SizeModeMain, SlotParams, Vector2},
         prelude::{IntoView, column, text},
-        runtime::{SurfaceNode, UiSurface},
-        widgets::{TextInputWidget, TextWidget, WidgetSizing},
+        runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+        widgets::{
+            BadgeWidget, ButtonWidget, ListItemWidget, SelectableWidget, TextInputWidget,
+            TextWidget, ToggleWidget, Widget, WidgetSizing,
+        },
     };
 
     #[test]
@@ -283,5 +286,217 @@ mod tests {
             .expect("text input paint primitive");
         assert_eq!(input.font_size, 26.0);
         assert_eq!(input.align, crate::runtime::PaintTextAlign::Right);
+    }
+
+    #[test]
+    fn built_in_text_controls_resolve_declared_metrics_once_across_scale_table() {
+        let sizing = WidgetSizing::new(Vector2::new(40.0, 20.0), Vector2::new(80.0, 28.0))
+            .with_baseline(20.0);
+        for (scale, expected_min, expected_preferred, expected_baseline, expected_font) in [
+            (
+                1.0,
+                Vector2::new(40.0, 20.0),
+                Vector2::new(80.0, 28.0),
+                20.0,
+                13.0,
+            ),
+            (
+                1.5,
+                Vector2::new(60.0, 30.0),
+                Vector2::new(120.0, 42.0),
+                30.0,
+                19.5,
+            ),
+            (
+                2.0,
+                Vector2::new(80.0, 40.0),
+                Vector2::new(160.0, 56.0),
+                40.0,
+                26.0,
+            ),
+        ] {
+            let environment = ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(scale).expect("valid scale"));
+            let resolved =
+                crate::widgets::DeclaredTextMetrics::new(sizing, 13.0, Vector2::new(8.0, 3.0))
+                    .resolve(
+                        &crate::runtime::ResolvedEnvironment::from_snapshots(
+                            crate::runtime::WindowEnvironment::default(),
+                            std::sync::Arc::new(environment.clone()),
+                        ),
+                        crate::widgets::TextScaleParticipation::Scaled,
+                    );
+            assert_eq!(resolved.sizing.min, expected_min);
+            assert_eq!(resolved.sizing.preferred, expected_preferred);
+            assert_eq!(resolved.sizing.baseline, Some(expected_baseline));
+            assert_eq!(resolved.font_size, expected_font);
+            assert_eq!(resolved.insets, Vector2::new(8.0 * scale, 3.0 * scale));
+
+            macro_rules! assert_control {
+                ($widget:expr, $id:expr, $label:expr, $inset_y:expr, $control_font:expr) => {{
+                    let control = $widget;
+                    let surface: UiSurface<()> =
+                        UiSurface::new(SurfaceNode::static_widget(control))
+                            .with_application_environment(environment.clone());
+                    let crate::layout::LayoutNode::Widget(node) = surface.layout_node() else {
+                        panic!("control should project one widget leaf");
+                    };
+                    assert_eq!(node.intrinsic, expected_preferred);
+                    let frame = surface.frame_at_size_with_default_theme(Vector2::new(100.0, 36.0));
+                    let bounds = frame.layout.rects.get(&$id).expect("control bounds");
+                    assert_eq!(bounds.width(), 100.0);
+                    assert_eq!(bounds.height(), 36.0);
+                    let text = frame
+                        .paint_plan
+                        .first_text_run($label)
+                        .expect("control text");
+                    assert_eq!(text.font_size, $control_font * scale);
+                    assert_eq!(text.rect.min.x, 8.0 * scale);
+                    assert_eq!(text.rect.min.y, $inset_y * scale);
+                }};
+            }
+
+            assert_control!(
+                ButtonWidget::new(101, "Button", sizing),
+                101,
+                "Button",
+                4.0,
+                13.0
+            );
+            assert_control!(
+                BadgeWidget::new(102, "Badge", sizing),
+                102,
+                "Badge",
+                3.0,
+                13.0
+            );
+            assert_control!(
+                ToggleWidget::new(103, "Toggle", sizing),
+                103,
+                "Toggle",
+                4.0,
+                14.0
+            );
+            assert_control!(
+                SelectableWidget::new(104, "Selectable", false, sizing),
+                104,
+                "Selectable",
+                3.0,
+                14.0
+            );
+            assert_control!(
+                ListItemWidget::new(105, "List item", sizing),
+                105,
+                "List item",
+                3.0,
+                14.0
+            );
+        }
+    }
+
+    #[test]
+    fn scaled_control_keeps_declarative_parent_and_clip_bounds_physical_across_frames() {
+        for (scale, expected_font, expected_x, expected_y) in [
+            (1.0, 13.0, 8.0, 4.0),
+            (1.5, 19.5, 12.0, 6.0),
+            (2.0, 26.0, 16.0, 8.0),
+        ] {
+            let environment = ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(scale).expect("valid scale"));
+            let surface: UiSurface<()> = UiSurface::new(SurfaceNode::column(
+                109,
+                0.0,
+                vec![SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(24.0),
+                        size_cross: SizeModeCross::Fixed(48.0),
+                        constraints: crate::layout::Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: Some(crate::layout::CrossAlign::Start),
+                        allow_fixed_compress: false,
+                    },
+                    SurfaceNode::column(
+                        108,
+                        0.0,
+                        vec![SurfaceChild::new(
+                            SlotParams {
+                                size_main: SizeModeMain::Fixed(20.0),
+                                size_cross: SizeModeCross::Fixed(40.0),
+                                constraints: crate::layout::Constraints::unconstrained(),
+                                margin: Default::default(),
+                                align_cross_override: Some(crate::layout::CrossAlign::Start),
+                                allow_fixed_compress: false,
+                            },
+                            SurfaceNode::widget(
+                                ButtonWidget::new(
+                                    107,
+                                    "Scaled",
+                                    WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+                                ),
+                                WidgetMessageMapper::none(),
+                            ),
+                        )],
+                    ),
+                )],
+            ))
+            .with_application_environment(environment);
+
+            let frame = surface.frame_at_size_with_default_theme(Vector2::new(160.0, 80.0));
+            let parent = frame.layout.rects.get(&108).expect("parent bounds");
+            let child = frame.layout.rects.get(&107).expect("button bounds");
+            assert_eq!(parent.width(), 48.0);
+            assert_eq!(parent.height(), 24.0);
+            assert_eq!(child.width(), 40.0);
+            assert_eq!(child.height(), 20.0);
+
+            let clip = frame
+                .paint_plan
+                .primitives
+                .iter()
+                .find_map(|primitive| match primitive {
+                    crate::runtime::PaintPrimitive::ClipStart(clip) if clip.node_id == 107 => {
+                        Some(clip.rect)
+                    }
+                    _ => None,
+                })
+                .expect("button clip bounds");
+            assert_eq!(clip, *child);
+
+            let text = frame
+                .paint_plan
+                .first_text_run("Scaled")
+                .expect("button text");
+            assert_eq!(text.font_size, expected_font);
+            assert_eq!(text.rect.min.x, expected_x);
+            assert_eq!(text.rect.min.y, expected_y);
+            assert_eq!(
+                frame,
+                surface.frame_at_size_with_default_theme(Vector2::new(160.0, 80.0))
+            );
+        }
+    }
+
+    #[test]
+    fn button_start_alignment_uses_rtl_environment_in_context_paint() {
+        let environment = ApplicationEnvironment::new(LocaleId::english())
+            .with_writing_direction(crate::application::WritingDirection::Rtl)
+            .with_text_scale(TextScale::new(1.5).expect("valid scale"));
+        let mut button =
+            ButtonWidget::new(106, "Start", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+        assert!(Widget::set_text_align(
+            &mut button,
+            crate::widgets::TextAlign::Start
+        ));
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(button))
+            .with_application_environment(environment);
+        let frame = surface.frame_at_size_with_default_theme(Vector2::new(120.0, 36.0));
+        assert_eq!(
+            frame
+                .paint_plan
+                .first_text_run("Start")
+                .expect("button text")
+                .align,
+            crate::runtime::PaintTextAlign::Right
+        );
     }
 }

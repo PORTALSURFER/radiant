@@ -1,10 +1,13 @@
 use super::*;
+use radiant::application::{ApplicationEnvironment, LocaleId, TextScale};
 use radiant::gui::automation::{
     AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT,
     AUTOMATION_ACTION_SET_TEXT, AUTOMATION_ACTION_TOGGLE, AutomationRole,
     AutomationTargetAuthority,
 };
-use radiant::widgets::{ListItemWidget, SelectableWidget, WIDGET_CAPABILITIES_CONTRACT_VERSION};
+use radiant::widgets::{
+    BadgeWidget, ListItemWidget, SelectableWidget, WIDGET_CAPABILITIES_CONTRACT_VERSION,
+};
 
 #[test]
 fn surface_runtime_automation_snapshot_reports_common_widget_semantics() {
@@ -58,6 +61,113 @@ fn surface_runtime_automation_snapshot_reports_common_widget_semantics() {
         [AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_SET_TEXT]
     );
     assert!(input.enabled);
+}
+
+struct TextScaleAutomationBridge {
+    environment: ApplicationEnvironment,
+}
+
+impl RuntimeBridge<()> for TextScaleAutomationBridge {
+    fn application_environment(&mut self) -> Option<ApplicationEnvironment> {
+        Some(self.environment.clone())
+    }
+
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        let mut list_item =
+            ListItemWidget::new(203, "Entry", WidgetSizing::fixed(Vector2::new(140.0, 28.0)));
+        list_item.detail = Some("42".into());
+        crate::arc_surface(
+            UiSurface::new(SurfaceNode::column(
+                200,
+                0.0,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        ButtonWidget::new(
+                            201,
+                            "Save",
+                            WidgetSizing::fixed(Vector2::new(100.0, 28.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    )),
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        BadgeWidget::new(
+                            202,
+                            "Beta",
+                            WidgetSizing::fixed(Vector2::new(80.0, 24.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    )),
+                    SurfaceChild::fill(SurfaceNode::widget(list_item, WidgetMessageMapper::none())),
+                ],
+            ))
+            .with_application_environment(self.environment.clone()),
+        )
+    }
+}
+
+#[test]
+fn scaled_control_paint_strings_match_ax_labels_and_badge_semantics_stay_passive() {
+    let mut runtime = SurfaceRuntime::new(
+        TextScaleAutomationBridge {
+            environment: ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(1.0).expect("valid text scale")),
+        },
+        Vector2::new(180.0, 120.0),
+    );
+    let mut expected_badge_semantics = None;
+    let mut expected_strings = None;
+
+    for scale in [1.0, 1.5, 2.0] {
+        if scale != 1.0 {
+            runtime.bridge_mut().environment = ApplicationEnvironment::new(LocaleId::english())
+                .with_text_scale(TextScale::new(scale).expect("valid text scale"));
+            runtime.refresh_with_scope(RepaintScope::PaintOnly);
+        }
+        let paint = runtime.paint_plan(&ThemeTokens::default());
+        let snapshot = runtime.automation_snapshot();
+        let button = automation_node(&snapshot.root, "201").expect("button AX node");
+        let list_item = automation_node(&snapshot.root, "203").expect("list item AX node");
+        let badge = automation_node(&snapshot.root, "202");
+        let button_run = paint.first_text_run("Save").expect("button paint text");
+        assert_eq!(button_run.font_size, 13.0 * scale);
+        assert_eq!(button_run.rect.min.x, 8.0 * scale);
+        assert_eq!(button_run.rect.min.y, 4.0 * scale);
+        let button_text = button_run.text.clone();
+        let list_label = paint
+            .first_text_run("Entry")
+            .expect("list label paint text")
+            .text
+            .clone();
+        let list_detail = paint
+            .first_text_run("42")
+            .expect("list detail paint text")
+            .text
+            .clone();
+
+        assert_eq!(
+            button_text.as_str(),
+            button.semantics.label.as_deref().unwrap()
+        );
+        assert_eq!(
+            list_label.as_str(),
+            list_item.semantics.label.as_deref().unwrap()
+        );
+        assert_eq!(
+            list_detail.as_str(),
+            list_item.semantics.value_text.as_deref().unwrap()
+        );
+        if let Some(expected) = &expected_badge_semantics {
+            assert_eq!(badge.map(|node| node.semantics.clone()), *expected);
+        } else {
+            expected_badge_semantics = Some(badge.map(|node| node.semantics.clone()));
+        }
+        let strings = (button_text, list_label, list_detail);
+        if let Some(expected) = &expected_strings {
+            assert_eq!(&strings, expected);
+        } else {
+            expected_strings = Some(strings);
+        }
+    }
 }
 
 #[test]

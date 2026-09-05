@@ -1607,12 +1607,13 @@ scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
 shipped. The additive `ApplicationEnvironment` snapshot now carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
 presentation generation. Phase-1 logical RTL container geometry is shipped;
-TextWidget and TextInputWidget resolve intrinsic metrics and paint font from
-text scale. Explicit parent width/height slots remain physical constraints, and
-DPI is applied only at the native scene boundary. Broader built-in scale
-propagation and locale/direction presentation identity propagation remain staged
-work under OPT-1386; retained bidi and complex shaping are implemented under
-OPT-1402.
+TextWidget, TextInputWidget, ButtonWidget, BadgeWidget, ToggleWidget,
+SelectableWidget, and ListItemWidget resolve intrinsic metrics and paint font
+from text scale. Explicit parent width/height slots remain physical
+constraints, and DPI is applied only at the native scene boundary. NumericInput,
+dense and interactive rows, TreeRow, menu/shell geometry, and
+locale/direction presentation identity propagation remain staged work under
+OPT-1386; retained bidi and complex shaping are implemented under OPT-1402.
 
 At the native window scope, environment exposes only display scale, color
 scheme, contrast, and reduced-motion preference; application presentation

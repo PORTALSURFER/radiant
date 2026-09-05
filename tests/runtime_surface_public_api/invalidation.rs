@@ -1,4 +1,5 @@
 use super::*;
+use radiant::application::{ApplicationEnvironment, LocaleId, TextScale};
 use radiant::runtime::{IdentityAudit, SurfaceInvalidation, SurfaceRefreshCounters};
 use std::time::Duration;
 
@@ -190,6 +191,116 @@ fn projection_stage_retains_focus_hover_and_pointer_capture_for_stable_identity(
     assert_eq!(runtime.hovered_widget(), Some(11));
     assert_eq!(runtime.focused_widget(), Some(11));
     assert_eq!(runtime.pointer_capture(), Some(11));
+}
+
+struct TextScaleButtonBridge {
+    environment: ApplicationEnvironment,
+    activations: Arc<Mutex<Vec<DemoMessage>>>,
+}
+
+impl RuntimeBridge<DemoMessage> for TextScaleButtonBridge {
+    fn application_environment(&mut self) -> Option<ApplicationEnvironment> {
+        Some(self.environment.clone())
+    }
+
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        crate::arc_surface(
+            UiSurface::new(SurfaceNode::widget(
+                ButtonWidget::new(70, "Scale", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                WidgetMessageMapper::button(|_| DemoMessage::Increment),
+            ))
+            .with_application_environment(self.environment.clone()),
+        )
+    }
+
+    fn update(&mut self, message: DemoMessage) -> Command<DemoMessage> {
+        self.activations
+            .lock()
+            .expect("button activation log")
+            .push(message);
+        Command::none()
+    }
+}
+
+fn text_scale_environment(scale: f32) -> ApplicationEnvironment {
+    ApplicationEnvironment::new(LocaleId::english())
+        .with_text_scale(TextScale::new(scale).expect("valid text scale"))
+}
+
+#[test]
+fn application_environment_text_scale_promotes_paint_only_to_one_layout_per_change() {
+    let activations = Arc::new(Mutex::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        TextScaleButtonBridge {
+            environment: text_scale_environment(1.0),
+            activations,
+        },
+        Vector2::new(120.0, 40.0),
+    );
+
+    let initial = runtime.refresh_counters();
+    for (scale, expected_layout) in [(1.5, initial.layout + 1), (2.0, initial.layout + 2)] {
+        runtime.bridge_mut().environment = text_scale_environment(scale);
+        runtime.refresh_with_scope(RepaintScope::PaintOnly);
+        let counters = runtime.refresh_counters();
+        let transitions = expected_layout - initial.layout;
+        assert_eq!(
+            counters,
+            SurfaceRefreshCounters {
+                application_projection: initial.application_projection + transitions,
+                runtime_projection: initial.runtime_projection + transitions,
+                reconciliation_attempts: initial.reconciliation_attempts,
+                reconciliation_applied: initial.reconciliation_applied,
+                reconciliation_unsupported: initial.reconciliation_unsupported,
+                reconciliation_fallbacks: initial.reconciliation_fallbacks + transitions,
+                widget_state_sync: initial.widget_state_sync + transitions,
+                layout: expected_layout,
+                base_paint_plan_rebuilds: initial.base_paint_plan_rebuilds,
+            }
+        );
+    }
+
+    let unchanged = runtime.refresh_counters();
+    runtime.refresh_with_scope(RepaintScope::PaintOnly);
+    assert_eq!(runtime.refresh_counters(), unchanged);
+}
+
+#[test]
+fn button_capture_survives_scale_refresh_and_activates_once_at_same_physical_point() {
+    let activations = Arc::new(Mutex::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        TextScaleButtonBridge {
+            environment: text_scale_environment(1.0),
+            activations: activations.clone(),
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    let point = Point::new(20.0, 10.0);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(point)),
+        Some(70)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(70));
+    let before_refresh = runtime.refresh_counters();
+
+    runtime.bridge_mut().environment = text_scale_environment(1.5);
+    runtime.refresh_with_scope(RepaintScope::PaintOnly);
+    assert_eq!(runtime.pointer_capture(), Some(70));
+    assert_eq!(runtime.refresh_counters().layout, before_refresh.layout + 1);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(point)),
+        Some(70)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        activations
+            .lock()
+            .expect("button activation log")
+            .as_slice(),
+        [DemoMessage::Increment]
+    );
 }
 
 #[test]

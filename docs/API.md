@@ -6676,6 +6676,7 @@ manual validation:
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Localization and shortcut presentation | `localization_foundation` |
 | Exact-input component projection reuse | `component_projection` |
+| Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
@@ -6685,6 +6686,10 @@ manual validation:
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance`, `macos_text_input_ime_acceptance` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling`, `macos_frame_profile_acceptance`, `macos_devtools_acceptance`, `macos_external_drag_acceptance`, `macos_numeric_accessibility_acceptance`, `macos_text_input_ime_acceptance` |
+
+Run `cargo run --example rendering_baseline --release -- local /tmp/radiant-local.jsonl`
+for a bounded native observation capture. See `NATIVE_BASELINE_RECORDER.md` for
+qualification, cold/warm separation and unavailable GPU timing handling.
 
 Run `cargo run --example component_projection` for exact-input component reuse
 with observable callback counts. See `COMPONENT_PROJECTION.md` for dependencies,

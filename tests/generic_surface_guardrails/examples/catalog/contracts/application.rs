@@ -156,4 +156,14 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "DragHandleMessage",
         ],
     ),
+    (
+        "typed_pointer",
+        &[
+            "render_canvas_pointer",
+            "dispatch_pointer_ingress_with_admission",
+            "sequence_token()",
+            "PointerIngressDisposition::Stale",
+            "public_pointer_builder_delivers_one_sequence_and_rejects_replayed_terminal",
+        ],
+    ),
 ];

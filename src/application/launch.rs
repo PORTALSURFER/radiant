@@ -11,6 +11,7 @@ pub fn app<State>(state: State) -> StatefulAppBuilder<State> {
 }
 
 mod into_view;
+pub(in crate::application) mod projection_producer;
 mod stateful;
 mod window;
 

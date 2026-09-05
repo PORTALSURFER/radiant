@@ -7592,6 +7592,20 @@ refresh candidate and its normal fallback behavior. The bridge remains the
 authority for the exact changed-root list; recursive classifiers and
 diagnostics do not authorize admission.
 
+The stateful application bridge now produces this bounded evidence directly
+from built-in view lowering. Immutable receipts compare exact source, slot,
+container, and widget evidence; the producer qualifies them with runtime,
+request, surface-generation, environment, and owner-revision fences. A pending
+receipt becomes the next baseline only after a subsequent request observes its
+published successor generation. Held candidates, stale requests, external
+projections, exhausted authority, and projection panics cannot promote it.
+Custom `IntoView` wrappers default to full refresh unless they explicitly
+forward the hidden application-projection method; Scene lifecycle bindings,
+virtual content, geometry/paint changes, and unsupported evidence remain full
+refreshes. This still lowers the complete application view and records its
+nodes. It avoids runtime traversal/layout on eligible interaction leaves;
+general application subtree non-visitation remains future OPT-1388 work.
+
 ### Native visual request packet handoff (private native-window contract)
 
 The native event loop has one crate-private `NativeVisualRequestPacket` handoff

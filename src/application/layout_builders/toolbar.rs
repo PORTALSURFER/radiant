@@ -106,7 +106,7 @@ impl<Message> ToolbarParts<Message> {
 /// Build a compact toolbar/control strip from app-owned controls.
 ///
 /// The default strip grows with its controls' intrinsic heights, including text
-/// scale, with a minimum height of [`DEFAULT_TOOLBAR_HEIGHT`]. Use
+/// scale, with a minimum height of 34 logical pixels. Use
 /// [`toolbar_from_parts`] or an explicit `.height(...)` for a fixed physical slot.
 pub fn toolbar<Message: 'static>(
     controls: impl IntoIterator<Item = ViewNode<Message>>,

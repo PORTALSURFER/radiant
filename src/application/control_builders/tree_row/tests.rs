@@ -4,7 +4,7 @@ use crate::{
         ApplicationEnvironment, IntoView, LocaleId, TextScale, WritingDirection, tree_row,
     },
     gui::{
-        list::{DenseRowMarkerParts, DenseRowMarkerStyle, DenseRowPalette},
+        list::{DenseRowMarkerParts, DenseRowMarkerStyle, DenseRowPalette, TreeGuideMetrics},
         types::{Point, Rect, Rgba8, Vector2},
     },
     runtime::{PaintPrimitive, ResolvedEnvironment},
@@ -161,45 +161,153 @@ fn tree_row_optional_semantics_use_host_selection_and_runtime_focus() {
 
 #[test]
 fn tree_row_keeps_guide_expander_icon_and_hit_geometry_physical() {
-    let input_id = 805;
-    let view = tree_row("Folder")
-        .depth(2)
-        .has_children(true)
-        .expanded(true)
-        .row_height(38.0)
-        .trailing_icon(crate::gui::svg::IconName::ChevronDown.icon())
-        .input_id(input_id)
-        .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate));
-    let frame = view.view_frame_at_size_with_default_theme(Vector2::new(240.0, 38.0));
-    let hit_bounds = frame
-        .layout
-        .rects
-        .get(&input_id)
-        .expect("tree hit target bounds");
-    assert_eq!(hit_bounds.height(), 38.0);
-    assert!(
-        frame
-            .layout
-            .rects
-            .values()
-            .any(|rect| rect.width() == 24.0 && rect.height() == 38.0)
-    );
-    assert!(
-        frame
-            .layout
-            .rects
-            .values()
-            .any(|rect| rect.width() == 28.0 && rect.height() == 38.0)
-    );
-    let icon = frame
-        .paint_plan
-        .svgs_for_widget(input_id)
-        .next()
-        .expect("tree trailing icon");
-    assert_eq!(icon.rect.width(), 11.0);
-    assert_eq!(icon.rect.height(), 11.0);
-    assert_eq!(icon.rect.min.x, hit_bounds.max.x - 16.0);
-    assert_eq!(icon.rect.min.y, hit_bounds.min.y + 13.5);
+    for (row_height, nominal_font) in [(22.0, 13.0), (38.0, 18.0)] {
+        for (scale, expected_font, expected_inset) in [
+            (1.0, nominal_font, 4.0),
+            (1.5, nominal_font * 1.5, 6.0),
+            (2.0, nominal_font * 2.0, 8.0),
+        ] {
+            let frames = [WritingDirection::Ltr, WritingDirection::Rtl].map(|direction| {
+                let surface = tree_row("Folder")
+                    .depth(2)
+                    .has_children(true)
+                    .expanded(true)
+                    .row_height(row_height)
+                    .trailing_icon(crate::gui::svg::IconName::ChevronDown.icon())
+                    .input_id(805)
+                    .interactive_actions(
+                        InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
+                    )
+                    .into_surface()
+                    .with_application_environment(
+                        ApplicationEnvironment::new(LocaleId::english())
+                            .with_writing_direction(direction)
+                            .with_text_scale(TextScale::new(scale).expect("valid text scale")),
+                    );
+                let crate::layout::LayoutNode::Container(container) = surface.layout_node() else {
+                    panic!("TreeRow lowers to a row container");
+                };
+                assert_eq!(
+                    container.children[0].slot.size_cross,
+                    crate::layout::SizeModeCross::Fixed(22.0),
+                    "default guide keeps its fixed 22px slot"
+                );
+                surface.frame_at_size_with_default_theme(Vector2::new(240.0, row_height))
+            });
+            let ltr = &frames[0];
+            let rtl = &frames[1];
+            let ltr_hit = ltr.layout.rects.get(&805).expect("ltr tree hit target");
+            let rtl_hit = rtl.layout.rects.get(&805).expect("rtl tree hit target");
+
+            assert_eq!(ltr_hit.height(), row_height);
+            assert_eq!(rtl_hit.height(), row_height);
+            assert_eq!(ltr_hit.min.x, 240.0 - rtl_hit.max.x);
+            assert_eq!(ltr_hit.max.x, 240.0 - rtl_hit.min.x);
+
+            for frame in [ltr, rtl] {
+                let guide = frame
+                    .layout
+                    .rects
+                    .values()
+                    .find(|rect| rect.width() == 24.0)
+                    .expect("physical tree guide indent");
+                let expander = frame
+                    .layout
+                    .rects
+                    .values()
+                    .find(|rect| rect.width() == 28.0 && rect.height() == row_height)
+                    .expect("physical tree expander slot");
+                assert_eq!(guide.height(), row_height);
+                assert_eq!(expander.height(), row_height);
+
+                let icon = frame
+                    .paint_plan
+                    .svgs_for_widget(805)
+                    .next()
+                    .expect("tree trailing icon");
+                let hit_bounds = frame
+                    .layout
+                    .rects
+                    .get(&805)
+                    .expect("tree hit target bounds");
+                assert_eq!(icon.rect.width(), 11.0);
+                assert_eq!(icon.rect.height(), 11.0);
+                assert_eq!(icon.rect.min.x, hit_bounds.max.x - 16.0);
+                assert_eq!(
+                    icon.rect.min.y,
+                    hit_bounds.min.y + (row_height - 11.0) / 2.0
+                );
+
+                let text = row_text(&frame.paint_plan);
+                assert_eq!(text.font_size, expected_font);
+                assert_eq!(text.rect.min.x, hit_bounds.min.x + expected_inset);
+            }
+        }
+    }
+}
+
+#[test]
+fn tree_row_explicit_guide_height_stays_independent_for_mapped_and_local_builders() {
+    let configured_guide = TreeGuideMetrics::new(12.0, 17.0);
+    assert_eq!(configured_guide.indent_width, 12.0);
+    assert_eq!(configured_guide.row_height, 17.0);
+    for scale in [1.0, 1.5, 2.0] {
+        for direction in [WritingDirection::Ltr, WritingDirection::Rtl] {
+            for local in [false, true] {
+                let builder = tree_row("Folder")
+                    .depth(2)
+                    .has_children(true)
+                    .row_height(38.0)
+                    .guide_style(configured_guide)
+                    .input_id(808);
+                let view = if local {
+                    builder.interactive_actions_local(
+                        InteractiveRowLocalActions::new().activate(|| TreeRowMessage::Activate),
+                    )
+                } else {
+                    builder.interactive_actions(
+                        InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
+                    )
+                };
+                let surface = view.into_surface().with_application_environment(
+                    ApplicationEnvironment::new(LocaleId::english())
+                        .with_writing_direction(direction)
+                        .with_text_scale(TextScale::new(scale).expect("valid text scale")),
+                );
+                let crate::layout::LayoutNode::Container(container) = surface.layout_node() else {
+                    panic!("TreeRow lowers to a row container");
+                };
+                assert_eq!(container.children.len(), 3);
+                assert_eq!(
+                    container.children[0].slot.size_cross,
+                    crate::layout::SizeModeCross::Fixed(17.0),
+                    "custom guide uses the configured fixed cross-axis slot"
+                );
+                let frame = surface.frame_at_size_with_default_theme(Vector2::new(240.0, 38.0));
+
+                let hit = frame.layout.rects.get(&808).expect("tree hit target");
+                assert_eq!(hit.height(), 38.0);
+                assert!(
+                    frame
+                        .layout
+                        .rects
+                        .values()
+                        .any(|rect| rect.width() == 24.0 && rect.height() == 38.0),
+                    "custom guide indent keeps its configured width and follows the existing physical row placement"
+                );
+                assert!(
+                    frame
+                        .layout
+                        .rects
+                        .values()
+                        .any(|rect| rect.width() == 28.0 && rect.height() == 38.0)
+                );
+                let text = row_text(&frame.paint_plan);
+                assert_eq!(text.font_size, 18.0 * scale);
+                assert_eq!(text.rect.min.x, hit.min.x + 4.0 * scale);
+            }
+        }
+    }
 }
 
 #[test]

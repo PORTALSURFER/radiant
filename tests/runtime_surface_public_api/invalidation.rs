@@ -1,6 +1,7 @@
 use super::*;
-use radiant::application::{ApplicationEnvironment, LocaleId, TextScale};
+use radiant::application::{ApplicationEnvironment, LocaleId, TextScale, WritingDirection};
 use radiant::runtime::{IdentityAudit, SurfaceInvalidation, SurfaceRefreshCounters};
+use radiant::widgets::DragHandleMessage;
 use std::time::Duration;
 
 #[test]
@@ -328,4 +329,284 @@ fn projection_stage_reuses_scrolled_geometry_and_scroll_state() {
 
     assert_eq!(runtime.layout().rects[&32], scrolled);
     assert!(runtime.layout().rects[&32].min.y < 0.0);
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum TreeRowRuntimeMessage {
+    Activate,
+    Drag(DragHandleMessage),
+}
+
+struct TreeRowRuntimeBridge {
+    environment: ApplicationEnvironment,
+    events: Vec<TreeRowRuntimeMessage>,
+    project_count: usize,
+    drag_started: bool,
+}
+
+impl RuntimeBridge<TreeRowRuntimeMessage> for TreeRowRuntimeBridge {
+    fn application_environment(&mut self) -> Option<ApplicationEnvironment> {
+        Some(self.environment.clone())
+    }
+
+    fn project_surface(&mut self) -> Arc<UiSurface<TreeRowRuntimeMessage>> {
+        self.project_count += 1;
+        let underlay = ui::interactive_row_underlay(ui::text("Underlay"))
+            .input_id(9001)
+            .selected(true)
+            .active_target(true)
+            .mapped(|_| TreeRowRuntimeMessage::Activate);
+        let tree_row = ui::tree_row("Folder")
+            .depth(2)
+            .has_children(true)
+            .expanded(true)
+            .row_height(22.0)
+            .selected(true)
+            .stable_row_identity(91, "tree-row")
+            .drag_drop_state(ui::TreeRowDragDropState {
+                drag_active: true,
+                drag_source: true,
+                drop_candidate: true,
+                drop_target: true,
+                drop_target_active: true,
+            })
+            .interactive_actions(
+                ui::InteractiveRowActions::new()
+                    .activate(|| TreeRowRuntimeMessage::Activate)
+                    .drag(TreeRowRuntimeMessage::Drag),
+            );
+        arc_surface(ui::column([underlay, tree_row]).into_surface())
+    }
+
+    fn update(&mut self, message: TreeRowRuntimeMessage) -> Command<TreeRowRuntimeMessage> {
+        self.events.push(message.clone());
+        match message {
+            TreeRowRuntimeMessage::Activate => Command::none(),
+            TreeRowRuntimeMessage::Drag(message)
+                if !message.is_finished() && !self.drag_started =>
+            {
+                self.drag_started = true;
+                Command::begin_drag(radiant::runtime::DragRequest::new(
+                    radiant::runtime::DragPreview::sized("Folder", Vector2::new(96.0, 22.0)),
+                    Point::new(40.0, 33.0),
+                ))
+            }
+            TreeRowRuntimeMessage::Drag(message) if message.is_finished() => {
+                self.drag_started = false;
+                Command::end_drag()
+            }
+            TreeRowRuntimeMessage::Drag(_) => Command::none(),
+        }
+    }
+}
+
+#[test]
+fn tree_row_runtime_refresh_preserves_capture_drag_semantics_and_physical_geometry() {
+    let scale_one = ApplicationEnvironment::new(LocaleId::english())
+        .with_text_scale(TextScale::new(1.0).expect("valid scale"));
+    let scale_one_rtl = scale_one
+        .clone()
+        .with_writing_direction(WritingDirection::Rtl)
+        .with_text_scale(TextScale::new(1.5).expect("valid scale"));
+    let scale_two_rtl = scale_one
+        .clone()
+        .with_writing_direction(WritingDirection::Rtl)
+        .with_text_scale(TextScale::new(2.0).expect("valid scale"));
+    let events = Vec::new();
+    let mut runtime = SurfaceRuntime::new(
+        TreeRowRuntimeBridge {
+            environment: scale_one,
+            events,
+            project_count: 0,
+            drag_started: false,
+        },
+        Vector2::new(360.0, 44.0),
+    );
+    let tree_id = ui::stable_widget_id(91, "tree-row");
+    let tree_bounds = runtime.layout().rects[&tree_id];
+    assert_eq!(tree_bounds.height(), 22.0);
+    let initial_plan = runtime.paint_plan(&ThemeTokens::default());
+    fn text_for(
+        plan: &radiant::runtime::SurfacePaintPlan,
+        widget_id: radiant::widgets::WidgetId,
+    ) -> Option<&radiant::runtime::PaintTextRun> {
+        plan.primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.widget_id == widget_id => Some(text),
+                _ => None,
+            })
+    }
+    let underlay_id = initial_plan
+        .text_runs()
+        .find(|text| text.text.as_str() == "Underlay")
+        .map(|text| text.widget_id)
+        .expect("actual underlay text widget");
+    assert_ne!(underlay_id, tree_id, "underlay keeps a separate text owner");
+    assert_eq!(
+        text_for(&initial_plan, underlay_id).unwrap().font_size,
+        13.0
+    );
+    assert_eq!(text_for(&initial_plan, tree_id).unwrap().font_size, 13.0);
+
+    let initial_targets = runtime.automation_target_snapshot().targets;
+    let initial_target = initial_targets
+        .iter()
+        .find(|target| target.id.0 == tree_id.to_string())
+        .expect("actual TreeRow automation target");
+    assert_eq!(initial_target.role, radiant::runtime::AutomationRole::Row);
+    assert_eq!(initial_target.label.as_deref(), Some("Folder"));
+    assert!(initial_target.selected);
+    assert_eq!(initial_target.bounds.height, 22.0);
+    assert_eq!(
+        initial_targets
+            .iter()
+            .filter(|target| target.id.0 == tree_id.to_string())
+            .count(),
+        1,
+        "TreeRow keeps one automation owner for its stable identity"
+    );
+
+    let pointer = tree_bounds.center();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(pointer)),
+        Some(tree_id)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(tree_id));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(tree_id)
+            .unwrap()
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(Point::new(
+            pointer.x + 8.0,
+            pointer.y + 4.0
+        ))),
+        Some(tree_id)
+    );
+    assert!(runtime.drag_session_active());
+    let before_refresh = runtime.refresh_counters();
+    let before_projects = runtime.bridge().project_count;
+    let before_chrome: Vec<_> = runtime
+        .paint_plan(&ThemeTokens::default())
+        .fill_rects_for_widget(tree_id)
+        .map(|fill| (fill.rect, fill.color))
+        .collect();
+    assert!(
+        !before_chrome.is_empty(),
+        "selected TreeRow chrome is painted"
+    );
+
+    runtime.bridge_mut().environment = scale_one_rtl.clone();
+    runtime.refresh_with_scope(RepaintScope::PaintOnly);
+
+    let after_refresh = runtime.refresh_counters();
+    assert_eq!(
+        after_refresh.runtime_projection,
+        before_refresh.runtime_projection + 1
+    );
+    assert_eq!(after_refresh.layout, before_refresh.layout + 1);
+    assert_eq!(runtime.bridge().project_count, before_projects + 1);
+    assert_eq!(runtime.pointer_capture(), Some(tree_id));
+    assert!(runtime.drag_session_active());
+    assert!(
+        runtime
+            .surface()
+            .find_widget(tree_id)
+            .unwrap()
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+    assert_eq!(runtime.layout().rects[&tree_id].height(), 22.0);
+
+    let after_plan = runtime.paint_plan(&ThemeTokens::default());
+    assert_eq!(text_for(&after_plan, underlay_id).unwrap().font_size, 19.5);
+    assert_eq!(text_for(&after_plan, tree_id).unwrap().font_size, 19.5);
+    let after_chrome: Vec<_> = after_plan
+        .fill_rects_for_widget(tree_id)
+        .map(|fill| (fill.rect, fill.color))
+        .collect();
+    assert_eq!(after_chrome.len(), before_chrome.len());
+    for ((after_rect, after_color), (before_rect, before_color)) in
+        after_chrome.iter().zip(before_chrome.iter())
+    {
+        assert_eq!(
+            *after_color, *before_color,
+            "TreeRow chrome keeps its color"
+        );
+        assert_eq!(after_rect.min.x, 360.0 - before_rect.max.x);
+        assert_eq!(after_rect.max.x, 360.0 - before_rect.min.x);
+        assert_eq!(after_rect.min.y, before_rect.min.y);
+        assert_eq!(after_rect.max.y, before_rect.max.y);
+    }
+
+    let refreshed_target = runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|target| target.id.0 == tree_id.to_string())
+        .expect("TreeRow automation target after refresh");
+    assert_eq!(refreshed_target.role, radiant::runtime::AutomationRole::Row);
+    assert_eq!(refreshed_target.label.as_deref(), Some("Folder"));
+    assert!(refreshed_target.selected);
+    assert_eq!(refreshed_target.bounds.height, 22.0);
+
+    let release = Point::new(pointer.x + 8.0, pointer.y + 4.0);
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(release)),
+        Some(tree_id)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(!runtime.drag_session_active());
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(tree_id)
+            .unwrap()
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+    assert_eq!(
+        runtime
+            .bridge()
+            .events
+            .iter()
+            .filter(|message| matches!(
+                message,
+                TreeRowRuntimeMessage::Drag(DragHandleMessage::Ended { .. })
+            ))
+            .count(),
+        1,
+        "one mapped TreeRow drag terminal is released"
+    );
+
+    runtime.bridge_mut().environment = scale_two_rtl.clone();
+    let before_scale_two = runtime.refresh_counters();
+    runtime.refresh_with_scope(RepaintScope::PaintOnly);
+    let after_scale_two = runtime.refresh_counters();
+    assert_eq!(
+        after_scale_two.runtime_projection,
+        before_scale_two.runtime_projection + 1
+    );
+    assert_eq!(after_scale_two.layout, before_scale_two.layout + 1);
+    assert_eq!(runtime.layout().rects[&tree_id].height(), 22.0);
+    let scale_two_plan = runtime.paint_plan(&ThemeTokens::default());
+    assert_eq!(text_for(&scale_two_plan, tree_id).unwrap().font_size, 26.0);
+
+    let before_unchanged = runtime.refresh_counters();
+    let before_unchanged_projects = runtime.bridge().project_count;
+    runtime.refresh_with_scope(RepaintScope::PaintOnly);
+    assert_eq!(runtime.refresh_counters(), before_unchanged);
+    assert_eq!(runtime.bridge().project_count, before_unchanged_projects);
 }

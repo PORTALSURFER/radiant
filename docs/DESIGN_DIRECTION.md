@@ -611,17 +611,22 @@ container geometry are shipped. TextWidget, TextInputWidget, ButtonWidget,
 BadgeWidget, ToggleWidget, SelectableWidget, ListItemWidget, and NumericInput
 resolve their intrinsic metrics and paint font from the application text scale.
 Explicit parent width/height slots remain physical constraints, and DPI is
-applied only at the native scene boundary. Dense and interactive rows, TreeRow,
-menu/shell geometry, and locale/direction presentation identity propagation
-remain staged follow-on work under OPT-1386; retained bidi and complex shaping
-are implemented under OPT-1402.
+applied only at the native scene boundary. Dense-row helpers now have additive
+environment-aware label/chrome entry points; the existing bounds-derived
+helpers remain the legacy path. Embedded interactive rows and TreeRow opt in
+through one immutable declared text-metrics witness, while row, guide,
+expander, icon, hit, and capture geometry remains physical. TreeRow semantics
+use the painted label and host/runtime interaction state without changing
+ownership. Menu/shell geometry and locale/direction presentation identity
+propagation remain staged follow-on work under OPT-1386; retained bidi and
+complex shaping are implemented under OPT-1402.
 
 The current foundation exposes immutable, testable snapshots at application and
 window scopes. `ApplicationEnvironment` contains explicit locale fallback,
 writing direction, validated text scale, catalog generation, and platform
 shortcut presentation; individual widgets still must not query platform state.
-Remaining OPT-1386 work propagates these values through dense and interactive
-rows, TreeRow, menu/shell geometry, semantics, and native cache identities.
+Remaining OPT-1386 work propagates these values through menu/shell geometry,
+locale/direction presentation identity, and native cache identities.
 
 ```rust
 text(localized(TextKey::sample_count(), [state.samples.len().into()]));

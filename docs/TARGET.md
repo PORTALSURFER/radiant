@@ -1610,10 +1610,14 @@ presentation generation. Phase-1 logical RTL container geometry is shipped;
 TextWidget, TextInputWidget, ButtonWidget, BadgeWidget, ToggleWidget,
 SelectableWidget, ListItemWidget, and NumericInput resolve intrinsic metrics and
 paint font from text scale. Explicit parent width/height slots remain physical
-constraints, and DPI is applied only at the native scene boundary. Dense and
-interactive rows, TreeRow, menu/shell geometry, and locale/direction presentation
-identity propagation remain staged work under OPT-1386; retained bidi and complex
-shaping are implemented under OPT-1402.
+constraints, and DPI is applied only at the native scene boundary. Dense-row
+helpers expose additive environment-aware label/chrome entry points while
+their existing bounds-derived helpers remain legacy-compatible. Embedded
+interactive rows and TreeRow resolve one immutable declared text-metrics
+witness; row, guide, expander, icon, hit, and capture geometry stays physical,
+and TreeRow semantics preserve host/runtime ownership. Menu/shell geometry and
+locale/direction presentation identity propagation remain staged work under
+OPT-1386; retained bidi and complex shaping are implemented under OPT-1402.
 
 At the native window scope, environment exposes only display scale, color
 scheme, contrast, and reduced-motion preference; application presentation

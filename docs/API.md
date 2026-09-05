@@ -4406,10 +4406,14 @@ locale fallback, direction, text scale, catalog generation, and shortcut
 presentation generation. Phase-1 logical RTL container geometry is shipped;
 TextWidget, TextInputWidget, ButtonWidget, BadgeWidget, ToggleWidget,
 SelectableWidget, ListItemWidget, and NumericInput resolve intrinsic metrics and
-paint font from text scale. Dense and interactive rows, TreeRow, menu/shell
-geometry, and locale/direction presentation identity propagation remain staged
-work under OPT-1386. Retained bidi and complex shaping are implemented under
-OPT-1402.
+paint font from text scale. Dense-row helpers expose additive environment-aware
+label/chrome entry points while existing bounds-derived helpers remain
+legacy-compatible. Embedded interactive rows and TreeRow resolve one immutable
+declared text-metrics witness; row, guide, expander, icon, hit, and capture
+geometry remains physical, and TreeRow semantics preserve host/runtime
+ownership. Menu/shell geometry and locale/direction presentation identity
+propagation remain staged work under OPT-1386. Retained bidi and complex
+shaping are implemented under OPT-1402.
 
 Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
 resolves light, dark, and high-contrast tokens from the current window snapshot;
@@ -4595,9 +4599,10 @@ composition state and final text commits; the widget model should own the
 logical composition range once that generic event exists. Unicode-scalar editing
 is shipped. The additive `ApplicationEnvironment` snapshot provides explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
-presentation generation. Phase-1 logical RTL container geometry is shipped; broader built-in scale
-propagation and locale/direction presentation identity propagation remain staged
-under OPT-1386. Bidirectional text and complex shaping belong to renderer text
+presentation generation. Phase-1 logical RTL container geometry is shipped;
+built-in dense/interactive row and TreeRow text-scale propagation is shipped,
+while menu/shell geometry and locale/direction presentation identity propagation
+remain staged under OPT-1386. Bidirectional text and complex shaping belong to renderer text
 layout and cursor-stop mapping; their retained implementation is under
 OPT-1402, while `TextInputState` continues to store logical Unicode-scalar
 positions instead of renderer glyph positions. The selected architecture is

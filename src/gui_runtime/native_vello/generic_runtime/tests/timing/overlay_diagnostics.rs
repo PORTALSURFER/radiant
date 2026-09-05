@@ -882,6 +882,214 @@ fn native_text_input_scale_direction_and_dpi_follow_one_runtime_paragraph_author
     assert_eq!(pulls.get(), 3, "initial, unchanged, and changed refreshes");
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum TreeRowNativeMessage {
+    Activate,
+}
+
+struct TreeRowEnvironmentBridge {
+    environment: crate::application::ApplicationEnvironment,
+    project_count: usize,
+}
+
+impl RuntimeBridge<TreeRowNativeMessage> for TreeRowEnvironmentBridge {
+    fn application_environment(&mut self) -> Option<crate::application::ApplicationEnvironment> {
+        Some(self.environment.clone())
+    }
+
+    fn project_surface(&mut self) -> Arc<UiSurface<TreeRowNativeMessage>> {
+        self.project_count += 1;
+        crate::runtime::test_arc_surface(
+            crate::application::tree_row("Folder")
+                .depth(2)
+                .has_children(true)
+                .expanded(true)
+                .stable_row_identity(91, "native-tree-row")
+                .interactive_actions(
+                    crate::widgets::InteractiveRowActions::new()
+                        .activate(|| TreeRowNativeMessage::Activate),
+                )
+                .into_surface()
+                .with_application_environment(self.environment.clone()),
+        )
+    }
+
+    fn update(
+        &mut self,
+        _message: TreeRowNativeMessage,
+    ) -> crate::runtime::Command<TreeRowNativeMessage> {
+        crate::runtime::Command::none()
+    }
+}
+
+fn native_tree_row_text(
+    plan: &crate::runtime::SurfacePaintPlan,
+    tree_id: crate::widgets::WidgetId,
+) -> Option<&crate::runtime::PaintTextRun> {
+    plan.primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) if text.widget_id == tree_id => Some(text),
+            _ => None,
+        })
+}
+
+#[test]
+fn native_tree_row_environment_refresh_keeps_text_physical_geometry_and_dpi_boundary() {
+    let scale_one_ltr =
+        crate::application::ApplicationEnvironment::new(crate::application::LocaleId::english())
+            .with_text_scale(crate::application::TextScale::new(1.0).expect("valid scale"));
+    let scale_one_rtl = scale_one_ltr
+        .clone()
+        .with_writing_direction(crate::application::WritingDirection::Rtl)
+        .with_text_scale(crate::application::TextScale::new(1.5).expect("valid scale"));
+    let scale_two_rtl = scale_one_rtl
+        .clone()
+        .with_text_scale(crate::application::TextScale::new(2.0).expect("valid scale"));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TreeRowEnvironmentBridge {
+            environment: scale_one_ltr,
+            project_count: 0,
+        },
+        Vector2::new(320.0, 22.0),
+    );
+    let tree_id = crate::widgets::stable_widget_id(91, "native-tree-row");
+    let target_for =
+        |runner: &GenericNativeVelloRunner<TreeRowEnvironmentBridge, TreeRowNativeMessage>| {
+            runner
+                .core
+                .runtime
+                .automation_target_snapshot()
+                .targets
+                .into_iter()
+                .find(|target| target.id.0 == tree_id.to_string())
+                .expect("native TreeRow automation target")
+        };
+
+    runner.rebuild_scene();
+    let initial_plan = runner.frame.last_paint_plan.clone();
+    let initial_text = native_tree_row_text(&initial_plan, tree_id).expect("native TreeRow text");
+    assert_eq!(initial_text.font_size, 13.0);
+    let initial_bounds = runner.core.runtime.layout().rects[&tree_id];
+    assert_eq!(initial_bounds.height(), 22.0);
+    let initial_target = target_for(&runner);
+    assert_eq!(initial_target.label.as_deref(), Some("Folder"));
+    assert_eq!(initial_target.bounds.height, 22.0);
+    assert_eq!(
+        initial_target.bounds,
+        crate::gui::automation::AutomationBounds::from_rect(initial_bounds)
+    );
+    assert_eq!(runner.core.runtime.bridge().project_count, 1);
+
+    runner.core.runtime.bridge_mut().environment = scale_one_rtl.clone();
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
+    let before_rtl = runner.core.runtime.refresh_counters();
+    let rtl_evidence = runner.prepared_surface_refresh_native_evidence();
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        rtl_evidence,
+    );
+    assert_eq!(
+        runner.core.runtime.context().application_environment(),
+        &scale_one_rtl
+    );
+    let rtl_plan = runner.frame.last_paint_plan.clone();
+    let rtl_text = native_tree_row_text(&rtl_plan, tree_id).expect("native RTL TreeRow text");
+    let rtl_bounds = runner.core.runtime.layout().rects[&tree_id];
+    assert_eq!(rtl_text.font_size, 19.5);
+    assert_eq!(rtl_text.text, initial_text.text);
+    assert_eq!(
+        rtl_text.rect.min.x,
+        rtl_bounds.min.x + 6.0,
+        "RTL text uses the declared scaled inset"
+    );
+    assert_eq!(
+        initial_text.rect.min.x,
+        initial_bounds.min.x + 4.0,
+        "LTR text uses the declared base inset"
+    );
+    assert_eq!(
+        rtl_text.rect.width() + 4.0,
+        initial_text.rect.width(),
+        "RTL content width reflects only the declared inset delta"
+    );
+    assert_eq!(
+        rtl_bounds.min.x,
+        320.0 - initial_bounds.max.x,
+        "RTL row hit geometry mirrors the LTR row"
+    );
+    assert_eq!(
+        rtl_bounds.max.x,
+        320.0 - initial_bounds.min.x,
+        "RTL row hit geometry mirrors the LTR row"
+    );
+    assert_eq!(runner.core.runtime.layout().rects[&tree_id].height(), 22.0);
+    assert_eq!(
+        runner.core.runtime.refresh_counters().runtime_projection,
+        before_rtl.runtime_projection + 1
+    );
+    assert_eq!(
+        runner.core.runtime.refresh_counters().layout,
+        before_rtl.layout + 1
+    );
+    let rtl_target = target_for(&runner);
+    assert_eq!(rtl_target.label.as_deref(), Some("Folder"));
+    assert_eq!(rtl_target.bounds.height, 22.0);
+    assert_eq!(
+        rtl_target.bounds,
+        crate::gui::automation::AutomationBounds::from_rect(
+            runner.core.runtime.layout().rects[&tree_id]
+        )
+    );
+
+    runner.core.runtime.bridge_mut().environment = scale_two_rtl;
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
+    let scale_two_evidence = runner.prepared_surface_refresh_native_evidence();
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        scale_two_evidence,
+    );
+    let scale_two_plan = runner.frame.last_paint_plan.clone();
+    assert_eq!(
+        native_tree_row_text(&scale_two_plan, tree_id)
+            .expect("native scale-two TreeRow text")
+            .font_size,
+        26.0
+    );
+    assert_eq!(runner.core.runtime.layout().rects[&tree_id].height(), 22.0);
+
+    runner.rebuild_scene();
+    let logical_plan_before_dpi = runner.frame.last_paint_plan.clone();
+    let logical_layout_before_dpi = runner.core.runtime.layout().clone();
+    let logical_transforms = runner.frame.scene.encoding().transforms.clone();
+    let _ = runner
+        .frame
+        .scene_for_dpi_scale(crate::theme::DpiScale::new(1.5));
+    let dpi_scene_transforms = runner
+        .frame
+        .scene_for_dpi_scale(crate::theme::DpiScale::new(1.5))
+        .encoding()
+        .transforms
+        .clone();
+    assert_eq!(runner.frame.last_paint_plan, logical_plan_before_dpi);
+    assert_eq!(runner.core.runtime.layout(), &logical_layout_before_dpi);
+    assert_eq!(
+        native_tree_row_text(&runner.frame.last_paint_plan, tree_id)
+            .expect("logical TreeRow after DPI")
+            .font_size,
+        26.0
+    );
+    assert_eq!(runner.frame.scene.encoding().transforms, logical_transforms);
+    assert_eq!(
+        dpi_scene_transforms
+            .last()
+            .map(|transform| transform.to_kurbo()),
+        Some(vello::kurbo::Affine::scale(1.5)),
+        "native DPI applies one scene-affine transform"
+    );
+}
+
 #[test]
 fn native_candidate_source_change_vetoes_without_replay_or_active_mutation() {
     let initial = crate::application::ApplicationEnvironment::new(

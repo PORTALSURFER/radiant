@@ -19,8 +19,12 @@ impl<Message> UiSurface<Message> {
         let stats = self.root.runtime_traversal_stats();
         let mut traversal = SurfaceTraversalIndex::with_stats(stats);
         let mut source = SourceTraversalIndex::with_stats(stats);
-        let layout_root =
-            self.runtime_projection_into_with_source(&mut traversal, stats, &mut source);
+        let layout_root = self.runtime_projection_into_with_source(
+            &mut traversal,
+            stats,
+            &mut source,
+            &self.resolved_environment(),
+        );
         SurfaceRuntimeProjection {
             layout_root,
             traversal,
@@ -33,14 +37,16 @@ impl<Message> UiSurface<Message> {
         traversal: &mut SurfaceTraversalIndex<Message>,
         stats: SurfaceTraversalStats,
         source: &mut SourceTraversalIndex,
+        environment: &crate::runtime::ResolvedEnvironment,
     ) -> LayoutNode {
         traversal.clear_for_stats(stats);
         source.clear_for_stats(stats);
-        self.root.project_runtime(
+        self.root.project_runtime_with_environment(
             &mut Vec::with_capacity(stats.max_scroll_depth),
             &mut Vec::with_capacity(stats.max_depth),
             traversal,
             source,
+            environment,
         )
     }
 
@@ -70,8 +76,13 @@ impl<Message> UiSurface<Message> {
         source.clear_for_reuse();
         scroll_stack.clear();
         child_path.clear();
-        self.root
-            .project_runtime(scroll_stack, child_path, traversal, source)
+        self.root.project_runtime_with_environment(
+            scroll_stack,
+            child_path,
+            traversal,
+            source,
+            &self.resolved_environment(),
+        )
     }
 
     pub(in crate::runtime) fn runtime_source_traversal_index_reusing(
@@ -85,11 +96,18 @@ impl<Message> UiSurface<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
-    pub(super) fn layout_node(&self) -> LayoutNode {
+    pub(super) fn layout_node_with_environment(
+        &self,
+        environment: &crate::runtime::ResolvedEnvironment,
+    ) -> LayoutNode {
         match self {
-            Self::Scene(scene) => scene_layout_node(scene, |_, child| child.layout_node()),
+            Self::Scene(scene) => scene_layout_node(scene, |_, child| {
+                child.layout_node_with_environment(environment)
+            }),
             Self::Container(container) => {
-                let children = container_layout_children(container, |_, child| child.layout_node());
+                let children = container_layout_children(container, |_, child| {
+                    child.layout_node_with_environment(environment)
+                });
                 LayoutNode::container_with_layout_policy_mode(
                     container.id,
                     container.policy.clone(),
@@ -98,11 +116,12 @@ impl<Message> SurfaceNode<Message> {
                     container.split_pane_runtime,
                 )
             }
-            Self::Widget(widget) => widget.layout_node(),
+            Self::Widget(widget) => widget.layout_node_with_environment(environment),
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
             Self::FloatingLayer(layer) => {
-                let children =
-                    container_layout_children(&layer.container, |_, child| child.layout_node());
+                let children = container_layout_children(&layer.container, |_, child| {
+                    child.layout_node_with_environment(environment)
+                });
                 LayoutNode::container_with_layout_policy_mode(
                     layer.container.id,
                     layer.container.policy.clone(),
@@ -114,24 +133,35 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
-    fn project_runtime(
+    fn project_runtime_with_environment(
         &self,
         scroll_stack: &mut Vec<NodeId>,
         child_path: &mut Vec<usize>,
         traversal: &mut SurfaceTraversalIndex<Message>,
         source: &mut SourceTraversalIndex,
+        environment: &crate::runtime::ResolvedEnvironment,
     ) -> LayoutNode {
         source.record_node(self);
         match self {
             Self::Scene(scene) => {
                 if !scene.has_layers() {
-                    return scene
-                        .base
-                        .project_runtime(scroll_stack, child_path, traversal, source);
+                    return scene.base.project_runtime_with_environment(
+                        scroll_stack,
+                        child_path,
+                        traversal,
+                        source,
+                        environment,
+                    );
                 }
                 scene_layout_node(scene, |scene_child_index, child| {
                     child_path.push(scene_child_index);
-                    let layout = child.project_runtime(scroll_stack, child_path, traversal, source);
+                    let layout = child.project_runtime_with_environment(
+                        scroll_stack,
+                        child_path,
+                        traversal,
+                        source,
+                        environment,
+                    );
                     child_path.pop();
                     layout
                 })
@@ -141,7 +171,13 @@ impl<Message> SurfaceNode<Message> {
                 let focus_order_candidate = split_pane_focus_order_candidate(container);
                 let children = container_layout_children(container, |child_index, child| {
                     child_path.push(child_index);
-                    let layout = child.project_runtime(scroll_stack, child_path, traversal, source);
+                    let layout = child.project_runtime_with_environment(
+                        scroll_stack,
+                        child_path,
+                        traversal,
+                        source,
+                        environment,
+                    );
                     child_path.pop();
                     if child_index == 0
                         && let Some(candidate) = focus_order_candidate
@@ -161,7 +197,7 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Widget(widget) => {
                 record_widget_runtime(widget, scroll_stack, child_path, traversal);
-                widget.layout_node()
+                widget.layout_node_with_environment(environment)
             }
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
             Self::FloatingLayer(layer) => {
@@ -172,8 +208,13 @@ impl<Message> SurfaceNode<Message> {
                     let children =
                         container_layout_children(&layer.container, |child_index, child| {
                             child_path.push(child_index);
-                            let layout =
-                                child.project_runtime(scroll_stack, child_path, traversal, source);
+                            let layout = child.project_runtime_with_environment(
+                                scroll_stack,
+                                child_path,
+                                traversal,
+                                source,
+                                environment,
+                            );
                             child_path.pop();
                             if child_index == 0
                                 && let Some(candidate) = focus_order_candidate
@@ -193,7 +234,7 @@ impl<Message> SurfaceNode<Message> {
                 } else {
                     let children = container_layout_children(&layer.container, |_, child| {
                         child.collect_source_traversal(source);
-                        child.layout_node()
+                        child.layout_node_with_environment(environment)
                     });
                     LayoutNode::container_with_layout_policy_mode(
                         layer.container.id,

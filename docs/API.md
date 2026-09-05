@@ -4359,9 +4359,10 @@ Current shipped boundary: the native environment exposes display scale, color
 scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
 shipped. The additive `ApplicationEnvironment` snapshot carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
-presentation generation. Phase-1 logical RTL container geometry is shipped;
-scale propagation, bidi, and complex shaping remain staged work under OPT-1386
-and OPT-1402.
+presentation generation. Phase-1 logical RTL container geometry is shipped; broader built-in scale
+propagation and locale/direction presentation identity propagation remain staged
+work under OPT-1386. Retained bidi and complex shaping are implemented under
+OPT-1402.
 
 Appearance selection is a separate, backend-neutral policy. `AppearancePolicy::FollowEnvironment`
 resolves light, dark, and high-contrast tokens from the current window snapshot;
@@ -4510,6 +4511,17 @@ host-rendered editors, `has_selection`, `clear_selection`, `select_word_at`,
 `replace_selection`, `delete_selection`, and the borrowed `selected_text_slice`
 expose the same reusable single-line replacement semantics without requiring a full
 `TextInputWidget` or allocating just to inspect the active UTF-8 selection.
+
+Text-aware `TextWidget` and `TextInputWidget` declarations resolve their
+intrinsic sizing, font size, baseline, and insets once against the attached
+`ApplicationEnvironment::text_scale()`. Custom widgets preserve the legacy
+unscaled contract by default and may opt into the same resolver through
+`TextScaleParticipation` and `WidgetPaintContext::resolved_environment()`.
+`TextAlign::Start` and `TextAlign::End` are logical declarations; `Left`,
+`Center`, and `Right` remain physical renderer alignment values. Participating
+text intrinsic metrics resolve declared values once with `text_scale`; explicit
+parent `.width(...)` and `.height(...)` slots remain physical constraints, and
+DPI conversion occurs once when the native scene is projected.
 Widgets that participate in focused text editing can also expose borrowed
 selection text through `Widget::selected_text_slice`, and
 `SurfaceRuntime::focused_text_selection_slice` keeps runtime-level focus
@@ -4535,15 +4547,13 @@ composition state and final text commits; the widget model should own the
 logical composition range once that generic event exists. Unicode-scalar editing
 is shipped. The additive `ApplicationEnvironment` snapshot provides explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
-presentation generation. Phase-1 logical RTL container geometry is shipped;
-scale propagation, bidi, and complex shaping remain staged under OPT-1386 and
-OPT-1402. The selected
-bidirectional text and complex-shaping architecture is recorded in
-[`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
-Bidirectional text and complex shaping belong to renderer text layout and
-cursor-stop mapping, with implementation staged under OPT-1402, while `TextInputState`
-continues to store logical Unicode-scalar positions instead of renderer glyph
-positions.
+presentation generation. Phase-1 logical RTL container geometry is shipped; broader built-in scale
+propagation and locale/direction presentation identity propagation remain staged
+under OPT-1386. Bidirectional text and complex shaping belong to renderer text
+layout and cursor-stop mapping; their retained implementation is under
+OPT-1402, while `TextInputState` continues to store logical Unicode-scalar
+positions instead of renderer glyph positions. The selected architecture is
+recorded in [`TEXT_SHAPING_ARCHITECTURE.md`](TEXT_SHAPING_ARCHITECTURE.md).
 
 Implement `Widget` directly when a downstream application needs a new focusable
 leaf with its own input handling, host-routable output payload, or

@@ -607,15 +607,19 @@ scheme, contrast, and reduced-motion preference. `ApplicationEnvironment` is
 an additive immutable application snapshot for explicit locale fallback chains,
 writing direction, validated text scale, catalog generation, and shortcut
 presentation generation. Unicode-scalar editing and phase-1 logical RTL
-container geometry are shipped; scale propagation, bidi, and complex shaping
-remain follow-on work under OPT-1386 and OPT-1402.
+container geometry are shipped. TextWidget and TextInputWidget resolve their
+intrinsic metrics and paint font from the application text scale. Explicit
+parent width/height slots remain physical constraints, and DPI is applied only
+at the native scene boundary. Broader built-in scale propagation and
+locale/direction presentation identity propagation remain follow-on work under
+OPT-1386; retained bidi and complex shaping are implemented under OPT-1402.
 
 The current foundation exposes immutable, testable snapshots at application and
 window scopes. `ApplicationEnvironment` contains explicit locale fallback,
 writing direction, validated text scale, catalog generation, and platform
 shortcut presentation; individual widgets still must not query platform state.
-The remaining OPT-1386 work propagates these values through combined resolved
-environment, geometry, text metrics, semantics, and cache identities.
+Remaining OPT-1386 work propagates these values through the other built-ins,
+semantics, and all native cache identities.
 
 ```rust
 text(localized(TextKey::sample_count(), [state.samples.len().into()]));

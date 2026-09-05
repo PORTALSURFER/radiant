@@ -5,7 +5,7 @@ use crate::{
     layout::Vector2,
     runtime::{PaintPrimitive, RuntimeBridge},
     theme::ThemeTokens,
-    widgets::WidgetId,
+    widgets::{DeclaredTextMetrics, TextScaleParticipation, WidgetId, WidgetSizing},
 };
 use std::time::Duration;
 
@@ -64,6 +64,7 @@ where
     pub(super) fn append_widget_tooltip_overlay(
         &self,
         theme: &ThemeTokens,
+        environment: &crate::runtime::ResolvedEnvironment,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
         let Some(widget_id) = self
@@ -92,8 +93,9 @@ where
             anchor,
             tooltip,
             Vector2::new(self.viewport.width(), self.viewport.height()),
+            environment,
         );
-        crate::runtime::paint::push_tooltip_panel(
+        crate::runtime::paint::push_tooltip_panel_with_environment(
             primitives,
             TOOLTIP_OVERLAY_ID,
             layout.rect,
@@ -101,6 +103,7 @@ where
             theme,
             TOOLTIP_FONT_SIZE,
             TOOLTIP_LINE_HEIGHT,
+            environment,
         );
     }
 }
@@ -110,12 +113,29 @@ struct TooltipLayout {
     lines: Vec<String>,
 }
 
-fn tooltip_layout(anchor: Rect, tooltip: &str, viewport: Vector2) -> TooltipLayout {
+fn tooltip_layout(
+    anchor: Rect,
+    tooltip: &str,
+    viewport: Vector2,
+    environment: &crate::runtime::ResolvedEnvironment,
+) -> TooltipLayout {
+    let metrics = tooltip_metrics(environment);
     let max_width = (viewport.x - TOOLTIP_MARGIN * 2.0).clamp(1.0, TOOLTIP_MAX_WIDTH);
-    let max_line_chars = tooltip_max_line_chars(max_width);
+    let max_line_chars = tooltip_max_line_chars(max_width, metrics.font_size, metrics.insets.x);
     let lines = tooltip_lines(tooltip, max_line_chars);
-    let rect = tooltip_rect_for_lines(anchor, &lines, max_width, viewport);
+    let rect = tooltip_rect_for_lines(anchor, &lines, max_width, viewport, metrics);
     TooltipLayout { rect, lines }
+}
+
+fn tooltip_metrics(
+    environment: &crate::runtime::ResolvedEnvironment,
+) -> crate::widgets::ResolvedTextMetrics {
+    DeclaredTextMetrics::new(
+        WidgetSizing::fixed(Vector2::new(0.0, 0.0)),
+        TOOLTIP_FONT_SIZE,
+        Vector2::new(TOOLTIP_HORIZONTAL_PADDING, TOOLTIP_VERTICAL_PADDING),
+    )
+    .resolve(environment, TextScaleParticipation::Scaled)
 }
 
 fn tooltip_rect_for_lines(
@@ -123,9 +143,10 @@ fn tooltip_rect_for_lines(
     lines: &[String],
     max_width: f32,
     viewport: Vector2,
+    metrics: crate::widgets::ResolvedTextMetrics,
 ) -> Rect {
-    let width = tooltip_width_for_lines(lines).min(max_width);
-    let height = tooltip_height(lines.len());
+    let width = tooltip_width_for_lines(lines, metrics).min(max_width);
+    let height = tooltip_height(lines.len(), metrics);
     let x = anchor.min.x.clamp(
         TOOLTIP_MARGIN,
         (viewport.x - width - TOOLTIP_MARGIN).max(TOOLTIP_MARGIN),
@@ -139,13 +160,13 @@ fn tooltip_rect_for_lines(
     Rect::from_min_size(Point::new(x, y), Vector2::new(width, height))
 }
 
-fn tooltip_width_for_lines(lines: &[String]) -> f32 {
+fn tooltip_width_for_lines(lines: &[String], metrics: crate::widgets::ResolvedTextMetrics) -> f32 {
     lines
         .iter()
         .map(|line| {
             estimated_text_width_in_range(
                 line,
-                tooltip_width_estimate(),
+                tooltip_width_estimate(metrics),
                 TOOLTIP_MIN_WIDTH,
                 TOOLTIP_MAX_WIDTH,
             )
@@ -153,26 +174,30 @@ fn tooltip_width_for_lines(lines: &[String]) -> f32 {
         .fold(TOOLTIP_MIN_WIDTH, f32::max)
 }
 
-fn tooltip_height(line_count: usize) -> f32 {
-    line_count.max(1) as f32 * TOOLTIP_LINE_HEIGHT + TOOLTIP_VERTICAL_PADDING
+fn tooltip_height(line_count: usize, metrics: crate::widgets::ResolvedTextMetrics) -> f32 {
+    let scale = metrics.font_size / TOOLTIP_FONT_SIZE;
+    line_count.max(1) as f32 * TOOLTIP_LINE_HEIGHT * scale + metrics.insets.y
 }
 
-fn tooltip_max_line_chars(max_width: f32) -> usize {
-    ((max_width - TOOLTIP_HORIZONTAL_PADDING).max(1.0) / tooltip_rendered_character_advance())
+fn tooltip_max_line_chars(max_width: f32, font_size: f32, horizontal_padding: f32) -> usize {
+    ((max_width - horizontal_padding).max(1.0) / tooltip_rendered_character_advance(font_size))
         .floor()
         .max(12.0) as usize
 }
 
-fn tooltip_width_estimate() -> TextWidthEstimate {
-    TextWidthEstimate::new(tooltip_character_advance(), TOOLTIP_HORIZONTAL_PADDING)
+fn tooltip_width_estimate(metrics: crate::widgets::ResolvedTextMetrics) -> TextWidthEstimate {
+    TextWidthEstimate::new(
+        tooltip_character_advance(metrics.font_size),
+        metrics.insets.x,
+    )
 }
 
-fn tooltip_character_advance() -> f32 {
-    tooltip_rendered_character_advance().ceil() + TOOLTIP_CHAR_ADVANCE_SAFETY
+fn tooltip_character_advance(font_size: f32) -> f32 {
+    tooltip_rendered_character_advance(font_size).ceil() + TOOLTIP_CHAR_ADVANCE_SAFETY
 }
 
-fn tooltip_rendered_character_advance() -> f32 {
-    let scale = (TOOLTIP_FONT_SIZE / TOOLTIP_BITMAP_GLYPH_HEIGHT).clamp(1.0, 3.0);
+fn tooltip_rendered_character_advance(font_size: f32) -> f32 {
+    let scale = (font_size / TOOLTIP_BITMAP_GLYPH_HEIGHT).clamp(1.0, 3.0);
     TOOLTIP_BITMAP_GLYPH_ADVANCE * scale
 }
 

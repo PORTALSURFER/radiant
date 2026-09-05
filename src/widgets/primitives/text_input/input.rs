@@ -1,15 +1,23 @@
 //! Text-input pointer, keyboard, and text-edit event routing.
 
-use crate::gui::types::Rect;
 use crate::widgets::interaction::{PointerButton, TextInputMessage, WidgetInput};
+use crate::{gui::types::Rect, runtime::ResolvedEnvironment};
 
 use super::TextInputWidget;
-use super::editing_ops::caret_for_pointer_x;
 
 pub(super) fn handle_text_input(
     text_input: &mut TextInputWidget,
     bounds: Rect,
     input: WidgetInput,
+) -> Option<TextInputMessage> {
+    handle_text_input_with_environment(text_input, bounds, input, &ResolvedEnvironment::default())
+}
+
+pub(super) fn handle_text_input_with_environment(
+    text_input: &mut TextInputWidget,
+    bounds: Rect,
+    input: WidgetInput,
+    environment: &ResolvedEnvironment,
 ) -> Option<TextInputMessage> {
     match input {
         WidgetInput::PointerMove { position, .. } => {
@@ -18,7 +26,14 @@ pub(super) fn handle_text_input(
                 let (caret, affinity) =
                     text_input.take_native_pointer_caret().unwrap_or_else(|| {
                         (
-                            caret_for_pointer_x(bounds, position.x),
+                            super::editing_ops::caret_for_pointer_x_with_environment(
+                                bounds,
+                                position.x,
+                                text_input.state.value.as_str(),
+                                text_input.declared_text_metrics(),
+                                text_input.align,
+                                environment,
+                            ),
                             super::NativeCaretAffinity::Downstream,
                         )
                     });
@@ -39,7 +54,14 @@ pub(super) fn handle_text_input(
             text_input.common.state.pressed = true;
             let (caret, affinity) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
                 (
-                    caret_for_pointer_x(bounds, position.x),
+                    super::editing_ops::caret_for_pointer_x_with_environment(
+                        bounds,
+                        position.x,
+                        text_input.state.value.as_str(),
+                        text_input.declared_text_metrics(),
+                        text_input.align,
+                        environment,
+                    ),
                     super::NativeCaretAffinity::Downstream,
                 )
             });
@@ -57,7 +79,14 @@ pub(super) fn handle_text_input(
             text_input.common.state.pressed = false;
             let (caret, affinity) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
                 (
-                    caret_for_pointer_x(bounds, position.x),
+                    super::editing_ops::caret_for_pointer_x_with_environment(
+                        bounds,
+                        position.x,
+                        text_input.state.value.as_str(),
+                        text_input.declared_text_metrics(),
+                        text_input.align,
+                        environment,
+                    ),
                     super::NativeCaretAffinity::Downstream,
                 )
             });

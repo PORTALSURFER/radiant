@@ -5,11 +5,11 @@ use crate::{
         input::InputTimestamp,
         types::{Point, Rect},
     },
-    layout::{LayoutOutput, Vector2},
-    runtime::{PaintPrimitive, SurfacePaintPlan},
+    layout::{LayoutNode, LayoutOutput, Vector2},
+    runtime::{PaintPrimitive, ResolvedEnvironment, SurfacePaintPlan},
     theme::ThemeTokens,
     widgets::{
-        WidgetRevision,
+        DeclaredTextMetrics, TextScaleParticipation, WidgetRevision,
         interaction::{
             CompositionSample, CompositionStartContext, NumericAccessibilityAction,
             NumericAccessibilityBlockOwner, WheelSample, WidgetCursor, WidgetInput, WidgetKey,
@@ -192,8 +192,37 @@ pub trait Widget: WidgetClone + Any {
     /// Return the shared contract mutably for runtime-owned state updates.
     fn common_mut(&mut self) -> &mut WidgetCommon;
 
+    /// Return whether this widget's declared text metrics follow application
+    /// text scaling. Custom widgets remain unscaled unless they opt in.
+    fn text_scale_participation(&self) -> TextScaleParticipation {
+        TextScaleParticipation::Unscaled
+    }
+
+    /// Project this widget's intrinsic sizing for one resolved environment.
+    ///
+    /// The default preserves the legacy sizing contract. Text-aware widgets
+    /// opt in by returning [`TextScaleParticipation::Scaled`].
+    fn layout_node_with_environment(&self, environment: &ResolvedEnvironment) -> LayoutNode {
+        LayoutNode::Widget(
+            DeclaredTextMetrics::new(self.common().sizing, 1.0, Vector2::new(0.0, 0.0))
+                .resolve(environment, self.text_scale_participation())
+                .layout_node(self.common().id),
+        )
+    }
+
     /// Route one backend-neutral input event into this widget.
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
+
+    /// Route input with the immutable environment used by the current frame.
+    /// The default delegates to the required legacy hook for custom widgets.
+    fn handle_input_with_environment(
+        &mut self,
+        bounds: Rect,
+        input: WidgetInput,
+        _environment: &ResolvedEnvironment,
+    ) -> Option<WidgetOutput> {
+        self.handle_input(bounds, input)
+    }
 
     /// Route a focus transition with the runtime's current monotonic clock.
     ///

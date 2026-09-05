@@ -9,7 +9,8 @@ mod scroll;
 mod segments;
 mod text;
 
-pub(super) use chrome::{push_container_chrome, push_overlay_panel, push_tooltip_panel};
+pub(super) use chrome::push_container_chrome;
+pub(crate) use chrome::{push_overlay_panel_with_environment, push_tooltip_panel_with_environment};
 pub(super) use debug::{push_clip_end, push_clip_start, push_layout_debug_overlay_for_node};
 pub(crate) use geometry::{blend_color, diagonal_cut_rect_points, inset_rect, push_axis_stroke};
 pub use helpers::{
@@ -36,5 +37,6 @@ pub(crate) use segments::{
 #[cfg(test)]
 pub(crate) use segments::{PaintSegment, PaintSegmentAnchor};
 pub(crate) use text::{
-    button_font_size, input_font_size, optical_centered_baseline, push_text_run, text_font_size,
+    button_font_size, input_font_size_for_height, optical_centered_baseline, push_text_run,
+    text_font_size, text_font_size_for_height,
 };

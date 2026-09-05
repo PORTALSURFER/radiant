@@ -216,8 +216,9 @@ pub use paint::{
 #[cfg(test)]
 pub(crate) use paint::{PaintSegment, PaintSegmentAnchor};
 pub(crate) use paint::{
-    blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,
-    optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
+    blend_color, button_font_size, diagonal_cut_rect_points, input_font_size_for_height,
+    inset_rect, optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
+    text_font_size_for_height,
 };
 pub use platform::{
     ClipboardContent, ClipboardContentFormat, ClipboardFormat, ClipboardIdentity, ClipboardValue,

@@ -7,9 +7,7 @@ use crate::runtime::{
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
-    button::ButtonWidget,
-    support::push_button_chrome,
-    text::{TextAlign, TextWrap},
+    button::ButtonWidget, support::push_button_chrome, text::TextWrap,
 };
 
 pub(super) fn push_button_widget_paint(
@@ -72,11 +70,10 @@ pub(super) fn push_button_widget_paint(
             rect: label_rect,
             baseline: optical_centered_baseline(label_rect, font_size),
             color: foreground,
-            align: match button.props.text_align {
-                TextAlign::Left => PaintTextAlign::Left,
-                TextAlign::Center => PaintTextAlign::Center,
-                TextAlign::Right => PaintTextAlign::Right,
-            },
+            align: button
+                .props
+                .text_align
+                .resolve(crate::application::WritingDirection::Ltr),
             wrap: TextWrap::None,
             font_size,
         },

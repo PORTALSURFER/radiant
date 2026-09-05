@@ -8,7 +8,7 @@ use crate::{
         PaintPrimitive, SurfaceContainer, SurfaceNode, SurfaceOverlay,
         paint::{
             PaintClipEnd, PaintClipStart, SurfacePaintPlan, push_container_chrome,
-            push_layout_debug_overlay_for_node, push_overlay_panel,
+            push_layout_debug_overlay_for_node,
         },
     },
     theme::{ResolvedAppearance, ThemeTokens},
@@ -63,13 +63,14 @@ impl SurfaceOverlay {
         if !self.rect.is_finite() || self.rect.width() < 0.0 || self.rect.height() < 0.0 {
             return;
         }
-        push_overlay_panel(
+        crate::runtime::paint::push_overlay_panel_with_environment(
             &mut plan.primitives,
             self.id,
             self.rect,
             self.label.clone(),
             context.theme,
             self.style,
+            &context.environment,
         );
     }
 }

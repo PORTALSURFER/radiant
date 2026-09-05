@@ -59,6 +59,7 @@
 mod contract;
 pub mod interaction;
 mod primitives;
+mod text_metrics;
 mod theme;
 
 pub use contract::{
@@ -128,4 +129,5 @@ pub(crate) use primitives::{
     RetainedKnobDomainWidget, RetainedKnobWidget, RetainedSliderDomainWidget, RetainedSliderWidget,
     domain_initial_normalized, initial_normalized,
 };
+pub use text_metrics::{DeclaredTextMetrics, ResolvedTextMetrics, TextScaleParticipation};
 pub use theme::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};

@@ -161,6 +161,7 @@ mod tests {
                 selection_anchor: 2,
             },
             font_size: 10.0,
+            align: crate::runtime::PaintTextAlign::Left,
             baseline: None,
             color: WHITE,
             placeholder_color: WHITE,

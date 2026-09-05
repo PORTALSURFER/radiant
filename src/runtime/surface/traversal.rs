@@ -30,7 +30,8 @@ impl<Message> UiSurface<Message> {
         let stats = self.root.runtime_traversal_stats();
         let mut traversal = SurfaceTraversalIndex::with_stats(stats);
         let mut source = SourceTraversalIndex::with_stats(stats);
-        self.runtime_projection_into_with_source(&mut traversal, stats, &mut source);
+        let environment = self.resolved_environment();
+        self.runtime_projection_into_with_source(&mut traversal, stats, &mut source, &environment);
         source
     }
 }

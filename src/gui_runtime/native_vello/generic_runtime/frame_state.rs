@@ -199,6 +199,14 @@ impl NativeSceneBuildOutcome {
     }
 }
 
+fn native_text_alignment(align: crate::runtime::PaintTextAlign) -> crate::gui::paint::TextAlign {
+    match align {
+        crate::runtime::PaintTextAlign::Left => crate::gui::paint::TextAlign::Left,
+        crate::runtime::PaintTextAlign::Center => crate::gui::paint::TextAlign::Center,
+        crate::runtime::PaintTextAlign::Right => crate::gui::paint::TextAlign::Right,
+    }
+}
+
 impl NativeVelloFrameState {
     pub(super) fn new(
         text_renderer: NativeTextRenderer,
@@ -694,10 +702,11 @@ impl NativeVelloFrameState {
             return None;
         }
 
-        let snapshot = self.text_renderer.text_input_snapshot_for_input(
+        let snapshot = self.text_renderer.text_input_snapshot_for_input_aligned(
             input.widget_id,
             input.state.value.as_str(),
             input.font_size,
+            native_text_alignment(input.align),
             input.rect,
             fence,
         )?;
@@ -1031,10 +1040,11 @@ mod tests {
             .expect("current plan should have a fence");
         let first_snapshot = frame
             .text_renderer
-            .text_input_snapshot_for_input(
+            .text_input_snapshot_for_input_aligned(
                 input.widget_id,
                 input.state.value.as_str(),
                 input.font_size,
+                native_text_alignment(input.align),
                 input.rect,
                 first_fence,
             )
@@ -1054,10 +1064,11 @@ mod tests {
         assert_eq!(frame.current_text_input_snapshot_fence, Some(first_fence));
         let repeated_snapshot = frame
             .text_renderer
-            .text_input_snapshot_for_input(
+            .text_input_snapshot_for_input_aligned(
                 input.widget_id,
                 input.state.value.as_str(),
                 input.font_size,
+                native_text_alignment(input.align),
                 input.rect,
                 first_fence,
             )
@@ -1077,10 +1088,11 @@ mod tests {
         assert!(
             frame
                 .text_renderer
-                .text_input_snapshot_for_input(
+                .text_input_snapshot_for_input_aligned(
                     input.widget_id,
                     input.state.value.as_str(),
                     input.font_size,
+                    native_text_alignment(input.align),
                     input.rect,
                     first_fence,
                 )
@@ -1089,10 +1101,11 @@ mod tests {
         assert!(
             frame
                 .text_renderer
-                .text_input_snapshot_for_input(
+                .text_input_snapshot_for_input_aligned(
                     replacement.widget_id,
                     replacement.state.value.as_str(),
                     replacement.font_size,
+                    native_text_alignment(replacement.align),
                     replacement.rect,
                     replacement_fence,
                 )
@@ -1123,10 +1136,11 @@ mod tests {
         assert!(
             frame
                 .text_renderer
-                .text_input_snapshot_for_input(
+                .text_input_snapshot_for_input_aligned(
                     input.widget_id,
                     input.state.value.as_str(),
                     input.font_size,
+                    native_text_alignment(input.align),
                     input.rect,
                     fence,
                 )
@@ -1187,6 +1201,7 @@ mod tests {
             completion_suffix: None,
             state: TextInputState::from_value(value.to_owned()),
             font_size: 14.0,
+            align: crate::runtime::PaintTextAlign::Left,
             baseline: None,
             color: Rgba8::default(),
             placeholder_color: Rgba8::default(),

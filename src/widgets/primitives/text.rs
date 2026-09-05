@@ -2,15 +2,16 @@
 
 use crate::gui::types::{Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
-use crate::runtime::{PaintPrimitive, PaintText};
+use crate::runtime::{PaintPrimitive, PaintText, ResolvedEnvironment};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{
-    Widget, WidgetCapabilities, WidgetId, WidgetRevision, WidgetSemantics, WidgetSemanticsRevision,
-    WidgetSizing,
+    Widget, WidgetCapabilities, WidgetId, WidgetPaintContext, WidgetRevision, WidgetSemantics,
+    WidgetSemanticsRevision, WidgetSizing,
 };
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
+use crate::widgets::{DeclaredTextMetrics, TextScaleParticipation};
 
 mod builders;
 mod paint;
@@ -30,10 +31,38 @@ pub enum TextAlign {
     /// Align text to the left edge of the assigned text rectangle.
     #[default]
     Left,
+    /// Align to the logical start edge of the text rectangle.
+    Start,
     /// Align text to the center of the assigned text rectangle.
     Center,
     /// Align text to the right edge of the assigned text rectangle.
     Right,
+    /// Align to the logical end edge of the text rectangle.
+    End,
+}
+
+impl TextAlign {
+    /// Resolve a logical alignment into the renderer's physical alignment.
+    pub const fn resolve(
+        self,
+        direction: crate::application::WritingDirection,
+    ) -> crate::runtime::PaintTextAlign {
+        match (self, direction) {
+            (Self::Center, _) => crate::runtime::PaintTextAlign::Center,
+            (Self::Right, _) | (Self::End, crate::application::WritingDirection::Ltr) => {
+                crate::runtime::PaintTextAlign::Right
+            }
+            (Self::Left, _) | (Self::Start, crate::application::WritingDirection::Ltr) => {
+                crate::runtime::PaintTextAlign::Left
+            }
+            (Self::Start, crate::application::WritingDirection::Rtl) => {
+                crate::runtime::PaintTextAlign::Right
+            }
+            (Self::End, crate::application::WritingDirection::Rtl) => {
+                crate::runtime::PaintTextAlign::Left
+            }
+        }
+    }
 }
 
 /// Semantic foreground color for text-like widgets.
@@ -240,6 +269,23 @@ impl Widget for TextWidget {
         &mut self.common
     }
 
+    fn text_scale_participation(&self) -> TextScaleParticipation {
+        TextScaleParticipation::Scaled
+    }
+
+    fn layout_node_with_environment(
+        &self,
+        environment: &ResolvedEnvironment,
+    ) -> crate::layout::LayoutNode {
+        let sizing = DeclaredTextMetrics::new(
+            self.common.sizing,
+            crate::runtime::text_font_size_for_height(self.common.sizing.preferred.y),
+            self.inset,
+        )
+        .resolve(environment, self.text_scale_participation());
+        crate::layout::LayoutNode::Widget(sizing.layout_node(self.common.id))
+    }
+
     fn revision(&self) -> WidgetRevision {
         self.exact_revision()
             .unwrap_or_else(WidgetRevision::conservative)
@@ -290,6 +336,10 @@ impl Widget for TextWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_text_widget_paint(primitives, self, bounds, theme);
+    }
+
+    fn append_paint_with_context(&self, context: &mut WidgetPaintContext<'_>) {
+        paint::push_text_widget_paint_with_context(context, self);
     }
 }
 
@@ -366,5 +416,34 @@ mod tests {
         widget.inset = Vector2::new(0.0, 0.0);
         widget.wrap = TextWrap::Word;
         assert_ne!(widget.revision(), WidgetRevision::conservative());
+    }
+
+    #[test]
+    fn logical_alignment_resolves_for_both_writing_directions() {
+        use crate::application::WritingDirection;
+        use crate::runtime::PaintTextAlign;
+
+        for (align, ltr, rtl) in [
+            (TextAlign::Left, PaintTextAlign::Left, PaintTextAlign::Left),
+            (
+                TextAlign::Start,
+                PaintTextAlign::Left,
+                PaintTextAlign::Right,
+            ),
+            (
+                TextAlign::Center,
+                PaintTextAlign::Center,
+                PaintTextAlign::Center,
+            ),
+            (TextAlign::End, PaintTextAlign::Right, PaintTextAlign::Left),
+            (
+                TextAlign::Right,
+                PaintTextAlign::Right,
+                PaintTextAlign::Right,
+            ),
+        ] {
+            assert_eq!(align.resolve(WritingDirection::Ltr), ltr);
+            assert_eq!(align.resolve(WritingDirection::Rtl), rtl);
+        }
     }
 }

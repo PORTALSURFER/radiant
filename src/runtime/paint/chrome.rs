@@ -1,13 +1,16 @@
 use super::{
     PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextAlign, PaintTextRun,
     geometry::{blend_color, inset_rect},
-    text::{optical_centered_baseline, push_text_run, text_font_size},
+    text::{optical_centered_baseline, push_text_run, text_font_size_for_height},
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutOutput, NodeId},
     theme::ThemeTokens,
-    widgets::{TextWrap, WidgetId, WidgetState, WidgetStyle, resolve_widget_visual_tokens},
+    widgets::{
+        DeclaredTextMetrics, TextScaleParticipation, TextWrap, WidgetId, WidgetSizing, WidgetState,
+        WidgetStyle, resolve_widget_visual_tokens,
+    },
 };
 
 pub(in crate::runtime) fn push_container_chrome(
@@ -63,14 +66,21 @@ pub(in crate::runtime) fn push_container_chrome(
     }));
 }
 
-pub(crate) fn push_overlay_panel(
+pub(crate) fn push_overlay_panel_with_environment(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: WidgetId,
     rect: Rect,
     label: Option<super::PaintText>,
     theme: &ThemeTokens,
     style: WidgetStyle,
+    environment: &crate::runtime::ResolvedEnvironment,
 ) {
+    let metrics = DeclaredTextMetrics::new(
+        WidgetSizing::fixed(Vector2::new(0.0, 0.0)),
+        text_font_size_for_height(24.0),
+        Vector2::new(10.0, 3.0),
+    )
+    .resolve(environment, TextScaleParticipation::Scaled);
     let mut state = WidgetState {
         active: true,
         ..WidgetState::default()
@@ -106,21 +116,18 @@ pub(crate) fn push_overlay_panel(
             width: 1.0,
         }));
         if let Some(label) = label {
-            let text_rect = inset_rect(rect, 10.0, 3.0);
+            let text_rect = inset_rect(rect, metrics.insets.x, metrics.insets.y);
             push_text_run(
                 primitives,
                 PaintTextRun {
                     widget_id,
                     text: label,
                     rect: text_rect,
-                    baseline: super::text::optical_centered_baseline(
-                        text_rect,
-                        text_font_size(rect),
-                    ),
+                    baseline: super::text::optical_centered_baseline(text_rect, metrics.font_size),
                     color: theme.text_primary,
                     align: PaintTextAlign::Left,
                     wrap: TextWrap::None,
-                    font_size: text_font_size(rect),
+                    font_size: metrics.font_size,
                 },
             );
         }
@@ -133,7 +140,8 @@ pub(crate) fn push_overlay_panel(
     }
 }
 
-pub(crate) fn push_tooltip_panel(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn push_tooltip_panel_with_environment(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: WidgetId,
     rect: Rect,
@@ -141,7 +149,16 @@ pub(crate) fn push_tooltip_panel(
     theme: &ThemeTokens,
     font_size: f32,
     line_height: f32,
+    environment: &crate::runtime::ResolvedEnvironment,
 ) {
+    let metrics = DeclaredTextMetrics::new(
+        WidgetSizing::fixed(Vector2::new(0.0, 0.0)),
+        font_size,
+        Vector2::new(8.0, 4.0),
+    )
+    .resolve(environment, TextScaleParticipation::Scaled);
+    let scale = metrics.font_size / font_size.max(f32::MIN_POSITIVE);
+    let line_height = line_height * scale;
     let shadow = Rect::from_min_max(
         Point::new(rect.min.x + 2.0, rect.min.y + 3.0),
         Point::new(rect.max.x + 2.0, rect.max.y + 3.0),
@@ -168,7 +185,7 @@ pub(crate) fn push_tooltip_panel(
         width: 1.0,
     }));
 
-    let text_rect = inset_rect(rect, 8.0, 4.0);
+    let text_rect = inset_rect(rect, metrics.insets.x, metrics.insets.y);
     for (index, line) in lines.iter().enumerate() {
         let line_rect = Rect::from_min_size(
             Point::new(
@@ -183,11 +200,11 @@ pub(crate) fn push_tooltip_panel(
                 widget_id,
                 text: super::PaintText::from(line.as_str()),
                 rect: line_rect,
-                baseline: optical_centered_baseline(line_rect, font_size),
+                baseline: optical_centered_baseline(line_rect, metrics.font_size),
                 color: theme.text_primary,
                 align: PaintTextAlign::Left,
                 wrap: TextWrap::None,
-                font_size,
+                font_size: metrics.font_size,
             },
         );
     }

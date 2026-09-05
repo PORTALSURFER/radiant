@@ -1,5 +1,6 @@
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::PaintPrimitive;
+use crate::runtime::{ResolvedEnvironment, WindowEnvironment};
 use crate::theme::ThemeTokens;
 use crate::widgets::Widget;
 use crate::widgets::interaction::{
@@ -8,6 +9,36 @@ use crate::widgets::interaction::{
 
 use super::super::NativeCaretAffinity;
 use super::super::{TextInputChrome, TextInputWidget, WidgetSizing};
+
+#[test]
+fn generic_pointer_caret_uses_declared_metrics_and_environment_scale() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(80.0, 24.0));
+    let sizing = WidgetSizing::fixed(Vector2::new(80.0, 24.0));
+    let mut unscaled = TextInputWidget::new(7, "abcdefghij", sizing);
+    let _ = unscaled.handle_input(bounds, WidgetInput::primary_press(Point::new(60.0, 12.0)));
+    let unscaled_caret = unscaled.state.caret;
+
+    let environment =
+        ResolvedEnvironment::from_snapshots(
+            WindowEnvironment::default(),
+            std::sync::Arc::new(
+                crate::application::ApplicationEnvironment::new(
+                    crate::application::LocaleId::english(),
+                )
+                .with_text_scale(crate::application::TextScale::new(2.0).expect("valid scale")),
+            ),
+        );
+    let mut scaled = TextInputWidget::new(7, "abcdefghij", sizing);
+    let _ = Widget::handle_input_with_environment(
+        &mut scaled,
+        bounds,
+        WidgetInput::primary_press(Point::new(60.0, 12.0)),
+        &environment,
+    );
+
+    assert!(scaled.state.caret < unscaled_caret);
+    assert_eq!(scaled.state.caret, 3);
+}
 
 #[test]
 fn native_pointer_affinity_resets_for_keyboard_input() {

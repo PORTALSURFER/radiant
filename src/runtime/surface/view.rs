@@ -73,7 +73,8 @@ impl<Message> UiSurface<Message> {
 
     /// Project the surface into the public layout tree consumed by layout engines.
     pub fn layout_node(&self) -> LayoutNode {
-        self.root.layout_node()
+        self.root
+            .layout_node_with_environment(&self.resolved_environment())
     }
 
     /// Count widget output mappings backed by allocated dynamic callbacks.

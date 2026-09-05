@@ -58,11 +58,9 @@ impl Widget for CustomTextPolicyWidget {
             font_size: 13.0,
             baseline: Some(17.0),
             color: theme.text_primary,
-            align: match self.align {
-                TextAlign::Left => PaintTextAlign::Left,
-                TextAlign::Center => PaintTextAlign::Center,
-                TextAlign::Right => PaintTextAlign::Right,
-            },
+            align: self
+                .align
+                .resolve(radiant::application::WritingDirection::Ltr),
             wrap: self.wrap,
         }));
     }

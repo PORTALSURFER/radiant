@@ -118,7 +118,7 @@ where
             .paint_plan_with_hover_and_environment_and_appearance_into(
                 &self.layout,
                 theme,
-                environment,
+                environment.clone(),
                 appearance,
                 self.interaction.hover.container,
                 self.interaction.hover.scroll_affordance,
@@ -209,12 +209,12 @@ where
                 self.interaction.pointer.capture,
                 theme,
                 appearance,
-                environment,
+                environment.clone(),
                 primitives,
             );
         }
-        self.append_widget_tooltip_overlay(theme, primitives);
-        self.append_drag_preview_overlay(theme, primitives);
+        self.append_widget_tooltip_overlay(theme, &environment, primitives);
+        self.append_drag_preview_overlay(theme, &environment, primitives);
         self.append_devtools_overlay_paint(theme, primitives);
     }
 
@@ -340,6 +340,7 @@ where
     fn append_drag_preview_overlay(
         &self,
         theme: &ThemeTokens,
+        environment: &crate::runtime::ResolvedEnvironment,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
         let Some(session) = self
@@ -358,7 +359,7 @@ where
             ),
             session.preview.size,
         );
-        crate::runtime::paint::push_overlay_panel(
+        crate::runtime::paint::push_overlay_panel_with_environment(
             primitives,
             u64::MAX - 1024,
             rect,
@@ -368,6 +369,7 @@ where
                 tone: crate::widgets::WidgetTone::Accent,
                 prominence: crate::widgets::WidgetProminence::Strong,
             },
+            environment,
         );
     }
 }

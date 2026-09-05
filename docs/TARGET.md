@@ -1607,8 +1607,12 @@ scheme, contrast, and reduced-motion preference, and Unicode-scalar editing is
 shipped. The additive `ApplicationEnvironment` snapshot now carries explicit
 locale fallback, direction, text scale, catalog generation, and shortcut
 presentation generation. Phase-1 logical RTL container geometry is shipped;
-scale propagation, bidi, and complex shaping remain staged work under OPT-1386
-and OPT-1402.
+TextWidget and TextInputWidget resolve intrinsic metrics and paint font from
+text scale. Explicit parent width/height slots remain physical constraints, and
+DPI is applied only at the native scene boundary. Broader built-in scale
+propagation and locale/direction presentation identity propagation remain staged
+work under OPT-1386; retained bidi and complex shaping are implemented under
+OPT-1402.
 
 At the native window scope, environment exposes only display scale, color
 scheme, contrast, and reduced-motion preference; application presentation

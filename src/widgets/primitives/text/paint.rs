@@ -2,17 +2,45 @@
 
 use crate::gui::types::Rect;
 use crate::runtime::{
-    PaintPrimitive, PaintTextAlign, PaintTextRun, inset_rect, optical_centered_baseline,
+    PaintPrimitive, PaintTextRun, ResolvedEnvironment, inset_rect, optical_centered_baseline,
     push_fill_rect, push_text_run, text_font_size,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::text::{TextAlign, TextBackgroundRole, TextWidget};
+use crate::widgets::primitives::text::{TextBackgroundRole, TextWidget};
+use crate::widgets::{DeclaredTextMetrics, ResolvedTextMetrics, Widget, WidgetPaintContext};
 
 pub(super) fn push_text_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     text: &TextWidget,
     bounds: Rect,
     theme: &ThemeTokens,
+) {
+    push_text_widget_paint_resolved(
+        primitives,
+        text,
+        bounds,
+        theme,
+        &ResolvedEnvironment::default(),
+    );
+}
+
+pub(super) fn push_text_widget_paint_with_context(
+    context: &mut WidgetPaintContext<'_>,
+    text: &TextWidget,
+) {
+    let bounds = context.bounds();
+    let theme = context.theme();
+    let environment = context.environment().clone();
+    let primitives = context.primitives();
+    push_text_widget_paint_resolved(primitives, text, bounds, theme, &environment);
+}
+
+fn push_text_widget_paint_resolved(
+    primitives: &mut Vec<PaintPrimitive>,
+    text: &TextWidget,
+    bounds: crate::gui::types::Rect,
+    theme: &ThemeTokens,
+    environment: &ResolvedEnvironment,
 ) {
     if let Some(background) = text.background {
         push_fill_rect(
@@ -22,8 +50,18 @@ pub(super) fn push_text_widget_paint(
             text_background_color(background, theme),
         );
     }
-    let font_size = text_font_size(bounds);
-    let text_rect = inset_rect(bounds, text.inset.x, text.inset.y);
+    let declared = DeclaredTextMetrics::new(
+        text.common.sizing,
+        text_font_size(crate::gui::types::Rect::from_min_size(
+            crate::gui::types::Point::default(),
+            text.common.sizing.preferred,
+        )),
+        text.inset,
+    );
+    let metrics: ResolvedTextMetrics =
+        declared.resolve(environment, text.text_scale_participation());
+    let font_size = metrics.font_size;
+    let text_rect = inset_rect(bounds, metrics.insets.x, metrics.insets.y);
     push_text_run(
         primitives,
         PaintTextRun {
@@ -32,11 +70,7 @@ pub(super) fn push_text_widget_paint(
             rect: text_rect,
             baseline: optical_centered_baseline(text_rect, font_size),
             color: text_color(text.color, theme),
-            align: match text.align {
-                TextAlign::Left => PaintTextAlign::Left,
-                TextAlign::Center => PaintTextAlign::Center,
-                TextAlign::Right => PaintTextAlign::Right,
-            },
+            align: text.align.resolve(environment.writing_direction()),
             wrap: text.wrap,
             font_size,
         },

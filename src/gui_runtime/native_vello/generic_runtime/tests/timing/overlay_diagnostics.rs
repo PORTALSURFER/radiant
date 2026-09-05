@@ -40,6 +40,39 @@ impl crate::runtime::RuntimeBridge<()> for BareApplicationEnvironmentBridge {
     }
 }
 
+struct TextInputEnvironmentBridge {
+    environment: Rc<RefCell<Option<crate::application::ApplicationEnvironment>>>,
+    pulls: Rc<Cell<usize>>,
+}
+
+impl TextInputEnvironmentBridge {
+    fn surface(&self) -> crate::runtime::UiSurface<()> {
+        let mut input = crate::widgets::TextInputWidget::new(
+            7,
+            "candidate",
+            crate::widgets::WidgetSizing::fixed(Vector2::new(80.0, 24.0)),
+        );
+        input.common.state.focused = true;
+        input.state.caret = 7;
+        input.state.selection_anchor = 3;
+        crate::runtime::UiSurface::new(crate::runtime::SurfaceNode::widget(
+            input,
+            crate::runtime::WidgetMessageMapper::none(),
+        ))
+    }
+}
+
+impl crate::runtime::RuntimeBridge<()> for TextInputEnvironmentBridge {
+    fn application_environment(&mut self) -> Option<crate::application::ApplicationEnvironment> {
+        self.environment.borrow().clone()
+    }
+
+    fn project_surface(&mut self) -> std::sync::Arc<crate::runtime::UiSurface<()>> {
+        self.pulls.set(self.pulls.get().saturating_add(1));
+        crate::runtime::test_arc_surface(self.surface())
+    }
+}
+
 struct ReadyVirtualLayoutPolicy {
     query_count: Rc<Cell<usize>>,
 }
@@ -177,6 +210,348 @@ fn bare_bridge_environment_promotes_deferred_paint_only_once_and_reuses_unchange
 
     assert_eq!(pulls.get(), pulls_before_unchanged);
     assert_eq!(runner.core.runtime.refresh_counters(), before_unchanged);
+}
+
+#[test]
+fn native_text_input_scale_direction_and_dpi_follow_one_runtime_paragraph_authority() {
+    let scale_one_ltr =
+        crate::application::ApplicationEnvironment::new(crate::application::LocaleId::english())
+            .with_text_scale(crate::application::TextScale::new(1.0).expect("valid scale"));
+    let scale_two_rtl = scale_one_ltr
+        .clone()
+        .with_writing_direction(crate::application::WritingDirection::Rtl)
+        .with_text_scale(crate::application::TextScale::new(2.0).expect("valid scale"));
+    let environment = Rc::new(RefCell::new(Some(scale_one_ltr.clone())));
+    let pulls = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TextInputEnvironmentBridge {
+            environment: Rc::clone(&environment),
+            pulls: Rc::clone(&pulls),
+        },
+        Vector2::new(320.0, 120.0),
+    );
+
+    runner.rebuild_scene();
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::Layout);
+    let initial_native_evidence = runner.prepared_surface_refresh_native_evidence();
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        initial_native_evidence,
+        initial_native_evidence,
+    );
+    assert_eq!(
+        runner.core.runtime.context().application_environment(),
+        &scale_one_ltr
+    );
+
+    let input = runner
+        .frame
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            crate::runtime::PaintPrimitive::TextInput(input) => Some(input.clone()),
+            _ => None,
+        })
+        .expect("real text-input paint primitive");
+    assert_eq!(input.font_size, 13.0);
+    assert_eq!(input.align, crate::runtime::PaintTextAlign::Left);
+    let first_fence = runner
+        .frame
+        .current_text_input_snapshot_fence
+        .expect("initial text-input fence");
+    let first_snapshot = runner
+        .frame
+        .text_renderer
+        .text_input_snapshot_for_input_aligned(
+            input.widget_id,
+            input.state.value.as_str(),
+            input.font_size,
+            crate::gui::paint::TextAlign::Left,
+            input.rect,
+            first_fence,
+        )
+        .expect("initial retained paragraph");
+    assert_eq!(first_snapshot.font_size_bits, 13.0_f32.to_bits());
+    let first_automation = runner.core.runtime.automation_snapshot();
+    assert_eq!(first_automation.root.id.0, input.widget_id.to_string());
+    assert_eq!(first_automation.root.value.as_deref(), Some("candidate"));
+    let outer_bounds = *runner
+        .core
+        .runtime
+        .context()
+        .layout
+        .rects
+        .get(&input.widget_id)
+        .expect("AX layout bounds");
+    assert_eq!(
+        first_automation.root.bounds,
+        crate::gui::automation::AutomationBounds::from_rect(outer_bounds)
+    );
+    let first_scene_encode_count = runner.frame.scene_encode_count;
+    let first_layout_counters = runner.frame.text_renderer.take_layout_profile_counters();
+    let first_plan = runner.frame.last_paint_plan.clone();
+
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
+    let unchanged_native_evidence = runner.prepared_surface_refresh_native_evidence();
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        unchanged_native_evidence,
+        unchanged_native_evidence,
+    );
+    assert_eq!(runner.frame.last_paint_plan, first_plan);
+    assert_eq!(runner.frame.scene_encode_count, first_scene_encode_count);
+    let repeated_fence = runner
+        .frame
+        .current_text_input_snapshot_fence
+        .expect("unchanged text-input fence");
+    let repeated_snapshot = runner
+        .frame
+        .text_renderer
+        .text_input_snapshot_for_input_aligned(
+            input.widget_id,
+            input.state.value.as_str(),
+            input.font_size,
+            crate::gui::paint::TextAlign::Left,
+            input.rect,
+            repeated_fence,
+        )
+        .expect("unchanged retained paragraph");
+    assert!(std::sync::Arc::ptr_eq(&first_snapshot, &repeated_snapshot));
+    let unchanged_counters = runner.frame.text_renderer.take_layout_profile_counters();
+    assert_eq!(unchanged_counters.shape.misses, 0);
+    assert_eq!(unchanged_counters.view.misses, 0);
+    assert!(unchanged_counters.shape.hits > 0);
+    assert!(unchanged_counters.view.hits > 0);
+    assert_eq!(
+        runner.core.runtime.automation_snapshot(),
+        first_automation,
+        "unchanged environment keeps AX bounds and value stable"
+    );
+    assert_eq!(first_layout_counters.shape.misses, 1);
+
+    *environment.borrow_mut() = Some(scale_two_rtl.clone());
+    runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
+    let changed_native_evidence = runner.prepared_surface_refresh_native_evidence();
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        changed_native_evidence,
+        changed_native_evidence,
+    );
+    assert_eq!(
+        runner.core.runtime.context().application_environment(),
+        &scale_two_rtl
+    );
+    let scaled_input = runner
+        .frame
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            crate::runtime::PaintPrimitive::TextInput(input) => Some(input.clone()),
+            _ => None,
+        })
+        .expect("scaled text-input paint primitive");
+    assert_ne!(runner.frame.last_paint_plan, first_plan);
+    assert_eq!(scaled_input.font_size, 26.0);
+    assert_eq!(scaled_input.align, crate::runtime::PaintTextAlign::Right);
+    let scaled_counters = runner.frame.text_renderer.take_layout_profile_counters();
+    assert!(scaled_counters.shape.misses > 0);
+    assert!(scaled_counters.view.misses > 0);
+
+    let scaled_fence = runner
+        .frame
+        .current_text_input_snapshot_fence
+        .expect("scaled text-input fence");
+    assert_ne!(scaled_fence, first_fence);
+    assert!(
+        runner
+            .frame
+            .text_renderer
+            .text_input_snapshot_for_input_aligned(
+                input.widget_id,
+                input.state.value.as_str(),
+                input.font_size,
+                crate::gui::paint::TextAlign::Left,
+                input.rect,
+                first_fence,
+            )
+            .is_none()
+    );
+    let scaled_snapshot = runner
+        .frame
+        .text_renderer
+        .text_input_snapshot_for_input_aligned(
+            scaled_input.widget_id,
+            scaled_input.state.value.as_str(),
+            scaled_input.font_size,
+            crate::gui::paint::TextAlign::Right,
+            scaled_input.rect,
+            scaled_fence,
+        )
+        .expect("scaled retained paragraph");
+    assert_eq!(scaled_snapshot.font_size_bits, 26.0_f32.to_bits());
+    assert!(!std::sync::Arc::ptr_eq(&first_snapshot, &scaled_snapshot));
+    let pointer_position =
+        crate::gui::types::Point::new(scaled_input.rect.max.x - 1.0, scaled_input.rect.center().y);
+    let expected_pointer =
+        crate::gui_runtime::native_vello::generic_runtime::scene::text_input_pointer_target_from_snapshot(
+            &scaled_input,
+            pointer_position,
+            scaled_snapshot.clone(),
+        )
+        .expect("production pointer projection from the scaled paragraph");
+    let scaled_ime = runner
+        .frame
+        .native_ime_cursor_area()
+        .expect("scaled IME caret area");
+    let scaled_hit = runner
+        .frame
+        .native_text_pointer_target(pointer_position, None)
+        .expect("scaled pointer hit from retained paragraph");
+    assert_eq!(scaled_hit.0, scaled_input.widget_id);
+    assert_eq!(scaled_hit.1, scaled_input.state.value);
+    assert_eq!(scaled_hit.2, expected_pointer.0);
+    assert_eq!(scaled_hit.3, expected_pointer.1);
+
+    let byte_at_scalar = |scalar: usize| {
+        scaled_input
+            .state
+            .value
+            .char_indices()
+            .nth(scalar)
+            .map_or(scaled_input.state.value.len(), |(byte, _)| byte)
+    };
+    let start_byte = byte_at_scalar(
+        scaled_input
+            .state
+            .selection_anchor
+            .min(scaled_input.state.caret),
+    );
+    let caret_byte = byte_at_scalar(scaled_input.state.caret);
+    let end_byte = byte_at_scalar(
+        scaled_input
+            .state
+            .selection_anchor
+            .max(scaled_input.state.caret)
+            .saturating_add(1)
+            .min(scaled_input.state.value.chars().count()),
+    );
+    let mut editor =
+        crate::gui_runtime::native_vello::text_edit::SingleLineTextEditorState::collapsed_at_end(
+            scaled_input.state.value.as_str(),
+        );
+    editor.set_cursor(scaled_input.state.value.as_str(), start_byte, false);
+    editor.set_cursor(scaled_input.state.value.as_str(), end_byte, true);
+    let field_layout =
+        crate::gui_runtime::native_vello::text_edit::build_text_field_layout_from_snapshot(
+            scaled_snapshot.clone(),
+            &mut editor,
+            scaled_input.state.value.as_str(),
+            scaled_input.font_size,
+            scaled_input.rect.width(),
+        );
+    assert!(std::sync::Arc::ptr_eq(
+        &field_layout.snapshot,
+        &scaled_snapshot
+    ));
+    assert!(!field_layout.selection_rects().is_empty());
+    let expected_selection = scaled_snapshot
+        .selection_rects(start_byte, end_byte)
+        .into_iter()
+        .map(|(start, end)| {
+            (
+                (start - field_layout.scroll_x).clamp(0.0, scaled_input.rect.width()),
+                (end - field_layout.scroll_x).clamp(0.0, scaled_input.rect.width()),
+            )
+        })
+        .filter(|(start, end)| end > start)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        field_layout.selection_rects(),
+        expected_selection.as_slice()
+    );
+    let expected_caret_offset = (scaled_snapshot.caret_x(
+        caret_byte,
+        crate::gui_runtime::native_vello::CaretAffinity::Downstream,
+    ) - field_layout.scroll_x)
+        .clamp(0.0, scaled_input.rect.width());
+    assert_eq!(
+        scaled_ime.min.x,
+        scaled_input.rect.min.x + expected_caret_offset
+    );
+    assert!(scaled_ime.min.x >= scaled_input.rect.min.x);
+    assert!(scaled_ime.max.x <= scaled_input.rect.max.x);
+    let scaled_automation = runner.core.runtime.automation_snapshot();
+    assert_eq!(scaled_automation.root.value.as_deref(), Some("candidate"));
+    assert_eq!(
+        scaled_automation.root.bounds,
+        crate::gui::automation::AutomationBounds::from_rect(outer_bounds)
+    );
+
+    runner.rebuild_scene();
+    assert!(runner.frame.scene_encode_count > first_scene_encode_count);
+    assert_ne!(
+        runner.frame.scene_build_outcome,
+        super::super::super::frame_state::NativeSceneBuildOutcome::WholeSceneReuse
+    );
+    let encoded_fence = runner
+        .frame
+        .current_text_input_snapshot_fence
+        .expect("encoded text-input fence");
+
+    let logical_transforms = runner.frame.scene.encoding().transforms.clone();
+    let logical_snapshot_before_dpi = runner
+        .frame
+        .text_renderer
+        .text_input_snapshot_for_input_aligned(
+            scaled_input.widget_id,
+            scaled_input.state.value.as_str(),
+            scaled_input.font_size,
+            crate::gui::paint::TextAlign::Right,
+            scaled_input.rect,
+            encoded_fence,
+        )
+        .expect("logical paragraph before DPI projection");
+    runner.update_native_dpi_scale(1.5);
+    assert!(runner.timing.deferred_scene_rebuild);
+    let scaled_scene_transforms = runner
+        .frame
+        .scene_for_dpi_scale(crate::theme::DpiScale::new(1.5))
+        .encoding()
+        .transforms
+        .clone();
+    assert_eq!(runner.frame.scene.encoding().transforms, logical_transforms);
+    assert_eq!(
+        scaled_scene_transforms
+            .last()
+            .map(|transform| transform.to_kurbo()),
+        Some(vello::kurbo::Affine::scale(1.5)),
+        "native scene must apply one physical DPI transform"
+    );
+    let dpi_counters = runner.frame.text_renderer.take_layout_profile_counters();
+    assert_eq!(dpi_counters.shape.misses, 0);
+    assert_eq!(dpi_counters.view.misses, 0);
+    assert!(dpi_counters.shape.hits > 0);
+    assert!(dpi_counters.view.hits > 0);
+    let logical_snapshot_after_dpi = runner
+        .frame
+        .text_renderer
+        .text_input_snapshot_for_input_aligned(
+            scaled_input.widget_id,
+            scaled_input.state.value.as_str(),
+            scaled_input.font_size,
+            crate::gui::paint::TextAlign::Right,
+            scaled_input.rect,
+            encoded_fence,
+        )
+        .expect("logical paragraph after DPI projection");
+    assert!(std::sync::Arc::ptr_eq(
+        &logical_snapshot_before_dpi,
+        &logical_snapshot_after_dpi
+    ));
+    assert_eq!(pulls.get(), 3, "initial, unchanged, and changed refreshes");
 }
 
 #[test]

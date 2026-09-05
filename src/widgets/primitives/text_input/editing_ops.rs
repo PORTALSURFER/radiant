@@ -1,6 +1,10 @@
 //! Pure text-input editing helpers shared by event routing and command dispatch.
 
-use crate::gui::types::Rect;
+use crate::{
+    gui::types::Rect,
+    runtime::ResolvedEnvironment,
+    widgets::{DeclaredTextMetrics, TextAlign, TextScaleParticipation},
+};
 
 pub(super) fn byte_index_for_char(text: &str, char_index: usize) -> usize {
     text.char_indices()
@@ -9,11 +13,33 @@ pub(super) fn byte_index_for_char(text: &str, char_index: usize) -> usize {
         .unwrap_or(text.len())
 }
 
-pub(super) fn caret_for_pointer_x(bounds: Rect, x: f32) -> usize {
-    let text_x = (x - bounds.min.x - 16.0).max(0.0);
-    let font_size: f32 = if bounds.height() >= 42.0 { 15.0 } else { 13.0 };
-    let char_width = (font_size * 0.58_f32).max(1.0_f32);
-    (text_x / char_width).floor().max(0.0) as usize
+pub(super) fn caret_for_pointer_x_with_environment(
+    bounds: Rect,
+    x: f32,
+    text: &str,
+    declared: DeclaredTextMetrics,
+    align: TextAlign,
+    environment: &ResolvedEnvironment,
+) -> usize {
+    let resolved = declared.resolve(environment, TextScaleParticipation::Scaled);
+    let char_width = (resolved.font_size * 0.58).max(1.0);
+    let text_len = text.chars().count();
+    let text_rect_min = bounds.min.x + resolved.insets.x;
+    let text_rect_max = (bounds.max.x - resolved.insets.x).max(text_rect_min);
+    let text_width = text_len as f32 * char_width;
+    let physical = align.resolve(environment.writing_direction());
+    let offset = match physical {
+        crate::runtime::PaintTextAlign::Left => x - text_rect_min,
+        crate::runtime::PaintTextAlign::Center => {
+            x - text_rect_min - (text_rect_max - text_rect_min - text_width).max(0.0) * 0.5
+        }
+        crate::runtime::PaintTextAlign::Right => text_rect_max - x - text_width,
+    };
+    let index = (offset / char_width).round().clamp(0.0, text_len as f32) as usize;
+    match physical {
+        crate::runtime::PaintTextAlign::Right if text_len > 0 => text_len.saturating_sub(index),
+        _ => index,
+    }
 }
 
 pub(super) fn sanitize_single_line_text(text: &str) -> String {

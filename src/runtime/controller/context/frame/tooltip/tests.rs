@@ -103,6 +103,57 @@ fn hovered_widget_tooltip_paints_without_intercepting_activation() {
 }
 
 #[test]
+fn hovered_tooltip_uses_one_scaled_declared_metric_for_layout_and_paint() {
+    let environment =
+        crate::application::ApplicationEnvironment::new(crate::application::LocaleId::english())
+            .with_text_scale(crate::application::TextScale::new(2.0).expect("valid text scale"));
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        TooltipDemoState::default(),
+        move |_| {
+            crate::runtime::UiSurface::new(
+                button("Idle")
+                    .message(TooltipDemoMessage::Click)
+                    .tooltip("Scaled tooltip")
+                    .id(302)
+                    .size(80.0, 24.0)
+                    .into_node(),
+            )
+            .with_application_environment(environment.clone())
+        },
+        |_, _: TooltipDemoMessage| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
+    runtime.dispatch_event(Event::pointer_move(Point::new(8.0, 8.0)));
+    let deadline = runtime
+        .timed_repaint_deadline()
+        .expect("hover should arm tooltip deadline");
+    assert!(runtime.advance_timed_repaints(deadline));
+
+    let frame = runtime.frame_with_default_theme();
+    let tooltip_runs: Vec<_> = frame
+        .paint_plan
+        .text_runs()
+        .filter(|run| run.font_size == TOOLTIP_FONT_SIZE * 2.0)
+        .collect();
+    assert_eq!(
+        tooltip_runs
+            .iter()
+            .map(|run| run.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" "),
+        "Scaled tooltip",
+        "scaled tooltip text should paint with the resolved font"
+    );
+    assert!(!tooltip_runs.is_empty());
+    let panel = frame
+        .paint_plan
+        .visible_fill_rects_for_widget(TOOLTIP_OVERLAY_ID)
+        .find(|fill| fill.rect.height() > TOOLTIP_LINE_HEIGHT + 8.0)
+        .expect("scaled tooltip panel should reserve scaled line height and padding");
+    assert_eq!(panel.rect.height(), TOOLTIP_LINE_HEIGHT * 2.0 * 2.0 + 16.0);
+}
+
+#[test]
 fn tooltip_hover_intent_does_not_restart_for_same_target_motion() {
     let bridge = DeclarativeOwnedRuntimeBridge::new(
         (),
@@ -295,6 +346,7 @@ fn tooltip_rect_allows_long_compact_help_text_to_fit() {
         Rect::from_min_size(Point::new(240.0, 300.0), Vector2::new(40.0, 18.0)),
         "Sample row: select, double-click to load, drag to copy, right-click for actions.",
         Vector2::new(1280.0, 720.0),
+        &crate::runtime::ResolvedEnvironment::default(),
     );
 
     assert!(layout.lines.len() > 1);
@@ -308,6 +360,7 @@ fn tooltip_layout_respects_author_supplied_line_breaks() {
         Rect::from_min_size(Point::new(20.0, 20.0), Vector2::new(40.0, 18.0)),
         "Random section playback\nClick: play a random section now.\nCommand-click: make Space use random sections.",
         Vector2::new(360.0, 240.0),
+        &crate::runtime::ResolvedEnvironment::default(),
     );
 
     assert_eq!(
@@ -330,13 +383,34 @@ fn tooltip_layout_reserves_rendered_bitmap_width_for_short_toolbar_help() {
         Rect::from_min_size(Point::new(144.0, 72.0), Vector2::new(28.0, 24.0)),
         tooltip,
         Vector2::new(572.0, 344.0),
+        &crate::runtime::ResolvedEnvironment::default(),
     );
     let text_width = layout.rect.width() - TOOLTIP_HORIZONTAL_PADDING;
-    let required_width = tooltip.chars().count() as f32 * tooltip_character_advance();
+    let required_width =
+        tooltip.chars().count() as f32 * tooltip_character_advance(TOOLTIP_FONT_SIZE);
 
     assert_eq!(layout.lines, vec![String::from(tooltip)]);
     assert!(
         text_width >= required_width,
         "tooltip should reserve enough text width: {text_width} >= {required_width}"
     );
+}
+
+#[test]
+fn tooltip_layout_scales_declared_metrics_before_wrapping_and_paint() {
+    let scale =
+        crate::application::ApplicationEnvironment::new(crate::application::LocaleId::english())
+            .with_text_scale(crate::application::TextScale::new(2.0).expect("valid text scale"));
+    let environment = crate::runtime::ResolvedEnvironment::from_snapshots(
+        crate::runtime::WindowEnvironment::default(),
+        std::sync::Arc::new(scale),
+    );
+    let layout = tooltip_layout(
+        Rect::from_min_size(Point::new(20.0, 20.0), Vector2::new(40.0, 18.0)),
+        "Scaled tooltip text should use the same declared metrics for wrapping and paint.",
+        Vector2::new(360.0, 240.0),
+        &environment,
+    );
+    assert!(layout.lines.len() > 1);
+    assert!(layout.rect.height() >= 2.0 * TOOLTIP_LINE_HEIGHT * 2.0 + 16.0);
 }

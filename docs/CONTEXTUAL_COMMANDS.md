@@ -8,8 +8,8 @@ The advanced `.commands(registry, project, dispatcher)` hook also accepts manual
 
 The Winit keyboard adapter submits native presses through this boundary for runtimes with a
 semantic command host. Menu, toolbar and palette controls consume the shared presentation
-and revalidate their opaque targets on activation. Native menu installation and inheritance
-of a parent registry into auxiliary-window bridges remain integration work.
+and revalidate their opaque targets on activation. Native auxiliary windows inherit the
+registered resolver and keymap. Native menu installation remains integration work.
 
 ## Ownership and precedence
 
@@ -97,6 +97,24 @@ against the current tree. Normal focus changes, window focus clearing, removal, 
 replacement and omitted layout retire that retained context. Traversing between command
 controls preserves it; visiting an unrelated control replaces it. Selection/window scopes
 remain explicitly application-owned and do not become implicit selections.
+
+## Child surfaces
+
+Native auxiliary windows receive the parent's declarative `CommandService` with each child
+projection. A child resolves its own committed scopes, focus ancestry and layers, then queues
+the mapped message for the existing owner-qualified parent reduction path. It does not inherit
+the parent's editor focus or scope list. Service/keymap updates are installed with the new
+child surface; retired or unavailable native children retain the existing input admission fences.
+
+`runtime.command_service()` exports the current resolver and keymap snapshot while the runtime
+accepts work. Advanced embedders can also construct `CommandService::new(registry, dispatcher,
+keymap)` and use `resolve(request, projection)` from `RuntimeInputHost::resolve_command_with_scopes`.
+Cloning the service requires neither cloneable context nor cloneable messages. The service is a
+UI-local value, not a parent lifecycle lease: an embedding host must admit input and forward
+messages through its own lifecycle boundary. Refresh its snapshot when the parent's keymap
+changes. The advanced manual `.commands(registry, project, dispatcher)` hook does not export
+parent scope callbacks by default; custom hosts can explicitly supply a service through
+`RuntimeInputHost::command_service`.
 
 ## Logical and physical keymaps
 

@@ -3955,7 +3955,8 @@ keymaps, active scope resolution and an application mapper. Native keyboard rout
 that resolver. `ViewNode::commands` and `.command_scope` declare ownership, while
 `.command_registry` selects scopes from the committed focus ancestry and scene layers.
 `CommandPresentation` builds menu, toolbar, palette and help controls from the same
-metadata; activation uses the runtime mapper. OS menu installation remains separate
+metadata; activation uses the runtime mapper. Native child windows share the registered
+`CommandService` while resolving their own committed scopes. OS menu installation remains separate
 integration work. Existing catalogs retain their behavior.
 
 Root-scoped shortcuts should also be declared on the scene with

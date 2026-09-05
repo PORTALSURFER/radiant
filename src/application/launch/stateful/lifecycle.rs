@@ -96,26 +96,14 @@ where
         dispatcher: crate::application::CommandDispatcher<Context, Message>,
     ) -> Self {
         self.lifecycle.command_router = None;
-        self.lifecycle.declarative_command_router =
-            Some(Box::new(move |request, projection, keymap| {
-                let scopes = match projection.scopes::<Context>() {
-                    Ok(scopes) => scopes,
-                    Err(reason) => {
-                        return crate::application::CommandDispatch {
-                            message: None,
-                            status: crate::application::CommandDispatchStatus::Suppressed(reason),
-                        };
-                    }
-                };
-                match request {
-                    crate::application::CommandRequest::Input(input) => {
-                        dispatcher.input(&registry, &scopes, keymap, input)
-                    }
-                    crate::application::CommandRequest::Target(target, source) => {
-                        dispatcher.target(&registry, &scopes, target, source)
-                    }
-                }
-            }));
+        self.lifecycle.declarative_command_router = Some(
+            crate::application::CommandService::new(
+                registry,
+                dispatcher,
+                crate::application::Keymap::new(),
+            )
+            .into_resolver(),
+        );
         self
     }
 

@@ -71,6 +71,18 @@ where
         )
     }
 
+    /// Export the current registered service for an independently owned child surface.
+    /// Closed runtimes cannot grant a new service snapshot.
+    pub fn command_service(&self) -> Option<crate::application::CommandService<Message>> {
+        if !self.lifecycle_accepts_work() {
+            return None;
+        }
+        self.host_capabilities
+            .input
+            .as_ref()
+            .and_then(|capability| (capability.command_service)(&self.bridge))
+    }
+
     /// Query active typed command scopes from the current committed view and focus.
     /// This does not invoke the application mapper or mutate domain state.
     pub fn command_scopes<Context: 'static>(

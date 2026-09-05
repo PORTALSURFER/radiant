@@ -82,13 +82,8 @@ pub(in crate::application) type AppCommandRouter<State, Message> = Box<
     ) -> crate::application::CommandDispatch<Message>,
 >;
 
-pub(in crate::application) type AppDeclarativeCommandRouter<Message> = Box<
-    dyn Fn(
-        crate::application::CommandRequest<'_>,
-        crate::application::CommandScopeProjection<'_>,
-        &crate::application::Keymap,
-    ) -> crate::application::CommandDispatch<Message>,
->;
+pub(in crate::application) type AppDeclarativeCommandRouter<Message> =
+    crate::application::CommandResolver<Message>;
 pub(in crate::application) type AppCommandKeymap<State> =
     Box<dyn Fn(&State) -> crate::application::Keymap>;
 

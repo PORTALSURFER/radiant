@@ -21,8 +21,8 @@ pub use super::super::commands::{
     CommandDispatchStatus, CommandDispatcher, CommandFocus, CommandId, CommandInput,
     CommandInvocation, CommandKey, CommandModifiers, CommandPresentation, CommandRegistrationError,
     CommandRegistry, CommandRequest, CommandResolution, CommandScope, CommandScopeError,
-    CommandScopeKind, CommandScopeProjection, CommandShortcut, CommandShortcutPresentation,
-    CommandSnapshot, CommandSource, CommandSuppression, CommandTarget, Keymap, KeymapConflict,
-    KeymapConflictKind, KeymapDiagnostic, KeymapError, KeymapProblem, KeymapResolutionChoice,
-    KeymapValidation,
+    CommandScopeKind, CommandScopeProjection, CommandService, CommandShortcut,
+    CommandShortcutPresentation, CommandSnapshot, CommandSource, CommandSuppression, CommandTarget,
+    Keymap, KeymapConflict, KeymapConflictKind, KeymapDiagnostic, KeymapError, KeymapProblem,
+    KeymapResolutionChoice, KeymapValidation,
 };

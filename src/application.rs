@@ -33,6 +33,8 @@ pub(in crate::application) use runtime::{
     AppBridge, AppBridgeLifecycle, AppUpdate, FrameMessageActivity, FrameRepaintSource,
     PendingFrameRepaint,
 };
+mod commands;
+
 mod builders;
 mod details_list;
 mod environment;

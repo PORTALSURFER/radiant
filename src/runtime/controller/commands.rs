@@ -22,6 +22,38 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Resolve a semantic activation against current host state and reduce at most one initial message.
+    ///
+    /// Keyboard adapters call this after required text/IME handling and before legacy
+    /// shortcut fallback. Only `Unhandled` permits fallback. Presentation targets are
+    /// revalidated by the registered router before the mapper or reducer runs.
+    pub fn dispatch_command_request(
+        &mut self,
+        request: crate::application::CommandRequest<'_>,
+        surface: crate::gui::focus::FocusSurface,
+    ) -> (crate::application::CommandDispatchStatus, CommandOutcome) {
+        if !self.lifecycle_accepts_work() {
+            return (
+                crate::application::CommandDispatchStatus::Unavailable,
+                CommandOutcome::default(),
+            );
+        }
+        let focus = crate::application::CommandFocus {
+            widget: self.focused_widget(),
+            surface,
+        };
+        let dispatch = self.host_capabilities.input.as_ref().map_or_else(
+            crate::application::CommandDispatch::unhandled,
+            |capability| (capability.resolve_command)(&mut self.bridge, request, focus),
+        );
+        let outcome = dispatch
+            .message
+            .map_or_else(CommandOutcome::default, |message| {
+                self.dispatch_message(message)
+            });
+        (dispatch.status, outcome)
+    }
+
     /// Reduce one host-defined message and execute its runtime-visible command.
     pub fn dispatch_message(&mut self, message: Message) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();

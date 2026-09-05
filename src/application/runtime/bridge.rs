@@ -74,6 +74,14 @@ pub(in crate::application) enum FrameRepaintSource {
     Scene,
 }
 
+pub(in crate::application) type AppCommandRouter<State, Message> = Box<
+    dyn Fn(
+        &State,
+        crate::application::CommandRequest<'_>,
+        crate::application::CommandFocus,
+    ) -> crate::application::CommandDispatch<Message>,
+>;
+
 /// Lifecycle hooks carried from application launch builders into the runtime bridge.
 pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     /// Animation activity callback.
@@ -95,6 +103,8 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) repaint_policy: Option<RepaintPolicy<Message>>,
     /// App-level subscription factory.
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
+    /// Single semantic command projection and invocation mapper.
+    pub(in crate::application) command_router: Option<AppCommandRouter<State, Message>>,
     /// App-level shortcut resolver.
     pub(in crate::application) shortcuts: Option<AppShortcuts<State, Message>>,
     /// Scene-declared shortcut catalog.
@@ -148,6 +158,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             repaint_policy: None,
             subscriptions: None,
             shortcuts: None,
+            command_router: None,
             scene_shortcuts: None,
             scroll: None,
             native_file_drop: None,

@@ -646,8 +646,26 @@ pub(in crate::gui_runtime::native_vello) struct TextCursorStop {
     pub(in crate::gui_runtime::native_vello) x: f32,
 }
 
+/// Immutable shaping inputs, independent of window DPI and shortcut display.
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) struct TextPresentation {
+    pub locale: Option<crate::application::LocaleId>,
+    // None preserves automatic paragraph direction for legacy renderer callers.
+    pub direction: Option<crate::application::WritingDirection>,
+}
+
+impl TextPresentation {
+    pub fn from_environment(environment: &crate::application::ApplicationEnvironment) -> Self {
+        Self {
+            locale: environment.fallback_chain().first().cloned(),
+            direction: Some(environment.writing_direction()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) struct TextLayoutKey {
+    pub(in crate::gui_runtime::native_vello) presentation: TextPresentation,
     pub(in crate::gui_runtime::native_vello) text: Arc<str>,
     pub(in crate::gui_runtime::native_vello) font_size_bits: u32,
     pub(in crate::gui_runtime::native_vello) font_generation: u64,

@@ -434,6 +434,22 @@ impl NativeTextRenderer {
         }
     }
 
+    /// Bind shaping to the environment of the published plan. A changed
+    /// presentation retires native input snapshots before they can be reused.
+    pub(super) fn set_application_environment(
+        &mut self,
+        environment: &crate::application::ApplicationEnvironment,
+    ) -> bool {
+        let presentation = model::TextPresentation::from_environment(environment);
+        if self.layout_cache.presentation == presentation {
+            return false;
+        }
+        self.layout_cache.presentation = presentation;
+        self.invalidate_text_input_snapshots();
+        self.reset_native_caret_affinities();
+        true
+    }
+
     pub(super) fn set_native_caret_affinity(
         &mut self,
         widget_id: crate::widgets::WidgetId,

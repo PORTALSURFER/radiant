@@ -27,6 +27,7 @@ fn layout_key(label: &str) -> TextViewKey {
     let shape = TextLayoutKey {
         text: Arc::from(label),
         font_size_bits: 12.0_f32.to_bits(),
+        presentation: Default::default(),
         font_generation: 0,
     };
     TextViewKey {
@@ -304,4 +305,44 @@ fn oversized_view_is_returned_complete_without_becoming_unbounded_cache_state() 
     );
     assert!(cache.transient_layout.is_some());
     assert!(cache.view_cache.is_empty());
+}
+
+#[test]
+fn paragraph_presentation_partitions_shapes_and_reuses_previous_locale() {
+    use super::super::model::TextPresentation;
+    use crate::application::{ApplicationEnvironment, LocaleId, WritingDirection};
+
+    let mut cache = TextLayoutCache::new();
+    let mut stack = NativeFontStack::from_test_bytes(&[include_bytes!(
+        "../../../../../tests/fixtures/fonts/primary.ttf"
+    )]);
+    let english = ApplicationEnvironment::new(LocaleId::english());
+    cache.presentation = TextPresentation::from_environment(&english);
+    let original = cache.layout_for(&mut stack, "A", 20.0).unwrap().snapshot();
+    let repeated = cache.layout_for(&mut stack, "A", 20.0).unwrap().snapshot();
+    assert!(Arc::ptr_eq(&original.shaped, &repeated.shaped));
+    assert_eq!(cache.take_profile_counters().shape.misses, 1);
+
+    cache.presentation = TextPresentation::from_environment(&ApplicationEnvironment::new(
+        LocaleId::new("sr").unwrap(),
+    ));
+    let localized = cache.layout_for(&mut stack, "A", 20.0).unwrap().snapshot();
+    assert!(!Arc::ptr_eq(&original.shaped, &localized.shaped));
+    assert_eq!(cache.take_profile_counters().shape.misses, 1);
+
+    cache.presentation = TextPresentation::from_environment(
+        &english
+            .clone()
+            .with_writing_direction(WritingDirection::Rtl),
+    );
+    let rtl = cache.layout_for(&mut stack, "A", 20.0).unwrap().snapshot();
+    assert!(!Arc::ptr_eq(&original.shaped, &rtl.shaped));
+    assert_eq!(rtl.bidi_runs[0].level, 2);
+    assert_eq!(original.bidi_runs[0].level, 0);
+    assert_eq!(cache.take_profile_counters().shape.misses, 1);
+
+    cache.presentation = TextPresentation::from_environment(&english);
+    let restored = cache.layout_for(&mut stack, "A", 20.0).unwrap().snapshot();
+    assert!(Arc::ptr_eq(&original.shaped, &restored.shaped));
+    assert_eq!(cache.take_profile_counters().shape.misses, 0);
 }

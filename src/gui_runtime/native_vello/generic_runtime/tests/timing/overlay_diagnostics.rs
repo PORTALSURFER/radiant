@@ -507,6 +507,13 @@ fn bare_bridge_environment_promotes_deferred_paint_only_once_and_reuses_unchange
         runner.core.runtime.context().application_environment(),
         &initial
     );
+    let initial_paragraph = runner
+        .frame
+        .text_renderer
+        .layout_text("A", 14.0)
+        .unwrap()
+        .snapshot();
+    assert_eq!(initial_paragraph.bidi_runs[0].level, 0);
     let startup_pulls = pulls.get();
     *environment.borrow_mut() = Some(changed.clone());
     runner.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::PaintOnly);
@@ -521,6 +528,17 @@ fn bare_bridge_environment_promotes_deferred_paint_only_once_and_reuses_unchange
         runner.core.runtime.context().application_environment(),
         &changed
     );
+    let changed_paragraph = runner
+        .frame
+        .text_renderer
+        .layout_text("A", 14.0)
+        .unwrap()
+        .snapshot();
+    assert_eq!(changed_paragraph.bidi_runs[0].level, 2);
+    assert!(!std::sync::Arc::ptr_eq(
+        &initial_paragraph.shaped,
+        &changed_paragraph.shaped
+    ));
     let after_changed = runner.core.runtime.refresh_counters();
     assert_eq!(
         after_changed.runtime_projection,

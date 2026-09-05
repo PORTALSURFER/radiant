@@ -1121,7 +1121,7 @@ fn native_text_pointer_affinity_commits_only_for_current_target_and_text_source(
     runner.rebuild_scene();
     runner
         .frame
-        .seed_text_input_snapshots_for_current_plan(false);
+        .seed_text_input_snapshots_for_current_plan(false, &Default::default());
     let input_rect = runner
         .core
         .runtime
@@ -1217,7 +1217,7 @@ fn native_numeric_pointer_uses_shaped_caret_and_keeps_numeric_as_owner() {
     harness
         .runner
         .frame
-        .seed_text_input_snapshots_for_current_plan(false);
+        .seed_text_input_snapshots_for_current_plan(false, &Default::default());
     let (position, native_caret, native_affinity, generic_caret) =
         native_numeric_divergence(&mut harness.runner);
     assert_ne!(native_caret, generic_caret);
@@ -1290,7 +1290,7 @@ fn native_numeric_pointer_rejects_stale_shaped_source_after_reprojection() {
     harness
         .runner
         .frame
-        .seed_text_input_snapshots_for_current_plan(false);
+        .seed_text_input_snapshots_for_current_plan(false, &Default::default());
     let (position, _, _, _) = native_numeric_divergence(&mut harness.runner);
     let (_, stale_source, _, stale_affinity) = harness
         .runner
@@ -1346,7 +1346,7 @@ fn native_text_pointer_affinity_commits_for_pressed_drag_move() {
     runner.rebuild_scene();
     runner
         .frame
-        .seed_text_input_snapshots_for_current_plan(false);
+        .seed_text_input_snapshots_for_current_plan(false, &Default::default());
     let input_rect = runner
         .core
         .runtime
@@ -1400,7 +1400,7 @@ fn native_text_pointer_drag_uses_exclusive_grapheme_boundaries() {
     harness
         .runner
         .frame
-        .seed_text_input_snapshots_for_current_plan(false);
+        .seed_text_input_snapshots_for_current_plan(false, &Default::default());
     let input_rect = harness
         .runner
         .core
@@ -1456,7 +1456,7 @@ fn native_text_pointer_drag_uses_exclusive_grapheme_boundaries() {
     combining
         .runner
         .frame
-        .seed_text_input_snapshots_for_current_plan(false);
+        .seed_text_input_snapshots_for_current_plan(false, &Default::default());
     let combining_rect = combining
         .runner
         .core
@@ -1507,7 +1507,7 @@ fn native_text_pointer_affinity_ignores_discarded_hover_and_release_carets() {
     runner.rebuild_scene();
     runner
         .frame
-        .seed_text_input_snapshots_for_current_plan(false);
+        .seed_text_input_snapshots_for_current_plan(false, &Default::default());
     let input_rect = runner
         .core
         .runtime

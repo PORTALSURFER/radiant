@@ -47,6 +47,7 @@ pub(in crate::gui_runtime::native_vello) struct TextQualityProfileCounters {
 }
 
 pub(super) struct TextLayoutCache {
+    pub(super) presentation: super::model::TextPresentation,
     shape_cache: HashMap<TextLayoutKey, CachedShape>,
     shape_cache_order: VecDeque<(TextLayoutKey, u64)>,
     shape_cache_clock: u64,
@@ -84,6 +85,7 @@ struct CachedTextLayout {
 impl TextLayoutCache {
     pub(super) fn new() -> Self {
         Self {
+            presentation: Default::default(),
             shape_cache: HashMap::with_capacity(SHAPE_CACHE_ENTRY_BUDGET / 2),
             shape_cache_order: VecDeque::with_capacity(SHAPE_CACHE_ENTRY_BUDGET),
             shape_cache_clock: 0,
@@ -144,6 +146,7 @@ impl TextLayoutCache {
         let initial_key = TextLayoutKey {
             text: text_atom,
             font_size_bits: font_size.to_bits(),
+            presentation: self.presentation.clone(),
             font_generation: font_stack.generation(),
         };
         let (shape_key, shape) = self.shape_for(font_stack, initial_key, font_size);
@@ -222,11 +225,17 @@ impl TextLayoutCache {
         }
         self.shape_profile.misses = self.shape_profile.misses.saturating_add(1);
         let source = initial_key.text.clone();
-        let shape = compute_shaped_paragraph(font_stack, source.clone(), font_size)
-            .unwrap_or_else(|_| compute_compatibility_paragraph(font_stack, source, font_size));
+        let shape = compute_shaped_paragraph(
+            font_stack,
+            source.clone(),
+            font_size,
+            &initial_key.presentation,
+        )
+        .unwrap_or_else(|_| compute_compatibility_paragraph(font_stack, source, font_size));
         let key = TextLayoutKey {
             text: initial_key.text,
             font_size_bits: initial_key.font_size_bits,
+            presentation: initial_key.presentation,
             font_generation: font_stack.generation(),
         };
         if shape.estimated_bytes() <= SHAPE_CACHE_BYTE_BUDGET {

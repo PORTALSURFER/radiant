@@ -30,8 +30,9 @@ pub(super) fn compute_layout(
         return None;
     }
     let source: Arc<str> = Arc::from(text);
-    let shaped = compute_shaped_paragraph(font_stack, source.clone(), font_size)
-        .unwrap_or_else(|_| compute_compatibility_paragraph(font_stack, source, font_size));
+    let shaped =
+        compute_shaped_paragraph(font_stack, source.clone(), font_size, &Default::default())
+            .unwrap_or_else(|_| compute_compatibility_paragraph(font_stack, source, font_size));
     Some(TextLayout::from_snapshot(ParagraphSnapshot::from_shaped(
         shaped,
         None,
@@ -43,6 +44,7 @@ pub(super) fn compute_shaped_paragraph(
     font_stack: &mut NativeFontStack,
     source: Arc<str>,
     font_size: f32,
+    presentation: &super::model::TextPresentation,
 ) -> Result<Arc<ShapedParagraph>, ()> {
     if !font_size.is_finite() || font_size <= 0.0 {
         return Err(());
@@ -61,7 +63,11 @@ pub(super) fn compute_shaped_paragraph(
 
     if !active_range.is_empty() {
         let active = &source[active_range.clone()];
-        let bidi = BidiInfo::new(active, None);
+        let base_level = presentation.direction.map(|direction| match direction {
+            crate::application::WritingDirection::Ltr => unicode_bidi::Level::ltr(),
+            crate::application::WritingDirection::Rtl => unicode_bidi::Level::rtl(),
+        });
+        let bidi = BidiInfo::new(active, base_level);
         let Some(paragraph) = bidi.paragraphs.first() else {
             return Err(());
         };
@@ -114,6 +120,7 @@ pub(super) fn compute_shaped_paragraph(
                         direction,
                         &grapheme_boundaries,
                         font_size,
+                        presentation.locale.as_ref(),
                     )?
                 } else {
                     let (fragment, used_replacement) = missing_fragment(
@@ -870,6 +877,7 @@ fn shape_face_fragment(
     direction: BidiDirection,
     grapheme_boundaries: &[Utf8ByteOffset],
     font_size: f32,
+    locale: Option<&crate::application::LocaleId>,
 ) -> Result<Fragment, ()> {
     let range = &segment.range;
     let face_index = segment.face_index.ok_or(())?;
@@ -882,6 +890,9 @@ fn shape_face_fragment(
         BidiDirection::Rtl => rustybuzz::Direction::RightToLeft,
     });
     buffer.set_script(rustybuzz_script(segment.script));
+    if let Some(language) = locale.and_then(|locale| locale.as_str().parse().ok()) {
+        buffer.set_language(language);
+    }
     let output = rustybuzz::shape(&face, &[], buffer);
     if output.is_empty() {
         return Err(());
@@ -1306,6 +1317,7 @@ mod tests {
             BidiDirection::Ltr,
             &grapheme_boundaries(latin_source),
             20.0,
+            None,
         )
         .expect("isolated Latin fragment shapes");
         assert_eq!(latin.glyphs.len(), 1);
@@ -1325,6 +1337,7 @@ mod tests {
             BidiDirection::Ltr,
             &grapheme_boundaries(greek_source),
             20.0,
+            None,
         )
         .expect("isolated Greek fragment shapes");
         assert_eq!(greek.glyphs.len(), 1);

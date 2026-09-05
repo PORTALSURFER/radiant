@@ -96,7 +96,10 @@ where
                                             prepared,
                                         );
                                     if prepared_terminal_messages.is_some() {
-                                        self.frame.seed_text_input_snapshots_for_current_plan(true);
+                                        self.frame.seed_text_input_snapshots_for_current_plan(
+                                            true,
+                                            core.runtime.context().application_environment(),
+                                        );
                                     }
                                     core.record_test_prepared_surface_refresh_phase("published");
                                 }
@@ -154,11 +157,10 @@ where
             decision
         };
         if !used_prepared_refresh {
-            self.frame
-                .seed_text_input_snapshots_for_current_plan(matches!(
-                    paint_plan_decision,
-                    super::PaintPlanCacheDecision::Rebuilt
-                ));
+            self.frame.seed_text_input_snapshots_for_current_plan(
+                matches!(paint_plan_decision, super::PaintPlanCacheDecision::Rebuilt),
+                self.core.runtime.context().application_environment(),
+            );
         }
         self.publish_native_ime_cursor_area();
 

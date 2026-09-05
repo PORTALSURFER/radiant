@@ -201,3 +201,14 @@ logical/physical distinctions, repeat/text/IME policy, loss-preserving persisten
 and actual reducer dispatch. Native routing tests additionally cover actual composition
 ownership, logical/physical conflicts, text precedence and captured-key priority. They do not
 constitute OS keyboard or menu acceptance.
+
+
+Explicit `CommandScopeKind::Application` attachments are exported with the current
+command service to owned auxiliary surfaces. Child window/editor scopes take their
+normal precedence over this application fallback. Parent window, selection and
+editor scopes remain local. Grandchildren retain inherited application scopes;
+scope IDs must be unique across the combined set, which is capped at 64. Invalid
+source ownership and over-capacity projections fail closed. Replacing an application
+scope invalidates targets from its old incarnation once the child projection/service
+snapshot is refreshed. Native adapters must refresh these together and continue to
+apply their ordinary window-lifecycle admission before dispatch.

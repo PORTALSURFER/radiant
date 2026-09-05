@@ -114,6 +114,31 @@ impl SurfaceCommandScopes {
             }
         }
     }
+    pub(in crate::runtime) fn application(
+        &self,
+        layout: &LayoutOutput,
+    ) -> (Vec<ResolvedCommandScope>, Option<CommandSuppression>) {
+        if self.error.is_some() {
+            return (Vec::new(), self.error);
+        }
+        let mut scopes = Vec::new();
+        for record in &self.records {
+            if record.attachment.kind != CommandScopeKind::Application
+                || !layout.rects.contains_key(&record.layout_id)
+            {
+                continue;
+            }
+            if scopes.len() == 64 {
+                return (Vec::new(), Some(CommandSuppression::Capacity));
+            }
+            scopes.push(ResolvedCommandScope {
+                node_id: record.node_id,
+                kind: CommandScopeKind::Application,
+                attachment: record.attachment.clone(),
+            });
+        }
+        (scopes, None)
+    }
     pub(in crate::runtime) fn active(
         &self,
         layout: &LayoutOutput,
@@ -186,6 +211,39 @@ mod tests {
                 .unwrap(),
             )
             .into_node()
+    }
+
+    #[test]
+    fn application_exports_require_layout_and_preserve_collection_errors() {
+        let mut index = SurfaceCommandScopes::default();
+        let local = node(1);
+        let global = text::<()>("global")
+            .id(2)
+            .command_scope(
+                CommandScope::new(
+                    "global",
+                    CommandScopeKind::Application,
+                    [CommandBinding::new(CommandId::new("save").unwrap(), ())],
+                )
+                .unwrap(),
+            )
+            .into_node();
+        for node in [&local, &global] {
+            let depth = index.enter(node, &[]);
+            index.leave(depth);
+        }
+        let mut layout = LayoutOutput::default();
+        layout.rects.insert(1, Default::default());
+        assert!(index.application(&layout).0.is_empty());
+        layout.rects.insert(2, Default::default());
+        let (records, error) = index.application(&layout);
+        assert_eq!(error, None);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].node_id, 2);
+        index.error = Some(CommandSuppression::Capacity);
+        let (records, error) = index.application(&layout);
+        assert!(records.is_empty());
+        assert_eq!(error, Some(CommandSuppression::Capacity));
     }
 
     #[test]

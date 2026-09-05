@@ -34,7 +34,8 @@ pub enum CommandPresentationError {
 
 /// UI-local command resolver and keymap snapshot for an owned child surface.
 ///
-/// The child supplies its own committed scopes. This does not inherit the parent's
+/// The child supplies its own committed scopes, combined with explicit application
+/// scopes exported by its ancestors. This does not inherit the parent's
 /// focused editor or reduce domain messages; the host forwards mapped messages
 /// through its ordinary child-to-parent channel. Refresh this snapshot together
 /// with the child projection when the parent keymap changes.
@@ -43,6 +44,8 @@ pub struct CommandService<Message> {
     registry: CommandRegistry,
     presenter: CommandPresenter,
     keymap: Keymap,
+    inherited: Vec<super::ResolvedCommandScope>,
+    inherited_error: Option<CommandSuppression>,
 }
 impl<Message> Clone for CommandService<Message> {
     fn clone(&self) -> Self {
@@ -51,10 +54,18 @@ impl<Message> Clone for CommandService<Message> {
             registry: self.registry.clone(),
             presenter: self.presenter,
             keymap: self.keymap.clone(),
+            inherited: self.inherited.clone(),
+            inherited_error: self.inherited_error,
         }
     }
 }
 impl<Message> CommandService<Message> {
+    pub(crate) fn with_application_scopes(mut self, scopes: CommandScopeProjection<'_>) -> Self {
+        (self.inherited, self.inherited_error) =
+            scopes.combined(&self.inherited, self.inherited_error);
+        self
+    }
+
     /// Replace the data-only keymap snapshot while retaining registry and mapper identity.
     pub fn with_keymap(mut self, keymap: Keymap) -> Self {
         self.keymap = keymap;
@@ -74,6 +85,8 @@ impl<Message> CommandService<Message> {
         if ids.len() > MAX_PRESENTATIONS {
             return Err(CommandPresentationError::Capacity);
         }
+        let (records, error) = scopes.combined(&self.inherited, self.inherited_error);
+        let scopes = CommandScopeProjection::new(&records, error);
         (self.presenter)(
             &self.registry,
             scopes,
@@ -90,7 +103,12 @@ impl<Message> CommandService<Message> {
         scopes: CommandScopeProjection<'_>,
         keymap: &Keymap,
     ) -> CommandDispatch<Message> {
-        (self.resolver)(request, scopes, keymap)
+        let (records, error) = scopes.combined(&self.inherited, self.inherited_error);
+        (self.resolver)(
+            request,
+            CommandScopeProjection::new(&records, error),
+            keymap,
+        )
     }
 
     /// Resolve against qualified child scopes, mapping at most one initial message.
@@ -100,7 +118,7 @@ impl<Message> CommandService<Message> {
         request: CommandRequest<'_>,
         scopes: CommandScopeProjection<'_>,
     ) -> CommandDispatch<Message> {
-        (self.resolver)(request, scopes, &self.keymap)
+        self.resolve_with_keymap(request, scopes, &self.keymap)
     }
 }
 
@@ -136,6 +154,8 @@ impl<Message: 'static> CommandService<Message> {
             registry: presentation_registry,
             presenter: present::<Context>,
             keymap,
+            inherited: Vec::new(),
+            inherited_error: None,
         }
     }
 }

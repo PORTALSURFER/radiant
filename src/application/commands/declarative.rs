@@ -68,6 +68,7 @@ impl CommandScopeAttachment {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct ResolvedCommandScope {
     pub(crate) node_id: NodeId,
     pub(crate) kind: CommandScopeKind,
@@ -96,6 +97,19 @@ impl<'a> CommandScopeProjection<'a> {
         error: Option<CommandSuppression>,
     ) -> Self {
         Self { scopes, error }
+    }
+    pub(crate) fn combined(
+        self,
+        inherited: &[ResolvedCommandScope],
+        inherited_error: Option<CommandSuppression>,
+    ) -> (Vec<ResolvedCommandScope>, Option<CommandSuppression>) {
+        if let Some(error) = inherited_error.or(self.error) {
+            return (Vec::new(), Some(error));
+        }
+        if inherited.len() + self.scopes.len() > 64 {
+            return (Vec::new(), Some(CommandSuppression::Capacity));
+        }
+        (inherited.iter().chain(self.scopes).cloned().collect(), None)
     }
     /// Resolve current attachment context types, structural scope depth and automatic identities.
     ///

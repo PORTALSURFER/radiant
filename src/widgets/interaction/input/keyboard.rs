@@ -105,6 +105,14 @@ impl WidgetKey {
     }
 }
 
+/// Return whether a focused key may be offered to the runtime scroll fallback.
+pub const fn is_scroll_fallback_key(key: WidgetKey) -> bool {
+    matches!(
+        key,
+        WidgetKey::PageUp | WidgetKey::PageDown | WidgetKey::Home | WidgetKey::End
+    )
+}
+
 impl From<WidgetKey> for KeyCode {
     fn from(key: WidgetKey) -> Self {
         key.to_key_code()

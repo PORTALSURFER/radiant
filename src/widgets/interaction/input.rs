@@ -13,7 +13,7 @@ pub use composition::{
     CompositionSampleError, CompositionStartContext,
 };
 pub use event::WidgetInput;
-pub use keyboard::{KeyboardModifiers, WidgetKey};
+pub use keyboard::{KeyboardModifiers, WidgetKey, is_scroll_fallback_key};
 pub use pointer::{PointerButton, PointerModifiers};
 pub use text_edit::TextEditCommand;
 pub use wheel::{

@@ -590,6 +590,51 @@ fn scene_layer_block_input_allows_foreground_scroll_before_input_shield() {
 }
 
 #[test]
+fn focused_modal_page_down_scrolls_only_the_modal_ancestor() {
+    let base =
+        SurfaceNode::scroll_area(10, SurfaceNode::column(11, 0.0, text_rows(100, 12, "Base")));
+    let modal_content = SurfaceNode::column(
+        21,
+        0.0,
+        vec![
+            SurfaceChild::new(
+                intrinsic_slot(),
+                SurfaceNode::button(
+                    210,
+                    "Modal focus",
+                    WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+                    ScenePointerMessage::Release,
+                ),
+            ),
+            SurfaceChild::new(
+                intrinsic_slot(),
+                SurfaceNode::column(22, 0.0, text_rows(300, 12, "Modal")),
+            ),
+        ],
+    );
+    let modal = SurfaceNode::scroll_area(20, modal_content);
+    let root = ui::scene(base.into())
+        .layer(radiant::Layer::modal(modal.into()).block_input())
+        .into_view()
+        .into_surface();
+    let mut runtime = SurfaceRuntime::new(
+        SceneSurfaceBridge::new(root.into_root()),
+        Vector2::new(140.0, 60.0),
+    );
+    assert!(runtime.focus_widget(210));
+    let base_before = runtime.layout().rects[&100];
+    let modal_before = runtime.layout().rects[&210];
+
+    assert_eq!(
+        runtime.dispatch_event(Event::key_press(WidgetKey::PageDown)),
+        Some(210)
+    );
+
+    assert_eq!(runtime.layout().rects[&100], base_before);
+    assert!(runtime.layout().rects[&210].min.y < modal_before.min.y);
+}
+
+#[test]
 fn scene_layer_dismiss_on_outside_click_emits_message() {
     let root = ui::scene(
         SurfaceNode::custom_widget(

@@ -20,8 +20,8 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintStrokePolyline};
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, Widget, WidgetCapabilities, WidgetId, WidgetPointerMotion,
-    WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
+    FocusBehavior, FocusedKeyDisposition, PaintBounds, Widget, WidgetCapabilities, WidgetId,
+    WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
     KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata, KnobWheelGesture,
@@ -368,6 +368,19 @@ impl WidgetPointerMotion for KnobWidget {
 }
 
 impl Widget for KnobWidget {
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        match key {
+            WidgetKey::Home | WidgetKey::End => FocusedKeyDisposition::Consumed,
+            WidgetKey::PageUp | WidgetKey::PageDown
+                if self.common.state.pressed || self.state.gesture_origin.is_some() =>
+            {
+                FocusedKeyDisposition::Consumed
+            }
+            WidgetKey::PageUp | WidgetKey::PageDown => FocusedKeyDisposition::Unhandled,
+            _ => FocusedKeyDisposition::Consumed,
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }

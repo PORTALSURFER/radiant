@@ -100,15 +100,29 @@ where
                     repeat,
                     FocusSurface::None,
                 ) {
-                    Some(route) => route.widget_id,
+                    Some(route) => {
+                        if route.fallback_eligible
+                            && let (Some(widget_id), Some(key)) = (route.widget_id, Some(key))
+                        {
+                            self.scroll_keyboard_fallback(widget_id, key);
+                        }
+                        route.widget_id
+                    }
                     None => {
-                        let routed = self.dispatch_focused_input(
+                        let delivery = self.dispatch_focused_key_input(
                             WidgetInput::key_press_with_metadata(key, modifiers, repeat, timestamp),
                         );
-                        if routed.is_none() {
-                            self.scroll_keyboard_fallback(key);
+                        if let Some(delivery) = delivery {
+                            if delivery.fallback_eligible
+                                && delivery.disposition
+                                    == crate::widgets::FocusedKeyDisposition::Unhandled
+                            {
+                                self.scroll_keyboard_fallback(delivery.widget_id, key);
+                            }
+                            Some(delivery.widget_id)
+                        } else {
+                            None
                         }
-                        routed
                     }
                 }
             }

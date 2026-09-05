@@ -63,8 +63,8 @@ mod text_metrics;
 mod theme;
 
 pub use contract::{
-    FocusBehavior, FocusLossDecision, PaintBounds, PaintContract, PointerCapturePolicy,
-    PointerPressAdmission, WIDGET_CAPABILITIES_CONTRACT_VERSION,
+    FocusBehavior, FocusLossDecision, FocusedKeyDisposition, PaintBounds, PaintContract,
+    PointerCapturePolicy, PointerPressAdmission, WIDGET_CAPABILITIES_CONTRACT_VERSION,
     WIDGET_CAPABILITIES_V1_CONTRACT_VERSION, WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, Widget,
     WidgetCapabilities, WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestResult,
     WidgetHitTestRevision, WidgetId, WidgetPaintContext, WidgetPointerMotion,

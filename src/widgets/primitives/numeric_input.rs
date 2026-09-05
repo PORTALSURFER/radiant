@@ -32,8 +32,8 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         CompositionRange, CompositionSample, CompositionSelectionState, EditEvent,
-        FocusLossDecision, InteractionProvenance, NumericAccessibilityAction,
-        NumericAccessibilityBlockOwner, NumericAccessibilityOutcome,
+        FocusLossDecision, FocusedKeyDisposition, InteractionProvenance,
+        NumericAccessibilityAction, NumericAccessibilityBlockOwner, NumericAccessibilityOutcome,
         NumericAccessibilityRejectedReason, NumericAdjustment, NumericCodec, NumericEditSession,
         NumericInputConstructionError, NumericInputEditBatch, NumericInputInteractionBatch,
         NumericParseResult, NumericScrubAttempt, NumericScrubPolicy, NumericStep,
@@ -1679,6 +1679,19 @@ where
     C: NumericCodec<T> + 'static,
     A: NumericAdjustment<T> + 'static,
 {
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        match key {
+            WidgetKey::Home | WidgetKey::End => FocusedKeyDisposition::Consumed,
+            WidgetKey::PageUp | WidgetKey::PageDown
+                if self.interaction_gate.incumbent().is_some() =>
+            {
+                FocusedKeyDisposition::Consumed
+            }
+            WidgetKey::PageUp | WidgetKey::PageDown => FocusedKeyDisposition::Unhandled,
+            _ => FocusedKeyDisposition::Consumed,
+        }
+    }
+
     fn common(&self) -> &crate::widgets::WidgetCommon {
         &self.text_input.common
     }

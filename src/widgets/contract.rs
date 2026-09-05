@@ -31,4 +31,6 @@ pub(crate) use semantics::{supports_capabilities_v2_contract, supports_semantics
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};
 pub use style::{WidgetProminence, WidgetStyle, WidgetTone};
-pub use widget::{FocusLossDecision, PointerCapturePolicy, PointerPressAdmission, Widget};
+pub use widget::{
+    FocusLossDecision, FocusedKeyDisposition, PointerCapturePolicy, PointerPressAdmission, Widget,
+};

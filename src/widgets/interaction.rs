@@ -30,7 +30,7 @@ pub use input::{
     CompositionPhase, CompositionRange, CompositionRangeError, CompositionSample,
     CompositionSampleError, CompositionStartContext, KeyboardModifiers, PointerButton,
     PointerModifiers, TextEditCommand, WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError,
-    WheelPhase, WheelSample, WheelSampleError, WidgetInput, WidgetKey,
+    WheelPhase, WheelSample, WheelSampleError, WidgetInput, WidgetKey, is_scroll_fallback_key,
 };
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandleMetadata,

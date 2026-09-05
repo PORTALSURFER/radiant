@@ -244,6 +244,12 @@ new focused export leaf or a module split, not a formatting workaround.
   evidence before delegating to the generic controller. The kernel is generic
   and numeric-policy-free, while widgets retain the existing key-only fallback
   unless they opt in.
+- Focused keyboard scroll fallback has an explicit pre-dispatch admission: the
+  focused widget receives each key exactly once and reports `Consumed` or
+  `Unhandled` independently of output production. Only an authoritative
+  `Unhandled` delivery may scroll that widget's actual clip/scroll ancestors;
+  host actions, modal or private owners, stale authority, and missing focus are
+  terminal, and no unrelated visible scroll container is searched.
 - Pointer-press admission has the same generic ownership split: the qualified
   `radiant::widgets::PointerPressAdmission` hook selects Legacy, ManagedCapture,
   or Blocked after scrollbar/layout target precedence; `src/runtime/controller`

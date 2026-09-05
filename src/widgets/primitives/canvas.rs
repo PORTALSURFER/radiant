@@ -7,8 +7,8 @@ use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle,
-    WidgetTone,
+    FocusBehavior, FocusedKeyDisposition, PaintBounds, Widget, WidgetId, WidgetProminence,
+    WidgetSizing, WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{CanvasMessage, WidgetInput, WidgetOutput};
 
@@ -87,6 +87,10 @@ impl CanvasWidget {
 }
 
 impl Widget for CanvasWidget {
+    fn focused_key_disposition(&self, _key: crate::widgets::WidgetKey) -> FocusedKeyDisposition {
+        FocusedKeyDisposition::Consumed
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }

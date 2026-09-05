@@ -76,6 +76,21 @@ pub enum PointerPressAdmission {
     Blocked,
 }
 
+/// Disposition of one focused keyboard key before the widget receives it.
+///
+/// This admission is intentionally separate from [`WidgetOutput`]. A widget
+/// may consume a key while producing no output, for example when a caret or
+/// value is already at a boundary. `Unhandled` is the explicit permission for
+/// the runtime's focused-scroll fallback to consider the key.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum FocusedKeyDisposition {
+    /// The focused widget owns the key, including no-op boundary handling.
+    #[default]
+    Consumed,
+    /// The focused widget received the key and did not claim it.
+    Unhandled,
+}
+
 /// Clone support for boxed [`Widget`] trait objects.
 pub trait WidgetClone {
     /// Clone this widget into an owned trait object.
@@ -427,6 +442,15 @@ pub trait Widget: WidgetClone + Any {
     /// first refusal before resolving host-level shortcuts.
     fn preempts_host_shortcut_key(&self, _key: WidgetKey) -> bool {
         false
+    }
+
+    /// Admit one focused key before dispatch.
+    ///
+    /// The compatibility default treats the key as consumed after delivery,
+    /// preserving legacy custom-widget routing. Built-in widgets override this
+    /// for keys that explicitly allow the runtime scroll fallback.
+    fn focused_key_disposition(&self, _key: WidgetKey) -> FocusedKeyDisposition {
+        FocusedKeyDisposition::Consumed
     }
 
     /// Return whether this widget wants wheel input before scroll fallback.

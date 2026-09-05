@@ -285,12 +285,10 @@ where
 
     pub(in crate::runtime::controller) fn scroll_keyboard_fallback(
         &mut self,
+        widget_id: crate::widgets::WidgetId,
         key: crate::widgets::WidgetKey,
     ) -> bool {
-        let Some(widget_id) = self.focused_widget() else {
-            return false;
-        };
-        let mut candidates = self
+        let candidates = self
             .traversal
             .widgets
             .paths
@@ -298,17 +296,6 @@ where
             .get(&widget_id)
             .map(|path| path.as_slice().iter().rev().copied().collect::<Vec<_>>())
             .unwrap_or_default();
-        if candidates.is_empty() {
-            candidates.extend(
-                self.traversal
-                    .containers
-                    .scroll
-                    .visible()
-                    .iter()
-                    .rev()
-                    .copied(),
-            );
-        }
         let mut seen = BTreeSet::new();
         for node_id in candidates {
             if !seen.insert(node_id) {

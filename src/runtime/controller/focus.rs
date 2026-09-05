@@ -7,7 +7,7 @@ use super::split_pane_separator::SplitPaneSeparatorProjection;
 use super::traversal_state::RuntimeFocusOrderEntry;
 use super::{FocusTraversal, SurfaceRuntime};
 use crate::widgets::interaction::CompositionStartContext;
-use crate::widgets::{FocusLossDecision, KeyboardModifiers};
+use crate::widgets::{FocusLossDecision, FocusedKeyDisposition, KeyboardModifiers};
 use crate::{
     gui::input::InputTimestamp,
     gui::{focus::FocusSurface, input::KeyPress},
@@ -56,6 +56,14 @@ pub(super) enum SplitPaneSeparatorFocusAdmission {
 pub(crate) struct FocusedKeyDispatch {
     pub(crate) widget_id: Option<WidgetId>,
     pub(crate) routed: bool,
+    pub(crate) fallback_eligible: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FocusedInputDispatch {
+    pub(crate) widget_id: WidgetId,
+    pub(crate) disposition: FocusedKeyDisposition,
+    pub(crate) fallback_eligible: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -113,6 +121,7 @@ where
             self.mark_focused_key_capture_stale(previous_widget);
         }
         self.interaction.focus.owner = None;
+        self.interaction.focus.focused_key_host_block = None;
         if let Some(previous_widget) = previous_widget
             && previous_is_live
         {
@@ -534,6 +543,61 @@ where
         self.dispatch_input(widget_id, input).then_some(widget_id)
     }
 
+    pub(crate) fn dispatch_focused_key_input(
+        &mut self,
+        input: WidgetInput,
+    ) -> Option<FocusedInputDispatch> {
+        let widget_id = self.interaction.focus.focused_widget()?;
+        if !self.is_authoritative_focus_target(widget_id) {
+            return None;
+        }
+        let WidgetInput::KeyPress { key, .. } = input else {
+            self.dispatch_input(widget_id, input);
+            return Some(FocusedInputDispatch {
+                widget_id,
+                disposition: FocusedKeyDisposition::Consumed,
+                fallback_eligible: false,
+            });
+        };
+        let (disposition, fallback_eligible, admitted_identity, admitted_ancestors) =
+            self.surface_widget(widget_id).map(|widget| {
+                let object = widget.widget_object();
+                (
+                    widget.focused_key_disposition(key),
+                    widget.is_focusable()
+                        && !object.common().state.disabled
+                        && !object.common().state.read_only,
+                    std::ptr::from_ref(object).cast::<()>(),
+                    self.traversal
+                        .widgets
+                        .paths
+                        .clip_ancestors
+                        .get(&widget_id)
+                        .cloned(),
+                )
+            })?;
+        self.dispatch_input(widget_id, input);
+        let fallback_eligible = fallback_eligible
+            && self.interaction.focus.focused_widget() == Some(widget_id)
+            && self.is_authoritative_focus_target(widget_id)
+            && self
+                .traversal
+                .widgets
+                .paths
+                .clip_ancestors
+                .get(&widget_id)
+                .cloned()
+                == admitted_ancestors
+            && self.surface_widget(widget_id).is_some_and(|widget| {
+                std::ptr::from_ref(widget.widget_object()).cast::<()>() == admitted_identity
+            });
+        Some(FocusedInputDispatch {
+            widget_id,
+            disposition,
+            fallback_eligible,
+        })
+    }
+
     /// Route one metadata-aware focused key press through the generic runtime.
     ///
     /// `Some` means the focused widget opted into the metadata-aware contract,
@@ -613,6 +677,28 @@ where
         if !self.focused_key_participates(widget_id) {
             return None;
         }
+        if matches!(sample, FocusedKeySample::Press { repeat: true })
+            && self.interaction.focus.focused_key_host_block == Some((widget_id, key))
+        {
+            return Some(FocusedKeyDispatch::default());
+        }
+        if let FocusedKeySample::Press { repeat: true } = sample {
+            let delivery = self.dispatch_focused_key_input(WidgetInput::key_press_with_metadata(
+                key, modifiers, true, timestamp,
+            ));
+            return delivery.map(|delivery| {
+                let widget_id = delivery.widget_id;
+                if delivery.disposition == FocusedKeyDisposition::Consumed {
+                    self.establish_focused_key_capture(widget_id, key);
+                }
+                FocusedKeyDispatch {
+                    widget_id: Some(widget_id),
+                    routed: true,
+                    fallback_eligible: delivery.fallback_eligible
+                        && delivery.disposition == FocusedKeyDisposition::Unhandled,
+                }
+            });
+        }
         if !sample.is_initial_press() {
             return Some(FocusedKeyDispatch::default());
         }
@@ -627,18 +713,23 @@ where
         let resolution =
             self.host_resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
         self.interaction.focus.pending_key_chord = resolution.pending_chord;
+        self.interaction.focus.focused_key_host_block = None;
         if let Some(message) = resolution.action {
+            self.interaction.focus.focused_key_host_block = Some((widget_id, key));
             let outcome = self.dispatch_message(message);
             self.pending_input_command_outcome.merge(outcome);
             return Some(FocusedKeyDispatch {
                 widget_id: None,
                 routed: true,
+                fallback_eligible: false,
             });
         }
         if resolution.handled {
+            self.interaction.focus.focused_key_host_block = Some((widget_id, key));
             return Some(FocusedKeyDispatch {
                 widget_id: None,
                 routed: true,
+                fallback_eligible: false,
             });
         }
 
@@ -650,14 +741,19 @@ where
         {
             return Some(FocusedKeyDispatch::default());
         }
-        let widget_id = self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
+        let delivery = self.dispatch_focused_key_input(WidgetInput::key_press_with_metadata(
             key, modifiers, false, timestamp,
         ));
-        if let Some(widget_id) = widget_id {
-            self.establish_focused_key_capture(widget_id, key);
+        if let Some(delivery) = delivery {
+            let widget_id = delivery.widget_id;
+            if delivery.disposition == FocusedKeyDisposition::Consumed {
+                self.establish_focused_key_capture(widget_id, key);
+            }
             return Some(FocusedKeyDispatch {
                 widget_id: Some(widget_id),
                 routed: true,
+                fallback_eligible: delivery.fallback_eligible
+                    && delivery.disposition == FocusedKeyDisposition::Unhandled,
             });
         }
         Some(FocusedKeyDispatch::default())
@@ -704,6 +800,7 @@ where
         FocusedKeyDispatch {
             widget_id: Some(widget_id),
             routed: true,
+            fallback_eligible: false,
         }
     }
 
@@ -888,8 +985,14 @@ where
             repeat,
             focus,
         ) {
+            if route.fallback_eligible
+                && let (Some(widget_id), Some(key)) = (route.widget_id, widget_key)
+            {
+                self.scroll_keyboard_fallback(widget_id, key);
+            }
             return route.routed;
         }
+        let admitted_focus = self.focused_widget();
         let resolution =
             self.host_resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
         self.interaction.focus.pending_key_chord = resolution.pending_chord;
@@ -901,16 +1004,24 @@ where
         if resolution.handled {
             return true;
         }
-        widget_key
-            .and_then(|key| {
-                self.dispatch_focused_input(WidgetInput::key_press_with_metadata(
-                    key,
-                    widget_modifiers,
-                    repeat,
-                    timestamp,
-                ))
-            })
-            .is_some()
+        let Some(key) = widget_key else {
+            return false;
+        };
+        if self.focused_widget() != admitted_focus {
+            return false;
+        }
+        let Some(delivery) = self.dispatch_focused_key_input(WidgetInput::key_press_with_metadata(
+            key,
+            widget_modifiers,
+            repeat,
+            timestamp,
+        )) else {
+            return false;
+        };
+        if delivery.fallback_eligible && delivery.disposition == FocusedKeyDisposition::Unhandled {
+            self.scroll_keyboard_fallback(delivery.widget_id, key);
+        }
+        true
     }
 
     pub(super) fn route_focus_changed(&mut self, widget_id: WidgetId, focused: bool) {

@@ -5,11 +5,12 @@ use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{
-    Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics,
+    FocusedKeyDisposition, Widget, WidgetCapabilities, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetSemantics,
 };
 use crate::widgets::interaction::{
     EditEvent, NumericAdjustment, PointerButton, SliderDomainError, SliderDomainMessage,
-    SliderEditBatch, ValueFormat, WidgetInput, WidgetOutput,
+    SliderEditBatch, ValueFormat, WidgetInput, WidgetKey, WidgetOutput,
 };
 use std::rc::Rc;
 
@@ -246,6 +247,14 @@ where
 }
 
 impl Widget for RetainedSliderWidget {
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        if self.active_edit.is_some() && matches!(key, WidgetKey::PageUp | WidgetKey::PageDown) {
+            FocusedKeyDisposition::Consumed
+        } else {
+            self.slider.focused_key_disposition(key)
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.slider.common
     }
@@ -307,6 +316,16 @@ where
     A: NumericAdjustment<f32> + 'static,
     A::Error: 'static,
 {
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        if self.slider.active_edit.is_some()
+            && matches!(key, WidgetKey::PageUp | WidgetKey::PageDown)
+        {
+            FocusedKeyDisposition::Consumed
+        } else {
+            self.slider.slider.focused_key_disposition(key)
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         self.slider.common()
     }

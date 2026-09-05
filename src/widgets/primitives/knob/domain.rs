@@ -12,8 +12,8 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         contract::{
-            Widget, WidgetCapabilities, WidgetPointerMotion, WidgetPointerMotionRevision,
-            WidgetSemantics,
+            FocusedKeyDisposition, Widget, WidgetCapabilities, WidgetPointerMotion,
+            WidgetPointerMotionRevision, WidgetSemantics,
         },
         interaction::{
             EditEvent, InteractionProvenance, KnobDomainCancellationReason, KnobDomainError,
@@ -483,6 +483,14 @@ where
     A: crate::widgets::NumericAdjustment<f32> + 'static,
     A::Error: 'static,
 {
+    fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
+        if self.active_edit.is_some() && matches!(key, WidgetKey::PageUp | WidgetKey::PageDown) {
+            FocusedKeyDisposition::Consumed
+        } else {
+            self.knob.focused_key_disposition(key)
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.knob.common
     }

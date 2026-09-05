@@ -92,6 +92,17 @@ impl WidgetPointerMotion for ListItemWidget {
 }
 
 impl Widget for ListItemWidget {
+    fn focused_key_disposition(
+        &self,
+        key: crate::widgets::WidgetKey,
+    ) -> crate::widgets::FocusedKeyDisposition {
+        if crate::widgets::interaction::is_scroll_fallback_key(key) {
+            crate::widgets::FocusedKeyDisposition::Unhandled
+        } else {
+            crate::widgets::FocusedKeyDisposition::Consumed
+        }
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }

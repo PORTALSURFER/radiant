@@ -37,7 +37,7 @@ pub use update_context::{
 };
 
 pub(in crate::application) type ApplicationEnvironmentSource<State> =
-    Box<dyn Fn(&State) -> crate::application::ApplicationEnvironment>;
+    std::rc::Rc<dyn Fn(&State) -> crate::application::ApplicationEnvironment>;
 
 pub(in crate::application) type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;

@@ -150,7 +150,11 @@ new focused export leaf or a module split, not a formatting workaround.
 
 - `src/application` owns the application-builder runtime: state projection,
   update callbacks, runtime messages, subscriptions, timers, and business-work
-  delivery back into the UI-first runtime.
+  delivery back into the UI-first runtime. The opt-in `view_with_components`
+  projection context owns a bounded cache of pure component results, qualified
+  by exact inputs, function-item identity, and window/application environment.
+  It retains declarative snapshots only; runtime interaction authority stays
+  below. See `COMPONENT_PROJECTION.md` for capacity and fallback details.
 - `src/runtime` owns backend-neutral retained surfaces, runtime commands,
   widget traversal, input dispatch, focus, scroll state, resource slots,
   platform requests, paint plans, diagnostics, GPU-surface payload contracts,

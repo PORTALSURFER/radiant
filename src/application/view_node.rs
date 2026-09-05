@@ -1,3 +1,4 @@
+pub(in crate::application) mod components;
 #[path = "view_node/identity.rs"]
 mod identity;
 #[path = "view_node/lowering.rs"]

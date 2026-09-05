@@ -145,6 +145,8 @@ macro_rules! perf_scenario_catalog {
             ("app_virtual_list_window_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_window_projection_10k),
             ("app_constant_message_controls_projection_1k", "application_projection", "virtual_lists", CONSTANT_MESSAGE_COUNTERS, RUNTIME_ITERATIONS, app_projection::constant_message_controls_projection_1k),
             ("app_static_text_controls_projection_1k", "application_projection", "text_layout", STATIC_TEXT_COUNTERS, RUNTIME_ITERATIONS, app_projection::static_text_controls_projection_1k),
+            ("app_component_projection_cached_9600", "application_projection", "scene_cache", COMPONENT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::component_projection_cached),
+            ("app_component_projection_fresh_9600", "application_projection", "scene_cache", COMPONENT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::component_projection_fresh),
             ("runtime_surface_tree_clone_10k", "runtime_surface", "scene_cache", NO_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_tree_clone_10k),
             ("runtime_surface_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
             ("runtime_text_paint_plan_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),
@@ -202,3 +204,9 @@ pub(super) const PERF_SCENARIOS: &[ScenarioSpec] = perf_scenario_catalog!(scenar
 pub(super) fn run_registered_scenarios(runner: &mut ScenarioRunner) {
     perf_scenario_catalog!(run_registered_scenario_entries runner);
 }
+
+const COMPONENT_COUNTERS: &[&str] = &[
+    "application_projection_count",
+    "component_projection_callback_count",
+    "component_projection_cache_hit_count",
+];

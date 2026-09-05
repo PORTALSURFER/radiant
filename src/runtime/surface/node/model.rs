@@ -663,3 +663,42 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 }
+
+impl<Message> SurfaceNode<Message> {
+    pub(crate) fn component_cache_node_count(&self, limit: usize) -> Option<usize> {
+        let mut pending = vec![self];
+        let mut count = 0usize;
+        while let Some(node) = pending.pop() {
+            count = count.checked_add(1)?;
+            if count > limit {
+                return None;
+            }
+            match node {
+                Self::Widget(widget) => {
+                    let value = widget.widget().as_any();
+                    if !value.is::<crate::widgets::TextWidget>()
+                        && !value.is::<crate::widgets::ButtonWidget>()
+                        && !value.is::<crate::widgets::TextInputWidget>()
+                    {
+                        return None;
+                    }
+                }
+                Self::Container(container) => {
+                    if container.layout_policy.is_some()
+                        || container.layout_capabilities.is_some()
+                        || container.virtual_layout.is_some()
+                        || container.split_pane_runtime.is_some()
+                    {
+                        return None;
+                    }
+                    if container.children.len() > limit - count - pending.len() {
+                        return None;
+                    }
+                    pending.extend(container.children.iter().map(|child| &child.child));
+                }
+                _ => return None,
+            }
+        }
+        Some(count)
+    }
+}

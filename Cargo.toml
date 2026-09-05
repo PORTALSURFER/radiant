@@ -346,3 +346,7 @@ cc = "1.2.55"
 [[example]]
 name = "rendering_baseline"
 path = "examples/rendering_baseline.rs"
+
+[[example]]
+name = "component_projection"
+path = "examples/component_projection.rs"

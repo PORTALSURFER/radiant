@@ -6675,6 +6675,7 @@ manual validation:
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Localization and shortcut presentation | `localization_foundation` |
+| Exact-input component projection reuse | `component_projection` |
 | Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
@@ -6689,6 +6690,10 @@ manual validation:
 Run `cargo run --example rendering_baseline --release -- local /tmp/radiant-local.jsonl`
 for a bounded native observation capture. See `NATIVE_BASELINE_RECORDER.md` for
 qualification, cold/warm separation and unavailable GPU timing handling.
+
+Run `cargo run --example component_projection` for exact-input component reuse
+with observable callback counts. See `COMPONENT_PROJECTION.md` for dependencies,
+capacity, identity, and fallback behavior.
 
 Run `cargo run --example logical_provider_attachment` to inspect the portable
 declarative provider attachment shape; the qualified custom-coordinate resolver

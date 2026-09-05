@@ -122,9 +122,56 @@ impl<State> StatefulAppBuilder<State> {
             lifecycle: AppBridgeLifecycle::default(),
             window_environment: None,
             application_environment_source: None,
+            component_environment_source: None,
             _message: PhantomData,
             _view: PhantomData,
         }
+    }
+
+    /// Attach an opt-in view with bounded reuse of pure component projections.
+    ///
+    /// The environment source must be a pure function of state. It supplies
+    /// the same application snapshot to component functions and the runtime;
+    /// window changes also invalidate component reuse automatically. Each
+    /// component passes its state/theme/resource dependencies as exact inputs
+    /// to [`crate::application::ComponentProjectionContext::project`].
+    /// The ordinary application view and runtime refresh still execute.
+    pub fn view_with_components<Message: 'static, Environment, Project>(
+        self,
+        environment_source: Environment,
+        mut project: Project,
+    ) -> StatefulAppWithView<
+        State,
+        Message,
+        impl FnMut(&State) -> crate::application::View<Message>,
+        crate::application::View<Message>,
+    >
+    where
+        Environment: Fn(&State) -> crate::application::ApplicationEnvironment + 'static,
+        Project: FnMut(
+            &State,
+            &mut crate::application::ComponentProjectionContext<'_, Message>,
+        ) -> crate::application::View<Message>,
+    {
+        let source: Rc<dyn Fn(&State) -> crate::application::ApplicationEnvironment> =
+            Rc::new(environment_source);
+        let shared_source = Rc::new(RefCell::new(Rc::clone(&source)));
+        let projection_source = Rc::clone(&shared_source);
+        let mut cache =
+            crate::application::view_node::components::ComponentProjectionCache::default();
+        let mut builder = self.view_with_context(move |state, window| {
+            let environment = crate::runtime::ResolvedEnvironment::from_snapshots(
+                *window,
+                std::sync::Arc::new((projection_source.borrow())(state)),
+            );
+            let mut context = cache.begin(environment);
+            let view = project(state, &mut context);
+            context.finish();
+            view
+        });
+        builder.application_environment_source = Some(source);
+        builder.component_environment_source = Some(shared_source);
+        builder
     }
 
     /// Attach a projection that can opt into the current window environment.
@@ -153,6 +200,7 @@ impl<State> StatefulAppBuilder<State> {
             lifecycle: AppBridgeLifecycle::default(),
             window_environment: Some(environment),
             application_environment_source: None,
+            component_environment_source: None,
             _message: PhantomData,
             _view: PhantomData,
         }

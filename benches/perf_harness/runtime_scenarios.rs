@@ -111,3 +111,14 @@ pub(super) fn surface_tree_clone_10k() -> impl FnMut() -> crate::runner::Scenari
         crate::runner::ScenarioCounters::default()
     }
 }
+
+#[path = "runtime_scenarios/components.rs"]
+mod components;
+
+pub(super) fn component_projection_cached() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    components::projection(false)
+}
+
+pub(super) fn component_projection_fresh() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    components::projection(true)
+}

@@ -179,4 +179,13 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "profiles_preserve_window_identity_and_distinct_cpu_stages",
         ],
     ),
+    (
+        "component_projection",
+        &[
+            ".view_with_components(",
+            "context.project(",
+            "context.counters()",
+            "public_component_example_skips_unchanged_sibling_after_click",
+        ],
+    ),
 ];

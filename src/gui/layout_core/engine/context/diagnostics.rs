@@ -138,6 +138,7 @@ impl<'a> LayoutContext<'a> {
         if let Some(trace) = self.fragment_trace.as_mut() {
             trace.diagnostic(&diagnostic);
         }
+        self.fragments.record_diagnostic(&diagnostic);
         self.output.diagnostics.push(diagnostic);
     }
 

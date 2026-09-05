@@ -192,11 +192,28 @@ impl Fragment {
                 .all(|((input, _), child)| input.matches(&child.child, Some(child.slot)))
     }
 
+    #[cfg(test)]
     fn capture(
         root: &LayoutNode,
         rect: Rect,
         direction: WritingDirection,
         output: &LayoutOutput,
+    ) -> Option<Self> {
+        let invalid: HashSet<_> = output
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| !compatibility_diagnostic(diagnostic))
+            .map(|diagnostic| diagnostic.node_id)
+            .collect();
+        Self::capture_with_diagnostics(root, rect, direction, output, &invalid)
+    }
+
+    fn capture_with_diagnostics(
+        root: &LayoutNode,
+        rect: Rect,
+        direction: WritingDirection,
+        output: &LayoutOutput,
+        invalid_diagnostics: &HashSet<NodeId>,
     ) -> Option<Self> {
         let LayoutNode::Container(container) = root else {
             return None;
@@ -211,12 +228,6 @@ impl Fragment {
         {
             return None;
         }
-        let invalid_diagnostics: HashSet<_> = output
-            .diagnostics
-            .iter()
-            .filter(|diagnostic| !compatibility_diagnostic(diagnostic))
-            .map(|diagnostic| diagnostic.node_id)
-            .collect();
         let mut pending = vec![(root, None)];
         let mut nodes = Vec::new();
         while let Some((node, slot)) = pending.pop() {
@@ -264,10 +275,20 @@ pub(super) struct LayoutFragmentCache {
     touched: HashSet<NodeId>,
     retained_nodes: usize,
     retained_events: usize,
-    admission: HashSet<NodeId>,
+    admission: Vec<NodeId>,
+    invalid_diagnostics: HashSet<NodeId>,
 }
 
 impl LayoutFragmentCache {
+    pub(super) fn record_diagnostic(&mut self, diagnostic: &super::LayoutDiagnostic) {
+        if self.admitted
+            && !compatibility_diagnostic(diagnostic)
+            && self.admission.binary_search(&diagnostic.node_id).is_ok()
+        {
+            self.invalid_diagnostics.insert(diagnostic.node_id);
+        }
+    }
+
     pub(super) fn fork_from(&mut self, active: &Self) {
         self.enabled = active.enabled;
         self.admitted = false;
@@ -276,10 +297,12 @@ impl LayoutFragmentCache {
         self.retained_events = active.retained_events;
         self.touched.clear();
         self.admission.clear();
+        self.invalid_diagnostics.clear();
     }
 
     pub(super) fn begin(&mut self, root: &LayoutNode, debug: LayoutDebugOptions, dirty: bool) {
         self.touched.clear();
+        self.invalid_diagnostics.clear();
         self.admitted = self.enabled
             && debug == LayoutDebugOptions::default()
             && !dirty
@@ -325,7 +348,13 @@ impl LayoutFragmentCache {
         if self.entries.len() == MAX_FRAGMENTS {
             return;
         }
-        let Some(mut fragment) = Fragment::capture(root, rect, direction, output) else {
+        let Some(mut fragment) = Fragment::capture_with_diagnostics(
+            root,
+            rect,
+            direction,
+            output,
+            &self.invalid_diagnostics,
+        ) else {
             return;
         };
         if fragment.nodes.len() > MAX_RETAINED_NODES - self.retained_nodes {
@@ -365,13 +394,14 @@ fn compatibility_diagnostic(diagnostic: &super::LayoutDiagnostic) -> bool {
         )
 }
 
-fn unique_ids(root: &LayoutNode, seen: &mut HashSet<NodeId>) -> bool {
+fn unique_ids(root: &LayoutNode, seen: &mut Vec<NodeId>) -> bool {
     seen.clear();
     let mut pending = vec![root];
     while let Some(node) = pending.pop() {
-        if seen.len() == MAX_ADMISSION_NODES || !seen.insert(node.id()) {
+        if seen.len() == MAX_ADMISSION_NODES {
             return false;
         }
+        seen.push(node.id());
         if let LayoutNode::Container(container) = node {
             if seen.len() + pending.len() + container.children.len() > MAX_ADMISSION_NODES {
                 return false;
@@ -379,7 +409,8 @@ fn unique_ids(root: &LayoutNode, seen: &mut HashSet<NodeId>) -> bool {
             pending.extend(container.children.iter().map(|child| &child.child));
         }
     }
-    true
+    seen.sort_unstable();
+    seen.windows(2).all(|ids| ids[0] != ids[1])
 }
 
 #[cfg(test)]

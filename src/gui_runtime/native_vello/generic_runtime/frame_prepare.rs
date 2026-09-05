@@ -132,6 +132,10 @@ where
             self.complete_prepared_surface_refresh(terminal_messages);
         }
 
+        if used_prepared_refresh && self.core.interaction_refresh_applied() {
+            self.export_automation_targets();
+        }
+
         // Projection admission is the no-replay boundary. A later candidate,
         // Layout, PaintPlan, or currentness veto has already discarded its
         // inert candidate and cleaned every exact ticket; it must not fall

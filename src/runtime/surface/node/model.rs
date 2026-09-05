@@ -238,6 +238,25 @@ pub enum SurfaceNode<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    #[cfg(test)]
+    pub(crate) fn with_floating_layer_container_style(mut self, style: WidgetStyle) -> Self {
+        if let Self::FloatingLayer(layer) = &mut self {
+            layer.container.style = Some(style);
+        }
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_floating_layer_container_capabilities(
+        mut self,
+        capabilities: LayoutCapabilities<Message>,
+    ) -> Self {
+        if let Self::FloatingLayer(layer) = &mut self {
+            layer.container.layout_capabilities = Some(capabilities);
+        }
+        self
+    }
+
     pub(crate) fn with_split_pane_runtime_mode(
         self,
         mode: Option<crate::gui::layout_core::SplitPaneRuntimeMode>,

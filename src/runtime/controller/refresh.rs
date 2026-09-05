@@ -10,7 +10,7 @@ use super::{
 };
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
-    RepaintScope, RuntimeBridge, SurfaceInvalidation,
+    RepaintScope, RuntimeBridge, SurfaceInvalidation, SurfaceRefreshRequest, SurfaceUpdate,
     surface::{
         ReconciliationAttemptOutcome, RefreshExecutionDecision, SurfaceDamage,
         ViewDeltaDiagnostics, WidgetReplacementCommitResult, WidgetReplacementPlan,
@@ -3551,7 +3551,80 @@ where
             );
             return Vec::new();
         }
-        let mut next_surface = self.bridge.pull_surface();
+        let fresh_request = self.issue_fresh_surface_refresh_request(scope);
+        let update_request = SurfaceRefreshRequest {
+            runtime_identity: self.runtime_identity(),
+            request_revision: fresh_request
+                .map(|request| request.request_revision)
+                .unwrap_or(self.fresh_surface_request_revision),
+            active_surface_generation: fresh_request
+                .map(|request| request.active_surface_generation)
+                .unwrap_or(self.fresh_surface_active_generation),
+            viewport: self.viewport,
+            window_environment: self.window_environment,
+            expected_provider_authority: self.bridge.surface_update_provider_authority(),
+        };
+        let pulled_update = self.bridge.pull_surface_update(update_request);
+        let mut next_surface = match pulled_update {
+            SurfaceUpdate::Full(surface) => surface,
+            SurfaceUpdate::ExactChangedRoots(candidate) => {
+                if let Some(request) = fresh_request {
+                    if self.sampled_application_environment_is_current(
+                        application_environment.as_ref(),
+                    ) {
+                        match self.try_apply_interaction_update(
+                            request,
+                            update_request.expected_provider_authority,
+                            candidate,
+                        ) {
+                            Ok(commit) => {
+                                let changed_count = commit.changed_count;
+                                let application_projection =
+                                    application_projection_started.elapsed();
+                                self.refresh_counters.application_projection = self
+                                    .refresh_counters
+                                    .application_projection
+                                    .saturating_add(1);
+                                self.record_reconciliation_attempt(
+                                    ReconciliationAttemptOutcome::Applied,
+                                );
+                                self.base_paint_plan_reuse_eligible = true;
+                                let view_delta = ViewDeltaDiagnostics {
+                                    classified: true,
+                                    effect: crate::runtime::surface::ViewDeltaEffect::Interaction,
+                                    total_events: changed_count,
+                                    recorded_events: changed_count.min(16) as u8,
+                                    base_paint_reuse_safe: true,
+                                    damage: SurfaceDamage::empty(self.viewport),
+                                    ..ViewDeltaDiagnostics::default()
+                                };
+                                self.record_refresh_diagnostics(
+                                    SurfaceRefreshDiagnostics {
+                                        invalidation,
+                                        timings: SurfaceRefreshTimings {
+                                            application_projection,
+                                            ..SurfaceRefreshTimings::default()
+                                        },
+                                        identity: SurfaceIdentityDiagnostics::default(),
+                                        layout_state: SurfaceLayoutStateDiagnostics::default(),
+                                    },
+                                    refresh_started.elapsed(),
+                                    view_delta,
+                                    scope,
+                                );
+                                drop(commit.retired_candidate);
+                                return Vec::new();
+                            }
+                            Err(candidate) => candidate.surface,
+                        }
+                    } else {
+                        candidate.surface
+                    }
+                } else {
+                    candidate.surface
+                }
+            }
+        };
         if let Some(environment) = application_environment.clone() {
             next_surface = next_surface.with_application_environment(environment);
         }
@@ -3571,8 +3644,8 @@ where
             .application_projection
             .saturating_add(1);
 
-        let view_delta_started = Instant::now();
         let had_virtual_layout = !self.virtual_layout.is_empty();
+        let view_delta_started = Instant::now();
         let mut traversal;
         let mut layout_root;
         let mut raw_probe_source = None;
@@ -3766,6 +3839,15 @@ where
             Some(std::mem::take(&mut self.traversal.widgets.paths.previous))
         };
         let previous_paths_for_refresh = previous_paths.as_ref().unwrap_or(&traversal.widget_paths);
+        if let Some(request) = fresh_request {
+            // A full candidate is the direct publication fallback. Consume its
+            // one-shot authority before replacement cleanup begins; an
+            // unexpectedly stale witness is invalidated without advancing the
+            // generation or allowing a late overwrite.
+            if !self.consume_fresh_surface_refresh_authority(request) {
+                self.fresh_surface_request = None;
+            }
+        }
         let replacement_plan: WidgetReplacementPlan = self.surface.plan_widget_replacements(
             &next_surface,
             &previous_stateful_widget_order,

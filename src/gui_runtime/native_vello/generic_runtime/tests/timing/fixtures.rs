@@ -4,7 +4,9 @@ use crate::runtime::{
     RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeQueueHost,
     RuntimeRetainedSurfaceHost, RuntimeTransientOverlayHost, TransientOverlayContext,
 };
-use crate::widgets::{TextWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing};
+use crate::widgets::{
+    TextWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetRevision, WidgetSizing,
+};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -155,6 +157,176 @@ pub(super) struct ExactTransientOverlayBridge {
 
 #[derive(Default)]
 pub(super) struct LargeExactBridge;
+
+#[derive(Clone)]
+struct ExactInteractionWidget {
+    common: WidgetCommon,
+    revision: bool,
+    drop_probe: Option<InteractionDropProbe>,
+}
+
+pub(super) type InteractionDropProbe = (Rc<Cell<bool>>, Rc<Cell<u32>>, Rc<Cell<u32>>);
+
+impl Drop for ExactInteractionWidget {
+    fn drop(&mut self) {
+        let Some((published, dropped, premature)) = self.drop_probe.as_ref() else {
+            return;
+        };
+        dropped.set(dropped.get().saturating_add(1));
+        if !published.get() {
+            premature.set(premature.get().saturating_add(1));
+        }
+    }
+}
+
+impl Widget for ExactInteractionWidget {
+    fn revision(&self) -> WidgetRevision {
+        WidgetRevision::exact((), (), (), self.revision)
+    }
+
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
+    fn automation_semantics(&self) -> crate::gui::automation::AutomationNodeSemantics {
+        let mut semantics = crate::gui::automation::AutomationNodeSemantics::new(
+            crate::gui::automation::AutomationRole::Custom,
+        );
+        semantics.label = Some(
+            if self.revision {
+                "new label"
+            } else {
+                "old label"
+            }
+            .into(),
+        );
+        semantics
+    }
+
+    fn automation_available_actions(&self) -> Option<Vec<String>> {
+        Some(vec![
+            if self.revision {
+                "new_action"
+            } else {
+                "old_action"
+            }
+            .into(),
+        ])
+    }
+
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(
+        &mut self,
+        _bounds: crate::gui::types::Rect,
+        _input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: crate::gui::types::Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+    }
+}
+
+pub(super) struct ExactInteractionBridge {
+    pub(super) revision: bool,
+    pub(super) exact: bool,
+    pub(super) project_count: usize,
+    pub(super) pull_update_count: usize,
+    pub(super) drop_probe: Option<InteractionDropProbe>,
+    pub(super) application_environment: Option<crate::application::ApplicationEnvironment>,
+    pub(super) surface_application_environment: Option<crate::application::ApplicationEnvironment>,
+}
+
+impl ExactInteractionBridge {
+    fn surface(&self) -> UiSurface<DemoMessage> {
+        let mut surface = UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ExactInteractionWidget {
+                        common: WidgetCommon::fixed(10, 20.0, 20.0),
+                        revision: self.revision,
+                        drop_probe: self.drop_probe.clone(),
+                    },
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ExactInteractionWidget {
+                        common: WidgetCommon::fixed(20, 20.0, 20.0),
+                        revision: false,
+                        drop_probe: self.drop_probe.clone(),
+                    },
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        ));
+        if let Some(environment) = &self.surface_application_environment {
+            surface = surface.with_application_environment(environment.clone());
+        }
+        surface
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for ExactInteractionBridge {
+    fn application_environment(&mut self) -> Option<crate::application::ApplicationEnvironment> {
+        self.application_environment.clone()
+    }
+
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        self.project_count += 1;
+        crate::runtime::test_arc_surface(self.surface())
+    }
+
+    fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
+        Command::none()
+    }
+
+    fn surface_update_provider_authority(
+        &self,
+    ) -> Option<crate::runtime::SurfaceUpdateProviderAuthority> {
+        Some(crate::runtime::SurfaceUpdateProviderAuthority {
+            owner: 17,
+            checked_revision: 1,
+        })
+    }
+
+    fn pull_surface_update(
+        &mut self,
+        request: crate::runtime::SurfaceRefreshRequest,
+    ) -> crate::runtime::SurfaceUpdate<DemoMessage> {
+        self.pull_update_count += 1;
+        if !self.exact {
+            return crate::runtime::SurfaceUpdate::Full(self.surface());
+        }
+        crate::runtime::SurfaceUpdate::ExactChangedRoots(crate::runtime::ExactChangedRoots {
+            surface: self.surface(),
+            runtime_identity: request.runtime_identity,
+            request_revision: request.request_revision,
+            active_surface_generation: request.active_surface_generation,
+            viewport: request.viewport,
+            window_environment: request.window_environment,
+            provider_authority: request.expected_provider_authority,
+            changed_roots: vec![crate::runtime::ExactChangedRoot {
+                node_id: 10,
+                child_path: vec![0],
+            }],
+        })
+    }
+}
 
 impl RuntimeBridge<DemoMessage> for LargeExactBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {

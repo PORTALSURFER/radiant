@@ -169,10 +169,24 @@ where
         self.resolved_appearance
     }
 
+    #[cfg(test)]
+    pub(super) fn set_test_appearance_policy(&mut self, policy: AppearancePolicy) {
+        self.appearance_policy = policy;
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_test_resolved_appearance(&mut self, appearance: ResolvedAppearance) {
+        self.resolved_appearance = appearance;
+    }
+
     /// Return the latest computed backend-neutral segment observation without
     /// draining the frame diagnostics transport.
     pub(super) fn paint_segment_observation(&self) -> crate::runtime::PaintSegmentObservation {
         self.runtime.latest_paint_segment_observation()
+    }
+
+    pub(super) fn interaction_refresh_applied(&self) -> bool {
+        self.runtime.interaction_refresh_applied()
     }
 
     pub(super) fn paint_transient_overlay(
@@ -255,18 +269,32 @@ where
         plan: &mut crate::runtime::SurfacePaintPlan,
         prepared: PreparedSurfaceRefresh<Message>,
     ) -> Option<Vec<Message>> {
+        if matches!(&prepared, PreparedSurfaceRefresh::Interaction { .. })
+            && prepared.appearance() != self.resolved_appearance
+        {
+            prepared.discard();
+            return None;
+        }
         let publication = self.runtime.publish_prepared_surface_refresh(prepared)?;
-        let (prepared_plan, appearance, terminal_messages) = publication.into_parts();
-        *plan = prepared_plan;
+        let (prepared_plan, appearance, terminal_messages, retired_candidate) =
+            publication.into_parts();
         self.resolved_appearance = appearance;
-        self.base_paint_plan_context = Some((self.runtime.base_paint_plan_context(), appearance));
-        self.runtime.record_base_paint_plan_rebuild();
-        let observation = self.paint_segment_observer.observe(
-            plan,
-            &self.runtime.view_delta_diagnostics(),
-            false,
-        );
-        self.runtime.record_paint_segment_observation(observation);
+        if let Some(prepared_plan) = prepared_plan {
+            *plan = prepared_plan;
+            self.base_paint_plan_context =
+                Some((self.runtime.base_paint_plan_context(), appearance));
+            self.runtime.record_base_paint_plan_rebuild();
+            let observation = self.paint_segment_observer.observe(
+                plan,
+                &self.runtime.view_delta_diagnostics(),
+                false,
+            );
+            self.runtime.record_paint_segment_observation(observation);
+        }
+        if self.runtime.interaction_refresh_applied() {
+            self.record_test_prepared_surface_refresh_phase("interaction-published");
+        }
+        drop(retired_candidate);
         // Keep terminal dispatch behind native scene admission. The runtime
         // publication above is irreversible, so a later scene failure must
         // use terminal recovery rather than direct refresh fallback.

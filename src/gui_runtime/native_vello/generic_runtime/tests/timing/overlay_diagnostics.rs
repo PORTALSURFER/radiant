@@ -3,6 +3,7 @@ use crate::application::IntoView;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
+    sync::Arc,
 };
 
 struct BareApplicationEnvironmentBridge {
@@ -379,6 +380,87 @@ fn prepared_plan_admission_encodes_once_without_a_second_plan_build() {
 }
 
 #[test]
+fn full_prepared_refresh_accepts_a_legitimate_appearance_change() {
+    let recorder = prepared_refresh_scene_admission_recorder();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PreparedRefreshReplacementBridge::new(recorder),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let previous = runner.core.resolved_appearance();
+    runner
+        .core
+        .set_test_appearance_policy(crate::theme::AppearancePolicy::fixed(
+            crate::theme::ThemeTokens::light(),
+        ));
+    runner
+        .core
+        .runtime
+        .refresh_with_scope(crate::runtime::RepaintScope::Projection);
+
+    let prepared = runner
+        .core
+        .prepare_prepared_surface_refresh(crate::runtime::RepaintScope::Projection)
+        .expect("full candidate with changed appearance");
+    assert!(matches!(
+        &prepared,
+        crate::runtime::PreparedSurfaceRefresh::Full { .. }
+    ));
+    let terminal_messages = runner
+        .core
+        .publish_prepared_surface_refresh(&mut runner.frame.last_paint_plan, prepared)
+        .expect("changed appearance remains publishable");
+    assert!(terminal_messages.is_empty());
+    assert_ne!(runner.core.resolved_appearance(), previous);
+}
+
+#[test]
+fn interaction_candidate_is_vetoed_when_appearance_drifts_before_publish() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactInteractionBridge {
+            revision: false,
+            exact: true,
+            project_count: 0,
+            pull_update_count: 0,
+            drop_probe: None,
+            application_environment: None,
+            surface_application_environment: None,
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner.core.runtime.bridge_mut().revision = true;
+    let prepared = runner
+        .core
+        .prepare_prepared_surface_refresh(crate::runtime::RepaintScope::Projection)
+        .expect("interaction candidate");
+    assert!(matches!(
+        &prepared,
+        crate::runtime::PreparedSurfaceRefresh::Interaction { .. }
+    ));
+    runner
+        .core
+        .set_test_appearance_policy(crate::theme::AppearancePolicy::fixed(
+            crate::theme::ThemeTokens::light(),
+        ));
+    runner
+        .core
+        .set_test_resolved_appearance(crate::theme::ResolvedAppearance::fixed(
+            crate::theme::ThemeTokens::light(),
+        ));
+
+    assert!(
+        runner
+            .core
+            .publish_prepared_surface_refresh(&mut runner.frame.last_paint_plan, prepared)
+            .is_none()
+    );
+    assert_eq!(runner.core.runtime.bridge().pull_update_count, 1);
+}
+
+#[test]
 fn prepared_refresh_veto_keeps_the_combined_refresh_fallback() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
@@ -445,6 +527,344 @@ fn stale_native_evidence_drops_held_candidate_without_publication_or_replay() {
         before_refresh.widget_state_sync
     );
     assert_eq!(after_refresh.layout, before_refresh.layout);
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
+fn native_interaction_publication_reuses_plan_and_skips_full_runtime_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactInteractionBridge {
+            revision: false,
+            exact: true,
+            project_count: 0,
+            pull_update_count: 0,
+            drop_probe: None,
+            application_environment: None,
+            surface_application_environment: None,
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let before_plan = runner.frame.last_paint_plan.clone();
+    let before_automation = runner.core.runtime.automation_snapshot();
+    let before_sibling = runner
+        .core
+        .runtime
+        .surface()
+        .find_widget(20)
+        .expect("unchanged sibling")
+        .widget() as *const dyn crate::widgets::Widget as *const ();
+    let before = runner.core.runtime.refresh_counters();
+    let before_generation = runner.core.runtime.fresh_surface_active_generation();
+    let before_pulls = runner.core.runtime.bridge().pull_update_count;
+    runner.core.runtime.bridge_mut().revision = true;
+    runner.timing.deferred_surface_refresh = true;
+    runner.timing.deferred_surface_refresh_scope = Some(crate::runtime::RepaintScope::Projection);
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    let after = runner.core.runtime.refresh_counters();
+    assert_eq!(
+        runner.core.runtime.bridge().pull_update_count,
+        before_pulls + 1
+    );
+    assert_eq!(after.runtime_projection, before.runtime_projection);
+    assert_eq!(after.widget_state_sync, before.widget_state_sync);
+    assert_eq!(after.layout, before.layout);
+    assert_eq!(
+        after.base_paint_plan_rebuilds,
+        before.base_paint_plan_rebuilds
+    );
+    assert_eq!(runner.frame.last_paint_plan, before_plan);
+    let after_sibling = runner
+        .core
+        .runtime
+        .surface()
+        .find_widget(20)
+        .expect("unchanged sibling")
+        .widget() as *const dyn crate::widgets::Widget as *const ();
+    assert_eq!(after_sibling, before_sibling);
+    assert_ne!(runner.core.runtime.automation_snapshot(), before_automation);
+    assert_eq!(
+        runner.core.runtime.fresh_surface_active_generation(),
+        before_generation + 1
+    );
+    assert_eq!(
+        runner
+            .core
+            .runtime
+            .surface()
+            .find_widget(10)
+            .unwrap()
+            .revision(),
+        crate::widgets::WidgetRevision::exact((), (), (), true)
+    );
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
+fn native_sampled_application_environment_changes_match_forced_full_twins() {
+    let key = crate::application::TextKey::new("save", "Save");
+    let old_catalog = crate::application::TextCatalog::default()
+        .with_generation(7)
+        .insert(crate::application::LocaleId::english(), key.clone(), "Save");
+    let new_catalog = crate::application::TextCatalog::default()
+        .with_generation(7)
+        .insert(
+            crate::application::LocaleId::english(),
+            key.clone(),
+            "Store",
+        );
+    let old_environment =
+        crate::application::ApplicationEnvironment::default().with_catalog(Arc::new(old_catalog));
+    let cases = [
+        (
+            "locale",
+            crate::application::ApplicationEnvironment::new(
+                crate::application::LocaleId::new("fr").expect("valid locale"),
+            ),
+            "Save",
+        ),
+        (
+            "same locale and catalog generation",
+            crate::application::ApplicationEnvironment::default()
+                .with_catalog(Arc::new(new_catalog)),
+            "Store",
+        ),
+    ];
+
+    for (name, new_environment, expected_localized) in cases {
+        let make_runner = |exact| {
+            let mut runner = GenericNativeVelloRunner::new(
+                NativeRunOptions::default(),
+                ExactInteractionBridge {
+                    revision: false,
+                    exact,
+                    project_count: 0,
+                    pull_update_count: 0,
+                    drop_probe: None,
+                    application_environment: Some(old_environment.clone()),
+                    surface_application_environment: Some(old_environment.clone()),
+                },
+                Vector2::new(120.0, 40.0),
+            );
+            runner.rebuild_scene();
+            runner.core.runtime.bridge_mut().revision = true;
+            runner.core.runtime.bridge_mut().application_environment =
+                Some(new_environment.clone());
+            runner.timing.deferred_surface_refresh = true;
+            runner.timing.deferred_surface_refresh_scope =
+                Some(crate::runtime::RepaintScope::Projection);
+            runner
+        };
+        let mut exact = make_runner(true);
+        let mut full = make_runner(false);
+        let exact_before = exact.core.runtime.refresh_counters();
+        let full_before = full.core.runtime.refresh_counters();
+
+        exact.refresh_deferred_surface_if_needed_for_test(
+            &mut RenderFrameProfile::default(),
+            valid_prepared_surface_refresh_native_evidence(),
+        );
+        full.refresh_deferred_surface_if_needed_for_test(
+            &mut RenderFrameProfile::default(),
+            valid_prepared_surface_refresh_native_evidence(),
+        );
+
+        assert_eq!(
+            exact.core.runtime.bridge().pull_update_count,
+            1,
+            "{name} exact should pull once"
+        );
+        assert_eq!(
+            full.core.runtime.bridge().pull_update_count,
+            1,
+            "{name} full should pull once"
+        );
+        assert_eq!(
+            exact.core.runtime.refresh_counters(),
+            full.core.runtime.refresh_counters(),
+            "{name} counters"
+        );
+        assert_eq!(
+            exact.frame.last_paint_plan, full.frame.last_paint_plan,
+            "{name} paint"
+        );
+        assert_eq!(
+            exact.core.runtime.automation_snapshot(),
+            full.core.runtime.automation_snapshot(),
+            "{name} automation"
+        );
+        assert_eq!(
+            exact.core.runtime.context().application_environment(),
+            &new_environment,
+            "{name} installed environment"
+        );
+        assert_eq!(
+            exact
+                .core
+                .runtime
+                .context()
+                .application_environment()
+                .localized(&key)
+                .as_str(),
+            expected_localized,
+            "{name} localized value"
+        );
+        assert_eq!(
+            exact.core.runtime.refresh_counters().runtime_projection,
+            exact_before.runtime_projection + 1
+        );
+        assert_eq!(
+            full.core.runtime.refresh_counters().runtime_projection,
+            full_before.runtime_projection + 1
+        );
+        assert!(!exact.frame_stage_owner.has_in_flight());
+        assert!(!full.frame_stage_owner.has_in_flight());
+    }
+}
+
+#[test]
+fn native_unchanged_some_environment_keeps_exact_fast_path() {
+    let environment = crate::application::ApplicationEnvironment::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactInteractionBridge {
+            revision: false,
+            exact: true,
+            project_count: 0,
+            pull_update_count: 0,
+            drop_probe: None,
+            application_environment: Some(environment.clone()),
+            surface_application_environment: Some(environment),
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let before = runner.core.runtime.refresh_counters();
+    let before_plan = runner.frame.last_paint_plan.clone();
+    runner.core.runtime.bridge_mut().revision = true;
+    runner.timing.deferred_surface_refresh = true;
+    runner.timing.deferred_surface_refresh_scope = Some(crate::runtime::RepaintScope::Projection);
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    let after = runner.core.runtime.refresh_counters();
+    assert_eq!(runner.core.runtime.bridge().pull_update_count, 1);
+    assert_eq!(after.runtime_projection, before.runtime_projection);
+    assert_eq!(after.layout, before.layout);
+    assert_eq!(after.widget_state_sync, before.widget_state_sync);
+    assert_eq!(
+        after.base_paint_plan_rebuilds,
+        before.base_paint_plan_rebuilds
+    );
+    assert_eq!(runner.frame.last_paint_plan, before_plan);
+    assert!(!runner.frame_stage_owner.has_in_flight());
+}
+
+#[test]
+fn retired_interaction_candidate_drops_after_native_publication_diagnostics() {
+    let published = Rc::new(Cell::new(false));
+    let dropped = Rc::new(Cell::new(0));
+    let premature = Rc::new(Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactInteractionBridge {
+            revision: false,
+            exact: true,
+            project_count: 0,
+            pull_update_count: 0,
+            drop_probe: Some((
+                Rc::clone(&published),
+                Rc::clone(&dropped),
+                Rc::clone(&premature),
+            )),
+            application_environment: None,
+            surface_application_environment: None,
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .core
+        .set_test_prepared_surface_refresh_phase_observer(Rc::new({
+            let published = Rc::clone(&published);
+            move |phase| {
+                if phase == "interaction-published" {
+                    published.set(true);
+                }
+            }
+        }));
+    runner.core.runtime.bridge_mut().revision = true;
+    runner.timing.deferred_surface_refresh = true;
+    runner.timing.deferred_surface_refresh_scope = Some(crate::runtime::RepaintScope::Projection);
+
+    runner.refresh_deferred_surface_if_needed_for_test(
+        &mut RenderFrameProfile::default(),
+        valid_prepared_surface_refresh_native_evidence(),
+    );
+
+    assert!(
+        published.get(),
+        "native diagnostics observer ran before retirement"
+    );
+    assert!(
+        dropped.get() > 0,
+        "candidate retirement should release displaced leaves"
+    );
+    assert_eq!(
+        premature.get(),
+        0,
+        "candidate leaves must not drop before publication"
+    );
+    assert!(runner.core.interaction_refresh_applied());
+}
+
+#[test]
+fn native_stale_interaction_gate_discards_without_replay() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ExactInteractionBridge {
+            revision: true,
+            exact: true,
+            project_count: 0,
+            pull_update_count: 0,
+            drop_probe: None,
+            application_environment: None,
+            surface_application_environment: None,
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let before = runner.core.runtime.refresh_counters();
+    let before_plan = runner.frame.last_paint_plan.clone();
+    let before_pulls = runner.core.runtime.bridge().pull_update_count;
+    let native_evidence = valid_prepared_surface_refresh_native_evidence();
+    let mut stale = native_evidence;
+    stale.target_generation =
+        super::super::super::runner_state::NativeTargetGeneration::from_test_serial(2);
+    runner.timing.deferred_surface_refresh = true;
+    runner.timing.deferred_surface_refresh_scope = Some(crate::runtime::RepaintScope::Projection);
+
+    runner.refresh_deferred_surface_if_needed_for_test_with_current_evidence(
+        &mut RenderFrameProfile::default(),
+        native_evidence,
+        stale,
+    );
+
+    assert_eq!(
+        runner.core.runtime.bridge().pull_update_count,
+        before_pulls + 1
+    );
+    assert_eq!(runner.core.runtime.refresh_counters(), before);
+    assert_eq!(runner.frame.last_paint_plan, before_plan);
     assert!(!runner.frame_stage_owner.has_in_flight());
 }
 

@@ -8,8 +8,10 @@
 #![allow(dead_code)]
 
 use super::SurfaceRuntime;
+use super::interaction_patch::InteractionPatchCandidate;
 use super::interaction_state::RuntimeManagedPointerCaptureState;
 use super::layout_state::RuntimeLayoutContainerStateCandidate;
+use super::refresh::SurfaceIdentityDiagnostics;
 use crate::gui::layout_core::{
     LayoutAuthorityEvidence, LayoutInputEvidence, LayoutOutput, LayoutStateAuthorityOwner,
     MountedLayoutSourceAuthorityOwner, PreparedLayoutPass, RootLayoutAuthorityOwner,
@@ -17,14 +19,15 @@ use crate::gui::layout_core::{
 use crate::gui::types::Rect;
 use crate::layout::{LayoutDebugOptions, LayoutNode, NodeId};
 use crate::runtime::{
-    RepaintScope, ResolvedEnvironment, RuntimeBridge, RuntimeLifecyclePhase, SurfacePaintPlan,
-    SurfaceRefreshTimings, SurfaceRuntimeProjection, UiSurface, WindowEnvironment,
-    empty_paint_plan_for_layout,
+    ExactChangedRoots, RepaintScope, ResolvedEnvironment, RuntimeBridge, RuntimeLifecyclePhase,
+    SurfacePaintPlan, SurfaceRefreshRequest, SurfaceRefreshTimings, SurfaceRuntimeProjection,
+    SurfaceUpdate, UiSurface, WindowEnvironment, empty_paint_plan_for_layout,
     surface::{
         DEFAULT_VIEW_DELTA_SCRATCH_CAPACITY, PreparedWidgetStateSyncEvidence,
-        PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceMetadata, SourceTopology,
-        SourceTraversalIndex, SurfaceDamage, SurfaceTraversalIndex as ProjectedTraversalIndex,
-        ViewDelta, ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
+        PreparedWidgetStateSyncVeto, RefreshExecutionDecision, SourceTraversalIndex, SurfaceDamage,
+        SurfaceTraversalIndex as ProjectedTraversalIndex, ViewDelta, ViewDeltaDiagnostics,
+        ViewDeltaEffect, ViewDeltaScratch, WidgetReplacementPlan, classify_view_delta,
+        source_metadata_matches,
     },
 };
 use crate::theme::{ResolvedAppearance, ThemeTokens};
@@ -37,18 +40,18 @@ use std::time::{Duration, Instant};
 /// makes every earlier copy stale.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::runtime::controller) struct FreshSurfaceRefreshRequest {
-    runtime_identity: u64,
-    lifecycle_phase: RuntimeLifecyclePhase,
-    lifecycle_transition_sequence: u64,
-    active_surface_generation: u64,
-    request_revision: u64,
-    scope: RepaintScope,
-    viewport: Rect,
-    window_environment: WindowEnvironment,
+    pub(in crate::runtime::controller) runtime_identity: u64,
+    pub(in crate::runtime::controller) lifecycle_phase: RuntimeLifecyclePhase,
+    pub(in crate::runtime::controller) lifecycle_transition_sequence: u64,
+    pub(in crate::runtime::controller) active_surface_generation: u64,
+    pub(in crate::runtime::controller) request_revision: u64,
+    pub(in crate::runtime::controller) scope: RepaintScope,
+    pub(in crate::runtime::controller) viewport: Rect,
+    pub(in crate::runtime::controller) window_environment: WindowEnvironment,
 }
 
 impl FreshSurfaceRefreshRequest {
-    fn exactly_matches(self, other: Self) -> bool {
+    pub(in crate::runtime::controller) fn exactly_matches(self, other: Self) -> bool {
         self.runtime_identity == other.runtime_identity
             && self.lifecycle_phase == other.lifecycle_phase
             && self.lifecycle_transition_sequence == other.lifecycle_transition_sequence
@@ -206,7 +209,7 @@ pub(in crate::runtime::controller) struct FreshSurfaceLayoutCandidate<Message> {
 /// candidate keeps its prepared workspace, synchronized successor surface,
 /// inherited damage, and paint plan under one drop boundary until a later
 /// private consumer exists.
-pub(in crate::runtime::controller) struct FreshSurfacePaintCandidate<Message> {
+pub(crate) struct FreshSurfacePaintCandidate<Message> {
     layout_candidate: FreshSurfaceLayoutCandidate<Message>,
     paint_plan: SurfacePaintPlan,
     projection_context: FreshSurfacePaintProjectionContext,
@@ -219,12 +222,18 @@ pub(in crate::runtime::controller) struct FreshSurfacePaintCandidate<Message> {
 /// surface projection, including the inert replacement plan, candidate-local
 /// state synchronization, mounted state, prepared layout, complete damage, and
 /// the context-fenced backend-neutral paint plan.
-pub(crate) struct PreparedSurfaceRefresh<Message> {
-    paint_candidate: FreshSurfacePaintCandidate<Message>,
-    appearance: ResolvedAppearance,
-    timings: SurfaceRefreshTimings,
-    requested_scope: RepaintScope,
-    application_environment: Option<crate::application::ApplicationEnvironment>,
+pub(crate) enum PreparedSurfaceRefresh<Message> {
+    Full {
+        paint_candidate: Box<FreshSurfacePaintCandidate<Message>>,
+        appearance: Box<ResolvedAppearance>,
+        timings: SurfaceRefreshTimings,
+        requested_scope: RepaintScope,
+        application_environment: Option<crate::application::ApplicationEnvironment>,
+    },
+    Interaction {
+        candidate: Box<InteractionPatchCandidate<Message>>,
+        application_environment: Option<crate::application::ApplicationEnvironment>,
+    },
 }
 
 /// The only result that crosses the private runtime publication boundary.
@@ -233,24 +242,60 @@ pub(crate) struct PreparedSurfaceRefresh<Message> {
 /// successor has been published and the candidate paint plan has been
 /// installed by the native caller.
 pub(crate) struct PreparedSurfaceRefreshPublication<Message> {
-    paint_plan: SurfacePaintPlan,
+    paint_plan: Option<SurfacePaintPlan>,
     appearance: ResolvedAppearance,
     terminal_messages: Vec<Message>,
+    retired_candidate: Option<ExactChangedRoots<Message>>,
 }
 
 impl<Message> PreparedSurfaceRefreshPublication<Message> {
-    pub(crate) fn into_parts(self) -> (SurfacePaintPlan, ResolvedAppearance, Vec<Message>) {
-        (self.paint_plan, self.appearance, self.terminal_messages)
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        Option<SurfacePaintPlan>,
+        ResolvedAppearance,
+        Vec<Message>,
+        Option<ExactChangedRoots<Message>>,
+    ) {
+        (
+            self.paint_plan,
+            self.appearance,
+            self.terminal_messages,
+            self.retired_candidate,
+        )
     }
 }
 
 impl<Message> PreparedSurfaceRefresh<Message> {
+    pub(crate) fn appearance(&self) -> ResolvedAppearance {
+        match self {
+            Self::Full { appearance, .. } => **appearance,
+            Self::Interaction { candidate, .. } => candidate.appearance,
+        }
+    }
+
     fn is_current<Bridge>(&self, runtime: &mut SurfaceRuntime<Bridge, Message>) -> bool
     where
         Bridge: RuntimeBridge<Message>,
     {
-        self.application_environment == runtime.sample_application_environment()
-            && self.paint_candidate.is_current(runtime, self.appearance)
+        match self {
+            Self::Full {
+                paint_candidate,
+                appearance,
+                application_environment,
+                ..
+            } => {
+                application_environment == &runtime.sample_application_environment()
+                    && paint_candidate.is_current(runtime, **appearance)
+            }
+            Self::Interaction {
+                candidate,
+                application_environment,
+            } => {
+                application_environment == &runtime.sample_application_environment()
+                    && runtime.interaction_patch_candidate_is_current(candidate)
+            }
+        }
     }
 
     pub(crate) fn discard(self) {}
@@ -277,7 +322,40 @@ where
             .map_or(scope, |application_scope| scope.merge(application_scope));
         let request = self.issue_fresh_surface_refresh_request(scope)?;
         let application_started = Instant::now();
-        let mut surface = self.bridge.pull_surface();
+        let update_request = SurfaceRefreshRequest {
+            runtime_identity: self.runtime_identity(),
+            request_revision: request.request_revision,
+            active_surface_generation: request.active_surface_generation,
+            viewport: request.viewport,
+            window_environment: request.window_environment,
+            expected_provider_authority: self.bridge.surface_update_provider_authority(),
+        };
+        let mut surface = match self.bridge.pull_surface_update(update_request) {
+            SurfaceUpdate::Full(surface) => surface,
+            SurfaceUpdate::ExactChangedRoots(candidate) => {
+                let application_projection = application_started.elapsed();
+                if self.sampled_application_environment_is_current(application_environment.as_ref())
+                {
+                    match self.prepare_interaction_update(
+                        request,
+                        update_request.expected_provider_authority,
+                        candidate,
+                        appearance,
+                        application_projection,
+                    ) {
+                        Ok(candidate) => {
+                            return Some(PreparedSurfaceRefresh::Interaction {
+                                candidate: Box::new(candidate),
+                                application_environment,
+                            });
+                        }
+                        Err(candidate) => candidate.surface,
+                    }
+                } else {
+                    candidate.surface
+                }
+            }
+        };
         if let Some(environment) = application_environment.clone() {
             surface = surface.with_application_environment(environment);
         }
@@ -320,17 +398,17 @@ where
             Ok(None) | Err(_) => return None,
         };
 
-        Some(PreparedSurfaceRefresh {
+        Some(PreparedSurfaceRefresh::Full {
             requested_scope: request.scope,
-            appearance,
+            appearance: Box::new(appearance),
             timings: SurfaceRefreshTimings {
                 application_projection,
                 runtime_projection,
                 widget_state_sync: paint_candidate.layout_candidate.widget_state_sync,
                 layout,
             },
-            paint_candidate,
             application_environment,
+            paint_candidate: Box::new(paint_candidate),
         })
     }
 
@@ -347,13 +425,79 @@ where
             return None;
         }
 
-        let PreparedSurfaceRefresh {
-            paint_candidate,
-            appearance,
-            timings,
-            requested_scope,
+        let PreparedSurfaceRefresh::Interaction {
+            candidate: prepared,
             ..
-        } = prepared;
+        } = prepared
+        else {
+            let PreparedSurfaceRefresh::Full {
+                paint_candidate,
+                appearance,
+                timings,
+                requested_scope,
+                application_environment: _,
+            } = prepared
+            else {
+                unreachable!("prepared refresh variant already matched")
+            };
+            return self.publish_full_surface_refresh(
+                *paint_candidate,
+                *appearance,
+                timings,
+                requested_scope,
+            );
+        };
+
+        let requested_scope = prepared.request.scope;
+        let appearance = prepared.appearance;
+        let application_projection = prepared.application_projection;
+        let commit = self.publish_interaction_update(*prepared)?;
+        let changed_count = commit.changed_count;
+        self.refresh_counters.application_projection = self
+            .refresh_counters
+            .application_projection
+            .saturating_add(1);
+        self.base_paint_plan_reuse_eligible = true;
+        let view_delta = ViewDeltaDiagnostics {
+            classified: true,
+            effect: ViewDeltaEffect::Interaction,
+            total_events: changed_count,
+            recorded_events: changed_count.min(16) as u8,
+            base_paint_reuse_safe: true,
+            damage: SurfaceDamage::empty(self.viewport),
+            ..ViewDeltaDiagnostics::default()
+        };
+        self.record_refresh_diagnostics(
+            crate::runtime::SurfaceRefreshDiagnostics {
+                invalidation: crate::runtime::SurfaceInvalidation::from_repaint_scope(Some(
+                    requested_scope,
+                )),
+                timings: SurfaceRefreshTimings {
+                    application_projection,
+                    ..SurfaceRefreshTimings::default()
+                },
+                identity: SurfaceIdentityDiagnostics::default(),
+                layout_state: self.last_layout_state_diagnostics,
+            },
+            Duration::ZERO,
+            view_delta,
+            requested_scope,
+        );
+        Some(PreparedSurfaceRefreshPublication {
+            paint_plan: None,
+            appearance,
+            terminal_messages: Vec::new(),
+            retired_candidate: Some(commit.retired_candidate),
+        })
+    }
+
+    fn publish_full_surface_refresh(
+        &mut self,
+        paint_candidate: FreshSurfacePaintCandidate<Message>,
+        appearance: ResolvedAppearance,
+        timings: SurfaceRefreshTimings,
+        requested_scope: RepaintScope,
+    ) -> Option<PreparedSurfaceRefreshPublication<Message>> {
         let FreshSurfacePaintCandidate {
             layout_candidate,
             paint_plan,
@@ -513,9 +657,10 @@ where
         self.enforce_identity_audit(identity);
 
         Some(PreparedSurfaceRefreshPublication {
-            paint_plan,
+            paint_plan: Some(paint_plan),
             appearance,
             terminal_messages,
+            retired_candidate: None,
         })
     }
 
@@ -568,6 +713,17 @@ where
             request_revision: stored_request.request_revision,
             active_surface_generation: self.fresh_surface_active_generation,
         })
+    }
+
+    pub(in crate::runtime::controller) fn consume_fresh_surface_refresh_authority(
+        &mut self,
+        request: FreshSurfaceRefreshRequest,
+    ) -> bool {
+        let Some(preflight) = self.preflight_fresh_surface_refresh_authority(request) else {
+            return false;
+        };
+        self.commit_fresh_surface_refresh_authority(preflight)
+            .is_some()
     }
 
     /// Issue an exact private witness for a fresh-surface request.
@@ -628,6 +784,10 @@ where
                 .containers
                 .virtual_layout_registrations
                 .is_empty()
+    }
+
+    pub(crate) const fn fresh_surface_active_generation(&self) -> u64 {
+        self.fresh_surface_active_generation
     }
 
     /// Admit one already-owned fresh surface without consulting the bridge.
@@ -1282,26 +1442,6 @@ fn source_indices_match(first: &SourceTraversalIndex, second: &SourceTraversalIn
                         _ => false,
                     }
             })
-}
-
-fn source_metadata_matches(first: &SourceMetadata, second: &SourceMetadata) -> bool {
-    first.identity == second.identity
-        && first.compatibility == second.compatibility
-        && source_topology_matches(&first.topology, &second.topology)
-}
-
-fn source_topology_matches(first: &SourceTopology, second: &SourceTopology) -> bool {
-    first.keyed_nodes.len() == second.keyed_nodes.len()
-        && first
-            .keyed_nodes
-            .iter()
-            .zip(&second.keyed_nodes)
-            .all(|(first, second)| {
-                first.identity() == second.identity()
-                    && first.compatibility() == second.compatibility()
-                    && first.effect_owner() == second.effect_owner()
-            })
-        && first.overlays == second.overlays
 }
 
 #[cfg(test)]
@@ -2635,11 +2775,18 @@ mod tests {
         let publication = runtime
             .publish_prepared_surface_refresh(prepared)
             .expect("prepared refresh should remain current through publication");
-        let (paint_plan, published_appearance, terminal_messages) = publication.into_parts();
+        let (paint_plan, published_appearance, terminal_messages, retired_candidate) =
+            publication.into_parts();
 
         assert_eq!(published_appearance, appearance);
         assert!(terminal_messages.is_empty());
-        assert!(!paint_plan.primitives.is_empty());
+        assert!(retired_candidate.is_none());
+        assert!(
+            !paint_plan
+                .expect("full refresh should carry a paint plan")
+                .primitives
+                .is_empty()
+        );
         assert_eq!(pull_calls.get(), pull_before + 1);
         assert_eq!(runtime.fresh_surface_request, None);
         assert_eq!(
@@ -2720,8 +2867,13 @@ mod tests {
         let request_revision = runtime.fresh_surface_request_revision;
         assert!(prepared.is_current(&mut runtime));
 
-        prepared
-            .paint_candidate
+        let PreparedSurfaceRefresh::Full {
+            paint_candidate, ..
+        } = &mut prepared
+        else {
+            panic!("ordinary replacement fixture should use full preparation")
+        };
+        paint_candidate
             .layout_candidate
             .surface
             .find_widget_mut(2)
@@ -3125,7 +3277,7 @@ mod tests {
             runtime.declarative_owner_ledger.reconciliation_count(),
             owner_reconciliations_before + 1
         );
-        assert_eq!(
+        assert_ne!(
             (
                 runtime.fresh_surface_active_generation,
                 runtime.fresh_surface_request_revision,
@@ -3134,7 +3286,8 @@ mod tests {
             ),
             fresh_surface_state_before
         );
-        assert_eq!(runtime.fresh_surface_active_generation, u64::MAX - 2);
+        assert_eq!(runtime.fresh_surface_active_generation, u64::MAX - 1);
+        assert_eq!(runtime.fresh_surface_request, None);
         assert!(!runtime.fresh_surface_authority_exhausted);
         assert_ne!(runtime.layout_root_authority, layout_root_authority_before);
         assert_eq!(

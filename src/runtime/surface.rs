@@ -9,6 +9,7 @@ mod dispatch;
 mod focus;
 mod frame;
 mod input;
+mod interaction_patch;
 mod layout;
 mod lookup;
 mod node;
@@ -34,8 +35,10 @@ pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
 pub(crate) use source::{
     KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
-    SourceTraversalIndex,
+    SourceTraversalIndex, source_metadata_matches,
 };
+#[cfg(test)]
+pub(crate) use source::{OverlayEvidence, OverlayIdentity, SurfaceSourceKind};
 pub(in crate::runtime) use state_sync::{
     PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, WidgetReplacementCommitResult,
     WidgetReplacementPlan, WidgetReplacementPlanVeto, WidgetStateSyncPolicy,
@@ -57,6 +60,8 @@ pub use widget::{
 };
 
 pub(in crate::runtime) use crate::widgets::WidgetId;
+pub(crate) use interaction_patch::inspect_interaction_path;
+pub(crate) use revision::InteractionLeafRevision;
 #[cfg(test)]
 pub(in crate::runtime) use revision::SurfaceDamageCandidate;
 #[cfg(test)]

@@ -94,3 +94,18 @@ pub(super) fn arrangement_shell_hover_paint_only() -> impl FnMut() -> crate::run
 pub(super) fn command_flattening_512() -> impl FnMut() -> crate::runner::ScenarioCounters {
     surface::command_flattening_512()
 }
+
+/// Clone and release one retained 10k-leaf surface without layout or paint.
+pub(super) fn surface_tree_clone_10k() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    let surface = radiant::application::column(
+        (0..10_000)
+            .map(|index| radiant::application::text::<()>(format!("Leaf {index}")).id(index + 1))
+            .collect::<Vec<_>>(),
+    )
+    .id(20_000)
+    .into_surface();
+    move || {
+        std::hint::black_box(surface.clone());
+        crate::runner::ScenarioCounters::default()
+    }
+}

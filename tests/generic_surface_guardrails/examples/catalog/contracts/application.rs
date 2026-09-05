@@ -9,7 +9,10 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             ".application_environment(environment)",
             "TextKey::new(",
             "ShortcutPresenter",
-            "Menu: {} | Help: {}",
+            "toolbar([button(label.clone())",
+            "shortcut.compact_text()",
+            "shortcut.spoken_text()",
+            "live_locale_switch_updates_menu_toolbar_help_and_semantic_names_together",
         ],
     ),
     (

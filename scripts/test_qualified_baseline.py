@@ -72,6 +72,20 @@ class QualifiedBaselineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest"):
             baseline.unpack(old)
 
+    def test_empty_feature_set_is_explicit_and_malformed_envelopes_fail(self):
+        old = self.pack("old", {**self.metadata, "features": []})
+        self.assertEqual(baseline.unpack(old)[0]["features"], [])
+        for envelope in ([], {"schema": True}, {"schema": 1,
+                          "metadata": self.metadata, "metrics_jsonl": []}):
+            old.write_text(json.dumps(envelope))
+            with self.subTest(envelope=envelope), self.assertRaises(ValueError):
+                baseline.unpack(old)
+
+    def test_invalid_metadata_does_not_reserve_destination(self):
+        with self.assertRaises(ValueError):
+            self.pack("invalid", {**self.metadata, "hardware": {"value": float("inf")}})
+        self.assertFalse((self.root / "invalid.pack").exists())
+
     def test_malformed_missing_and_duplicate_records(self):
         for rows in ("", json.dumps(self.row) + "\n" + json.dumps(self.row),
                      json.dumps({**self.row, "avg_us": -1}),

@@ -28,8 +28,10 @@ def metadata(value):
     if not isinstance(value, dict):
         fail("metadata must be an object")
     for key in (*QUALIFIERS, "commit"):
-        if key not in value or value[key] is None or value[key] in ("", {}, []):
+        if key not in value or value[key] is None or value[key] == "":
             fail(f"missing qualification: {key}")
+        if key != "features" and value[key] in ({}, []):
+            fail(f"empty qualification: {key}")
     if not isinstance(value["commit"], str) or not re.fullmatch(r"[0-9a-f]{40}", value["commit"]):
         fail("commit must be a full lowercase git object id")
     if value["measurement_kind"] not in ("deterministic_harness", "native"):
@@ -85,16 +87,20 @@ def seal(meta_path, metrics_path, output):
     pack = {"schema": 1, "metadata": meta,
             "metrics_sha256": hashlib.sha256(raw).hexdigest(), "metrics_jsonl": raw.decode()}
     # Exclusive creation preserves named before-change evidence.
+    contents = json.dumps(pack, indent=2, sort_keys=True, allow_nan=False) + "\n"
     with Path(output).open("x") as stream:
-        json.dump(pack, stream, indent=2, sort_keys=True, allow_nan=False)
-        stream.write("\n")
+        stream.write(contents)
 
 
 def unpack(path):
     pack = read_json(path)
-    if pack.get("schema") != 1:
+    if not isinstance(pack, dict):
+        fail("evidence pack must be an object")
+    if type(pack.get("schema")) is not int or pack["schema"] != 1:
         fail("unsupported evidence schema")
     meta = metadata(pack["metadata"])
+    if not isinstance(pack["metrics_jsonl"], str):
+        fail("metrics_jsonl must be a string")
     raw = pack["metrics_jsonl"].encode()
     if hashlib.sha256(raw).hexdigest() != pack["metrics_sha256"]:
         fail("evidence digest mismatch")

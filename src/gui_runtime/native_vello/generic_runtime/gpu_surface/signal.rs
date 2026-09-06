@@ -820,7 +820,7 @@ impl GpuSurfaceRenderer {
                 return true;
             }
             plan.mark_execution_mutated();
-            self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
+            if !self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
                 device: target.device,
                 queue: target.queue,
                 stats,
@@ -832,7 +832,18 @@ impl GpuSurfaceRenderer {
                 ),
                 buckets: body.buckets,
                 uniforms: &body.uniforms,
-            });
+                gpu_budget: source
+                    .prepared
+                    .as_ref()
+                    .map(|prepared| Arc::clone(prepared.gpu_budget())),
+            }) {
+                signal_plan_failure(
+                    plan,
+                    stats,
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+                return true;
+            }
             let Some(body_execution) = plan.consume_signal_body(surface_index, surface.key) else {
                 stats.mark_candidate_unavailable(
                     GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
@@ -864,6 +875,7 @@ impl GpuSurfaceRenderer {
                 surface.key,
                 body.body_key,
                 stats,
+                source.prepared.as_ref().map(PreparedSummary::gpu_budget),
             ) else {
                 signal_plan_failure(
                     plan,
@@ -893,7 +905,7 @@ impl GpuSurfaceRenderer {
         }
         self.ensure_pipeline(target.device, target.format);
         self.ensure_signal_pipeline(target.device, wgpu::TextureFormat::Rgba8Unorm);
-        self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
+        if !self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
             device: target.device,
             queue: target.queue,
             stats,
@@ -905,13 +917,23 @@ impl GpuSurfaceRenderer {
             ),
             buckets: body.buckets,
             uniforms: &body.uniforms,
-        });
+            gpu_budget: source
+                .prepared
+                .as_ref()
+                .map(|prepared| Arc::clone(prepared.gpu_budget())),
+        }) {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
+            return true;
+        }
         let Some(texture_view) = self.ensure_signal_body_texture(
             target.device,
             target.encoder,
             surface.key,
             body.body_key,
             stats,
+            source.prepared.as_ref().map(PreparedSummary::gpu_budget),
         ) else {
             stats.mark_candidate_unavailable(
                 GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,

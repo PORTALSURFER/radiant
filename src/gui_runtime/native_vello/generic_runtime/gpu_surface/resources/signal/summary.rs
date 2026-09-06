@@ -1,6 +1,6 @@
 use super::super::super::GpuSurfaceRenderer;
 use super::super::super::gpu_surface_types::CachedSignalSummary;
-use super::super::super::identity::RenderCanvasContentIdentity;
+use super::super::super::identity::SignalSourceIdentity;
 use super::super::super::stats::GpuSurfaceRenderStats;
 use super::super::super::upload_plan::GpuSurfaceRenderCanvasUploadSignalSummaryOperation;
 use crate::runtime::GpuSignalSummary;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub(crate) struct CachedSignalSummaryRequest<'a> {
     pub(crate) key: u64,
     pub(crate) revision: u64,
-    pub(crate) content_identity: RenderCanvasContentIdentity,
+    pub(crate) source_identity: SignalSourceIdentity,
     pub(crate) frames: usize,
     pub(crate) band_count: usize,
     pub(crate) samples: &'a Arc<[f32]>,
@@ -21,7 +21,7 @@ impl GpuSurfaceRenderer {
         &self,
         key: u64,
         revision: u64,
-        content_identity: RenderCanvasContentIdentity,
+        source_identity: SignalSourceIdentity,
         frames: usize,
         band_count: usize,
         sample_count: usize,
@@ -31,7 +31,7 @@ impl GpuSurfaceRenderer {
             .get(&key)
             .filter(|cached| {
                 cached.revision == revision
-                    && cached.content_identity == content_identity
+                    && cached.source_identity == source_identity
                     && cached.frames == frames
                     && cached.band_count == band_count
                     && cached.sample_count == sample_count
@@ -47,7 +47,7 @@ impl GpuSurfaceRenderer {
         let CachedSignalSummaryRequest {
             key,
             revision,
-            content_identity,
+            source_identity,
             frames,
             band_count,
             samples,
@@ -55,7 +55,7 @@ impl GpuSurfaceRenderer {
         } = request;
         if let Some(cached) = self.resources.signal_summaries.get(&key)
             && cached.revision == revision
-            && cached.content_identity == content_identity
+            && cached.source_identity == source_identity
             && cached.frames == frames
             && cached.band_count == band_count
             && cached.sample_count == samples.len()
@@ -66,7 +66,7 @@ impl GpuSurfaceRenderer {
         if let Some(cached) = self.resources.signal_summaries.get(&key) {
             if cached.revision != revision {
                 stats.signal.summary_revision_mismatches += 1;
-            } else if cached.content_identity != content_identity {
+            } else if cached.source_identity != source_identity {
                 stats.signal.summary_content_mismatches += 1;
             }
         }
@@ -77,7 +77,7 @@ impl GpuSurfaceRenderer {
             key,
             CachedSignalSummary {
                 revision,
-                content_identity,
+                source_identity,
                 frames,
                 band_count,
                 sample_count: samples.len(),
@@ -100,16 +100,15 @@ mod tests {
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        let identity = RenderCanvasContentIdentity::SignalBands {
+        let identity = SignalSourceIdentity::Samples {
             samples: Arc::as_ptr(&samples) as *const () as usize,
             frames: 4,
             band_count: 1,
-            frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
         };
         let first = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: identity,
+            source_identity: identity,
             frames: 4,
             band_count: 1,
             samples: &samples,
@@ -122,7 +121,7 @@ mod tests {
         let second = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: identity,
+            source_identity: identity,
             frames: 4,
             band_count: 1,
             samples: &samples,
@@ -140,31 +139,29 @@ mod tests {
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        let identity = RenderCanvasContentIdentity::SignalBands {
+        let identity = SignalSourceIdentity::Samples {
             samples: Arc::as_ptr(&samples) as *const () as usize,
             frames: 4,
             band_count: 1,
-            frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
         };
         let first = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: identity,
+            source_identity: identity,
             frames: 4,
             band_count: 1,
             samples: &samples,
             stats: &mut stats,
         });
-        let second_identity = RenderCanvasContentIdentity::SignalBands {
+        let second_identity = SignalSourceIdentity::Samples {
             samples: Arc::as_ptr(&samples) as *const () as usize,
             frames: 2,
             band_count: 2,
-            frame_range: [0.0f32.to_bits(), 2.0f32.to_bits()],
         };
         let second = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: second_identity,
+            source_identity: second_identity,
             frames: 2,
             band_count: 2,
             samples: &samples,
@@ -180,18 +177,17 @@ mod tests {
     fn cached_signal_summary_rebuilds_for_new_immutable_content_with_same_revision() {
         let mut renderer = GpuSurfaceRenderer::default();
         let first_samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
-        let first_identity = RenderCanvasContentIdentity::SignalBands {
+        let first_identity = SignalSourceIdentity::Samples {
             samples: Arc::as_ptr(&first_samples) as *const () as usize,
             frames: 4,
             band_count: 1,
-            frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
         };
         let mut stats = GpuSurfaceRenderStats::default();
 
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: first_identity,
+            source_identity: first_identity,
             frames: 4,
             band_count: 1,
             samples: &first_samples,
@@ -208,16 +204,15 @@ mod tests {
         );
 
         let second_samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
-        let second_identity = RenderCanvasContentIdentity::SignalBands {
+        let second_identity = SignalSourceIdentity::Samples {
             samples: Arc::as_ptr(&second_samples) as *const () as usize,
             frames: 4,
             band_count: 1,
-            frame_range: [0.0f32.to_bits(), 4.0f32.to_bits()],
         };
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: second_identity,
+            source_identity: second_identity,
             frames: 4,
             band_count: 1,
             samples: &second_samples,
@@ -231,8 +226,8 @@ mod tests {
         assert_eq!(stats.signal.summary_content_mismatches, 1);
     }
 
-    fn first_identity_sample_ptr(identity: RenderCanvasContentIdentity) -> usize {
-        let RenderCanvasContentIdentity::SignalBands { samples, .. } = identity else {
+    fn first_identity_sample_ptr(identity: SignalSourceIdentity) -> usize {
+        let SignalSourceIdentity::Samples { samples, .. } = identity else {
             unreachable!()
         };
         samples

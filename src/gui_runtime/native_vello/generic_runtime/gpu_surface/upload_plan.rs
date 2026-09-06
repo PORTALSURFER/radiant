@@ -4,7 +4,7 @@ use super::gpu_surface_types::{
     CustomShaderBindingKey, CustomShaderPipelineKey, CustomShaderStaticPayloadKey,
     GpuSurfaceCompositeBindingKey, SignalBodyCacheKey, SignalBufferCacheKey,
 };
-use super::identity::RenderCanvasContentIdentity;
+use super::identity::{RenderCanvasContentIdentity, SignalSourceIdentity};
 use vello::wgpu;
 
 /// The target identity carried by one private upload-plan result.
@@ -231,7 +231,7 @@ pub(super) struct GpuSurfaceRenderCanvasUploadSignalSummaryExecution {
     pub(super) surface_index: usize,
     pub(super) key: u64,
     pub(super) revision: u64,
-    pub(super) content_identity: RenderCanvasContentIdentity,
+    pub(super) source_identity: SignalSourceIdentity,
     pub(super) frames: usize,
     pub(super) band_count: usize,
     pub(super) sample_count: usize,
@@ -365,7 +365,7 @@ pub(super) enum GpuSurfaceRenderCanvasUploadAction {
         surface_index: usize,
         key: u64,
         revision: u64,
-        content_identity: RenderCanvasContentIdentity,
+        source_identity: SignalSourceIdentity,
         frames: usize,
         band_count: usize,
         sample_count: usize,
@@ -742,7 +742,7 @@ impl GpuSurfaceRenderCanvasUploadPlan {
             surface_index: action_index,
             key: action_key,
             revision,
-            content_identity,
+            source_identity,
             frames,
             band_count,
             sample_count,
@@ -763,7 +763,7 @@ impl GpuSurfaceRenderCanvasUploadPlan {
             surface_index: *action_index,
             key: *action_key,
             revision: *revision,
-            content_identity: *content_identity,
+            source_identity: *source_identity,
             frames: *frames,
             band_count: *band_count,
             sample_count: *sample_count,

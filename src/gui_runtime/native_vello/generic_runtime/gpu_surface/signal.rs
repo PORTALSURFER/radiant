@@ -4,8 +4,8 @@ use super::gpu_surface_types::{
     CachedSignalSummaryValidation, GpuSurfaceCompositeBindingKey, GpuSurfaceTextureIdentity,
     SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBufferCacheKey, SignalUniforms,
 };
-use super::identity::RenderCanvasContentIdentity;
 use super::identity::RenderCanvasContentOwner;
+use super::identity::{RenderCanvasContentIdentity, SignalSourceIdentity};
 use super::passes::surface_pixel_extent;
 use super::stats::GpuSurfaceRenderStats;
 use super::upload_plan::{
@@ -67,7 +67,7 @@ struct SignalBodyKeyRequest<'a> {
 #[derive(Clone)]
 struct SignalSummaryPreflightIdentity {
     revision: u64,
-    content_identity: RenderCanvasContentIdentity,
+    source_identity: SignalSourceIdentity,
     frames: usize,
     band_count: usize,
     sample_count: usize,
@@ -206,7 +206,8 @@ impl SignalUploadPreflightState {
                 );
             }
         };
-        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let source_identity = SignalSourceIdentity::from_content(&surface.content)
+            .expect("signal summary preflight only receives signal content");
         let sample_count = samples.len();
         let cached = self.summaries.get(&surface.key).cloned().or_else(|| {
             renderer
@@ -215,7 +216,7 @@ impl SignalUploadPreflightState {
                 .get(&surface.key)
                 .map(|cached| SignalSummaryPreflightIdentity {
                     revision: cached.revision,
-                    content_identity: cached.content_identity,
+                    source_identity: cached.source_identity,
                     frames: cached.frames,
                     band_count: cached.band_count,
                     sample_count: cached.sample_count,
@@ -224,7 +225,7 @@ impl SignalUploadPreflightState {
         });
         if let Some(cached) = cached
             && cached.revision == surface.revision
-            && cached.content_identity == content_identity
+            && cached.source_identity == source_identity
             && cached.frames == shape.frames
             && cached.band_count == shape.band_count
             && cached.sample_count == sample_count
@@ -243,7 +244,7 @@ impl SignalUploadPreflightState {
             surface.key,
             SignalSummaryPreflightIdentity {
                 revision: surface.revision,
-                content_identity,
+                source_identity,
                 frames: shape.frames,
                 band_count: shape.band_count,
                 sample_count,
@@ -444,7 +445,8 @@ impl GpuSurfaceRenderer {
                 surface_index,
                 key: surface.key,
                 revision: surface.revision,
-                content_identity: RenderCanvasContentIdentity::from_content(&surface.content),
+                source_identity: SignalSourceIdentity::from_content(&surface.content)
+                    .expect("signal summary action only receives signal content"),
                 frames: shape.frames,
                 band_count: shape.band_count,
                 sample_count: match &surface.content {
@@ -470,10 +472,11 @@ impl GpuSurfaceRenderer {
             composite_state.ensure_pipeline(self, target.device, target.format);
         let (signal_pipeline_generation, signal_pipeline_rebuild) =
             signal_state.ensure_pipeline(self, target.device, wgpu::TextureFormat::Rgba8Unorm);
-        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let source_identity = SignalSourceIdentity::from_content(&surface.content)
+            .expect("signal buffer preflight only receives signal content");
         let buffer_cache_key = SignalBufferCacheKey::new(
             surface.revision,
-            content_identity,
+            source_identity,
             body.level_index,
             body.bucket_start,
             body.bucket_count,
@@ -650,10 +653,11 @@ impl GpuSurfaceRenderer {
             }
             return true;
         };
-        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let source_identity = SignalSourceIdentity::from_content(&surface.content)
+            .expect("signal buffer execution only receives signal content");
         let buffer_cache_key = SignalBufferCacheKey::new(
             surface.revision,
-            content_identity,
+            source_identity,
             body.level_index,
             body.bucket_start,
             body.bucket_count,
@@ -885,18 +889,18 @@ impl GpuSurfaceRenderer {
                         );
                         return None;
                     };
-                    let content_identity =
-                        RenderCanvasContentIdentity::from_content(&surface.content);
+                    let source_identity = SignalSourceIdentity::from_content(&surface.content)
+                        .expect("signal summary execution only receives signal content");
                     let expected_operation = self.signal_summary_cache_operation(
                         surface.key,
                         surface.revision,
-                        content_identity,
+                        source_identity,
                         shape.frames,
                         shape.band_count,
                         samples.len(),
                     );
                     if execution.revision != surface.revision
-                        || execution.content_identity != content_identity
+                        || execution.source_identity != source_identity
                         || execution.frames != shape.frames
                         || execution.band_count != shape.band_count
                         || execution.sample_count != samples.len()
@@ -919,7 +923,8 @@ impl GpuSurfaceRenderer {
                 self.cached_signal_summary(super::resources::CachedSignalSummaryRequest {
                     key: surface.key,
                     revision: surface.revision,
-                    content_identity: RenderCanvasContentIdentity::from_content(&surface.content),
+                    source_identity: SignalSourceIdentity::from_content(&surface.content)
+                        .expect("signal summary cache only receives signal content"),
                     frames: shape.frames,
                     band_count: shape.band_count,
                     samples,

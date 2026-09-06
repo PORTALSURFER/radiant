@@ -3,11 +3,13 @@
 //! The fixture calls the same module, layout, pipeline, and validation-scope
 //! builder functions as production. It deliberately does not render, wait for
 //! GPU work, or make a foreground timing claim.
+//! Repeated identical-key samples run the complete builder on an initialized
+//! device; they are not presented as Radiant cache-hit measurements.
 
 use super::*;
-use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -48,7 +50,6 @@ impl PreparationOutcome {
 struct PreparationSample {
     workload: &'static str,
     variant: usize,
-    cache_hit: bool,
     outcome: PreparationOutcome,
     shader_module_create: Duration,
     shader_module_validation_pop: Duration,
@@ -64,7 +65,6 @@ impl PreparationSample {
         serde_json::json!({
             "workload": self.workload,
             "variant": self.variant,
-            "cache_hit": self.cache_hit,
             "outcome": self.outcome.as_str(),
             "source_hash": self.source_hash,
             "shader_module_create_ns": duration_ns(self.shader_module_create),
@@ -77,42 +77,6 @@ impl PreparationSample {
     }
 }
 
-struct PreparationCache {
-    pipelines: HashMap<CustomShaderPipelineKey, CreatedCustomShaderPipeline>,
-}
-
-impl PreparationCache {
-    fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        key: CustomShaderPipelineKey,
-        workload: &'static str,
-        variant: usize,
-    ) -> PreparationSample {
-        if self.pipelines.contains_key(&key) {
-            return PreparationSample {
-                workload,
-                variant,
-                cache_hit: true,
-                outcome: PreparationOutcome::Ready,
-                shader_module_create: Duration::ZERO,
-                shader_module_validation_pop: Duration::ZERO,
-                layout_create: Duration::ZERO,
-                render_pipeline_create: Duration::ZERO,
-                pipeline_validation_pop: Duration::ZERO,
-                total: Duration::ZERO,
-                source_hash: fnv1a64(&key.wgsl_source),
-            };
-        }
-
-        let (sample, created) = measure_pipeline_preparation(device, &key, workload, variant);
-        if let Some(created) = created {
-            assert!(self.pipelines.insert(key, created).is_none());
-        }
-        sample
-    }
-}
-
 #[test]
 #[ignore = "requires a native adapter and RADIANT_SHADER_PREPARATION_OUTPUT_DIR"]
 fn records_sync_custom_shader_preparation_phases() {
@@ -120,50 +84,56 @@ fn records_sync_custom_shader_preparation_phases() {
     let label = required_env("RADIANT_SHADER_PREPARATION_LABEL");
     let source_revision = required_env("RADIANT_SHADER_PREPARATION_SOURCE_REVISION");
     let (adapter_info, device, device_setup) = native_device();
-    let mut cache = PreparationCache {
-        pipelines: HashMap::new(),
-    };
     let mut samples = Vec::with_capacity(2 + WARM_REPETITIONS + DISTINCT_VARIANTS);
 
     let cold_key = pipeline_key("cold", VALID_SHADER);
-    samples.push(cache.prepare(&device, cold_key.clone(), "cold_device", 0));
+    samples.push(measure_pipeline_preparation(
+        &device,
+        &cold_key,
+        "cold_device",
+        0,
+    ));
     for repetition in 0..WARM_REPETITIONS {
-        samples.push(cache.prepare(&device, cold_key.clone(), "warm_identical_key", repetition));
+        samples.push(measure_pipeline_preparation(
+            &device,
+            &cold_key,
+            "warm_device_identical_builder",
+            repetition,
+        ));
     }
     for variant in 0..DISTINCT_VARIANTS {
         let source = format!("{VALID_SHADER}\n// bounded distinct variant {variant}\n");
-        samples.push(cache.prepare(
+        samples.push(measure_pipeline_preparation(
             &device,
-            pipeline_key(&format!("distinct-{variant}"), &source),
+            &pipeline_key(&format!("distinct-{variant}"), &source),
             "bounded_distinct_key",
             variant,
         ));
     }
-    samples.push(
-        measure_pipeline_preparation(
-            &device,
-            &pipeline_key("invalid", INVALID_SHADER),
-            "invalid_wgsl",
-            0,
-        )
-        .0,
-    );
+    let invalid_key = pipeline_key("invalid", INVALID_SHADER);
+    samples.push(measure_pipeline_preparation(
+        &device,
+        &invalid_key,
+        "invalid_wgsl",
+        0,
+    ));
 
     assert!(matches!(samples[0].outcome, PreparationOutcome::Ready));
     assert!(
         samples[1..=WARM_REPETITIONS]
             .iter()
-            .all(|sample| sample.cache_hit && matches!(sample.outcome, PreparationOutcome::Ready))
+            .all(|sample| matches!(sample.outcome, PreparationOutcome::Ready))
     );
     assert!(
         samples[WARM_REPETITIONS + 1..WARM_REPETITIONS + 1 + DISTINCT_VARIANTS]
             .iter()
-            .all(|sample| !sample.cache_hit && matches!(sample.outcome, PreparationOutcome::Ready))
+            .all(|sample| matches!(sample.outcome, PreparationOutcome::Ready))
     );
     assert!(matches!(
         samples.last().expect("invalid sample").outcome,
         PreparationOutcome::ShaderModuleValidationFailure
     ));
+    assert_production_invalid_wgsl_diagnostic(&device, &invalid_key);
 
     let backend = format!("{:?}", adapter_info.backend);
     let output = serde_json::json!({
@@ -188,11 +158,14 @@ fn records_sync_custom_shader_preparation_phases() {
     });
     fs::create_dir_all(&output_dir).expect("create preparation measurement output directory");
     let output_path = PathBuf::from(output_dir).join("shader-preparation-samples.json");
-    fs::write(
-        &output_path,
-        serde_json::to_vec_pretty(&output).expect("serialize preparation samples"),
-    )
-    .expect("write preparation samples");
+    let mut output_file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&output_path)
+        .expect("exclusively create preparation samples");
+    output_file
+        .write_all(&serde_json::to_vec_pretty(&output).expect("serialize preparation samples"))
+        .expect("write preparation samples");
     eprintln!(
         "RADIANT_SHADER_PREPARATION_OUTPUT={}",
         output_path.display()
@@ -204,9 +177,9 @@ fn measure_pipeline_preparation(
     key: &CustomShaderPipelineKey,
     workload: &'static str,
     variant: usize,
-) -> (PreparationSample, Option<CreatedCustomShaderPipeline>) {
-    let total_start = Instant::now();
+) -> PreparationSample {
     let source_hash = fnv1a64(&key.wgsl_source);
+    let total_start = Instant::now();
     let module_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
     let module_start = Instant::now();
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -218,22 +191,18 @@ fn measure_pipeline_preparation(
     let module_error = pollster::block_on(module_scope.pop());
     let shader_module_validation_pop = module_pop_start.elapsed();
     if module_error.is_some() {
-        return (
-            PreparationSample {
-                workload,
-                variant,
-                cache_hit: false,
-                outcome: PreparationOutcome::ShaderModuleValidationFailure,
-                shader_module_create,
-                shader_module_validation_pop,
-                layout_create: Duration::ZERO,
-                render_pipeline_create: Duration::ZERO,
-                pipeline_validation_pop: Duration::ZERO,
-                total: total_start.elapsed(),
-                source_hash,
-            },
-            None,
-        );
+        return PreparationSample {
+            workload,
+            variant,
+            outcome: PreparationOutcome::ShaderModuleValidationFailure,
+            shader_module_create,
+            shader_module_validation_pop,
+            layout_create: Duration::ZERO,
+            render_pipeline_create: Duration::ZERO,
+            pipeline_validation_pop: Duration::ZERO,
+            total: total_start.elapsed(),
+            source_hash,
+        };
     }
 
     let layout_start = Instant::now();
@@ -254,27 +223,31 @@ fn measure_pipeline_preparation(
     } else {
         PreparationOutcome::Ready
     };
-    let created =
-        matches!(outcome, PreparationOutcome::Ready).then_some(CreatedCustomShaderPipeline {
+    if matches!(outcome, PreparationOutcome::Ready) {
+        let _created = CreatedCustomShaderPipeline {
             bind_group_layout,
             pipeline: _pipeline,
-        });
-    (
-        PreparationSample {
-            workload,
-            variant,
-            cache_hit: false,
-            outcome,
-            shader_module_create,
-            shader_module_validation_pop,
-            layout_create,
-            render_pipeline_create,
-            pipeline_validation_pop,
-            total: total_start.elapsed(),
-            source_hash,
-        },
-        created,
-    )
+        };
+    }
+    PreparationSample {
+        workload,
+        variant,
+        outcome,
+        shader_module_create,
+        shader_module_validation_pop,
+        layout_create,
+        render_pipeline_create,
+        pipeline_validation_pop,
+        total: total_start.elapsed(),
+        source_hash,
+    }
+}
+
+fn assert_production_invalid_wgsl_diagnostic(device: &wgpu::Device, key: &CustomShaderPipelineKey) {
+    let request = request(device, key);
+    let mut stats = GpuSurfaceRenderStats::default();
+    assert!(create_custom_shader_module(&request, &mut stats).is_none());
+    assert_eq!(stats.custom_shader.failures.shader_module_failures, 1);
 }
 
 fn request<'a>(

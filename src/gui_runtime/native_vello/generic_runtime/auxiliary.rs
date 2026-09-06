@@ -1274,6 +1274,12 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             .initialize_runtime_with_adapter(event_loop, event_proxy, adapter)
     }
 
+    pub(super) fn take_native_ime_adapter_observation(
+        &mut self,
+    ) -> Option<crate::runtime::NativeImeAdapterObservation> {
+        self.runner.take_native_ime_adapter_observation()
+    }
+
     pub(super) fn hide(&mut self) {
         self.active = false;
         self.runner.suspend_native_visual_requests();
@@ -2225,12 +2231,14 @@ where
                     );
                     window.runner.core.runtime.bridge_mut().command_service =
                         command_service.clone();
+                    window.runner.native_ime_adapter_observer_enabled =
+                        self.core.has_native_ime_adapter_observer();
                     window
                         .initialize_runtime(event_loop, parent_window, event_proxy.clone(), adapter)
                         .map(|()| window)
                 };
                 if let Err(error) =
-                    append_initialized_auxiliary_window(&mut self.auxiliary_windows, initialized)
+                    self.append_initialized_auxiliary_window_with_ime_observation(initialized)
                 {
                     self.core.runtime.retire_auxiliary_effect_owner(&owner);
                     if let Some(cause) = self.recovery_cause.take() {
@@ -2248,6 +2256,27 @@ where
             self.recovery_cause.take();
         }
         self.apply_pending_auxiliary_focus_requests(event_loop, adapter);
+        Ok(())
+    }
+
+    fn append_initialized_auxiliary_window_with_ime_observation(
+        &mut self,
+        initialized: Result<AuxiliaryNativeWindow<Message>, NativeGenericRunError>,
+    ) -> Result<(), NativeGenericRunError> {
+        append_initialized_auxiliary_window(&mut self.auxiliary_windows, initialized)?;
+
+        // A child can only reach this point after its native initialization
+        // succeeded and the parent retained it as an admitted window. The
+        // observer runs at this parent boundary, once, outside frame handoff.
+        if let Some(observation) = self
+            .auxiliary_windows
+            .last_mut()
+            .and_then(AuxiliaryNativeWindow::take_native_ime_adapter_observation)
+        {
+            self.core
+                .runtime
+                .host_observe_native_ime_adapter(observation);
+        }
         Ok(())
     }
 
@@ -2417,8 +2446,8 @@ mod tests {
         AuxiliaryNativeDiscreteInputRoute, AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity,
         AuxiliarySurfaceBridge, AuxiliaryWindowEventResult, FrameScheduleKey, FrameWork,
         FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, NativeAdapterGeneration,
-        NativeFrameRenderFailure, NativeResourceMaintenanceTurn, SceneRebuildMode,
-        append_initialized_auxiliary_window, auxiliary_key_is_retiring,
+        NativeFrameRenderFailure, NativeGenericRunError, NativeResourceMaintenanceTurn,
+        SceneRebuildMode, append_initialized_auxiliary_window, auxiliary_key_is_retiring,
         auxiliary_key_is_suppressed_for_sync, auxiliary_keys_removed_during_sync,
         auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
         take_deferred_auxiliary_recovery_failure_cause,
@@ -2430,15 +2459,16 @@ mod tests {
         prelude::IntoView,
         runtime::{
             AuxiliaryFocusCommand, AuxiliaryFocusRequest, AuxiliaryWindow, AuxiliaryWindowOwner,
-            Command, NativeFrameDiagnostics, NativeWindowDiagnosticIdentity, RuntimeBridge,
-            RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, SurfaceNode, UiSurface,
+            Command, NativeFrameDiagnostics, NativeImeAdapterObservation,
+            NativeWindowDiagnosticIdentity, RuntimeBridge, RuntimeFrameDiagnosticsHost,
+            RuntimeHostCapabilities, RuntimeNativeImeAdapterObserver, SurfaceNode, UiSurface,
             WidgetMessageMapper,
         },
         widgets::{InteractiveRowWidget, WidgetSizing},
     };
     use native_lifecycle_stage::{NativeLifecycleStageEvidence, NativeLifecycleTransitionKind};
     use std::{
-        sync::Arc,
+        sync::{Arc, Mutex},
         time::{Duration, Instant},
     };
     use winit::window::WindowId;
@@ -2543,6 +2573,151 @@ mod tests {
 
     fn auxiliary_window(cache_on_close: bool) -> AuxiliaryNativeWindow<i32> {
         auxiliary_window_with_diagnostics(cache_on_close, false)
+    }
+
+    type PublishedNativeImeAdapterObservations = Arc<Mutex<Vec<NativeImeAdapterObservation>>>;
+
+    struct RecordingNativeImeAdapterParentBridge {
+        published: PublishedNativeImeAdapterObservations,
+    }
+
+    impl RuntimeBridge<i32> for RecordingNativeImeAdapterParentBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<i32>> {
+            crate::runtime::test_arc_surface(empty::<i32>().into_surface())
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, i32> {
+            RuntimeHostCapabilities::new().with_native_ime_adapter_observer()
+        }
+    }
+
+    impl RuntimeNativeImeAdapterObserver for RecordingNativeImeAdapterParentBridge {
+        fn observe_native_ime_adapter(&mut self, observation: NativeImeAdapterObservation) {
+            self.published
+                .lock()
+                .expect("IME adapter parent publication events should not be poisoned")
+                .push(observation);
+        }
+    }
+
+    fn ime_observer_parent(
+        published: PublishedNativeImeAdapterObservations,
+    ) -> GenericNativeVelloRunner<RecordingNativeImeAdapterParentBridge, i32> {
+        GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            RecordingNativeImeAdapterParentBridge { published },
+            Vector2::new(1280.0, 720.0),
+        )
+    }
+
+    fn initialized_auxiliary_with_ime_observation(identity: u64) -> AuxiliaryNativeWindow<i32> {
+        let mut window = auxiliary_window(false);
+        window.runner.native_ime_adapter_observation = Some(NativeImeAdapterObservation {
+            window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(identity)),
+            ..NativeImeAdapterObservation::default()
+        });
+        window
+    }
+
+    #[test]
+    fn auxiliary_ime_observation_transfers_once_only_after_parent_append() {
+        // Native runner fixtures retain recursive surface/runtime state. Keep
+        // this lifecycle boundary test on the established large test stack.
+        std::thread::Builder::new()
+            .name("auxiliary-ime-observation-transfer".to_owned())
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let published = Arc::new(Mutex::new(Vec::new()));
+                let mut parent = ime_observer_parent(Arc::clone(&published));
+
+                parent
+                    .append_initialized_auxiliary_window_with_ime_observation(Ok(
+                        initialized_auxiliary_with_ime_observation(2),
+                    ))
+                    .expect("initialized child should be admitted");
+                assert_eq!(parent.auxiliary_windows.len(), 1);
+                assert_eq!(
+                    *published
+                        .lock()
+                        .expect("IME adapter parent publication events should not be poisoned"),
+                    vec![NativeImeAdapterObservation {
+                        window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(
+                            2
+                        )),
+                        ..NativeImeAdapterObservation::default()
+                    }]
+                );
+
+                // A second parent-boundary pass does not replay the admitted child's
+                // observation, because transfer consumed the child's pending value.
+                let admitted = parent
+                    .auxiliary_windows
+                    .last_mut()
+                    .expect("admitted child should remain resident");
+                assert_eq!(admitted.take_native_ime_adapter_observation(), None);
+            })
+            .expect("IME observation transfer thread should spawn")
+            .join()
+            .expect("IME observation transfer lifecycle should complete");
+    }
+
+    #[test]
+    fn auxiliary_ime_observation_discards_failed_admission_and_replacement_gets_new_identity() {
+        // Native runner fixtures retain recursive surface/runtime state. Keep
+        // this lifecycle boundary test on the established large test stack.
+        std::thread::Builder::new()
+            .name("auxiliary-ime-observation".to_owned())
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let published = Arc::new(Mutex::new(Vec::new()));
+                let mut parent = ime_observer_parent(Arc::clone(&published));
+                let failure =
+                    NativeGenericRunError::RenderDeviceLost(String::from("fixture failure"));
+
+                assert_eq!(
+                    parent
+                        .append_initialized_auxiliary_window_with_ime_observation(Err(
+                            failure.clone()
+                        ))
+                        .err(),
+                    Some(failure)
+                );
+                assert!(parent.auxiliary_windows.is_empty());
+                assert!(
+                    published
+                        .lock()
+                        .expect("IME adapter parent publication events should not be poisoned")
+                        .is_empty()
+                );
+
+                parent
+                    .append_initialized_auxiliary_window_with_ime_observation(Ok(
+                        initialized_auxiliary_with_ime_observation(2),
+                    ))
+                    .expect("first child should be admitted");
+                parent.auxiliary_windows.clear();
+                parent
+                    .append_initialized_auxiliary_window_with_ime_observation(Ok(
+                        initialized_auxiliary_with_ime_observation(3),
+                    ))
+                    .expect("replacement child should be admitted");
+
+                assert_eq!(
+                    published
+                        .lock()
+                        .expect("IME adapter parent publication events should not be poisoned")
+                        .iter()
+                        .map(|observation| observation.window_identity)
+                        .collect::<Vec<_>>(),
+                    vec![
+                        Some(NativeWindowDiagnosticIdentity::from_runtime_value(2)),
+                        Some(NativeWindowDiagnosticIdentity::from_runtime_value(3)),
+                    ]
+                );
+            })
+            .expect("IME observation thread should spawn")
+            .join()
+            .expect("IME observation lifecycle should complete");
     }
 
     fn focusable_auxiliary_projection(key: &str, widget_id: u64) -> AuxiliaryWindow<i32> {

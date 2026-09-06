@@ -1,5 +1,6 @@
 use crate::runtime::{
-    FrameGpuTimingSample, FrameProfile, NativeFrameDiagnostics, RuntimeDiagnostics,
+    FrameGpuTimingSample, FrameProfile, NativeFrameDiagnostics, NativeImeAdapterObservation,
+    RuntimeDiagnostics,
 };
 
 /// Optional host capability for application-runtime diagnostics snapshots.
@@ -13,6 +14,12 @@ pub trait RuntimeFrameDiagnosticsHost {
     /// Observe structured diagnostics for one successfully presented native
     /// frame from the primary or an auxiliary window.
     fn observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics);
+}
+
+/// Optional host capability for one-shot native IME adapter observations.
+pub trait RuntimeNativeImeAdapterObserver {
+    /// Observe IME capabilities for one successfully admitted native window.
+    fn observe_native_ime_adapter(&mut self, observation: NativeImeAdapterObservation);
 }
 
 /// Optional host capability for backend-neutral fixed-cost frame profiles.
@@ -52,6 +59,10 @@ pub(crate) struct RuntimeFrameDiagnosticsCapability<Bridge> {
     pub observe_frame_diagnostics: fn(&mut Bridge, NativeFrameDiagnostics),
 }
 
+pub(crate) struct RuntimeNativeImeAdapterCapability<Bridge> {
+    pub observe_native_ime_adapter: fn(&mut Bridge, NativeImeAdapterObservation),
+}
+
 impl<Bridge> RuntimeFrameDiagnosticsCapability<Bridge>
 where
     Bridge: RuntimeFrameDiagnosticsHost,
@@ -59,6 +70,17 @@ where
     pub const fn new() -> Self {
         Self {
             observe_frame_diagnostics: Bridge::observe_frame_diagnostics,
+        }
+    }
+}
+
+impl<Bridge> RuntimeNativeImeAdapterCapability<Bridge>
+where
+    Bridge: RuntimeNativeImeAdapterObserver,
+{
+    pub const fn new() -> Self {
+        Self {
+            observe_native_ime_adapter: Bridge::observe_native_ime_adapter,
         }
     }
 }

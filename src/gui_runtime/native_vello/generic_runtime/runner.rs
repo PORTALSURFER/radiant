@@ -146,6 +146,8 @@ where
     pub(super) gpu_timing_route: NativeGpuTimingRoute,
     pub(super) frame_observation_enabled: bool,
     pub(super) frame_diagnostics_publication: NativeFrameDiagnosticsPublication,
+    pub(super) native_ime_adapter_observer_enabled: bool,
+    pub(super) native_ime_adapter_observation: Option<crate::runtime::NativeImeAdapterObservation>,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
     native_lifecycle: NativeLifecycle,
@@ -346,6 +348,7 @@ where
             devtools_overlay,
         );
         let frame_diagnostics_enabled = core.has_frame_diagnostics_observer();
+        let native_ime_adapter_observer_enabled = core.has_native_ime_adapter_observer();
         let frame_profile_enabled =
             options.frame.profiling.is_frame() && core.has_frame_profile_observer();
         let frame_gpu_timing_enabled =
@@ -389,6 +392,8 @@ where
             gpu_timing_route,
             frame_observation_enabled,
             frame_diagnostics_publication: NativeFrameDiagnosticsPublication::default(),
+            native_ime_adapter_observer_enabled,
+            native_ime_adapter_observation: None,
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
             native_lifecycle: NativeLifecycle::default(),
@@ -4646,9 +4651,10 @@ mod tests {
             AuxiliaryWindow, FrameGpuTimingSample, FrameProfile, NativeCpuFrameCompletionOutcome,
             NativeCpuFrameFairnessDiagnostics, NativeCpuFrameFairnessDisposition,
             NativeCpuFrameObservationDiagnostics, NativeFrameDiagnostics,
-            NativeWindowDiagnosticIdentity, ProfilingOptions, RuntimeAnimationActivity,
-            RuntimeAnimationHost, RuntimeBridge, RuntimeFrameDiagnosticsHost,
-            RuntimeFrameGpuTimingHost, RuntimeFrameProfileHost, RuntimeHostCapabilities, UiSurface,
+            NativeImeAdapterObservation, NativeWindowDiagnosticIdentity, ProfilingOptions,
+            RuntimeAnimationActivity, RuntimeAnimationHost, RuntimeBridge,
+            RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost, RuntimeFrameProfileHost,
+            RuntimeHostCapabilities, RuntimeNativeImeAdapterObserver, UiSurface,
         },
         widgets::PointerModifiers,
     };
@@ -4722,6 +4728,31 @@ mod tests {
         }
     }
 
+    type PublishedNativeImeAdapterObservations = Arc<Mutex<Vec<NativeImeAdapterObservation>>>;
+
+    struct RecordingNativeImeAdapterBridge {
+        published: PublishedNativeImeAdapterObservations,
+    }
+
+    impl RuntimeBridge<()> for RecordingNativeImeAdapterBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(empty::<()>().into_surface())
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_native_ime_adapter_observer()
+        }
+    }
+
+    impl RuntimeNativeImeAdapterObserver for RecordingNativeImeAdapterBridge {
+        fn observe_native_ime_adapter(&mut self, observation: NativeImeAdapterObservation) {
+            self.published
+                .lock()
+                .expect("IME adapter publication test events should not be poisoned")
+                .push(observation);
+        }
+    }
+
     type PublishedFrameProfiles = Arc<Mutex<Vec<FrameProfile>>>;
 
     struct RecordingFrameProfileBridge {
@@ -4777,6 +4808,43 @@ mod tests {
             frame_sequence: Some(7),
             ..NativeFrameDiagnostics::default()
         }
+    }
+
+    #[test]
+    fn primary_ime_adapter_observation_publishes_once_at_admission_boundary() {
+        // Native runner fixtures retain recursive surface/runtime state. Keep
+        // this lifecycle boundary test on the established large test stack.
+        std::thread::Builder::new()
+            .name("primary-ime-observation".to_owned())
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let published = Arc::new(Mutex::new(Vec::new()));
+                let mut runner = GenericNativeVelloRunner::new(
+                    NativeRunOptions::default(),
+                    RecordingNativeImeAdapterBridge {
+                        published: Arc::clone(&published),
+                    },
+                    Vector2::new(320.0, 240.0),
+                );
+                let observation = NativeImeAdapterObservation {
+                    window_identity: Some(NativeWindowDiagnosticIdentity::from_runtime_value(1)),
+                    ..NativeImeAdapterObservation::default()
+                };
+
+                runner.native_ime_adapter_observation = Some(observation);
+                runner.publish_native_ime_adapter_observation();
+                runner.publish_native_ime_adapter_observation();
+
+                assert_eq!(
+                    *published
+                        .lock()
+                        .expect("IME adapter publication test events should not be poisoned"),
+                    vec![observation]
+                );
+            })
+            .expect("IME observation primary thread should spawn")
+            .join()
+            .expect("IME observation primary lifecycle should complete");
     }
 
     fn primary_publication_for_boundary(scheduled: bool) {

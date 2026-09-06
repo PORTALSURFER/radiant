@@ -183,6 +183,19 @@ where
         self
     }
 
+    /// Observe the locked-Winit IME adapter capabilities for each admitted
+    /// native window.
+    ///
+    /// The callback is one-shot per admitted window and observational only.
+    /// It does not participate in focus, composition, or input routing.
+    pub fn on_native_ime_adapter_observation(
+        mut self,
+        observation: impl FnMut(&mut State, crate::runtime::NativeImeAdapterObservation) + 'static,
+    ) -> Self {
+        self.lifecycle.native_ime_adapter_observation = Some(Box::new(observation));
+        self
+    }
+
     /// Observe a backend-neutral fixed-cost profile after a successful native
     /// frame presentation.
     ///

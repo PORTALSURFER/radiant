@@ -3,9 +3,9 @@ use super::timer::TimerRegistry;
 use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
     AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppNativeFocusRegained,
-    AppNativeFrameDiagnostics, AppNativeFrameGpuTiming, AppNativeFrameProfile, AppRuntime,
-    AppScroll, AppShortcuts, AppShutdown, AppStartup, AppSubscriptions,
-    ApplicationEnvironmentSource, RetainedPainter, TransientOverlayActivity,
+    AppNativeFrameDiagnostics, AppNativeFrameGpuTiming, AppNativeFrameProfile,
+    AppNativeImeAdapterObservation, AppRuntime, AppScroll, AppShortcuts, AppShutdown, AppStartup,
+    AppSubscriptions, ApplicationEnvironmentSource, RetainedPainter, TransientOverlayActivity,
     TransientOverlayBinding, TransientOverlayPainter, UiUpdateContext,
 };
 use crate::runtime::RuntimeUpdateSnapshot;
@@ -135,6 +135,9 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) native_frame_profile: Option<AppNativeFrameProfile<State>>,
     /// Native aggregate GPU timing observer.
     pub(in crate::application) native_frame_gpu_timing: Option<AppNativeFrameGpuTiming<State>>,
+    /// Native IME adapter capability observer.
+    pub(in crate::application) native_ime_adapter_observation:
+        Option<AppNativeImeAdapterObservation<State>>,
     /// Startup hook.
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     /// Shutdown artifact hook.
@@ -179,6 +182,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             native_frame_diagnostics: None,
             native_frame_profile: None,
             native_frame_gpu_timing: None,
+            native_ime_adapter_observation: None,
             startup: None,
             shutdown: None,
             close_requested: None,

@@ -62,6 +62,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             animation_values: self.animation_values.clone(),
             resource_demand: self.resource_demand.clone(),
             has_resource_view_demand: self.has_resource_view_demand,
+            has_notice_demand: self.has_notice_demand,
         }
     }
 }

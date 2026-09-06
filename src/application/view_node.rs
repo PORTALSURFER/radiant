@@ -149,6 +149,8 @@ pub struct ViewNode<Message> {
     pub(in crate::application) animation: Option<Rc<dyn crate::animation::Animatable>>,
     pub(in crate::application) resource_demand:
         Option<Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+    pub(in crate::application) notice_demand:
+        Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -254,6 +256,7 @@ impl<Message> ViewNode<Message> {
             layout_interaction: None,
             animation: None,
             resource_demand: None,
+            notice_demand: None,
         }
     }
 

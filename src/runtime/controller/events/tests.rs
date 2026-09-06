@@ -679,3 +679,72 @@ fn focused_key_competing_orphan_and_stale_samples_are_ignored_without_repaint() 
     assert_eq!(runtime.bridge().host_calls, 2);
     assert!(!runtime.repaint_requested());
 }
+
+#[test]
+#[allow(clippy::arc_with_non_send_sync)]
+fn container_keyboard_edits_preserve_native_timestamp() {
+    use crate::gui::types::Vector2;
+    use crate::runtime::{ScrollEditBatch, declarative_runtime_bridge};
+    use crate::widgets::EditPhase;
+    use crate::widgets::{InteractionProvenance, KeyboardModifiers, WidgetKey};
+    use std::{cell::RefCell, rc::Rc};
+    fn phases(batch: &ScrollEditBatch) -> Vec<EditPhase> {
+        batch.events().iter().map(|event| event.phase).collect()
+    }
+    let edits = Rc::new(RefCell::new(Vec::<ScrollEditBatch>::new()));
+    let sink = Rc::clone(&edits);
+    let bridge = declarative_runtime_bridge(
+        (),
+        |_| {
+            Arc::new(UiSurface::new(
+                SurfaceNode::scroll_area(
+                    31,
+                    SurfaceNode::button(
+                        32,
+                        "content",
+                        WidgetSizing::fixed(Vector2::new(180.0, 400.0)),
+                        None,
+                    ),
+                )
+                .on_scroll_edit(Some),
+            ))
+        },
+        move |_, batch: Option<ScrollEditBatch>| {
+            if let Some(batch) = batch {
+                sink.borrow_mut().push(batch);
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+    assert!(runtime.focus_widget(32));
+    runtime.execute_command(crate::runtime::Command::scroll_to(
+        31,
+        Vector2::new(0.0, 0.0),
+    ));
+    edits.borrow_mut().clear();
+    let timestamp = Some(InputTimestamp::capture());
+    for repeat in [false, true] {
+        runtime.dispatch_event(Event::KeyPress {
+            key: WidgetKey::PageDown,
+            modifiers: KeyboardModifiers::default(),
+            repeat,
+            timestamp,
+        });
+    }
+    let edits = edits.borrow();
+    assert_eq!(edits.len(), 2);
+    assert_ne!(edits[0].transaction(), edits[1].transaction());
+    for batch in edits.iter() {
+        assert_eq!(
+            phases(batch),
+            [EditPhase::Begin, EditPhase::Update, EditPhase::Commit]
+        );
+        assert!(
+            batch
+                .events()
+                .iter()
+                .all(|event| event.provenance == InteractionProvenance::Keyboard { timestamp })
+        );
+        assert_eq!(batch.offset_update().unwrap().metadata.timestamp, timestamp);
+    }
+}

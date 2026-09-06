@@ -520,6 +520,9 @@ where
                 outcome.surface_repaint_requested |= had_focus;
             }
             Command::ScrollTo { node_id, offset } => {
+                if !offset.x.is_finite() || !offset.y.is_finite() {
+                    return;
+                }
                 let offset = Vector2::new(offset.x.max(0.0), offset.y.max(0.0));
                 self.scroll_to_offset(node_id, offset);
                 self.repaint_requested = true;

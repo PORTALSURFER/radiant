@@ -5763,15 +5763,29 @@ Within one native renderer generation, physical custom-shader pipelines are
 shared only when the complete device identity, target format, shader key and
 source, stage entry points, and payload binding shape match. Each surface keeps
 its own bind group and payload write state, so a binding validation failure or a
-payload revision affects only that surface. The renderer retains at most 256
-unique pipelines, 1,024 surface associations, and 1 MiB of retained pipeline
-key/source text. Existing entries remain usable when an admission limit is
-reached; the newly requested surface reports an incomplete native upload and a
-private tracing reason. Inactive surface associations are pruned first, then a
-physical pipeline is dropped when its final association is gone. Validation
-failures are deliberately not retained: the exact identity is retried on a
-later upload, avoiding a growing negative-result cache and allowing recovery
-after a device generation change.
+payload revision affects only that surface. The steady cache admits at most 256
+unique pipelines, 1,024 surface associations, and 1 MiB of distinct logical
+pipeline key/source text. An ordered frame admits at most 1,024 custom-shader
+requests and 1 MiB of request key/source text. A request beyond these bounds
+reports an incomplete native upload and uses the existing failed-surface
+fallback; it is not reported as a backend capability failure.
+
+If stale interests prevent current-frame admission, an explicit upload-plan
+transition retains one predecessor cache while preparing the current shader
+resources. Existing immutable pipelines can be shared into the working cache;
+working bindings use fresh buffers. Successful ordered cleanup releases the
+predecessor. A veto restores its ownership and write state, so a newly shown
+static surface does not depend on an unrelated redraw to reclaim stale
+capacity. At most two bounded cache sets exist during a transition (up to 512
+pipeline entries, 2,048 associations, and 2 MiB of distinct logical key text
+across the sets; these are not total allocator or GPU byte measurements).
+Normal under-capacity frames do not create a predecessor. Final-interest
+pruning retires unused physical pipelines. Validation failures are deliberately
+not retained: the exact identity is retried on a later upload, avoiding a
+growing negative-result cache. A failed replacement does not release the prior
+usable association before a replacement has validated. Device recovery starts
+a fresh renderer cache.
+
 `RenderCanvasContent::validate()` returns a typed `RenderCanvasContentError` for
 invalid atlas rectangles, signal ranges, empty payloads, and summary-shape
 mismatches. `is_renderable()` and `signal_render_shape()` remain convenience

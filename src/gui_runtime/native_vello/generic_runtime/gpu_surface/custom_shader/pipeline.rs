@@ -28,12 +28,10 @@ impl GpuSurfaceRenderer {
         &mut self,
         request: CustomShaderPipelineRequest<'_>,
         stats: &mut GpuSurfaceRenderStats,
-    ) {
+    ) -> bool {
         if !self.custom_shader_pipeline_needs_rebuild(&request) {
-            return;
+            return true;
         }
-        self.resources
-            .remove_custom_shader_binding(&request.surface_key);
         let identity = CustomShaderPipelineIdentity {
             device: wgpu_device_id(request.device),
             format: request.target_format,
@@ -45,29 +43,28 @@ impl GpuSurfaceRenderer {
         {
             warn!(surface_key = request.surface_key, shader_key = %request.key.shader_key,
                 "radiant custom shader pipeline cache admission limit reached");
-            self.resources
-                .remove_custom_shader_pipeline(&request.surface_key);
-            return;
+            return false;
         }
         if self
             .resources
             .has_custom_shader_pipeline_identity(&identity)
         {
             self.resources
+                .remove_custom_shader_binding(&request.surface_key);
+            self.resources
                 .associate_custom_shader_pipeline(request.surface_key, identity);
-            return;
+            return true;
         }
         stats.custom_shader.pipeline_rebuilds += 1;
         let Some(shader) = create_custom_shader_module(&request, stats) else {
-            self.resources
-                .remove_custom_shader_pipeline(&request.surface_key);
-            return;
+            return false;
         };
         let Some(created) = create_custom_shader_pipeline(&request, &shader, stats) else {
-            self.resources
-                .remove_custom_shader_pipeline(&request.surface_key);
-            return;
+            return false;
         };
+        // Only a validated replacement can release this surface's prior resources.
+        self.resources
+            .remove_custom_shader_binding(&request.surface_key);
         self.resources.insert_custom_shader_pipeline(
             request.surface_key,
             identity,
@@ -77,6 +74,7 @@ impl GpuSurfaceRenderer {
                 pipeline: created.pipeline,
             },
         );
+        true
     }
 
     pub(super) fn custom_shader_pipeline_needs_rebuild(

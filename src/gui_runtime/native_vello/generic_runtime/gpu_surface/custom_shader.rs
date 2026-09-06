@@ -1,6 +1,11 @@
 use super::gpu_surface_types::{
-    CustomShaderBindingKey, CustomShaderBindingWriteState, CustomShaderPipelineKey,
-    CustomShaderStaticPayloadKey,
+    CustomShaderBindingKey, CustomShaderBindingWriteState, CustomShaderPipelineIdentity,
+    CustomShaderPipelineKey, CustomShaderStaticPayloadKey,
+};
+use super::resources::{
+    CustomShaderFrameRequest, CustomShaderPreflightCache,
+    MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES, MAX_CUSTOM_SHADER_FRAME_REQUESTS,
+    custom_shader_frame_requests_fit,
 };
 use super::stats::GpuSurfaceRenderStats;
 use super::upload_plan::{
@@ -45,13 +50,6 @@ pub(super) struct CustomShaderRenderRequest<'a> {
 }
 
 #[derive(Clone)]
-struct CustomShaderPipelinePreflightIdentity {
-    device: usize,
-    format: vello::wgpu::TextureFormat,
-    key: CustomShaderPipelineKey,
-}
-
-#[derive(Clone)]
 struct CustomShaderBindingPreflightIdentity {
     cache_key: CustomShaderBindingKey,
     write_state: CustomShaderBindingWriteState,
@@ -59,7 +57,7 @@ struct CustomShaderBindingPreflightIdentity {
 
 #[derive(Default)]
 pub(super) struct CustomShaderUploadPreflightState {
-    pipelines: HashMap<u64, Option<CustomShaderPipelinePreflightIdentity>>,
+    cache: Option<CustomShaderPreflightCache>,
     bindings: HashMap<u64, Option<CustomShaderBindingPreflightIdentity>>,
 }
 
@@ -69,18 +67,18 @@ pub(super) struct CustomShaderUploadPreflight {
 }
 
 impl CustomShaderUploadPreflightState {
-    pub(super) fn reset(&mut self) {
-        self.pipelines.clear();
+    pub(super) fn reset(&mut self, cache: Option<CustomShaderPreflightCache>) {
+        self.cache = cache;
         self.bindings.clear();
-        self.pipelines
-            .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
         self.bindings
             .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
     }
 
     #[cfg(test)]
     pub(super) fn pipelines_capacity(&self) -> usize {
-        self.pipelines.capacity()
+        self.cache
+            .as_ref()
+            .map_or(0, CustomShaderPreflightCache::pipelines_capacity)
     }
 
     #[cfg(test)]
@@ -90,62 +88,34 @@ impl CustomShaderUploadPreflightState {
 
     fn pipeline_decision(
         &mut self,
-        renderer: &GpuSurfaceRenderer,
         surface_key: u64,
-        device: usize,
-        format: vello::wgpu::TextureFormat,
-        key: &CustomShaderPipelineKey,
-    ) -> bool {
-        let cached = self
-            .pipelines
-            .get(&surface_key)
-            .cloned()
-            .unwrap_or_else(|| {
-                renderer
-                    .resources
-                    .custom_shader_pipeline_identity(surface_key)
-                    .map(|pipeline| CustomShaderPipelinePreflightIdentity {
-                        device: pipeline.device,
-                        format: pipeline.format,
-                        key: pipeline.key.clone(),
-                    })
-            });
-        let rebuild = cached.as_ref().is_none_or(|cached| {
-            cached.device != device || cached.format != format || cached.key != *key
-        });
-        self.pipelines.insert(
-            surface_key,
-            Some(CustomShaderPipelinePreflightIdentity {
-                device,
-                format,
-                key: key.clone(),
-            }),
-        );
+        identity: &CustomShaderPipelineIdentity,
+    ) -> Option<bool> {
+        let rebuild = self
+            .cache
+            .as_mut()?
+            .pipeline_decision(surface_key, identity)?;
         if rebuild {
             self.bindings.insert(surface_key, None);
         }
-        rebuild
-    }
-
-    fn can_track_pipeline(&self, surface_key: u64) -> bool {
-        self.pipelines.contains_key(&surface_key)
-            || self.pipelines.len() < MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS
+        Some(rebuild)
     }
 
     fn binding_decision(
         &mut self,
-        renderer: &GpuSurfaceRenderer,
         surface_key: u64,
         cache_key: &CustomShaderBindingKey,
     ) -> (bool, CustomShaderBindingWriteState) {
         let cached = self.bindings.get(&surface_key).cloned().unwrap_or_else(|| {
-            renderer
-                .resources
-                .custom_shader_binding(surface_key)
-                .map(|binding| CustomShaderBindingPreflightIdentity {
-                    cache_key: binding.cache_key.clone(),
-                    write_state: binding.write_state,
-                })
+            self.cache
+                .as_ref()?
+                .binding(surface_key)
+                .map(
+                    |(cache_key, write_state)| CustomShaderBindingPreflightIdentity {
+                        cache_key,
+                        write_state,
+                    },
+                )
         });
         let rebuild = cached
             .as_ref()
@@ -187,6 +157,64 @@ impl CustomShaderUploadPreflightState {
                 .cache_presentation_revision(payload, revision);
         }
     }
+}
+
+pub(super) fn custom_shader_frame_requests(
+    primitives: &[crate::runtime::PaintPrimitive],
+    device: usize,
+    format: vello::wgpu::TextureFormat,
+) -> Option<Vec<CustomShaderFrameRequest>> {
+    let mut requests = Vec::new();
+    let mut request_key_bytes = 0usize;
+    for primitive in primitives {
+        let crate::runtime::PaintPrimitive::GpuSurface(surface) = primitive else {
+            continue;
+        };
+        let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
+            continue;
+        };
+        if !surface.rect.has_finite_positive_area()
+            || !surface.content.is_renderable()
+            || !custom_shader_descriptor_is_supported(descriptor)
+        {
+            continue;
+        }
+        let key_bytes = descriptor
+            .shader_key
+            .len()
+            .saturating_add(descriptor.entry_point.len())
+            .saturating_add(
+                descriptor
+                    .fragment_entry_point
+                    .as_ref()
+                    .map_or(0, String::len),
+            )
+            .saturating_add(
+                descriptor
+                    .wgsl_source
+                    .as_ref()
+                    .map_or(0, |source| source.len()),
+            );
+        request_key_bytes = request_key_bytes.saturating_add(key_bytes);
+        if requests.len() >= MAX_CUSTOM_SHADER_FRAME_REQUESTS
+            || request_key_bytes > MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES
+        {
+            return None;
+        }
+        let Some(key) = custom_shader_pipeline_key(descriptor) else {
+            continue;
+        };
+        requests.push(CustomShaderFrameRequest {
+            surface_key: surface.key,
+            binding_key: binding::custom_shader_binding_key(&key, descriptor),
+            identity: CustomShaderPipelineIdentity {
+                device,
+                format,
+                key,
+            },
+        });
+    }
+    custom_shader_frame_requests_fit(&requests).then_some(requests)
 }
 
 impl GpuSurfaceRenderer {
@@ -232,7 +260,13 @@ impl GpuSurfaceRenderer {
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported),
             };
         };
-        if !state.can_track_pipeline(surface.key) {
+        let device = target.device;
+        let identity = CustomShaderPipelineIdentity {
+            device,
+            format: target.format,
+            key: pipeline_key.clone(),
+        };
+        let Some(pipeline_rebuild) = state.pipeline_decision(surface.key, &identity) else {
             actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
                 surface_index,
                 key: surface.key,
@@ -242,15 +276,12 @@ impl GpuSurfaceRenderer {
                 renderable: false,
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
             };
-        }
+        };
         actions.push(GpuSurfaceRenderCanvasUploadAction::Surface {
             surface_index,
             key: surface.key,
             surface: GpuSurfaceRenderCanvasUploadSurface::CustomShader,
         });
-        let device = target.device;
-        let pipeline_rebuild =
-            state.pipeline_decision(self, surface.key, device, target.format, &pipeline_key);
         actions.push(GpuSurfaceRenderCanvasUploadAction::CustomPipeline {
             surface_index,
             key: surface.key,
@@ -262,7 +293,7 @@ impl GpuSurfaceRenderer {
 
         let binding_cache_key = binding::custom_shader_binding_key(&pipeline_key, descriptor);
         let (binding_rebuild, mut write_state) =
-            state.binding_decision(self, surface.key, &binding_cache_key);
+            state.binding_decision(surface.key, &binding_cache_key);
         actions.push(GpuSurfaceRenderCanvasUploadAction::CustomBinding {
             surface_index,
             key: surface.key,
@@ -547,8 +578,7 @@ impl GpuSurfaceRenderer {
         if pipeline_execution.rebuild {
             upload_plan.mark_execution_mutated();
         }
-        self.ensure_custom_shader_pipeline(pipeline_request, stats);
-        if !self.resources.has_custom_shader_pipeline(surface.key) {
+        if !self.ensure_custom_shader_pipeline(pipeline_request, stats) {
             upload_plan
                 .veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
             record_failed_custom_shader_surface(stats);
@@ -689,7 +719,7 @@ impl GpuSurfaceRenderer {
             record_unsupported_custom_shader(descriptor, stats);
             return false;
         };
-        self.ensure_custom_shader_pipeline(
+        if !self.ensure_custom_shader_pipeline(
             CustomShaderPipelineRequest {
                 surface_key: surface.key,
                 device: target.device,
@@ -697,8 +727,7 @@ impl GpuSurfaceRenderer {
                 key: pipeline_key,
             },
             stats,
-        );
-        if !self.resources.has_custom_shader_pipeline(surface.key) {
+        ) {
             record_failed_custom_shader_surface(stats);
             return false;
         }

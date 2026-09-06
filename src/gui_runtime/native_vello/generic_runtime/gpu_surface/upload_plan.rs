@@ -321,6 +321,9 @@ pub(super) enum GpuSurfaceRenderCanvasUploadCustomPresentationSource {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum GpuSurfaceRenderCanvasUploadAction {
     BeginFrame,
+    CustomShaderTransition {
+        requests: Vec<super::resources::CustomShaderFrameRequest>,
+    },
     Surface {
         surface_index: usize,
         key: u64,

@@ -5,9 +5,9 @@ use super::super::super::{
 use super::super::active_keys::ActiveGpuSurfaceKeys;
 use super::super::gpu_surface_types::{
     CachedSignalSummary, CachedSignalSummaryValidation, CustomShaderBinding,
-    CustomShaderBindingKey, CustomShaderPipeline, CustomShaderPipelineIdentity,
-    GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey, GpuSurfaceTexture,
-    GpuSurfaceUniforms, SignalBodyTexture, SignalBuffer,
+    CustomShaderBindingKey, CustomShaderBindingWriteState, CustomShaderPipeline,
+    CustomShaderPipelineIdentity, GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey,
+    GpuSurfaceTexture, GpuSurfaceUniforms, SignalBodyTexture, SignalBuffer,
 };
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -41,6 +41,50 @@ struct LogicalBytesAccumulator {
 const MAX_CUSTOM_SHADER_UNIQUE_PIPELINES: usize = 256;
 const MAX_CUSTOM_SHADER_ASSOCIATIONS: usize = 1024;
 const MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES: usize = 1024 * 1024;
+/// Bounds the ordered frame request list before preflight. This is distinct
+/// from the retained-association capacity.
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) const MAX_CUSTOM_SHADER_FRAME_REQUESTS: usize =
+    MAX_CUSTOM_SHADER_ASSOCIATIONS;
+/// Bounds raw ordered request identity text during collection. The full fit
+/// validation separately applies the physical cache's distinct-key budget.
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) const MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES: usize =
+    MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderFrameRequest
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) surface_key: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) identity:
+        CustomShaderPipelineIdentity,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) binding_key:
+        CustomShaderBindingKey,
+}
+
+#[derive(Clone, Default)]
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPreflightCache
+{
+    pipeline_state: CustomShaderPipelineCacheState,
+    bindings: HashMap<u64, (CustomShaderBindingKey, CustomShaderBindingWriteState)>,
+}
+
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_frame_requests_fit(
+    requests: &[CustomShaderFrameRequest],
+) -> bool {
+    if requests.len() > MAX_CUSTOM_SHADER_FRAME_REQUESTS {
+        return false;
+    }
+    let identities: HashSet<_> = requests.iter().map(|request| &request.identity).collect();
+    if identities.len() > MAX_CUSTOM_SHADER_UNIQUE_PIPELINES {
+        return false;
+    }
+    identities
+        .into_iter()
+        .try_fold(0usize, |bytes, identity| {
+            bytes.checked_add(custom_shader_pipeline_identity_bytes(identity))
+        })
+        .unwrap_or(usize::MAX)
+        <= MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES
+}
 
 #[derive(Clone, Default)]
 struct CustomShaderPipelineCacheState {
@@ -119,6 +163,68 @@ impl CustomShaderPipelineCacheState {
     }
 }
 
+impl CustomShaderPreflightCache {
+    fn from_resource_cache(resources: &CustomShaderResourceCache, bindings: bool) -> Self {
+        Self {
+            pipeline_state: resources.pipeline_state.clone(),
+            bindings: bindings
+                .then(|| {
+                    resources
+                        .bindings
+                        .iter()
+                        .map(|(key, binding)| {
+                            (*key, (binding.cache_key.clone(), binding.write_state))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
+    }
+
+    fn from_pipeline_state(pipeline_state: CustomShaderPipelineCacheState) -> Self {
+        Self {
+            pipeline_state,
+            bindings: HashMap::new(),
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn pipeline_decision(
+        &mut self,
+        surface_key: u64,
+        identity: &CustomShaderPipelineIdentity,
+    ) -> Option<bool> {
+        if !self.pipeline_state.can_admit(surface_key, identity) {
+            return None;
+        }
+        let association_needs_rebuild = self.pipeline_state.identity(surface_key) != Some(identity);
+        if association_needs_rebuild {
+            self.pipeline_state.associate(surface_key, identity.clone());
+        }
+        Some(association_needs_rebuild)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn binding(
+        &self,
+        surface_key: u64,
+    ) -> Option<(CustomShaderBindingKey, CustomShaderBindingWriteState)> {
+        self.bindings.get(&surface_key).cloned()
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn pipelines_capacity(
+        &self,
+    ) -> usize {
+        self.pipeline_state.entries.capacity()
+    }
+
+    fn admit_all(&mut self, requests: &[CustomShaderFrameRequest]) -> bool {
+        requests.iter().all(|request| {
+            self.pipeline_decision(request.surface_key, &request.identity)
+                .is_some()
+        })
+    }
+}
+
 impl LogicalBytesAccumulator {
     fn add(&mut self, bytes: Option<u64>) {
         match bytes {
@@ -176,6 +282,80 @@ struct CustomShaderResourceCache {
     pipeline_state: CustomShaderPipelineCacheState,
     bindings: HashMap<u64, CustomShaderBinding>,
     residency: CustomShaderResidencyAccounting,
+}
+
+struct CustomShaderTransition {
+    predecessor: CustomShaderResourceCache,
+}
+
+impl CustomShaderResourceCache {
+    fn filtered_for_frame(&self, requests: &[CustomShaderFrameRequest]) -> Self {
+        let requested_identities: HashSet<_> = requests
+            .iter()
+            .map(|request| request.identity.clone())
+            .collect();
+        let pipelines: HashMap<_, _> = self
+            .pipelines
+            .iter()
+            .filter(|(identity, _)| requested_identities.contains(*identity))
+            .map(|(identity, pipeline)| (identity.clone(), pipeline.clone()))
+            .collect();
+        let associations: HashMap<_, _> = self
+            .pipeline_state
+            .associations
+            .iter()
+            .filter(|(surface_key, identity)| {
+                requests.iter().any(|request| {
+                    request.surface_key == **surface_key && request.identity == **identity
+                }) && pipelines.contains_key(*identity)
+            })
+            .map(|(surface_key, identity)| (*surface_key, identity.clone()))
+            .collect();
+        let entries = associations.values().cloned().collect();
+        let mut residency = CustomShaderResidencyAccounting::default();
+        residency.set_pipeline_resident_count(pipelines.len());
+        Self {
+            pipelines,
+            pipeline_state: CustomShaderPipelineCacheState {
+                entries,
+                associations,
+            },
+            bindings: HashMap::new(),
+            residency,
+        }
+    }
+
+    fn filtered_pipeline_state(
+        &self,
+        requests: &[CustomShaderFrameRequest],
+    ) -> CustomShaderPipelineCacheState {
+        let requested_identities: HashSet<_> = requests
+            .iter()
+            .map(|request| request.identity.clone())
+            .collect();
+        let available_identities: HashSet<_> = self
+            .pipelines
+            .keys()
+            .filter(|identity| requested_identities.contains(*identity))
+            .cloned()
+            .collect();
+        let associations: HashMap<_, _> = self
+            .pipeline_state
+            .associations
+            .iter()
+            .filter(|(surface_key, identity)| {
+                requests.iter().any(|request| {
+                    request.surface_key == **surface_key && request.identity == **identity
+                }) && available_identities.contains(*identity)
+            })
+            .map(|(surface_key, identity)| (*surface_key, identity.clone()))
+            .collect();
+        let entries = associations.values().cloned().collect();
+        CustomShaderPipelineCacheState {
+            entries,
+            associations,
+        }
+    }
 }
 
 impl CustomShaderResidencyAccounting {
@@ -469,6 +649,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) composite_bindings:
         HashMap<u64, GpuSurfaceCompositeBinding>,
     custom_shader_resources: CustomShaderResourceCache,
+    custom_shader_transition: Option<CustomShaderTransition>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_bodies:
         AccountedMap<SignalBodyTexture>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signals:
@@ -577,6 +758,70 @@ impl GpuSurfaceResourceCache {
             .pipeline_state
             .identity(key)
             .and_then(|identity| self.custom_shader_resources.pipelines.get(identity))
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_frame_requests_fit(
+        requests: &[CustomShaderFrameRequest],
+    ) -> bool {
+        custom_shader_frame_requests_fit(requests)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_frame_requires_transition(
+        &self,
+        requests: &[CustomShaderFrameRequest],
+    ) -> bool {
+        if !Self::custom_shader_frame_requests_fit(requests) {
+            return false;
+        }
+        let current_admission_fails = !self
+            .custom_shader_frame_preflight(requests, false)
+            .admit_all(requests);
+        current_admission_fails
+            && self
+                .custom_shader_frame_preflight(requests, true)
+                .admit_all(requests)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_frame_preflight(
+        &self,
+        requests: &[CustomShaderFrameRequest],
+        transition: bool,
+    ) -> CustomShaderPreflightCache {
+        if transition {
+            CustomShaderPreflightCache::from_pipeline_state(
+                self.custom_shader_resources
+                    .filtered_pipeline_state(requests),
+            )
+        } else {
+            CustomShaderPreflightCache::from_resource_cache(&self.custom_shader_resources, true)
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn begin_custom_shader_transition(
+        &mut self,
+        requests: &[CustomShaderFrameRequest],
+    ) -> bool {
+        if self.custom_shader_transition.is_some()
+            || !self.custom_shader_frame_requires_transition(requests)
+        {
+            return false;
+        }
+        let predecessor = std::mem::take(&mut self.custom_shader_resources);
+        self.custom_shader_resources = predecessor.filtered_for_frame(requests);
+        self.custom_shader_transition = Some(CustomShaderTransition { predecessor });
+        true
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn finish_custom_shader_transition(
+        &mut self,
+        commit: bool,
+    ) {
+        let Some(transition) = self.custom_shader_transition.take() else {
+            return;
+        };
+        if !commit {
+            self.custom_shader_resources = transition.predecessor;
+        }
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn has_custom_shader_pipeline(
@@ -806,9 +1051,9 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logica
 mod tests {
     use super::{
         AccountedMap, CustomShaderBindingKey, CustomShaderBindingLogicalBytes,
-        CustomShaderPipelineCacheState, CustomShaderPipelineIdentity,
-        CustomShaderResidencyAccounting, NativeAdapterGeneration,
-        custom_shader_binding_logical_bytes, logical_rgba_texel_bytes,
+        CustomShaderFrameRequest, CustomShaderPipelineCacheState, CustomShaderPipelineIdentity,
+        CustomShaderPreflightCache, CustomShaderResidencyAccounting, GpuSurfaceResourceCache,
+        NativeAdapterGeneration, custom_shader_binding_logical_bytes, logical_rgba_texel_bytes,
         logical_signal_body_texture_bytes, logical_signal_buffer_bytes,
     };
     use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::CustomShaderPipelineKey;
@@ -829,6 +1074,81 @@ mod tests {
                 has_presentation_uniform_payload: false,
             },
         }
+    }
+
+    fn frame_request(
+        surface_key: u64,
+        identity: CustomShaderPipelineIdentity,
+    ) -> CustomShaderFrameRequest {
+        CustomShaderFrameRequest {
+            surface_key,
+            binding_key: custom_shader_binding_key(0, 0, 0),
+            identity,
+        }
+    }
+
+    #[test]
+    fn custom_shader_preflight_simulates_ordered_association_replacement() {
+        let first = pipeline_identity("first");
+        let replacement = pipeline_identity("replacement");
+        let mut preflight = CustomShaderPreflightCache::default();
+
+        assert_eq!(preflight.pipeline_decision(7, &first), Some(true));
+        assert_eq!(preflight.pipeline_decision(7, &first), Some(false));
+        assert_eq!(preflight.pipeline_decision(7, &replacement), Some(true));
+        assert_eq!(preflight.pipeline_state.identity(7), Some(&replacement));
+        assert_eq!(preflight.pipeline_state.entries.len(), 1);
+        assert!(preflight.pipeline_state.entries.contains(&replacement));
+        assert_eq!(preflight.binding(7), None);
+    }
+
+    #[test]
+    fn custom_shader_preflight_rejects_new_association_at_capacity() {
+        let identity = pipeline_identity("shared");
+        let mut state = CustomShaderPipelineCacheState::default();
+        for key in 0..super::MAX_CUSTOM_SHADER_ASSOCIATIONS as u64 {
+            state.associate(key, identity.clone());
+        }
+        let mut preflight = CustomShaderPreflightCache::from_pipeline_state(state);
+
+        assert_eq!(preflight.pipeline_decision(10_000, &identity), None);
+        assert!(preflight.pipelines_capacity() >= 1);
+    }
+
+    #[test]
+    fn custom_shader_transition_reuses_one_predecessor_and_restores_after_veto() {
+        // This exercises metadata-only ownership because a production physical
+        // pipeline requires a WGPU device fixture. The working cache still has
+        // no bindings, while the predecessor state remains recoverable.
+        let identity = pipeline_identity("shared");
+        let mut resources = GpuSurfaceResourceCache::default();
+        for key in 0..super::MAX_CUSTOM_SHADER_ASSOCIATIONS as u64 {
+            resources
+                .custom_shader_resources
+                .pipeline_state
+                .associate(key, identity.clone());
+        }
+        let requests = [frame_request(10_000, identity.clone())];
+
+        assert!(resources.custom_shader_frame_requires_transition(&requests));
+        assert!(resources.begin_custom_shader_transition(&requests));
+        assert!(!resources.begin_custom_shader_transition(&requests));
+        assert!(resources.custom_shader_bindings_are_empty());
+        assert_eq!(resources.custom_shader_pipeline_identity(0), None);
+
+        resources.clear();
+        resources.finish_custom_shader_transition(false);
+        assert_eq!(
+            resources.custom_shader_pipeline_identity(0),
+            Some(&identity)
+        );
+
+        assert!(resources.begin_custom_shader_transition(&requests));
+        resources.finish_custom_shader_transition(false);
+        assert_eq!(
+            resources.custom_shader_pipeline_identity(0),
+            Some(&identity)
+        );
     }
 
     #[test]

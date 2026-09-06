@@ -341,6 +341,7 @@ mod runtime_helpers;
 mod runtime_wakeup;
 mod scene;
 mod scene_texture;
+mod custom_shader_prepare;
 mod signal_summary_prepare;
 mod signal_summary_runtime;
 mod submission_completion;

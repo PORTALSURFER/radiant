@@ -2,26 +2,19 @@ use std::sync::Arc;
 use vello::wgpu;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipelineKey
-{
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) shader_key: Arc<str>,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) wgsl_source: Arc<str>,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) vertex_entry_point:
-        Arc<str>,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fragment_entry_point:
-        Arc<str>,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_uniform_payload:
-        bool,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_storage_payload:
-        bool,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_presentation_uniform_payload:
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct CustomShaderPipelineKey {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) shader_key: Arc<str>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) wgsl_source: Arc<str>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) vertex_entry_point: Arc<str>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fragment_entry_point: Arc<str>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) has_uniform_payload: bool,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) has_storage_payload: bool,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) has_presentation_uniform_payload:
         bool,
 }
 
 impl CustomShaderPipelineKey {
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn text_bytes(
-        &self,
-    ) -> usize {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn text_bytes(&self) -> usize {
         self.shader_key
             .len()
             .saturating_add(self.wgsl_source.len())
@@ -33,23 +26,18 @@ impl CustomShaderPipelineKey {
 /// The complete physical-pipeline identity.  Surface payload and revisions are
 /// deliberately absent: those are owned by the per-surface binding cache.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipelineIdentity
-{
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) device: usize,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) format:
-        wgpu::TextureFormat,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) key:
-        CustomShaderPipelineKey,
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct CustomShaderPipelineIdentity {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) device: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) format: wgpu::TextureFormat,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) key: CustomShaderPipelineKey,
 }
 
 #[derive(Clone)]
-pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipeline {
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) key:
-        CustomShaderPipelineKey,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bind_group_layout:
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct CustomShaderPipeline {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) key: CustomShaderPipelineKey,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) bind_group_layout:
         wgpu::BindGroupLayout,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) pipeline:
-        wgpu::RenderPipeline,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) pipeline: wgpu::RenderPipeline,
 }
 
 #[derive(Clone)]

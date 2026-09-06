@@ -2,7 +2,7 @@ use super::super::gpu_surface_types::{
     CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
 };
 use super::super::stats::GpuSurfaceRenderStats;
-use super::super::{GpuSurfaceRenderer, wgpu_device_id};
+use super::super::{wgpu_device_id, GpuSurfaceRenderer};
 use super::diagnostics::custom_shader_validation_error;
 #[path = "pipeline/layout.rs"]
 mod layout;
@@ -19,9 +19,81 @@ pub(super) struct CustomShaderPipelineRequest<'a> {
     pub(super) key: CustomShaderPipelineKey,
 }
 
+/// An immutable, device-owned request which may be moved to the native host's
+/// existing worker task. `device_identity` is captured on the UI thread; a
+/// worker must never derive it from its clone of `device`.
+#[derive(Clone)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct OwnedCustomShaderPipelineRequest {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) device: wgpu::Device,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) device_identity: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) target_format: wgpu::TextureFormat,
+    pub(in crate::gui_runtime::native_vello::generic_runtime) key: CustomShaderPipelineKey,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) enum CustomShaderPreparationFailure {
+    Cancelled,
+    ShaderModule,
+    Pipeline,
+    Panicked,
+}
+
 struct CreatedCustomShaderPipeline {
     bind_group_layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
+}
+
+/// Builds both GPU objects with all validation scopes pushed and popped on the
+/// calling thread. Driver calls themselves cannot be interrupted; cancellation
+/// is therefore observed immediately before and after each stage.
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn prepare_custom_shader_pipeline(
+    request: OwnedCustomShaderPipelineRequest,
+    cancelled: impl Fn() -> bool,
+) -> Result<CustomShaderPipeline, CustomShaderPreparationFailure> {
+    // Preserve the UI-stamped identity as data. It is intentionally never
+    // recomputed from this worker-owned device clone.
+    let _captured_device_identity = request.device_identity;
+    if cancelled() {
+        return Err(CustomShaderPreparationFailure::Cancelled);
+    }
+    let borrowed = CustomShaderPipelineRequest {
+        surface_key: 0,
+        device: &request.device,
+        target_format: request.target_format,
+        key: request.key.clone(),
+    };
+    let module_scope = borrowed
+        .device
+        .push_error_scope(wgpu::ErrorFilter::Validation);
+    let shader = borrowed
+        .device
+        .create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("radiant_custom_shader_surface_shader"),
+            source: wgpu::ShaderSource::Wgsl(borrowed.key.wgsl_source.as_ref().into()),
+        });
+    if custom_shader_validation_error(module_scope).is_some() {
+        return Err(CustomShaderPreparationFailure::ShaderModule);
+    }
+    if cancelled() {
+        return Err(CustomShaderPreparationFailure::Cancelled);
+    }
+    let pipeline_scope = borrowed
+        .device
+        .push_error_scope(wgpu::ErrorFilter::Validation);
+    let bind_group_layout = create_custom_shader_bind_group_layout(&borrowed);
+    let layout = create_custom_shader_pipeline_layout(borrowed.device, &bind_group_layout);
+    let pipeline = create_custom_shader_render_pipeline(&borrowed, &shader, &layout);
+    if custom_shader_validation_error(pipeline_scope).is_some() {
+        return Err(CustomShaderPreparationFailure::Pipeline);
+    }
+    if cancelled() {
+        return Err(CustomShaderPreparationFailure::Cancelled);
+    }
+    Ok(CustomShaderPipeline {
+        key: request.key,
+        bind_group_layout,
+        pipeline,
+    })
 }
 
 impl GpuSurfaceRenderer {
@@ -184,7 +256,7 @@ fn create_custom_shader_render_pipeline(
         })
 }
 
-pub(super) fn custom_shader_pipeline_key(
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn custom_shader_pipeline_key(
     descriptor: &GpuShaderSurfaceDescriptor,
 ) -> Option<CustomShaderPipelineKey> {
     Some(CustomShaderPipelineKey {

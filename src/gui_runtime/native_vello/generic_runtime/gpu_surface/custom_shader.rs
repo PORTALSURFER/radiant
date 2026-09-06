@@ -27,7 +27,7 @@ mod diagnostics;
 #[path = "custom_shader/draw.rs"]
 mod draw;
 #[path = "custom_shader/pipeline.rs"]
-mod pipeline;
+pub(in crate::gui_runtime::native_vello::generic_runtime) mod pipeline;
 use binding::CustomShaderBindingRequest;
 use diagnostics::record_failed_custom_shader_surface;
 use draw::{CustomShaderBufferUploadRequest, CustomShaderDrawRequest};

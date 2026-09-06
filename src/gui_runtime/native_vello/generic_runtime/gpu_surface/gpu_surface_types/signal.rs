@@ -1,8 +1,6 @@
 mod cache_key;
 
-use super::super::identity::{
-    RenderCanvasContentIdentity, RenderCanvasContentOwner, SignalSourceIdentity,
-};
+use super::super::identity::{RenderCanvasContentOwner, SignalSourceIdentity};
 use super::super::wgpu_device_id;
 use crate::runtime::GpuSignalSummary;
 use std::sync::Arc;

@@ -165,7 +165,8 @@ mod tests {
         };
         let replacement = SignalSourceIdentity::Samples {
             samples: 8,
-            ..samples
+            frames: 128,
+            band_count: 2,
         };
         let first = SignalBufferCacheKey::new(9, samples, 0, 4, 8);
         let changed_source = SignalBufferCacheKey::new(9, replacement, 0, 4, 8);

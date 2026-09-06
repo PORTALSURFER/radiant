@@ -659,7 +659,7 @@ impl GpuSurfaceRenderer {
 mod tests {
     use std::num::NonZeroU64;
 
-    use super::identity::RenderCanvasContentIdentity;
+    use super::identity::SignalSourceIdentity;
     use super::resources::CachedSignalSummaryRequest;
     use super::upload_plan::{
         GpuSurfaceRenderCanvasUploadAtlasTextureOperation, GpuSurfaceRenderCanvasUploadClass,
@@ -684,6 +684,18 @@ mod tests {
     use crate::runtime::{GpuSignalSummary, GpuSurfaceCapabilities, PaintGpuSurface};
     use std::sync::Arc;
     use winit::window::WindowId;
+
+    fn signal_source_identity(
+        samples: &Arc<[f32]>,
+        frames: usize,
+        band_count: usize,
+    ) -> SignalSourceIdentity {
+        SignalSourceIdentity::Samples {
+            samples: Arc::as_ptr(samples) as *const () as usize,
+            frames,
+            band_count,
+        }
+    }
 
     fn upload_plan_context_for_test() -> GpuSurfaceRenderCanvasUploadPlanContext {
         upload_plan_context_for_test_with_generation(1)
@@ -1420,7 +1432,7 @@ mod tests {
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 900,
             revision: 1,
-            content_identity: RenderCanvasContentIdentity::default(),
+            source_identity: signal_source_identity(&stale_samples, 4, 1),
             frames: 4,
             band_count: 1,
             samples: &stale_samples,
@@ -1571,7 +1583,7 @@ mod tests {
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: RenderCanvasContentIdentity::default(),
+            source_identity: signal_source_identity(&samples, 4, 1),
             frames: 4,
             band_count: 1,
             samples: &samples,
@@ -1736,7 +1748,7 @@ mod tests {
             renderer.cached_signal_summary(CachedSignalSummaryRequest {
                 key: 99,
                 revision: 1,
-                content_identity: RenderCanvasContentIdentity::default(),
+                source_identity: signal_source_identity(&samples, 4, 1),
                 frames: 4,
                 band_count: 1,
                 samples: &samples,
@@ -1793,7 +1805,7 @@ mod tests {
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: RenderCanvasContentIdentity::default(),
+            source_identity: signal_source_identity(&samples, 4, 1),
             frames: 4,
             band_count: 1,
             samples: &samples,
@@ -1802,7 +1814,7 @@ mod tests {
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 8,
             revision: 1,
-            content_identity: RenderCanvasContentIdentity::default(),
+            source_identity: signal_source_identity(&samples, 4, 1),
             frames: 4,
             band_count: 1,
             samples: &samples,
@@ -1825,7 +1837,7 @@ mod tests {
         let summary = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
-            content_identity: RenderCanvasContentIdentity::default(),
+            source_identity: signal_source_identity(&samples, 4, 1),
             frames: 4,
             band_count: 1,
             samples: &samples,

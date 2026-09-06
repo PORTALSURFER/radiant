@@ -93,6 +93,20 @@ impl GpuSurfaceRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::GpuSurfaceContent;
+
+    fn source_identity(content: &GpuSurfaceContent) -> SignalSourceIdentity {
+        SignalSourceIdentity::from_content(content).expect("signal content")
+    }
+
+    fn signal_bands(samples: Arc<[f32]>, frame_range: [f32; 2]) -> GpuSurfaceContent {
+        GpuSurfaceContent::SignalBands {
+            frames: 4,
+            band_count: 1,
+            frame_range,
+            samples,
+        }
+    }
 
     #[test]
     fn cached_signal_summary_reports_builds_and_hits() {
@@ -100,11 +114,7 @@ mod tests {
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        let identity = SignalSourceIdentity::Samples {
-            samples: Arc::as_ptr(&samples) as *const () as usize,
-            frames: 4,
-            band_count: 1,
-        };
+        let identity = source_identity(&signal_bands(Arc::clone(&samples), [0.0, 4.0]));
         let first = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
@@ -134,16 +144,76 @@ mod tests {
     }
 
     #[test]
+    fn cached_signal_summary_reuses_one_source_across_viewport_changes() {
+        let mut renderer = GpuSurfaceRenderer::default();
+        let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
+        let first_content = signal_bands(Arc::clone(&samples), [0.0, 2.0]);
+        let moved_content = signal_bands(Arc::clone(&samples), [0.25, 2.25]);
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        let first = renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            source_identity: source_identity(&first_content),
+            frames: 4,
+            band_count: 1,
+            samples: &samples,
+            stats: &mut stats,
+        });
+        let moved = renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            source_identity: source_identity(&moved_content),
+            frames: 4,
+            band_count: 1,
+            samples: &samples,
+            stats: &mut stats,
+        });
+
+        assert!(Arc::ptr_eq(&first, &moved));
+        assert_eq!(stats.signal.summary_builds, 1);
+        assert_eq!(stats.signal.summary_cache_hits, 1);
+    }
+
+    #[test]
+    fn cached_signal_summary_rebuilds_when_revision_changes() {
+        let mut renderer = GpuSurfaceRenderer::default();
+        let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
+        let content = signal_bands(Arc::clone(&samples), [0.0, 2.0]);
+        let identity = source_identity(&content);
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 1,
+            source_identity: identity,
+            frames: 4,
+            band_count: 1,
+            samples: &samples,
+            stats: &mut stats,
+        });
+        renderer.cached_signal_summary(CachedSignalSummaryRequest {
+            key: 7,
+            revision: 2,
+            source_identity: identity,
+            frames: 4,
+            band_count: 1,
+            samples: &samples,
+            stats: &mut stats,
+        });
+
+        assert_eq!(stats.signal.summary_builds, 2);
+        assert_eq!(stats.signal.summary_cache_hits, 0);
+        assert_eq!(stats.signal.summary_revision_mismatches, 1);
+    }
+
+    #[test]
     fn cached_signal_summary_rebuilds_when_source_shape_changes() {
         let mut renderer = GpuSurfaceRenderer::default();
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        let identity = SignalSourceIdentity::Samples {
-            samples: Arc::as_ptr(&samples) as *const () as usize,
-            frames: 4,
-            band_count: 1,
-        };
+        let identity = source_identity(&signal_bands(Arc::clone(&samples), [0.0, 4.0]));
         let first = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
@@ -153,11 +223,13 @@ mod tests {
             samples: &samples,
             stats: &mut stats,
         });
-        let second_identity = SignalSourceIdentity::Samples {
-            samples: Arc::as_ptr(&samples) as *const () as usize,
+        let second_identity = SignalSourceIdentity::from_content(&GpuSurfaceContent::SignalBands {
             frames: 2,
             band_count: 2,
-        };
+            frame_range: [0.0, 2.0],
+            samples: Arc::clone(&samples),
+        })
+        .expect("signal content");
         let second = renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,
@@ -177,11 +249,7 @@ mod tests {
     fn cached_signal_summary_rebuilds_for_new_immutable_content_with_same_revision() {
         let mut renderer = GpuSurfaceRenderer::default();
         let first_samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
-        let first_identity = SignalSourceIdentity::Samples {
-            samples: Arc::as_ptr(&first_samples) as *const () as usize,
-            frames: 4,
-            band_count: 1,
-        };
+        let first_identity = source_identity(&signal_bands(Arc::clone(&first_samples), [0.0, 4.0]));
         let mut stats = GpuSurfaceRenderStats::default();
 
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
@@ -204,11 +272,8 @@ mod tests {
         );
 
         let second_samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
-        let second_identity = SignalSourceIdentity::Samples {
-            samples: Arc::as_ptr(&second_samples) as *const () as usize,
-            frames: 4,
-            band_count: 1,
-        };
+        let second_identity =
+            source_identity(&signal_bands(Arc::clone(&second_samples), [0.0, 4.0]));
         renderer.cached_signal_summary(CachedSignalSummaryRequest {
             key: 7,
             revision: 1,

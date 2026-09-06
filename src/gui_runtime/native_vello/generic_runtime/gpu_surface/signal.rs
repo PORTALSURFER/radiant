@@ -1306,6 +1306,190 @@ mod tests {
         }
     }
 
+    fn signal_preflight_actions(
+        renderer: &GpuSurfaceRenderer,
+        state: &mut SignalUploadPreflightState,
+        surface: &PaintGpuSurface,
+    ) -> Vec<GpuSurfaceRenderCanvasUploadAction> {
+        let mut composite_state = AtlasUploadPreflightState::default();
+        let mut actions = Vec::new();
+        let result = renderer.preflight_signal_upload_actions(
+            GpuSurfaceRenderCanvasUploadTarget::new(7, wgpu::TextureFormat::Bgra8Unorm, 640, 200),
+            DpiScale::ONE,
+            0,
+            surface,
+            SignalUploadPreflightContext {
+                composite_state: &mut composite_state,
+                signal_state: state,
+                actions: &mut actions,
+            },
+        );
+        assert!(result.renderable);
+        assert_eq!(result.unavailable, None);
+        actions
+    }
+
+    fn signal_buffer_action(
+        actions: &[GpuSurfaceRenderCanvasUploadAction],
+    ) -> (
+        SignalBufferCacheKey,
+        GpuSurfaceRenderCanvasUploadSignalBufferOperation,
+    ) {
+        actions
+            .iter()
+            .find_map(|action| match action {
+                GpuSurfaceRenderCanvasUploadAction::SignalBuffer {
+                    cache_key,
+                    operation,
+                    ..
+                } => Some((*cache_key, *operation)),
+                _ => None,
+            })
+            .expect("signal buffer action")
+    }
+
+    fn signal_body_operation(
+        actions: &[GpuSurfaceRenderCanvasUploadAction],
+    ) -> GpuSurfaceRenderCanvasUploadSignalBodyOperation {
+        actions
+            .iter()
+            .find_map(|action| match action {
+                GpuSurfaceRenderCanvasUploadAction::SignalBody { operation, .. } => {
+                    Some(*operation)
+                }
+                _ => None,
+            })
+            .expect("signal body action")
+    }
+
+    fn uploads_of_class(
+        actions: &[GpuSurfaceRenderCanvasUploadAction],
+        class: GpuSurfaceRenderCanvasUploadClass,
+    ) -> usize {
+        actions
+            .iter()
+            .filter(|action| {
+                matches!(
+                    action,
+                    GpuSurfaceRenderCanvasUploadAction::Upload {
+                        class: action_class,
+                        ..
+                    } if *action_class == class
+                )
+            })
+            .count()
+    }
+
+    #[test]
+    fn signal_preflight_reuses_bucket_data_for_nearby_presentation_updates() {
+        let samples = vec![0.25; 4_096];
+        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            &samples, 4_096, 1,
+        ));
+        let first = summary_surface(7, 4_096, 1, Arc::clone(&summary));
+        let mut presented = first.clone();
+        let GpuSurfaceContent::SignalSummaryBands {
+            frame_range,
+            gain_preview,
+            ..
+        } = &mut presented.content
+        else {
+            unreachable!()
+        };
+        *frame_range = [200.4, 403.4];
+        *gain_preview = Some(GpuSignalGainPreview {
+            start: 200.4,
+            end: 403.4,
+            gain: 0.75,
+            fade_in_length: 4.0,
+            fade_in_curve: 0.5,
+            fade_in_mute: 0.0,
+            fade_in_outer_gain: 1.0,
+            fade_out_length: 4.0,
+            fade_out_curve: 0.5,
+            fade_out_mute: 0.0,
+            fade_out_outer_gain: 1.0,
+        });
+        let mut first = first;
+        let GpuSurfaceContent::SignalSummaryBands { frame_range, .. } = &mut first.content else {
+            unreachable!()
+        };
+        *frame_range = [200.2, 403.2];
+
+        let renderer = GpuSurfaceRenderer::default();
+        let mut state = SignalUploadPreflightState::default();
+        let initial_actions = signal_preflight_actions(&renderer, &mut state, &first);
+        let presented_actions = signal_preflight_actions(&renderer, &mut state, &presented);
+
+        assert_eq!(
+            signal_buffer_action(&initial_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Upload
+        );
+        assert_eq!(
+            signal_buffer_action(&presented_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Reuse
+        );
+        assert_eq!(
+            signal_body_operation(&presented_actions),
+            GpuSurfaceRenderCanvasUploadSignalBodyOperation::Render
+        );
+        assert_eq!(
+            uploads_of_class(
+                &presented_actions,
+                GpuSurfaceRenderCanvasUploadClass::ImmutablePayload
+            ),
+            0
+        );
+        assert_eq!(
+            uploads_of_class(
+                &presented_actions,
+                GpuSurfaceRenderCanvasUploadClass::RendererParameter
+            ),
+            2
+        );
+    }
+
+    #[test]
+    fn signal_preflight_reuploads_bucket_data_when_window_or_detail_changes() {
+        let samples = vec![0.25; 4_096];
+        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            &samples, 4_096, 1,
+        ));
+        let mut first = summary_surface(7, 4_096, 1, Arc::clone(&summary));
+        let GpuSurfaceContent::SignalSummaryBands { frame_range, .. } = &mut first.content else {
+            unreachable!()
+        };
+        *frame_range = [200.2, 403.2];
+        let mut crossed_window = first.clone();
+        let GpuSurfaceContent::SignalSummaryBands { frame_range, .. } = &mut crossed_window.content
+        else {
+            unreachable!()
+        };
+        *frame_range = [600.2, 803.2];
+        let mut changed_detail = first.clone();
+        changed_detail.rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(64.0, 200.0));
+
+        let renderer = GpuSurfaceRenderer::default();
+        let mut state = SignalUploadPreflightState::default();
+        let first_actions = signal_preflight_actions(&renderer, &mut state, &first);
+        let window_actions = signal_preflight_actions(&renderer, &mut state, &crossed_window);
+        let detail_actions = signal_preflight_actions(&renderer, &mut state, &changed_detail);
+
+        let first_key = signal_buffer_action(&first_actions).0;
+        let window_key = signal_buffer_action(&window_actions).0;
+        let detail_key = signal_buffer_action(&detail_actions).0;
+        assert_ne!(first_key.bucket_start, window_key.bucket_start);
+        assert_eq!(
+            signal_buffer_action(&window_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Upload
+        );
+        assert_ne!(first_key.level_index, detail_key.level_index);
+        assert_eq!(
+            signal_buffer_action(&detail_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Upload
+        );
+    }
+
     #[test]
     fn retained_summary_validation_runs_once_per_summary_identity() {
         let samples = vec![0.25; 16_384];

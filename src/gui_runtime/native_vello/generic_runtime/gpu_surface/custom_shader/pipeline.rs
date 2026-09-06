@@ -1,4 +1,6 @@
-use super::super::gpu_surface_types::{CustomShaderPipeline, CustomShaderPipelineKey};
+use super::super::gpu_surface_types::{
+    CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
+};
 use super::super::stats::GpuSurfaceRenderStats;
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use super::diagnostics::custom_shader_validation_error;
@@ -33,6 +35,29 @@ impl GpuSurfaceRenderer {
         stats.custom_shader.pipeline_rebuilds += 1;
         self.resources
             .remove_custom_shader_binding(&request.surface_key);
+        let identity = CustomShaderPipelineIdentity {
+            device: wgpu_device_id(request.device),
+            format: request.target_format,
+            key: request.key.clone(),
+        };
+        if !self
+            .resources
+            .can_admit_custom_shader_pipeline(request.surface_key, &identity)
+        {
+            warn!(surface_key = request.surface_key, shader_key = %request.key.shader_key,
+                "radiant custom shader pipeline cache admission limit reached");
+            self.resources
+                .remove_custom_shader_pipeline(&request.surface_key);
+            return;
+        }
+        if self
+            .resources
+            .has_custom_shader_pipeline_identity(&identity)
+        {
+            self.resources
+                .associate_custom_shader_pipeline(request.surface_key, identity);
+            return;
+        }
         let Some(shader) = create_custom_shader_module(&request, stats) else {
             self.resources
                 .remove_custom_shader_pipeline(&request.surface_key);
@@ -45,6 +70,7 @@ impl GpuSurfaceRenderer {
         };
         self.resources.insert_custom_shader_pipeline(
             request.surface_key,
+            identity,
             CustomShaderPipeline {
                 format: request.target_format,
                 device: wgpu_device_id(request.device),
@@ -60,10 +86,11 @@ impl GpuSurfaceRenderer {
         request: &CustomShaderPipelineRequest<'_>,
     ) -> bool {
         self.resources
-            .custom_shader_pipelines
-            .get(&request.surface_key)
+            .custom_shader_pipeline_identity(request.surface_key)
             .is_none_or(|pipeline| {
-                !pipeline.matches(request.device, request.target_format, &request.key)
+                pipeline.device != wgpu_device_id(request.device)
+                    || pipeline.format != request.target_format
+                    || pipeline.key != request.key
             })
     }
 }

@@ -5758,6 +5758,20 @@ or stage entry points report skipped surfaces through
 `custom_shader.unsupported.uniform_bytes`, and
 `custom_shader.unsupported.storage_bytes` instead of silently treating them as
 built-in atlas or signal content.
+
+Within one native renderer generation, physical custom-shader pipelines are
+shared only when the complete device identity, target format, shader key and
+source, stage entry points, and payload binding shape match. Each surface keeps
+its own bind group and payload write state, so a binding validation failure or a
+payload revision affects only that surface. The renderer retains at most 256
+unique pipelines, 1,024 surface associations, and 1 MiB of retained pipeline
+key/source text. Existing entries remain usable when an admission limit is
+reached; the newly requested surface reports an incomplete native upload and a
+private tracing reason. Inactive surface associations are pruned first, then a
+physical pipeline is dropped when its final association is gone. Validation
+failures are deliberately not retained: the exact identity is retried on a
+later upload, avoiding a growing negative-result cache and allowing recovery
+after a device generation change.
 `RenderCanvasContent::validate()` returns a typed `RenderCanvasContentError` for
 invalid atlas rectangles, signal ranges, empty payloads, and summary-shape
 mismatches. `is_renderable()` and `signal_render_shape()` remain convenience

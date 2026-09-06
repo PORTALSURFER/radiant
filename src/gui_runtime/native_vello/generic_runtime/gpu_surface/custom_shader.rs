@@ -28,6 +28,8 @@ use diagnostics::record_failed_custom_shader_surface;
 use draw::{CustomShaderBufferUploadRequest, CustomShaderDrawRequest};
 use pipeline::{CustomShaderPipelineRequest, custom_shader_pipeline_key};
 
+const MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS: usize = 1024;
+
 pub(super) fn record_unsupported_custom_shader(
     descriptor: &GpuShaderSurfaceDescriptor,
     stats: &mut GpuSurfaceRenderStats,
@@ -70,6 +72,10 @@ impl CustomShaderUploadPreflightState {
     pub(super) fn reset(&mut self) {
         self.pipelines.clear();
         self.bindings.clear();
+        self.pipelines
+            .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
+        self.bindings
+            .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
     }
 
     #[cfg(test)]
@@ -97,8 +103,7 @@ impl CustomShaderUploadPreflightState {
             .unwrap_or_else(|| {
                 renderer
                     .resources
-                    .custom_shader_pipelines
-                    .get(&surface_key)
+                    .custom_shader_pipeline_identity(surface_key)
                     .map(|pipeline| CustomShaderPipelinePreflightIdentity {
                         device: pipeline.device,
                         format: pipeline.format,
@@ -120,6 +125,11 @@ impl CustomShaderUploadPreflightState {
             self.bindings.insert(surface_key, None);
         }
         rebuild
+    }
+
+    fn can_track_pipeline(&self, surface_key: u64) -> bool {
+        self.pipelines.contains_key(&surface_key)
+            || self.pipelines.len() < MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS
     }
 
     fn binding_decision(
@@ -223,6 +233,17 @@ impl GpuSurfaceRenderer {
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported),
             };
         };
+        if !state.can_track_pipeline(surface.key) {
+            actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
+                surface_index,
+                key: surface.key,
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            });
+            return CustomShaderUploadPreflight {
+                renderable: false,
+                unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
+            };
+        }
         actions.push(GpuSurfaceRenderCanvasUploadAction::Surface {
             surface_index,
             key: surface.key,
@@ -408,7 +429,7 @@ impl GpuSurfaceRenderer {
                 stats,
             );
         }
-        let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface.key) else {
+        let Some(pipeline) = self.resources.custom_shader_pipeline(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return false;
         };
@@ -528,11 +549,7 @@ impl GpuSurfaceRenderer {
             upload_plan.mark_execution_mutated();
         }
         self.ensure_custom_shader_pipeline(pipeline_request, stats);
-        if !self
-            .resources
-            .custom_shader_pipelines
-            .contains_key(&surface.key)
-        {
+        if !self.resources.has_custom_shader_pipeline(surface.key) {
             upload_plan
                 .veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
             record_failed_custom_shader_surface(stats);
@@ -633,7 +650,7 @@ impl GpuSurfaceRenderer {
             return custom_shader_plan_failure_result(upload_plan);
         }
 
-        let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface.key) else {
+        let Some(pipeline) = self.resources.custom_shader_pipeline(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return Some(false);
         };
@@ -686,11 +703,7 @@ impl GpuSurfaceRenderer {
             },
             stats,
         );
-        if !self
-            .resources
-            .custom_shader_pipelines
-            .contains_key(&surface.key)
-        {
+        if !self.resources.has_custom_shader_pipeline(surface.key) {
             record_failed_custom_shader_surface(stats);
             return false;
         }

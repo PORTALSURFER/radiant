@@ -2,7 +2,7 @@ use super::super::wgpu_target_matches;
 use std::sync::Arc;
 use vello::wgpu;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipelineKey
 {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) shader_key: String,
@@ -17,6 +17,18 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Cu
         bool,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_presentation_uniform_payload:
         bool,
+}
+
+/// The complete physical-pipeline identity.  Surface payload and revisions are
+/// deliberately absent: those are owned by the per-surface binding cache.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipelineIdentity
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) device: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) format:
+        wgpu::TextureFormat,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) key:
+        CustomShaderPipelineKey,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipeline {

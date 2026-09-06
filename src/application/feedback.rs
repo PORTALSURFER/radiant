@@ -251,7 +251,11 @@ fn bounded_text(value: String) -> String {
 }
 
 fn bounded_extent(value: f32) -> f32 {
-    value.is_finite().then_some(value.max(0.0)).unwrap_or(0.0)
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
 }
 
 fn status_fallback_label(status: StatusSemantic) -> &'static str {

@@ -4,8 +4,8 @@ use radiant::{
         IntoView, Layer, Notice, NoticeAction, NoticeDismissal, NoticeQueue, NoticeSeverity,
         StatusSemantic, column, inline_error, notifications, scene, spinner, status_badge, text,
     },
-    gui::types::{Point, Vector2},
-    runtime::{Command, Event, RuntimeBridge, UiSurface, testing::DeterministicHost},
+    gui::types::Vector2,
+    runtime::{Command, RuntimeBridge, UiSurface, testing::DeterministicHost},
 };
 use std::{sync::Arc, time::Duration};
 struct Model {
@@ -112,6 +112,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use radiant::{gui::types::Point, runtime::Event};
     #[test]
     fn normal_timeout_delivers_one_ordinary_update() {
         main();

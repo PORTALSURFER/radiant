@@ -5774,7 +5774,10 @@ Demand redraw performs no custom shader creation or validation wait, so its
 `pipeline_rebuilds` count no longer reports worker compilation. Opt-in debug
 tracing at `radiant::custom_shader_prepare` reports actual worker terminal CPU
 time and preparation capacity separately. This is not GPU timing or evidence
-of foreground responsiveness. Binding creation and uploads remain in rendering.
+of foreground responsiveness. Binding creation and uploads remain in rendering. The pinned native WGPU 29
+binding error scope returns an immediately ready future, checked with one poll.
+A backend that defers that result gets an explicit incomplete binding fallback;
+the renderer does not wait or assume validation succeeded.
 
 `PaintGpuSurface` supports the built-in v1 content payloads
 `RenderCanvasContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`, plus

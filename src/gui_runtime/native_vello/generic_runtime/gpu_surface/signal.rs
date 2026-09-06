@@ -1635,6 +1635,29 @@ mod tests {
     }
 
     #[test]
+    fn bounded_tile_query_preserves_extreme_integer_slide_remainder() {
+        let tile = crate::runtime::BoundedSignalTile {
+            first_frame: 0,
+            source_frames: 100,
+            band_count: 1,
+            bucket_frames: 1,
+            buckets: Arc::from([GpuSignalSummaryBucket::default(); 200]),
+        };
+        let shape = GpuSignalRenderShape {
+            frames: 100,
+            band_count: 1,
+            frame_range: [10.25, 20.25],
+            sample_count: 100,
+        };
+        for slide in [i64::MIN, i64::MAX] {
+            let query = tile_query_mapping(shape, slide, &tile).unwrap();
+            let expected = (10_i128 - i128::from(slide)).rem_euclid(100) as f32 + 0.25;
+            assert_eq!(query.start_bucket, expected);
+            assert_eq!(query.span_buckets, 10.0);
+        }
+    }
+
+    #[test]
     fn bounded_tile_query_refuses_a_tile_that_does_not_cover_slide_range() {
         let tile = crate::runtime::BoundedSignalTile {
             first_frame: 8,

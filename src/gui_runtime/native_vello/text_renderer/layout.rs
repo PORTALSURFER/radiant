@@ -3,7 +3,8 @@
 use super::{
     BidiDirection, BidiRun, CaretStopGeometry, GlyphPlacement, GraphemeBoundary, GraphemeGeometry,
     LineBreakKind, LineBreakPolicyId, LineBreakRecord, ResolvedFontRun, ScalarBoundary,
-    ShapeClusterRange, ShapedParagraph, SnapshotQuality, TextQuality, Utf8ByteOffset,
+    ShapeClusterRange, ShapedBreakBoundary, ShapedParagraph, SnapshotQuality, TextQuality,
+    Utf8ByteOffset,
     font::NativeFontStack,
     model::{LINE_BREAK_POLICY_ID, source_revision},
 };
@@ -56,6 +57,7 @@ pub(super) fn compute_shaped_paragraph(
     let mut resolved_font_runs = Vec::new();
     let mut bidi_runs = Vec::new();
     let mut glyphs = Vec::new();
+    let mut break_safety = Vec::new();
     let mut grapheme_geometry = Vec::new();
     let mut width = 0.0;
     let mut fallback_glyphs = 0;
@@ -172,6 +174,7 @@ pub(super) fn compute_shaped_paragraph(
                         run_index: bidi_run_index,
                     });
                 }
+                break_safety.extend(fragment.break_safety.iter().copied());
                 for geometry in &fragment.grapheme_geometry {
                     grapheme_geometry.push(GraphemeGeometry {
                         range: geometry.range,
@@ -201,6 +204,7 @@ pub(super) fn compute_shaped_paragraph(
         resolved_font_runs,
         bidi_runs,
         glyphs,
+        break_safety,
         grapheme_geometry,
         width,
         quality: TextQuality {
@@ -346,6 +350,7 @@ pub(super) fn compute_compatibility_paragraph(
         resolved_font_runs,
         bidi_runs,
         glyphs,
+        break_safety: Vec::new(),
         grapheme_geometry,
         width: x,
         quality: TextQuality {
@@ -424,6 +429,7 @@ fn emergency_compatibility_paragraph(
         resolved_font_runs: Vec::new(),
         bidi_runs,
         glyphs: Vec::new(),
+        break_safety: Vec::new(),
         grapheme_geometry: geometry,
         width: x,
         quality: TextQuality {
@@ -464,6 +470,7 @@ fn minimal_compatibility_paragraph(
         resolved_font_runs: Vec::new(),
         bidi_runs: Vec::new(),
         glyphs: Vec::new(),
+        break_safety: Vec::new(),
         grapheme_geometry: Vec::new(),
         width: 0.0,
         quality,
@@ -500,6 +507,7 @@ fn empty_compatibility_shape(
         resolved_font_runs: Vec::new(),
         bidi_runs: Vec::new(),
         glyphs: Vec::new(),
+        break_safety: Vec::new(),
         grapheme_geometry: Vec::new(),
         caret_geometry: Vec::new(),
         logical_to_visual: Vec::new(),
@@ -520,6 +528,7 @@ struct GeometryInput {
     resolved_font_runs: Vec<ResolvedFontRun>,
     bidi_runs: Vec<BidiRun>,
     glyphs: Vec<GlyphPlacement>,
+    break_safety: Vec<ShapedBreakBoundary>,
     grapheme_geometry: Vec<GraphemeGeometry>,
     width: f32,
     quality: TextQuality,
@@ -538,6 +547,7 @@ fn finish_geometry(input: GeometryInput) -> Result<Arc<ShapedParagraph>, ()> {
         resolved_font_runs,
         bidi_runs,
         mut glyphs,
+        mut break_safety,
         mut grapheme_geometry,
         width,
         quality,
@@ -600,6 +610,9 @@ fn finish_geometry(input: GeometryInput) -> Result<Arc<ShapedParagraph>, ()> {
     {
         return Err(());
     }
+
+    let normalized_break_safety =
+        normalize_break_safety(break_safety, source.as_ref(), &grapheme_boundaries)?;
 
     grapheme_geometry.sort_by_key(|geometry| geometry.grapheme_index);
     let expected_geometry = grapheme_geometry
@@ -690,6 +703,7 @@ fn finish_geometry(input: GeometryInput) -> Result<Arc<ShapedParagraph>, ()> {
         resolved_font_runs,
         bidi_runs,
         glyphs,
+        break_safety: normalized_break_safety,
         grapheme_geometry,
         caret_geometry,
         logical_to_visual,
@@ -698,6 +712,31 @@ fn finish_geometry(input: GeometryInput) -> Result<Arc<ShapedParagraph>, ()> {
         quality,
         quality_kind,
     }))
+}
+
+fn normalize_break_safety(
+    mut break_safety: Vec<ShapedBreakBoundary>,
+    source: &str,
+    grapheme_boundaries: &[Utf8ByteOffset],
+) -> Result<Vec<ShapedBreakBoundary>, ()> {
+    break_safety.sort_by_key(|boundary| boundary.byte);
+    let mut normalized = Vec::with_capacity(break_safety.len());
+    for boundary in break_safety {
+        if boundary.byte.0 >= source.len()
+            || !source.is_char_boundary(boundary.byte.0)
+            || !is_grapheme_boundary(grapheme_boundaries, boundary.byte.0)
+        {
+            return Err(());
+        }
+        if let Some(previous) = normalized.last_mut()
+            && previous.byte == boundary.byte
+        {
+            previous.safe_to_break_before &= boundary.safe_to_break_before;
+        } else {
+            normalized.push(boundary);
+        }
+    }
+    Ok(normalized)
 }
 
 fn breaks_are_invalid(
@@ -764,6 +803,7 @@ struct FontSegment {
 #[derive(Clone, Debug)]
 struct Fragment {
     glyphs: Vec<GlyphPlacement>,
+    break_safety: Vec<ShapedBreakBoundary>,
     grapheme_geometry: Vec<GraphemeGeometry>,
     width: f32,
 }
@@ -855,6 +895,10 @@ fn special_fragment(
     };
     Fragment {
         glyphs: Vec::new(),
+        break_safety: vec![ShapedBreakBoundary {
+            byte: Utf8ByteOffset(range.start),
+            safe_to_break_before: false,
+        }],
         grapheme_geometry: vec![GraphemeGeometry {
             range: ShapeClusterRange {
                 start: Utf8ByteOffset(range.start),
@@ -973,6 +1017,17 @@ fn shape_face_fragment(
     if glyphs.iter().any(|glyph| glyph.glyph_id == 0) {
         return Err(());
     }
+    let break_safety = cluster_starts
+        .iter()
+        .copied()
+        .map(|cluster_start| ShapedBreakBoundary {
+            byte: Utf8ByteOffset(range.start + cluster_start),
+            safe_to_break_before: infos
+                .iter()
+                .filter(|info| info.cluster as usize == cluster_start)
+                .all(|info| !info.unsafe_to_break()),
+        })
+        .collect();
     let mut geometry = Vec::new();
     for cluster_start in cluster_starts.iter().copied() {
         let local_end = cluster_starts
@@ -1033,6 +1088,7 @@ fn shape_face_fragment(
     }
     Ok(Fragment {
         glyphs,
+        break_safety,
         grapheme_geometry: geometry,
         width,
     })
@@ -1088,6 +1144,10 @@ fn missing_fragment(
     (
         Fragment {
             glyphs,
+            break_safety: vec![ShapedBreakBoundary {
+                byte: Utf8ByteOffset(range.start),
+                safe_to_break_before: false,
+            }],
             grapheme_geometry: vec![GraphemeGeometry {
                 range: ShapeClusterRange {
                     start: Utf8ByteOffset(range.start),
@@ -1239,6 +1299,27 @@ fn first_line_range(text: &str) -> Range<usize> {
 mod tests {
     use super::*;
     use crate::gui_runtime::native_vello::text_renderer::font::NativeFontStack;
+
+    #[test]
+    fn unsafe_break_evidence_overrides_a_duplicate_safe_boundary() {
+        let boundaries = normalize_break_safety(
+            vec![
+                ShapedBreakBoundary {
+                    byte: Utf8ByteOffset(1),
+                    safe_to_break_before: true,
+                },
+                ShapedBreakBoundary {
+                    byte: Utf8ByteOffset(1),
+                    safe_to_break_before: false,
+                },
+            ],
+            "ab",
+            &[Utf8ByteOffset(0), Utf8ByteOffset(1), Utf8ByteOffset(2)],
+        )
+        .expect("valid boundary");
+        assert_eq!(boundaries.len(), 1);
+        assert!(!boundaries[0].safe_to_break_before);
+    }
 
     #[test]
     fn shaped_fixture_uses_rustybuzz_clusters_and_ordered_faces() {

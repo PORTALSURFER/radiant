@@ -28,8 +28,9 @@ use font::NativeFontStack;
 pub(in crate::gui_runtime::native_vello) use model::{
     BidiDirection, BidiRun, CaretAffinity, CaretStopGeometry, GlyphPlacement, GraphemeBoundary,
     GraphemeGeometry, LineBreakKind, LineBreakPolicyId, LineBreakRecord, ParagraphSnapshot,
-    ResolvedFontRun, ScalarBoundary, SceneTextRun, ShapeClusterRange, ShapedParagraph,
-    SnapshotQuality, TextLayout, TextLayoutKey, TextQuality, TextViewKey, Utf8ByteOffset,
+    ResolvedFontRun, ScalarBoundary, SceneTextRun, ShapeClusterRange, ShapedBreakBoundary,
+    ShapedParagraph, SnapshotQuality, TextLayout, TextLayoutKey, TextQuality, TextViewKey,
+    Utf8ByteOffset,
 };
 #[cfg(test)]
 pub(in crate::gui_runtime::native_vello) use model::{GlyphLayout, TextCursorStop};

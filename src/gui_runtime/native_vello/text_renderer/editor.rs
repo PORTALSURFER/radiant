@@ -148,11 +148,6 @@ fn append_shaped_clusters(
         return None;
     }
 
-    // `ShapedParagraph` predates Rustybuzz's unsafe-to-break flags. A
-    // glyph-cluster boundary alone is insufficient proof, because shaping can
-    // mark several distinct clusters unsafe together. Keep every soft-wrap
-    // boundary unavailable until those flags are retained by the shaper.
-
     for geometry in geometry {
         let bytes = shifted_range(geometry.range, byte_offset)?;
         let bidi_level = pre_l1_bidi_level(shaped.source.as_ref(), presentation, geometry.range)?;
@@ -165,7 +160,9 @@ fn append_shaped_clusters(
             bytes: bytes.clone(),
             advance,
             bidi_level,
-            safe_break_after: false,
+            safe_break_after: shaped.quality.fallback_glyphs == 0
+                && shaped.quality.missing_glyphs == 0
+                && shaped.safe_to_break_before(geometry.range.end),
             carets: cluster_carets(geometry, advance),
         });
         payloads.push(NativeEditorClusterPayload {
@@ -315,5 +312,37 @@ mod tests {
                 22..22
             ]
         );
+    }
+
+    #[test]
+    fn shaped_font_break_evidence_controls_editor_wrap_boundaries() {
+        use super::{NativeEditorClusterPayload, append_shaped_clusters, compute_shaped_paragraph};
+        use crate::gui_runtime::native_vello::text_renderer::font::NativeFontStack;
+        use std::sync::Arc;
+
+        let mut stack = NativeFontStack::from_test_bytes(&[include_bytes!(
+            "../../../../tests/fixtures/fonts/primary.ttf"
+        )]);
+        let shaped =
+            compute_shaped_paragraph(&mut stack, Arc::from("A B"), 20.0, &Default::default())
+                .expect("fixture font shapes simple Latin text");
+        let mut clusters = Vec::new();
+        let mut payloads: Vec<NativeEditorClusterPayload> = Vec::new();
+        append_shaped_clusters(
+            &shaped,
+            0,
+            &Default::default(),
+            &mut clusters,
+            &mut payloads,
+        )
+        .expect("shaped text has valid editor clusters");
+
+        assert!(clusters.iter().any(|cluster| cluster.safe_break_after));
+        for cluster in &clusters {
+            assert_eq!(
+                cluster.safe_break_after,
+                shaped.safe_to_break_before(super::Utf8ByteOffset(cluster.bytes.end))
+            );
+        }
     }
 }

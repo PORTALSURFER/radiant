@@ -135,7 +135,3 @@ fn preview_gain_at_position(position: f32) -> f32 {
     }
     return gain * max(params.gain_preview_a.w, 0.0);
 }
-
-fn blend(src: vec3<f32>, alpha: f32, dst: vec4<f32>) -> vec4<f32> {
-    return vec4<f32>(mix(dst.rgb, src, clamp(alpha, 0.0, 1.0)), 1.0);
-}

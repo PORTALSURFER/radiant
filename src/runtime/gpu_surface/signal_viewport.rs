@@ -222,7 +222,7 @@ impl GpuSignalViewport {
 }
 
 fn position_from_nonnegative_f64(value: f64) -> Result<GpuSignalPosition, GpuSignalViewportError> {
-    if !value.is_finite() || value < 0.0 || value >= U64_EXCLUSIVE_F64 {
+    if !value.is_finite() || !(0.0..U64_EXCLUSIVE_F64).contains(&value) {
         return Err(GpuSignalViewportError::FrameOutOfBounds);
     }
     GpuSignalPosition::new(value.trunc() as u64, value.fract())

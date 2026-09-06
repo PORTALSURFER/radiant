@@ -246,3 +246,7 @@ mod tests;
 #[cfg(test)]
 #[path = "pipeline/measurement_native_tests.rs"]
 mod measurement_native_tests;
+
+#[cfg(test)]
+#[path = "pipeline/worker_measurement_native_tests.rs"]
+mod worker_measurement_native_tests;

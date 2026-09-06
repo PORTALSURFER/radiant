@@ -1,4 +1,4 @@
-//! Opt-in, offscreen measurements of the synchronous custom-shader builder.
+//! Opt-in, offscreen phase measurements used as the synchronous baseline.
 //!
 //! The fixture calls the same module, layout, pipeline, and validation-scope
 //! builder functions as production. It deliberately does not render, wait for
@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use vello::wgpu;
 
-const VALID_SHADER: &str = r#"
+pub(super) const VALID_SHADER: &str = r#"
 @vertex fn vertex_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
     var positions = array<vec2<f32>, 3>(
         vec2<f32>(-1.0, -1.0), vec2<f32>(3.0, -1.0), vec2<f32>(-1.0, 3.0));
@@ -26,7 +26,7 @@ const VALID_SHADER: &str = r#"
 }
 "#;
 
-const INVALID_SHADER: &str = "this is not WGSL";
+pub(super) const INVALID_SHADER: &str = "this is not WGSL";
 const WARM_REPETITIONS: usize = 3;
 const DISTINCT_VARIANTS: usize = 4;
 
@@ -259,7 +259,7 @@ fn request<'a>(
     }
 }
 
-fn pipeline_key(shader_key: &str, source: &str) -> CustomShaderPipelineKey {
+pub(super) fn pipeline_key(shader_key: &str, source: &str) -> CustomShaderPipelineKey {
     CustomShaderPipelineKey {
         shader_key: Arc::from(shader_key),
         wgsl_source: Arc::from(source),
@@ -271,7 +271,7 @@ fn pipeline_key(shader_key: &str, source: &str) -> CustomShaderPipelineKey {
     }
 }
 
-fn native_device() -> (wgpu::AdapterInfo, wgpu::Device, Duration) {
+pub(super) fn native_device() -> (wgpu::AdapterInfo, wgpu::Device, Duration) {
     let setup_start = Instant::now();
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::PRIMARY,
@@ -300,14 +300,14 @@ fn required_env(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("{name} must be set for this fixture"))
 }
 
-fn duration_ns(duration: Duration) -> u64 {
+pub(super) fn duration_ns(duration: Duration) -> u64 {
     duration
         .as_nanos()
         .try_into()
         .expect("bounded phase timing must fit u64 nanoseconds")
 }
 
-fn fnv1a64(input: &str) -> String {
+pub(super) fn fnv1a64(input: &str) -> String {
     let hash = input
         .as_bytes()
         .iter()

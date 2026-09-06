@@ -80,5 +80,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) const GPU_SIGNAL_SHADE
     "\n",
     include_str!("../../shaders/gpu_signal_surface/summary.wgsl"),
     "\n",
+    include_str!("../../../../runtime/gpu_surface/shaders/signal_visual.wgsl"),
+    "\n",
     include_str!("../../shaders/gpu_signal_surface/fragment.wgsl"),
 );

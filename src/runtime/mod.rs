@@ -200,12 +200,15 @@ pub use external_drag::{
 pub use file_drop::{NativeFileDrop, NativeFileDropPhase};
 pub use file_open::NativeFileOpen;
 pub use gpu_surface::{
-    CanvasKey, GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT, GpuShaderPresentationUniformUpdate,
+    CanvasKey, GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT, GpuPreciseSignalGainPreview,
+    GpuPreciseSignalPresentation, GpuShaderPresentationUniformUpdate,
     GpuShaderPresentationUniformUpdateError, GpuShaderSurfaceDescriptor,
-    GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary,
-    GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
-    GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
-    MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES, RenderCanvasCapabilities, RenderCanvasContent,
+    GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview, GpuSignalPosition, GpuSignalRenderShape,
+    GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSignalSummaryWindow,
+    GpuSignalViewport, GpuSignalViewportError, GpuSignalWindowError, GpuSurfaceCapabilities,
+    GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay,
+    GpuSurfaceRuntimeOverlays, MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES,
+    MAX_PRECISE_SIGNAL_BUCKETS, RenderCanvasCapabilities, RenderCanvasContent,
     RenderCanvasContentError, RenderCanvasLineStyle, RenderCanvasOverlay,
     RenderCanvasRuntimeOverlays, RenderCanvasShaderSurfaceDescriptor,
     RenderCanvasShaderSurfaceDescriptorParts,

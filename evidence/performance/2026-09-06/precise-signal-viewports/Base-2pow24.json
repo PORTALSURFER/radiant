@@ -1,0 +1,13 @@
+{
+  "adapter": "Apple M5 Pro",
+  "backend": "Metal",
+  "bytes": 16384,
+  "device_type": "IntegratedGpu",
+  "fixture": "precise-signal-native-reference",
+  "foreground_latency_measurement": false,
+  "format": "Rgba8Unorm",
+  "height": 64,
+  "scenario": "Base-2pow24",
+  "source_revision": "1463a405",
+  "width": 64
+}

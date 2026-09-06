@@ -337,6 +337,37 @@ pub enum PersistentStorageUploads {
     },
 }
 
+fn validate_layout(
+    stride: usize,
+    capacity: usize,
+    logical_len: usize,
+) -> Result<(), GpuPersistentStorageError> {
+    if stride == 0 || !stride.is_multiple_of(ALIGNMENT) {
+        return Err(GpuPersistentStorageError::InvalidElementStride);
+    }
+    if capacity == 0
+        || capacity > MAX_GPU_PERSISTENT_STORAGE_BYTES
+        || !capacity.is_multiple_of(stride)
+    {
+        return Err(GpuPersistentStorageError::InvalidCapacity);
+    }
+    if logical_len > capacity || !logical_len.is_multiple_of(stride) {
+        return Err(GpuPersistentStorageError::InvalidLogicalLength);
+    }
+    Ok(())
+}
+
+fn validate_patch_bytes(bytes: &[u8]) -> Result<(), GpuPersistentStorageError> {
+    if bytes.is_empty()
+        || bytes.len() > MAX_GPU_PERSISTENT_STORAGE_PATCH_BYTES
+        || !bytes.len().is_multiple_of(ALIGNMENT)
+    {
+        Err(GpuPersistentStorageError::InvalidPatchBytes)
+    } else {
+        Ok(())
+    }
+}
+
 mod store;
 pub(crate) use store::{GpuPersistentStorageStore, PersistentStorageEntry};
 

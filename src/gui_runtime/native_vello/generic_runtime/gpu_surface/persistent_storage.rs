@@ -51,6 +51,17 @@ impl PersistentStorageBindingCursor {
     pub(super) fn abort(&mut self) {
         self.pending = None;
     }
+
+    /// A submitted encoder may have changed storage before a later native
+    /// ticket veto. Forget only touched bindings so the next frame replays a
+    /// full shadow instead of trusting an unknown GPU revision.
+    pub(super) fn abort_unknown_submission(&mut self) {
+        if self.pending.is_some() {
+            self.committed = None;
+            self.pending = None;
+        }
+    }
+
     pub(super) fn invalidate(&mut self) {
         *self = Self::default();
     }
@@ -202,5 +213,23 @@ mod tests {
         cursor.stage_bulk_reset();
         cursor.commit();
         assert_eq!(cursor.effective(), None);
+    }
+
+    #[test]
+    fn unknown_submission_abort_forgets_only_touched_cursor() {
+        let target =
+            GpuPersistentStorageTarget::new(crate::widgets::WidgetId::from(1_u32), 2, 3, 4);
+        let mut touched = PersistentStorageBindingCursor::default();
+        touched.stage(revision(target, 7, 9));
+        touched.commit();
+        touched.stage_bulk_reset();
+        touched.abort_unknown_submission();
+        assert_eq!(touched.effective(), None);
+
+        let mut untouched = PersistentStorageBindingCursor::default();
+        untouched.stage(revision(target, 7, 9));
+        untouched.commit();
+        untouched.abort_unknown_submission();
+        assert_eq!(untouched.effective(), Some(revision(target, 7, 9)));
     }
 }

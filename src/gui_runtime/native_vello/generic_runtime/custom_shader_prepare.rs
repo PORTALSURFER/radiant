@@ -1043,6 +1043,9 @@ mod tests {
         assert_eq!(broker.capacity_status().active, 1);
         broker.reject_dispatch(second_id);
         assert_eq!(broker.capacity_status().active, 1);
+        assert!(broker.drain_completions().is_empty());
+        let rejected_retry = broker.take_dispatch().expect("one host rejection retry");
+        broker.reject_dispatch(rejected_retry.id());
         assert_eq!(broker.drain_completions(), vec![first_target]);
         assert_eq!(
             broker.failure(first_target),

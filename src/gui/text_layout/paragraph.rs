@@ -31,6 +31,15 @@ pub enum CaretAffinity {
     Downstream,
 }
 
+/// The paragraph embedding direction supplied to both shaping and geometry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
+pub enum ParagraphBaseDirection {
+    #[default]
+    Auto,
+    Ltr,
+    Rtl,
+}
+
 /// A provider-supplied caret position inside one logical shaped cluster.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ClusterCaretOffset {
@@ -58,6 +67,7 @@ pub struct ParagraphGeometryInput {
     pub key: ParagraphGeometryKey,
     pub source: Arc<str>,
     pub clusters: Vec<ShapedLogicalCluster>,
+    pub base_direction: ParagraphBaseDirection,
     pub wrap_width: f32,
     pub line_height: f32,
 }
@@ -73,6 +83,19 @@ pub enum ParagraphGeometryError {
     InvalidByteRange,
     InvalidCaret,
     BidiBoundary,
+    BidiLevelMismatch,
+}
+
+#[derive(Clone, Debug)]
+struct HardParagraph {
+    bytes: Range<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct PendingLine {
+    bytes: Range<usize>,
+    clusters: Range<usize>,
+    paragraph: usize,
 }
 
 /// Logical line metadata. `bytes` excludes its terminating hard break.
@@ -108,13 +131,17 @@ pub struct ParagraphGeometry {
 impl ParagraphGeometry {
     pub fn build(input: ParagraphGeometryInput) -> Result<Self, ParagraphGeometryError> {
         validate_input(&input)?;
-        let hard_lines = hard_lines(input.source.as_ref());
-        if hard_lines.len() > MAX_PARAGRAPH_LINES {
+        let paragraphs = hard_paragraphs(input.source.as_ref());
+        if paragraphs.len() > MAX_PARAGRAPH_LINES {
             return Err(ParagraphGeometryError::TooManyLines);
         }
         let soft_breaks = safe_breaks(input.source.as_ref());
         let mut logical_lines = Vec::new();
-        for range in hard_lines {
+        for (paragraph, range) in paragraphs
+            .iter()
+            .map(|paragraph| paragraph.bytes.clone())
+            .enumerate()
+        {
             let first = input
                 .clusters
                 .partition_point(|cluster| cluster.bytes.end <= range.start);
@@ -122,33 +149,54 @@ impl ParagraphGeometry {
                 .clusters
                 .partition_point(|cluster| cluster.bytes.start < range.end);
             let indices = first..end;
-            logical_lines.extend(wrap_line(
-                range,
-                indices,
-                &input.clusters,
-                &soft_breaks,
-                input.wrap_width,
-            )?);
+            logical_lines.extend(
+                wrap_line(
+                    range,
+                    indices,
+                    &input.clusters,
+                    &soft_breaks,
+                    input.wrap_width,
+                )?
+                .into_iter()
+                .map(|(bytes, clusters)| PendingLine {
+                    bytes,
+                    clusters,
+                    paragraph,
+                }),
+            );
             if logical_lines.len() > MAX_PARAGRAPH_LINES {
                 return Err(ParagraphGeometryError::TooManyLines);
             }
         }
 
+        if !((logical_lines.len() as f32) * input.line_height).is_finite() {
+            return Err(ParagraphGeometryError::InvalidMetrics);
+        }
         let mut width: f32 = 0.0;
         let mut lines = Vec::with_capacity(logical_lines.len());
         let mut placements = Vec::with_capacity(logical_lines.len());
         let mut carets = Vec::with_capacity(logical_lines.len());
-        for (line_index, (bytes, cluster_range)) in logical_lines.into_iter().enumerate() {
+        for (line_index, pending) in logical_lines.into_iter().enumerate() {
+            let bytes = pending.bytes;
+            let cluster_range = pending.clusters;
             let y = line_index as f32 * input.line_height;
+            if !y.is_finite() {
+                return Err(ParagraphGeometryError::InvalidMetrics);
+            }
             let (line_placements, line_carets, line_width) = visual_line(
                 input.source.as_ref(),
                 bytes.clone(),
                 cluster_range.clone(),
                 &input.clusters,
+                paragraphs[pending.paragraph].bytes.clone(),
+                input.base_direction,
                 y,
                 input.line_height,
             )?;
             width = width.max(line_width);
+            if !width.is_finite() {
+                return Err(ParagraphGeometryError::InvalidMetrics);
+            }
             lines.push(ParagraphVisualLine {
                 bytes,
                 y,
@@ -331,43 +379,51 @@ fn validate_input(input: &ParagraphGeometryInput) -> Result<(), ParagraphGeometr
 
 fn hard_break_bytes(source: &str) -> BTreeSet<usize> {
     let mut bytes = BTreeSet::new();
-    let raw = source.as_bytes();
-    let mut offset = 0;
-    while offset < raw.len() {
-        if raw[offset] == b'\r' {
-            bytes.insert(offset);
-            if raw.get(offset + 1) == Some(&b'\n') {
-                bytes.insert(offset + 1);
-                offset += 2;
-            } else {
-                offset += 1;
-            }
-        } else if raw[offset] == b'\n' {
-            bytes.insert(offset);
-            offset += 1;
-        } else {
-            offset += source[offset..].chars().next().unwrap().len_utf8();
-        }
+    for paragraph in hard_paragraphs(source) {
+        let end = paragraph.bytes.end;
+        let next_start = hard_separator_end(source, end).unwrap_or(end);
+        bytes.extend(end..next_start);
     }
     bytes
 }
 
-fn hard_lines(source: &str) -> Vec<Range<usize>> {
-    let raw = source.as_bytes();
-    let mut lines = Vec::new();
+fn hard_paragraphs(source: &str) -> Vec<HardParagraph> {
+    let mut paragraphs = Vec::new();
     let mut start = 0;
     let mut offset = 0;
-    while offset < raw.len() {
-        if raw[offset] == b'\r' || raw[offset] == b'\n' {
-            lines.push(start..offset);
-            offset += usize::from(raw[offset] == b'\r' && raw.get(offset + 1) == Some(&b'\n')) + 1;
-            start = offset;
+    while offset < source.len() {
+        if let Some(next) = hard_separator_end(source, offset) {
+            paragraphs.push(HardParagraph {
+                bytes: start..offset,
+            });
+            start = next;
+            offset = next;
         } else {
-            offset += source[offset..].chars().next().unwrap().len_utf8();
+            offset += source[offset..]
+                .chars()
+                .next()
+                .expect("valid UTF-8")
+                .len_utf8();
         }
     }
-    lines.push(start..source.len());
-    lines
+    paragraphs.push(HardParagraph {
+        bytes: start..source.len(),
+    });
+    paragraphs
+}
+
+fn hard_separator_end(source: &str, offset: usize) -> Option<usize> {
+    let rest = source.get(offset..)?;
+    if rest.starts_with("\r\n") {
+        Some(offset + 2)
+    } else if matches!(
+        rest.chars().next(),
+        Some('\u{b}' | '\u{c}' | '\r' | '\n' | '\u{85}' | '\u{2028}' | '\u{2029}')
+    ) {
+        Some(offset + rest.chars().next()?.len_utf8())
+    } else {
+        None
+    }
 }
 
 fn grapheme_boundaries(source: &str) -> BTreeSet<usize> {
@@ -406,6 +462,9 @@ fn wrap_line(
     let mut last_break = None;
     while cursor < clusters.end {
         let cluster = &source[cursor];
+        if !(advance + cluster.advance).is_finite() {
+            return Err(ParagraphGeometryError::InvalidMetrics);
+        }
         advance += cluster.advance;
         if cluster.safe_break_after && breaks.contains(&cluster.bytes.end) {
             last_break = Some(cursor + 1);
@@ -443,6 +502,8 @@ fn visual_line(
     bytes: Range<usize>,
     clusters: Range<usize>,
     all: &[ShapedLogicalCluster],
+    paragraph_bytes: Range<usize>,
+    base_direction: ParagraphBaseDirection,
     y: f32,
     line_height: f32,
 ) -> Result<
@@ -465,39 +526,45 @@ fn visual_line(
     }
     // Resolve the full hard paragraph, then ask unicode-bidi to reorder this line.
     // Re-resolving an already wrapped substring loses surrounding embedding context.
-    let paragraph_bytes = hard_lines(source)
-        .into_iter()
-        .find(|paragraph| paragraph.start <= bytes.start && bytes.end <= paragraph.end)
-        .ok_or(ParagraphGeometryError::BidiBoundary)?;
     let paragraph_text = &source[paragraph_bytes.clone()];
     let line = (bytes.start - paragraph_bytes.start)..(bytes.end - paragraph_bytes.start);
-    let bidi = BidiInfo::new(paragraph_text, None);
+    let base_level = match base_direction {
+        ParagraphBaseDirection::Auto => None,
+        ParagraphBaseDirection::Ltr => Some(unicode_bidi::Level::ltr()),
+        ParagraphBaseDirection::Rtl => Some(unicode_bidi::Level::rtl()),
+    };
+    let bidi = BidiInfo::new(paragraph_text, base_level);
     let paragraph = bidi
         .paragraphs
         .first()
         .ok_or(ParagraphGeometryError::BidiBoundary)?;
-    let (_, runs) = bidi.visual_runs(paragraph, line);
+    let (levels, runs) = bidi.visual_runs(paragraph, line);
     let mut visual_indices = Vec::with_capacity(clusters.len());
     for run in runs {
         let run_start = paragraph_bytes.start + run.start;
         let run_end = paragraph_bytes.start + run.end;
-        let mut members: Vec<usize> = clusters
-            .clone()
-            .filter(|index| {
-                all[*index].bytes.start >= run_start && all[*index].bytes.end <= run_end
-            })
-            .collect();
-        if members
-            .iter()
-            .any(|index| all[*index].bytes.start < run_start || all[*index].bytes.end > run_end)
+        let local = &all[clusters.clone()];
+        let member_start =
+            clusters.start + local.partition_point(|cluster| cluster.bytes.end <= run_start);
+        let member_end =
+            clusters.start + local.partition_point(|cluster| cluster.bytes.start < run_end);
+        if member_start >= member_end
+            || all[member_start].bytes.start < run_start
+            || all[member_end - 1].bytes.end > run_end
         {
             return Err(ParagraphGeometryError::BidiBoundary);
         }
-        let level = bidi
-            .levels
+        let level = levels
             .get(run.start)
             .ok_or(ParagraphGeometryError::BidiBoundary)?
             .number();
+        if (member_start..member_end).any(|index| {
+            let local_start = all[index].bytes.start - paragraph_bytes.start;
+            levels.get(local_start).map(unicode_bidi::Level::number) != Some(all[index].bidi_level)
+        }) {
+            return Err(ParagraphGeometryError::BidiLevelMismatch);
+        }
+        let mut members: Vec<usize> = (member_start..member_end).collect();
         if level % 2 == 1 {
             members.reverse();
         }
@@ -511,12 +578,19 @@ fn visual_line(
     let mut carets = Vec::new();
     for index in visual_indices {
         let cluster = &all[index];
+        let resolved_level = levels
+            .get(cluster.bytes.start - paragraph_bytes.start)
+            .ok_or(ParagraphGeometryError::BidiBoundary)?
+            .number();
+        if !(x + cluster.advance).is_finite() {
+            return Err(ParagraphGeometryError::InvalidMetrics);
+        }
         let rect = Rect::from_xy_size(x, y, cluster.advance, line_height);
         placements.push(ParagraphClusterPlacement {
             source_cluster: index,
             bytes: cluster.bytes.clone(),
             rect,
-            bidi_level: cluster.bidi_level,
+            bidi_level: resolved_level,
         });
         for offset in &cluster.carets {
             let byte = cluster.bytes.start + offset.byte_offset as usize;
@@ -553,7 +627,10 @@ mod tests {
         ShapedLogicalCluster {
             bytes: bytes.clone(),
             advance,
-            bidi_level: 0,
+            bidi_level: matches!(
+                source[bytes.clone()].chars().next(),
+                Some('\u{590}'..='\u{8ff}')
+            ) as u8,
             safe_break_after: safe,
             carets: source[bytes.clone()]
                 .grapheme_indices(true)
@@ -572,14 +649,18 @@ mod tests {
         let clusters = text
             .char_indices()
             .filter_map(|(start, ch)| {
-                (!matches!(ch, '\r' | '\n'))
-                    .then(|| cluster(text, start..start + ch.len_utf8(), 10.0, ch == ' '))
+                (!matches!(
+                    ch,
+                    '\u{b}' | '\u{c}' | '\r' | '\n' | '\u{85}' | '\u{2028}' | '\u{2029}'
+                ))
+                .then(|| cluster(text, start..start + ch.len_utf8(), 10.0, ch == ' '))
             })
             .collect();
         ParagraphGeometry::build(ParagraphGeometryInput {
             key: ParagraphGeometryKey(1),
             source: Arc::from(text),
             clusters,
+            base_direction: ParagraphBaseDirection::Auto,
             wrap_width: width,
             line_height: 12.0,
         })
@@ -590,6 +671,12 @@ mod tests {
         let g = geometry("a\r\nb\n", 100.0);
         assert_eq!(g.lines().len(), 3);
         assert_eq!(g.lines()[2].bytes, 5..5);
+    }
+    #[test]
+    fn all_uax14_mandatory_separators_create_hard_lines() {
+        let g = geometry("a\u{b}b\u{c}c\u{85}d\u{2028}e\u{2029}", 100.0);
+        assert_eq!(g.lines().len(), 6);
+        assert!(g.lines().iter().all(|line| line.width <= 10.0));
     }
     #[test]
     fn soft_wraps_only_safe_boundary() {
@@ -606,6 +693,7 @@ mod tests {
             key: ParagraphGeometryKey(1),
             source: Arc::from(text),
             clusters: vec![cluster(text, bytes, 10.0, false)],
+            base_direction: ParagraphBaseDirection::Auto,
             wrap_width: 1.0,
             line_height: 12.0,
         };
@@ -624,6 +712,22 @@ mod tests {
         assert_eq!(g.selection_rects(1..3).len(), 2);
     }
     #[test]
+    fn rejects_provider_level_that_disagrees_with_l1_reordering() {
+        let text = "aא";
+        let mut right_to_left = cluster(text, 1..text.len(), 10.0, false);
+        right_to_left.bidi_level = 0;
+        let error = ParagraphGeometry::build(ParagraphGeometryInput {
+            key: ParagraphGeometryKey(1),
+            source: Arc::from(text),
+            clusters: vec![cluster(text, 0..1, 10.0, false), right_to_left],
+            base_direction: ParagraphBaseDirection::Ltr,
+            wrap_width: 100.0,
+            line_height: 12.0,
+        })
+        .unwrap_err();
+        assert_eq!(error, ParagraphGeometryError::BidiLevelMismatch);
+    }
+    #[test]
     fn rejects_incomplete_or_nonfinite_input() {
         let source: Arc<str> = Arc::from("ab");
         let input = ParagraphGeometryInput {
@@ -636,6 +740,7 @@ mod tests {
                 safe_break_after: false,
                 carets: vec![],
             }],
+            base_direction: ParagraphBaseDirection::Auto,
             wrap_width: 1.0,
             line_height: 1.0,
         };
@@ -655,10 +760,28 @@ mod tests {
             key: ParagraphGeometryKey(1),
             source: Arc::from(""),
             clusters: vec![cluster; MAX_PARAGRAPH_CLUSTERS + 1],
+            base_direction: ParagraphBaseDirection::Auto,
             wrap_width: 1.0,
             line_height: 1.0,
         })
         .unwrap_err();
         assert_eq!(error, ParagraphGeometryError::TooManyClusters);
+    }
+    #[test]
+    fn rejects_finite_advances_whose_sum_overflows() {
+        let text = "ab";
+        let error = ParagraphGeometry::build(ParagraphGeometryInput {
+            key: ParagraphGeometryKey(1),
+            source: Arc::from(text),
+            clusters: vec![
+                cluster(text, 0..1, f32::MAX, false),
+                cluster(text, 1..2, f32::MAX, false),
+            ],
+            base_direction: ParagraphBaseDirection::Ltr,
+            wrap_width: f32::MAX,
+            line_height: 1.0,
+        })
+        .unwrap_err();
+        assert_eq!(error, ParagraphGeometryError::InvalidMetrics);
     }
 }

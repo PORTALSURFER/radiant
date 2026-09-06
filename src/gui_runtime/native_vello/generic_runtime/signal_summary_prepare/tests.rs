@@ -17,6 +17,9 @@ fn limits() -> Limits {
         queued: 8,
         sources: 64,
         targets: 128,
+        source_bytes: 1 << 20,
+        summary_bytes: 1 << 20,
+        overview_bytes: 1 << 20,
         bytes: 1 << 20,
     }
 }
@@ -81,6 +84,82 @@ fn caps_and_checked_bytes_reject_admission() {
         SummaryRequestState::Unavailable
     );
     assert!(broker.sources.is_empty());
+}
+
+#[test]
+fn bounded_overview_reservation_stays_small_for_a_long_source() {
+    let frames = 1 << 20;
+    let request = SummaryRequest::new(Arc::from(vec![0.0; frames]), frames, 1, 1);
+
+    let reservation = summary_reservation(&request).expect("bounded reservation");
+
+    assert_eq!(reservation.source, frames * std::mem::size_of::<f32>());
+    assert!(reservation.summary <= 256 * 1024);
+    assert_eq!(
+        reservation.total(),
+        Some(reservation.source + reservation.summary)
+    );
+}
+
+#[test]
+fn source_and_overview_budgets_are_admitted_and_accounted_independently() {
+    let samples: Arc<[f32]> = Arc::from([0.0; 4]);
+    let request = request(Arc::clone(&samples), 1);
+    let reservation = summary_reservation(&request).expect("reservation");
+    let target = target();
+    let mut broker = broker(Limits {
+        source_bytes: reservation.source,
+        summary_bytes: reservation.summary,
+        overview_bytes: reservation.summary,
+        bytes: reservation.total().expect("combined reservation"),
+        ..limits()
+    });
+
+    assert_eq!(
+        broker.request(target, request),
+        SummaryRequestState::Pending
+    );
+    let status = broker.capacity_status();
+    assert_eq!(status.source_logical_bytes, reservation.source);
+    assert_eq!(status.summary_logical_bytes, reservation.summary);
+    assert_eq!(
+        status.logical_bytes,
+        reservation.total().expect("combined reservation")
+    );
+
+    broker.release_target(target);
+    broker.maintain_retired();
+    let status = broker.capacity_status();
+    assert_eq!(status.source_logical_bytes, 0);
+    assert_eq!(status.summary_logical_bytes, 0);
+    assert_eq!(status.logical_bytes, 0);
+}
+
+#[test]
+fn source_and_overview_budgets_each_reject_oversized_admission() {
+    let samples: Arc<[f32]> = Arc::from([0.0; 4]);
+    let request = request(Arc::clone(&samples), 1);
+    let reservation = summary_reservation(&request).expect("reservation");
+
+    let mut source_limited = broker(Limits {
+        source_bytes: reservation.source - 1,
+        bytes: usize::MAX,
+        ..limits()
+    });
+    assert_eq!(
+        source_limited.request(target(), request.clone()),
+        SummaryRequestState::Unavailable
+    );
+
+    let mut summary_limited = broker(Limits {
+        summary_bytes: reservation.summary - 1,
+        bytes: usize::MAX,
+        ..limits()
+    });
+    assert_eq!(
+        summary_limited.request(target(), request),
+        SummaryRequestState::Unavailable
+    );
 }
 
 #[test]

@@ -7,7 +7,10 @@
 use super::{adapter::NativeAdapterGeneration, runner_state::NativeTargetGeneration};
 use crate::{
     gui::repaint::RepaintSignal,
-    runtime::{BoundedSignalTile, GpuSignalSummary, GpuSurfaceContent},
+    runtime::{
+        BoundedSignalError, BoundedSignalTile, GpuSignalSummary, GpuSurfaceContent,
+        bounded_overview_bytes, build_bounded_overview,
+    },
 };
 use std::hash::{Hash, Hasher};
 use std::{
@@ -25,7 +28,10 @@ const MAX_ACTIVE: usize = 2;
 const MAX_QUEUED: usize = 8;
 const MAX_SOURCES: usize = 64;
 const MAX_TARGETS: usize = 128;
-const MAX_LOGICAL_BYTES: usize = 256 * 1024 * 1024;
+const MAX_SOURCE_BYTES: usize = 256 * 1024 * 1024;
+const MAX_SUMMARY_BYTES: usize = 64 * 1024 * 1024;
+const MAX_OVERVIEW_BYTES: usize = 16 * 1024 * 1024;
+const MAX_LOGICAL_BYTES: usize = MAX_SOURCE_BYTES + MAX_SUMMARY_BYTES;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct SummaryTargetId {
@@ -252,7 +258,8 @@ enum EntryState {
 
 struct SourceEntry {
     samples: Arc<[f32]>,
-    bytes: usize,
+    source_bytes: usize,
+    summary_bytes: usize,
     interests: usize,
     state: EntryState,
 }
@@ -294,15 +301,17 @@ impl SummaryDispatch {
     pub(super) fn run(self) {
         let started = std::time::Instant::now();
         let state = match catch_unwind(AssertUnwindSafe(|| {
-            GpuSignalSummary::from_interleaved_samples_cancellable(
-                &self.samples,
-                self.frames,
-                self.bands,
-                || self.cancelled.load(Ordering::Acquire),
-            )
+            build_bounded_overview(&self.samples, self.frames, self.bands, || {
+                self.cancelled.load(Ordering::Acquire)
+            })
         })) {
-            Ok(Some(summary)) => CompletionState::Ready(Arc::new(summary)),
-            Ok(None) => CompletionState::Cancelled,
+            Ok(Ok(overview)) => CompletionState::Ready(Arc::new(GpuSignalSummary {
+                frames: overview.frames,
+                band_count: overview.band_count,
+                levels: overview.levels,
+            })),
+            Ok(Err(BoundedSignalError::Cancelled)) => CompletionState::Cancelled,
+            Ok(Err(_)) => CompletionState::Failed,
             Err(_) => CompletionState::Failed,
         };
         if tracing::enabled!(target: "radiant::signal_summary_prepare", tracing::Level::DEBUG) {
@@ -336,6 +345,8 @@ pub(super) struct SummaryBroker {
     next_job: u64,
     active: usize,
     bytes: usize,
+    source_bytes: usize,
+    summary_bytes: usize,
     limits: Limits,
 }
 
@@ -345,6 +356,9 @@ struct Limits {
     queued: usize,
     sources: usize,
     targets: usize,
+    source_bytes: usize,
+    summary_bytes: usize,
+    overview_bytes: usize,
     bytes: usize,
 }
 
@@ -355,6 +369,8 @@ pub(super) struct SummaryCapacityStatus {
     pub(super) sources: usize,
     pub(super) interests: usize,
     pub(super) logical_bytes: usize,
+    pub(super) source_logical_bytes: usize,
+    pub(super) summary_logical_bytes: usize,
 }
 
 impl Limits {
@@ -364,6 +380,9 @@ impl Limits {
             queued: MAX_QUEUED,
             sources: MAX_SOURCES,
             targets: MAX_TARGETS,
+            source_bytes: MAX_SOURCE_BYTES,
+            summary_bytes: MAX_SUMMARY_BYTES,
+            overview_bytes: MAX_OVERVIEW_BYTES,
             bytes: MAX_LOGICAL_BYTES,
         }
     }
@@ -401,6 +420,8 @@ impl SummaryBroker {
             next_job: 1,
             active: 0,
             bytes: 0,
+            source_bytes: 0,
+            summary_bytes: 0,
             limits,
         }
     }
@@ -472,28 +493,50 @@ impl SummaryBroker {
                 }
             };
         }
-        let Some(entry_bytes) = summary_bytes(&request) else {
+        let Some(reservation) = summary_reservation(&request) else {
             return SummaryRequestState::Unavailable;
         };
-        if entry_bytes > self.limits.bytes {
+        let Some(total_bytes) = reservation.total() else {
+            return SummaryRequestState::Unavailable;
+        };
+        if reservation.source > self.limits.source_bytes
+            || reservation.summary > self.limits.summary_bytes
+            || reservation.summary > self.limits.overview_bytes
+            || total_bytes > self.limits.bytes
+        {
             return SummaryRequestState::Unavailable;
         }
         if self.sources.len() >= self.limits.sources
             || self
+                .source_bytes
+                .checked_add(reservation.source)
+                .is_none_or(|bytes| bytes > self.limits.source_bytes)
+            || self
+                .summary_bytes
+                .checked_add(reservation.summary)
+                .is_none_or(|bytes| bytes > self.limits.summary_bytes)
+            || self
+                .summary_bytes
+                .checked_add(reservation.summary)
+                .is_none_or(|bytes| bytes > self.limits.overview_bytes)
+            || self
                 .bytes
-                .checked_add(entry_bytes)
+                .checked_add(total_bytes)
                 .is_none_or(|bytes| bytes > self.limits.bytes)
             || self.queue.len() >= self.limits.queued
         {
             self.interests.insert(target, Interest::Waiting);
             return SummaryRequestState::WaitingAdmission;
         }
-        self.bytes += entry_bytes;
+        self.source_bytes += reservation.source;
+        self.summary_bytes += reservation.summary;
+        self.bytes += total_bytes;
         self.sources.insert(
             key,
             SourceEntry {
                 samples: request.samples,
-                bytes: entry_bytes,
+                source_bytes: reservation.source,
+                summary_bytes: reservation.summary,
                 interests: 1,
                 state: EntryState::Queued,
             },
@@ -587,6 +630,8 @@ impl SummaryBroker {
             sources: self.sources.len(),
             interests: self.interests.len(),
             logical_bytes: self.bytes,
+            source_logical_bytes: self.source_bytes,
+            summary_logical_bytes: self.summary_bytes,
         }
     }
 
@@ -740,7 +785,11 @@ impl SummaryBroker {
             .collect();
         for key in retired {
             if let Some(entry) = self.sources.remove(&key) {
-                self.bytes = self.bytes.saturating_sub(entry.bytes);
+                self.source_bytes = self.source_bytes.saturating_sub(entry.source_bytes);
+                self.summary_bytes = self.summary_bytes.saturating_sub(entry.summary_bytes);
+                self.bytes = self
+                    .bytes
+                    .saturating_sub(entry.source_bytes.saturating_add(entry.summary_bytes));
             }
         }
         if tracing::enabled!(target: "radiant::signal_summary_prepare", tracing::Level::DEBUG) {
@@ -768,7 +817,9 @@ impl SummaryBroker {
             }
             tracing::debug!(target: "radiant::signal_summary_prepare",
                 active_jobs = self.active, queued_jobs = self.queue.len(), retained_sources = self.sources.len(),
-                reserved_logical_bytes = self.bytes, retained_source_bytes, retained_ready_summary_bytes,
+                reserved_logical_bytes = self.bytes, reserved_source_bytes = self.source_bytes,
+                reserved_summary_bytes = self.summary_bytes, retained_source_bytes,
+                retained_ready_summary_bytes,
                 "raw signal preparation ownership");
         }
     }
@@ -795,26 +846,26 @@ fn logical_ready_summary_bytes(summary: &GpuSignalSummary) -> usize {
     })
 }
 
-fn summary_bytes(request: &SummaryRequest) -> Option<usize> {
+#[derive(Clone, Copy)]
+struct SummaryReservation {
+    source: usize,
+    summary: usize,
+}
+
+impl SummaryReservation {
+    fn total(self) -> Option<usize> {
+        self.source.checked_add(self.summary)
+    }
+}
+
+fn summary_reservation(request: &SummaryRequest) -> Option<SummaryReservation> {
     let source = request
         .samples
         .len()
         .checked_mul(std::mem::size_of::<f32>())?;
-    let mut bucket_frames = 1usize;
-    let mut summary = 0usize;
-    while bucket_frames <= request.key.effective_frames.max(1) {
-        let bucket_count = request.key.effective_frames.div_ceil(bucket_frames).max(1);
-        summary = summary.checked_add(
-            bucket_count
-                .checked_mul(request.key.effective_bands)?
-                .checked_mul(std::mem::size_of::<crate::runtime::GpuSignalSummaryBucket>())?,
-        )?;
-        if bucket_frames >= request.key.effective_frames.max(1) {
-            break;
-        }
-        bucket_frames = bucket_frames.saturating_mul(2).max(bucket_frames + 1);
-    }
-    source.checked_add(summary)
+    let summary =
+        bounded_overview_bytes(request.key.effective_frames, request.key.effective_bands).ok()?;
+    Some(SummaryReservation { source, summary })
 }
 
 #[cfg(test)]

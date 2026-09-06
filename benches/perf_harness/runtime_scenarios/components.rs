@@ -74,10 +74,9 @@ fn geometry_component(expanded: &bool, _: &ResolvedEnvironment) -> View<()> {
 
 pub(super) fn local_interaction() -> impl FnMut() -> crate::runner::ScenarioCounters {
     use radiant::{
-        application::{row, view_node_from_widget},
+        application::{color_marker, row},
         layout::Vector2,
         runtime::{RepaintScope, SurfaceRuntime},
-        widgets::{ColorMarkerProps, ColorMarkerWidget, ColorMarkerWidgetParts, WidgetSizing},
     };
     let changed = Rc::new(Cell::new(false));
     let bridge = app(Rc::clone(&changed))
@@ -90,13 +89,11 @@ pub(super) fn local_interaction() -> impl FnMut() -> crate::runner::ScenarioCoun
                     })
                     .collect::<Vec<_>>();
                 children.push(
-                    view_node_from_widget(ColorMarkerWidget::from_parts(ColorMarkerWidgetParts {
-                        id: 19,
-                        sizing: WidgetSizing::fixed(Vector2::new(20.0, 20.0)),
-                        props: ColorMarkerProps::new(None),
-                    }))
-                    .id(19)
-                    .tooltip(if changed.get() { "after" } else { "before" }),
+                    color_marker(None)
+                        .view()
+                        .size(20.0, 20.0)
+                        .id(19)
+                        .tooltip(if changed.get() { "after" } else { "before" }),
                 );
                 row(children)
             },

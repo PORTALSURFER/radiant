@@ -1,0 +1,15 @@
+diff --git a/src/gui_runtime/native_vello/generic_runtime/gpu_timing.rs b/src/gui_runtime/native_vello/generic_runtime/gpu_timing.rs
+index 3a6c39ff..c44e141c 100644
+--- a/src/gui_runtime/native_vello/generic_runtime/gpu_timing.rs
++++ b/src/gui_runtime/native_vello/generic_runtime/gpu_timing.rs
+@@ -485,7 +485,9 @@ impl NativeGpuTimingPool {
+     ) -> Option<Self> {
+         let required =
+             wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+-        if !device.features().contains(required) {
++        // Diagnostic-only: preserve device features and observer while omitting query work.
++        const DIAGNOSTIC_DISABLE_TIMING_POOL: bool = true;
++        if DIAGNOSTIC_DISABLE_TIMING_POOL || !device.features().contains(required) {
+             return None;
+         }
+         let resource_identity = allocate_resource_identity()?;

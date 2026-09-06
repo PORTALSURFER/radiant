@@ -1,0 +1,23 @@
+diff --git a/examples/rendering_baseline.rs b/examples/rendering_baseline.rs
+index 161c05d1..cf2e7938 100644
+--- a/examples/rendering_baseline.rs
++++ b/examples/rendering_baseline.rs
+@@ -205,17 +205,7 @@ fn main() -> radiant::Result {
+         .on_frame(|| Message::Tick)
+         .on_startup(|_, context| context.after(std::time::Duration::from_secs(20), Message::Stop))
+         .on_frame_profile(State::observe)
+-        .on_frame_gpu_timing(|state, sample| {
+-            if state.observations.borrow().len() < 4096 {
+-                state
+-                    .observations
+-                    .borrow_mut()
+-                    .push(serde_json::json!({"type": "native_gpu",
+-                    "window": sample.window_identity, "sequence": sample.frame_sequence,
+-                    "gpu_us": sample.outcome.duration().map(|d| d.as_secs_f64() * 1e6),
+-                    "outcome": format!("{:?}", sample.outcome)}));
+-            }
+-        })
++        // Diagnostic-only: retain timestamp device features but request no frame queries.
+         .auxiliary_windows(|state| {
+             if state.mode != "two_windows" || state.primary_identity.is_none() {
+                 return Vec::new();

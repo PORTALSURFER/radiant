@@ -168,7 +168,8 @@ impl RadiantWgpuContext {
             wgpu::util::initialize_adapter_from_env_or_default(&self.instance, compatible_surface)
                 .await
                 .ok()?;
-        let selection = DeviceFeatureSelection::for_adapter(adapter.features());
+        let selection =
+            DeviceFeatureSelection::for_adapter(adapter.get_info().backend, adapter.features());
         let device =
             request_device_with_fallback(&self.instance, compatible_surface, adapter, selection)
                 .await?;
@@ -265,8 +266,11 @@ async fn request_device_with_fallback(
                 wgpu::util::initialize_adapter_from_env_or_default(instance, compatible_surface)
                     .await
                     .ok()?;
-            let fallback_features =
-                DeviceFeatureSelection::for_adapter(fallback_adapter.features()).baseline_request();
+            let fallback_features = DeviceFeatureSelection::for_adapter(
+                fallback_adapter.get_info().backend,
+                fallback_adapter.features(),
+            )
+            .baseline_request();
             let (device, queue) = fallback_adapter
                 .request_device(&device_descriptor(fallback_features))
                 .await

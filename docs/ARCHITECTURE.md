@@ -1031,6 +1031,21 @@ stale, duplicate, or lifecycle-invalid completions publish nothing. Device-loss/
 recovery or shutdown may conservatively cancel pending timing under the existing
 bounded lifecycle behavior.
 
+The pinned WGPU 29 Metal backend does not enable this standalone-encoder timing
+strategy. Radiant requests its baseline device features there, so the private
+pool remains unavailable and the existing `Unsupported` outcome is delivered
+without submitting timestamp queries. This is a restriction on this WGPU/runtime
+strategy pending a separately validated implementation; it does not classify all
+Metal adapters or hardware clocks as unsupported. The generic invalid-clock
+quarantine remains the defense for enabled non-Metal paths.
+
+For one window resource generation, an exact mapped `{ start: 0, end: 0 }`
+timestamp pair attached to a successful present is an invalid/unwritten clock
+reading. The private pool reports `ConversionFailed` for that frame and blocks
+only subsequent timestamp admissions for that generation; rendering continues
+and already admitted slots retain normal asynchronous delivery or cancellation
+retirement. A replacement pool begins with fresh timestamp capability state.
+
 The generic native Vello runtime has one event-loop-confined adapter owner per
 application run. The primary window selects the shared WGPU context, device,
 queue, and device-loss callback witness; the owner publishes crate-private

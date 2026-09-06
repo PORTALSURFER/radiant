@@ -778,8 +778,9 @@ fn device_loss_recovery_is_private_async_and_never_reuses_old_generation() {
             && request_policy.contains("initialize_adapter_from_env_or_default")
             && request_policy.contains("compatible_surface")
             && request_policy.contains("fallback_adapter")
-            && request_policy
-                .contains("DeviceFeatureSelection::for_adapter(fallback_adapter.features())",)
+            && request_policy.contains(
+                "DeviceFeatureSelection::for_adapter(\n                fallback_adapter.get_info().backend,\n                fallback_adapter.features(),\n            )",
+            )
             && request_policy.contains("baseline_request()")
             && request_policy.contains("adapter: fallback_adapter"),
         "timestamp fallback should recompute its baseline from the fresh adapter and retain it using the same instance and surface policy"

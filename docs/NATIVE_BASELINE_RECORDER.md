@@ -76,6 +76,11 @@ say `no_samples`. None of these incomplete conditions is a passing native pack.
 Idle captures use frame count and elapsed duration as observed activity evidence;
 they do not infer event-loop wakeups or energy use from frame count.
 
+The pinned WGPU 29 Metal backend records `gpu_unavailable` for this observer:
+Radiant deliberately does not submit its standalone-encoder timestamp strategy
+there until a separately validated path exists. That limitation is specific to
+this runtime strategy and does not classify Metal hardware generally.
+
 Capture at least three independent processes per mode. Retain each run rather
 than selecting the fastest. Compare cold samples across processes and report
 warm average/p50/p95/p99 ranges across runs. Treat isolated tolerance failures or

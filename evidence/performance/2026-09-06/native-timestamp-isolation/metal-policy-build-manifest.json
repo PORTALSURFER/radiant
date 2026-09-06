@@ -1,0 +1,17 @@
+{
+  "head": "d01814d85c417b296e9ac106876b4c24a7e8974f",
+  "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1452-invalid-gpu-clock-radiant",
+  "binary": "/Users/portalsurfer/.codex/radiant-validation/opt-1452-timestamp-isolation/binaries/rendering_baseline-metal-policy",
+  "binary_sha256": "1108bae38439ff596bf5e0294144740a1d14a9542bfc43ba3da39aa5677ebd0f",
+  "command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "--example",
+    "rendering_baseline"
+  ],
+  "started_at": "2026-09-06T12:02:11.899085+00:00",
+  "cargo_target_dir": "/Users/portalsurfer/.codex/radiant-validation/target",
+  "cargo_incremental": "0"
+}

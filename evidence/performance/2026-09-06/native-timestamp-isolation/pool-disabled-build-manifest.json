@@ -1,0 +1,8 @@
+{
+  "variant": "pool-disabled",
+  "head": "610b27200cb6a5df368b27617e923f2c09c132fe",
+  "sha256": "30b5537f3ae5def365d9d65a19f2d6b3f8c726376281d3a69ae3b351e910871c",
+  "command": "cargo build --release --locked --example rendering_baseline",
+  "cargo_target_dir": "/Users/portalsurfer/.codex/radiant-validation/target",
+  "cargo_incremental": 0
+}

@@ -48,7 +48,8 @@ pub enum FrameGpuTimingUnavailableReason {
     CapacityRefused,
     /// The asynchronous readback did not map successfully.
     MappingFailed,
-    /// Timestamp values could not be converted into a finite duration.
+    /// Timestamp values could not be converted into a finite duration, or the
+    /// backend returned an invalid/unwritten timestamp pair.
     ConversionFailed,
 }
 

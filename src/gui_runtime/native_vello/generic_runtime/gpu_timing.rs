@@ -49,6 +49,9 @@ fn allocate_resource_identity() -> Option<u64> {
 pub(super) enum NativeGpuTimingSupport {
     Disabled,
     Unsupported,
+    /// This resource generation returned an unwritten timestamp pair for a
+    /// successfully presented frame. Existing admitted slots still drain.
+    InvalidClock,
     Supported,
 }
 
@@ -74,8 +77,21 @@ pub(super) struct GpuTimingReservation {
 pub(super) enum GpuTimingAdmission {
     Disabled,
     Unsupported,
+    /// The current resource generation produced an invalid timestamp clock.
+    InvalidClock,
     CapacityRefused,
     Reserved(GpuTimingReservation),
+}
+
+impl GpuTimingAdmission {
+    pub(super) const fn unavailable_reason(self) -> Option<FrameGpuTimingUnavailableReason> {
+        match self {
+            Self::Unsupported => Some(FrameGpuTimingUnavailableReason::Unsupported),
+            Self::InvalidClock => Some(FrameGpuTimingUnavailableReason::ConversionFailed),
+            Self::CapacityRefused => Some(FrameGpuTimingUnavailableReason::CapacityRefused),
+            Self::Disabled | Self::Reserved(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -176,6 +192,7 @@ impl GpuTimingPoolState {
         match self.support {
             NativeGpuTimingSupport::Disabled => return GpuTimingAdmission::Disabled,
             NativeGpuTimingSupport::Unsupported => return GpuTimingAdmission::Unsupported,
+            NativeGpuTimingSupport::InvalidClock => return GpuTimingAdmission::InvalidClock,
             NativeGpuTimingSupport::Supported => {}
         }
         let Some(index) = self
@@ -309,12 +326,17 @@ impl GpuTimingPoolState {
             slot.clear();
             return GpuTimingCallbackDisposition::Recycled;
         };
-        let outcome = match mapping {
-            GpuTimingMapping::Values { start, end } => {
-                convert_timestamp_difference(start, end, timestamp_period)
-            }
-            GpuTimingMapping::Failed => {
-                FrameGpuTimingOutcome::unavailable(FrameGpuTimingUnavailableReason::MappingFailed)
+        let invalid_clock = matches!(mapping, GpuTimingMapping::Values { start: 0, end: 0 });
+        let outcome = if invalid_clock {
+            FrameGpuTimingOutcome::unavailable(FrameGpuTimingUnavailableReason::ConversionFailed)
+        } else {
+            match mapping {
+                GpuTimingMapping::Values { start, end } => {
+                    convert_timestamp_difference(start, end, timestamp_period)
+                }
+                GpuTimingMapping::Failed => FrameGpuTimingOutcome::unavailable(
+                    FrameGpuTimingUnavailableReason::MappingFailed,
+                ),
             }
         };
         slot.terminal = Some(GpuTimingTerminal {
@@ -322,6 +344,9 @@ impl GpuTimingPoolState {
             outcome,
         });
         slot.phase = GpuTimingSlotPhase::Ready;
+        if invalid_clock {
+            self.support = NativeGpuTimingSupport::InvalidClock;
+        }
         GpuTimingCallbackDisposition::Ready
     }
 
@@ -800,6 +825,7 @@ impl NativeGpuTimingResources {
             || match self.support {
                 NativeGpuTimingSupport::Disabled => GpuTimingAdmission::Disabled,
                 NativeGpuTimingSupport::Unsupported => GpuTimingAdmission::Unsupported,
+                NativeGpuTimingSupport::InvalidClock => GpuTimingAdmission::InvalidClock,
                 NativeGpuTimingSupport::Supported => GpuTimingAdmission::CapacityRefused,
             },
             NativeGpuTimingPool::reserve,
@@ -1014,6 +1040,152 @@ mod tests {
             terminal.outcome,
             FrameGpuTimingOutcome::unavailable(FrameGpuTimingUnavailableReason::ConversionFailed)
         );
+    }
+
+    #[test]
+    fn mapped_zero_clock_quarantines_new_admissions_but_admitted_slots_drain() {
+        let mut state = supported_state();
+        let invalid = make_readback_pending(&mut state);
+        let valid = make_readback_pending(&mut state);
+        let canceled = make_readback_pending(&mut state);
+        assert_eq!(state.cancel(canceled), GpuTimingCancelAction::AwaitCallback);
+
+        assert_eq!(
+            state.complete_callback(invalid, GpuTimingMapping::Values { start: 0, end: 0 }, 1.0,),
+            GpuTimingCallbackDisposition::Ready
+        );
+        assert_eq!(state.reserve(), GpuTimingAdmission::InvalidClock);
+        assert_eq!(
+            GpuTimingAdmission::InvalidClock.unavailable_reason(),
+            Some(FrameGpuTimingUnavailableReason::ConversionFailed)
+        );
+
+        assert_eq!(
+            state.complete_callback(valid, GpuTimingMapping::Values { start: 4, end: 9 }, 1.0,),
+            GpuTimingCallbackDisposition::Ready
+        );
+        assert_eq!(
+            state.complete_callback(canceled, GpuTimingMapping::Values { start: 0, end: 0 }, 1.0,),
+            GpuTimingCallbackDisposition::Recycled
+        );
+
+        let invalid_terminal = state
+            .prepare_delivery(invalid)
+            .expect("invalid clock terminal result");
+        assert_eq!(
+            invalid_terminal.outcome,
+            FrameGpuTimingOutcome::unavailable(FrameGpuTimingUnavailableReason::ConversionFailed)
+        );
+        assert!(state.finish_delivery(invalid));
+        let valid_terminal = state
+            .prepare_delivery(valid)
+            .expect("admitted slot still delivers");
+        assert_eq!(
+            valid_terminal.outcome,
+            FrameGpuTimingOutcome::available(Duration::from_nanos(5))
+        );
+        assert!(state.finish_delivery(valid));
+        assert!(state.retirement_eligible());
+    }
+
+    #[test]
+    fn zero_callbacks_without_a_valid_present_do_not_quarantine_the_clock() {
+        let mut stale_state = supported_state();
+        let current = make_readback_pending(&mut stale_state);
+        let stale = GpuTimingReservation {
+            slot: current.slot,
+            token: current.token.wrapping_sub(1),
+        };
+        assert_eq!(
+            stale_state.complete_callback(
+                stale,
+                GpuTimingMapping::Values { start: 0, end: 0 },
+                1.0,
+            ),
+            GpuTimingCallbackDisposition::Ignored
+        );
+        assert!(matches!(
+            stale_state.reserve(),
+            GpuTimingAdmission::Reserved(_)
+        ));
+
+        let mut uncorrelated_state = supported_state();
+        let uncorrelated = make_readback_pending_without_correlation(&mut uncorrelated_state);
+        assert_eq!(
+            uncorrelated_state.complete_callback(
+                uncorrelated,
+                GpuTimingMapping::Values { start: 0, end: 0 },
+                1.0,
+            ),
+            GpuTimingCallbackDisposition::Recycled
+        );
+        assert!(matches!(
+            uncorrelated_state.reserve(),
+            GpuTimingAdmission::Reserved(_)
+        ));
+
+        let mut canceled_state = supported_state();
+        let canceled = make_readback_pending(&mut canceled_state);
+        assert_eq!(
+            canceled_state.cancel(canceled),
+            GpuTimingCancelAction::AwaitCallback
+        );
+        assert_eq!(
+            canceled_state.complete_callback(
+                canceled,
+                GpuTimingMapping::Values { start: 0, end: 0 },
+                1.0,
+            ),
+            GpuTimingCallbackDisposition::Recycled
+        );
+        assert!(matches!(
+            canceled_state.reserve(),
+            GpuTimingAdmission::Reserved(_)
+        ));
+    }
+
+    #[test]
+    fn nonzero_equal_timestamps_remain_a_valid_zero_duration() {
+        let mut state = supported_state();
+        let reservation = make_readback_pending(&mut state);
+        assert_eq!(
+            state.complete_callback(
+                reservation,
+                GpuTimingMapping::Values { start: 17, end: 17 },
+                1.0,
+            ),
+            GpuTimingCallbackDisposition::Ready
+        );
+        let terminal = state
+            .prepare_delivery(reservation)
+            .expect("equal nonzero timestamp terminal result");
+        assert_eq!(
+            terminal.outcome,
+            FrameGpuTimingOutcome::available(Duration::ZERO)
+        );
+        assert!(state.finish_delivery(reservation));
+        assert!(matches!(state.reserve(), GpuTimingAdmission::Reserved(_)));
+    }
+
+    #[test]
+    fn replacement_pool_state_retries_clock_admission() {
+        let mut invalid_state = supported_state();
+        let reservation = make_readback_pending(&mut invalid_state);
+        assert_eq!(
+            invalid_state.complete_callback(
+                reservation,
+                GpuTimingMapping::Values { start: 0, end: 0 },
+                1.0,
+            ),
+            GpuTimingCallbackDisposition::Ready
+        );
+        assert_eq!(invalid_state.reserve(), GpuTimingAdmission::InvalidClock);
+
+        let mut replacement_state = supported_state();
+        assert!(matches!(
+            replacement_state.reserve(),
+            GpuTimingAdmission::Reserved(_)
+        ));
     }
 
     #[test]

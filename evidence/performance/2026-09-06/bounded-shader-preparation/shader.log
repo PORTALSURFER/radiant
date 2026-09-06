@@ -1,0 +1,84 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1457-bounded-shader-preparation-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 26s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 70 tests
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::native_broker_coalesces_bounds_rejects_cancels_and_retires ... ignored, requires a native WGPU device
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::native_ready_candidate_retires_after_final_consumed_lease ... ignored, requires a native WGPU device
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::native_scheduler_rotates_a_device_blocked_queue_entry ... ignored, requires two native WGPU devices
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::target_serial_fences_equal_surface_epochs ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_runtime::tests::malformed_custom_shader_surface_is_not_preparation_eligible ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::last_retired_candidate_lease_wakes_after_its_token_is_released ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::custom_shader_ledger_fences_account_generation_exhaustion_and_reports_empty_vs_absent ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::custom_shader_ledger_propagates_unknown_and_overflow_independently_and_recovers ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::custom_shader_ledger_keeps_recovery_quarantine_and_prunes_history ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::custom_shader_ledger_fences_stale_wrong_and_same_key_tokens ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::custom_shader_ledger_aggregates_primary_auxiliary_and_q0_q1_once ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::measurement_native_tests::records_sync_custom_shader_preparation_phases ... ignored, requires a native adapter and RADIANT_SHADER_PREPARATION_OUTPUT_DIR
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::preparation_key_keeps_adapter_generation_in_equality ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::binding::tests::custom_shader_binding_key_tracks_payload_lengths ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::binding::tests::custom_shader_binding_key_changes_when_payload_shape_changes ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::custom_shader_ledger_adoption_preserves_old_generation_quarantine_before_rebind ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::tests::descriptor_selection_ignores_non_custom_shader_surfaces ... ok
+test gui_runtime::native_vello::embedded::tests::embedded_vello_ignores_custom_shaders_without_native_pipeline_inputs ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::tests::descriptor_selection_records_unsupported_custom_shader_payloads ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::diagnostics::tests::custom_shader_unsupported_diagnostics_count_payload_bytes ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::tests::custom_shader_pipeline_key_tracks_payload_bindings ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_runtime::tests::duplicate_surface_occurrences_keep_distinct_target_registrations ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_runtime::tests::runner_target_map_stays_bounded_before_broker_admission ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_runtime::tests::exact_window_adapter_and_target_epoch_replace_registration ... ok
+test gui_runtime::native_vello::embedded::tests::embedded_vello_rejects_visible_custom_shaders_with_native_pipeline_inputs ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::tests::custom_shader_pipeline_key_requires_source_and_fragment_entry ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::tests::custom_shader_layout_entries_always_start_with_surface_uniforms ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_runtime::tests::retry_selection_keeps_every_selected_target ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::custom_shader::tests::custom_shader_binding_write_state_caches_immutable_payload_revisions ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::custom_shader::tests::custom_shader_binding_write_state_keeps_legacy_payloads_live ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::custom_shader::tests::custom_shader_pipeline_key_tracks_payload_binding_shape ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::custom_shader::tests::custom_shader_binding_write_state_rejects_stale_descriptor_after_newer_mailbox ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::custom_shader::tests::custom_shader_binding_write_state_accepts_newer_descriptor_revisions ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::custom_shader::tests::custom_shader_binding_write_state_resets_presentation_for_new_static_generation ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::equivalent_custom_shader_tiles_share_one_pipeline_and_isolate_binding_updates ... ignored, requires native GPU adapter and offscreen WGPU rendering
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::custom_shader::tests::custom_shader_pipeline_key_tracks_shader_stage_contract ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::prepared_custom_shader_preflight_preserves_ordered_payload_and_presentation_actions ... ignored, requires native GPU adapter and worker-prepared WGPU pipeline
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_binding_logical_bytes_track_base_and_all_optional_buffers ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_residency_accounting_keeps_counts_exact_through_replacement_and_removal ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_residency_accounting_aggregates_multiple_keys_and_warm_reuse ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_residency_accounting_keeps_unknown_bytes_local_and_recovers ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_residency_accounting_prune_and_clear_restore_present_empty ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::tests::custom_shader_layout_entries_include_presentation_uniform_binding_after_storage ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::tests::custom_shader_layout_entries_include_optional_payload_bindings ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_pipeline_associations_reuse_canonical_identity_text ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_preflight_simulates_ordered_association_replacement ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_pipeline_failure_is_uncached_and_isolated ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_pipeline_cache_shares_and_retires_on_final_interest ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::tests::presentation_updates_match_surface_storage_and_byte_shape ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_pipeline_cache_separates_exact_contracts_and_replacements ... ok
+test gui_runtime::native_vello::generic_runtime::render_profile::tests::custom_shader_profile_projection_preserves_active_q0_q1_counts_and_unknown_bytes ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_pipeline_cache_reuses_capacity_across_sequential_replacements ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::upload_plan::tests::cold_and_warm_custom_shader_fixtures_match_actual_classification ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::upload_plan::tests::custom_shader_actions_are_consumed_once_in_mutation_order ... ok
+test gui_runtime::native_vello::generic_runtime::render_profile::tests::custom_shader_profile_projection_preserves_unknown_exhausted_and_absent_slots ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::tests::custom_shader_post_write_action_failure_aborts_without_legacy_replay ... ok
+test gui_runtime::native_vello::generic_runtime::runner_state::tests::custom_shader_residency_projection_preserves_bundle_generations_and_empty_slots ... ok
+test gui_runtime::native_vello::generic_runtime::runner_state::tests::custom_shader_residency_slots_are_absent_before_native_resource_publication ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_preflight_rejects_new_association_at_capacity ... ok
+test runtime::gpu_surface::content::tests::validation::custom_shader_content_validation_reports_descriptor_errors ... ok
+test runtime::gpu_surface::content::tests::validation::custom_shader_content_carries_backend_neutral_payloads ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::filtered_custom_shader_metadata_keeps_unassociated_pipelines_until_final_prune ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::tests::custom_shader_preflight_defers_unprepared_pipeline_without_live_mutation ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_transition_reuses_one_predecessor_and_restores_after_veto ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::tests::custom_shader_frame_requests_reject_distinct_identities_over_text_budget ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::tests::mixed_atlas_unsupported_custom_shader_and_signal_consumes_one_skip_and_prunes ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::custom_shader_pipeline_cache_capacity_rejects_without_retaining_and_recovers ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::tests::custom_shader_frame_requests_share_identity_text_and_preserve_order ... ok
+test gui_runtime::native_vello::generic_runtime::runner::tests::custom_shader_residency_refresh_reregisters_a_rejected_live_token ... ok
+test gui_runtime::native_vello::generic_runtime::runner::tests::custom_shader_ledger_syncs_post_cache_mutation_and_clear_at_profile_boundary ... ok
+
+test result: ok. 64 passed; 0 failed; 6 ignored; 0 measured; 4194 filtered out; finished in 0.02s
+

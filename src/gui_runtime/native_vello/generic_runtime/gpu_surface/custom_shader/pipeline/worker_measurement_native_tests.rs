@@ -83,7 +83,7 @@ fn records_worker_custom_shader_preparation() {
     let label = required_env("RADIANT_SHADER_WORKER_PREPARATION_LABEL");
     let source_revision = required_env("RADIANT_SHADER_WORKER_PREPARATION_SOURCE_REVISION");
     let (adapter_info, device, device_setup) = native_device();
-    // Capture identity from the submitting/UI handle before cloning it into requests.
+    // Capture identity from the submitting handle before cloning it into requests.
     let device_identity = wgpu_device_id(&device);
     let mut samples = Vec::with_capacity(2 + WARM_REPETITIONS + DISTINCT_VARIANTS);
     let cold_key = pipeline_key("cold", VALID_SHADER);
@@ -146,7 +146,7 @@ fn records_worker_custom_shader_preparation() {
     let output = serde_json::json!({
         "schema_version": 1, "fixture": "opt-1457-worker-custom-shader-preparation",
         "label": label, "source_revision": source_revision, "worker_measurement_only": true,
-        "ui_captured_device_identity": format!("{device_identity:#x}"),
+        "submitting_handle_device_identity": format!("{device_identity:#x}"),
         "adapter": { "name": adapter_info.name, "vendor": adapter_info.vendor,
             "device": adapter_info.device, "device_type": format!("{:?}", adapter_info.device_type),
             "driver": adapter_info.driver, "driver_info": adapter_info.driver_info,

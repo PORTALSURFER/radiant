@@ -1720,10 +1720,23 @@ where
         if !self.is_running() {
             return;
         }
-        // A bounded waiting retry is reconciled at the next present where the
-        // exact UI-side device handle and surface format are available.
-        if capacity_changed && self.schedule_waiting_custom_shader_retry(8) {
-            self.defer_scene_rebuild();
+        // Select at most eight waiting targets from the shared broker, then
+        // mark the actual parent or auxiliary owner.  A retry selection must
+        // never make a sibling window render a target it does not own.
+        let mut capacity_retry_required = self.take_custom_shader_capacity_retry_required();
+        for window in &mut self.auxiliary_windows {
+            capacity_retry_required |= window.take_custom_shader_capacity_retry_required();
+        }
+        if capacity_changed || capacity_retry_required {
+            let waiting = self.take_waiting_custom_shader_targets(8);
+            if self.schedule_waiting_custom_shader_retry(&waiting) {
+                self.defer_scene_rebuild();
+            }
+            for window in &mut self.auxiliary_windows {
+                if window.schedule_waiting_custom_shader_retry(&waiting) {
+                    window.defer_custom_shader_scene_rebuild();
+                }
+            }
         }
         loop {
             let dispatch = broker.borrow_mut().take_dispatch();

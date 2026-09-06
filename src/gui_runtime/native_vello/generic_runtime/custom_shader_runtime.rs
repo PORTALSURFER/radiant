@@ -37,6 +37,7 @@ pub(super) struct NativeCustomShaderPreparation {
     targets: HashMap<RegistrationKey, CustomShaderTargetId>,
     waiting_cursor: usize,
     waiting_retry_targets: HashSet<CustomShaderTargetId>,
+    capacity_retry_required: bool,
 }
 
 impl NativeCustomShaderPreparation {
@@ -46,6 +47,7 @@ impl NativeCustomShaderPreparation {
             targets: HashMap::new(),
             waiting_cursor: 0,
             waiting_retry_targets: HashSet::new(),
+            capacity_retry_required: false,
         }
     }
 
@@ -55,6 +57,7 @@ impl NativeCustomShaderPreparation {
             targets: HashMap::new(),
             waiting_cursor: 0,
             waiting_retry_targets: HashSet::new(),
+            capacity_retry_required: false,
         }
     }
 
@@ -118,14 +121,20 @@ impl NativeCustomShaderPreparation {
         selected
     }
 
-    fn schedule_waiting_retry(&mut self, limit: usize) -> bool {
-        self.waiting_targets_rotating(limit)
-            .into_iter()
-            .any(|target| self.waiting_retry_targets.insert(target))
+    fn schedule_waiting_retry_targets(&mut self, targets: &[CustomShaderTargetId]) -> bool {
+        let mut changed = false;
+        for target in targets {
+            changed |= self.waiting_retry_targets.insert(*target);
+        }
+        changed
     }
 
     fn take_waiting_retry_targets(&mut self) -> HashSet<CustomShaderTargetId> {
         std::mem::take(&mut self.waiting_retry_targets)
+    }
+
+    fn take_capacity_retry_required(&mut self) -> bool {
+        std::mem::take(&mut self.capacity_retry_required)
     }
 }
 
@@ -213,10 +222,37 @@ where
         )
     }
 
-    pub(super) fn schedule_waiting_custom_shader_retry(&mut self, limit: usize) -> bool {
+    pub(super) fn take_waiting_custom_shader_targets(
+        &mut self,
+        limit: usize,
+    ) -> Vec<CustomShaderTargetId> {
         self.custom_shader_preparation
             .as_mut()
-            .is_some_and(|preparation| preparation.schedule_waiting_retry(limit))
+            .map_or_else(Vec::new, |preparation| {
+                preparation.waiting_targets_rotating(limit)
+            })
+    }
+
+    pub(super) fn schedule_waiting_custom_shader_retry(
+        &mut self,
+        targets: &[CustomShaderTargetId],
+    ) -> bool {
+        self.custom_shader_preparation
+            .as_mut()
+            .is_some_and(|preparation| {
+                let owned: Vec<_> = targets
+                    .iter()
+                    .copied()
+                    .filter(|target| preparation.accepts(*target))
+                    .collect();
+                preparation.schedule_waiting_retry_targets(&owned)
+            })
+    }
+
+    pub(super) fn take_custom_shader_capacity_retry_required(&mut self) -> bool {
+        self.custom_shader_preparation
+            .as_mut()
+            .is_some_and(NativeCustomShaderPreparation::take_capacity_retry_required)
     }
 
     fn reconcile_custom_shader_preparations_filtered(
@@ -327,7 +363,7 @@ where
             before != broker.capacity_status()
         };
         if wake_new_admission && capacity_changed {
-            preparation.schedule_waiting_retry(8);
+            preparation.capacity_retry_required = true;
             let broker = preparation.broker.borrow();
             broker.request_pump();
         }
@@ -447,5 +483,32 @@ mod tests {
 
         assert_ne!(first, second);
         assert_eq!(preparation.targets.len(), 2);
+    }
+
+    #[test]
+    fn retry_selection_keeps_every_selected_target() {
+        let wake = Arc::new(TestWake(AtomicUsize::new(0)));
+        let mut preparation = NativeCustomShaderPreparation::new(wake);
+        let first = preparation
+            .target_for(
+                WindowId::dummy(),
+                adapter(1),
+                NativeTargetGeneration::from_test_serial(1),
+                (7, 0),
+            )
+            .expect("first target")
+            .0;
+        let second = preparation
+            .target_for(
+                WindowId::dummy(),
+                adapter(1),
+                NativeTargetGeneration::from_test_serial(1),
+                (8, 0),
+            )
+            .expect("second target")
+            .0;
+
+        assert!(preparation.schedule_waiting_retry_targets(&[first, second]));
+        assert_eq!(preparation.take_waiting_retry_targets().len(), 2);
     }
 }

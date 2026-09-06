@@ -155,6 +155,17 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
     }
 
+    pub(super) fn schedule_waiting_custom_shader_retry(
+        &mut self,
+        targets: &[super::custom_shader_prepare::CustomShaderTargetId],
+    ) -> bool {
+        self.is_admitted() && self.runner.schedule_waiting_custom_shader_retry(targets)
+    }
+
+    pub(super) fn take_custom_shader_capacity_retry_required(&mut self) -> bool {
+        self.runner.take_custom_shader_capacity_retry_required()
+    }
+
     pub(super) fn reconcile_waiting_signal_summary_interests(
         &mut self,
         adapter: NativeAdapterGeneration,

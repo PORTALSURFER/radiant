@@ -7,9 +7,9 @@
 //! Backend driver creation calls remain blocking on the existing worker task;
 //! the broker only provides bounded admission and cancellation boundaries.
 
+pub(super) use super::gpu_surface::custom_shader::pipeline::CustomShaderPreparationFailure;
 use super::gpu_surface::custom_shader::pipeline::{
-    prepare_custom_shader_pipeline, CustomShaderPreparationFailure,
-    OwnedCustomShaderPipelineRequest,
+    OwnedCustomShaderPipelineRequest, prepare_custom_shader_pipeline,
 };
 use super::gpu_surface::gpu_surface_types::{
     CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
@@ -19,11 +19,11 @@ use crate::gui::repaint::RepaintSignal;
 use std::{
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::{sync_channel, Receiver, SyncSender},
         Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc::{Receiver, SyncSender, sync_channel},
     },
 };
 use vello::wgpu;

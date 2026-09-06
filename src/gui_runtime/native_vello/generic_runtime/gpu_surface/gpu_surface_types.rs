@@ -10,8 +10,10 @@ pub(super) use composite::{
 };
 pub(super) use custom_shader::{
     CustomShaderBinding, CustomShaderBindingKey, CustomShaderBindingWriteState,
-    CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
     CustomShaderStaticPayloadKey,
+};
+pub(in crate::gui_runtime::native_vello::generic_runtime) use custom_shader::{
+    CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
 };
 pub(super) use pipeline::{GpuSurfacePipeline, SignalPipeline};
 pub(super) use signal::{

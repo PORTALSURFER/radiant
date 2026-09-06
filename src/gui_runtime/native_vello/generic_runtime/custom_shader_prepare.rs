@@ -657,6 +657,14 @@ impl CustomShaderPreparationBroker {
                     token: None,
                 }
             }
+            // A typed failure is sticky only while a target is interested in
+            // this exact identity. Once the final target leaves it must be
+            // removable, otherwise a later identity retry leaks an entry.
+            EntryState::Failed(_) => EntryState::Retired {
+                device: None,
+                pipeline: None,
+                token: None,
+            },
             state => state,
         };
     }
@@ -688,5 +696,78 @@ impl Drop for CustomShaderPreparationBroker {
                 cancelled.store(true, Ordering::Release);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    struct CountingWake(AtomicUsize);
+    impl RepaintSignal for CountingWake {
+        fn request_repaint(&self) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[test]
+    fn target_serial_fences_equal_surface_epochs() {
+        let first = CustomShaderTargetId::new(
+            WindowId::dummy(),
+            NativeAdapterGeneration::from_test_serial(7),
+            NativeTargetGeneration::from_test_serial(9),
+            11,
+        )
+        .expect("test serial");
+        let replacement = CustomShaderTargetId::new(
+            WindowId::dummy(),
+            NativeAdapterGeneration::from_test_serial(7),
+            NativeTargetGeneration::from_test_serial(9),
+            11,
+        )
+        .expect("test serial");
+        assert_ne!(first, replacement);
+        assert_eq!(first.window(), WindowId::dummy());
+        assert_eq!(first.surface_key(), 11);
+    }
+
+    #[test]
+    fn preparation_key_keeps_adapter_generation_in_equality() {
+        let pipeline = CustomShaderPipelineKey {
+            shader_key: Arc::from("shader"),
+            wgsl_source: Arc::from("@vertex fn v() {}"),
+            vertex_entry_point: Arc::from("v"),
+            fragment_entry_point: Arc::from("f"),
+            has_uniform_payload: false,
+            has_storage_payload: false,
+            has_presentation_uniform_payload: false,
+        };
+        let first = PreparationKey {
+            device_identity: 1,
+            adapter_generation: NativeAdapterGeneration::from_test_serial(1),
+            target_format: wgpu::TextureFormat::Rgba8Unorm,
+            pipeline: pipeline.clone(),
+        };
+        let replacement = PreparationKey {
+            adapter_generation: NativeAdapterGeneration::from_test_serial(2),
+            ..first.clone()
+        };
+        assert_ne!(first, replacement);
+        let mut entries = HashMap::new();
+        entries.insert(first, 1usize);
+        assert!(!entries.contains_key(&replacement));
+    }
+
+    #[test]
+    fn last_retired_candidate_lease_wakes_after_its_token_is_released() {
+        let wake = Arc::new(CountingWake(AtomicUsize::new(0)));
+        let token = Arc::new(RetentionToken {
+            wake: wake.clone(),
+            retired: Arc::new(AtomicBool::new(true)),
+        });
+        let lease = CandidateLease(Some(token));
+        drop(lease);
+        assert_eq!(wake.0.load(Ordering::Relaxed), 1);
     }
 }

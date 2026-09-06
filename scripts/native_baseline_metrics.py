@@ -54,6 +54,8 @@ def aggregate(raw):
     if len(fixtures) != 1 or len(runs) != 1:
         raise ValueError("expected one fixture and one completed run")
     fixture, run = fixtures[0], runs[0]
+    if run.get("run_error"):
+        raise ValueError("native run failed; observations are diagnostic only")
     if run.get("startup_failure") or run.get("first_present_ms") is None:
         raise ValueError("run did not reach its first successful present")
     workload = fixture.get("workload")

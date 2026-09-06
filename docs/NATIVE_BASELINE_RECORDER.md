@@ -19,6 +19,30 @@ qualification procedure in `QUALIFIED_BASELINES.md`; use `measurement_kind:
 Record power state, machine, OS, feature set, source fixture and scale/refresh
 alongside each run. A script test is not a native capture.
 
+For a Finder launch on macOS, prepare a real executable bundle:
+
+```sh
+python3 scripts/native_baseline_bundle.py target/release/examples/rendering_baseline \
+  local /absolute/output/local-1.jsonl /absolute/output/Local-1.app
+```
+
+Open that app in Finder. The helper copies the executable directly into the
+bundle and supplies `RADIANT_BASELINE_MODE` and `RADIANT_BASELINE_OUTPUT` through
+its launch environment. Both variables are required when no command-line
+arguments are supplied; explicit CLI arguments take precedence. Use a new
+bundle and output for each run. The helper refuses existing bundles and output
+files and does not launch, sign or install anything. A shell wrapper as the
+bundle executable can prevent native activation from reaching the recorder.
+
+The final `native_run` row includes the complete startup timing artifact, when
+available, and `run_error`. An unconfirmed activation can therefore be
+distinguished from a later rendering failure. Recoverable Rust unwinds at the
+executable's outer runtime boundary preserve preceding observations as failed
+diagnostics; the runtime is never reused after an unwind. Process aborts and
+forced termination may still leave an empty file. The aggregator rejects a
+failed run even if it presented frames before failing. Never use partial
+failure records as a performance baseline.
+
 The workload argument is one of:
 
 | Mode | Work |

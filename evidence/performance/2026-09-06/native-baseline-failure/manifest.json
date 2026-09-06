@@ -1,0 +1,25 @@
+{
+  "status": "FAILED",
+  "evidence_lane": "N",
+  "measurement_kind": "native_diagnostic_only",
+  "commit": "90b8b02c022b1ad76ccd49eae520b48c74cd6d51",
+  "build_mode": "release",
+  "features": "default",
+  "workload": "local",
+  "logical_window": [
+    760,
+    520
+  ],
+  "raw_sha256": "4ef140de6426bcd8ac895e31a2e92d6dbb41107d396c1be3527fc57fe1134fa0",
+  "native_frame_rows": 238,
+  "native_gpu_rows": 237,
+  "gpu_results": "237 Available duration 0ns observations; not accepted as GPU performance evidence",
+  "result": "native runtime panicked; see process stderr",
+  "comparator_result": "invalid: native run failed; observations are diagnostic only",
+  "hardware": "Apple M5 Pro; 24 GiB unified memory",
+  "os": "macOS 26.6.2 (25G83)",
+  "backend": "Metal",
+  "scale": 2,
+  "refresh_hz": "not qualified",
+  "power_state": "not qualified"
+}

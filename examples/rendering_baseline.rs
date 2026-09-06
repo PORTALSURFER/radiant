@@ -138,7 +138,15 @@ fn view(state: &State) -> View<Message> {
 
 #[allow(clippy::arc_with_non_send_sync)]
 fn main() -> radiant::Result {
-    let args: Vec<_> = std::env::args().collect();
+    let mut args: Vec<_> = std::env::args().collect();
+    if args.len() == 1
+        && let (Ok(mode), Ok(output)) = (
+            std::env::var("RADIANT_BASELINE_MODE"),
+            std::env::var("RADIANT_BASELINE_OUTPUT"),
+        )
+    {
+        args.extend([mode, output]);
+    }
     if args.len() != 3
         || ![
             "cold",
@@ -187,7 +195,8 @@ fn main() -> radiant::Result {
         summary,
         observations: Rc::clone(&observations),
     };
-    let result = radiant::app(state)
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        radiant::app(state)
         .title("Radiant rendering baseline")
         .size(760, 520)
         .profiling(ProfilingOptions::frame())
@@ -243,15 +252,28 @@ fn main() -> radiant::Result {
                 context.request_repaint();
             }
         })
-        .run_with_artifacts();
-    let startup = result.artifacts.startup_timing.as_ref();
+        .run_with_artifacts()
+    }));
+    // This executable never reuses the native runtime after an unwind. Preserve
+    // already observed rows for diagnosis, but mark the entire run as failed.
+    let (startup, result) = match result {
+        Ok(report) => (
+            report.artifacts.startup_timing,
+            report.result.map_err(|error| error.to_string()),
+        ),
+        Err(_) => (
+            None,
+            Err("native runtime panicked; see process stderr".to_owned()),
+        ),
+    };
     observations.borrow_mut().push(serde_json::json!({
         "type": "native_run", "elapsed_us": run_started.elapsed().as_secs_f64() * 1e6,
-        "startup_status": startup.map(|artifact| artifact.status.as_str()),
-        "startup_failure": startup.and_then(|artifact| artifact.failure_reason.as_deref()),
-        "first_present_ms": startup.and_then(|artifact| artifact.first_present_ms),
+        "startup_status": startup.as_ref().map(|artifact| artifact.status.as_str()),
+        "startup_failure": startup.as_ref().and_then(|artifact| artifact.failure_reason.as_deref()),
+        "first_present_ms": startup.as_ref().and_then(|artifact| artifact.first_present_ms),
+        "startup_timing": startup,
+        "run_error": result.as_ref().err(),
     }));
-    let result = result.result.map_err(|error| error.to_string());
     output.finish(&observations.borrow())?;
     result?;
     if !observations

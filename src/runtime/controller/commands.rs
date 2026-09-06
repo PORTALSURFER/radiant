@@ -87,7 +87,7 @@ where
             return Err(CommandPresentationError::Capacity);
         }
         let service = self
-            .command_service()
+            .registered_command_service()
             .ok_or(CommandPresentationError::Unavailable)?;
         let (scopes, error) = self.active_command_scope_records();
         service.presentations(
@@ -101,6 +101,16 @@ where
     /// Export the current registered service for an independently owned child surface.
     /// Closed runtimes cannot grant a new service snapshot.
     pub fn command_service(&self) -> Option<crate::application::CommandService<Message>> {
+        let service = self.registered_command_service()?;
+        let (scopes, error) = self.traversal.command_scopes.application(&self.layout);
+        Some(
+            service.with_application_scopes(crate::application::CommandScopeProjection::new(
+                &scopes, error,
+            )),
+        )
+    }
+
+    fn registered_command_service(&self) -> Option<crate::application::CommandService<Message>> {
         if !self.lifecycle_accepts_work() {
             return None;
         }

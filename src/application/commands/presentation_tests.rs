@@ -232,3 +232,77 @@ fn native_presentations_reject_mismatched_and_ambiguous_scope_contexts() {
         );
     }
 }
+
+#[test]
+fn inherited_application_scopes_reject_ambiguity_type_mismatch_and_combined_capacity() {
+    fn record(name: &str) -> ResolvedCommandScope {
+        ResolvedCommandScope {
+            node_id: 1,
+            kind: CommandScopeKind::Application,
+            attachment: CommandScopeAttachment::explicit(
+                CommandScope::new(
+                    name,
+                    CommandScopeKind::Application,
+                    [CommandBinding::new(id("save"), 42u32)],
+                )
+                .unwrap(),
+            ),
+        }
+    }
+    let service: CommandService<()> = CommandService::new(
+        registry(),
+        CommandDispatcher::new(|_: CommandInvocation<u32>| panic!("invalid scopes reached mapper")),
+        Keymap::new(),
+    );
+    let globals = [record("global")];
+    let inherited = service
+        .clone()
+        .with_application_scopes(CommandScopeProjection::new(&globals, None));
+    let duplicate = [record("global")];
+    let too_many: Vec<_> = (0..64).map(|i| record(&format!("local-{i}"))).collect();
+    let wrong = [ResolvedCommandScope {
+        node_id: 2,
+        kind: CommandScopeKind::Application,
+        attachment: CommandScopeAttachment::explicit(
+            CommandScope::new(
+                "wrong",
+                CommandScopeKind::Application,
+                [CommandBinding::new(id("save"), "wrong type")],
+            )
+            .unwrap(),
+        ),
+    }];
+    let input = CommandInput::logical(CommandKey::Character("s".into()), ShortcutPlatform::Mac);
+    for (records, expected) in [
+        (duplicate.as_slice(), CommandSuppression::InvalidScopes),
+        (too_many.as_slice(), CommandSuppression::Capacity),
+        (wrong.as_slice(), CommandSuppression::ContextMismatch),
+    ] {
+        let projection = CommandScopeProjection::new(records, None);
+        let rows = inherited.presentations(
+            projection,
+            &[id("save")],
+            &crate::runtime::ResolvedEnvironment::default(),
+            ShortcutPlatform::Mac,
+        );
+        assert!(
+            matches!(rows, Err(CommandPresentationError::Scopes(reason)) if reason == expected)
+        );
+        let dispatch = inherited.resolve(CommandRequest::Input(&input), projection);
+        assert_eq!(dispatch.status, CommandDispatchStatus::Suppressed(expected));
+        assert!(dispatch.message.is_none());
+    }
+    let invalid = service.with_application_scopes(CommandScopeProjection::new(
+        &[],
+        Some(CommandSuppression::InvalidScopes),
+    ));
+    assert_eq!(
+        invalid
+            .resolve(
+                CommandRequest::Input(&input),
+                CommandScopeProjection::empty()
+            )
+            .status,
+        CommandDispatchStatus::Suppressed(CommandSuppression::InvalidScopes)
+    );
+}

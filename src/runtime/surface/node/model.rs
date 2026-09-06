@@ -103,6 +103,7 @@ pub(in crate::runtime) struct SurfaceContainerParts<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
+    #[cfg(test)]
     fn demand_set(
         resource: Option<
             std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>,
@@ -519,6 +520,7 @@ impl<Message> SurfaceNode<Message> {
         self
     }
 
+    #[cfg(test)]
     pub(crate) fn with_resource_view_demand(
         mut self,
         demand: Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
@@ -555,6 +557,7 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn with_notice_demand(
         mut self,
         demand: Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,

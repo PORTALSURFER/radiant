@@ -587,6 +587,19 @@ fn wrap_line(
                 last_break = None;
                 continue;
             }
+            if cluster.safe_break_after && breaks.contains(&cluster.bytes.end) {
+                // No fitting boundary preceded this one: retain the unavoidable
+                // overflow segment, then let following words wrap independently.
+                result.push((
+                    source[start].bytes.start..cluster.bytes.end,
+                    start..cursor + 1,
+                ));
+                start = cursor + 1;
+                cursor = start;
+                advance = 0.0;
+                last_break = None;
+                continue;
+            }
         }
         cursor += 1;
     }
@@ -783,6 +796,14 @@ mod tests {
         assert_eq!(geometry.lines().len(), 2);
         assert_eq!(geometry.lines()[0].bytes, 0..2);
         assert_eq!(geometry.lines()[0].width, 16.0);
+    }
+    #[test]
+    fn unavoidable_overflow_resets_at_its_next_safe_boundary() {
+        let geometry = geometry("verylongword short short", 48.0);
+        assert_eq!(geometry.lines().len(), 3);
+        assert_eq!(geometry.lines()[0].bytes, 0..13);
+        assert_eq!(geometry.lines()[1].width, 48.0);
+        assert_eq!(geometry.lines()[2].width, 40.0);
     }
     #[test]
     fn combining_has_one_logical_grapheme_boundary() {

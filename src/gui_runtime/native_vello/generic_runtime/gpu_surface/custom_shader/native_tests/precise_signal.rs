@@ -52,11 +52,16 @@ fn precise_signal_window_matches_near_and_large_origins() {
         }
     }
 
-    let legacy = precise_signal_legacy_pixels(&device, &queue, &buckets, 1, [8.25, 24.25]);
+    let legacy = precise_signal_legacy_pixels(&device, &queue, &buckets, 1, [8.25, 24.25], false);
+    let frozen = precise_signal_legacy_pixels(&device, &queue, &buckets, 1, [8.25, 24.25], true);
     assert_eq!(
         base_pixels.expect("base scenario pixels"),
         legacy,
         "bucket-frame-one precise rendering should exactly match the legacy summary path"
+    );
+    assert_eq!(
+        legacy, frozen,
+        "current legacy shader must retain the 26102a7 pixels"
     );
 }
 
@@ -83,7 +88,7 @@ fn precise_signal_bucket_smoothing_matches_legacy_for_sub_bucket_views() {
         &buckets,
         PreciseSignalFixtureScenario::Base,
     );
-    let legacy = precise_signal_legacy_pixels(&device, &queue, &buckets, 4, [8.25, 10.25]);
+    let legacy = precise_signal_legacy_pixels(&device, &queue, &buckets, 4, [8.25, 10.25], false);
     assert_eq!(
         near, far,
         "sub-bucket view must be independent of exact origin"
@@ -154,7 +159,7 @@ fn precise_signal_fixture_pixels(
         capabilities: GpuSurfaceCapabilities::default(),
         overlays: Vec::new(),
     });
-    precise_signal_render_pixels(device, queue, &[primitive], true)
+    precise_signal_render_pixels(device, queue, &[primitive], true, false)
 }
 
 fn precise_signal_fixture_presentation(
@@ -214,6 +219,7 @@ fn precise_signal_legacy_pixels(
     buckets: &[crate::runtime::GpuSignalSummaryBucket],
     bucket_frames: usize,
     frame_range: [f32; 2],
+    frozen: bool,
 ) -> Vec<u8> {
     let summary = Arc::new(crate::runtime::GpuSignalSummary {
         frames: bucket_frames * 64,
@@ -242,7 +248,7 @@ fn precise_signal_legacy_pixels(
         capabilities: GpuSurfaceCapabilities::default(),
         overlays: Vec::new(),
     });
-    precise_signal_render_pixels(device, queue, &[primitive], false)
+    precise_signal_render_pixels(device, queue, &[primitive], false, frozen)
 }
 
 fn precise_signal_render_pixels(
@@ -250,8 +256,12 @@ fn precise_signal_render_pixels(
     queue: &vello::wgpu::Queue,
     primitives: &[crate::runtime::PaintPrimitive],
     custom: bool,
+    frozen_legacy: bool,
 ) -> Vec<u8> {
     let mut renderer = GpuSurfaceRenderer::default();
+    if frozen_legacy {
+        renderer.signal_pipeline = Some(frozen_legacy_signal_pipeline(device));
+    }
     let (stats, texture) = render_tile_frame(&mut renderer, device, queue, primitives, &[]);
     if custom {
         assert_eq!(stats.custom_shader.surfaces_rendered, 1);
@@ -261,4 +271,78 @@ fn precise_signal_render_pixels(
     let pixels = readback_rgba(device, queue, &texture);
     renderer.recall_presentation_staging_belt();
     pixels
+}
+
+fn frozen_legacy_signal_pipeline(
+    device: &vello::wgpu::Device,
+) -> super::super::super::gpu_surface_types::SignalPipeline {
+    use vello::wgpu;
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("radiant_frozen_26102a7_signal"),
+        source: wgpu::ShaderSource::Wgsl(FROZEN_LEGACY_SIGNAL_SHADER.into()),
+    });
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("radiant_frozen_26102a7_signal_layout"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    });
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("radiant_frozen_26102a7_signal_pipeline_layout"),
+        bind_group_layouts: &[Some(&bind_group_layout)],
+        immediate_size: 0,
+    });
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("radiant_frozen_26102a7_signal_pipeline"),
+        layout: Some(&layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            ..wgpu::PrimitiveState::default()
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    });
+    super::super::super::gpu_surface_types::SignalPipeline {
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        device: super::super::super::wgpu_device_id(device),
+        bind_group_layout,
+        pipeline,
+    }
 }

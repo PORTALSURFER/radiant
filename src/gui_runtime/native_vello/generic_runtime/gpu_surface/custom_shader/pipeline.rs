@@ -204,3 +204,7 @@ pub(super) fn custom_shader_pipeline_key(
 #[cfg(test)]
 #[path = "pipeline/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "pipeline/measurement_native_tests.rs"]
+mod measurement_native_tests;

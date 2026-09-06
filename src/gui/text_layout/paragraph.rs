@@ -3,10 +3,14 @@
 //! The native text provider owns shaping.  This module only validates its immutable
 //! cluster snapshot, applies UAX #14 wrapping, and derives the one geometry model
 //! used by painting, hit testing, and selection.
+#![allow(
+    missing_docs,
+    reason = "the public integration facade is introduced with the text-editor widget"
+)]
 
 use crate::gui::types::{Point, Rect};
 use std::{collections::BTreeSet, ops::Range, sync::Arc};
-use unicode_bidi::BidiInfo;
+use unicode_bidi::{BidiClass, BidiInfo, Level};
 use unicode_linebreak::{linebreaks, BreakOpportunity};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -98,6 +102,14 @@ struct PendingLine {
     paragraph: usize,
 }
 
+#[derive(Clone, Debug)]
+struct ParagraphBidi {
+    byte_start: usize,
+    levels: Vec<Level>,
+    classes: Vec<BidiClass>,
+    base_level: Level,
+}
+
 /// Logical line metadata. `bytes` excludes its terminating hard break.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParagraphVisualLine {
@@ -136,6 +148,16 @@ impl ParagraphGeometry {
             return Err(ParagraphGeometryError::TooManyLines);
         }
         let soft_breaks = safe_breaks(input.source.as_ref());
+        let bidi_paragraphs: Vec<ParagraphBidi> = paragraphs
+            .iter()
+            .map(|paragraph| {
+                paragraph_bidi(
+                    input.source.as_ref(),
+                    paragraph.bytes.clone(),
+                    input.base_direction,
+                )
+            })
+            .collect::<Result<_, _>>()?;
         let mut logical_lines = Vec::new();
         for (paragraph, range) in paragraphs
             .iter()
@@ -188,8 +210,7 @@ impl ParagraphGeometry {
                 bytes.clone(),
                 cluster_range.clone(),
                 &input.clusters,
-                paragraphs[pending.paragraph].bytes.clone(),
-                input.base_direction,
+                &bidi_paragraphs[pending.paragraph],
                 y,
                 input.line_height,
             )?;
@@ -442,6 +463,81 @@ fn safe_breaks(source: &str) -> BTreeSet<usize> {
         .collect()
 }
 
+fn paragraph_bidi(
+    source: &str,
+    bytes: Range<usize>,
+    direction: ParagraphBaseDirection,
+) -> Result<ParagraphBidi, ParagraphGeometryError> {
+    let base = match direction {
+        ParagraphBaseDirection::Auto => None,
+        ParagraphBaseDirection::Ltr => Some(Level::ltr()),
+        ParagraphBaseDirection::Rtl => Some(Level::rtl()),
+    };
+    let info = BidiInfo::new(&source[bytes.clone()], base);
+    let base_level = info
+        .paragraphs
+        .first()
+        .map(|paragraph| paragraph.level)
+        .unwrap_or_else(|| base.unwrap_or_else(Level::ltr));
+    Ok(ParagraphBidi {
+        byte_start: bytes.start,
+        levels: info.levels,
+        classes: info.original_classes,
+        base_level,
+    })
+}
+
+fn apply_l1(text: &str, classes: &[BidiClass], levels: &mut [Level], base: Level) {
+    let mut reset_from = Some(0usize);
+    let mut reset_to = None;
+    let mut previous = base;
+    for ((offset, character), (_, length)) in text.char_indices().zip(
+        text.char_indices()
+            .map(|(offset, character)| (offset, character.len_utf8())),
+    ) {
+        match classes[offset] {
+            BidiClass::B | BidiClass::S => {
+                reset_to = Some(offset + character.len_utf8());
+                if reset_from.is_none() {
+                    reset_from = Some(offset);
+                }
+            }
+            BidiClass::WS | BidiClass::FSI | BidiClass::LRI | BidiClass::RLI | BidiClass::PDI => {
+                if reset_from.is_none() {
+                    reset_from = Some(offset);
+                }
+            }
+            BidiClass::RLE
+            | BidiClass::LRE
+            | BidiClass::RLO
+            | BidiClass::LRO
+            | BidiClass::PDF
+            | BidiClass::BN => {
+                if reset_from.is_none() {
+                    reset_from = Some(offset);
+                }
+                for value in &mut levels[offset..offset + length] {
+                    *value = previous;
+                }
+            }
+            _ => reset_from = None,
+        }
+        if let (Some(from), Some(to)) = (reset_from, reset_to) {
+            for value in &mut levels[from..to] {
+                *value = base;
+            }
+            reset_from = None;
+            reset_to = None;
+        }
+        previous = levels[offset];
+    }
+    if let Some(from) = reset_from {
+        for value in &mut levels[from..] {
+            *value = base;
+        }
+    }
+}
+
 fn wrap_line(
     range: Range<usize>,
     clusters: Range<usize>,
@@ -502,8 +598,7 @@ fn visual_line(
     bytes: Range<usize>,
     clusters: Range<usize>,
     all: &[ShapedLogicalCluster],
-    paragraph_bytes: Range<usize>,
-    base_direction: ParagraphBaseDirection,
+    bidi: &ParagraphBidi,
     y: f32,
     line_height: f32,
 ) -> Result<
@@ -524,62 +619,49 @@ fn visual_line(
         );
         return Ok((Vec::new(), vec![caret], 0.0));
     }
-    // Resolve the full hard paragraph, then ask unicode-bidi to reorder this line.
-    // Re-resolving an already wrapped substring loses surrounding embedding context.
-    let paragraph_text = &source[paragraph_bytes.clone()];
-    let line = (bytes.start - paragraph_bytes.start)..(bytes.end - paragraph_bytes.start);
-    let base_level = match base_direction {
-        ParagraphBaseDirection::Auto => None,
-        ParagraphBaseDirection::Ltr => Some(unicode_bidi::Level::ltr()),
-        ParagraphBaseDirection::Rtl => Some(unicode_bidi::Level::rtl()),
-    };
-    let bidi = BidiInfo::new(paragraph_text, base_level);
-    let paragraph = bidi
-        .paragraphs
-        .first()
-        .ok_or(ParagraphGeometryError::BidiBoundary)?;
-    let (levels, runs) = bidi.visual_runs(paragraph, line);
-    let mut visual_indices = Vec::with_capacity(clusters.len());
-    for run in runs {
-        let run_start = paragraph_bytes.start + run.start;
-        let run_end = paragraph_bytes.start + run.end;
-        let local = &all[clusters.clone()];
-        let member_start =
-            clusters.start + local.partition_point(|cluster| cluster.bytes.end <= run_start);
-        let member_end =
-            clusters.start + local.partition_point(|cluster| cluster.bytes.start < run_end);
-        if member_start >= member_end
-            || all[member_start].bytes.start < run_start
-            || all[member_end - 1].bytes.end > run_end
-        {
-            return Err(ParagraphGeometryError::BidiBoundary);
-        }
-        let level = levels
-            .get(run.start)
+    let line = (bytes.start - bidi.byte_start)..(bytes.end - bidi.byte_start);
+    let mut levels = bidi.levels[line.clone()].to_vec();
+    apply_l1(
+        &source[bytes.clone()],
+        &bidi.classes[line.clone()],
+        &mut levels,
+        bidi.base_level,
+    );
+    let reordered_bytes = BidiInfo::reorder_visual(&levels);
+    let mut visual_position = vec![usize::MAX; levels.len()];
+    for (position, byte) in reordered_bytes.into_iter().enumerate() {
+        visual_position[byte] = position;
+    }
+    let mut visual_indices: Vec<usize> = clusters.clone().collect();
+    for index in &visual_indices {
+        let cluster = &all[*index];
+        let start = cluster.bytes.start - bytes.start;
+        let end = cluster.bytes.end - bytes.start;
+        let paragraph_start = cluster.bytes.start - bidi.byte_start;
+        let paragraph_end = cluster.bytes.end - bidi.byte_start;
+        let expected = bidi
+            .levels
+            .get(paragraph_start)
             .ok_or(ParagraphGeometryError::BidiBoundary)?
             .number();
-        if (member_start..member_end).any(|index| {
-            let local_start = all[index].bytes.start - paragraph_bytes.start;
-            levels.get(local_start).map(unicode_bidi::Level::number) != Some(all[index].bidi_level)
-        }) {
+        if expected != cluster.bidi_level
+            || bidi.levels[paragraph_start..paragraph_end]
+                .iter()
+                .any(|level| level.number() != expected)
+            || start >= end
+            || end > levels.len()
+        {
             return Err(ParagraphGeometryError::BidiLevelMismatch);
         }
-        let mut members: Vec<usize> = (member_start..member_end).collect();
-        if level % 2 == 1 {
-            members.reverse();
-        }
-        visual_indices.extend(members);
     }
-    if visual_indices.len() != clusters.len() {
-        return Err(ParagraphGeometryError::BidiBoundary);
-    }
+    visual_indices.sort_by_key(|index| visual_position[all[*index].bytes.start - bytes.start]);
     let mut x = 0.0;
     let mut placements = Vec::with_capacity(clusters.len());
     let mut carets = Vec::new();
     for index in visual_indices {
         let cluster = &all[index];
         let resolved_level = levels
-            .get(cluster.bytes.start - paragraph_bytes.start)
+            .get(cluster.bytes.start - bytes.start)
             .ok_or(ParagraphGeometryError::BidiBoundary)?
             .number();
         if !(x + cluster.advance).is_finite() {
@@ -709,7 +791,7 @@ mod tests {
     fn bidi_and_selection_use_same_placements() {
         let g = geometry("aאב", 100.0);
         assert_eq!(g.placements(0).unwrap().len(), 3);
-        assert_eq!(g.selection_rects(1..3).len(), 2);
+        assert_eq!(g.selection_rects(1..5).len(), 2);
     }
     #[test]
     fn rejects_provider_level_that_disagrees_with_l1_reordering() {
@@ -726,6 +808,24 @@ mod tests {
         })
         .unwrap_err();
         assert_eq!(error, ParagraphGeometryError::BidiLevelMismatch);
+    }
+    #[test]
+    fn l1_adjusts_trailing_whitespace_from_pre_l1_level() {
+        let mut levels = vec![Level::rtl(), Level::rtl()];
+        apply_l1(
+            "א ",
+            &[BidiClass::R, BidiClass::WS],
+            &mut levels,
+            Level::ltr(),
+        );
+        assert_eq!(levels[0].number(), 1);
+        assert_eq!(levels[1].number(), 0);
+    }
+    #[test]
+    fn narrow_wrap_reuses_one_precomputed_paragraph_bidi_snapshot() {
+        let text = "a ".repeat(1_024);
+        let geometry = geometry(&text, 10.0);
+        assert_eq!(geometry.lines().len(), 1_024);
     }
     #[test]
     fn rejects_incomplete_or_nonfinite_input() {

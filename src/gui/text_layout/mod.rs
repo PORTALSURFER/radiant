@@ -2,6 +2,7 @@
 
 mod cache;
 mod insets;
+pub mod paragraph;
 mod placement;
 mod width;
 

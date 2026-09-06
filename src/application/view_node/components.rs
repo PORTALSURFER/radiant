@@ -25,6 +25,7 @@ struct Entry<Message> {
     root: SurfaceNode<Message>,
     slot: SlotBehavior,
     nodes: usize,
+    snapshot: std::rc::Rc<()>,
 }
 
 pub(in crate::application) struct ComponentProjectionCache<Message> {
@@ -127,7 +128,7 @@ impl<Message: 'static> ComponentProjectionContext<'_, Message> {
             && entry.input.downcast_ref::<Input>() == Some(&input)
         {
             self.counters.cache_hits += 1;
-            return snapshot_view(entry.root.clone(), entry.slot);
+            return snapshot_view(entry.root.clone(), entry.slot, Some(entry.snapshot.clone()));
         }
         self.counters.callbacks += 1;
         let view = project(&input, &self.environment).key(key.clone());
@@ -143,10 +144,13 @@ impl<Message: 'static> ComponentProjectionContext<'_, Message> {
         let slot = view.slot;
         let root = view.into_surface().into_root();
         let available = MAX_RETAINED_NODES - self.counters.retained_nodes;
+        let mut snapshot = None;
         if cacheable
             && self.cache.entries.len() < MAX_COMPONENTS
             && let Some(nodes) = root.component_cache_node_count(available)
         {
+            let identity = std::rc::Rc::new(());
+            snapshot = Some(identity.clone());
             self.cache.entries.insert(
                 key,
                 Entry {
@@ -155,11 +159,12 @@ impl<Message: 'static> ComponentProjectionContext<'_, Message> {
                     root: root.clone(),
                     slot,
                     nodes,
+                    snapshot: identity,
                 },
             );
             self.counters.retained_nodes += nodes;
         }
-        snapshot_view(root, slot)
+        snapshot_view(root, slot, snapshot)
     }
 
     /// Read actual callback/cache work performed so far in this projection.
@@ -190,9 +195,14 @@ impl<Message> Drop for ComponentProjectionContext<'_, Message> {
     }
 }
 
-fn snapshot_view<Message>(root: SurfaceNode<Message>, slot: SlotBehavior) -> ViewNode<Message> {
+fn snapshot_view<Message>(
+    root: SurfaceNode<Message>,
+    slot: SlotBehavior,
+    snapshot: Option<std::rc::Rc<()>>,
+) -> ViewNode<Message> {
     let mut view = ViewNode::from(root);
     view.slot = slot;
+    view.component_snapshot = snapshot;
     view
 }
 

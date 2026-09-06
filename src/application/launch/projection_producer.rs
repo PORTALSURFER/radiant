@@ -754,6 +754,7 @@ mod tests {
     fn receipt() -> Rc<ApplicationProjectionReceipt> {
         Rc::new(ApplicationProjectionReceipt {
             nodes: Box::new([]),
+            components: Vec::new(),
             supported: true,
             emitted_records: 0,
             comparison_count: 0,

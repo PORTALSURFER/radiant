@@ -54,6 +54,10 @@ impl<'a> ApplicationProjectionContext<'a> {
         self.recorder.record(path, incoming_slot, node);
     }
 
+    pub(crate) fn record_component(&mut self, snapshot: std::rc::Rc<()>) {
+        self.recorder.record_component(snapshot);
+    }
+
     #[allow(dead_code)]
     pub(crate) fn finish(
         &mut self,

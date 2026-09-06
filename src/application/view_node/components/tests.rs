@@ -2,6 +2,102 @@ use super::*;
 use crate::application::{column, text};
 use std::{cell::Cell, rc::Rc};
 
+fn large_stable_component(_: &(), _: &ResolvedEnvironment) -> ViewNode<()> {
+    column((0..300).map(|_| text("unchanged")).collect::<Vec<_>>())
+}
+
+fn interaction_leaf(changed: bool) -> ViewNode<()> {
+    use crate::widgets::{
+        ColorMarkerProps, ColorMarkerWidget, ColorMarkerWidgetParts, WidgetSizing,
+    };
+    crate::application::view_node_from_widget(ColorMarkerWidget::from_parts(
+        ColorMarkerWidgetParts {
+            id: 19,
+            sizing: WidgetSizing::fixed(crate::layout::Vector2::new(20.0, 20.0)),
+            props: ColorMarkerProps::new(None),
+        },
+    ))
+    .id(19)
+    .tooltip(if changed { "after" } else { "before" })
+}
+
+#[test]
+fn immutable_component_receipts_skip_descendants_and_fence_replacements() {
+    use crate::application::{
+        ApplicationProjectionContext,
+        view_node::reconciliation::{ApplicationProjectionRecorder, ReceiptComparison},
+    };
+    let mut cache = ComponentProjectionCache::<()>::default();
+    let mut previous = None;
+    for (round, expected_exact) in [(0, false), (1, true), (2, false), (3, false), (4, false)] {
+        if round == 3 {
+            cache.begin(environment()).finish(); // Unmount and remount the same key/input.
+        }
+        let mut context = cache.begin(environment());
+        let mut children = (0..32)
+            .map(|index| {
+                let key = if round == 2 && index == 0 {
+                    "replacement".into()
+                } else {
+                    format!("stable-{index}")
+                };
+                context.project(key, (), large_stable_component)
+            })
+            .collect::<Vec<_>>();
+        if round == 4 {
+            children.reverse();
+        }
+        children.push(interaction_leaf(round != 0));
+        context.finish();
+        let mut recorder = ApplicationProjectionRecorder::new(previous.as_ref());
+        let mut lowering = ApplicationProjectionContext::new(&mut recorder);
+        let _projection = column(children)
+            .id(1)
+            .into_application_projection(&mut lowering);
+        let (receipt, comparison) = lowering.finish();
+        assert!(receipt.supported);
+        assert_eq!(
+            receipt.emitted_records, 34,
+            "9,600 descendants are not recorded again"
+        );
+        if expected_exact {
+            let ReceiptComparison::Exact(changed) = comparison else {
+                panic!("stable components must qualify")
+            };
+            assert_eq!(changed.len(), 1);
+            assert_eq!(changed[0].node_id, 19);
+            assert_eq!(changed[0].child_path, vec![32]);
+            assert_eq!(
+                receipt.comparison_count, 66,
+                "32 snapshot identities and 34 node receipts"
+            );
+        } else {
+            assert_eq!(comparison, ReceiptComparison::Full);
+        }
+        previous = Some(receipt);
+    }
+}
+
+#[test]
+fn component_receipt_does_not_admit_raw_runtime_nodes() {
+    use crate::application::{
+        ApplicationProjectionContext,
+        view_node::reconciliation::{ApplicationProjectionRecorder, ReceiptComparison},
+    };
+    let mut cache = ComponentProjectionCache::<()>::default();
+    let mut context = cache.begin(environment());
+    let component = context.project("stable", (), large_stable_component);
+    context.finish();
+    let raw = ViewNode::from(component.into_surface().into_root());
+    let mut recorder = ApplicationProjectionRecorder::new(None);
+    let mut lowering = ApplicationProjectionContext::new(&mut recorder);
+    let _projection = raw.into_application_projection(&mut lowering);
+    let (receipt, comparison) = lowering.finish();
+    assert!(!receipt.supported);
+    assert!(receipt.components.is_empty());
+    assert_eq!(comparison, ReceiptComparison::Full);
+}
+
 fn environment() -> ResolvedEnvironment {
     ResolvedEnvironment::from_window_environment(Default::default())
 }
@@ -128,6 +224,85 @@ fn stable_component(_: &(), _: &ResolvedEnvironment) -> ViewNode<()> {
         ))
         .id(8)],
     )
+}
+
+#[test]
+fn component_receipt_partial_refresh_matches_full_refresh_during_capture() {
+    use crate::{
+        application::app,
+        layout::Vector2,
+        runtime::{Event, RepaintScope, SurfaceRuntime},
+    };
+    let state = Rc::new(Cell::new(false));
+    let build = |fresh: bool| {
+        app(Rc::clone(&state))
+            .view_with_components(
+                |_| Default::default(),
+                move |state, context| {
+                    let stable = if fresh {
+                        context.project("stable", (), move |input, environment| {
+                            std::hint::black_box(fresh);
+                            stable_component(input, environment)
+                        })
+                    } else {
+                        context.project("stable", (), stable_component)
+                    };
+                    column([stable, interaction_leaf(state.get())]).id(1)
+                },
+            )
+            .into_bridge()
+    };
+    let mut cached = SurfaceRuntime::new(build(false), Vector2::new(240.0, 100.0));
+    let mut fresh = SurfaceRuntime::new(build(true), Vector2::new(240.0, 100.0));
+    cached.refresh();
+    fresh.refresh();
+    let press = Event::primary_press(cached.layout().rects[&8].center());
+    cached.dispatch_event(press);
+    fresh.dispatch_event(press);
+    assert_eq!(cached.pointer_capture(), Some(8));
+    for changed in [true, false, true] {
+        state.set(changed);
+        let before = cached.refresh_counters();
+        let full_before = fresh.refresh_counters();
+        cached.refresh_with_scope(RepaintScope::Projection);
+        fresh.refresh_with_scope(RepaintScope::Projection);
+        let after = cached.refresh_counters();
+        assert_eq!(after.runtime_projection, before.runtime_projection);
+        assert_eq!(after.layout, before.layout);
+        assert_eq!(
+            after.reconciliation_applied,
+            before.reconciliation_applied + 1
+        );
+        assert_eq!(
+            fresh.refresh_counters().runtime_projection,
+            full_before.runtime_projection + 1
+        );
+        assert_eq!(cached.pointer_capture(), Some(8));
+        assert_eq!(cached.pointer_capture(), fresh.pointer_capture());
+        assert_eq!(cached.focused_widget(), fresh.focused_widget());
+        assert_eq!(cached.layout(), fresh.layout());
+        assert_eq!(
+            cached.paint_plan(&Default::default()),
+            fresh.paint_plan(&Default::default())
+        );
+        for id in [8, 19] {
+            let cached_widget = cached.surface().find_widget(id).unwrap().widget();
+            let fresh_widget = fresh.surface().find_widget(id).unwrap().widget();
+            assert_eq!(
+                cached_widget.common().tooltip,
+                fresh_widget.common().tooltip
+            );
+            assert_eq!(
+                cached_widget.automation_semantics(),
+                fresh_widget.automation_semantics()
+            );
+        }
+    }
+    let release = Event::primary_release(cached.layout().rects[&8].center());
+    cached.dispatch_event(release);
+    fresh.dispatch_event(release);
+    assert_eq!(cached.pointer_capture(), None);
+    assert_eq!(cached.pointer_capture(), fresh.pointer_capture());
 }
 
 #[test]

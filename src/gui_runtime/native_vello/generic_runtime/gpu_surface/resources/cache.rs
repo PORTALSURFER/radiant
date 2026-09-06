@@ -38,6 +38,79 @@ struct LogicalBytesAccumulator {
     overflowed: bool,
 }
 
+const MAX_CUSTOM_SHADER_UNIQUE_PIPELINES: usize = 256;
+const MAX_CUSTOM_SHADER_ASSOCIATIONS: usize = 1024;
+const MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES: usize = 1024 * 1024;
+
+#[derive(Default)]
+struct CustomShaderPipelineCacheState {
+    entries: HashSet<CustomShaderPipelineIdentity>,
+    associations: HashMap<u64, CustomShaderPipelineIdentity>,
+}
+
+impl CustomShaderPipelineCacheState {
+    fn identity(&self, surface_key: u64) -> Option<&CustomShaderPipelineIdentity> {
+        self.associations.get(&surface_key)
+    }
+
+    fn can_admit(&self, surface_key: u64, identity: &CustomShaderPipelineIdentity) -> bool {
+        if !self.associations.contains_key(&surface_key)
+            && self.associations.len() >= MAX_CUSTOM_SHADER_ASSOCIATIONS
+        {
+            return false;
+        }
+        if self.entries.contains(identity) {
+            return true;
+        }
+        let released = self.associations.get(&surface_key).filter(|previous| {
+            self.associations
+                .values()
+                .filter(|other| *other == *previous)
+                .count()
+                == 1
+        });
+        let retained_key_bytes = self
+            .entries
+            .iter()
+            .map(custom_shader_pipeline_identity_bytes)
+            .sum::<usize>()
+            .saturating_sub(released.map_or(0, custom_shader_pipeline_identity_bytes));
+        self.entries
+            .len()
+            .saturating_sub(usize::from(released.is_some()))
+            < MAX_CUSTOM_SHADER_UNIQUE_PIPELINES
+            && retained_key_bytes.saturating_add(custom_shader_pipeline_identity_bytes(identity))
+                <= MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES
+    }
+
+    fn associate(
+        &mut self,
+        surface_key: u64,
+        identity: CustomShaderPipelineIdentity,
+    ) -> Option<CustomShaderPipelineIdentity> {
+        self.entries.insert(identity.clone());
+        let previous = self.associations.insert(surface_key, identity);
+        previous.filter(|previous| !self.associations.values().any(|other| other == previous))
+    }
+
+    fn remove(&mut self, surface_key: u64) -> Option<CustomShaderPipelineIdentity> {
+        let identity = self.associations.remove(&surface_key)?;
+        (!self.associations.values().any(|other| other == &identity)).then_some(identity)
+    }
+
+    fn prune(&mut self, active_keys: &ActiveGpuSurfaceKeys) -> Vec<CustomShaderPipelineIdentity> {
+        self.associations.retain(|key, _| active_keys.contains(key));
+        let stale: Vec<_> = self
+            .entries
+            .iter()
+            .filter(|identity| !self.associations.values().any(|other| other == *identity))
+            .cloned()
+            .collect();
+        self.entries.retain(|identity| !stale.contains(identity));
+        stale
+    }
+}
+
 impl LogicalBytesAccumulator {
     fn add(&mut self, bytes: Option<u64>) {
         match bytes {
@@ -384,7 +457,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) composite_bindings:
         HashMap<u64, GpuSurfaceCompositeBinding>,
     custom_shader_pipelines: HashMap<CustomShaderPipelineIdentity, CustomShaderPipeline>,
-    custom_shader_pipeline_associations: HashMap<u64, CustomShaderPipelineIdentity>,
+    custom_shader_pipeline_state: CustomShaderPipelineCacheState,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) custom_shader_bindings:
         HashMap<u64, CustomShaderBinding>,
     custom_shader_residency: CustomShaderResidencyAccounting,
@@ -424,15 +497,9 @@ impl GpuSurfaceResourceCache {
         self.textures.retain(|key, _| active_keys.contains(key));
         self.composite_bindings
             .retain(|key, _| active_keys.contains(key));
-        self.custom_shader_pipeline_associations
-            .retain(|key, _| active_keys.contains(key));
-        let active_pipeline_identities: HashSet<_> = self
-            .custom_shader_pipeline_associations
-            .values()
-            .cloned()
-            .collect();
-        self.custom_shader_pipelines
-            .retain(|identity, _| active_pipeline_identities.contains(identity));
+        for retired in self.custom_shader_pipeline_state.prune(active_keys) {
+            self.custom_shader_pipelines.remove(&retired);
+        }
         self.custom_shader_residency
             .set_pipeline_resident_count(self.custom_shader_pipelines.len());
         let accounting = &mut self.custom_shader_residency;
@@ -459,7 +526,7 @@ impl GpuSurfaceResourceCache {
         self.textures.clear();
         self.composite_bindings.clear();
         self.custom_shader_pipelines.clear();
-        self.custom_shader_pipeline_associations.clear();
+        self.custom_shader_pipeline_state = CustomShaderPipelineCacheState::default();
         self.custom_shader_bindings.clear();
         self.custom_shader_residency.clear();
         self.signal_bodies.clear();
@@ -492,8 +559,8 @@ impl GpuSurfaceResourceCache {
         &self,
         key: u64,
     ) -> Option<&CustomShaderPipeline> {
-        self.custom_shader_pipeline_associations
-            .get(&key)
+        self.custom_shader_pipeline_state
+            .identity(key)
             .and_then(|identity| self.custom_shader_pipelines.get(identity))
     }
 
@@ -515,7 +582,7 @@ impl GpuSurfaceResourceCache {
         &self,
         key: u64,
     ) -> Option<&CustomShaderPipelineIdentity> {
-        self.custom_shader_pipeline_associations.get(&key)
+        self.custom_shader_pipeline_state.identity(key)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn can_admit_custom_shader_pipeline(
@@ -523,41 +590,8 @@ impl GpuSurfaceResourceCache {
         surface_key: u64,
         identity: &CustomShaderPipelineIdentity,
     ) -> bool {
-        const MAX_UNIQUE_PIPELINES: usize = 256;
-        const MAX_ASSOCIATIONS: usize = 1024;
-        const MAX_RETAINED_KEY_BYTES: usize = 1024 * 1024;
-        if !self
-            .custom_shader_pipeline_associations
-            .contains_key(&surface_key)
-            && self.custom_shader_pipeline_associations.len() >= MAX_ASSOCIATIONS
-        {
-            return false;
-        }
-        if self.custom_shader_pipelines.contains_key(identity) {
-            return true;
-        }
-        let released = self
-            .custom_shader_pipeline_associations
-            .get(&surface_key)
-            .filter(|previous| {
-                self.custom_shader_pipeline_associations
-                    .values()
-                    .filter(|other| *other == *previous)
-                    .count()
-                    == 1
-            });
-        let retained_key_bytes = self
-            .custom_shader_pipelines
-            .keys()
-            .map(custom_shader_pipeline_identity_bytes)
-            .sum::<usize>()
-            .saturating_sub(released.map_or(0, custom_shader_pipeline_identity_bytes));
-        self.custom_shader_pipelines
-            .len()
-            .saturating_sub(usize::from(released.is_some()))
-            < MAX_UNIQUE_PIPELINES
-            && retained_key_bytes.saturating_add(custom_shader_pipeline_identity_bytes(identity))
-                <= MAX_RETAINED_KEY_BYTES
+        self.custom_shader_pipeline_state
+            .can_admit(surface_key, identity)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn insert_custom_shader_pipeline(
@@ -588,15 +622,7 @@ impl GpuSurfaceResourceCache {
         key: u64,
         identity: CustomShaderPipelineIdentity,
     ) {
-        let previous = self
-            .custom_shader_pipeline_associations
-            .insert(key, identity);
-        if let Some(previous) = previous
-            && !self
-                .custom_shader_pipeline_associations
-                .values()
-                .any(|other| other == &previous)
-        {
+        if let Some(previous) = self.custom_shader_pipeline_state.associate(key, identity) {
             self.custom_shader_pipelines.remove(&previous);
         }
         self.custom_shader_residency
@@ -607,16 +633,10 @@ impl GpuSurfaceResourceCache {
         &mut self,
         key: &u64,
     ) -> Option<CustomShaderPipeline> {
-        let identity = self.custom_shader_pipeline_associations.remove(key)?;
-        let removed = if self
-            .custom_shader_pipeline_associations
-            .values()
-            .any(|other| other == &identity)
-        {
-            None
-        } else {
-            self.custom_shader_pipelines.remove(&identity)
-        };
+        let removed = self
+            .custom_shader_pipeline_state
+            .remove(*key)
+            .and_then(|identity| self.custom_shader_pipelines.remove(&identity));
         self.custom_shader_residency
             .set_pipeline_resident_count(self.custom_shader_pipelines.len());
         removed
@@ -702,12 +722,144 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logica
 mod tests {
     use super::{
         AccountedMap, CustomShaderBindingKey, CustomShaderBindingLogicalBytes,
+        CustomShaderPipelineCacheState, CustomShaderPipelineIdentity,
         CustomShaderResidencyAccounting, NativeAdapterGeneration,
         custom_shader_binding_logical_bytes, logical_rgba_texel_bytes,
         logical_signal_body_texture_bytes, logical_signal_buffer_bytes,
     };
     use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::CustomShaderPipelineKey;
     use std::sync::Arc;
+    use vello::wgpu;
+
+    fn pipeline_identity(name: &str) -> CustomShaderPipelineIdentity {
+        CustomShaderPipelineIdentity {
+            device: 7,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            key: CustomShaderPipelineKey {
+                shader_key: name.into(),
+                wgsl_source: Arc::from("@vertex fn vertex_main() {}"),
+                vertex_entry_point: "vertex_main".into(),
+                fragment_entry_point: "fragment_main".into(),
+                has_uniform_payload: false,
+                has_storage_payload: false,
+                has_presentation_uniform_payload: false,
+            },
+        }
+    }
+
+    #[test]
+    fn custom_shader_pipeline_cache_shares_and_retires_on_final_interest() {
+        let mut state = CustomShaderPipelineCacheState::default();
+        let identity = pipeline_identity("shared");
+
+        assert!(state.can_admit(1, &identity));
+        assert_eq!(state.associate(1, identity.clone()), None);
+        assert_eq!(state.associate(2, identity.clone()), None);
+        assert_eq!(state.entries.len(), 1);
+        assert_eq!(state.remove(1), None);
+        assert!(state.entries.contains(&identity));
+        assert_eq!(state.remove(2), Some(identity.clone()));
+        state.entries.remove(&identity);
+        assert!(state.entries.is_empty());
+    }
+
+    #[test]
+    fn custom_shader_pipeline_cache_separates_exact_contracts_and_replacements() {
+        let mut state = CustomShaderPipelineCacheState::default();
+        let base = pipeline_identity("base");
+        state.associate(1, base.clone());
+        state.associate(2, base.clone());
+        for incompatible in [
+            CustomShaderPipelineIdentity {
+                device: 8,
+                ..base.clone()
+            },
+            CustomShaderPipelineIdentity {
+                format: wgpu::TextureFormat::Bgra8Unorm,
+                ..base.clone()
+            },
+            CustomShaderPipelineIdentity {
+                key: CustomShaderPipelineKey {
+                    wgsl_source: Arc::from("different"),
+                    ..base.key.clone()
+                },
+                ..base.clone()
+            },
+            CustomShaderPipelineIdentity {
+                key: CustomShaderPipelineKey {
+                    fragment_entry_point: "other_fragment".into(),
+                    ..base.key.clone()
+                },
+                ..base.clone()
+            },
+            CustomShaderPipelineIdentity {
+                key: CustomShaderPipelineKey {
+                    has_storage_payload: true,
+                    ..base.key.clone()
+                },
+                ..base.clone()
+            },
+        ] {
+            assert!(state.can_admit(1, &incompatible));
+            assert_eq!(state.associate(1, incompatible.clone()), None);
+            assert_eq!(state.identity(2), Some(&base));
+            assert_eq!(state.identity(1), Some(&incompatible));
+            assert_eq!(state.remove(1), Some(incompatible.clone()));
+            state.entries.remove(&incompatible);
+            state.associate(1, base.clone());
+        }
+    }
+
+    #[test]
+    fn custom_shader_pipeline_cache_capacity_rejects_without_retaining_and_recovers() {
+        let mut entries = CustomShaderPipelineCacheState::default();
+        for index in 0..super::MAX_CUSTOM_SHADER_UNIQUE_PIPELINES {
+            let identity = pipeline_identity(&format!("entry-{index}"));
+            assert!(entries.can_admit(index as u64, &identity));
+            entries.associate(index as u64, identity);
+        }
+        let rejected = pipeline_identity("entry-overflow");
+        assert!(!entries.can_admit(9_999, &rejected));
+        assert!(!entries.entries.contains(&rejected));
+        let retired = entries.remove(0).unwrap();
+        entries.entries.remove(&retired);
+        assert!(entries.can_admit(9_999, &rejected));
+
+        let mut associations = CustomShaderPipelineCacheState::default();
+        let shared = pipeline_identity("association");
+        for index in 0..super::MAX_CUSTOM_SHADER_ASSOCIATIONS {
+            assert!(associations.can_admit(index as u64, &shared));
+            associations.associate(index as u64, shared.clone());
+        }
+        assert!(!associations.can_admit(10_000, &shared));
+        associations.remove(0);
+        assert!(associations.can_admit(10_000, &shared));
+
+        let mut bytes = CustomShaderPipelineCacheState::default();
+        let too_large = CustomShaderPipelineIdentity {
+            key: CustomShaderPipelineKey {
+                wgsl_source: Arc::from("x".repeat(super::MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES)),
+                ..pipeline_identity("bytes").key
+            },
+            ..pipeline_identity("bytes")
+        };
+        assert!(!bytes.can_admit(1, &too_large));
+        assert!(bytes.entries.is_empty());
+    }
+
+    #[test]
+    fn custom_shader_pipeline_failure_is_uncached_and_isolated() {
+        let mut state = CustomShaderPipelineCacheState::default();
+        let successful = pipeline_identity("successful");
+        state.associate(1, successful.clone());
+        let failed_attempt = pipeline_identity("failed");
+        // Validation failure does not enter ownership state, so a later retry is
+        // admitted and cannot evict the successful surface.
+        assert!(state.can_admit(2, &failed_attempt));
+        assert_eq!(state.identity(1), Some(&successful));
+        assert!(!state.entries.contains(&failed_attempt));
+        assert!(state.can_admit(2, &failed_attempt));
+    }
 
     #[test]
     fn accounted_map_tracks_exact_logical_rgba_texel_bytes_and_replacement() {

@@ -1796,3 +1796,39 @@ fn widget_paint_primitives_helper_captures_builtin_widget_paint() {
         "button label should be captured without app-local paint buffer setup"
     );
 }
+
+#[test]
+fn scrollbar_runtime_edit_constructor_accepts_viewport_and_controlled_offset() {
+    use radiant::widgets::ScrollbarEditBatch;
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(12.0, 120.0));
+    let mut surface: UiSurface<ScrollbarEditBatch> =
+        UiSurface::new(SurfaceNode::scrollbar_edits_mapped(
+            94,
+            ScrollbarAxis::Vertical,
+            0.25,
+            0.5,
+            WidgetSizing::fixed(Vector2::new(12.0, 120.0)),
+            |batch| batch,
+        ));
+    let begin = surface
+        .dispatch_widget_input(
+            94,
+            bounds,
+            WidgetInput::primary_press(Point::new(6.0, 60.0)),
+        )
+        .and_then(|output| output.typed_copied::<ScrollbarEditBatch>())
+        .expect("configured thumb begins edit");
+    assert_eq!(begin.events()[0].phase, EditPhase::Begin);
+    assert_eq!(begin.events()[0].start_value, 0.5);
+    let end = surface
+        .dispatch_widget_input(
+            94,
+            bounds,
+            WidgetInput::primary_release(Point::new(6.0, 105.0)),
+        )
+        .and_then(|output| output.typed_copied::<ScrollbarEditBatch>())
+        .expect("configured thumb commits final motion");
+    assert_eq!(end.offset_change(), Some(1.0));
+    assert_eq!(end.transaction(), begin.transaction());
+    assert_eq!(end.events().last().unwrap().phase, EditPhase::Commit);
+}

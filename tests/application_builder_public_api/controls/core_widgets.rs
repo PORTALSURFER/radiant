@@ -1285,3 +1285,122 @@ fn interactive_row_builder_can_create_custom_input_layer_widget() {
     assert!(!row.common.paint.paints_focus);
     assert!(!row.common.paint.paints_state_layers);
 }
+
+#[test]
+fn scrollbar_builder_maps_edit_lifecycle_and_legacy_offsets_without_double_emission() {
+    use radiant::prelude::{self as ui, IntoView};
+    use radiant::widgets::{ScrollbarAxis, ScrollbarEditBatch};
+    let mut typed: UiSurface<ScrollbarEditBatch> = ui::scrollbar(ScrollbarAxis::Vertical)
+        .viewport_fraction(0.25)
+        .offset_fraction(0.25)
+        .on_edit(|batch| batch)
+        .id(91)
+        .into_surface();
+    let legacy: UiSurface<f32> = ui::scrollbar(ScrollbarAxis::Vertical)
+        .viewport_fraction(0.25)
+        .offset_fraction(0.25)
+        .message(|offset| offset)
+        .id(91)
+        .into_surface();
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(12.0, 120.0));
+    for (input, expected_phases, expected_offset) in [
+        (
+            WidgetInput::primary_press(Point::new(6.0, 37.5)),
+            vec![EditPhase::Begin],
+            None,
+        ),
+        (
+            WidgetInput::pointer_move(Point::new(6.0, 82.5)),
+            vec![EditPhase::Update],
+            Some(0.75),
+        ),
+        (
+            WidgetInput::pointer_move(Point::new(6.0, 37.5)),
+            vec![EditPhase::Update],
+            Some(0.25),
+        ),
+        (
+            WidgetInput::primary_release(Point::new(6.0, 37.5)),
+            vec![EditPhase::Commit],
+            None,
+        ),
+    ] {
+        let output = typed
+            .dispatch_widget_input(91, bounds, input)
+            .expect("retained edit output");
+        let batch = output
+            .typed_copied::<ScrollbarEditBatch>()
+            .expect("typed scrollbar batch");
+        assert_eq!(
+            batch
+                .events()
+                .iter()
+                .map(|event| event.phase)
+                .collect::<Vec<_>>(),
+            expected_phases
+        );
+        assert_eq!(
+            typed.dispatch_widget_output(91, output.clone()),
+            Some(batch)
+        );
+        assert_eq!(legacy.dispatch_widget_output(91, output), expected_offset);
+    }
+}
+
+#[test]
+#[allow(clippy::arc_with_non_send_sync)]
+fn scrollbar_runtime_pins_focused_wheel_burst_through_controlled_echo_and_pointer_exit() {
+    use radiant::prelude::{self as ui, IntoView};
+    use radiant::runtime::{SurfaceRuntime, declarative_runtime_bridge};
+    use radiant::widgets::{
+        ScrollbarAxis, ScrollbarEditBatch, WheelDelta, WheelPhase, WheelSample,
+    };
+    let edits = Rc::new(RefCell::new(Vec::new()));
+    let sink = Rc::clone(&edits);
+    let bridge = declarative_runtime_bridge(
+        0.25_f32,
+        |offset| {
+            Arc::new(
+                ui::scrollbar(ScrollbarAxis::Vertical)
+                    .viewport_fraction(0.25)
+                    .offset_fraction(*offset)
+                    .on_edit(|batch| batch)
+                    .id(91)
+                    .into_surface(),
+            )
+        },
+        move |offset, batch: ScrollbarEditBatch| {
+            if let Some(next) = batch.offset_change() {
+                *offset = next;
+            }
+            sink.borrow_mut().extend_from_slice(batch.events());
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(12.0, 120.0));
+    assert!(runtime.focus_widget(91));
+    for (phase, point, y) in [
+        (WheelPhase::Started, Point::new(3.0, 60.0), 36.0),
+        (WheelPhase::Changed, Point::new(200.0, 200.0), 36.0),
+        (WheelPhase::Ended, Point::new(200.0, 200.0), 0.0),
+    ] {
+        let sample = WheelSample::new(
+            WheelDelta::pixels(Vector2::new(0.0, y)).unwrap(),
+            Some(phase),
+            Default::default(),
+        )
+        .unwrap();
+        assert!(runtime.wheel_or_scroll_at_with_sample(point, sample));
+    }
+    let edits = edits.borrow();
+    assert_eq!(
+        edits.iter().map(|e| e.phase).collect::<Vec<_>>(),
+        [
+            EditPhase::Begin,
+            EditPhase::Update,
+            EditPhase::Update,
+            EditPhase::Commit
+        ]
+    );
+    assert!(edits.iter().all(|e| e.transaction == edits[0].transaction));
+    assert!((edits.last().unwrap().value - 0.45).abs() < f32::EPSILON);
+}

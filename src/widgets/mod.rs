@@ -97,12 +97,12 @@ pub use interaction::{
     NumericScrubActivation, NumericScrubAttempt, NumericScrubPolicy, NumericStep,
     NumericStepAttempt, NumericStepDirection, NumericStepModifiers, NumericWheelAttempt,
     NumericWheelPolicy, PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage,
-    ScrollbarMessage, SelectableMessage, SliderDomainError, SliderDomainMessage, SliderEditBatch,
-    SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
-    TextInputRevision, ToggleMessage, ValueFormat, ValueFormatError, ValueFormatKind, ValueMapping,
-    ValueMappingError, ValueMappingKind, WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta,
-    WheelDeltaError, WheelPhase, WheelSample, WheelSampleError, WidgetCursor, WidgetInput,
-    WidgetKey, WidgetOutput, handle_activation_input,
+    ScrollbarEditBatch, ScrollbarMessage, SelectableMessage, SliderDomainError,
+    SliderDomainMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
+    TextInputMessageKind, TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat,
+    ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind,
+    WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError, WheelPhase, WheelSample,
+    WheelSampleError, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub(crate) use primitives::NativeCaretAffinity;
 pub(crate) use primitives::NumericInputWidget;
@@ -129,8 +129,9 @@ pub use primitives::{
     ToggleWidget, ToggleWidgetParts, WidgetCommon,
 };
 pub(crate) use primitives::{
-    RetainedKnobDomainWidget, RetainedKnobWidget, RetainedSliderDomainWidget, RetainedSliderWidget,
-    domain_initial_normalized, initial_normalized,
+    RetainedKnobDomainWidget, RetainedKnobWidget, RetainedScrollbarWidget,
+    RetainedSliderDomainWidget, RetainedSliderWidget, domain_initial_normalized,
+    initial_normalized,
 };
 pub use text_metrics::{DeclaredTextMetrics, ResolvedTextMetrics, TextScaleParticipation};
 pub use theme::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};

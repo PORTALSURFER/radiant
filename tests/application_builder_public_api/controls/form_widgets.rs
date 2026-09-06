@@ -121,9 +121,12 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
         None
     );
 
-    let scrollbar = widget_ref::<radiant::widgets::ScrollbarWidget, _>(&surface, 21, "scrollbar");
-    assert_eq!(scrollbar.props.viewport_fraction, 0.25);
-    assert_eq!(scrollbar.state.offset_fraction, 0.5);
+    let scrollbar = surface.find_widget(21).expect("scrollbar exists").widget();
+    assert_eq!(
+        scrollbar.automation_semantics().value_text.as_deref(),
+        Some("0.500")
+    );
+    assert!(scrollbar.capabilities_v2().semantic_actions().is_some());
     assert_eq!(
         surface.dispatch_widget_output(
             21,

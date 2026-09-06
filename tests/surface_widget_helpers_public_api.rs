@@ -6,8 +6,8 @@ use radiant::{
     widgets::{
         BadgeMessage, ButtonMessage, CanvasMessage, CanvasWidget, InteractionProvenance,
         ListItemMessage, ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
-        ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage, TextWidget,
-        ToggleMessage, Widget, WidgetInput, WidgetSizing,
+        SelectableMessage, SelectableWidget, TextInputMessage, TextWidget, ToggleMessage, Widget,
+        WidgetInput, WidgetSizing,
     },
 };
 

@@ -1,0 +1,107 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1454-precise-signal-viewports-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 16s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 93 tests
+test gui::visualization::tests::signal::channel_view_mode_distinguishes_combined_and_split_views ... ok
+test gui::visualization::tests::signal::signal_tool_state_preserves_generic_interaction_flags ... ok
+test gui::repaint::tests::shared_repaint_signal_noop_when_unset ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::signal::cache_key::tests::signal_buffer_cache_key_keeps_revision_and_level_independent ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::signal::cache_key::tests::signal_buffer_cache_key_tracks_immutable_source_identity ... ok
+test gui::repaint::tests::shared_repaint_signal_forwards_request_to_active_callback ... ok
+test gui::repaint::tests::coalescing_repaint_signal_clears_pending_when_queue_fails ... ok
+test gui::repaint::tests::coalescing_repaint_signal_queues_one_wakeup_while_pending ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::signal::cache_key::tests::signal_buffer_cache_key_tracks_uploaded_bucket_window ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::precise_signal::precise_signal_bucket_smoothing_matches_legacy_for_sub_bucket_views ... ignored, requires native GPU adapter and offscreen WGPU rendering
+test gui::repaint::tests::shared_repaint_signal_replaces_existing_callback ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::precise_signal::precise_signal_window_matches_near_and_large_origins ... ignored, requires native GPU adapter and offscreen WGPU rendering
+test gui::visualization::tests::signal::signal_chrome_state_preserves_status_reference_and_channel_view ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::signal::cache_key::tests::signal_gain_preview_key_tracks_preview_parameters ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::signal::tests::signal_body_texture_identity_tracks_device_and_body_key ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::signal_profile_default_is_absent_while_empty_ledger_is_zero ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::signal_resource_logical_bytes_use_checked_arithmetic ... ok
+test gui::visualization::tests::signal::signal_raster_preview_preserves_label_flags_signature_and_image ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::identity::tests::signal_source_identity_excludes_presentation_but_render_identity_keeps_it ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::signal_ledger_recovers_after_count_and_byte_overflow ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::signal_ledger_keeps_unknown_bytes_independent_and_recovers ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::signal_ledger_aggregates_primary_and_auxiliaries_once ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::signal_resource_logical_buffer_overflow_is_unavailable ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::signal_resource_accounting_tracks_cold_reuse_replacement_multiple_keys_and_zero ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::cache::tests::signal_resource_accounting_preserves_unknown_bytes_through_prune_and_clear ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::signal::tests::signal_body_cache_mismatch_reports_revision_or_content ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::signal_ledger_fences_wrong_generation_and_same_key_incarnations ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::uniforms::tests::signal_gain_preview_uniforms_mark_active_preview ... ok
+test gui_runtime::native_vello::generic_runtime::adapter::tests::signal_ledger_keeps_physical_quarantine_across_recovery_and_rebinds_active ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::uniforms::tests::signal_uniforms_group_shape_level_and_gain_preview ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::window::tests::signal_bucket_window_clamps_to_summary_bounds ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::window::tests::signal_bucket_window_does_not_pad_beyond_summary_edges ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::window::tests::signal_bucket_window_uploads_one_guard_bucket_per_side ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::signal::summary::tests::cached_signal_summary_reuses_one_source_across_viewport_changes ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::signal::summary::tests::cached_signal_summary_reports_builds_and_hits ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::signal::summary::tests::cached_signal_summary_rebuilds_for_new_immutable_content_with_same_revision ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::signal::summary::tests::cached_signal_summary_rebuilds_when_source_shape_changes ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::resources::signal::summary::tests::cached_signal_summary_rebuilds_when_revision_changes ... ok
+test gui_runtime::native_vello::generic_runtime::runner_state::tests::signal_residency_projection_preserves_bundle_generations_and_absent_slots ... ok
+test gui_runtime::native_vello::generic_runtime::render_profile::tests::signal_profile_projection_preserves_active_q0_q1_and_unknown_bytes ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::tests::retained_summary_validation_rejects_and_caches_malformed_payloads ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_does_not_cap_gain_preview ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::tests::retained_summary_validation_rechecks_declared_shape_changes ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_has_no_summary_sample_scan_loop ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_groups_projection_parameters ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_keeps_raw_carrier_nearest_bucket_and_reuses_precomputed_bands ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_previews_outer_fade_extensions_as_crossfades ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::upload_plan::tests::cold_and_warm_signal_fixtures_match_actual_classification ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::tests::retained_summary_validation_runs_once_per_summary_identity ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_smooths_colored_bands_only_within_one_physical_pixel ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_smooths_high_band_center_neighbors ... ok
+test gui_runtime::native_vello::generic_runtime::runner_state::tests::signal_residency_slots_are_absent_before_native_resource_publication ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_uses_physical_width_and_nearest_lod_boundaries ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::signal_summary_pyramid_preserves_band_min_max_and_level_selection ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_uses_summary_sampling_without_looped_sample_scan ... ok
+test runtime::gpu_surface::content::tests::signal_shape::signal_render_shape_uses_effective_available_frame_count ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_uses_raw_peak_to_shape_colored_bands ... ok
+test runtime::gpu_surface::content::tests::signal_shape::signal_render_shape_rejects_invalid_payload_contracts ... ok
+test runtime::gpu_surface::content::tests::signal_shape::signal_summary_payload_must_match_declared_shape ... ok
+test runtime::gpu_surface::content::tests::validation::gpu_surface_content_validation_reports_signal_errors ... ok
+test runtime::gpu_surface::signal_summary::tests::empty_signal_summary_level_lookup_defaults_to_zero ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_base_level_maps_samples_without_merging ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_presizes_level_vector_for_empty_input ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_presizes_level_vector_for_power_of_two_pyramid ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_merges_partial_higher_level_buckets ... ok
+test runtime::gpu_surface::signal_viewport::tests::large_integral_deltas_preserve_the_local_fraction ... ok
+test runtime::gpu_surface::signal_viewport::tests::fractional_carries_are_checked_at_source_edges ... ok
+test runtime::gpu_surface::signal_viewport::tests::end_and_local_offset_reject_unrepresentable_ranges ... ok
+test runtime::gpu_surface::signal_viewport::tests::integer_translation_checks_both_source_edges ... ok
+test runtime::gpu_surface::signal_viewport::tests::malformed_ranges_are_rejected ... ok
+test runtime::gpu_surface::signal_viewport::tests::pan_and_zoom_keep_fractional_anchor_local ... ok
+test runtime::gpu_surface::signal_viewport::tests::ratio_edges_match_start_and_end ... ok
+test runtime::gpu_surface::signal_viewport::tests::local_geometry_is_stable_at_large_origins ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::tests::signal_preflight_reuploads_bucket_data_when_window_or_detail_changes ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::tests::gpu_surface_renderer_prunes_inactive_signal_summaries ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::signal::tests::signal_preflight_reuses_bucket_data_for_nearby_presentation_updates ... ok
+test runtime::gpu_surface::signal_window::tests::gain_projection_rejects_overflow_before_shader_arithmetic ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_level_lookup_uses_nearest_bucket_size ... ok
+test runtime::gpu_surface::signal_window::tests::malformed_data_and_presentation_are_explicit_errors ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::tests::signal_preflight_records_ordered_actions_without_live_mutation ... ok
+test runtime::gpu_surface::signal_window::tests::truncated_final_bucket_and_bucket_phase_are_validated ... ok
+test runtime::gpu_surface::signal_window::tests::wrap_requires_both_sides_in_the_provided_window ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::tests::malformed_signal_preflight_vetoes_render_without_live_validation_mutation ... ok
+test runtime::gpu_surface::signal_window::tests::adjacent_samples_and_fractional_pan_remain_distinct ... ok
+test runtime::gpu_surface::signal_window::tests::signed_slide_uses_exact_integer_source_coordinates ... ok
+test runtime::gpu_surface::signal_window::tests::near_and_far_geometry_and_gain_bytes_are_identical ... ok
+test runtime::gpu_surface::signal_window::tests::viewport_motion_shares_immutable_storage ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_keeps_waveform_bands_visually_distinct ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::tests::mixed_atlas_unsupported_custom_shader_and_signal_consumes_one_skip_and_prunes ... ok
+test gui_runtime::native_vello::generic_runtime::runner::tests::signal_residency_refresh_reregisters_a_rejected_live_token ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_parses_as_wgsl ... ok
+test runtime::gpu_surface::signal_window::tests::precise_shader_parses_and_validates ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::precise_signal::frozen_legacy_signal_shader_parses_as_wgsl ... ok
+
+test result: ok. 91 passed; 0 failed; 2 ignored; 0 measured; 4152 filtered out; finished in 0.03s
+

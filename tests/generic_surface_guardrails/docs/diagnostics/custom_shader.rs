@@ -26,7 +26,8 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
         "`custom_shader.failures.shader_module_failures`",
         "`custom_shader.failures.pipeline_failures`",
         "`custom_shader.failures.binding_failures`",
-        "the native renderer also logs the backend validation error through tracing",
+        "Worker preparation emits a bounded typed failure outcome through tracing",
+        "binding validation logs its backend error",
     ] {
         assert!(
             normalized_docs.contains(required),

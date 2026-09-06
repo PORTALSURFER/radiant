@@ -54,8 +54,8 @@ pub(crate) use presentation::{
     GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY, GpuShaderPresentationUniformMailbox,
 };
 pub(crate) use signal_summary::{
-    BoundedSignalError, BoundedSignalTile, bounded_overview_bytes, build_bounded_overview,
-    build_bounded_tile,
+    BoundedSignalError, BoundedSignalTile, BoundedSignalTileRequest, bounded_overview_bytes,
+    build_bounded_overview, build_bounded_tile,
 };
 pub use signal_summary::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
 pub use signal_viewport::{GpuSignalPosition, GpuSignalViewport, GpuSignalViewportError};

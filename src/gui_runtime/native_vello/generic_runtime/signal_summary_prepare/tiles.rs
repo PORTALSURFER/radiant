@@ -1,6 +1,6 @@
 //! Bounded detail products. Each product pins its already-accounted source overview.
 use super::*;
-use crate::runtime::{BoundedSignalError, build_bounded_tile};
+use crate::runtime::{BoundedSignalError, BoundedSignalTileRequest, build_bounded_tile};
 
 const MAX_TILES: usize = 192;
 const MAX_TILE_BYTES: usize = 256 * 1024;
@@ -134,10 +134,12 @@ impl TileDispatch {
                 &self.owner._source,
                 self.key.source.effective_frames,
                 self.key.source.effective_bands,
-                spec.first,
-                spec.width,
-                spec.count,
-                spec.wrap,
+                BoundedSignalTileRequest {
+                    first_frame: spec.first,
+                    bucket_frames: spec.width,
+                    bucket_count: spec.count,
+                    wrap: spec.wrap,
+                },
                 || self.cancel.load(Ordering::Acquire),
             )
         }))

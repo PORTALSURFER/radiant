@@ -29,6 +29,14 @@ pub(crate) struct BoundedSignalTile {
     pub(crate) buckets: Arc<[GpuSignalSummaryBucket]>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BoundedSignalTileRequest {
+    pub(crate) first_frame: usize,
+    pub(crate) bucket_frames: usize,
+    pub(crate) bucket_count: usize,
+    pub(crate) wrap: bool,
+}
+
 impl BoundedSignalOverview {
     #[cfg(test)]
     pub(crate) fn logical_summary_bytes(&self) -> usize {
@@ -59,10 +67,12 @@ pub(crate) fn build_bounded_overview(
         samples,
         frames,
         bands,
-        0,
-        width,
-        frames.div_ceil(width),
-        false,
+        BoundedSignalTileRequest {
+            first_frame: 0,
+            bucket_frames: width,
+            bucket_count: frames.div_ceil(width),
+            wrap: false,
+        },
         &mut cancel,
     )?;
     loop {
@@ -95,58 +105,51 @@ pub(crate) fn build_bounded_tile(
     samples: &[f32],
     source_frames: usize,
     bands: usize,
-    first_frame: usize,
-    bucket_frames: usize,
-    bucket_count: usize,
-    wrap: bool,
+    request: BoundedSignalTileRequest,
     mut cancel: impl FnMut() -> bool,
 ) -> Result<BoundedSignalTile, BoundedSignalError> {
     validate(samples, source_frames, bands)?;
-    if bucket_frames == 0
-        || !bucket_frames.is_power_of_two()
-        || bucket_count == 0
-        || bucket_count > MAX_TILE_BUCKETS
+    if request.bucket_frames == 0
+        || !request.bucket_frames.is_power_of_two()
+        || request.bucket_count == 0
+        || request.bucket_count > MAX_TILE_BUCKETS
     {
         return Err(BoundedSignalError::Capacity);
     }
-    if !wrap && first_frame >= source_frames {
+    if !request.wrap && request.first_frame >= source_frames {
         return Err(BoundedSignalError::InvalidRange);
     }
     // A non-wrapping request may end in a truncated bucket, but it must not
     // include buckets wholly beyond the source.
-    if !wrap && bucket_count > (source_frames - first_frame).div_ceil(bucket_frames) {
+    if !request.wrap
+        && request.bucket_count
+            > (source_frames - request.first_frame).div_ceil(request.bucket_frames)
+    {
         return Err(BoundedSignalError::InvalidRange);
     }
-    first_frame
+    request
+        .first_frame
         .checked_add(
-            (bucket_count - 1)
-                .checked_mul(bucket_frames)
-                .and_then(|offset| offset.checked_add(bucket_frames - 1))
+            (request.bucket_count - 1)
+                .checked_mul(request.bucket_frames)
+                .and_then(|offset| offset.checked_add(request.bucket_frames - 1))
                 .ok_or(BoundedSignalError::InvalidRange)?,
         )
         .ok_or(BoundedSignalError::InvalidRange)?;
-    let total = bucket_count
+    let total = request
+        .bucket_count
         .checked_mul(bands)
         .and_then(|n| n.checked_mul(std::mem::size_of::<GpuSignalSummaryBucket>()))
         .ok_or(BoundedSignalError::Capacity)?;
     if total > MAX_BYTES {
         return Err(BoundedSignalError::Capacity);
     }
-    let buckets = scan(
-        samples,
-        source_frames,
-        bands,
-        first_frame,
-        bucket_frames,
-        bucket_count,
-        wrap,
-        &mut cancel,
-    )?;
+    let buckets = scan(samples, source_frames, bands, request, &mut cancel)?;
     Ok(BoundedSignalTile {
-        first_frame,
+        first_frame: request.first_frame,
         source_frames,
         band_count: bands,
-        bucket_frames,
+        bucket_frames: request.bucket_frames,
         buckets,
     })
 }
@@ -208,13 +211,11 @@ fn scan(
     samples: &[f32],
     frames: usize,
     bands: usize,
-    first: usize,
-    width: usize,
-    count: usize,
-    wrap: bool,
+    request: BoundedSignalTileRequest,
     cancel: &mut impl FnMut() -> bool,
 ) -> Result<Arc<[GpuSignalSummaryBucket]>, BoundedSignalError> {
-    let len = count
+    let len = request
+        .bucket_count
         .checked_mul(bands)
         .ok_or(BoundedSignalError::Capacity)?;
     if len
@@ -229,26 +230,28 @@ fn scan(
     }
     let mut out = Vec::with_capacity(len);
     let mut seen = 0usize;
-    for bucket in 0..count {
+    for bucket in 0..request.bucket_count {
         for band in 0..bands {
             let mut value: Option<GpuSignalSummaryBucket> = None;
-            for step in 0..width {
-                if seen % CANCEL_CHUNK_SAMPLES == 0 && cancel() {
+            for step in 0..request.bucket_frames {
+                if seen.is_multiple_of(CANCEL_CHUNK_SAMPLES) && cancel() {
                     return Err(BoundedSignalError::Cancelled);
                 }
                 seen += 1;
-                let frame = first
+                let frame = request
+                    .first_frame
                     .checked_add(
                         bucket
-                            .checked_mul(width)
+                            .checked_mul(request.bucket_frames)
                             .ok_or(BoundedSignalError::InvalidRange)?,
                     )
                     .and_then(|n| n.checked_add(step))
                     .ok_or(BoundedSignalError::InvalidRange)?;
-                if !wrap && frame >= frames {
+                if !request.wrap && frame >= frames {
                     break;
                 }
-                let sample = samples[(if wrap { frame % frames } else { frame }) * bands + band];
+                let sample =
+                    samples[(if request.wrap { frame % frames } else { frame }) * bands + band];
                 let sample = if sample.is_finite() { sample } else { 0.0 };
                 let entry = value.get_or_insert(GpuSignalSummaryBucket {
                     min: sample,
@@ -277,7 +280,7 @@ fn merge(
     let mut out = Vec::with_capacity(count.div_ceil(2) * bands);
     for bucket in 0..count.div_ceil(2) {
         for band in 0..bands {
-            if out.len() % CANCEL_CHUNK_SAMPLES == 0 && cancel() {
+            if out.len().is_multiple_of(CANCEL_CHUNK_SAMPLES) && cancel() {
                 return Err(BoundedSignalError::Cancelled);
             }
             let mut v = previous[(bucket * 2) * bands + band];

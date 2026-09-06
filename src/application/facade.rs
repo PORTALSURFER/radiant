@@ -10,14 +10,16 @@ mod layout;
 mod menus;
 mod overlays;
 mod panels;
+mod resources;
 mod runtime;
-pub use runtime::{
-    ResourceInterest, ResourceInterestError, ResourceInterestKind, SharedResourceTasks,
-};
-pub use runtime::{SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode};
 mod surfaces;
 mod view;
 mod virtual_layout;
+
+pub use resources::{
+    ResourceInterest, ResourceInterestError, ResourceInterestKind, SharedResourceTasks,
+};
+pub use resources::{SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode};
 
 pub use controls::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,

@@ -1,0 +1,7 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1391-resource-views-radiant)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.52s
+     Running `/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/resource_view_lifecycle`
+{"phase":"ready","interests":1,"value":42}
+{"phase":"failed","retained_value":42}
+{"phase":"cancelled_refresh","late_value_applied":false}
+{"phase":"released","interests":0}

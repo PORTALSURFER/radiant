@@ -429,6 +429,16 @@ impl SummaryBroker {
     }
 
     #[cfg(test)]
+    pub(super) fn set_gpu_budget_limit_for_test(&mut self, bytes: usize) {
+        self.gpu_budget = SignalGpuBudget::with_limit_for_test(bytes);
+    }
+
+    #[cfg(test)]
+    pub(super) fn gpu_logical_bytes_for_test(&self) -> usize {
+        self.gpu_budget.used_for_test()
+    }
+
+    #[cfg(test)]
     pub(super) fn with_byte_limit_for_test(byte_limit: usize) -> Self {
         struct NoopWake;
         impl RepaintSignal for NoopWake {

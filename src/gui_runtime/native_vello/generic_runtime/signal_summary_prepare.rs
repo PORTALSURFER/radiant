@@ -443,7 +443,7 @@ impl SummaryBroker {
         Self {
             tiles: tiles::TileCache::new(Arc::clone(&wake)),
             tile_demands: HashMap::new(),
-            gpu_budget: Arc::new(SignalGpuBudget::default()),
+            gpu_budget: Arc::new(SignalGpuBudget::with_wake(Arc::clone(&wake))),
             wake,
             sender,
             receiver,

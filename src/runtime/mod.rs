@@ -280,6 +280,6 @@ pub(crate) use virtual_layout::{
 };
 
 pub(crate) use gpu_surface::{
-    BoundedSignalError, BoundedSignalOverview, BoundedSignalTile, build_bounded_overview,
+    BoundedSignalError, BoundedSignalTile, bounded_overview_bytes, build_bounded_overview,
     build_bounded_tile,
 };

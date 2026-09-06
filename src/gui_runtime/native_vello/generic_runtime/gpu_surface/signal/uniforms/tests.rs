@@ -1,3 +1,4 @@
+use super::super::{SelectedSignalLevel, SignalRenderData, SignalTileData};
 use super::*;
 use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::SignalBodyCacheKeyParts;

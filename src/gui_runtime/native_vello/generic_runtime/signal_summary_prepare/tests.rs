@@ -614,3 +614,18 @@ fn released_gpu_capacity_notifies_only_current_ready_targets_once() {
     drop(held);
     assert!(broker.drain_completions().is_empty());
 }
+
+#[test]
+fn outside_source_raw_viewports_keep_legacy_clamped_overview() {
+    let samples: Arc<[f32]> = vec![0.0; 65_536].into();
+    for frame_range in [[-2.0, 20.0], [65_530.0, 65_540.0], [70_000.0, 70_010.0]] {
+        let content = GpuSurfaceContent::SignalBands {
+            frames: 65_536,
+            band_count: 1,
+            frame_range,
+            samples: samples.clone(),
+        };
+        let request = SummaryRequest::from_raw_surface(&content, 1).unwrap();
+        assert!(request.tile_view.is_none());
+    }
+}

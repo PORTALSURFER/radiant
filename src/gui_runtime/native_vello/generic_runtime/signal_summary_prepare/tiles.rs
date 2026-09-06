@@ -57,7 +57,12 @@ impl TileSpec {
         // Use a fixed two-page extent, not the exact viewport end; otherwise
         // one-frame pans would manufacture a new product key on every request.
         let count = columns.checked_mul(2)?.checked_add(2)?;
-        let wrap = first.checked_add(count.checked_mul(width)?)? > frames;
+        let wrap = physical as f64 + (start - integral) + span > frames as f64;
+        let count = if wrap {
+            count
+        } else {
+            count.min((frames - first).div_ceil(width))
+        };
         if count == 0 || count > capacity {
             return None;
         }

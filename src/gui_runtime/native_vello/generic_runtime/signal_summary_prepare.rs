@@ -121,7 +121,11 @@ impl SummaryRequest {
             return None;
         }
         let mut request = Self::new(Arc::clone(samples), *frames, *band_count, revision);
-        request.tile_view = Some(*frame_range);
+        // The legacy raw route clamps outside-source samples. Circular tile
+        // addressing would change that behavior, so retain its overview there.
+        request.tile_view = (frame_range[0] >= 0.0
+            && f64::from(frame_range[1]) <= request.key.effective_frames as f64)
+            .then_some(*frame_range);
         Some(request)
     }
 

@@ -202,8 +202,9 @@ pub use file_open::NativeFileOpen;
 pub use gpu_surface::{
     CanvasKey, GPU_SHADER_PRESENTATION_UNIFORM_ALIGNMENT, GpuShaderPresentationUniformUpdate,
     GpuShaderPresentationUniformUpdateError, GpuShaderSurfaceDescriptor,
-    GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary,
-    GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
+    GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview, GpuSignalPosition, GpuSignalRenderShape,
+    GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSignalViewport,
+    GpuSignalViewportError, GpuSurfaceCapabilities, GpuSurfaceContent,
     GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
     MAX_GPU_SHADER_PRESENTATION_UNIFORM_BYTES, RenderCanvasCapabilities, RenderCanvasContent,
     RenderCanvasContentError, RenderCanvasLineStyle, RenderCanvasOverlay,

@@ -5,6 +5,7 @@ use crate::gui::types::Rgba8;
 mod content;
 mod presentation;
 mod signal_summary;
+mod signal_viewport;
 
 /// Stable application-facing identity for a retained render canvas.
 ///
@@ -52,6 +53,7 @@ pub(crate) use presentation::{
     GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY, GpuShaderPresentationUniformMailbox,
 };
 pub use signal_summary::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
+pub use signal_viewport::{GpuSignalPosition, GpuSignalViewport, GpuSignalViewportError};
 
 /// Renderer-neutral retained canvas content.
 ///

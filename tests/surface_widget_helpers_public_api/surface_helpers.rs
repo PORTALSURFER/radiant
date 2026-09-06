@@ -54,11 +54,14 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
         ],
     ));
 
-    assert!(
-        widget_ref::<ScrollbarWidget, _>(&surface, 60, "scrollbar")
+    assert_eq!(
+        surface
+            .find_widget(60)
+            .expect("scrollbar exists")
+            .widget()
             .common()
-            .id
-            == 60
+            .id,
+        60
     );
     assert!(
         widget_ref::<ListItemWidget, _>(&surface, 62, "list item")

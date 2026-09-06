@@ -69,7 +69,10 @@ pub(super) fn handle_pointer_capture_cancelled(scrollbar: &mut ScrollbarWidget) 
     scrollbar.state.drag_grip_fraction = None;
 }
 
-fn handle_key_input(scrollbar: &mut ScrollbarWidget, key: WidgetKey) -> Option<ScrollbarMessage> {
+pub(super) fn handle_key_input(
+    scrollbar: &mut ScrollbarWidget,
+    key: WidgetKey,
+) -> Option<ScrollbarMessage> {
     let delta = if key == leading_arrow_for_axis(scrollbar.props.axis) {
         Some(-scrollbar.props.step_fraction)
     } else if key == trailing_arrow_for_axis(scrollbar.props.axis) {
@@ -134,7 +137,11 @@ fn centered_offset_fraction(scrollbar: &ScrollbarWidget, bounds: Rect, position:
     }
 }
 
-fn pointer_grip_fraction(scrollbar: &ScrollbarWidget, thumb: Rect, position: Point) -> f32 {
+pub(super) fn pointer_grip_fraction(
+    scrollbar: &ScrollbarWidget,
+    thumb: Rect,
+    position: Point,
+) -> f32 {
     let grip =
         axis_position(scrollbar.props.axis, position) - axis_start(scrollbar.props.axis, thumb);
     let thumb_length = axis_length(scrollbar.props.axis, thumb).max(1.0);

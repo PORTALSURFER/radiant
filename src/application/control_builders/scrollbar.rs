@@ -1,7 +1,10 @@
 use crate::{
     application::{MappedWidget, ViewNode, view_node_from_widget},
     runtime::WidgetMessageMapper,
-    widgets::{ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, WidgetSizing, WidgetStyle},
+    widgets::{
+        RetainedScrollbarWidget, ScrollbarAxis, ScrollbarEditBatch, ScrollbarMessage,
+        ScrollbarWidget, WidgetSizing, WidgetStyle,
+    },
 };
 
 /// Builder for application-level scrollbars.
@@ -46,6 +49,18 @@ impl ScrollbarBuilder {
         self,
         map: impl Fn(ScrollbarMessage) -> Message + 'static,
     ) -> ViewNode<Message> {
+        self.finish(WidgetMessageMapper::scrollbar(map))
+    }
+
+    /// Forward complete Begin/Update/Commit/Cancel batches for this scrollbar.
+    pub fn on_edit<Message: 'static>(
+        self,
+        map: impl Fn(ScrollbarEditBatch) -> Message + 'static,
+    ) -> ViewNode<Message> {
+        self.finish(WidgetMessageMapper::scrollbar_edits(map))
+    }
+
+    fn finish<Message: 'static>(self, mapper: WidgetMessageMapper<Message>) -> ViewNode<Message> {
         let size = match self.axis {
             ScrollbarAxis::Horizontal => crate::layout::Vector2::new(120.0, 6.0),
             ScrollbarAxis::Vertical => crate::layout::Vector2::new(6.0, 120.0),
@@ -54,8 +69,8 @@ impl ScrollbarBuilder {
         scrollbar.props.viewport_fraction = self.viewport_fraction;
         scrollbar.state.offset_fraction = self.offset_fraction;
         let mut node = view_node_from_widget(MappedWidget::new(
-            scrollbar,
-            WidgetMessageMapper::scrollbar(map),
+            RetainedScrollbarWidget::new(scrollbar),
+            mapper,
         ));
         node.style = self.style;
         node

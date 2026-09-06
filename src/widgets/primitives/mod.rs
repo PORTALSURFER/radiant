@@ -58,6 +58,7 @@ pub use progress_bar::{
     ProgressBarMessage, ProgressBarMode, ProgressBarProps, ProgressBarWidget,
     ProgressBarWidgetParts,
 };
+pub(crate) use scrollbar::RetainedScrollbarWidget;
 pub use scrollbar::{
     ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts,
 };

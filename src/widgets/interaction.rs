@@ -39,9 +39,9 @@ pub use messages::{
     KnobDomainKeyboardGesture, KnobDomainMappingAttempt, KnobDomainMessage, KnobDomainWheelGesture,
     KnobEditBatch, KnobKeyboardGesture, KnobKeyboardMetadata, KnobMessage, KnobPointerMetadata,
     KnobWheelGesture, KnobWheelMetadata, ListItemMessage, PointerShieldMessage,
-    RenderCanvasMessage, ScrollbarMessage, SelectableMessage, SliderDomainError,
-    SliderDomainMessage, SliderEditBatch, SliderMessage, TextInputMessage, TextInputMessageKind,
-    TextInputMessageParts, ToggleMessage,
+    RenderCanvasMessage, ScrollbarEditBatch, ScrollbarMessage, SelectableMessage,
+    SliderDomainError, SliderDomainMessage, SliderEditBatch, SliderMessage, TextInputMessage,
+    TextInputMessageKind, TextInputMessageParts, ToggleMessage,
 };
 pub use numeric_adjustment::{NumericAdjustment, NumericStep, NumericStepDirection};
 pub use numeric_edit::NumericEditSession;

@@ -3960,6 +3960,37 @@ metadata; activation uses the runtime mapper. Native child windows share the reg
 `command_presentations` batches and submit opaque activations; they own OS menu objects.
 Existing catalogs retain their behavior.
 
+`ScrollbarBuilder::on_edit(...)`, `SurfaceNode::scrollbar_edits_mapped(...)`, and
+`WidgetMessageMapper::scrollbar_edits(...)` expose `ScrollbarEditBatch`. Each
+bounded batch carries one transaction's ordered `EditEvent<f32>` values and an
+independent `offset_change()` projection. Begin and Commit never duplicate the
+concise callback; Cancel projects only a meaningful rollback. An update back to
+the starting offset is still delivered. Public `ScrollbarWidget` fields and
+`ScrollbarMessage` remain source compatible; official application/runtime
+constructors own the lifecycle in a retained adapter.
+
+Thumb and track presses begin one pointer edit; release includes final motion
+and commits once. Capture/focus loss cancels and restores the starting offset,
+including a typed Cancel for a gesture with no effective movement. Keyboard
+steps and focused discrete or phase-less wheel samples are atomic Begin/Update/Commit
+edits. Focused explicit wheel Started/Changed/Ended samples share one transaction, and
+Cancelled rolls back; orphan continuations and repeated terminal samples are
+inert. Wheel displacement uses the configured axis and normalizes logical pixels
+by the content overflow implied by track length and `viewport_fraction`.
+Pointer and wheel ownership cannot join each other's session. Semantic numeric
+increment/decrement/set-text actions use the same atomic lifecycle and retain
+Accessibility or Programmatic provenance.
+
+A controlled echo preserves the transaction. Replacement offsets, scrollbar
+properties, or noneditable state retire it: synchronization itself cannot
+publish output, so the next input or capture-loss boundary emits only the old
+Cancel, with no offset rollback into the fresh model. Old pointer continuations
+cannot update or commit the replacement. Nonfinite geometry/value input is
+rejected. Runtime container scroll affordances and details-column resize are
+separate continuous routes tracked by OPT-1395; this adapter does not change
+the existing Slider, Knob, panel-resize, or NumericInput behavior.
+
+
 Root-scoped shortcuts should also be declared on the scene with
 `Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered
 `ShortcutLayer` values plus an optional fallback resolver for dynamic keys such

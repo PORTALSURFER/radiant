@@ -17,6 +17,8 @@ mod geometry;
 mod input;
 mod model;
 mod paint;
+mod retained;
+pub(crate) use retained::RetainedScrollbarWidget;
 #[cfg(test)]
 #[path = "scrollbar/tests.rs"]
 mod tests;

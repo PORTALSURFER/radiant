@@ -3,6 +3,7 @@ mod drag;
 mod knob_domain;
 mod pointer;
 mod range;
+mod scrollbar;
 mod selection;
 mod surface;
 mod text_input;
@@ -21,6 +22,7 @@ pub use range::{
     KnobPointerMetadata, KnobWheelGesture, KnobWheelMetadata, ScrollbarMessage, SliderDomainError,
     SliderDomainMessage, SliderEditBatch, SliderMessage,
 };
+pub use scrollbar::ScrollbarEditBatch;
 pub use selection::{SelectableMessage, ToggleMessage};
 pub use surface::{CanvasMessage, GpuSurfaceMessage, RenderCanvasMessage};
 pub use text_input::{TextInputMessage, TextInputMessageKind, TextInputMessageParts};

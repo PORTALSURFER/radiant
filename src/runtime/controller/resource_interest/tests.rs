@@ -12,13 +12,12 @@ use crate::{
 };
 use std::{cell::Cell, rc::Rc};
 
+type OwnerVisibility = Rc<Cell<(bool, bool)>>;
+
 fn runtime_with_owners(
     first: DeclarativeEffectOwner,
     second: DeclarativeEffectOwner,
-) -> (
-    SurfaceRuntime<impl RuntimeBridge<()>, ()>,
-    Rc<Cell<(bool, bool)>>,
-) {
+) -> (SurfaceRuntime<impl RuntimeBridge<()>, ()>, OwnerVisibility) {
     let visible = Rc::new(Cell::new((true, true)));
     let projection_visible = Rc::clone(&visible);
     let bridge = DeclarativeOwnedCommandRuntimeBridge::new(

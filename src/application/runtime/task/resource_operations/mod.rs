@@ -105,7 +105,7 @@ impl ResourceOperationRegistry {
 
         let epoch = state.allocate_epoch()?;
         let keep_ready = state.ledger.keeps_ready(&key);
-        let slot = state.slots.entry(key.clone()).or_insert_with(Slot::default);
+        let slot = state.slots.entry(key.clone()).or_default();
         slot.keep_ready = keep_ready;
         // A final release cancels any stale transaction before a later demand
         // can reuse the retained ready slot. Its eventual settlement cannot

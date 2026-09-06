@@ -39,6 +39,32 @@ class NativeMetricsTests(unittest.TestCase):
         self.assertEqual(report["availability"][1]["gpu_samples"], 1)
         self.assertEqual(report["availability"][1]["status"], "gpu_unavailable")
 
+    def test_all_zero_gpu_cohorts_are_unqualified_without_losing_cpu_evidence(self):
+        rows = self.rows()
+        for row in rows:
+            if row["type"] == "native_gpu":
+                row["gpu_us"] = 0
+        metrics, report = self.run_rows(rows)
+        self.assertFalse(any(row["scenario"].endswith("/gpu_us") for row in metrics))
+        self.assertTrue(any(row["scenario"].endswith("/cpu_total_us") for row in metrics))
+        self.assertEqual([row["status"] for row in report["availability"]],
+                         ["gpu_unqualified_zero", "gpu_unqualified_zero"])
+        self.assertEqual([row["gpu_samples"] for row in report["availability"]], [1, 2])
+
+    def test_zero_qualification_is_per_window_and_phase_and_preserves_mixed_samples(self):
+        rows = self.rows("two_windows", ((1, "primary"), (7, "auxiliary")))
+        for row in rows:
+            if row["type"] == "native_gpu" and (row["window"] == 7 or row["sequence"] == 2):
+                row["gpu_us"] = 0
+        metrics, report = self.run_rows(rows)
+        warm = next(row for row in metrics if row["scenario"] == "two_windows/primary/warm/gpu_us")
+        self.assertEqual(warm["avg_us"], 3)
+        self.assertEqual(warm["p50_us"], 0)
+        self.assertFalse(any(row["scenario"].startswith("two_windows/auxiliary/")
+                             and row["scenario"].endswith("/gpu_us") for row in metrics))
+        self.assertEqual([row["status"] for row in report["availability"]],
+                         ["complete", "complete", "gpu_unqualified_zero", "gpu_unqualified_zero"])
+
     def test_gpu_correlation_does_not_depend_on_delivery_order(self):
         rows = self.rows()
         metrics, _ = self.run_rows(list(reversed(rows)))

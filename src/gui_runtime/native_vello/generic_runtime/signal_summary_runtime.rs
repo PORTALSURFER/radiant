@@ -189,8 +189,10 @@ where
         &mut self,
         adapter: NativeAdapterGeneration,
         targets: &HashSet<SummaryTargetId>,
-    ) {
-        let _ = self.reconcile_signal_summary_interests_filtered(adapter, Some(targets), false);
+    ) -> bool {
+        !self
+            .reconcile_signal_summary_interests_filtered(adapter, Some(targets), false)
+            .is_empty()
     }
 
     pub(super) fn take_waiting_signal_summary_targets(
@@ -218,6 +220,10 @@ where
             return Vec::new();
         };
         let mut live = HashSet::new();
+        // Keep at most one prepared install per retained surface key.  Later
+        // paint-plan entries replace earlier ones, matching retained-resource
+        // update order without allowing duplicate keys to grow frame-local
+        // work beyond the broker's target bound.
         let mut installs = Vec::new();
         for primitive in &self.frame.last_paint_plan.primitives {
             let PaintPrimitive::GpuSurface(surface) = primitive else {
@@ -237,6 +243,7 @@ where
                 continue;
             }
             let mut broker = preparation.broker.borrow_mut();
+            let capacity_before = broker.capacity_status();
             let state = broker.request(target, request);
             if is_new_target
                 && !matches!(
@@ -249,24 +256,29 @@ where
             if preparation.targets.contains_key(&surface.key) {
                 live.insert(surface.key);
             }
-            if wake_new_admission
-                && is_new_target
-                && matches!(
-                    state,
-                    super::signal_summary_prepare::SummaryRequestState::Pending
-                )
-            {
+            let capacity_changed = capacity_before != broker.capacity_status();
+            if wake_new_admission && capacity_changed {
                 broker.request_pump();
             }
             if let Some(prepared) = broker.prepared(target)
                 && prepared.matches_raw_surface(&surface.content, surface.revision)
             {
-                installs.push(PendingSummaryInstall {
+                let install = PendingSummaryInstall {
                     surface_key: surface.key,
                     revision: surface.revision,
                     content: surface.content.clone(),
                     prepared,
-                });
+                };
+                if let Some(index) = installs
+                    .iter()
+                    .position(|existing: &PendingSummaryInstall| {
+                        existing.surface_key == surface.key
+                    })
+                {
+                    installs[index] = install;
+                } else if installs.len() < 128 {
+                    installs.push(install);
+                }
             }
         }
         if only_targets.is_none() {
@@ -277,10 +289,14 @@ where
                 .filter(|key| !live.contains(key))
                 .collect();
             let mut broker = preparation.broker.borrow_mut();
+            let capacity_before = broker.capacity_status();
             for key in stale {
                 if let Some(target) = preparation.targets.remove(&key) {
                     broker.release_target(target);
                 }
+            }
+            if wake_new_admission && capacity_before != broker.capacity_status() {
+                broker.request_pump();
             }
         }
         installs

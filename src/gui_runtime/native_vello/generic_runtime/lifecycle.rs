@@ -1647,9 +1647,15 @@ where
                 .and_then(GenericNativeAdapterOwner::capture_generation)
                 && !waiting.is_empty()
             {
-                self.reconcile_waiting_signal_summary_interests(adapter_generation, &waiting);
+                if self.reconcile_waiting_signal_summary_interests(adapter_generation, &waiting) {
+                    self.defer_scene_rebuild();
+                }
                 for window in &mut self.auxiliary_windows {
-                    window.reconcile_waiting_signal_summary_interests(adapter_generation, &waiting);
+                    if window
+                        .reconcile_waiting_signal_summary_interests(adapter_generation, &waiting)
+                    {
+                        window.defer_signal_summary_scene_rebuild();
+                    }
                 }
             }
         }

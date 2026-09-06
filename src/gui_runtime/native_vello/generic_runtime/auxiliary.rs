@@ -145,11 +145,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         &mut self,
         adapter: NativeAdapterGeneration,
         targets: &HashSet<super::signal_summary_prepare::SummaryTargetId>,
-    ) {
-        if self.is_admitted() {
-            self.runner
-                .reconcile_waiting_signal_summary_interests(adapter, targets);
-        }
+    ) -> bool {
+        self.is_admitted()
+            && self
+                .runner
+                .reconcile_waiting_signal_summary_interests(adapter, targets)
     }
 
     #[cfg(test)]

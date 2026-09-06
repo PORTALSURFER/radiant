@@ -4,18 +4,30 @@ use vello::wgpu;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipelineKey
 {
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) shader_key: String,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) shader_key: Arc<str>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) wgsl_source: Arc<str>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) vertex_entry_point:
-        String,
+        Arc<str>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fragment_entry_point:
-        String,
+        Arc<str>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_uniform_payload:
         bool,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_storage_payload:
         bool,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_presentation_uniform_payload:
         bool,
+}
+
+impl CustomShaderPipelineKey {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn text_bytes(
+        &self,
+    ) -> usize {
+        self.shader_key
+            .len()
+            .saturating_add(self.wgsl_source.len())
+            .saturating_add(self.vertex_entry_point.len())
+            .saturating_add(self.fragment_entry_point.len())
+    }
 }
 
 /// The complete physical-pipeline identity.  Surface payload and revisions are
@@ -166,10 +178,10 @@ mod tests {
     #[test]
     fn custom_shader_pipeline_key_tracks_shader_stage_contract() {
         let key = CustomShaderPipelineKey {
-            shader_key: String::from("meter"),
+            shader_key: Arc::from("meter"),
             wgsl_source: Arc::<str>::from("@vertex fn vertex_main() {}"),
-            vertex_entry_point: String::from("vertex_main"),
-            fragment_entry_point: String::from("fragment_main"),
+            vertex_entry_point: Arc::from("vertex_main"),
+            fragment_entry_point: Arc::from("fragment_main"),
             has_uniform_payload: false,
             has_storage_payload: false,
             has_presentation_uniform_payload: false,
@@ -178,7 +190,7 @@ mod tests {
         assert_ne!(
             key,
             CustomShaderPipelineKey {
-                fragment_entry_point: String::from("other_fragment"),
+                fragment_entry_point: Arc::from("other_fragment"),
                 ..key.clone()
             }
         );
@@ -194,10 +206,10 @@ mod tests {
     #[test]
     fn custom_shader_pipeline_key_tracks_payload_binding_shape() {
         let key = CustomShaderPipelineKey {
-            shader_key: String::from("meter"),
+            shader_key: Arc::from("meter"),
             wgsl_source: Arc::<str>::from("@vertex fn vertex_main() {}"),
-            vertex_entry_point: String::from("vertex_main"),
-            fragment_entry_point: String::from("fragment_main"),
+            vertex_entry_point: Arc::from("vertex_main"),
+            fragment_entry_point: Arc::from("fragment_main"),
             has_uniform_payload: false,
             has_storage_payload: false,
             has_presentation_uniform_payload: false,

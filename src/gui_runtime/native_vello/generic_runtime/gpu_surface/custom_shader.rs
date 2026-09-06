@@ -19,7 +19,7 @@ use crate::runtime::{
     GpuShaderPresentationUniformUpdate, GpuShaderSurfaceDescriptor, GpuSurfaceContent,
     PaintGpuSurface,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 #[path = "custom_shader/binding.rs"]
 mod binding;
 #[path = "custom_shader/diagnostics.rs"]
@@ -166,6 +166,7 @@ pub(super) fn custom_shader_frame_requests(
 ) -> Option<Vec<CustomShaderFrameRequest>> {
     let mut requests = Vec::new();
     let mut request_key_bytes = 0usize;
+    let mut canonical_identities = HashSet::new();
     for primitive in primitives {
         let crate::runtime::PaintPrimitive::GpuSurface(surface) = primitive else {
             continue;
@@ -179,39 +180,31 @@ pub(super) fn custom_shader_frame_requests(
         {
             continue;
         }
-        let key_bytes = descriptor
-            .shader_key
-            .len()
-            .saturating_add(descriptor.entry_point.len())
-            .saturating_add(
-                descriptor
-                    .fragment_entry_point
-                    .as_ref()
-                    .map_or(0, String::len),
-            )
-            .saturating_add(
-                descriptor
-                    .wgsl_source
-                    .as_ref()
-                    .map_or(0, |source| source.len()),
-            );
-        request_key_bytes = request_key_bytes.saturating_add(key_bytes);
-        if requests.len() >= MAX_CUSTOM_SHADER_FRAME_REQUESTS
-            || request_key_bytes > MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES
-        {
+        if requests.len() >= MAX_CUSTOM_SHADER_FRAME_REQUESTS {
             return None;
         }
         let Some(key) = custom_shader_pipeline_key(descriptor) else {
             continue;
         };
+        let identity = CustomShaderPipelineIdentity {
+            device,
+            format,
+            key,
+        };
+        let identity = if let Some(existing) = canonical_identities.get(&identity) {
+            existing.clone()
+        } else {
+            request_key_bytes = request_key_bytes.checked_add(identity.key.text_bytes())?;
+            if request_key_bytes > MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES {
+                return None;
+            }
+            canonical_identities.insert(identity.clone());
+            identity
+        };
         requests.push(CustomShaderFrameRequest {
             surface_key: surface.key,
-            binding_key: binding::custom_shader_binding_key(&key, descriptor),
-            identity: CustomShaderPipelineIdentity {
-                device,
-                format,
-                key,
-            },
+            binding_key: binding::custom_shader_binding_key(&identity.key, descriptor),
+            identity,
         });
     }
     custom_shader_frame_requests_fit(&requests).then_some(requests)
@@ -803,7 +796,7 @@ mod tests {
     use super::*;
     use crate::{
         layout::{Point, Rect, Vector2},
-        runtime::GpuSurfaceCapabilities,
+        runtime::{GpuSurfaceCapabilities, PaintPrimitive},
     };
     use std::sync::Arc;
 
@@ -881,6 +874,79 @@ mod tests {
             Some(&matching)
         );
         assert!(matching_presentation_update(&surface, &descriptor, &[wrong_length]).is_none());
+    }
+
+    #[test]
+    fn custom_shader_frame_requests_share_identity_text_and_preserve_order() {
+        let source = custom_shader_source(600 * 1024);
+        let primitives = [
+            custom_shader_primitive(41, "shared", source.clone()),
+            custom_shader_primitive(7, "shared", source),
+        ];
+
+        let requests =
+            custom_shader_frame_requests(&primitives, 3, vello::wgpu::TextureFormat::Rgba8Unorm)
+                .expect("one distinct 600 KiB identity fits the frame budget");
+
+        assert_eq!(
+            requests
+                .iter()
+                .map(|request| request.surface_key)
+                .collect::<Vec<_>>(),
+            [41, 7]
+        );
+        assert_eq!(requests[0].identity, requests[1].identity);
+        assert!(Arc::ptr_eq(
+            &requests[0].identity.key.wgsl_source,
+            &requests[1].identity.key.wgsl_source,
+        ));
+        assert!(Arc::ptr_eq(
+            &requests[0].binding_key.pipeline_key.shader_key,
+            &requests[1].binding_key.pipeline_key.shader_key,
+        ));
+    }
+
+    #[test]
+    fn custom_shader_frame_requests_reject_distinct_identities_over_text_budget() {
+        let source = custom_shader_source(600 * 1024);
+        let mut distinct_source = source.clone();
+        distinct_source.push('\n');
+        let primitives = [
+            custom_shader_primitive(1, "first", source),
+            custom_shader_primitive(2, "second", distinct_source),
+        ];
+
+        assert!(
+            custom_shader_frame_requests(&primitives, 3, vello::wgpu::TextureFormat::Rgba8Unorm,)
+                .is_none()
+        );
+    }
+
+    fn custom_shader_primitive(key: u64, shader_key: &str, source: String) -> PaintPrimitive {
+        PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: 17,
+            key,
+            revision: 2,
+            rect: test_rect(),
+            content: GpuSurfaceContent::CustomShader {
+                descriptor: Arc::new(
+                    GpuShaderSurfaceDescriptor::new(shader_key)
+                        .wgsl_source(source)
+                        .entry_point("vertex_main")
+                        .fragment_entry_point("fragment_main"),
+                ),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        })
+    }
+
+    fn custom_shader_source(bytes: usize) -> String {
+        let mut source =
+            String::from("@vertex fn vertex_main() {}\n@fragment fn fragment_main() {}\n//");
+        let padding = bytes.saturating_sub(source.len());
+        source.push_str(&"x".repeat(padding));
+        source
     }
 
     fn test_rect() -> Rect {

@@ -132,6 +132,7 @@ impl CustomShaderPipelineCacheState {
         surface_key: u64,
         identity: CustomShaderPipelineIdentity,
     ) -> Option<CustomShaderPipelineIdentity> {
+        let identity = self.entries.get(&identity).cloned().unwrap_or(identity);
         self.entries.insert(identity.clone());
         let previous = self.associations.insert(surface_key, identity);
         let retired =
@@ -686,6 +687,19 @@ impl GpuSurfaceResourceCache {
         self.textures.retain(|key, _| active_keys.contains(key));
         self.composite_bindings
             .retain(|key, _| active_keys.contains(key));
+        let inactive_pipeline_keys: Vec<_> = self
+            .custom_shader_resources
+            .pipeline_state
+            .associations
+            .keys()
+            .copied()
+            .filter(|key| !active_keys.contains(key))
+            .collect();
+        for key in inactive_pipeline_keys {
+            if let Some(retired) = self.custom_shader_resources.pipeline_state.remove(key) {
+                self.custom_shader_resources.pipelines.remove(&retired);
+            }
+        }
         for retired in self
             .custom_shader_resources
             .pipeline_state
@@ -909,21 +923,6 @@ impl GpuSurfaceResourceCache {
             .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
     }
 
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn remove_custom_shader_pipeline(
-        &mut self,
-        key: &u64,
-    ) -> Option<CustomShaderPipeline> {
-        let removed = self
-            .custom_shader_resources
-            .pipeline_state
-            .remove(*key)
-            .and_then(|identity| self.custom_shader_resources.pipelines.remove(&identity));
-        self.custom_shader_resources
-            .residency
-            .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
-        removed
-    }
-
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn insert_custom_shader_binding(
         &mut self,
         key: u64,
@@ -1002,13 +1001,7 @@ impl GpuSurfaceResourceCache {
 }
 
 fn custom_shader_pipeline_identity_bytes(identity: &CustomShaderPipelineIdentity) -> usize {
-    identity
-        .key
-        .shader_key
-        .len()
-        .saturating_add(identity.key.wgsl_source.len())
-        .saturating_add(identity.key.vertex_entry_point.len())
-        .saturating_add(identity.key.fragment_entry_point.len())
+    identity.key.text_bytes()
 }
 
 fn custom_shader_binding_logical_bytes(
@@ -1187,6 +1180,21 @@ mod tests {
         assert!(state.entries.contains(&identity));
         assert_eq!(state.remove(2), Some(identity.clone()));
         assert!(state.entries.is_empty());
+    }
+
+    #[test]
+    fn custom_shader_pipeline_associations_reuse_canonical_identity_text() {
+        let mut state = CustomShaderPipelineCacheState::default();
+        let first = pipeline_identity("shared");
+        let second = pipeline_identity("shared");
+
+        state.associate(1, first);
+        state.associate(2, second);
+
+        let first = state.identity(1).expect("first association");
+        let second = state.identity(2).expect("second association");
+        assert!(Arc::ptr_eq(&first.key.shader_key, &second.key.shader_key));
+        assert!(Arc::ptr_eq(&first.key.wgsl_source, &second.key.wgsl_source));
     }
 
     #[test]
@@ -1593,10 +1601,10 @@ mod tests {
     ) -> CustomShaderBindingKey {
         CustomShaderBindingKey {
             pipeline_key: CustomShaderPipelineKey {
-                shader_key: String::from("test/custom-shader"),
+                shader_key: Arc::from("test/custom-shader"),
                 wgsl_source: Arc::<str>::from("test"),
-                vertex_entry_point: String::from("vertex_main"),
-                fragment_entry_point: String::from("fragment_main"),
+                vertex_entry_point: Arc::from("vertex_main"),
+                fragment_entry_point: Arc::from("fragment_main"),
                 has_uniform_payload: uniform_bytes_len > 0,
                 has_storage_payload: storage_bytes_len > 0,
                 has_presentation_uniform_payload: presentation_uniform_bytes_len > 0,

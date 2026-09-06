@@ -8,6 +8,7 @@ use super::diagnostics::custom_shader_validation_error;
 mod layout;
 use crate::runtime::GpuShaderSurfaceDescriptor;
 use layout::{create_custom_shader_bind_group_layout, create_custom_shader_pipeline_layout};
+use std::sync::Arc;
 use tracing::warn;
 use vello::wgpu;
 
@@ -187,10 +188,10 @@ pub(super) fn custom_shader_pipeline_key(
     descriptor: &GpuShaderSurfaceDescriptor,
 ) -> Option<CustomShaderPipelineKey> {
     Some(CustomShaderPipelineKey {
-        shader_key: descriptor.shader_key.clone(),
+        shader_key: Arc::from(descriptor.shader_key.as_str()),
         wgsl_source: descriptor.wgsl_source.clone()?,
-        vertex_entry_point: descriptor.entry_point.clone(),
-        fragment_entry_point: descriptor.fragment_entry_point.clone()?,
+        vertex_entry_point: Arc::from(descriptor.entry_point.as_str()),
+        fragment_entry_point: Arc::from(descriptor.fragment_entry_point.as_deref()?),
         has_uniform_payload: !descriptor.uniform_bytes.is_empty(),
         has_storage_payload: !descriptor.storage_bytes.is_empty(),
         has_presentation_uniform_payload: descriptor

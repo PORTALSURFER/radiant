@@ -24,14 +24,13 @@ fn scalar_bucket(
             break;
         }
         let sample = samples[(if wrap { frame % frames } else { frame }) * bands + band];
-        if sample.is_finite() {
-            let entry = value.get_or_insert(GpuSignalSummaryBucket {
-                min: sample,
-                max: sample,
-            });
-            entry.min = entry.min.min(sample);
-            entry.max = entry.max.max(sample);
-        }
+        let sample = if sample.is_finite() { sample } else { 0.0 };
+        let entry = value.get_or_insert(GpuSignalSummaryBucket {
+            min: sample,
+            max: sample,
+        });
+        entry.min = entry.min.min(sample);
+        entry.max = entry.max.max(sample);
     }
     value.unwrap_or_default()
 }
@@ -55,6 +54,45 @@ fn overview_matches_legacy_for_odd_sources_and_edge_spikes() {
         assert_eq!(&*level.buckets, &*legacy_level.buckets);
     }
     assert!(bounded.logical_summary_bytes() <= MAX_BYTES);
+    assert_eq!(
+        bounded.logical_summary_bytes(),
+        bounded_overview_bytes(8193, 2).unwrap()
+    );
+}
+
+#[test]
+fn nonfinite_samples_match_legacy_zero_sanitization() {
+    let raw = [
+        f32::NAN,
+        0.5,
+        f32::INFINITY,
+        -0.5,
+        f32::NEG_INFINITY,
+        f32::NAN,
+    ];
+    let legacy = GpuSignalSummary::from_interleaved_samples(&raw, 6, 1);
+    let overview = build_bounded_overview(&raw, 6, 1, || false).unwrap();
+    let tile = build_bounded_tile(&raw, 6, 1, 0, 2, 3, false, || false).unwrap();
+
+    for level in &overview.levels {
+        let legacy_level = legacy
+            .levels
+            .iter()
+            .find(|legacy_level| legacy_level.bucket_frames == level.bucket_frames)
+            .unwrap();
+        assert_eq!(level.buckets.as_ref(), legacy_level.buckets.as_ref());
+    }
+    assert_eq!(
+        tile.buckets.as_ref(),
+        [
+            GpuSignalSummaryBucket { min: 0.0, max: 0.5 },
+            GpuSignalSummaryBucket {
+                min: -0.5,
+                max: 0.0
+            },
+            GpuSignalSummaryBucket { min: 0.0, max: 0.0 },
+        ]
+    );
 }
 
 #[test]
@@ -105,6 +143,10 @@ fn caps_allow_many_bands_when_bytes_fit_and_reject_products() {
     assert!(matches!(
         build_bounded_overview(&overview_source, 1, too_many_bands, || false),
         Err(BoundedSignalError::Capacity)
+    ));
+    assert!(matches!(
+        bounded_overview_bytes(0, 1),
+        Err(BoundedSignalError::InvalidShape)
     ));
 }
 

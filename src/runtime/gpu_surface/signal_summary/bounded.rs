@@ -50,12 +50,7 @@ pub(crate) fn build_bounded_overview(
     cancel: impl FnMut() -> bool,
 ) -> Result<BoundedSignalOverview, BoundedSignalError> {
     validate(samples, frames, bands)?;
-    let mut width = 1usize;
-    while frames.div_ceil(width) > MAX_OVERVIEW_BUCKETS
-        || estimated_pyramid_bytes(frames.div_ceil(width), bands)? > MAX_BYTES
-    {
-        width = width.checked_mul(2).ok_or(BoundedSignalError::Capacity)?;
-    }
+    let (mut width, _) = bounded_overview_layout(frames, bands)?;
     let mut cancel = cancel;
     let mut levels = Vec::new();
     let mut buckets = scan(
@@ -73,7 +68,7 @@ pub(crate) fn build_bounded_overview(
             bucket_frames: width,
             buckets: Arc::clone(&buckets),
         });
-        if buckets.len() / bands <= 1 {
+        if width > frames / 2 {
             break;
         }
         width = width.checked_mul(2).ok_or(BoundedSignalError::Capacity)?;
@@ -84,6 +79,14 @@ pub(crate) fn build_bounded_overview(
         band_count: bands,
         levels,
     })
+}
+
+/// Return the exact logical bytes that `build_bounded_overview` would allocate.
+pub(crate) fn bounded_overview_bytes(
+    frames: usize,
+    bands: usize,
+) -> Result<usize, BoundedSignalError> {
+    bounded_overview_layout(frames, bands).map(|(_, bytes)| bytes)
 }
 
 pub(crate) fn build_bounded_tile(
@@ -159,20 +162,41 @@ fn validate(samples: &[f32], frames: usize, bands: usize) -> Result<(), BoundedS
         Ok(())
     }
 }
-fn estimated_pyramid_bytes(mut buckets: usize, bands: usize) -> Result<usize, BoundedSignalError> {
+fn bounded_overview_layout(
+    frames: usize,
+    bands: usize,
+) -> Result<(usize, usize), BoundedSignalError> {
+    if frames == 0 || bands == 0 {
+        return Err(BoundedSignalError::InvalidShape);
+    }
+    let mut width = 1usize;
+    loop {
+        let bytes = estimated_pyramid_bytes(frames, width, bands)?;
+        if frames.div_ceil(width) <= MAX_OVERVIEW_BUCKETS && bytes <= MAX_BYTES {
+            return Ok((width, bytes));
+        }
+        width = width.checked_mul(2).ok_or(BoundedSignalError::Capacity)?;
+    }
+}
+fn estimated_pyramid_bytes(
+    frames: usize,
+    mut width: usize,
+    bands: usize,
+) -> Result<usize, BoundedSignalError> {
     let mut entries = 0usize;
     loop {
         entries = entries
             .checked_add(
-                buckets
+                frames
+                    .div_ceil(width)
                     .checked_mul(bands)
                     .ok_or(BoundedSignalError::Capacity)?,
             )
             .ok_or(BoundedSignalError::Capacity)?;
-        if buckets <= 1 {
+        if width > frames / 2 {
             break;
         }
-        buckets = buckets.div_ceil(2);
+        width = width.checked_mul(2).ok_or(BoundedSignalError::Capacity)?;
     }
     entries
         .checked_mul(std::mem::size_of::<GpuSignalSummaryBucket>())
@@ -223,14 +247,13 @@ fn scan(
                     break;
                 }
                 let sample = samples[(if wrap { frame % frames } else { frame }) * bands + band];
-                if sample.is_finite() {
-                    let entry = value.get_or_insert(GpuSignalSummaryBucket {
-                        min: sample,
-                        max: sample,
-                    });
-                    entry.min = entry.min.min(sample);
-                    entry.max = entry.max.max(sample);
-                }
+                let sample = if sample.is_finite() { sample } else { 0.0 };
+                let entry = value.get_or_insert(GpuSignalSummaryBucket {
+                    min: sample,
+                    max: sample,
+                });
+                entry.min = entry.min.min(sample);
+                entry.max = entry.max.max(sample);
             }
             out.push(value.unwrap_or_default());
         }

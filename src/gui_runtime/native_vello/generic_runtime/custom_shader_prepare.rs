@@ -401,7 +401,10 @@ impl CustomShaderPreparationBroker {
                     self.queue.push_back(request.key);
                     CustomShaderPreparationState::Pending
                 }
-                _ => CustomShaderPreparationState::Pending,
+                state @ (EntryState::Active { .. } | EntryState::Queued) => {
+                    entry.state = state;
+                    CustomShaderPreparationState::Pending
+                }
             };
         }
         let bytes = request.key.pipeline.text_bytes();
@@ -622,14 +625,17 @@ impl CustomShaderPreparationBroker {
                     token: None,
                 },
             };
-            if matches!(entry.state, EntryState::Ready { .. }) {
+            if matches!(
+                entry.state,
+                EntryState::Ready { .. } | EntryState::Failed(_)
+            ) {
                 notify.extend(self.interests.iter().filter_map(|(target, interest)| {
                     matches!(interest, Interest::Entry(key) if *key == completion.key)
                         .then_some(*target)
                 }));
             }
             if matches!(entry.state, EntryState::Queued) {
-                self.queue.push_back(completion.key);
+                self.queue.push_back(completion.key.clone());
             }
             if cancelled_without_queue {
                 for interest in self.interests.values_mut() {
@@ -879,6 +885,39 @@ mod tests {
     fn native_broker_coalesces_bounds_rejects_cancels_and_retires() {
         let device = native_device();
         let wake = Arc::new(CountingWake(AtomicUsize::new(0)));
+        let mut coalesced = CustomShaderPreparationBroker::new(Arc::clone(&wake));
+        let coalesced_request = request(&device, 50);
+        assert_eq!(
+            coalesced.request(target(50), coalesced_request.clone()),
+            CustomShaderPreparationState::Pending
+        );
+        assert_eq!(
+            coalesced.request(target(51), coalesced_request.clone()),
+            CustomShaderPreparationState::Pending
+        );
+        let active = coalesced
+            .take_dispatch()
+            .expect("coalesced queued dispatch");
+        assert_eq!(
+            coalesced.request(target(52), coalesced_request),
+            CustomShaderPreparationState::Pending
+        );
+        active
+            .sender
+            .send(Completion {
+                id: active.id(),
+                key: active.key.clone(),
+                terminal: Terminal::Failed(CustomShaderPreparationFailure::Cancelled),
+            })
+            .expect("completion slot");
+        drop(active);
+        coalesced.drain_completions();
+        assert_eq!(coalesced.capacity_status().active, 0);
+        let reactivated = coalesced
+            .take_dispatch()
+            .expect("coalesced active completion requeues");
+        coalesced.reject_dispatch(reactivated.id());
+
         let mut bounded = CustomShaderPreparationBroker::new(Arc::clone(&wake));
         let first_target = target(1);
         let first_request = request(&device, 1);

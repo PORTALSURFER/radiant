@@ -223,7 +223,13 @@ impl TileCache {
         self.clock = self.clock.saturating_add(1);
         if let Some(entry) = self.entries.get_mut(&key) {
             if entry.retired {
-                return false;
+                let TileState::Ready { token, .. } = &entry.state else {
+                    return false;
+                };
+                // A retained immutable product can regain interest without
+                // another allocation; cancelled active work still awaits terminal.
+                entry.retired = false;
+                token.retired.store(false, Ordering::Release);
             }
             entry.interests += 1;
             entry.last_used = self.clock;
@@ -236,6 +242,9 @@ impl TileCache {
         else {
             return false;
         };
+        if queue_slots == 0 {
+            return false;
+        }
         self.maintain();
         self.make_room(bytes, max_bytes);
         if self.entries.len() >= MAX_TILES

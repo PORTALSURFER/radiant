@@ -1722,7 +1722,7 @@ where
         }
         // A bounded waiting retry is reconciled at the next present where the
         // exact UI-side device handle and surface format are available.
-        if capacity_changed && !self.take_waiting_custom_shader_targets(8).is_empty() {
+        if capacity_changed && self.schedule_waiting_custom_shader_retry(8) {
             self.defer_scene_rebuild();
         }
         loop {

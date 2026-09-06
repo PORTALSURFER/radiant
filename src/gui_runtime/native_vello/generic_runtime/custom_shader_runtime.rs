@@ -13,7 +13,6 @@ use super::{
     gpu_surface::{
         custom_shader::pipeline::{CustomShaderPreparationFailure, custom_shader_pipeline_key},
         gpu_surface_types::CustomShaderPipelineIdentity,
-        wgpu_device_id,
     },
     runner_state::NativeTargetGeneration,
 };
@@ -31,11 +30,13 @@ use vello::wgpu;
 use winit::window::WindowId;
 
 pub(super) type SharedCustomShaderBroker = Rc<RefCell<CustomShaderPreparationBroker>>;
+type RegistrationKey = (u64, usize);
 
 pub(super) struct NativeCustomShaderPreparation {
     broker: SharedCustomShaderBroker,
-    targets: HashMap<u64, CustomShaderTargetId>,
+    targets: HashMap<RegistrationKey, CustomShaderTargetId>,
     waiting_cursor: usize,
+    waiting_retry_targets: HashSet<CustomShaderTargetId>,
 }
 
 impl NativeCustomShaderPreparation {
@@ -44,6 +45,7 @@ impl NativeCustomShaderPreparation {
             broker: Rc::new(RefCell::new(CustomShaderPreparationBroker::new(wake))),
             targets: HashMap::new(),
             waiting_cursor: 0,
+            waiting_retry_targets: HashSet::new(),
         }
     }
 
@@ -52,6 +54,7 @@ impl NativeCustomShaderPreparation {
             broker,
             targets: HashMap::new(),
             waiting_cursor: 0,
+            waiting_retry_targets: HashSet::new(),
         }
     }
 
@@ -64,16 +67,16 @@ impl NativeCustomShaderPreparation {
         window: WindowId,
         adapter: NativeAdapterGeneration,
         target: NativeTargetGeneration,
-        surface_key: u64,
+        registration: RegistrationKey,
     ) -> Option<(CustomShaderTargetId, bool)> {
-        if let Some(current) = self.targets.get(&surface_key).copied()
+        if let Some(current) = self.targets.get(&registration).copied()
             && current.window() == window
             && current.adapter_generation() == adapter
             && current.target_generation() == target
         {
             return Some((current, false));
         }
-        if let Some(previous) = self.targets.remove(&surface_key) {
+        if let Some(previous) = self.targets.remove(&registration) {
             self.broker.borrow_mut().release_target(previous);
         }
         // Match the broker's global interest bound locally.  A denied target
@@ -83,7 +86,7 @@ impl NativeCustomShaderPreparation {
             return None;
         }
         Some((
-            CustomShaderTargetId::new(window, adapter, target, surface_key)?,
+            CustomShaderTargetId::new(window, adapter, target, registration.0)?,
             true,
         ))
     }
@@ -97,9 +100,7 @@ impl NativeCustomShaderPreparation {
     }
 
     pub(super) fn accepts(&self, target: CustomShaderTargetId) -> bool {
-        self.targets
-            .get(&target.surface_key())
-            .is_some_and(|current| *current == target)
+        self.targets.values().any(|current| *current == target)
     }
 
     fn waiting_targets_rotating(&mut self, limit: usize) -> Vec<CustomShaderTargetId> {
@@ -115,6 +116,16 @@ impl NativeCustomShaderPreparation {
             .collect();
         self.waiting_cursor = (start + count) % waiting.len();
         selected
+    }
+
+    fn schedule_waiting_retry(&mut self, limit: usize) -> bool {
+        self.waiting_targets_rotating(limit)
+            .into_iter()
+            .any(|target| self.waiting_retry_targets.insert(target))
+    }
+
+    fn take_waiting_retry_targets(&mut self) -> HashSet<CustomShaderTargetId> {
+        std::mem::take(&mut self.waiting_retry_targets)
     }
 }
 
@@ -160,22 +171,18 @@ where
                 .custom_shader_preparation
                 .as_ref()
                 .is_some_and(|preparation| {
-                    preparation.accepts(target)
-                        && self
-                            .frame
-                            .last_paint_plan
-                            .primitives
-                            .iter()
-                            .rev()
-                            .find_map(|primitive| {
-                                let PaintPrimitive::GpuSurface(surface) = primitive else {
-                                    return None;
-                                };
-                                (surface.key == target.surface_key()).then_some(surface)
+                    let registration = preparation
+                        .targets
+                        .iter()
+                        .find_map(|(registration, current)| (*current == target).then_some(*registration));
+                    registration.is_some_and(|(surface_key, primitive_index)| {
+                        preparation.accepts(target)
+                            && self.frame.last_paint_plan.primitives.get(primitive_index).is_some_and(|primitive| {
+                                matches!(primitive, PaintPrimitive::GpuSurface(surface)
+                                    if surface.key == surface_key
+                                    && matches!(&surface.content, GpuSurfaceContent::CustomShader { .. }))
                             })
-                            .is_some_and(|surface| {
-                                matches!(&surface.content, GpuSurfaceContent::CustomShader { .. })
-                            })
+                    })
                 })
     }
 
@@ -186,11 +193,24 @@ where
         &mut self,
         adapter: NativeAdapterGeneration,
         device: &wgpu::Device,
+        device_identity: usize,
         format: wgpu::TextureFormat,
         cached: &HashSet<CustomShaderPipelineIdentity>,
     ) -> Vec<PendingCustomShaderInstall> {
+        let retry_targets = self
+            .custom_shader_preparation
+            .as_mut()
+            .map(NativeCustomShaderPreparation::take_waiting_retry_targets)
+            .unwrap_or_default();
         self.reconcile_custom_shader_preparations_filtered(
-            adapter, device, format, cached, None, true,
+            adapter,
+            device,
+            device_identity,
+            format,
+            cached,
+            None,
+            Some(&retry_targets),
+            true,
         )
     }
 
@@ -198,6 +218,7 @@ where
         &mut self,
         adapter: NativeAdapterGeneration,
         device: &wgpu::Device,
+        device_identity: usize,
         format: wgpu::TextureFormat,
         cached: &HashSet<CustomShaderPipelineIdentity>,
         targets: &HashSet<CustomShaderTargetId>,
@@ -206,9 +227,11 @@ where
             .reconcile_custom_shader_preparations_filtered(
                 adapter,
                 device,
+                device_identity,
                 format,
                 cached,
                 Some(targets),
+                None,
                 false,
             )
             .is_empty()
@@ -225,13 +248,21 @@ where
             })
     }
 
+    pub(super) fn schedule_waiting_custom_shader_retry(&mut self, limit: usize) -> bool {
+        self.custom_shader_preparation
+            .as_mut()
+            .is_some_and(|preparation| preparation.schedule_waiting_retry(limit))
+    }
+
     fn reconcile_custom_shader_preparations_filtered(
         &mut self,
         adapter: NativeAdapterGeneration,
         device: &wgpu::Device,
+        device_identity: usize,
         format: wgpu::TextureFormat,
         cached: &HashSet<CustomShaderPipelineIdentity>,
         only_targets: Option<&HashSet<CustomShaderTargetId>>,
+        retry_targets: Option<&HashSet<CustomShaderTargetId>>,
         wake_new_admission: bool,
     ) -> Vec<PendingCustomShaderInstall> {
         let Some(window) = self.window.id else {
@@ -241,27 +272,26 @@ where
         let Some(preparation) = self.custom_shader_preparation.as_mut() else {
             return Vec::new();
         };
-        let device_identity = wgpu_device_id(device);
+        let waiting: HashSet<_> = preparation.broker.borrow().waiting_targets().collect();
         let mut live = HashSet::new();
-        let mut seen_surface_keys = HashSet::new();
         let mut installs = Vec::new();
 
-        // Reverse iteration makes the retained-plan replacement rule explicit:
-        // the last descriptor for a duplicated surface key is authoritative.
-        for primitive in self.frame.last_paint_plan.primitives.iter().rev() {
+        // Every ordered occurrence remains an interest: the renderer's
+        // transition preflight preserves duplicate surface keys with distinct
+        // physical identities even though retained binding ownership is last-wins.
+        for (primitive_index, primitive) in self.frame.last_paint_plan.primitives.iter().enumerate()
+        {
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
             };
-            if !seen_surface_keys.insert(surface.key) {
-                continue;
-            }
             let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
                 continue;
             };
             let Some(key) = custom_shader_pipeline_key(descriptor) else {
                 continue;
             };
-            live.insert(surface.key);
+            let registration = (surface.key, primitive_index);
+            live.insert(registration);
             let request = CustomShaderPreparationRequest::new(
                 device.clone(),
                 device_identity,
@@ -270,11 +300,16 @@ where
                 key,
             );
             let Some((target, is_new_target)) =
-                preparation.target_for(window, adapter, target_generation, surface.key)
+                preparation.target_for(window, adapter, target_generation, registration)
             else {
                 continue;
             };
             if only_targets.is_some_and(|targets| !targets.contains(&target)) {
+                continue;
+            }
+            if waiting.contains(&target)
+                && retry_targets.is_some_and(|targets| !targets.contains(&target))
+            {
                 continue;
             }
 
@@ -282,20 +317,21 @@ where
             // worker task.  Any older candidate for this target is released.
             if cached.contains(&request.identity()) {
                 preparation.broker.borrow_mut().release_target(target);
-                preparation.targets.remove(&surface.key);
+                preparation.targets.remove(&registration);
                 continue;
             }
 
             let mut broker = preparation.broker.borrow_mut();
             let before = broker.capacity_status();
             let state = broker.request(target, request.clone());
-            if matches!(state, CustomShaderPreparationState::Unavailable) {
-                preparation.targets.remove(&surface.key);
+            let failure = broker.failure(target);
+            if matches!(state, CustomShaderPreparationState::Unavailable) && failure.is_none() {
+                preparation.targets.remove(&registration);
             } else if is_new_target {
-                preparation.targets.insert(surface.key, target);
+                preparation.targets.insert(registration, target);
             }
-            if preparation.targets.contains_key(&surface.key) {
-                live.insert(surface.key);
+            if preparation.targets.contains_key(&registration) {
+                live.insert(registration);
             }
             let capacity_changed = before != broker.capacity_status();
             if wake_new_admission && capacity_changed {
@@ -304,7 +340,7 @@ where
             let prepared = broker
                 .prepared(target)
                 .filter(|prepared| prepared.matches(&request));
-            let failure = prepared.is_none().then(|| broker.failure(target)).flatten();
+            let failure = prepared.is_none().then_some(failure).flatten();
             if prepared.is_some() || failure.is_some() {
                 installs.push((target, request, prepared, failure));
                 if installs.len() == 1024 {
@@ -320,14 +356,19 @@ where
                 .copied()
                 .filter(|key| !live.contains(key))
                 .collect();
-            let mut broker = preparation.broker.borrow_mut();
-            let before = broker.capacity_status();
-            for key in stale {
-                if let Some(target) = preparation.targets.remove(&key) {
-                    broker.release_target(target);
+            let capacity_changed = {
+                let mut broker = preparation.broker.borrow_mut();
+                let before = broker.capacity_status();
+                for key in stale {
+                    if let Some(target) = preparation.targets.remove(&key) {
+                        broker.release_target(target);
+                    }
                 }
-            }
-            if wake_new_admission && before != broker.capacity_status() {
+                before != broker.capacity_status()
+            };
+            if wake_new_admission && capacity_changed {
+                preparation.schedule_waiting_retry(8);
+                let broker = preparation.broker.borrow();
                 broker.request_pump();
             }
         }
@@ -362,17 +403,17 @@ mod tests {
                 window,
                 adapter(1),
                 NativeTargetGeneration::from_test_serial(1),
-                9,
+                (9, 0),
             )
             .expect("first target");
-        preparation.targets.insert(9, first.0);
+        preparation.targets.insert((9, 0), first.0);
 
         let stable = preparation
             .target_for(
                 window,
                 adapter(1),
                 NativeTargetGeneration::from_test_serial(1),
-                9,
+                (9, 0),
             )
             .expect("stable target");
         assert_eq!(stable, (first.0, false));
@@ -382,7 +423,7 @@ mod tests {
                 window,
                 adapter(1),
                 NativeTargetGeneration::from_test_serial(2),
-                9,
+                (9, 0),
             )
             .expect("new epoch target");
         assert_ne!(replacement.0, first.0);
@@ -401,11 +442,11 @@ mod tests {
                     window,
                     adapter(1),
                     NativeTargetGeneration::from_test_serial(1),
-                    key,
+                    (key, key as usize),
                 )
                 .expect("bounded target")
                 .0;
-            preparation.targets.insert(key, target);
+            preparation.targets.insert((key, key as usize), target);
         }
         assert!(
             preparation
@@ -413,9 +454,39 @@ mod tests {
                     window,
                     adapter(1),
                     NativeTargetGeneration::from_test_serial(1),
-                    1024,
+                    (1024, 1024),
                 )
                 .is_none()
         );
+    }
+
+    #[test]
+    fn duplicate_surface_occurrences_keep_distinct_target_registrations() {
+        let wake = Arc::new(TestWake(AtomicUsize::new(0)));
+        let mut preparation = NativeCustomShaderPreparation::new(wake);
+        let window = WindowId::dummy();
+        let first = preparation
+            .target_for(
+                window,
+                adapter(1),
+                NativeTargetGeneration::from_test_serial(1),
+                (41, 3),
+            )
+            .expect("first occurrence")
+            .0;
+        preparation.targets.insert((41, 3), first);
+        let second = preparation
+            .target_for(
+                window,
+                adapter(1),
+                NativeTargetGeneration::from_test_serial(1),
+                (41, 8),
+            )
+            .expect("second occurrence")
+            .0;
+        preparation.targets.insert((41, 8), second);
+
+        assert_ne!(first, second);
+        assert_eq!(preparation.targets.len(), 2);
     }
 }

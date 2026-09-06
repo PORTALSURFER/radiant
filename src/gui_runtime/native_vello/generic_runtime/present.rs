@@ -148,9 +148,9 @@ where
         let custom_shader_reconciliation =
             self.window.native_resources.as_ref().and_then(|resources| {
                 let dev_handle = adapter.device_handle_for_surface(&resources.render_surface)?;
+                let device_identity = wgpu_device_id(&dev_handle.device);
                 let device = dev_handle.device.clone();
                 let format = resources.render_surface.config.format;
-                let device_identity = wgpu_device_id(&device);
                 let cached = self
                     .frame
                     .last_paint_plan
@@ -185,17 +185,20 @@ where
                             .then_some(identity)
                     })
                     .collect::<HashSet<_>>();
-                Some((device, format, cached))
+                Some((device, device_identity, format, cached))
             });
-        let pending_custom_shader_installs =
-            custom_shader_reconciliation.map_or_else(Vec::new, |(device, format, cached)| {
+        let pending_custom_shader_installs = custom_shader_reconciliation.map_or_else(
+            Vec::new,
+            |(device, device_identity, format, cached)| {
                 self.reconcile_custom_shader_preparations(
                     adapter_generation,
                     &device,
+                    device_identity,
                     format,
                     &cached,
                 )
-            });
+            },
+        );
         let target_generation = self.window.target_generation;
         let target_fenced = self.window.native_surface_target_fenced;
         // Volatile GPU updates are staged before the final stage-owner ticket

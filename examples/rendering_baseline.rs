@@ -198,7 +198,8 @@ fn main() -> radiant::Result {
         summary,
         observations: Rc::clone(&observations),
     };
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| upload_trace.run(|| {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        upload_trace.run(|| {
         radiant::app(state)
         .title("Radiant rendering baseline")
         .size(760, 520)
@@ -256,7 +257,8 @@ fn main() -> radiant::Result {
             }
         })
         .run_with_artifacts()
-    })));
+    })
+    }));
     // This executable never reuses the native runtime after an unwind. Preserve
     // already observed rows for diagnosis, but mark the entire run as failed.
     let (startup, result) = match result {

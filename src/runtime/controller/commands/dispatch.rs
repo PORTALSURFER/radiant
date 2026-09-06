@@ -577,9 +577,7 @@ where
                 self.begin_external_drag_session(request, on_completed);
             }
             Command::BeginDrag { request } => {
-                if self.interaction.drag.typed.is_some() {
-                    self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
-                }
+                self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
                 self.interaction.drag.session = Some(DragSession::new(request));
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;

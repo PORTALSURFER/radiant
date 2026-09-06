@@ -4567,8 +4567,9 @@ rules, so it cannot create a parallel popup system.
 
 Current delivery includes ordinary-view typed source/target declarations,
 checked operation negotiation, target lifecycle messages and transient preview
-routing through the existing normalized pan capture. Native pointer initiation,
-multi-contact arbitration, target styling/autoscroll, cross-window transfer and
+routing through the existing pan capture. Qualified primary mouse initiation
+cancels and rechecks the original child before transferring that capture.
+Multi-contact arbitration, target styling/autoscroll, cross-window transfer and
 owned external offers remain delivery work. The complete target below includes
 those remaining capabilities; its illustrative API is not a claim that every
 method is currently available.
@@ -5170,7 +5171,8 @@ The topmost hit widget and eligible ancestors compete in one bounded candidate
 set. Opaque tokens fence continuations; recognition shares controller capture
 admission and teardown, with exact policy retention and terminal cancellation on
 replacement. Native normalized pinch/rotation use this boundary; native desktop
-pan remains explicitly unsupported. Pending pointer-drag arbitration, touch-derived
+trackpad pan remains explicitly unsupported. Primary mouse pan uses qualified
+pointer capture transfer; touch-derived
 multi-contact recognition, typed drag payloads, cross-window payloads and external
 offers remain later work.
 

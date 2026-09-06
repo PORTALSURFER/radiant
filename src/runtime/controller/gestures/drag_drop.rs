@@ -13,6 +13,7 @@ pub(in crate::runtime::controller) struct TypedDragSession<Message> {
     handler: Rc<dyn LayoutInteraction<Message>>,
     offer: DragOffer,
     position: Point,
+    modifiers: crate::widgets::PointerModifiers,
     target: Option<DropBinding<Message>>,
 }
 struct DropBinding<Message> {
@@ -33,6 +34,7 @@ impl<Message> TypedDragSession<Message> {
             source: self.source.id,
             target,
             position: self.position,
+            modifiers: self.modifiers,
         }
     }
     fn source_message(&self, phase: DragSourcePhase) -> Option<Message> {
@@ -125,6 +127,7 @@ where
                 handler,
                 offer,
                 position,
+                modifiers: event.sample.modifiers(),
                 target: None,
             });
             self.repaint_requested = true;
@@ -143,6 +146,7 @@ where
             .filter(|session| session.token == token)
         {
             session.position = position;
+            session.modifiers = event.sample.modifiers();
             if let Some(preview) = self.interaction.drag.session.as_mut() {
                 preview.pointer = position;
                 preview.visible = true;

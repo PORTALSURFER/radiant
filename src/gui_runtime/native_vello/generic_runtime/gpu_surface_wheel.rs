@@ -423,6 +423,7 @@ where
             self.core.route_outcome(matches!(
                 disposition,
                 crate::gui::pointer_ingress::PointerIngressDisposition::RoutedWidget(_)
+                    | crate::gui::pointer_ingress::PointerIngressDisposition::RoutedGesture(_)
                     | crate::gui::pointer_ingress::PointerIngressDisposition::HandledLayout
                     | crate::gui::pointer_ingress::PointerIngressDisposition::HandledScrollbar
                     | crate::gui::pointer_ingress::PointerIngressDisposition::AdmittedUnsupportedConsumer

@@ -787,6 +787,8 @@ pub enum GestureIngressError {
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PointerIngressDisposition {
+    /// A pointer-derived gesture owns the existing capture lifecycle.
+    RoutedGesture(crate::layout::NodeId),
     RoutedWidget(crate::widgets::WidgetId),
     HandledLayout,
     HandledScrollbar,

@@ -2794,3 +2794,87 @@ fn external_drag_finalize_waits_for_transient_completion() {
     assert_eq!(launch_calls.get(), 1);
     assert_eq!(accepted.frame_work(), local_route.frame_work());
 }
+
+#[test]
+fn native_mouse_drag_transfers_capture_and_retires_the_exact_contact_token() {
+    use crate::{
+        application::{DragSource, button},
+        runtime::DragSourcePhase,
+    };
+    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let output = events.clone();
+    let bridge = crate::app(())
+        .view(|_| {
+            button("Drag")
+                .filter_mapped(|_| None::<DragSourcePhase>)
+                .size(100.0, 40.0)
+                .id(1)
+                .drag_source(
+                    DragSource::new(42u32).on_event_with_revision((), |event| Some(event.phase())),
+                )
+                .id(10)
+        })
+        .update(move |_, event| output.borrow_mut().push(event))
+        .into_bridge();
+    let mut harness = NativePointerHarness::new(bridge, Vector2::new(240.0, 80.0));
+    let device = DeviceId::dummy();
+    harness.runner.retain_native_mouse_device(device, None);
+    harness.cursor_moved_logical(Point::new(20.0, 15.0));
+    assert!(harness.mouse_pressed(MouseButton::Left).routed);
+    let original = harness
+        .runner
+        .input
+        .native_pointer_ingress
+        .contact_token(device, u64::MAX)
+        .unwrap();
+    assert!(events.borrow().is_empty());
+    let physical = PhysicalPosition::new(
+        harness.runner.window.dpi_scale.logical_to_physical(35.0) as f64,
+        harness.runner.window.dpi_scale.logical_to_physical(15.0) as f64,
+    );
+    let moved = harness
+        .runner
+        .route_cursor_moved_with_timestamp(physical, InputTimestamp::capture());
+    assert!(moved.outcome.routed);
+    assert!(moved.outcome.needs_redraw());
+    harness.runner.apply_cursor_moved_route(moved);
+    assert_eq!(*events.borrow(), [DragSourcePhase::Started]);
+    assert!(harness.runner.core.runtime.drag_session_active());
+    assert_eq!(harness.runner.core.runtime.pointer_capture(), None);
+    assert_eq!(
+        harness
+            .runner
+            .input
+            .native_pointer_ingress
+            .contact_token(device, u64::MAX),
+        Some(original)
+    );
+    assert!(harness.mouse_released(MouseButton::Left).routed);
+    assert!(!harness.runner.core.runtime.drag_session_active());
+    assert_eq!(
+        harness
+            .runner
+            .input
+            .native_pointer_ingress
+            .contact_token(device, u64::MAX),
+        None
+    );
+    harness.cursor_moved_logical(Point::new(20.0, 15.0));
+    assert!(harness.mouse_pressed(MouseButton::Left).routed);
+    let next = harness
+        .runner
+        .input
+        .native_pointer_ingress
+        .contact_token(device, u64::MAX)
+        .unwrap();
+    assert_ne!(original, next);
+    assert!(harness.mouse_released(MouseButton::Left).routed);
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .filter(|phase| matches!(phase, DragSourcePhase::Started))
+            .count(),
+        1
+    );
+}

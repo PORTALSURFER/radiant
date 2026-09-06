@@ -355,6 +355,7 @@ where
         self.core.route_outcome(matches!(
             disposition,
             PointerIngressDisposition::RoutedWidget(_)
+                | PointerIngressDisposition::RoutedGesture(_)
                 | PointerIngressDisposition::HandledLayout
                 | PointerIngressDisposition::HandledScrollbar
                 | PointerIngressDisposition::AdmittedUnsupportedConsumer

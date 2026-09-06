@@ -170,27 +170,48 @@ fn exercise_drag() {
             .into_bridge(),
         Vector2::new(240.0, 80.0),
     );
-    let sample = |phase, x| {
-        GestureIngress::pan(
-            phase,
-            Vector2::new(x, 0.0),
-            InputDeviceId::from_host(1).unwrap(),
-            Some(Point::new(20.0, 15.0)),
-            Default::default(),
-        )
-        .unwrap()
-    };
+    let device = InputDeviceId::from_host(1).unwrap();
+    let contact = PointerContactId::from_host(1).unwrap();
+    let button = radiant::widgets::PointerButton::Primary;
+    let started = PointerIngress::new(
+        DeviceKind::Mouse,
+        device,
+        contact,
+        PointerPhase::Started { button },
+        Point::new(20.0, 15.0),
+        PointerButtons::PRIMARY,
+        Default::default(),
+        None,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let token = runtime
-        .dispatch_gesture_request(GestureRequest::new(sample(GesturePhase::Started, 0.0)))
-        .token()
+        .dispatch_pointer_ingress_with_admission(started)
+        .sequence_token()
         .unwrap();
-    runtime.dispatch_gesture_request(
-        GestureRequest::new(sample(GesturePhase::Changed, 110.0)).with_token(token),
-    );
-    assert!(runtime.drag_session_active());
-    runtime.dispatch_gesture_request(
-        GestureRequest::new(sample(GesturePhase::Ended, 0.0)).with_token(token),
-    );
+    for phase in [PointerPhase::Moved, PointerPhase::Ended { button }] {
+        let pointer = PointerIngress::from_runtime(
+            DeviceKind::Mouse,
+            device,
+            contact,
+            phase,
+            Point::new(130.0, 15.0),
+            PointerButtons::empty(),
+            Default::default(),
+            None,
+            None,
+            None,
+            None,
+            token,
+        )
+        .unwrap();
+        assert_eq!(
+            runtime.dispatch_pointer_ingress(pointer),
+            PointerIngressDisposition::RoutedGesture(10)
+        );
+    }
     assert!(!runtime.drag_session_active());
     assert!(
         events

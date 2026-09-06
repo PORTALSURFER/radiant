@@ -141,7 +141,7 @@ pub struct ViewNode<Message> {
     effect_owner: Option<DeclarativeEffectOwner>,
     command_scope: Option<crate::application::CommandScopeAttachment>,
     focus_scope: Option<crate::runtime::FocusScope>,
-    gesture_interaction: Option<Rc<dyn crate::layout::LayoutInteraction<Message>>>,
+    layout_interaction: Option<Rc<dyn crate::layout::LayoutInteraction<Message>>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -242,7 +242,7 @@ impl<Message> ViewNode<Message> {
             effect_owner: None,
             command_scope: None,
             focus_scope: None,
-            gesture_interaction: None,
+            layout_interaction: None,
         }
     }
 

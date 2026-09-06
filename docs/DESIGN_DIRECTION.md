@@ -4565,6 +4565,14 @@ rules, so it cannot create a parallel popup system.
 
 ### Drag and drop
 
+Current delivery includes ordinary-view typed source/target declarations,
+checked operation negotiation, target lifecycle messages and transient preview
+routing through the existing normalized pan capture. Native pointer initiation,
+multi-contact arbitration, target styling/autoscroll, cross-window transfer and
+owned external offers remain delivery work. The complete target below includes
+those remaining capabilities; its illustrative API is not a claim that every
+method is currently available.
+
 Drag and drop is a first-class interaction subsystem, not a collection of
 pointer callbacks. A drag has a typed in-application payload, source identity,
 allowed operations, a pointer capture lifetime, a current eligible target, and

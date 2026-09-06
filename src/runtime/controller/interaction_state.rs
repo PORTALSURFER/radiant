@@ -361,6 +361,7 @@ pub(super) enum ScrollbarAxis {
 }
 
 pub(super) struct RuntimeDragState<Message> {
+    pub(super) typed: Option<super::gestures::drag_drop::TypedDragSession<Message>>,
     pub(super) external_session: Option<ExternalDragSession<Message>>,
     pub(super) external_completion: Option<ExternalDragCompletion<Message>>,
     pub(super) external_identity: Option<ExternalDragIdentity>,
@@ -373,6 +374,7 @@ pub(super) struct RuntimeDragState<Message> {
 impl<Message> Default for RuntimeDragState<Message> {
     fn default() -> Self {
         Self {
+            typed: None,
             external_session: None,
             external_completion: None,
             external_identity: None,

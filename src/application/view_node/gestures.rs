@@ -61,12 +61,18 @@ impl<Message: 'static> ViewNode<Message> {
         revision: LayoutInteractionRevision,
         map: impl Fn(GestureEvent) -> Option<Message> + 'static,
     ) -> Self {
-        let mut region = crate::application::column([self]).spacing(0.0);
-        region.gesture_interaction = Some(Rc::new(GestureBinding {
+        self.interaction_region(Rc::new(GestureBinding {
             policy,
             revision,
             map: Box::new(map),
-        }));
+        }))
+    }
+    pub(in crate::application) fn interaction_region(
+        self,
+        interaction: Rc<dyn LayoutInteraction<Message>>,
+    ) -> Self {
+        let mut region = crate::application::column([self]).spacing(0.0);
+        region.layout_interaction = Some(interaction);
         region
     }
 }

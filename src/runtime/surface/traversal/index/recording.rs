@@ -9,11 +9,12 @@ impl<Message> SurfaceTraversalIndex<Message> {
         &mut self,
         source: &crate::runtime::surface::SourceTraversalIndex,
     ) {
-        if !self
-            .layout_interactions
-            .iter()
-            .any(|record| record.interaction.capabilities_v2().gestures().is_some())
-        {
+        if !self.layout_interactions.iter().any(|record| {
+            let facets = record.interaction.capabilities_v2();
+            facets.gestures().is_some()
+                || facets.drag_source().is_some()
+                || facets.drop_target().is_some()
+        }) {
             return;
         }
         let mut seen = std::collections::HashSet::new();

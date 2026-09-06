@@ -667,7 +667,7 @@ impl<Message> RuntimeContainerTraversal<Message> {
         }
     }
 
-    fn layout_clip_for_container<'a>(
+    pub(super) fn layout_clip_for_container<'a>(
         &'a self,
         container_id: NodeId,
         layout: &'a LayoutOutput,

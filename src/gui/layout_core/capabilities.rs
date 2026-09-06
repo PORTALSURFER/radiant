@@ -861,11 +861,61 @@ pub trait LayoutGestures<Message> {
     fn dispatch(&self, event: crate::widgets::GestureEvent) -> Option<Message>;
 }
 
+/// Declarative drag source consumed by the shared gesture/capture controller.
+/// Offer creation and event mapping stay on the UI thread.
+pub trait LayoutDragSource<Message> {
+    /// Exact immutable payload, presentation and callback revision evidence.
+    fn revision(&self) -> LayoutInteractionRevision {
+        LayoutInteractionRevision::conservative()
+    }
+    /// Observe the data-only offer without beginning a drag.
+    fn offer(&self) -> crate::gui::drag_drop::DragOffer;
+    /// Map a qualified lifecycle event using the original retained payload.
+    fn dispatch(
+        &self,
+        offer: &crate::gui::drag_drop::DragOffer,
+        context: crate::gui::drag_drop::DragEventContext,
+        phase: crate::gui::drag_drop::DragSourcePhase,
+    ) -> Option<Message>;
+}
+/// Read-only acceptance and ordinary-message mapping for a typed drop target.
+pub trait LayoutDropTarget<Message> {
+    /// Exact acceptance and callback revision evidence.
+    fn revision(&self) -> LayoutInteractionRevision {
+        LayoutInteractionRevision::conservative()
+    }
+    /// Check the concrete payload type without changing application state.
+    fn accepts_payload(&self, offer: &crate::gui::drag_drop::DragOffer) -> bool;
+    /// Negotiate the current operation without changing application state.
+    fn negotiate(
+        &self,
+        offer: &crate::gui::drag_drop::DragOffer,
+        context: crate::gui::drag_drop::DragEventContext,
+    ) -> crate::gui::drag_drop::DropDecision;
+    /// Map one qualified target lifecycle event through the normal reducer.
+    fn dispatch(
+        &self,
+        offer: &crate::gui::drag_drop::DragOffer,
+        context: crate::gui::drag_drop::DragEventContext,
+        phase: crate::gui::drag_drop::DropPhase,
+        decision: crate::gui::drag_drop::DropDecision,
+    ) -> Option<Message>;
+}
+
+#[derive(PartialEq, Eq)]
+struct LayoutFacetRevision {
+    gestures: Option<(crate::widgets::GesturePolicy, LayoutInteractionRevision)>,
+    source: Option<LayoutInteractionRevision>,
+    target: Option<LayoutInteractionRevision>,
+}
+
 /// Borrowed optional facets of a layout interaction. Existing descriptor
 /// struct literals and custom layout implementations remain source compatible.
 pub struct LayoutInteractionCapabilities<'a, Message> {
     version: u16,
     gestures: Option<&'a dyn LayoutGestures<Message>>,
+    drag_source: Option<&'a dyn LayoutDragSource<Message>>,
+    drop_target: Option<&'a dyn LayoutDropTarget<Message>>,
 }
 impl<'a, Message> LayoutInteractionCapabilities<'a, Message> {
     /// Construct the supported empty descriptor.
@@ -873,6 +923,8 @@ impl<'a, Message> LayoutInteractionCapabilities<'a, Message> {
         Self {
             version: 1,
             gestures: None,
+            drag_source: None,
+            drop_target: None,
         }
     }
     /// Select an explicit contract version. Only version 1 is supported.
@@ -889,6 +941,47 @@ impl<'a, Message> LayoutInteractionCapabilities<'a, Message> {
     pub fn gestures(&self) -> Option<&'a dyn LayoutGestures<Message>> {
         (self.version == 1).then_some(self.gestures).flatten()
     }
+    /// Register a drag source alongside its gesture-recognition facet.
+    pub fn with_drag_source(mut self, source: &'a dyn LayoutDragSource<Message>) -> Self {
+        self.drag_source = Some(source);
+        self
+    }
+    /// Register a typed drop target without adding ordinary pointer hit regions.
+    pub fn with_drop_target(mut self, target: &'a dyn LayoutDropTarget<Message>) -> Self {
+        self.drop_target = Some(target);
+        self
+    }
+    /// Read a supported drag-source descriptor.
+    pub fn drag_source(&self) -> Option<&'a dyn LayoutDragSource<Message>> {
+        self.is_supported().then_some(self.drag_source).flatten()
+    }
+    /// Read a supported drop-target descriptor.
+    pub fn drop_target(&self) -> Option<&'a dyn LayoutDropTarget<Message>> {
+        self.is_supported().then_some(self.drop_target).flatten()
+    }
+    pub(crate) fn revision_evidence(&self) -> LayoutInteractionRevision {
+        let gestures = self
+            .gestures()
+            .map(|gestures| (gestures.policy(), gestures.revision()));
+        let source = self.drag_source().map(LayoutDragSource::revision);
+        let target = self.drop_target().map(LayoutDropTarget::revision);
+        if !self.is_supported()
+            || gestures
+                .as_ref()
+                .is_some_and(|(_, revision)| !revision.is_exact())
+            || source.as_ref().is_some_and(|revision| !revision.is_exact())
+            || target.as_ref().is_some_and(|revision| !revision.is_exact())
+        {
+            LayoutInteractionRevision::conservative()
+        } else {
+            LayoutInteractionRevision::exact(LayoutFacetRevision {
+                gestures,
+                source,
+                target,
+            })
+        }
+    }
+
     pub(crate) const fn is_supported(&self) -> bool {
         self.version == 1
     }

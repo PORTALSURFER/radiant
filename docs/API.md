@@ -8208,7 +8208,7 @@ are executable. The historical `dispatch_gesture_ingress` observation-only entry
 retains its unsupported-consumer result; executable callers use the token-bearing
 request API. Widget/ancestor competition is supported as described below.
 Pending pointer-drag arbitration, touch-derived multi-contact recognition,
-ordinary-view drag/drop attachments and cross-window payloads remain OPT-1363 work.
+cross-window payloads and native pointer adaptation remain OPT-1363 work.
 
 
 ### Container gesture regions
@@ -8244,7 +8244,7 @@ provide equality evidence. Pointer hit regions and scrollbars retain priority.
 This boundary currently requires a hit-testable descendant at the anchor;
 empty region backgrounds do not acquire gesture authority. It consumes checked
 normalized pan/pinch/rotation samples. Pointer-drag arbitration, touch-derived
-multi-contact recognition and typed drag/drop remain separate delivery work.
+multi-contact recognition and native drag initiation remain separate delivery work.
 The headless `gesture_input` example exercises child and ancestor priority.
 
 Native gesture samples flush earlier coalesced wheel routes in semantic order,
@@ -8254,3 +8254,55 @@ pending/active native gesture device is excluded from idle device eviction.
 Malformed continuations from that exact device and gesture family cancel once
 using the last valid checked sample; malformed starts and foreign devices do
 not cancel another sequence.
+
+
+### Typed drag sources and drop targets
+
+`ViewNode::drag_source(DragSource::new(payload))` and
+`ViewNode::drop_target(DropTarget::<Payload, Message>::new())` attach contracts to
+ordinary layout containers. Import the builders from `radiant::application` and
+operation, preview, context and event types from `radiant::runtime`. Payloads are
+UI-local `Rc` data; no `Send` requirement or external serialization is implied.
+Source payloads require `Eq` and must remain immutable during the session.
+
+Sources default to copy and a six-logical-pixel pan threshold. `DragOperations`
+is a checked nonempty operation set. `DragPreviewInfo` bounds its label to 4096
+UTF-8 bytes and each finite positive dimension to 1024 logical pixels.
+`recognize_after` rejects invalid thresholds. A source competes in the same
+widget/ancestor gesture arena and owns no second pointer capture.
+
+Use `on_event_with_revision(revision, map)` on either builder to map lifecycle
+events into `Option<Message>` through the normal reducer. Every captured
+behavior value must participate in the exact `Eq` revision. `on_event(map)` is
+conservative and retires its binding on reprojection. Targets can use
+`negotiate_with_revision(revision, predicate)` to return pending, rejected, or an
+accepted operation. Acceptance must be allowed by both source and target;
+default preference is copy, then move, then link.
+
+The controller qualifies target source identity, layout policy, current path,
+finite geometry, clipping, paint order and exact revisions. It chooses the
+topmost eligible typed region, with at most 64 overlapping candidates. A
+rejected matching region does not redirect the drop to an ancestor. Empty target
+regions can accept within their declared geometry; source initiation still
+requires a hit-testable descendant. Unsupported root contracts and ambiguous
+source identities fail closed.
+
+Source phases are started, moved, completed and cancelled. Target phases are
+entered, over, left, dropped and cancelled; each carries its current decision.
+The source's started message runs before first target entry. Target transitions
+run before the source's moved message. After each ordinary message, the runtime
+rechecks the live session and current target. Leaving can therefore replace the
+next target before entry. Changing a target binding emits left to its old
+handler. Terminal processing detaches capture, offer and preview before mapping
+and delivering target drop/cancellation followed by source completion/cancellation.
+A terminal reducer cannot redirect the second receipt into a replacement view.
+The opaque event token is observational and does not itself authorize actions.
+
+Preview movement without application messages requests overlay repaint without
+application projection or layout. `Command::end_drag()` cancels a typed session
+through shared gesture teardown. This delivery supports checked normalized pan
+requests within one surface. Native pointer-derived drag initiation,
+multi-contact arbitration, target styling/autoscroll, same-application
+cross-window transfer and owned external-offer import/export remain OPT-1363 work.
+Run `cargo run --example gesture_input` for a headless typed payload drop through
+ordinary source and target declarations.

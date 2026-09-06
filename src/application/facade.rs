@@ -130,8 +130,8 @@ pub use surfaces::{
 };
 pub use view::{
     ApplicationProjectionContext, ComponentProjectionContext, ComponentProjectionCounters,
-    ContinuityKey, DeclarativeEffectOwner, IntoView, MappedWidget, MappedWidgetParts,
-    RunnableStatefulApp, StatefulAppBuilder, StatefulAppWithView, ViewNode, ViewProjection,
-    WidgetView, WidgetViewContext, WindowBuilder, app, preserve_state, window,
+    ContinuityKey, DeclarativeEffectOwner, DragSource, DropTarget, IntoView, MappedWidget,
+    MappedWidgetParts, RunnableStatefulApp, StatefulAppBuilder, StatefulAppWithView, ViewNode,
+    ViewProjection, WidgetView, WidgetViewContext, WindowBuilder, app, preserve_state, window,
 };
 pub use virtual_layout::{VirtualLayoutParts, virtual_layout_from_parts};

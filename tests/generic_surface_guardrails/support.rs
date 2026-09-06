@@ -18,6 +18,7 @@ pub(crate) const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/badge.rs",
     "src/gui/chrome.rs",
     "src/gui/disclosure.rs",
+    "src/gui/drag_drop.rs",
     "src/gui/feedback.rs",
     "src/gui/form.rs",
     "src/gui/fingerprint.rs",

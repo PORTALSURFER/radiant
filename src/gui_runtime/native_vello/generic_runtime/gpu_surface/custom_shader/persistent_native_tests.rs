@@ -181,7 +181,7 @@ fn assert_cpu_reference_gray(pixels: &[u8], value: f32) {
         pixels.len(),
         TARGET_SIZE as usize * TARGET_SIZE as usize * 4
     );
-    for pixel in pixels.chunks_exact(4) {
+    for pixel in pixels.as_chunks::<4>().0 {
         assert_color(pixel, [value, value, value, 1.0]);
     }
 }
@@ -516,7 +516,7 @@ fn persistent_storage_switches_through_bulk_and_recovers_after_submitted_abort()
             .is_some_and(|bytes| bytes >= 65_536),
         "the final persistent occurrence replays after the intervening bulk reset"
     );
-    for (index, pixel) in ordered_pixels.chunks_exact(4).enumerate() {
+    for (index, pixel) in ordered_pixels.as_chunks::<4>().0.iter().enumerate() {
         let x = index % TARGET_SIZE as usize;
         let value = if (21..42).contains(&x) { 0.75 } else { 0.25 };
         assert_color(pixel, [value, value, value, 1.0]);

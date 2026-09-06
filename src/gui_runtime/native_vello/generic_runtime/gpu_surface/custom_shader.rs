@@ -1,6 +1,6 @@
 use super::gpu_surface_types::{
     CustomShaderBindingKey, CustomShaderBindingWriteState, CustomShaderPipelineIdentity,
-    CustomShaderPipelineKey, CustomShaderStaticPayloadKey,
+    CustomShaderStaticPayloadKey,
 };
 use super::resources::{
     CustomShaderFrameRequest, CustomShaderPreflightCache,

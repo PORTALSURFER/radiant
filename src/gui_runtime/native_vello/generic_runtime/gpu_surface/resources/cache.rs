@@ -1548,7 +1548,7 @@ mod tests {
         accounting.remove_binding(footprint);
         accounting.set_binding_resident_count(0);
         assert_eq!(accounting.snapshot().binding_resident_count, 0);
-        accounting.clear();
+        accounting = CustomShaderResidencyAccounting::default();
         assert_eq!(
             accounting.snapshot(),
             super::GpuSurfaceCustomShaderResidencySnapshot {

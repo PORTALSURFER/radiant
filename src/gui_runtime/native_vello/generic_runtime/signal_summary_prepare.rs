@@ -311,7 +311,7 @@ impl Limits {
 }
 
 impl SummaryBroker {
-    pub(super) fn new(wake: Arc<dyn RepaintSignal>) -> Self {
+    fn new(wake: Arc<dyn RepaintSignal>) -> Self {
         Self::with_limits(wake, Limits::production())
     }
 

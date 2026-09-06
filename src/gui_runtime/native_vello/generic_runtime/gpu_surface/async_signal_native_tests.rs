@@ -443,7 +443,7 @@ fn async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary() {
 
 #[test]
 #[ignore = "requires a native offscreen WGPU adapter"]
-fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
+fn bounded_detail_matches_legacy_pixels_and_recovers_on_a_fresh_device() {
     let (device, queue, adapter) = native_device();
     const FRAMES: usize = 65_536;
     let samples: Arc<[f32]> = Arc::from(
@@ -619,7 +619,7 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
         "end-clamped tile must retain legacy sampling"
     );
 
-    // The broker retains CPU overview/tile ownership across native recovery,
+    // The broker retains CPU overview/tile ownership across device recovery,
     // while all logical native residency belongs to the dropped renderer.
     let recovery_prepared = broker.prepared(target).expect("retained end tile");
     assert!(recovery_prepared.tile().is_some());
@@ -629,6 +629,7 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
     );
     drop(renderer);
     assert_eq!(broker.capacity_status().gpu_logical_bytes, 0);
+    let (recovery_device, recovery_queue, _) = native_device();
     let mut recovered_renderer = GpuSurfaceRenderer::default();
     assert!(recovered_renderer.install_prepared_signal_summary(
         SIGNAL_KEY,
@@ -638,8 +639,8 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
     ));
     let recovered = render_case_with_plan(
         &mut recovered_renderer,
-        &device,
-        &queue,
+        &recovery_device,
+        &recovery_queue,
         &[PaintPrimitive::GpuSurface(signal_surface(end.clone(), 1))],
     );
     assert_eq!(recovered.pixels, end_tile.pixels);

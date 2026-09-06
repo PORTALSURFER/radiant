@@ -100,7 +100,8 @@ impl<Message> SurfaceNode<Message> {
 
     fn has_notice_modal_bounded(&self, depth: usize, visited: &mut usize) -> bool {
         if depth >= 128 || *visited >= 65_536 {
-            return false;
+            // An incomplete accepted-surface walk must pause expiry safely.
+            return true;
         }
         *visited += 1;
         match self {
@@ -244,5 +245,18 @@ mod tests {
                 .into_surface()
                 .has_notice_modal()
         );
+    }
+
+    #[test]
+    fn modal_detection_pauses_on_bounded_walk_exhaustion() {
+        let mut node = SurfaceNode::container(1, ContainerPolicy::default(), Vec::new());
+        for id in 2..140 {
+            node = SurfaceNode::container(
+                id,
+                ContainerPolicy::default(),
+                vec![SurfaceChild::fill(node)],
+            );
+        }
+        assert!(node.has_notice_modal());
     }
 }

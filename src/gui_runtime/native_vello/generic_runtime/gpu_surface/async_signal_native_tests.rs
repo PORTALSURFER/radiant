@@ -577,7 +577,7 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
         Some(0)
     );
 
-    let end = raw([(FRAMES - 40) as f32, (FRAMES - 8) as f32]);
+    let end = raw([(FRAMES - 32) as f32, FRAMES as f32]);
     assert_eq!(
         broker.request(
             target,
@@ -597,7 +597,7 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
     let end_legacy = GpuSurfaceContent::SignalSummaryBands {
         frames: FRAMES,
         band_count: 1,
-        frame_range: [(FRAMES - 40) as f32, (FRAMES - 8) as f32],
+        frame_range: [(FRAMES - 32) as f32, FRAMES as f32],
         summary: Arc::new(crate::runtime::GpuSignalSummary::from_interleaved_samples(
             &samples, FRAMES, 1,
         )),
@@ -616,8 +616,33 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
     );
     assert_eq!(
         end_tile.pixels, end_reference.pixels,
-        "near-end tile must retain legacy clamping"
+        "end-clamped tile must retain legacy sampling"
     );
+
+    // The broker retains CPU overview/tile ownership across native recovery,
+    // while all logical native residency belongs to the dropped renderer.
+    let recovery_prepared = broker.prepared(target).expect("retained end tile");
+    assert!(recovery_prepared.tile().is_some());
+    assert!(
+        broker.take_dispatch().is_none(),
+        "recovery must not rebuild CPU detail"
+    );
+    drop(renderer);
+    assert_eq!(broker.capacity_status().gpu_logical_bytes, 0);
+    let mut recovered_renderer = GpuSurfaceRenderer::default();
+    assert!(recovered_renderer.install_prepared_signal_summary(
+        SIGNAL_KEY,
+        1,
+        &end,
+        recovery_prepared,
+    ));
+    let recovered = render_case_with_plan(
+        &mut recovered_renderer,
+        &device,
+        &queue,
+        &[PaintPrimitive::GpuSurface(signal_surface(end.clone(), 1))],
+    );
+    assert_eq!(recovered.pixels, end_tile.pixels);
 
     capture_bounded_signal_fixture(
         &adapter,

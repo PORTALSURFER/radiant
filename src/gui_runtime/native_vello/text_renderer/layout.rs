@@ -547,7 +547,7 @@ fn finish_geometry(input: GeometryInput) -> Result<Arc<ShapedParagraph>, ()> {
         resolved_font_runs,
         bidi_runs,
         mut glyphs,
-        mut break_safety,
+        break_safety,
         mut grapheme_geometry,
         width,
         quality,
@@ -720,7 +720,7 @@ fn normalize_break_safety(
     grapheme_boundaries: &[Utf8ByteOffset],
 ) -> Result<Vec<ShapedBreakBoundary>, ()> {
     break_safety.sort_by_key(|boundary| boundary.byte);
-    let mut normalized = Vec::with_capacity(break_safety.len());
+    let mut normalized: Vec<ShapedBreakBoundary> = Vec::with_capacity(break_safety.len());
     for boundary in break_safety {
         if boundary.byte.0 >= source.len()
             || !source.is_char_boundary(boundary.byte.0)

@@ -147,14 +147,41 @@ fn append_shaped_clusters(
     {
         return None;
     }
+    let pre_l1_levels = pre_l1_levels(shaped.source.as_ref(), presentation)?;
+    let mut glyphs = shaped.glyphs.clone();
+    glyphs.sort_by_key(|glyph| glyph.cluster.start);
+    let mut glyph_cursor = 0;
 
     for geometry in geometry {
         let bytes = shifted_range(geometry.range, byte_offset)?;
-        let bidi_level = pre_l1_bidi_level(shaped.source.as_ref(), presentation, geometry.range)?;
+        let bidi_level = pre_l1_bidi_level(&pre_l1_levels, geometry.range)?;
         let advance = (geometry.x_end - geometry.x_start).abs();
         if !advance.is_finite() {
             return None;
         }
+        while glyphs
+            .get(glyph_cursor)
+            .is_some_and(|glyph| glyph.cluster.start < geometry.range.start)
+        {
+            return None;
+        }
+        let glyph_start = glyph_cursor;
+        while glyphs
+            .get(glyph_cursor)
+            .is_some_and(|glyph| glyph.cluster.start == geometry.range.start)
+        {
+            glyph_cursor += 1;
+        }
+        let source_cluster_glyphs = &glyphs[glyph_start..glyph_cursor];
+        let glyph_origin = source_cluster_glyphs
+            .iter()
+            .map(|glyph| glyph.x)
+            .min_by(f32::total_cmp)
+            .unwrap_or(0.0);
+        if !glyph_origin.is_finite() {
+            return None;
+        }
+
         let source_cluster = clusters.len();
         clusters.push(ShapedLogicalCluster {
             bytes: bytes.clone(),
@@ -168,15 +195,13 @@ fn append_shaped_clusters(
         payloads.push(NativeEditorClusterPayload {
             source_cluster,
             bytes,
-            glyphs: shaped
-                .glyphs
+            glyphs: source_cluster_glyphs
                 .iter()
-                .filter(|glyph| glyph.cluster.start == geometry.range.start)
-                .map(|glyph| shifted_glyph(*glyph, byte_offset))
+                .map(|glyph| shifted_glyph(*glyph, byte_offset, glyph_origin))
                 .collect::<Option<Vec<_>>>()?,
         });
     }
-    Some(())
+    (glyph_cursor == glyphs.len()).then_some(())
 }
 
 fn cluster_carets(geometry: GraphemeGeometry, advance: f32) -> Vec<ClusterCaretOffset> {
@@ -200,30 +225,40 @@ fn shifted_range(range: ShapeClusterRange, byte_offset: usize) -> Option<Range<u
     Some(range.start.0.checked_add(byte_offset)?..range.end.0.checked_add(byte_offset)?)
 }
 
-fn shifted_glyph(mut glyph: GlyphPlacement, byte_offset: usize) -> Option<GlyphPlacement> {
+fn shifted_glyph(
+    mut glyph: GlyphPlacement,
+    byte_offset: usize,
+    source_cluster_origin: f32,
+) -> Option<GlyphPlacement> {
     glyph.cluster = ShapeClusterRange {
         start: Utf8ByteOffset(glyph.cluster.start.0.checked_add(byte_offset)?),
         end: Utf8ByteOffset(glyph.cluster.end.0.checked_add(byte_offset)?),
     };
-    Some(glyph)
+    glyph.x -= source_cluster_origin;
+    glyph.x.is_finite().then_some(glyph)
 }
 
-fn pre_l1_bidi_level(
-    source: &str,
-    presentation: &TextPresentation,
-    bytes: ShapeClusterRange,
-) -> Option<u8> {
+fn pre_l1_levels(source: &str, presentation: &TextPresentation) -> Option<Vec<u8>> {
     let base = match presentation.direction {
         Some(crate::application::WritingDirection::Ltr) => Some(Level::ltr()),
         Some(crate::application::WritingDirection::Rtl) => Some(Level::rtl()),
         None => None,
     };
     let bidi = BidiInfo::new(source, base);
-    let first = bidi.levels.get(bytes.start.0)?.number();
-    bidi.levels
+    (bidi.levels.len() == source.len()).then(|| {
+        bidi.levels
+            .iter()
+            .map(|level| level.number())
+            .collect::<Vec<_>>()
+    })
+}
+
+fn pre_l1_bidi_level(levels: &[u8], bytes: ShapeClusterRange) -> Option<u8> {
+    let first = *levels.get(bytes.start.0)?;
+    levels
         .get(bytes.start.0..bytes.end.0)?
         .iter()
-        .all(|level| level.number() == first)
+        .all(|level| *level == first)
         .then_some(first)
 }
 
@@ -312,6 +347,48 @@ mod tests {
                 22..22
             ]
         );
+    }
+
+    #[test]
+    fn ligature_payload_coordinates_are_relative_without_splitting_membership() {
+        use super::{GlyphPlacement, ShapeClusterRange, Utf8ByteOffset, shifted_glyph};
+
+        let cluster = ShapeClusterRange {
+            start: Utf8ByteOffset(0),
+            end: Utf8ByteOffset(3),
+        };
+        let glyphs = [
+            GlyphPlacement {
+                face_index: 0,
+                glyph_id: 10,
+                cluster,
+                x: 24.0,
+                y_offset: 0.0,
+                x_offset: 0.0,
+                advance: 4.0,
+                run_index: 0,
+            },
+            GlyphPlacement {
+                face_index: 0,
+                glyph_id: 11,
+                cluster,
+                x: 28.0,
+                y_offset: 0.0,
+                x_offset: 0.0,
+                advance: 3.0,
+                run_index: 0,
+            },
+        ];
+        let payload = glyphs
+            .into_iter()
+            .map(|glyph| shifted_glyph(glyph, 7, 24.0).expect("finite glyph"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(payload[0].cluster.start, Utf8ByteOffset(7));
+        assert_eq!(payload[0].cluster.end, Utf8ByteOffset(10));
+        assert_eq!(payload[1].cluster, payload[0].cluster);
+        assert_eq!(payload[0].x, 0.0);
+        assert_eq!(payload[1].x, 4.0);
     }
 
     #[test]

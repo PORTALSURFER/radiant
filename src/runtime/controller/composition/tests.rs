@@ -185,3 +185,26 @@ fn hidden_update_uses_fixed_owner_and_legacy_default_cancel_fallback() {
         vec![CompositionHostMessage::Cancel { owner_id: OWNER }]
     );
 }
+
+#[test]
+fn composition_sequence_is_not_reused_after_terminal_and_never_wraps() {
+    let mut runtime =
+        SurfaceRuntime::new(CompositionProbeBridge::default(), Vector2::new(160.0, 40.0));
+    assert!(runtime.focus_widget(OWNER));
+    let first = runtime
+        .dispatch_composition_start_with_sequence(valid_start())
+        .unwrap();
+    runtime.dispatch_composition_sample(CompositionSample::cancel());
+    let second = runtime
+        .dispatch_composition_start_with_sequence(valid_start())
+        .unwrap();
+    assert!(second > first);
+    runtime.dispatch_composition_sample(CompositionSample::cancel());
+    runtime.interaction.composition.sequence = u64::MAX;
+    assert_eq!(
+        runtime.dispatch_composition_start_with_sequence(valid_start()),
+        None
+    );
+    assert_eq!(runtime.dispatch_composition_sample(valid_start()), None);
+    assert_eq!(runtime.managed_composition_sequence(), None);
+}

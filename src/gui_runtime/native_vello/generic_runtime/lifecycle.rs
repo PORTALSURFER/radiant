@@ -974,7 +974,7 @@ where
                 ) else {
                     return;
                 };
-                let routed = self.route_native_ime_event(ime);
+                let routed = self.route_native_ime_event_with_timestamp(ime, Some(timestamp));
                 if let Some(routed) = self.complete_native_discrete_input_route(ticket, routed) {
                     self.handle_route_outcome(event_loop, routed);
                 }

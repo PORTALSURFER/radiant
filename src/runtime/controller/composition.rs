@@ -132,6 +132,25 @@ where
         )
     }
 
+    /// Runner-local evidence for the current shared owner. Never reused within
+    /// this runtime, including after focus moves away and returns to one ID.
+    pub(crate) fn managed_composition_sequence(&self) -> Option<u64> {
+        self.managed_composition_is_active()
+            .then_some(self.interaction.composition.sequence)
+    }
+
+    pub(crate) fn dispatch_composition_start_with_sequence(
+        &mut self,
+        sample: CompositionSample,
+    ) -> Option<u64> {
+        if sample.phase() != CompositionPhase::Start {
+            return None;
+        }
+        let expected = self.interaction.composition.sequence.checked_add(1)?;
+        self.dispatch_composition_sample(sample)?;
+        (self.managed_composition_sequence() == Some(expected)).then_some(expected)
+    }
+
     fn dispatch_composition_start(&mut self, sample: CompositionSample) -> Option<WidgetId> {
         let widget_id = self.interaction.focus.focused_widget()?;
         if !self.composition_widget_is_unique(widget_id)
@@ -142,8 +161,18 @@ where
             return None;
         }
 
+        let previous_sequence = self.interaction.composition.sequence;
+        let Some(sequence) = previous_sequence.checked_add(1) else {
+            self.block_managed_composition();
+            return None;
+        };
         let generation = self.refresh_counters().runtime_projection;
         self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
+        if self.managed_composition_is_active()
+            || self.interaction.composition.sequence != previous_sequence
+        {
+            return None;
+        }
         if generation != self.refresh_counters().runtime_projection
             || self.focused_widget() != Some(widget_id)
         {
@@ -151,6 +180,7 @@ where
             return None;
         }
 
+        self.interaction.composition.sequence = sequence;
         // Install ownership before widget dispatch.  A mapped output may
         // synchronously reproject or attempt another sample; that reentrant
         // work must observe the incumbent rather than create a second owner.

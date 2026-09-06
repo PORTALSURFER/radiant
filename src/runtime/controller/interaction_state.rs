@@ -240,6 +240,7 @@ pub(super) enum RuntimeManagedWheelSequenceState {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct RuntimeCompositionState {
     pub(super) managed_composition: RuntimeManagedCompositionState,
+    pub(super) sequence: u64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

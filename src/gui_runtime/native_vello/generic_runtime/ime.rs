@@ -1,9 +1,25 @@
 //! Native Winit IME normalization and routing for every Vello window.
 
 use super::{GenericNativeVelloRunner, GenericRouteOutcome};
+use crate::gui::input::InputTimestamp;
 use crate::runtime::RuntimeBridge;
 use crate::widgets::{CompositionRange, CompositionSample};
 use winit::event::Ime;
+
+#[cfg(test)]
+#[path = "ime/metadata_tests.rs"]
+mod metadata_tests;
+
+/// Evidence for transport into the existing shared composition owner. This
+/// slot never owns focus, text, or a second composition lifecycle.
+#[derive(Default)]
+pub(super) struct NativeImeSession {
+    sequence: Option<u64>,
+    discard_until_boundary: bool,
+}
+
+// Reject oversized native strings before scanning UTF-8 or entering widgets.
+const MAX_NATIVE_IME_BYTES: usize = 1 << 20;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum NormalizedImeEvent {
@@ -19,6 +35,7 @@ enum NormalizedImeEvent {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NativeImeNormalizationError {
     InvalidPreeditRange,
+    PayloadTooLarge,
 }
 
 fn scalar_range_from_winit_bytes(
@@ -43,6 +60,10 @@ fn scalar_range_from_winit_bytes(
 fn normalize_winit_ime_event(
     event: Ime,
 ) -> Result<NormalizedImeEvent, NativeImeNormalizationError> {
+    if matches!(&event, Ime::Preedit(text, _) | Ime::Commit(text) if text.len() > MAX_NATIVE_IME_BYTES)
+    {
+        return Err(NativeImeNormalizationError::PayloadTooLarge);
+    }
     Ok(match event {
         Ime::Enabled => NormalizedImeEvent::Enabled,
         Ime::Preedit(preedit, cursor_range) => NormalizedImeEvent::Preedit {
@@ -62,55 +83,77 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    /// Normalize and route one Winit IME event through the shared composition
-    /// owner. The primary and auxiliary Vello loops both call this method.
+    #[cfg(test)]
     pub(super) fn route_native_ime_event(&mut self, event: Ime) -> GenericRouteOutcome {
-        let normalized = match normalize_winit_ime_event(event) {
-            Ok(normalized) => normalized,
-            Err(_) => return self.route_native_ime_cancel(),
-        };
-        match normalized {
-            // Winit's Enabled event reports platform capability. It never
-            // captures the focused widget or starts a composition.
-            NormalizedImeEvent::Enabled => GenericRouteOutcome::default(),
-            NormalizedImeEvent::Preedit { preedit, selection } => {
-                self.route_native_ime_preedit(preedit, selection)
-            }
-            NormalizedImeEvent::Commit(text) => {
-                self.route_native_ime_sample(CompositionSample::commit(text))
-            }
-            NormalizedImeEvent::Disabled => self.route_native_ime_cancel(),
-        }
+        self.route_native_ime_event_with_timestamp(event, None)
     }
 
-    fn route_native_ime_sample(&mut self, sample: CompositionSample) -> GenericRouteOutcome {
-        self.frame.text_renderer.reset_native_caret_affinities();
-        if !self.ensure_native_ime_composition() {
-            return self.core.route_outcome(false);
+    /// Primary and auxiliary adapters retain their admitted receipt timestamp.
+    pub(super) fn route_native_ime_event_with_timestamp(
+        &mut self,
+        event: Ime,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
+        let normalized = match normalize_winit_ime_event(event) {
+            Ok(normalized) => normalized,
+            Err(_) => {
+                let outcome = self.route_native_ime_cancel(timestamp);
+                self.input.native_ime.discard_until_boundary = true;
+                return outcome;
+            }
+        };
+        match normalized {
+            // Enabled is a fresh native capability boundary, never a Start.
+            NormalizedImeEvent::Enabled => {
+                if self.input.native_ime.sequence
+                    != self.core.runtime.managed_composition_sequence()
+                {
+                    self.input.native_ime.sequence = None;
+                }
+                self.input.native_ime.discard_until_boundary = false;
+                GenericRouteOutcome::default()
+            }
+            NormalizedImeEvent::Preedit { preedit, selection } => {
+                self.route_native_ime_preedit(preedit, selection, timestamp)
+            }
+            NormalizedImeEvent::Commit(text) => {
+                self.frame.text_renderer.reset_native_caret_affinities();
+                let admitted = self.ensure_native_ime_composition(timestamp);
+                // Retire transport evidence before the terminal mapper can
+                // synchronously create another composition or move focus.
+                self.input.native_ime = NativeImeSession::default();
+                let routed = admitted
+                    && self
+                        .core
+                        .runtime
+                        .dispatch_focused_composition_sample(
+                            CompositionSample::commit_with_metadata(text, timestamp),
+                        )
+                        .is_some();
+                self.core.route_outcome(routed)
+            }
+            NormalizedImeEvent::Disabled => self.route_native_ime_cancel(timestamp),
         }
-
-        let routed = self
-            .core
-            .runtime
-            .dispatch_focused_composition_sample(sample)
-            .is_some();
-        self.core.route_outcome(routed)
     }
 
     fn route_native_ime_preedit(
         &mut self,
         preedit: String,
         selection: Option<CompositionRange>,
+        timestamp: Option<InputTimestamp>,
     ) -> GenericRouteOutcome {
         self.frame.text_renderer.reset_native_caret_affinities();
-        if !self.ensure_native_ime_composition() {
+        if !self.ensure_native_ime_composition(timestamp) {
             return self.core.route_outcome(false);
         }
-
         let routed = match selection {
             Some(selection) => {
-                let Ok(sample) = CompositionSample::update(preedit, selection) else {
-                    return self.route_native_ime_cancel();
+                let Ok(sample) =
+                    CompositionSample::update_with_metadata(preedit, selection, timestamp)
+                else {
+                    let outcome = self.route_native_ime_cancel(timestamp);
+                    self.input.native_ime.discard_until_boundary = true;
+                    return outcome;
                 };
                 self.core
                     .runtime
@@ -120,41 +163,62 @@ where
             None => self
                 .core
                 .runtime
-                .dispatch_hidden_composition_update(preedit, None)
+                .dispatch_hidden_composition_update(preedit, timestamp)
                 .is_some(),
         };
         self.core.route_outcome(routed)
     }
 
-    fn ensure_native_ime_composition(&mut self) -> bool {
-        if self.core.managed_composition_is_active() {
-            return true;
+    fn ensure_native_ime_composition(&mut self, timestamp: Option<InputTimestamp>) -> bool {
+        if self.input.native_ime.discard_until_boundary {
+            return false;
+        }
+        let current = self.core.runtime.managed_composition_sequence();
+        if let Some(sequence) = self.input.native_ime.sequence {
+            if current == Some(sequence) {
+                return true;
+            }
+            self.input.native_ime.sequence = None;
+            self.input.native_ime.discard_until_boundary = true;
+            return false;
+        }
+        // Never adopt a composition started through another producer.
+        if current.is_some() {
+            return false;
         }
         let Some(context) = self.core.focused_composition_start_context() else {
-            let _ = self
-                .core
-                .runtime
-                .dispatch_focused_composition_sample(CompositionSample::cancel());
             return false;
         };
-        let Ok(start) = CompositionSample::start(context.replacement_range(), context.selection())
-        else {
+        let Ok(start) = CompositionSample::start_with_metadata(
+            context.replacement_range(),
+            context.selection(),
+            timestamp,
+        ) else {
             return false;
         };
-        self.core
-            .runtime
-            .dispatch_focused_composition_sample(start)
-            .is_some()
-    }
-
-    fn route_native_ime_cancel(&mut self) -> GenericRouteOutcome {
-        self.frame.text_renderer.reset_native_caret_affinities();
-        let was_active = self.core.managed_composition_is_active();
-        let _ = self
+        self.input.native_ime.sequence = self
             .core
             .runtime
-            .dispatch_focused_composition_sample(CompositionSample::cancel());
-        self.core.route_outcome(was_active)
+            .dispatch_composition_start_with_sequence(start);
+        self.input.native_ime.sequence.is_some()
+    }
+
+    fn route_native_ime_cancel(
+        &mut self,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
+        self.frame.text_renderer.reset_native_caret_affinities();
+        let previous = std::mem::take(&mut self.input.native_ime);
+        let owns_current = previous.sequence.is_some()
+            && previous.sequence == self.core.runtime.managed_composition_sequence();
+        if owns_current {
+            let _ = self.core.runtime.dispatch_focused_composition_sample(
+                CompositionSample::cancel_with_metadata(timestamp),
+            );
+        }
+        // Cancelling a retained preedit is routed even when its widget emits
+        // no message; the restored committed value still needs repainting.
+        self.core.route_outcome(owns_current)
     }
 }
 
@@ -173,6 +237,7 @@ mod tests {
 
     #[derive(Clone)]
     struct ImeBridge {
+        id: u64,
         messages: Rc<RefCell<Vec<TextInputMessage>>>,
         value: String,
         disabled: bool,
@@ -184,6 +249,7 @@ mod tests {
     impl Default for ImeBridge {
         fn default() -> Self {
             Self {
+                id: 7,
                 messages: Rc::new(RefCell::new(Vec::new())),
                 value: String::from("a"),
                 disabled: false,
@@ -197,7 +263,7 @@ mod tests {
     impl RuntimeBridge<TextInputMessage> for ImeBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<TextInputMessage>> {
             let mut input = TextInputWidget::new(
-                7,
+                self.id,
                 self.value.clone(),
                 WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
             );
@@ -253,7 +319,7 @@ mod tests {
             .core
             .runtime
             .surface()
-            .find_widget(7)
+            .find_widget(runner.core.runtime.bridge().id)
             .and_then(|widget| {
                 widget
                     .widget_object()
@@ -491,5 +557,152 @@ mod tests {
             primary.core.runtime.bridge().messages.borrow().clone(),
             auxiliary.core.runtime.bridge().messages.borrow().clone(),
         );
+    }
+    #[test]
+    fn retired_native_preedit_and_commit_do_not_rebind_to_new_focus() {
+        for auxiliary in [false, true] {
+            let mut runner = if auxiliary {
+                focused_auxiliary_runner()
+            } else {
+                focused_runner()
+            };
+            assert!(
+                runner
+                    .route_native_ime_event(Ime::Preedit("old".into(), None))
+                    .routed
+            );
+            runner.core.runtime.bridge_mut().id = 9;
+            runner.core.runtime.bridge_mut().value = "successor".into();
+            runner.core.runtime.refresh();
+            assert!(runner.core.runtime.focus_widget(9));
+            assert!(
+                !runner
+                    .route_native_ime_event(Ime::Preedit("late".into(), None))
+                    .routed
+            );
+            assert!(
+                !runner
+                    .route_native_ime_event(Ime::Commit("late commit".into()))
+                    .routed
+            );
+            assert_eq!(text_value(&runner), "successor");
+            assert!(runner.core.runtime.bridge().messages.borrow().is_empty());
+            assert!(
+                runner
+                    .route_native_ime_event(Ime::Preedit("new".into(), None))
+                    .routed
+            );
+            assert!(
+                runner
+                    .route_native_ime_event(Ime::Commit("new".into()))
+                    .routed
+            );
+            assert_eq!(runner.core.runtime.bridge().messages.borrow().len(), 1);
+        }
+    }
+
+    #[test]
+    fn external_text_revision_retires_native_owner_without_a_new_start() {
+        let mut runner = focused_runner();
+        assert!(
+            runner
+                .route_native_ime_event(Ime::Preedit("old".into(), None))
+                .routed
+        );
+        runner.core.runtime.bridge_mut().value = "replacement".into();
+        runner.core.runtime.refresh();
+        assert!(
+            !runner
+                .route_native_ime_event(Ime::Commit("late".into()))
+                .routed
+        );
+        assert_eq!(text_value(&runner), "replacement");
+        assert!(runner.core.runtime.bridge().messages.borrow().is_empty());
+    }
+
+    #[test]
+    fn stale_native_terminal_cannot_commit_or_cancel_a_new_shared_owner() {
+        use crate::widgets::CompositionSample;
+        for terminal in [Ime::Commit("old".into()), Ime::Disabled] {
+            let mut runner = focused_runner();
+            assert!(
+                runner
+                    .route_native_ime_event(Ime::Preedit("old".into(), None))
+                    .routed
+            );
+            let previous = runner.core.runtime.managed_composition_sequence();
+            runner
+                .core
+                .runtime
+                .dispatch_composition_sample(CompositionSample::cancel());
+            let context = runner.core.focused_composition_start_context().unwrap();
+            runner.core.runtime.dispatch_composition_sample(
+                CompositionSample::start(context.replacement_range(), context.selection()).unwrap(),
+            );
+            let current = runner.core.runtime.managed_composition_sequence();
+            assert_ne!(previous, current);
+            runner
+                .core
+                .runtime
+                .dispatch_hidden_composition_update("new".into(), None);
+            assert!(!runner.route_native_ime_event(terminal).routed);
+            assert_eq!(runner.core.runtime.managed_composition_sequence(), current);
+            assert_eq!(text_value(&runner), "new");
+            assert!(runner.core.runtime.bridge().messages.borrow().is_empty());
+        }
+    }
+
+    #[test]
+    fn enabled_boundary_permits_fresh_owner_without_committing_retired_text() {
+        let mut runner = focused_runner();
+        assert!(
+            runner
+                .route_native_ime_event(Ime::Preedit("old".into(), None))
+                .routed
+        );
+        runner.core.runtime.bridge_mut().value = "replacement".into();
+        runner.core.runtime.refresh();
+        assert!(!runner.route_native_ime_event(Ime::Enabled).routed);
+        assert!(
+            runner
+                .route_native_ime_event(Ime::Preedit("fresh".into(), None))
+                .routed
+        );
+        assert!(runner.core.runtime.bridge().messages.borrow().is_empty());
+    }
+
+    #[test]
+    fn oversized_transport_is_rejected_before_utf8_range_work_and_fences_continuations() {
+        for event in [
+            Ime::Preedit(
+                "x".repeat(super::MAX_NATIVE_IME_BYTES + 1),
+                Some((0, usize::MAX)),
+            ),
+            Ime::Commit("x".repeat(super::MAX_NATIVE_IME_BYTES + 1)),
+        ] {
+            assert_eq!(
+                super::normalize_winit_ime_event(event.clone()),
+                Err(super::NativeImeNormalizationError::PayloadTooLarge)
+            );
+            let mut runner = focused_runner();
+            assert!(
+                runner
+                    .route_native_ime_event(Ime::Preedit("old".into(), None))
+                    .routed
+            );
+            assert!(runner.route_native_ime_event(event).routed);
+            assert_eq!(text_value(&runner), "a");
+            assert!(
+                !runner
+                    .route_native_ime_event(Ime::Preedit("late".into(), None))
+                    .routed
+            );
+            assert!(
+                !runner
+                    .route_native_ime_event(Ime::Commit("late".into()))
+                    .routed
+            );
+            assert_eq!(text_value(&runner), "a");
+        }
     }
 }

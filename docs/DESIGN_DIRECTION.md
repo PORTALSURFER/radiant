@@ -2939,8 +2939,15 @@ committed-value Unicode-scalar replacement and selection context. Winit
 preedit endpoints stay adapter-local bytes and convert only when ordered, in
 bounds, and on UTF-8 character boundaries. `None` remains hidden; no `0..0`,
 end-of-preedit, or previous selection is fabricated. Malformed evidence
-cancels/retains conservatively without committed mutation. Winit has no native
-timestamp here, so samples keep `None` and fabricate no sequence metadata.
+cancels only the original native-owned composition without committed mutation.
+The adapter bounds strings to 1 MiB before UTF-8 scanning and latches the
+non-reused shared composition sequence at Start. Lost ownership fences later
+updates and terminals from successor fields or another producer's composition.
+A terminal or fresh native Enabled boundary permits subsequent fresh admission.
+Transport evidence is retired before terminal application callbacks.
+Winit supplies no IME event timestamp; normalized samples preserve the adapter's
+admitted monotonic receipt time, without claiming hardware/native-origin time
+or fabricating a sequence range.
 
 `NumericInputWidget` consumes the same lifecycle through the shared owner gate:
 preedit updates stay local and do not parse or publish; valid committed text is

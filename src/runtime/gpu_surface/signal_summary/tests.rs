@@ -127,11 +127,24 @@ fn cancellable_summary_stops_during_merge_level() {
     let summary =
         GpuSignalSummary::from_interleaved_samples_cancellable(&[0.0; 4096], 4096, 1, || {
             probes += 1;
-            probes >= 9
+            probes >= 10
         });
 
     assert!(summary.is_none());
-    assert_eq!(probes, 9, "the second 1024-bucket merge chunk cancels");
+    assert_eq!(probes, 10, "the second 1024-bucket merge chunk cancels");
+}
+
+#[test]
+fn cancellable_summary_bounds_merge_probes_for_many_bands() {
+    let mut probes = 0;
+    let summary =
+        GpuSignalSummary::from_interleaved_samples_cancellable(&[0.0; 4096], 2, 2048, || {
+            probes += 1;
+            probes >= 10
+        });
+
+    assert!(summary.is_none());
+    assert_eq!(probes, 10, "the second 1024-summary merge chunk cancels");
 }
 
 #[test]
@@ -143,7 +156,10 @@ fn cancellable_summary_does_not_publish_after_a_late_cancellation() {
     });
 
     assert!(summary.is_none());
-    assert_eq!(probes, 4, "the final probe prevents ready publication");
+    assert_eq!(
+        probes, 4,
+        "the Arc conversion probe prevents ready publication"
+    );
 }
 
 #[test]

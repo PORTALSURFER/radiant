@@ -171,7 +171,11 @@ fn build_signal_summary_base_level(
         return None;
     }
     if frames == 0 {
-        return Some(vec![GpuSignalSummaryBucket::default(); band_count].into());
+        let buckets = vec![GpuSignalSummaryBucket::default(); band_count];
+        if is_cancelled() {
+            return None;
+        }
+        return Some(buckets.into());
     }
     let sample_count = frames.saturating_mul(band_count);
     let mut buckets = Vec::with_capacity(sample_count);
@@ -187,6 +191,9 @@ fn build_signal_summary_base_level(
         } else {
             buckets.push(GpuSignalSummaryBucket::default());
         }
+    }
+    if is_cancelled() {
+        return None;
     }
     Some(buckets.into())
 }
@@ -205,14 +212,14 @@ fn merge_signal_summary_level(
     let previous_bucket_count = previous.len() / band_count.max(1);
     let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
     for bucket in 0..bucket_count {
-        if bucket % SIGNAL_SUMMARY_CANCELLATION_CHUNK_BUCKETS == 0 && is_cancelled() {
-            return None;
-        }
         let first = bucket.saturating_mul(2);
         let second = first + 1;
         let first_offset = first.saturating_mul(band_count);
         let second_offset = first_offset.saturating_add(band_count);
         for band in 0..band_count {
+            if buckets.len() % SIGNAL_SUMMARY_CANCELLATION_CHUNK_BUCKETS == 0 && is_cancelled() {
+                return None;
+            }
             let mut summary = previous
                 .get(first_offset + band)
                 .copied()
@@ -225,6 +232,9 @@ fn merge_signal_summary_level(
             }
             buckets.push(summary);
         }
+    }
+    if is_cancelled() {
+        return None;
     }
     Some(buckets.into())
 }

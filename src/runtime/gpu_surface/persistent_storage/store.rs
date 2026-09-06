@@ -68,7 +68,7 @@ impl GpuPersistentStorageStore {
             let current = self
                 .entries
                 .get(&current_target)
-                .expect("fence index must point to an entry");
+                .ok_or(GpuPersistentStorageError::FenceMismatch)?;
             if snapshot.target.storage_generation < current_target.storage_generation
                 || (snapshot.target.storage_generation == current_target.storage_generation
                     && snapshot.revision <= current.revision)
@@ -142,7 +142,7 @@ impl GpuPersistentStorageStore {
         let entry = self
             .entries
             .get_mut(&patch.target)
-            .expect("fence index must point to an entry");
+            .ok_or(GpuPersistentStorageError::FenceMismatch)?;
         if patch.base_revision < entry.revision {
             return Err(GpuPersistentStorageError::StalePatch);
         }
@@ -156,7 +156,7 @@ impl GpuPersistentStorageStore {
             GpuPersistentStoragePatchOperation::Replace => {
                 let byte_offset = patch
                     .byte_offset
-                    .expect("replacement patches always retain an offset");
+                    .ok_or(GpuPersistentStorageError::InvalidPatchRange)?;
                 let end = byte_offset
                     .checked_add(patch.bytes.len())
                     .ok_or(GpuPersistentStorageError::InvalidPatchRange)?;

@@ -56,10 +56,15 @@ fn bulk_descriptor(bytes: &[u8]) -> GpuShaderSurfaceDescriptor {
 
 fn ordered_surface(occurrence: usize, descriptor: GpuShaderSurfaceDescriptor) -> PaintGpuSurface {
     let mut surface = surface(FRESH_KEY, descriptor);
-    let width = TARGET_SIZE as f32 / 3.0;
+    let left = occurrence * (TARGET_SIZE as usize / 3);
+    let right = if occurrence == 2 {
+        TARGET_SIZE as usize
+    } else {
+        left + TARGET_SIZE as usize / 3
+    };
     surface.rect = Rect::from_min_size(
-        Point::new(width * occurrence as f32, 0.0),
-        Vector2::new(width, TARGET_SIZE as f32),
+        Point::new(left as f32, 0.0),
+        Vector2::new((right - left) as f32, TARGET_SIZE as f32),
     );
     surface
 }
@@ -511,7 +516,11 @@ fn persistent_storage_switches_through_bulk_and_recovers_after_submitted_abort()
             .is_some_and(|bytes| bytes >= 65_536),
         "the final persistent occurrence replays after the intervening bulk reset"
     );
-    assert_cpu_reference_gray(&ordered_pixels, 0.25);
+    for (index, pixel) in ordered_pixels.chunks_exact(4).enumerate() {
+        let x = index % TARGET_SIZE as usize;
+        let value = if (21..42).contains(&x) { 0.75 } else { 0.25 };
+        assert_color(pixel, [value, value, value, 1.0]);
+    }
     renderer.commit_pending_persistent_storage();
 
     store

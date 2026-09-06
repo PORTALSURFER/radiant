@@ -460,3 +460,168 @@ fn surface_runtime_clears_scrollbar_hover_when_refresh_removes_scroll_area() {
         "the refreshed layout should no longer contain the hovered scroll area"
     );
 }
+
+mod edit_lifecycle {
+    use super::*;
+    use radiant::runtime::ScrollEditBatch;
+    use radiant::widgets::EditPhase;
+    use std::cell::RefCell;
+    type RecordedEdits = Rc<RefCell<Vec<ScrollEditBatch>>>;
+
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn fixture(
+        application: bool,
+    ) -> (
+        SurfaceRuntime<impl RuntimeBridge<ScrollEditBatch>, ScrollEditBatch>,
+        RecordedEdits,
+        Rc<Cell<f32>>,
+    ) {
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        let sink = Rc::clone(&edits);
+        let height = Rc::new(Cell::new(400.0));
+        let content_height = Rc::clone(&height);
+        let bridge = declarative_runtime_bridge(
+            (),
+            move |_| {
+                if application {
+                    use radiant::prelude::{self as ui, IntoView};
+                    return Arc::new(
+                        ui::scroll(ui::text("content").size(180.0, content_height.get()).id(32))
+                            .scroll_policy(
+                                ScrollPolicy::default()
+                                    .scrollbar_visibility(ScrollbarVisibility::Always),
+                            )
+                            .on_scroll_edit(|batch| batch)
+                            .id(31)
+                            .fill_width()
+                            .fill_height()
+                            .into_surface(),
+                    );
+                }
+
+                Arc::new(UiSurface::new(
+                    SurfaceNode::container(
+                        31,
+                        ContainerPolicy {
+                            kind: ContainerKind::ScrollView,
+                            overflow: OverflowPolicy::Scroll,
+                            scroll_policy: ScrollPolicy::default()
+                                .scrollbar_visibility(ScrollbarVisibility::Always),
+                            ..ContainerPolicy::default()
+                        },
+                        vec![SurfaceChild::fill(SurfaceNode::text(
+                            32,
+                            "content",
+                            WidgetSizing::fixed(Vector2::new(180.0, content_height.get())),
+                        ))],
+                    )
+                    .on_scroll_edit(|batch| batch),
+                ))
+            },
+            move |_, batch| sink.borrow_mut().push(batch),
+        );
+        (
+            SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0)),
+            edits,
+            height,
+        )
+    }
+    fn thumb<Bridge: RuntimeBridge<ScrollEditBatch>>(
+        runtime: &SurfaceRuntime<Bridge, ScrollEditBatch>,
+    ) -> Point {
+        runtime
+            .paint_plan(&Default::default())
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.rect.center()),
+                _ => None,
+            })
+            .expect("visible scrollbar thumb")
+    }
+    fn phases(batch: &ScrollEditBatch) -> Vec<EditPhase> {
+        batch.events().iter().map(|event| event.phase).collect()
+    }
+
+    #[test]
+    fn container_scrollbar_release_batches_final_motion_and_commits_once() {
+        let (mut runtime, edits, _) = fixture(false);
+        let point = thumb(&runtime);
+        runtime.dispatch_event(Event::primary_press(point));
+        runtime.dispatch_event(Event::primary_press(point));
+        runtime.dispatch_event(Event::primary_release(Point::new(point.x, point.y + 25.0)));
+        runtime.dispatch_event(Event::primary_release(Point::new(point.x, point.y + 40.0)));
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 2);
+        assert_eq!(phases(&edits[0]), [EditPhase::Begin]);
+        assert_eq!(phases(&edits[1]), [EditPhase::Update, EditPhase::Commit]);
+        assert_eq!(edits[0].transaction(), edits[1].transaction());
+        assert!(edits[1].offset_update().unwrap().offset.y > 0.0);
+    }
+
+    #[test]
+    fn container_scrollbar_capture_loss_rolls_back_without_a_late_commit() {
+        let (mut runtime, edits, _) = fixture(false);
+        let point = thumb(&runtime);
+        let original = runtime.layout().rects[&32];
+        runtime.dispatch_event(Event::primary_press(point));
+        runtime.dispatch_event(Event::pointer_move(Point::new(point.x, point.y + 25.0)));
+        assert_ne!(runtime.layout().rects[&32], original);
+        runtime.dispatch_event(Event::pointer_capture_cancelled());
+        assert_eq!(runtime.layout().rects[&32], original);
+        runtime.dispatch_event(Event::primary_release(Point::new(point.x, point.y + 40.0)));
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 3);
+        assert_eq!(phases(&edits[2]), [EditPhase::Cancel]);
+        assert_eq!(edits[2].offset_update().unwrap().offset, Vector2::default());
+        assert!(edits[2].offset_update().unwrap().delta.y < 0.0);
+        assert!(
+            edits
+                .iter()
+                .all(|edit| edit.transaction() == edits[0].transaction())
+        );
+    }
+
+    #[test]
+    fn container_scrollbar_noop_cancel_remains_typed_without_offset_projection() {
+        let (mut runtime, edits, _) = fixture(false);
+        let point = thumb(&runtime);
+        runtime.dispatch_event(Event::primary_press(point));
+        runtime.dispatch_event(Event::pointer_capture_cancelled());
+        runtime.dispatch_event(Event::pointer_capture_cancelled());
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 2);
+        assert_eq!(phases(&edits[1]), [EditPhase::Cancel]);
+        assert!(edits[1].offset_update().is_none());
+    }
+
+    #[test]
+    fn container_scrollbar_geometry_replacement_retires_old_edit_without_rollback() {
+        let (mut runtime, edits, height) = fixture(false);
+        let point = thumb(&runtime);
+        runtime.dispatch_event(Event::primary_press(point));
+        runtime.dispatch_event(Event::pointer_move(Point::new(point.x, point.y + 20.0)));
+        height.set(800.0);
+        runtime.refresh();
+        let projected = runtime.layout().rects[&32];
+        runtime.dispatch_event(Event::pointer_move(Point::new(point.x, point.y + 30.0)));
+        assert_eq!(runtime.layout().rects[&32], projected);
+        runtime.dispatch_event(Event::primary_release(Point::new(point.x, point.y + 40.0)));
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 3);
+        assert_eq!(phases(&edits[2]), [EditPhase::Cancel]);
+        assert!(edits[2].offset_update().is_none());
+    }
+
+    #[test]
+    fn application_scroll_edit_modifier_lowers_to_runtime_pointer_lifecycle() {
+        let (mut runtime, edits, _) = fixture(true);
+        let point = thumb(&runtime);
+        runtime.dispatch_event(Event::primary_press(point));
+        runtime.dispatch_event(Event::primary_release(Point::new(point.x, point.y + 20.0)));
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 2);
+        assert_eq!(phases(&edits[0]), [EditPhase::Begin]);
+        assert_eq!(phases(&edits[1]), [EditPhase::Update, EditPhase::Commit]);
+    }
+}

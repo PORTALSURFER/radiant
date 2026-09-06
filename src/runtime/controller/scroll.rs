@@ -1,3 +1,5 @@
+mod edit;
+pub use edit::ScrollEditBatch;
 mod scrollbar;
 mod wheel;
 

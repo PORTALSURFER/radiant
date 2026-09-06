@@ -76,6 +76,25 @@ edge. `on_offset_settled` is called once after an accepted offset settles, so
 applications can persist the resulting value without driving every wheel
 update through application state.
 
+`ViewNode::on_scroll_edit(...)` and `SurfaceNode::on_scroll_edit(...)` expose the
+runtime scrollbar pointer lifecycle as `ScrollEditBatch`. Begin is published
+only after the shared capture and focus transition are admitted. Moves produce
+effective Updates; release batches its final motion before Commit, and capture
+loss emits Cancel with a meaningful rollback. Lifecycle-only boundaries have no
+`offset_update()`, so concise offset callbacks are not repeated. A typed edit
+mapper takes precedence over the existing offset mapper for these batches;
+without one, effective updates retain the existing scroll-update routing.
+
+The transaction stays in the existing scrollbar capture record. Replacement
+content, viewport, scroll policy, or controlled offset retires it; cancellation
+then carries no offset projection and cannot roll back the replacement model.
+Terminal ownership is detached before application callbacks. New edit mappers
+have conservative revision evidence and disable retained ancestor shortcuts
+that cannot prove callback equivalence. Wheel, keyboard, and programmatic
+container scrolling continue through their existing routes while their edit
+lifecycle migration remains tracked by OPT-1395.
+
+
 ```rust
 use radiant::layout::{ScrollAxis, ScrollPolicy, ScrollbarPlacement, Vector2};
 use radiant::prelude::*;

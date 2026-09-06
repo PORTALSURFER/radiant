@@ -253,6 +253,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let split_pane_runtime = node.split_pane_runtime;
         let split_pane_ratio_settled = node.split_pane_ratio_settled;
         let scroll_message = node.scroll_message;
+        let scroll_edit = node.scroll_edit;
         let scroll_policy = node.scroll_policy;
         let initial_offset = node.initial_offset;
         let controlled_offset = node.controlled_offset;
@@ -285,6 +286,9 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
                     container = container.with_layout_capabilities(
                         crate::layout::LayoutCapabilities::new().interaction(interaction),
                     );
+                }
+                if let Some(scroll_edit) = scroll_edit.clone() {
+                    container = container.with_scroll_edit_message_local(scroll_edit);
                 }
                 if let Some(scroll_message) = scroll_message.clone() {
                     container = container.with_scroll_message_local(scroll_message);

@@ -43,7 +43,7 @@ where
         {
             return None;
         }
-        if self.pointer_capture_blocks_other_button(button) {
+        if self.pointer_capture_blocks_press(button) {
             return None;
         }
         if self.scroll_affordance_at(position).is_some()
@@ -54,7 +54,15 @@ where
             return None;
         }
         if self.interaction.pointer.managed_capture.is_none()
-            && self.start_scrollbar_drag_at(position, button)
+            && self.start_scrollbar_drag_at(
+                position,
+                button,
+                super::super::ScrollUpdateMetadata {
+                    modifiers,
+                    timestamp,
+                    sequence_range: None,
+                },
+            )
         {
             if let Some(delivery) = delivery.as_deref_mut()
                 && let Some(capture) = self.interaction.pointer.scroll_drag_capture
@@ -72,6 +80,7 @@ where
             self.clear_pointer_release_tombstone_for_new_press(button);
             self.reset_tooltip_hover_intent();
             self.clear_focus();
+            self.begin_scrollbar_edit();
             return None;
         }
         let input =
@@ -228,7 +237,7 @@ where
         {
             return None;
         }
-        if self.pointer_capture_blocks_other_button(button) {
+        if self.pointer_capture_blocks_press(button) {
             return None;
         }
         if self.scroll_affordance_at(position).is_some()
@@ -239,7 +248,15 @@ where
             return None;
         }
         if self.interaction.pointer.managed_capture.is_none()
-            && self.start_scrollbar_drag_at(position, button)
+            && self.start_scrollbar_drag_at(
+                position,
+                button,
+                super::super::ScrollUpdateMetadata {
+                    modifiers,
+                    timestamp,
+                    sequence_range: None,
+                },
+            )
         {
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
@@ -248,6 +265,7 @@ where
             self.clear_pointer_release_tombstone_for_new_press(button);
             self.reset_tooltip_hover_intent();
             self.clear_focus();
+            self.begin_scrollbar_edit();
             return None;
         }
         let input = WidgetInput::pointer_double_click_with_timestamp(
@@ -398,16 +416,12 @@ where
         }
     }
 
-    fn pointer_capture_blocks_other_button(&self, button: PointerButton) -> bool {
+    fn pointer_capture_blocks_press(&self, button: PointerButton) -> bool {
         self.interaction
             .pointer
             .capture_button
             .is_some_and(|captured_button| captured_button != button)
-            || self
-                .interaction
-                .pointer
-                .scroll_drag_capture
-                .is_some_and(|capture| capture.button != button)
+            || self.interaction.pointer.scroll_drag_capture.is_some()
     }
 
     pub(in crate::runtime::controller::events) fn dispatch_pointer_release_event(
@@ -458,15 +472,17 @@ where
             .pointer
             .scroll_drag_capture
             .is_some_and(|capture| capture.button == button);
-        if scroll_capture_matches_button
-            && let Some(capture) = self.interaction.pointer.scroll_drag_capture.take()
-        {
+        if scroll_capture_matches_button {
             self.cancel_layout_pointer_capture();
             self.reset_tooltip_hover_intent();
-            let offset = self.layout_state.scroll_offset(capture.node_id);
-            if offset != capture.start_offset {
-                self.emit_scroll_offset_settled(capture.node_id, offset, true);
-            }
+            self.finish_scrollbar_edit(
+                position,
+                super::super::ScrollUpdateMetadata {
+                    modifiers,
+                    timestamp,
+                    sequence_range: None,
+                },
+            );
             return None;
         }
         if self.interaction.pointer.capture.is_none() && self.layout_pointer_capture_active() {

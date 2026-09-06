@@ -272,6 +272,10 @@ impl MapperDescriptor {
 /// The mapper remains owned by the UI runtime and is not `Send` or `Sync`.
 pub type ScrollMessageMapper<Message> = Rc<dyn Fn(ScrollUpdate) -> Option<Message>>;
 
+/// UI-local mapping for complete runtime-owned scroll edit batches.
+pub type ScrollEditMessageMapper<Message> =
+    Rc<dyn Fn(crate::runtime::ScrollEditBatch) -> Option<Message>>;
+
 /// UI-local mapper type that turns native file-drop events into host-defined messages.
 pub type NativeFileDropMessageMapper<Message> = MessageMapper<NativeFileDrop, Message>;
 

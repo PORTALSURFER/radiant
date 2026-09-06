@@ -353,6 +353,13 @@ pub(super) struct ScrollDragCapture {
     pub(super) button: PointerButton,
     pub(super) axis: ScrollbarAxis,
     pub(super) start_offset: crate::gui::types::Vector2,
+    pub(super) edit: crate::widgets::EditEvent<crate::gui::types::Vector2>,
+    pub(super) edit_started: bool,
+    pub(super) content_id: NodeId,
+    pub(super) viewport: crate::gui::types::Rect,
+    pub(super) max_scroll: f32,
+    pub(super) policy: crate::layout::ScrollPolicy,
+    pub(super) last_position: crate::gui::types::Point,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

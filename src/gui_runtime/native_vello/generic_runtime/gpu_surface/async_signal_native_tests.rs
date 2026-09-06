@@ -369,10 +369,12 @@ fn async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary() {
         );
         assert_eq!(first.stats.signal.summary_builds, 0);
         assert_eq!(first.stats.signal.body_renders, 1);
-        assert!(renderer
-            .resources
-            .signal_summaries
-            .contains_key(&SIGNAL_KEY));
+        assert!(
+            renderer
+                .resources
+                .signal_summaries
+                .contains_key(&SIGNAL_KEY)
+        );
         assert!(renderer.resources.signals.get(&SIGNAL_KEY).is_some());
         assert!(renderer.resources.signal_bodies.get(&SIGNAL_KEY).is_some());
         let warm = render_case(
@@ -403,10 +405,12 @@ fn async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary() {
         };
         let pending = render_case(&mut renderer, &device, &queue, &primitives);
         assert_eq!(pending.stats.signal.summary_builds, 0);
-        assert!(!renderer
-            .resources
-            .signal_summaries
-            .contains_key(&SIGNAL_KEY));
+        assert!(
+            !renderer
+                .resources
+                .signal_summaries
+                .contains_key(&SIGNAL_KEY)
+        );
         assert!(renderer.resources.signals.get(&SIGNAL_KEY).is_none());
         assert!(renderer.resources.signal_bodies.get(&SIGNAL_KEY).is_none());
         broker.maintain_retired();
@@ -720,7 +724,7 @@ fn prepared_signal_budget_denial_keeps_old_resources_until_renderer_drops() {
         &mut renderer,
         &device,
         &queue,
-        &[PaintPrimitive::GpuSurface(signal_surface(new, 2))],
+        &[PaintPrimitive::GpuSurface(signal_surface(new.clone(), 2))],
     );
     assert_eq!(
         denied.stats.signal.body_renders, 0,
@@ -739,7 +743,7 @@ fn prepared_signal_budget_denial_keeps_old_resources_until_renderer_drops() {
         &mut renderer,
         &device,
         &queue,
-        &[PaintPrimitive::GpuSurface(signal_surface(new, 2))],
+        &[PaintPrimitive::GpuSurface(signal_surface(new.clone(), 2))],
     );
     assert_eq!(retry.stats.signal.body_renders, 1);
     assert_ne!(

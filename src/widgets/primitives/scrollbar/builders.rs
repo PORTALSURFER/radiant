@@ -34,11 +34,16 @@ impl<Message> SurfaceNode<Message> {
     pub fn scrollbar_edits_mapped(
         id: WidgetId,
         axis: ScrollbarAxis,
+        viewport_fraction: f32,
+        offset_fraction: f32,
         sizing: WidgetSizing,
         map: impl Fn(ScrollbarEditBatch) -> Message + 'static,
     ) -> Self {
+        let mut scrollbar = ScrollbarWidget::new(id, axis, sizing);
+        scrollbar.props.viewport_fraction = viewport_fraction;
+        scrollbar.state.offset_fraction = offset_fraction;
         Self::widget(
-            RetainedScrollbarWidget::new(ScrollbarWidget::new(id, axis, sizing)),
+            RetainedScrollbarWidget::new(scrollbar),
             WidgetMessageMapper::scrollbar_edits(map),
         )
     }

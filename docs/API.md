@@ -3961,7 +3961,8 @@ metadata; activation uses the runtime mapper. Native child windows share the reg
 Existing catalogs retain their behavior.
 
 `ScrollbarBuilder::on_edit(...)`, `SurfaceNode::scrollbar_edits_mapped(...)`, and
-`WidgetMessageMapper::scrollbar_edits(...)` expose `ScrollbarEditBatch`. Each
+`WidgetMessageMapper::scrollbar_edits(...)` expose `ScrollbarEditBatch`. The
+runtime edit constructor accepts both viewport and normalized offset fractions. Each
 bounded batch carries one transaction's ordered `EditEvent<f32>` values and an
 independent `offset_change()` projection. Begin and Commit never duplicate the
 concise callback; Cancel projects only a meaningful rollback. An update back to

@@ -22,7 +22,7 @@ enum PreciseSignalFixtureScenario {
 #[test]
 #[ignore = "requires native GPU adapter and offscreen WGPU rendering"]
 fn precise_signal_window_matches_near_and_large_origins() {
-    let (device, queue) = native_device();
+    let (device, queue, adapter_info) = precise_fixture_device();
     let buckets = precise_signal_fixture_buckets(64, 4);
     let scenarios = [
         PreciseSignalFixtureScenario::Base,
@@ -40,8 +40,15 @@ fn precise_signal_window_matches_near_and_large_origins() {
             precise_signal_fixture_pixels(&device, &queue, 1_u64 << 24, 1, &buckets, scenario);
         let far =
             precise_signal_fixture_pixels(&device, &queue, 1_u64 << 40, 1, &buckets, scenario);
-        assert_eq!(near, at_f32_limit, "near versus 2^24 for {scenario:?}");
-        assert_eq!(near, far, "near versus 2^40 for {scenario:?}");
+        capture_precise_reference(&format!("{scenario:?}-near"), &near, &adapter_info);
+        capture_precise_reference(
+            &format!("{scenario:?}-2pow24"),
+            &at_f32_limit,
+            &adapter_info,
+        );
+        capture_precise_reference(&format!("{scenario:?}-2pow40"), &far, &adapter_info);
+        assert!(near == at_f32_limit, "near versus 2^24 for {scenario:?}");
+        assert!(near == far, "near versus 2^40 for {scenario:?}");
         if let Some(base) = base_pixels.as_ref() {
             assert_ne!(
                 near, *base,
@@ -54,13 +61,14 @@ fn precise_signal_window_matches_near_and_large_origins() {
 
     let legacy = precise_signal_legacy_pixels(&device, &queue, &buckets, 1, [8.25, 24.25], false);
     let frozen = precise_signal_legacy_pixels(&device, &queue, &buckets, 1, [8.25, 24.25], true);
-    assert_eq!(
-        base_pixels.expect("base scenario pixels"),
-        legacy,
+    capture_precise_reference("legacy-current", &legacy, &adapter_info);
+    capture_precise_reference("legacy-frozen", &frozen, &adapter_info);
+    assert!(
+        base_pixels.expect("base scenario pixels") == legacy,
         "bucket-frame-one precise rendering should exactly match the legacy summary path"
     );
-    assert_eq!(
-        legacy, frozen,
+    assert!(
+        legacy == frozen,
         "current legacy shader must retain the 26102a7 pixels"
     );
 }
@@ -68,7 +76,7 @@ fn precise_signal_window_matches_near_and_large_origins() {
 #[test]
 #[ignore = "requires native GPU adapter and offscreen WGPU rendering"]
 fn precise_signal_bucket_smoothing_matches_legacy_for_sub_bucket_views() {
-    let (device, queue) = native_device();
+    let (device, queue, adapter_info) = precise_fixture_device();
     let buckets = precise_signal_fixture_buckets(64, 4);
     // Regression: with four-frame buckets and a two-frame viewport, legacy
     // uses `bucket_frames / max(visible_frames, 1)` = 2.0, not 1.0.
@@ -89,12 +97,15 @@ fn precise_signal_bucket_smoothing_matches_legacy_for_sub_bucket_views() {
         PreciseSignalFixtureScenario::Base,
     );
     let legacy = precise_signal_legacy_pixels(&device, &queue, &buckets, 4, [8.25, 10.25], false);
-    assert_eq!(
-        near, far,
+    capture_precise_reference("sub-bucket-near", &near, &adapter_info);
+    capture_precise_reference("sub-bucket-far", &far, &adapter_info);
+    capture_precise_reference("sub-bucket-legacy", &legacy, &adapter_info);
+    assert!(
+        near == far,
         "sub-bucket view must be independent of exact origin"
     );
-    assert_eq!(
-        near, legacy,
+    assert!(
+        near == legacy,
         "precise smoothing must retain legacy bucket width"
     );
 }
@@ -275,7 +286,7 @@ fn precise_signal_render_pixels(
 
 fn frozen_legacy_signal_pipeline(
     device: &vello::wgpu::Device,
-) -> super::super::super::gpu_surface_types::SignalPipeline {
+) -> super::super::gpu_surface_types::SignalPipeline {
     use vello::wgpu;
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("radiant_frozen_26102a7_signal"),
@@ -339,10 +350,61 @@ fn frozen_legacy_signal_pipeline(
         multiview_mask: None,
         cache: None,
     });
-    super::super::super::gpu_surface_types::SignalPipeline {
+    super::super::gpu_surface_types::SignalPipeline {
         format: wgpu::TextureFormat::Rgba8Unorm,
-        device: super::super::super::wgpu_device_id(device),
+        device: super::super::wgpu_device_id(device),
         bind_group_layout,
         pipeline,
     }
+}
+
+fn precise_fixture_device() -> (wgpu::Device, wgpu::Queue, wgpu::AdapterInfo) {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::PRIMARY,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        compatible_surface: None,
+        ..Default::default()
+    }))
+    .expect("precise reference requires native adapter");
+    let info = adapter.get_info();
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("radiant_precise_signal_reference"),
+        required_features: wgpu::Features::empty(),
+        required_limits: wgpu::Limits::default(),
+        ..Default::default()
+    }))
+    .expect("precise reference requires device");
+    (device, queue, info)
+}
+
+fn capture_precise_reference(name: &str, pixels: &[u8], adapter: &wgpu::AdapterInfo) {
+    use std::io::Write;
+    let Some(root) = std::env::var_os("RADIANT_PRECISE_SIGNAL_OUTPUT_DIR") else {
+        return;
+    };
+    let revision = std::env::var("RADIANT_PRECISE_SIGNAL_SOURCE_REVISION")
+        .expect("reference capture requires exact source revision");
+    let root = std::path::PathBuf::from(root);
+    std::fs::create_dir_all(&root).expect("create reference directory");
+    let mut rgba = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(root.join(format!("{name}.rgba")))
+        .expect("exclusively create RGBA reference");
+    rgba.write_all(pixels).expect("write RGBA reference");
+    let record = serde_json::json!({"source_revision": revision,
+        "fixture": "precise-signal-native-reference", "scenario": name,
+        "adapter": adapter.name, "backend": format!("{:?}", adapter.backend),
+        "device_type": format!("{:?}", adapter.device_type),
+        "width": TARGET_SIZE, "height": TARGET_SIZE, "format": "Rgba8Unorm",
+        "bytes": pixels.len(), "foreground_latency_measurement": false});
+    let mut json = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(root.join(format!("{name}.json")))
+        .expect("exclusively create reference metadata");
+    json.write_all(&serde_json::to_vec_pretty(&record).expect("serialize reference metadata"))
+        .expect("write reference metadata");
 }

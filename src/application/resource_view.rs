@@ -57,7 +57,7 @@ pub struct ResourceView<T, E, Message> {
 /// let view = resource(state.snapshot())
 ///     .idle(text::<()>("Choose a preview"))
 ///     .ready(|value| text(format!("Value: {value}")))
-///     .failed(|error| text(error.as_str()))
+///     .failed(|error| text(error.to_string()))
 ///     .into_view();
 /// drop(view); // Construction starts no resource work.
 /// ```

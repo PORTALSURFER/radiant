@@ -94,3 +94,81 @@ fn empty_signal_summary_level_lookup_defaults_to_zero() {
 
     assert_eq!(summary.level_for_frames_per_pixel(4.0), 0);
 }
+
+#[test]
+fn cancellable_summary_stops_before_work() {
+    let mut probes = 0;
+    let summary =
+        GpuSignalSummary::from_interleaved_samples_cancellable(&[0.0; 2048], 2048, 1, || {
+            probes += 1;
+            true
+        });
+
+    assert!(summary.is_none());
+    assert_eq!(probes, 1);
+}
+
+#[test]
+fn cancellable_summary_stops_during_base_level() {
+    let mut probes = 0;
+    let summary =
+        GpuSignalSummary::from_interleaved_samples_cancellable(&[0.0; 2048], 2048, 1, || {
+            probes += 1;
+            probes >= 4
+        });
+
+    assert!(summary.is_none());
+    assert_eq!(probes, 4, "the second 1024-bucket base chunk cancels");
+}
+
+#[test]
+fn cancellable_summary_stops_during_merge_level() {
+    let mut probes = 0;
+    let summary =
+        GpuSignalSummary::from_interleaved_samples_cancellable(&[0.0; 4096], 4096, 1, || {
+            probes += 1;
+            probes >= 9
+        });
+
+    assert!(summary.is_none());
+    assert_eq!(probes, 9, "the second 1024-bucket merge chunk cancels");
+}
+
+#[test]
+fn cancellable_summary_does_not_publish_after_a_late_cancellation() {
+    let mut probes = 0;
+    let summary = GpuSignalSummary::from_interleaved_samples_cancellable(&[0.5], 1, 1, || {
+        probes += 1;
+        probes >= 4
+    });
+
+    assert!(summary.is_none());
+    assert_eq!(probes, 4, "the final probe prevents ready publication");
+}
+
+#[test]
+fn cancellable_summary_matches_legacy_output_without_cancellation() {
+    let samples = [
+        0.25,
+        f32::NAN,
+        -0.5,
+        f32::INFINITY,
+        0.75,
+        -1.0,
+        f32::NEG_INFINITY,
+        0.0,
+        0.125,
+        -0.25,
+        0.5,
+        -0.75,
+        1.0,
+        -0.125,
+        0.625,
+    ];
+    let legacy = GpuSignalSummary::from_interleaved_samples(&samples, 5, 3);
+    let cancellable =
+        GpuSignalSummary::from_interleaved_samples_cancellable(&samples, 5, 3, || false)
+            .expect("an always-false cancellation probe returns the completed summary");
+
+    assert_eq!(cancellable, legacy);
+}

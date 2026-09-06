@@ -40,10 +40,10 @@ fn custom_shader_binding_key_changes_when_payload_shape_changes() {
 
 fn test_pipeline_key() -> CustomShaderPipelineKey {
     CustomShaderPipelineKey {
-        shader_key: String::from("test/custom-shader"),
+        shader_key: Arc::from("test/custom-shader"),
         wgsl_source: Arc::<str>::from("@vertex fn vertex_main() {}"),
-        vertex_entry_point: String::from("vertex_main"),
-        fragment_entry_point: String::from("fragment_main"),
+        vertex_entry_point: Arc::from("vertex_main"),
+        fragment_entry_point: Arc::from("fragment_main"),
         has_uniform_payload: true,
         has_storage_payload: true,
         has_presentation_uniform_payload: false,

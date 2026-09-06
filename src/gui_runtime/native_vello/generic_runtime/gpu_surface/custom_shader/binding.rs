@@ -34,11 +34,7 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) {
         let device = request.device;
-        let Some(pipeline) = self
-            .resources
-            .custom_shader_pipelines
-            .get(&request.surface_key)
-        else {
+        let Some(pipeline) = self.resources.custom_shader_pipeline(request.surface_key) else {
             return;
         };
         let cache_key = custom_shader_binding_key(&pipeline.key, request.descriptor);
@@ -85,8 +81,7 @@ impl GpuSurfaceRenderer {
         cache_key: &CustomShaderBindingKey,
     ) -> bool {
         self.resources
-            .custom_shader_bindings
-            .get(&surface_key)
+            .custom_shader_binding(surface_key)
             .is_none_or(|binding| binding.cache_key != *cache_key)
     }
 }

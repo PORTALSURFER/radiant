@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Arc;
 
 #[test]
 fn custom_shader_pipeline_key_requires_source_and_fragment_entry() {
@@ -20,7 +21,7 @@ fn custom_shader_pipeline_key_requires_source_and_fragment_entry() {
             key.has_storage_payload,
             key.has_presentation_uniform_payload,
         )),
-        Some((String::from("fragment_main"), false, false, false))
+        Some((Arc::<str>::from("fragment_main"), false, false, false))
     );
 }
 
@@ -112,13 +113,13 @@ impl CustomShaderPayloads {
 
 fn custom_shader_test_key(payloads: CustomShaderPayloads) -> CustomShaderPipelineKey {
     CustomShaderPipelineKey {
-        shader_key: String::from("test/custom-shader"),
+        shader_key: Arc::from("test/custom-shader"),
         wgsl_source: String::from(
             "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }",
         )
         .into(),
-        vertex_entry_point: String::from("vertex_main"),
-        fragment_entry_point: String::from("fragment_main"),
+        vertex_entry_point: Arc::from("vertex_main"),
+        fragment_entry_point: Arc::from("fragment_main"),
         has_uniform_payload: payloads.has_uniform_payload(),
         has_storage_payload: payloads.has_storage_payload(),
         has_presentation_uniform_payload: payloads.has_presentation_uniform_payload(),

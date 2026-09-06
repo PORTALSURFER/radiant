@@ -35,6 +35,9 @@ where
         timestamp: Option<InputTimestamp>,
         mut delivery: Option<&mut TypedPointerDeliveryContext>,
     ) -> Option<WidgetId> {
+        if self.gesture_owns_pointer_capture() {
+            return None;
+        }
         if self.interaction.pointer.managed_capture.is_some()
             && self.validate_managed_pointer_capture_authority()
         {
@@ -217,6 +220,9 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.gesture_owns_pointer_capture() {
+            return None;
+        }
         if self.interaction.pointer.managed_capture.is_some()
             && self.validate_managed_pointer_capture_authority()
         {
@@ -424,6 +430,9 @@ where
         timestamp: Option<InputTimestamp>,
         delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
     ) -> Option<WidgetId> {
+        if self.gesture_owns_pointer_capture() {
+            return None;
+        }
         self.validate_managed_pointer_capture_authority();
         if let Some(widget_id) = self.managed_pointer_capture_for_button(button) {
             let _ = self.finish_managed_pointer_release(widget_id, button);
@@ -550,6 +559,9 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        if self.gesture_owns_pointer_capture() {
+            return None;
+        }
         self.validate_managed_pointer_capture_authority();
         if let Some(widget_id) = self
             .interaction

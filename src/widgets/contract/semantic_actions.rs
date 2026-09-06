@@ -85,11 +85,19 @@ pub trait WidgetSemanticActions {
     ) -> WidgetSemanticActionResult;
 }
 
+/// Combined mutable handler for widgets supporting semantic actions and gestures.
+/// The descriptor is consumed when selecting a facet, so only one mutable trait
+/// reference can be borrowed at a time.
+pub trait WidgetActionHandler: WidgetSemanticActions + super::WidgetGestures {}
+impl<T: WidgetSemanticActions + super::WidgetGestures> WidgetActionHandler for T {}
+
 /// Mutable companion to the read-only v2 semantic-action descriptor.
 /// It is obtained only after runtime authority and ownership checks.
 pub struct WidgetActionCapabilities<'a> {
     version: u16,
     semantic_actions: Option<&'a mut dyn WidgetSemanticActions>,
+    gestures: Option<&'a mut dyn super::WidgetGestures>,
+    handler: Option<&'a mut dyn WidgetActionHandler>,
 }
 impl<'a> WidgetActionCapabilities<'a> {
     /// Empty source-compatible capability set.
@@ -97,12 +105,36 @@ impl<'a> WidgetActionCapabilities<'a> {
         Self {
             version: 1,
             semantic_actions: None,
+            gestures: None,
+            handler: None,
         }
+    }
+    /// Register both action facets from the same widget without mutable aliasing.
+    /// This combined handler takes precedence over individually registered facets.
+    pub fn with_handler(mut self, handler: &'a mut dyn WidgetActionHandler) -> Self {
+        self.handler = Some(handler);
+        self
     }
     /// Register a mutable semantic-action handler.
     pub fn with_semantic_actions(mut self, actions: &'a mut dyn WidgetSemanticActions) -> Self {
         self.semantic_actions = Some(actions);
         self
+    }
+    /// Register a mutable gesture handler.
+    pub fn with_gestures(mut self, gestures: &'a mut dyn super::WidgetGestures) -> Self {
+        self.gestures = Some(gestures);
+        self
+    }
+    /// Obtain a gesture handler only for a supported descriptor version.
+    pub fn into_gestures(self) -> Option<&'a mut dyn super::WidgetGestures> {
+        if self.version == 1 {
+            match self.handler {
+                Some(handler) => Some(handler),
+                None => self.gestures,
+            }
+        } else {
+            None
+        }
     }
     /// Override the contract version for compatibility testing. Only version 1 is supported.
     pub const fn with_contract_version(mut self, version: u16) -> Self {
@@ -112,7 +144,10 @@ impl<'a> WidgetActionCapabilities<'a> {
     /// Obtain the registered handler only for a supported contract version.
     pub fn into_semantic_actions(self) -> Option<&'a mut dyn WidgetSemanticActions> {
         if self.version == 1 {
-            self.semantic_actions
+            match self.handler {
+                Some(handler) => Some(handler),
+                None => self.semantic_actions,
+            }
         } else {
             None
         }

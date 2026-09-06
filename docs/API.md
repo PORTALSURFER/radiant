@@ -6698,6 +6698,7 @@ manual validation:
 | Exact-input component projection reuse | `component_projection` |
 | Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
+| Qualified gesture recognition and capture lifecycle | `gesture_input` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
@@ -8170,3 +8171,42 @@ the existing conservative reconciliation behavior. Unsupported descriptor versio
 cannot dispatch. Automation metadata alone does not grant executable capability.
 The `focus_navigation` example exercises qualified action execution and stale-target
 rejection alongside focus navigation and restoration.
+
+
+### Qualified gesture consumers
+
+Run `cargo run --example gesture_input` for deterministic pan recognition,
+normal message reduction, and stale-token rejection. Custom widgets expose
+`WidgetGestures` through read-only v2 capabilities and the mutable action companion.
+`WidgetActionCapabilities::with_handler` registers both semantic and gesture facets
+from the same widget; consuming the descriptor selects only one mutable facet.
+`GesturePolicy` enables pan, pinch or rotation with checked nonnegative thresholds.
+Pan accumulates logical displacement; pinch multiplies positive scale factors;
+rotation sums radians. Crossing the threshold emits one Started event carrying
+all accumulated movement. Subsequent updates and Ended retain source sample,
+timestamp, modifier and sequence-range evidence. Ending below threshold emits no
+widget output. Overflow cancels an active sequence using its last valid sample.
+
+`dispatch_gesture_request(GestureRequest)` admits at most one pending or active
+gesture per runtime. Started is tokenless; continuations require its opaque
+`GestureSequenceToken`. Foreign, mismatched and retired requests are terminal.
+The finite initial logical anchor is latched separately from later source samples.
+Pending recognition does not focus or capture, and rechecks hit authority at that
+anchor before claiming a target that may have moved during refresh. Admission respects existing layout
+hit regions, pointer/scroll capture, text composition and focus-loss veto. Active
+gestures use the existing pointer capture slot; competing mouse and wheel input
+cannot produce a second winner. Explicit focus/capture loss and shutdown cancel
+once. Compatible exact policy revisions survive refresh; removal, path or policy
+replacement retires the old handler before publication and queues its terminal
+message through the established replacement transaction. Conservative policy
+revisions do not retain authority across refresh.
+
+Native normalized pinch and rotation use this same boundary with the current
+pointer anchor; missing anchors/consumers remain explicitly unsupported. Native
+desktop pan remains an unsupported transport, while normalized public pan requests
+are executable. The historical `dispatch_gesture_ingress` observation-only entry
+retains its unsupported-consumer result; executable callers use the token-bearing
+request API. This is the widget gesture lifecycle foundation: child/ancestor
+recognizer competition, pending pointer-drag arbitration, touch-derived multi-contact
+recognition, ordinary-view drag/drop attachments and cross-window payloads remain
+OPT-1363 work.

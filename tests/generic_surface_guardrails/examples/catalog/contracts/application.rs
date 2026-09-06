@@ -160,6 +160,17 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         ],
     ),
     (
+        "gesture_input",
+        &[
+            "GesturePolicy",
+            "WidgetGestures",
+            "dispatch_gesture_request",
+            "GestureOutcome::Pending",
+            "GestureOutcome::Stale",
+            "public_gesture_example_has_one_qualified_lifecycle",
+        ],
+    ),
+    (
         "typed_pointer",
         &[
             "render_canvas_pointer",

@@ -410,8 +410,13 @@ fn classify_v2_widget_capabilities(
         current.semantic_actions_revision(),
         WidgetSemanticsRevision::is_exact,
     );
+    let gestures = classify_optional_capability(
+        previous.gestures_revision(),
+        current.gestures_revision(),
+        WidgetSemanticsRevision::is_exact,
+    );
     combine_widget_revision_effect(
-        actions,
+        combine_widget_revision_effect(actions, gestures, WidgetRevisionEffect::Unchanged),
         semantics,
         combine_widget_revision_effect(hit_test, pointer_motion, WidgetRevisionEffect::Unchanged),
     )
@@ -455,8 +460,13 @@ fn classify_cached_widget_capabilities(
         current.semantic_actions_revision.clone(),
         WidgetSemanticsRevision::is_exact,
     );
+    let gestures = classify_optional_capability(
+        previous.gestures_revision.clone(),
+        current.gestures_revision.clone(),
+        WidgetSemanticsRevision::is_exact,
+    );
     combine_widget_revision_effect(
-        actions,
+        combine_widget_revision_effect(actions, gestures, WidgetRevisionEffect::Unchanged),
         combine_widget_revision_effect(semantics, v2_semantics, WidgetRevisionEffect::Unchanged),
         combine_widget_revision_effect(hit_test, pointer_motion, WidgetRevisionEffect::Unchanged),
     )
@@ -2495,6 +2505,7 @@ mod tests {
             hit_test_revision: None,
             pointer_motion_revision: None,
             semantic_actions_revision: None,
+            gestures_revision: None,
         };
         assert!(!absent.needs_conservative_fallback());
 

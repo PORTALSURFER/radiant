@@ -267,7 +267,7 @@ where
         ) else {
             return GestureIngressDisposition::Invalid;
         };
-        self.core.runtime.dispatch_gesture_ingress(gesture)
+        self.core.runtime.dispatch_native_gesture_ingress(gesture)
     }
 }
 

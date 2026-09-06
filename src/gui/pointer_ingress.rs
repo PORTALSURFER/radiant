@@ -831,6 +831,8 @@ impl PointerIngressAdmission {
 #[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GestureIngressDisposition {
+    Pending,
+    Unrecognized,
     RoutedWidget(crate::widgets::WidgetId),
     HandledLayout,
     HandledScrollbar,

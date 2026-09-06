@@ -226,3 +226,6 @@ fn declarative_surface_runtime_aliases_name_common_host_shapes() {
     owned.dispatch_message(DemoMessage::Rename(String::from("Alias")));
     assert_eq!(owned.bridge().state().name, "Alias");
 }
+
+#[path = "runtime_bridge_public_api/gestures.rs"]
+mod gestures;

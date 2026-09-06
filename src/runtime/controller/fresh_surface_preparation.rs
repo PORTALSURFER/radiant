@@ -564,6 +564,12 @@ where
         let composition_focus_before_refresh = self.interaction.focus.focused_widget();
         // Preserve the old surface mapper long enough to deliver exactly one
         // terminal cancellation for incompatible ingress owners.
+        self.reconcile_gesture_before_surface_replace(
+            &surface,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+            &mut terminal_messages,
+        );
         self.reconcile_pointer_ingress_before_surface_replace(
             &surface,
             &previous_paths,
@@ -647,6 +653,7 @@ where
             self.capture_pointer_capture_state(capture.widget_id);
         }
         self.clear_stale_interaction_state();
+        self.validate_gesture_capture();
         self.reconcile_pointer_ingress_sequences();
         if let Some(widget_id) = self.interaction.focus.focused_widget() {
             self.restore_focused_widget_state(widget_id);

@@ -5156,10 +5156,15 @@ started samples are tokenless; continuations must match the current runtime,
 device, contact, and sequence token. `Widget::handle_pointer_event` is an
 additive opt-in consumer hook used by retained canvases and GPU surfaces;
 legacy `Event`, `WidgetInput`, and `CanvasGestureEvent` routing remains
-unchanged. Pan, pinch, and rotate samples are validated and explicitly
-reported as unsupported consumers in this bounded phase. Gesture arena
-recognition, typed drag payloads, cross-window payloads, and external offers
-remain later work.
+unchanged. Qualified `GestureRequest` consumers now recognize checked pan,
+pinch and rotation thresholds through optional `WidgetGestures` descriptors.
+Opaque sequence tokens fence continuations; recognition uses the existing pointer
+capture owner and normal widget mapper, with exact policy retention and terminal
+cancellation on replacement or teardown. Native normalized pinch/rotation use this
+boundary; native desktop pan remains explicitly unsupported. Child/ancestor
+competition, pending pointer-drag arbitration, touch-derived multi-contact
+recognition, typed drag payloads, cross-window payloads, and external offers remain
+later work.
 
 Radiant normalizes mouse, trackpad, touch, pen, and native scroll input into
 typed logical-coordinate events with timestamps, modifiers, device kind, and

@@ -105,6 +105,7 @@ where
 
     pub(super) fn clear_focus_with_transition(&mut self) -> FocusTransition {
         let Some(previous_owner) = self.interaction.focus.owner else {
+            self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
             return FocusTransition::Unchanged;
         };
         let previous_widget = previous_owner.widget_id();
@@ -117,6 +118,8 @@ where
             self.repaint_requested = true;
             return FocusTransition::Vetoed;
         }
+        let gesture_cancellation =
+            self.take_gesture_cancellation(crate::widgets::GestureCancellation::CaptureLost);
         if let Some(previous_widget) = previous_widget {
             self.clear_managed_wheel_sequence_for_widget(previous_widget);
             self.clear_managed_composition_for_widget(previous_widget);
@@ -131,6 +134,9 @@ where
             && previous_is_live
         {
             self.route_focus_changed(previous_widget, false);
+        }
+        if let Some(dispatch) = gesture_cancellation {
+            self.finish_gesture_dispatch(dispatch);
         }
         FocusTransition::Changed
     }
@@ -245,6 +251,8 @@ where
             return FocusTransition::Vetoed;
         }
 
+        let gesture_cancellation =
+            self.take_gesture_cancellation(crate::widgets::GestureCancellation::CaptureLost);
         if let Some(previous_widget) = previous_widget {
             self.clear_managed_wheel_sequence_for_widget(previous_widget);
             self.clear_managed_composition_for_widget(previous_widget);
@@ -289,6 +297,9 @@ where
             self.route_focus_changed(widget_id, true);
         }
 
+        if let Some(dispatch) = gesture_cancellation {
+            self.finish_gesture_dispatch(dispatch);
+        }
         let transition = match next {
             RuntimeFocusOwner::Widget(widget_id) => {
                 if self.interaction.focus.owner == Some(next)

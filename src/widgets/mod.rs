@@ -63,15 +63,16 @@ mod text_metrics;
 mod theme;
 
 pub use contract::{
-    FocusBehavior, FocusLossDecision, FocusedKeyDisposition, PaintBounds, PaintContract,
-    PointerCapturePolicy, PointerPressAdmission, SemanticAction, SemanticActionSource,
+    FocusBehavior, FocusLossDecision, FocusedKeyDisposition, GestureCancellation, GestureEvent,
+    GesturePolicy, InvalidGestureThreshold, PaintBounds, PaintContract, PointerCapturePolicy,
+    PointerPressAdmission, SemanticAction, SemanticActionSource,
     WIDGET_CAPABILITIES_CONTRACT_VERSION, WIDGET_CAPABILITIES_V1_CONTRACT_VERSION,
-    WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, Widget, WidgetActionCapabilities, WidgetCapabilities,
-    WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestResult, WidgetHitTestRevision, WidgetId,
-    WidgetPaintContext, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetProminence,
-    WidgetRevision, WidgetSemanticActionResult, WidgetSemanticActionRevision,
-    WidgetSemanticActions, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
-    WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, stable_widget_id,
+    WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, Widget, WidgetActionCapabilities, WidgetActionHandler,
+    WidgetCapabilities, WidgetCapabilitiesV2, WidgetGestures, WidgetHitTest, WidgetHitTestResult,
+    WidgetHitTestRevision, WidgetId, WidgetPaintContext, WidgetPointerMotion,
+    WidgetPointerMotionRevision, WidgetProminence, WidgetRevision, WidgetSemanticActionResult,
+    WidgetSemanticActionRevision, WidgetSemanticActions, WidgetSemantics, WidgetSemanticsRevision,
+    WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, stable_widget_id,
     stable_widget_id_u64,
 };
 pub(crate) use contract::{

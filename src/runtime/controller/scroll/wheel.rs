@@ -218,6 +218,9 @@ where
         refresh_after_message: bool,
         exact_sample: bool,
     ) -> WheelOrScrollRoute {
+        if self.gesture_owns_pointer_capture() {
+            return WheelOrScrollRoute::NotRouted;
+        }
         let phase = sample.phase();
         if phase == Some(WheelPhase::Started) {
             self.clear_phaseful_scroll_activity();

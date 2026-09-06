@@ -126,3 +126,7 @@ pub(super) fn component_projection_fresh() -> impl FnMut() -> crate::runner::Sce
 pub(super) fn component_local_geometry() -> impl FnMut() -> crate::runner::ScenarioCounters {
     components::local_geometry()
 }
+
+pub(super) fn component_local_interaction() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    components::local_interaction()
+}

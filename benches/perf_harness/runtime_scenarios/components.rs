@@ -72,6 +72,68 @@ fn geometry_component(expanded: &bool, _: &ResolvedEnvironment) -> View<()> {
     .height(2600.0)
 }
 
+pub(super) fn local_interaction() -> impl FnMut() -> crate::runner::ScenarioCounters {
+    use radiant::{
+        application::{row, view_node_from_widget},
+        layout::Vector2,
+        runtime::{RepaintScope, SurfaceRuntime},
+        widgets::{ColorMarkerProps, ColorMarkerWidget, ColorMarkerWidgetParts, WidgetSizing},
+    };
+    let changed = Rc::new(Cell::new(false));
+    let bridge = app(Rc::clone(&changed))
+        .view_with_components(
+            |_| Default::default(),
+            |changed, context| {
+                let mut children = (0..32)
+                    .map(|index| {
+                        context.project(format!("geometry-{index}"), false, geometry_component)
+                    })
+                    .collect::<Vec<_>>();
+                children.push(
+                    view_node_from_widget(ColorMarkerWidget::from_parts(ColorMarkerWidgetParts {
+                        id: 19,
+                        sizing: WidgetSizing::fixed(Vector2::new(20.0, 20.0)),
+                        props: ColorMarkerProps::new(None),
+                    }))
+                    .id(19)
+                    .tooltip(if changed.get() { "after" } else { "before" }),
+                );
+                row(children)
+            },
+        )
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(3400.0, 2700.0));
+    runtime.refresh();
+    assert!(runtime.layout().overflowed.is_empty());
+    move || {
+        let before = runtime.refresh_counters();
+        changed.set(!changed.get());
+        runtime.refresh_with_scope(RepaintScope::Projection);
+        let after = runtime.refresh_counters();
+        assert_eq!(
+            after.application_projection - before.application_projection,
+            1
+        );
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(19)
+                .unwrap()
+                .widget()
+                .common()
+                .tooltip
+                .as_deref(),
+            Some(if changed.get() { "after" } else { "before" })
+        );
+        crate::runner::ScenarioCounters::default()
+            .with_application_projection_count(
+                after.application_projection - before.application_projection,
+            )
+            .with_runtime_projection_count(after.runtime_projection - before.runtime_projection)
+            .with_layout_count(after.layout - before.layout)
+    }
+}
+
 pub(super) fn local_geometry() -> impl FnMut() -> crate::runner::ScenarioCounters {
     use radiant::{
         application::row,

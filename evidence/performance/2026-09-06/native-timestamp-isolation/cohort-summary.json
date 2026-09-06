@@ -1,0 +1,226 @@
+{
+  "normal-control-1": {
+    "sha256": "f1140388348eddeec6563f950722d70b05f4fe701778e88dcb4e9aabea8a1c92",
+    "row_counts": {
+      "native_fixture": 1,
+      "native_environment": 1,
+      "native_frame": 238,
+      "native_gpu": 237,
+      "native_run": 1
+    },
+    "gpu_outcomes": {
+      "Available { duration: 0ns }": 237
+    },
+    "run": {
+      "elapsed_us": 10479931.417,
+      "first_present_ms": null,
+      "run_error": "native runtime panicked; see process stderr",
+      "startup_failure": null,
+      "startup_status": null,
+      "startup_timing": null,
+      "type": "native_run"
+    }
+  },
+  "normal-control-2": {
+    "sha256": "51e56aa07194cf1c87cebe998ac0f7f0cdcb1522bf363ab38faff5a7bdfcc186",
+    "row_counts": {
+      "native_fixture": 1,
+      "native_environment": 1,
+      "native_frame": 237,
+      "native_gpu": 236,
+      "native_run": 1
+    },
+    "gpu_outcomes": {
+      "Unavailable { reason: CapacityRefused }": 1,
+      "Available { duration: 0ns }": 235
+    },
+    "run": {
+      "elapsed_us": 10240065.875,
+      "first_present_ms": null,
+      "run_error": "native runtime panicked; see process stderr",
+      "startup_failure": null,
+      "startup_status": null,
+      "startup_timing": null,
+      "type": "native_run"
+    }
+  },
+  "observer-off-1": {
+    "sha256": "dab075233cb294ca2f6bb70e251666fb1a2368efc48408f0791842911b2523a5",
+    "row_counts": {
+      "native_fixture": 1,
+      "native_environment": 1,
+      "native_run": 1
+    },
+    "gpu_outcomes": {},
+    "run": {
+      "elapsed_us": 21412704.5,
+      "first_present_ms": null,
+      "run_error": null,
+      "startup_failure": "startup_exited_before_first_present",
+      "startup_status": "incomplete",
+      "startup_timing": {
+        "deferred_model_refresh_ms": null,
+        "deferred_model_refresh_total_ms": null,
+        "failure_reason": "startup_exited_before_first_present",
+        "first_present_draw_ms": null,
+        "first_present_ms": null,
+        "first_redraw_started_ms": 1199.748208,
+        "first_scene_ready_ms": 1166.282708,
+        "renderer_build_ms": 906.819208,
+        "renderer_ready_ms": 1165.137541,
+        "status": "incomplete",
+        "surface_ready_ms": 258.318291,
+        "wgpu_device_ready_ms": 88.96929200000001,
+        "wgpu_surface_create_ms": 1.2045000000000001,
+        "window_create_ms": 93.685708,
+        "window_revealed_ms": null
+      },
+      "type": "native_run"
+    }
+  },
+  "observer-off-2": {
+    "sha256": "a17eb474ad21cd662672f99efebbd504516d16b8c1239d51d9a8c6dc340ef3fc",
+    "row_counts": {
+      "native_fixture": 1,
+      "native_environment": 1,
+      "native_run": 1
+    },
+    "gpu_outcomes": {},
+    "run": {
+      "elapsed_us": 21312323.25,
+      "first_present_ms": null,
+      "run_error": null,
+      "startup_failure": "startup_exited_before_first_present",
+      "startup_status": "incomplete",
+      "startup_timing": {
+        "deferred_model_refresh_ms": null,
+        "deferred_model_refresh_total_ms": null,
+        "failure_reason": "startup_exited_before_first_present",
+        "first_present_draw_ms": null,
+        "first_present_ms": null,
+        "first_redraw_started_ms": 1116.223458,
+        "first_scene_ready_ms": 1077.945333,
+        "renderer_build_ms": 881.6689170000001,
+        "renderer_ready_ms": 1076.971917,
+        "status": "incomplete",
+        "surface_ready_ms": 195.302958,
+        "wgpu_device_ready_ms": 68.030792,
+        "wgpu_surface_create_ms": 1.094292,
+        "window_create_ms": 72.76375,
+        "window_revealed_ms": null
+      },
+      "type": "native_run"
+    }
+  },
+  "observer-off-3": {
+    "sha256": "aab2ee3736eb8308bdbb76e8b5565008641dba35856fb7320529c310d14c7ead",
+    "row_counts": {
+      "native_fixture": 1,
+      "native_environment": 1,
+      "native_frame": 239,
+      "native_run": 1
+    },
+    "gpu_outcomes": {},
+    "run": {
+      "elapsed_us": 3926222.875,
+      "first_present_ms": 1159.764375,
+      "run_error": null,
+      "startup_failure": null,
+      "startup_status": "complete",
+      "startup_timing": {
+        "deferred_model_refresh_ms": 0.0,
+        "deferred_model_refresh_total_ms": 1159.764375,
+        "failure_reason": null,
+        "first_present_draw_ms": 58.17,
+        "first_present_ms": 1159.764375,
+        "first_redraw_started_ms": 1101.594375,
+        "first_scene_ready_ms": 1057.3672080000001,
+        "renderer_build_ms": 890.6404580000001,
+        "renderer_ready_ms": 1056.1083330000001,
+        "status": "complete",
+        "surface_ready_ms": 165.467708,
+        "wgpu_device_ready_ms": 68.51620799999999,
+        "wgpu_surface_create_ms": 0.956125,
+        "window_create_ms": 40.945750000000004,
+        "window_revealed_ms": 1075.5098329999998
+      },
+      "type": "native_run"
+    }
+  },
+  "pool-disabled-1": {
+    "sha256": "e458de872ded75a985b5d6279856d643b363e48d4a15c543a6cbe4f57277c9c0",
+    "row_counts": {
+      "native_fixture": 1,
+      "native_environment": 1,
+      "native_gpu": 240,
+      "native_frame": 240,
+      "native_run": 1
+    },
+    "gpu_outcomes": {
+      "Unavailable { reason: Unsupported }": 240
+    },
+    "run": {
+      "elapsed_us": 3912936.5,
+      "first_present_ms": 1201.08275,
+      "run_error": null,
+      "startup_failure": null,
+      "startup_status": "complete",
+      "startup_timing": {
+        "deferred_model_refresh_ms": 0.0,
+        "deferred_model_refresh_total_ms": 1201.08275,
+        "failure_reason": null,
+        "first_present_draw_ms": 71.29675,
+        "first_present_ms": 1201.08275,
+        "first_redraw_started_ms": 1129.786,
+        "first_scene_ready_ms": 1084.96525,
+        "renderer_build_ms": 910.015125,
+        "renderer_ready_ms": 1083.7874160000001,
+        "status": "complete",
+        "surface_ready_ms": 173.772291,
+        "wgpu_device_ready_ms": 76.47170799999999,
+        "wgpu_surface_create_ms": 0.920833,
+        "window_create_ms": 39.485,
+        "window_revealed_ms": 1090.7235
+      },
+      "type": "native_run"
+    }
+  },
+  "timestamp-disabled-1": {
+    "sha256": "e6f6d4b3810471ee6be580c4df8b540324de442cafd93731da2532038adfb197",
+    "row_counts": {
+      "native_fixture": 1,
+      "native_environment": 1,
+      "native_gpu": 240,
+      "native_frame": 240,
+      "native_run": 1
+    },
+    "gpu_outcomes": {
+      "Unavailable { reason: Unsupported }": 240
+    },
+    "run": {
+      "elapsed_us": 3804342.208,
+      "first_present_ms": 1140.238708,
+      "run_error": null,
+      "startup_failure": null,
+      "startup_status": "complete",
+      "startup_timing": {
+        "deferred_model_refresh_ms": 0.0,
+        "deferred_model_refresh_total_ms": 1140.238708,
+        "failure_reason": null,
+        "first_present_draw_ms": 56.553708,
+        "first_present_ms": 1140.238708,
+        "first_redraw_started_ms": 1083.685,
+        "first_scene_ready_ms": 1056.315791,
+        "renderer_build_ms": 889.8461669999999,
+        "renderer_ready_ms": 1055.054125,
+        "status": "complete",
+        "surface_ready_ms": 165.207708,
+        "wgpu_device_ready_ms": 69.41391700000001,
+        "wgpu_surface_create_ms": 1.208209,
+        "window_create_ms": 39.284541,
+        "window_revealed_ms": 1064.820833
+      },
+      "type": "native_run"
+    }
+  }
+}

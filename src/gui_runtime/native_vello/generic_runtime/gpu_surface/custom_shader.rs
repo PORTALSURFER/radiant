@@ -1,6 +1,11 @@
 use super::gpu_surface_types::{
-    CustomShaderBindingKey, CustomShaderBindingWriteState, CustomShaderPipelineKey,
+    CustomShaderBindingKey, CustomShaderBindingWriteState, CustomShaderPipelineIdentity,
     CustomShaderStaticPayloadKey,
+};
+use super::resources::{
+    CustomShaderFrameRequest, CustomShaderPreflightCache,
+    MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES, MAX_CUSTOM_SHADER_FRAME_REQUESTS,
+    custom_shader_frame_requests_fit,
 };
 use super::stats::GpuSurfaceRenderStats;
 use super::upload_plan::{
@@ -14,7 +19,7 @@ use crate::runtime::{
     GpuShaderPresentationUniformUpdate, GpuShaderSurfaceDescriptor, GpuSurfaceContent,
     PaintGpuSurface,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 #[path = "custom_shader/binding.rs"]
 mod binding;
 #[path = "custom_shader/diagnostics.rs"]
@@ -27,6 +32,8 @@ use binding::CustomShaderBindingRequest;
 use diagnostics::record_failed_custom_shader_surface;
 use draw::{CustomShaderBufferUploadRequest, CustomShaderDrawRequest};
 use pipeline::{CustomShaderPipelineRequest, custom_shader_pipeline_key};
+
+const MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS: usize = 1024;
 
 pub(super) fn record_unsupported_custom_shader(
     descriptor: &GpuShaderSurfaceDescriptor,
@@ -43,13 +50,6 @@ pub(super) struct CustomShaderRenderRequest<'a> {
 }
 
 #[derive(Clone)]
-struct CustomShaderPipelinePreflightIdentity {
-    device: usize,
-    format: vello::wgpu::TextureFormat,
-    key: CustomShaderPipelineKey,
-}
-
-#[derive(Clone)]
 struct CustomShaderBindingPreflightIdentity {
     cache_key: CustomShaderBindingKey,
     write_state: CustomShaderBindingWriteState,
@@ -57,7 +57,7 @@ struct CustomShaderBindingPreflightIdentity {
 
 #[derive(Default)]
 pub(super) struct CustomShaderUploadPreflightState {
-    pipelines: HashMap<u64, Option<CustomShaderPipelinePreflightIdentity>>,
+    cache: Option<CustomShaderPreflightCache>,
     bindings: HashMap<u64, Option<CustomShaderBindingPreflightIdentity>>,
 }
 
@@ -67,14 +67,18 @@ pub(super) struct CustomShaderUploadPreflight {
 }
 
 impl CustomShaderUploadPreflightState {
-    pub(super) fn reset(&mut self) {
-        self.pipelines.clear();
+    pub(super) fn reset(&mut self, cache: Option<CustomShaderPreflightCache>) {
+        self.cache = cache;
         self.bindings.clear();
+        self.bindings
+            .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
     }
 
     #[cfg(test)]
     pub(super) fn pipelines_capacity(&self) -> usize {
-        self.pipelines.capacity()
+        self.cache
+            .as_ref()
+            .map_or(0, CustomShaderPreflightCache::pipelines_capacity)
     }
 
     #[cfg(test)]
@@ -84,59 +88,34 @@ impl CustomShaderUploadPreflightState {
 
     fn pipeline_decision(
         &mut self,
-        renderer: &GpuSurfaceRenderer,
         surface_key: u64,
-        device: usize,
-        format: vello::wgpu::TextureFormat,
-        key: &CustomShaderPipelineKey,
-    ) -> bool {
-        let cached = self
-            .pipelines
-            .get(&surface_key)
-            .cloned()
-            .unwrap_or_else(|| {
-                renderer
-                    .resources
-                    .custom_shader_pipelines
-                    .get(&surface_key)
-                    .map(|pipeline| CustomShaderPipelinePreflightIdentity {
-                        device: pipeline.device,
-                        format: pipeline.format,
-                        key: pipeline.key.clone(),
-                    })
-            });
-        let rebuild = cached.as_ref().is_none_or(|cached| {
-            cached.device != device || cached.format != format || cached.key != *key
-        });
-        self.pipelines.insert(
-            surface_key,
-            Some(CustomShaderPipelinePreflightIdentity {
-                device,
-                format,
-                key: key.clone(),
-            }),
-        );
+        identity: &CustomShaderPipelineIdentity,
+    ) -> Option<bool> {
+        let rebuild = self
+            .cache
+            .as_mut()?
+            .pipeline_decision(surface_key, identity)?;
         if rebuild {
             self.bindings.insert(surface_key, None);
         }
-        rebuild
+        Some(rebuild)
     }
 
     fn binding_decision(
         &mut self,
-        renderer: &GpuSurfaceRenderer,
         surface_key: u64,
         cache_key: &CustomShaderBindingKey,
     ) -> (bool, CustomShaderBindingWriteState) {
         let cached = self.bindings.get(&surface_key).cloned().unwrap_or_else(|| {
-            renderer
-                .resources
-                .custom_shader_bindings
-                .get(&surface_key)
-                .map(|binding| CustomShaderBindingPreflightIdentity {
-                    cache_key: binding.cache_key.clone(),
-                    write_state: binding.write_state,
-                })
+            self.cache
+                .as_ref()?
+                .binding(surface_key)
+                .map(
+                    |(cache_key, write_state)| CustomShaderBindingPreflightIdentity {
+                        cache_key,
+                        write_state,
+                    },
+                )
         });
         let rebuild = cached
             .as_ref()
@@ -178,6 +157,57 @@ impl CustomShaderUploadPreflightState {
                 .cache_presentation_revision(payload, revision);
         }
     }
+}
+
+pub(super) fn custom_shader_frame_requests(
+    primitives: &[crate::runtime::PaintPrimitive],
+    device: usize,
+    format: vello::wgpu::TextureFormat,
+) -> Option<Vec<CustomShaderFrameRequest>> {
+    let mut requests = Vec::new();
+    let mut request_key_bytes = 0usize;
+    let mut canonical_identities: HashSet<CustomShaderPipelineIdentity> = HashSet::new();
+    for primitive in primitives {
+        let crate::runtime::PaintPrimitive::GpuSurface(surface) = primitive else {
+            continue;
+        };
+        let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
+            continue;
+        };
+        if !surface.rect.has_finite_positive_area()
+            || !surface.content.is_renderable()
+            || !custom_shader_descriptor_is_supported(descriptor)
+        {
+            continue;
+        }
+        if requests.len() >= MAX_CUSTOM_SHADER_FRAME_REQUESTS {
+            return None;
+        }
+        let Some(key) = custom_shader_pipeline_key(descriptor) else {
+            continue;
+        };
+        let identity = CustomShaderPipelineIdentity {
+            device,
+            format,
+            key,
+        };
+        let identity = if let Some(existing) = canonical_identities.get(&identity) {
+            existing.clone()
+        } else {
+            request_key_bytes = request_key_bytes.checked_add(identity.key.text_bytes())?;
+            if request_key_bytes > MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES {
+                return None;
+            }
+            canonical_identities.insert(identity.clone());
+            identity
+        };
+        requests.push(CustomShaderFrameRequest {
+            surface_key: surface.key,
+            binding_key: binding::custom_shader_binding_key(&identity.key, descriptor),
+            identity,
+        });
+    }
+    custom_shader_frame_requests_fit(&requests).then_some(requests)
 }
 
 impl GpuSurfaceRenderer {
@@ -223,14 +253,28 @@ impl GpuSurfaceRenderer {
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported),
             };
         };
+        let device = target.device;
+        let identity = CustomShaderPipelineIdentity {
+            device,
+            format: target.format,
+            key: pipeline_key.clone(),
+        };
+        let Some(pipeline_rebuild) = state.pipeline_decision(surface.key, &identity) else {
+            actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
+                surface_index,
+                key: surface.key,
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            });
+            return CustomShaderUploadPreflight {
+                renderable: false,
+                unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
+            };
+        };
         actions.push(GpuSurfaceRenderCanvasUploadAction::Surface {
             surface_index,
             key: surface.key,
             surface: GpuSurfaceRenderCanvasUploadSurface::CustomShader,
         });
-        let device = target.device;
-        let pipeline_rebuild =
-            state.pipeline_decision(self, surface.key, device, target.format, &pipeline_key);
         actions.push(GpuSurfaceRenderCanvasUploadAction::CustomPipeline {
             surface_index,
             key: surface.key,
@@ -242,7 +286,7 @@ impl GpuSurfaceRenderer {
 
         let binding_cache_key = binding::custom_shader_binding_key(&pipeline_key, descriptor);
         let (binding_rebuild, mut write_state) =
-            state.binding_decision(self, surface.key, &binding_cache_key);
+            state.binding_decision(surface.key, &binding_cache_key);
         actions.push(GpuSurfaceRenderCanvasUploadAction::CustomBinding {
             surface_index,
             key: surface.key,
@@ -390,7 +434,7 @@ impl GpuSurfaceRenderer {
                 })
             });
         {
-            let Some(binding) = self.resources.custom_shader_bindings.get_mut(&surface.key) else {
+            let Some(binding) = self.resources.custom_shader_binding_mut(surface.key) else {
                 record_failed_custom_shader_surface(stats);
                 return false;
             };
@@ -408,11 +452,11 @@ impl GpuSurfaceRenderer {
                 stats,
             );
         }
-        let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface.key) else {
+        let Some(pipeline) = self.resources.custom_shader_pipeline(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return false;
         };
-        let Some(binding) = self.resources.custom_shader_bindings.get(&surface.key) else {
+        let Some(binding) = self.resources.custom_shader_binding(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return false;
         };
@@ -527,12 +571,7 @@ impl GpuSurfaceRenderer {
         if pipeline_execution.rebuild {
             upload_plan.mark_execution_mutated();
         }
-        self.ensure_custom_shader_pipeline(pipeline_request, stats);
-        if !self
-            .resources
-            .custom_shader_pipelines
-            .contains_key(&surface.key)
-        {
+        if !self.ensure_custom_shader_pipeline(pipeline_request, stats) {
             upload_plan
                 .veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
             record_failed_custom_shader_surface(stats);
@@ -572,11 +611,7 @@ impl GpuSurfaceRenderer {
             },
             stats,
         );
-        if !self
-            .resources
-            .custom_shader_bindings
-            .contains_key(&surface.key)
-        {
+        if !self.resources.has_custom_shader_binding(surface.key) {
             upload_plan
                 .veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
             record_failed_custom_shader_surface(stats);
@@ -606,7 +641,7 @@ impl GpuSurfaceRenderer {
                 })
             });
         let upload_succeeded = {
-            let Some(binding) = self.resources.custom_shader_bindings.get_mut(&surface.key) else {
+            let Some(binding) = self.resources.custom_shader_binding_mut(surface.key) else {
                 upload_plan
                     .veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
                 record_failed_custom_shader_surface(stats);
@@ -633,11 +668,11 @@ impl GpuSurfaceRenderer {
             return custom_shader_plan_failure_result(upload_plan);
         }
 
-        let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface.key) else {
+        let Some(pipeline) = self.resources.custom_shader_pipeline(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return Some(false);
         };
-        let Some(binding) = self.resources.custom_shader_bindings.get(&surface.key) else {
+        let Some(binding) = self.resources.custom_shader_binding(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return Some(false);
         };
@@ -677,7 +712,7 @@ impl GpuSurfaceRenderer {
             record_unsupported_custom_shader(descriptor, stats);
             return false;
         };
-        self.ensure_custom_shader_pipeline(
+        if !self.ensure_custom_shader_pipeline(
             CustomShaderPipelineRequest {
                 surface_key: surface.key,
                 device: target.device,
@@ -685,12 +720,7 @@ impl GpuSurfaceRenderer {
                 key: pipeline_key,
             },
             stats,
-        );
-        if !self
-            .resources
-            .custom_shader_pipelines
-            .contains_key(&surface.key)
-        {
+        ) {
             record_failed_custom_shader_surface(stats);
             return false;
         }
@@ -702,11 +732,7 @@ impl GpuSurfaceRenderer {
             },
             stats,
         );
-        if self
-            .resources
-            .custom_shader_bindings
-            .contains_key(&surface.key)
-        {
+        if self.resources.has_custom_shader_binding(surface.key) {
             true
         } else {
             record_failed_custom_shader_surface(stats);
@@ -770,7 +796,7 @@ mod tests {
     use super::*;
     use crate::{
         layout::{Point, Rect, Vector2},
-        runtime::GpuSurfaceCapabilities,
+        runtime::{GpuSurfaceCapabilities, PaintPrimitive},
     };
     use std::sync::Arc;
 
@@ -848,6 +874,79 @@ mod tests {
             Some(&matching)
         );
         assert!(matching_presentation_update(&surface, &descriptor, &[wrong_length]).is_none());
+    }
+
+    #[test]
+    fn custom_shader_frame_requests_share_identity_text_and_preserve_order() {
+        let source = custom_shader_source(600 * 1024);
+        let primitives = [
+            custom_shader_primitive(41, "shared", source.clone()),
+            custom_shader_primitive(7, "shared", source),
+        ];
+
+        let requests =
+            custom_shader_frame_requests(&primitives, 3, vello::wgpu::TextureFormat::Rgba8Unorm)
+                .expect("one distinct 600 KiB identity fits the frame budget");
+
+        assert_eq!(
+            requests
+                .iter()
+                .map(|request| request.surface_key)
+                .collect::<Vec<_>>(),
+            [41, 7]
+        );
+        assert_eq!(requests[0].identity, requests[1].identity);
+        assert!(Arc::ptr_eq(
+            &requests[0].identity.key.wgsl_source,
+            &requests[1].identity.key.wgsl_source,
+        ));
+        assert!(Arc::ptr_eq(
+            &requests[0].binding_key.pipeline_key.shader_key,
+            &requests[1].binding_key.pipeline_key.shader_key,
+        ));
+    }
+
+    #[test]
+    fn custom_shader_frame_requests_reject_distinct_identities_over_text_budget() {
+        let source = custom_shader_source(600 * 1024);
+        let mut distinct_source = source.clone();
+        distinct_source.push('\n');
+        let primitives = [
+            custom_shader_primitive(1, "first", source),
+            custom_shader_primitive(2, "second", distinct_source),
+        ];
+
+        assert!(
+            custom_shader_frame_requests(&primitives, 3, vello::wgpu::TextureFormat::Rgba8Unorm,)
+                .is_none()
+        );
+    }
+
+    fn custom_shader_primitive(key: u64, shader_key: &str, source: String) -> PaintPrimitive {
+        PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: 17,
+            key,
+            revision: 2,
+            rect: test_rect(),
+            content: GpuSurfaceContent::CustomShader {
+                descriptor: Arc::new(
+                    GpuShaderSurfaceDescriptor::new(shader_key)
+                        .wgsl_source(source)
+                        .entry_point("vertex_main")
+                        .fragment_entry_point("fragment_main"),
+                ),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        })
+    }
+
+    fn custom_shader_source(bytes: usize) -> String {
+        let mut source =
+            String::from("@vertex fn vertex_main() {}\n@fragment fn fragment_main() {}\n//");
+        let padding = bytes.saturating_sub(source.len());
+        source.push_str(&"x".repeat(padding));
+        source
     }
 
     fn test_rect() -> Rect {

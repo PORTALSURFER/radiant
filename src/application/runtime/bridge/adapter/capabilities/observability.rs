@@ -4,7 +4,7 @@ use crate::{
     runtime::{
         FrameGpuTimingSample, FrameProfile, RuntimeDiagnostics, RuntimeDiagnosticsHost,
         RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost, RuntimeFrameProfileHost,
-        RuntimeLifecycleHost,
+        RuntimeLifecycleHost, RuntimeNativeImeAdapterObserver,
     },
 };
 
@@ -20,6 +20,25 @@ where
     fn observe_frame_diagnostics(&mut self, diagnostics: crate::runtime::NativeFrameDiagnostics) {
         if let Some(observer) = self.lifecycle.native_frame_diagnostics.as_mut() {
             observer(&mut self.state, diagnostics);
+        }
+    }
+}
+
+impl<State, Message, Project, Update, View> RuntimeNativeImeAdapterObserver
+    for AppBridge<State, Message, Project, Update, View>
+where
+    Project: FnMut(&State) -> View + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
+    View: IntoView<Message> + 'static,
+    Message: 'static,
+    State: 'static,
+{
+    fn observe_native_ime_adapter(
+        &mut self,
+        observation: crate::runtime::NativeImeAdapterObservation,
+    ) {
+        if let Some(observer) = self.lifecycle.native_ime_adapter_observation.as_mut() {
+            observer(&mut self.state, observation);
         }
     }
 }

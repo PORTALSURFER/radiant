@@ -1,4 +1,6 @@
-use super::super::gpu_surface_types::{CustomShaderPipeline, CustomShaderPipelineKey};
+use super::super::gpu_surface_types::{
+    CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
+};
 use super::super::stats::GpuSurfaceRenderStats;
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use super::diagnostics::custom_shader_validation_error;
@@ -6,6 +8,7 @@ use super::diagnostics::custom_shader_validation_error;
 mod layout;
 use crate::runtime::GpuShaderSurfaceDescriptor;
 use layout::{create_custom_shader_bind_group_layout, create_custom_shader_pipeline_layout};
+use std::sync::Arc;
 use tracing::warn;
 use vello::wgpu;
 
@@ -26,33 +29,53 @@ impl GpuSurfaceRenderer {
         &mut self,
         request: CustomShaderPipelineRequest<'_>,
         stats: &mut GpuSurfaceRenderStats,
-    ) {
+    ) -> bool {
         if !self.custom_shader_pipeline_needs_rebuild(&request) {
-            return;
+            return true;
+        }
+        let identity = CustomShaderPipelineIdentity {
+            device: wgpu_device_id(request.device),
+            format: request.target_format,
+            key: request.key.clone(),
+        };
+        if !self
+            .resources
+            .can_admit_custom_shader_pipeline(request.surface_key, &identity)
+        {
+            warn!(surface_key = request.surface_key, shader_key = %request.key.shader_key,
+                "radiant custom shader pipeline cache admission limit reached");
+            return false;
+        }
+        if self
+            .resources
+            .has_custom_shader_pipeline_identity(&identity)
+        {
+            self.resources
+                .remove_custom_shader_binding(&request.surface_key);
+            self.resources
+                .associate_custom_shader_pipeline(request.surface_key, identity);
+            return true;
         }
         stats.custom_shader.pipeline_rebuilds += 1;
-        self.resources
-            .remove_custom_shader_binding(&request.surface_key);
         let Some(shader) = create_custom_shader_module(&request, stats) else {
-            self.resources
-                .remove_custom_shader_pipeline(&request.surface_key);
-            return;
+            return false;
         };
         let Some(created) = create_custom_shader_pipeline(&request, &shader, stats) else {
-            self.resources
-                .remove_custom_shader_pipeline(&request.surface_key);
-            return;
+            return false;
         };
+        // Only a validated replacement can release this surface's prior resources.
+        self.resources
+            .remove_custom_shader_binding(&request.surface_key);
         self.resources.insert_custom_shader_pipeline(
             request.surface_key,
+            identity,
             CustomShaderPipeline {
-                format: request.target_format,
-                device: wgpu_device_id(request.device),
                 key: request.key,
                 bind_group_layout: created.bind_group_layout,
                 pipeline: created.pipeline,
             },
         );
+        true
     }
 
     pub(super) fn custom_shader_pipeline_needs_rebuild(
@@ -60,10 +83,11 @@ impl GpuSurfaceRenderer {
         request: &CustomShaderPipelineRequest<'_>,
     ) -> bool {
         self.resources
-            .custom_shader_pipelines
-            .get(&request.surface_key)
+            .custom_shader_pipeline_identity(request.surface_key)
             .is_none_or(|pipeline| {
-                !pipeline.matches(request.device, request.target_format, &request.key)
+                pipeline.device != wgpu_device_id(request.device)
+                    || pipeline.format != request.target_format
+                    || pipeline.key != request.key
             })
     }
 }
@@ -164,10 +188,10 @@ pub(super) fn custom_shader_pipeline_key(
     descriptor: &GpuShaderSurfaceDescriptor,
 ) -> Option<CustomShaderPipelineKey> {
     Some(CustomShaderPipelineKey {
-        shader_key: descriptor.shader_key.clone(),
+        shader_key: Arc::from(descriptor.shader_key.as_str()),
         wgsl_source: descriptor.wgsl_source.clone()?,
-        vertex_entry_point: descriptor.entry_point.clone(),
-        fragment_entry_point: descriptor.fragment_entry_point.clone()?,
+        vertex_entry_point: Arc::from(descriptor.entry_point.as_str()),
+        fragment_entry_point: Arc::from(descriptor.fragment_entry_point.as_deref()?),
         has_uniform_payload: !descriptor.uniform_bytes.is_empty(),
         has_storage_payload: !descriptor.storage_bytes.is_empty(),
         has_presentation_uniform_payload: descriptor

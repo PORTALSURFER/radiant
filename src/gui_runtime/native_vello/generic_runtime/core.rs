@@ -235,6 +235,10 @@ where
         self.runtime.has_frame_diagnostics_host()
     }
 
+    pub(super) fn has_native_ime_adapter_observer(&self) -> bool {
+        self.runtime.has_native_ime_adapter_observer()
+    }
+
     pub(super) fn has_frame_profile_observer(&self) -> bool {
         self.runtime.has_frame_profile_host()
     }

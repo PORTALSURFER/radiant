@@ -14,7 +14,7 @@ pub use animation::RuntimeAnimationHost;
 pub use auxiliary::RuntimeWindowHost;
 pub use diagnostics::{
     RuntimeDiagnosticsHost, RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost,
-    RuntimeFrameProfileHost,
+    RuntimeFrameProfileHost, RuntimeNativeImeAdapterObserver,
 };
 pub use input::RuntimeInputHost;
 pub use lifecycle::RuntimeLifecycleHost;
@@ -29,8 +29,8 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        FrameGpuTimingSample, FrameProfile, NativeFrameDiagnostics, PaintPrimitive,
-        RuntimeAnimationActivity, TransientOverlayContext,
+        FrameGpuTimingSample, FrameProfile, NativeFrameDiagnostics, NativeImeAdapterObservation,
+        PaintPrimitive, RuntimeAnimationActivity, TransientOverlayContext,
     },
 };
 pub(crate) use animation::RuntimeAnimationCapability;
@@ -38,6 +38,7 @@ pub(crate) use auxiliary::RuntimeWindowCapability;
 pub(crate) use diagnostics::{
     RuntimeDiagnosticsCapability, RuntimeFrameDiagnosticsCapability,
     RuntimeFrameGpuTimingCapability, RuntimeFrameProfileCapability,
+    RuntimeNativeImeAdapterCapability,
 };
 pub(crate) use input::RuntimeInputCapability;
 pub(crate) use lifecycle::RuntimeLifecycleCapability;
@@ -68,6 +69,7 @@ pub struct RuntimeHostCapabilities<Bridge, Message> {
     pub(crate) frame_diagnostics: Option<RuntimeFrameDiagnosticsCapability<Bridge>>,
     pub(crate) frame_profile: Option<RuntimeFrameProfileCapability<Bridge>>,
     pub(crate) frame_gpu_timing: Option<RuntimeFrameGpuTimingCapability<Bridge>>,
+    pub(crate) native_ime_adapter: Option<RuntimeNativeImeAdapterCapability<Bridge>>,
     pub(crate) lifecycle: Option<RuntimeLifecycleCapability<Bridge>>,
 }
 
@@ -88,6 +90,7 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
             frame_diagnostics: None,
             frame_profile: None,
             frame_gpu_timing: None,
+            native_ime_adapter: None,
             lifecycle: None,
         }
     }
@@ -214,6 +217,15 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
         self
     }
 
+    /// Enable one-shot native IME adapter capability observations.
+    pub fn with_native_ime_adapter_observer(mut self) -> Self
+    where
+        Bridge: RuntimeNativeImeAdapterObserver,
+    {
+        self.native_ime_adapter = Some(RuntimeNativeImeAdapterCapability::new());
+        self
+    }
+
     /// Enable runtime-exit and close-request lifecycle hooks.
     pub fn with_lifecycle(mut self) -> Self
     where
@@ -241,6 +253,11 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
     /// Return whether correlated aggregate GPU timing delivery was enabled.
     pub const fn has_frame_gpu_timing(&self) -> bool {
         self.frame_gpu_timing.is_some()
+    }
+
+    /// Return whether native IME adapter observation was explicitly enabled.
+    pub const fn has_native_ime_adapter_observer(&self) -> bool {
+        self.native_ime_adapter.is_some()
     }
 
     /// Poll explicitly enabled host animation activity.
@@ -332,6 +349,19 @@ impl<Bridge, Message> RuntimeHostCapabilities<Bridge, Message> {
         true
     }
 
+    /// Deliver one admitted-window IME adapter observation when enabled.
+    pub fn observe_native_ime_adapter(
+        &self,
+        bridge: &mut Bridge,
+        observation: NativeImeAdapterObservation,
+    ) -> bool {
+        let Some(capability) = self.native_ime_adapter.as_ref() else {
+            return false;
+        };
+        (capability.observe_native_ime_adapter)(bridge, observation);
+        true
+    }
+
     /// Run the optional runtime-exit hook.
     pub fn on_runtime_exit(&self, bridge: &mut Bridge) -> Option<serde_json::Value> {
         let capability = self.lifecycle.as_ref()?;
@@ -348,7 +378,10 @@ impl<Bridge, Message> Default for RuntimeHostCapabilities<Bridge, Message> {
 #[cfg(test)]
 mod tests {
     use super::RuntimeHostCapabilities;
-    use crate::runtime::{FrameGpuTimingOutcome, FrameGpuTimingSample, RuntimeFrameGpuTimingHost};
+    use crate::runtime::{
+        FrameGpuTimingOutcome, FrameGpuTimingSample, NativeImeAdapterObservation,
+        RuntimeFrameGpuTimingHost, RuntimeNativeImeAdapterObserver,
+    };
     use std::time::Duration;
 
     #[derive(Default)]
@@ -381,5 +414,33 @@ mod tests {
         assert!(enabled.has_frame_gpu_timing());
         assert!(enabled.observe_frame_gpu_timing(&mut host, sample));
         assert_eq!(host.samples, vec![sample]);
+    }
+
+    #[derive(Default)]
+    struct RecordingNativeImeAdapterHost {
+        observations: Vec<NativeImeAdapterObservation>,
+    }
+
+    impl RuntimeNativeImeAdapterObserver for RecordingNativeImeAdapterHost {
+        fn observe_native_ime_adapter(&mut self, observation: NativeImeAdapterObservation) {
+            self.observations.push(observation);
+        }
+    }
+
+    #[test]
+    fn native_ime_adapter_observation_is_opt_in_and_delivered_once_by_the_caller() {
+        let observation = NativeImeAdapterObservation::default();
+        let mut host = RecordingNativeImeAdapterHost::default();
+        let disabled = RuntimeHostCapabilities::<RecordingNativeImeAdapterHost, ()>::new();
+
+        assert!(!disabled.has_native_ime_adapter_observer());
+        assert!(!disabled.observe_native_ime_adapter(&mut host, observation));
+        assert!(host.observations.is_empty());
+
+        let enabled = RuntimeHostCapabilities::<RecordingNativeImeAdapterHost, ()>::new()
+            .with_native_ime_adapter_observer();
+        assert!(enabled.has_native_ime_adapter_observer());
+        assert!(enabled.observe_native_ime_adapter(&mut host, observation));
+        assert_eq!(host.observations, vec![observation]);
     }
 }

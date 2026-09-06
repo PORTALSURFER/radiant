@@ -89,6 +89,7 @@ where
         }
         let mut adapter = GenericNativeAdapterOwner::new(&self.options);
         self.initialize_window_runtime(event_loop, event_proxy.clone(), &mut adapter, true)?;
+        self.publish_native_ime_adapter_observation();
         self.adapter = Some(adapter);
         let Some(mut adapter) = self.adapter.take() else {
             return Err(NativeGenericRunError::NativeInitialization {
@@ -298,7 +299,28 @@ where
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
         });
+        if self.native_ime_adapter_observer_enabled {
+            self.native_ime_adapter_observation = Some(super::ime::native_ime_adapter_observation(
+                &window,
+                self.timing.native_window_diagnostic_identity,
+            ));
+        }
         Ok(())
+    }
+
+    pub(super) fn publish_native_ime_adapter_observation(&mut self) {
+        let Some(observation) = self.native_ime_adapter_observation.take() else {
+            return;
+        };
+        self.core
+            .runtime
+            .host_observe_native_ime_adapter(observation);
+    }
+
+    pub(super) fn take_native_ime_adapter_observation(
+        &mut self,
+    ) -> Option<crate::runtime::NativeImeAdapterObservation> {
+        self.native_ime_adapter_observation.take()
     }
 
     pub(super) fn resize_surface(&mut self, size: PhysicalSize<u32>) {

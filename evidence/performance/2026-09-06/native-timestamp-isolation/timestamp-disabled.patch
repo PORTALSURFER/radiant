@@ -1,0 +1,22 @@
+diff --git a/src/gui_runtime/native_vello/generic_runtime/device.rs b/src/gui_runtime/native_vello/generic_runtime/device.rs
+index 1811a0c0..a1bdc993 100644
+--- a/src/gui_runtime/native_vello/generic_runtime/device.rs
++++ b/src/gui_runtime/native_vello/generic_runtime/device.rs
+@@ -19,13 +19,10 @@ impl DeviceFeatureSelection {
+     pub(super) fn for_adapter(advertised: wgpu::Features) -> Self {
+         let baseline =
+             advertised & (wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE);
+-        let timing_features =
+-            wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+-        let initial_request = if advertised.contains(timing_features) {
+-            baseline | timing_features
+-        } else {
+-            baseline
+-        };
++        // OPT-1452 diagnostic-only control: keep the normal adapter/device
++        // path but decline advertised timestamp features. This is deliberately
++        // unshipped and isolates timestamp feature/query pressure.
++        let initial_request = baseline;
+         Self {
+             baseline,
+             initial_request,

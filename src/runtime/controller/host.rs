@@ -8,11 +8,11 @@ use crate::{
     },
     runtime::{
         AuxiliaryWindow, Command, FrameGpuTimingSample, FrameProfile, NativeFileDrop,
-        NativeFileOpen, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformEffect,
-        PlatformFailure, PlatformRequest, PlatformResultDelivery, PlatformServiceFallback,
-        RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics, RuntimeHostCapabilities,
-        RuntimePlatformResultSink, RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority,
-        TransientOverlayContext,
+        NativeFileOpen, NativeFrameDiagnostics, NativeImeAdapterObservation, PaintPrimitive,
+        PlatformCompletion, PlatformEffect, PlatformFailure, PlatformRequest,
+        PlatformResultDelivery, PlatformServiceFallback, RuntimeAnimationActivity, RuntimeBridge,
+        RuntimeDiagnostics, RuntimeHostCapabilities, RuntimePlatformResultSink,
+        RuntimeRetainedSurfaceCapability, ScrollUpdate, TaskPriority, TransientOverlayContext,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -347,6 +347,19 @@ where
     pub(crate) fn host_observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
         if let Some(capability) = self.host_capabilities.frame_diagnostics.as_ref() {
             (capability.observe_frame_diagnostics)(&mut self.bridge, diagnostics);
+        }
+    }
+
+    pub(crate) fn has_native_ime_adapter_observer(&self) -> bool {
+        self.host_capabilities.has_native_ime_adapter_observer()
+    }
+
+    pub(crate) fn host_observe_native_ime_adapter(
+        &mut self,
+        observation: NativeImeAdapterObservation,
+    ) {
+        if let Some(capability) = self.host_capabilities.native_ime_adapter.as_ref() {
+            (capability.observe_native_ime_adapter)(&mut self.bridge, observation);
         }
     }
 

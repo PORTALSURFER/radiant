@@ -1,0 +1,8 @@
+{
+  "variant": "observer-off",
+  "head": "6ebd1c37be6b0bef24682733c836b4bd2884137a",
+  "sha256": "6a585e63a1e7a5b1ff38cc737f22ccc3410879c0ecd787f0683637a0f2bb5a78",
+  "command": "cargo build --release --locked --example rendering_baseline",
+  "cargo_target_dir": "/Users/portalsurfer/.codex/radiant-validation/target",
+  "cargo_incremental": 0
+}

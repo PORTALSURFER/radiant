@@ -3,8 +3,15 @@
 use super::{GenericNativeVelloRunner, GenericRouteOutcome};
 use crate::gui::input::InputTimestamp;
 use crate::runtime::RuntimeBridge;
+use crate::runtime::{
+    NativeImeAdapterObservation, NativeImeAdapterUnavailableReason, NativeImeBackend,
+    NativeImeCandidateCapability, NativeImeCompositionCapability, NativeImeMatchingKeySuppression,
+    NativeImeMatchingKeySuppressionUnavailableReason, NativeWindowDiagnosticIdentity,
+};
 use crate::widgets::{CompositionRange, CompositionSample};
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::event::Ime;
+use winit::window::Window;
 
 #[cfg(test)]
 #[path = "ime/metadata_tests.rs"]
@@ -20,6 +27,114 @@ pub(super) struct NativeImeSession {
 
 // Reject oversized native strings before scanning UTF-8 or entering widgets.
 const MAX_NATIVE_IME_BYTES: usize = 1 << 20;
+
+pub(super) fn native_ime_adapter_observation(
+    window: &Window,
+    window_identity: Option<NativeWindowDiagnosticIdentity>,
+) -> NativeImeAdapterObservation {
+    let (backend, composition, candidate, matching_key_suppression) =
+        native_ime_adapter_observation_for_handle_result(
+            window
+                .window_handle()
+                .map(|handle| handle.as_raw())
+                .map_err(|_| ()),
+        );
+    NativeImeAdapterObservation {
+        window_identity,
+        backend,
+        composition,
+        candidate,
+        matching_key_suppression,
+    }
+}
+
+fn native_ime_adapter_observation_for_raw_handle(
+    handle: RawWindowHandle,
+) -> (
+    NativeImeBackend,
+    NativeImeCompositionCapability,
+    NativeImeCandidateCapability,
+    NativeImeMatchingKeySuppression,
+) {
+    ime_capabilities_for_backend(match handle {
+        RawWindowHandle::AppKit(_) => NativeImeBackend::AppKit,
+        RawWindowHandle::Win32(_) => NativeImeBackend::Win32,
+        RawWindowHandle::Wayland(_) => NativeImeBackend::Wayland,
+        RawWindowHandle::Xlib(_) | RawWindowHandle::Xcb(_) => NativeImeBackend::X11,
+        _ => NativeImeBackend::Unknown,
+    })
+}
+
+fn native_ime_adapter_observation_for_handle_result(
+    handle: Result<RawWindowHandle, ()>,
+) -> (
+    NativeImeBackend,
+    NativeImeCompositionCapability,
+    NativeImeCandidateCapability,
+    NativeImeMatchingKeySuppression,
+) {
+    handle.map_or_else(
+        |_| {
+            (
+                NativeImeBackend::Unknown,
+                NativeImeCompositionCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::WindowHandleUnavailable,
+                ),
+                NativeImeCandidateCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::WindowHandleUnavailable,
+                ),
+                NativeImeMatchingKeySuppression::Unavailable(
+                    NativeImeMatchingKeySuppressionUnavailableReason::WindowHandleUnavailable,
+                ),
+            )
+        },
+        native_ime_adapter_observation_for_raw_handle,
+    )
+}
+
+const fn ime_capabilities_for_backend(
+    backend: NativeImeBackend,
+) -> (
+    NativeImeBackend,
+    NativeImeCompositionCapability,
+    NativeImeCandidateCapability,
+    NativeImeMatchingKeySuppression,
+) {
+    let composition = match backend {
+        NativeImeBackend::AppKit
+        | NativeImeBackend::Win32
+        | NativeImeBackend::Wayland
+        | NativeImeBackend::X11 => NativeImeCompositionCapability::SupportedByWinit,
+        NativeImeBackend::Unknown => NativeImeCompositionCapability::Unavailable(
+            NativeImeAdapterUnavailableReason::UnknownBackend,
+        ),
+    };
+    let candidate = match backend {
+        NativeImeBackend::AppKit | NativeImeBackend::Win32 | NativeImeBackend::Wayland => {
+            NativeImeCandidateCapability::FullCursorAreaByWinit
+        }
+        NativeImeBackend::X11 => NativeImeCandidateCapability::PositionOnlyByWinit,
+        NativeImeBackend::Unknown => NativeImeCandidateCapability::Unavailable(
+            NativeImeAdapterUnavailableReason::UnknownBackend,
+        ),
+    };
+    let suppression = match backend {
+        NativeImeBackend::AppKit => NativeImeMatchingKeySuppression::VerifiedWinitAppKit,
+        NativeImeBackend::Win32 => NativeImeMatchingKeySuppression::Unavailable(
+            NativeImeMatchingKeySuppressionUnavailableReason::Win32,
+        ),
+        NativeImeBackend::Wayland => NativeImeMatchingKeySuppression::Unavailable(
+            NativeImeMatchingKeySuppressionUnavailableReason::Wayland,
+        ),
+        NativeImeBackend::X11 => NativeImeMatchingKeySuppression::Unavailable(
+            NativeImeMatchingKeySuppressionUnavailableReason::X11,
+        ),
+        NativeImeBackend::Unknown => NativeImeMatchingKeySuppression::Unavailable(
+            NativeImeMatchingKeySuppressionUnavailableReason::UnknownBackend,
+        ),
+    };
+    (backend, composition, candidate, suppression)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum NormalizedImeEvent {
@@ -234,6 +349,100 @@ mod tests {
     };
     use std::{cell::RefCell, rc::Rc, sync::Arc};
     use winit::event::Ime;
+
+    #[test]
+    fn ime_adapter_capabilities_are_classified_per_known_backend() {
+        use crate::runtime::{
+            NativeImeAdapterUnavailableReason, NativeImeBackend, NativeImeCandidateCapability,
+            NativeImeCompositionCapability, NativeImeMatchingKeySuppression,
+            NativeImeMatchingKeySuppressionUnavailableReason,
+        };
+        use raw_window_handle::{RawWindowHandle, WebWindowHandle};
+
+        assert_eq!(
+            super::ime_capabilities_for_backend(NativeImeBackend::AppKit),
+            (
+                NativeImeBackend::AppKit,
+                NativeImeCompositionCapability::SupportedByWinit,
+                NativeImeCandidateCapability::FullCursorAreaByWinit,
+                NativeImeMatchingKeySuppression::VerifiedWinitAppKit,
+            )
+        );
+        for (backend, candidate, reason) in [
+            (
+                NativeImeBackend::Win32,
+                NativeImeCandidateCapability::FullCursorAreaByWinit,
+                NativeImeMatchingKeySuppressionUnavailableReason::Win32,
+            ),
+            (
+                NativeImeBackend::Wayland,
+                NativeImeCandidateCapability::FullCursorAreaByWinit,
+                NativeImeMatchingKeySuppressionUnavailableReason::Wayland,
+            ),
+            (
+                NativeImeBackend::X11,
+                NativeImeCandidateCapability::PositionOnlyByWinit,
+                NativeImeMatchingKeySuppressionUnavailableReason::X11,
+            ),
+        ] {
+            assert_eq!(
+                super::ime_capabilities_for_backend(backend),
+                (
+                    backend,
+                    NativeImeCompositionCapability::SupportedByWinit,
+                    candidate,
+                    NativeImeMatchingKeySuppression::Unavailable(reason)
+                )
+            );
+        }
+        assert_eq!(
+            super::ime_capabilities_for_backend(NativeImeBackend::Unknown),
+            (
+                NativeImeBackend::Unknown,
+                NativeImeCompositionCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::UnknownBackend,
+                ),
+                NativeImeCandidateCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::UnknownBackend,
+                ),
+                NativeImeMatchingKeySuppression::Unavailable(
+                    NativeImeMatchingKeySuppressionUnavailableReason::UnknownBackend,
+                ),
+            )
+        );
+        assert_eq!(
+            super::native_ime_adapter_observation_for_raw_handle(RawWindowHandle::Web(
+                WebWindowHandle::new(1),
+            )),
+            (
+                NativeImeBackend::Unknown,
+                NativeImeCompositionCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::UnknownBackend,
+                ),
+                NativeImeCandidateCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::UnknownBackend,
+                ),
+                NativeImeMatchingKeySuppression::Unavailable(
+                    NativeImeMatchingKeySuppressionUnavailableReason::UnknownBackend,
+                ),
+            )
+        );
+        assert_eq!(
+            super::native_ime_adapter_observation_for_handle_result(Err(())),
+            (
+                NativeImeBackend::Unknown,
+                NativeImeCompositionCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::WindowHandleUnavailable,
+                ),
+                NativeImeCandidateCapability::Unavailable(
+                    NativeImeAdapterUnavailableReason::WindowHandleUnavailable,
+                ),
+                NativeImeMatchingKeySuppression::Unavailable(
+                    NativeImeMatchingKeySuppressionUnavailableReason::WindowHandleUnavailable,
+                ),
+            )
+        );
+    }
 
     #[derive(Clone)]
     struct ImeBridge {

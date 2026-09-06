@@ -1,0 +1,42 @@
+{
+  "purpose": "OPT-1452 diagnostic timestamp isolation; unshipped",
+  "base_revision": "905ec9134c1c5bfc930e6bdebc02880b59a6908e",
+  "variants": [
+    {
+      "variant": "normal-control",
+      "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1452-native-timestamp-control-radiant",
+      "head": "905ec9134c1c5bfc930e6bdebc02880b59a6908e",
+      "expected_revision": "905ec9134c1c5bfc930e6bdebc02880b59a6908e",
+      "build_command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--example",
+        "rendering_baseline"
+      ],
+      "cargo_target_dir": "/Users/portalsurfer/.codex/radiant-validation/target",
+      "cargo_incremental": "0",
+      "binary": "/Users/portalsurfer/.codex/radiant-validation/opt-1452-timestamp-isolation/binaries/rendering_baseline-normal-control",
+      "binary_sha256": "ac8e8635eea417d218f084e89d9b6c8714893031599d73365722cba32cafc464"
+    },
+    {
+      "variant": "timestamp-disabled",
+      "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1452-native-timestamp-disabled-radiant",
+      "head": "73c2d8fc2852c3b5ceedf5bded52680813baf047",
+      "expected_revision": "73c2d8fc2852c3b5ceedf5bded52680813baf047",
+      "build_command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--example",
+        "rendering_baseline"
+      ],
+      "cargo_target_dir": "/Users/portalsurfer/.codex/radiant-validation/target",
+      "cargo_incremental": "0",
+      "binary": "/Users/portalsurfer/.codex/radiant-validation/opt-1452-timestamp-isolation/binaries/rendering_baseline-timestamp-disabled",
+      "binary_sha256": "7681307d0017cc1dfde07cdf908d0c0b42dae77ff1578b65e11c753539ab8318"
+    }
+  ]
+}

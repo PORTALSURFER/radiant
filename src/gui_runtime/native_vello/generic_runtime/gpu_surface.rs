@@ -159,7 +159,24 @@ impl GpuSurfaceRenderer {
         signal_preflight_state.reset(signal_pipeline);
         let mut custom_shader_preflight_state =
             std::mem::take(&mut self.upload_scratch.custom_shader);
-        custom_shader_preflight_state.reset();
+        let custom_requests = custom_shader::custom_shader_frame_requests(
+            primitives,
+            context.target.device,
+            context.target.format,
+        );
+        let custom_transition = custom_requests.as_ref().is_some_and(|requests| {
+            self.resources
+                .custom_shader_frame_requires_transition(requests)
+        });
+        custom_shader_preflight_state.reset(custom_requests.as_ref().map(|requests| {
+            self.resources
+                .custom_shader_frame_preflight(requests, custom_transition)
+        }));
+        if custom_transition && let Some(requests) = custom_requests.as_ref() {
+            plan.push_action(GpuSurfaceRenderCanvasUploadAction::CustomShaderTransition {
+                requests: requests.clone(),
+            });
+        }
         let mut has_active_keys = false;
 
         for (surface_index, primitive) in primitives.iter().enumerate() {
@@ -286,12 +303,10 @@ impl GpuSurfaceRenderer {
         self.resources.textures.len().hash(&mut hasher);
         self.resources.composite_bindings.len().hash(&mut hasher);
         self.resources
-            .custom_shader_pipelines
-            .len()
+            .custom_shader_pipeline_count()
             .hash(&mut hasher);
         self.resources
-            .custom_shader_bindings
-            .len()
+            .custom_shader_binding_count()
             .hash(&mut hasher);
         self.resources.signal_bodies.len().hash(&mut hasher);
         self.resources.signals.len().hash(&mut hasher);
@@ -434,9 +449,48 @@ impl GpuSurfaceRenderer {
         {
             stats.mark_candidate_unavailable(reason);
         }
+        let custom_requests = custom_shader::custom_shader_frame_requests(
+            primitives,
+            wgpu_device_id(target.device),
+            target.format,
+        );
+        let custom_transition = custom_requests.as_ref().is_some_and(|requests| {
+            self.resources
+                .custom_shader_frame_requires_transition(requests)
+        });
+        let mut transition_authorized = true;
+        if custom_transition && let Some(requests) = custom_requests.as_ref() {
+            if let Some(plan) = upload_plan.as_mut() {
+                transition_authorized = plan_in_flight
+                    && plan.consume_action(
+                        GpuSurfaceRenderCanvasUploadAction::CustomShaderTransition {
+                            requests: requests.clone(),
+                        },
+                    );
+            }
+            if transition_authorized {
+                transition_authorized = self.resources.begin_custom_shader_transition(requests);
+                if transition_authorized && let Some(plan) = upload_plan.as_mut() {
+                    plan.mark_execution_mutated();
+                }
+            }
+            if !transition_authorized {
+                if let Some(plan) = upload_plan.as_mut() {
+                    plan.veto_execution(
+                        GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    );
+                }
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+            }
+        }
         let mut occlusion_regions = std::mem::take(&mut self.occlusion_regions);
         self.active_keys.begin_frame();
         for (index, primitive) in primitives.iter().enumerate() {
+            if !transition_authorized {
+                break;
+            }
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
             };
@@ -457,6 +511,21 @@ impl GpuSurfaceRenderer {
                     GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid,
                     &mut stats,
                 );
+                continue;
+            }
+            if custom_requests.is_none()
+                && let GpuSurfaceContent::CustomShader { descriptor } = &surface.content
+                && surface.content.is_renderable()
+                && custom_shader::custom_shader_descriptor_is_supported(descriptor)
+            {
+                Self::consume_terminal_surface_decision(
+                    surface_upload_plan,
+                    index,
+                    surface.key,
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    &mut stats,
+                );
+                stats.custom_shader.failures.surfaces_failed += 1;
                 continue;
             }
             let is_renderable = match &surface.content {
@@ -575,22 +644,31 @@ impl GpuSurfaceRenderer {
                 continue;
             }
         }
-        let cleanup_finished = self.finish_resource_cleanup(plan_in_flight, upload_plan.as_mut());
+        let cleanup_succeeded = transition_authorized
+            && self.finish_resource_cleanup(plan_in_flight, upload_plan.as_mut());
         self.occlusion_regions = occlusion_regions;
-        let committed = if let Some(mut plan) = upload_plan.take() {
+        // Shader rollback remains scoped to the speculative shader cache.
+        let mut transaction_complete =
+            cleanup_succeeded && stats.custom_shader.failures.surfaces_failed == 0;
+        let signal_cleanup_committed = if let Some(mut plan) = upload_plan.take() {
             let legacy_unmutated_fallback = !plan_in_flight && !plan.execution_mutated();
             let finished = plan.finish_execution();
+            transaction_complete &= finished;
             self.upload_scratch.recycle_plan(plan);
+            // An unmutated veto may have executed the ordinary legacy path;
+            // its completed cleanup can release stale signal reservations.
             finished || legacy_unmutated_fallback
         } else {
             true
         };
-        if cleanup_finished && committed {
+        if cleanup_succeeded && signal_cleanup_committed {
             self.retire_stale_prepared_signals(primitives);
         }
         // Preflight is consumed for this frame; its leases must not keep a
         // cancelled source reserved until an unrelated future redraw.
         self.upload_scratch.signal.release_prepared_summaries();
+        self.resources
+            .finish_custom_shader_transition(transaction_complete);
         stats
     }
 
@@ -667,6 +745,10 @@ impl GpuSurfaceRenderer {
         &self.occlusion_regions
     }
 }
+
+#[cfg(test)]
+#[path = "gpu_surface/custom_shader/native_tests.rs"]
+mod native_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1345,8 +1427,8 @@ mod tests {
             GpuSurfaceRenderCanvasUploadAction::Prune { clear: false }
         ));
         assert_eq!(renderer.upload_plan_state_fingerprint(), before_fingerprint);
-        assert!(renderer.resources.custom_shader_pipelines.is_empty());
-        assert!(renderer.resources.custom_shader_bindings.is_empty());
+        assert!(renderer.resources.custom_shader_pipelines_are_empty());
+        assert!(renderer.resources.custom_shader_bindings_are_empty());
         assert!(renderer.active_keys.is_empty());
     }
 

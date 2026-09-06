@@ -7,8 +7,8 @@ use radiant::{
     },
     gui::types::Vector2,
     runtime::{
-        testing::{DeterministicHost, DeterministicHostConfig},
         Command, Effect, EffectOwner, RuntimeBridge, SurfaceNode, TaskPriority, UiSurface,
+        testing::{DeterministicHost, DeterministicHostConfig},
     },
 };
 use std::{cell::Cell, rc::Rc, sync::Arc};
@@ -285,16 +285,18 @@ fn scheduled_retry_respects_deadline_and_is_taken_once_without_join_bypass() {
     assert_eq!(host.bridge().retries, 1);
 
     let key = "retry".into();
-    assert!(Effect::resource_retry(
-        &tasks,
-        &key,
-        9,
-        "retry",
-        TaskPriority::Background,
-        || 2_u8,
-        Message::Ready,
-    )
-    .is_none());
+    assert!(
+        Effect::resource_retry(
+            &tasks,
+            &key,
+            9,
+            "retry",
+            TaskPriority::Background,
+            || 2_u8,
+            Message::Ready,
+        )
+        .is_none()
+    );
     assert!(worker(&tasks, "retry", SharedResourceTaskMode::Join, 3).is_none());
     let retry = Effect::resource_retry(
         &tasks,
@@ -306,16 +308,18 @@ fn scheduled_retry_respects_deadline_and_is_taken_once_without_join_bypass() {
         Message::Ready,
     )
     .expect("due retry starts once");
-    assert!(Effect::resource_retry(
-        &tasks,
-        &key,
-        10,
-        "retry",
-        TaskPriority::Background,
-        || 5_u8,
-        Message::Ready,
-    )
-    .is_none());
+    assert!(
+        Effect::resource_retry(
+            &tasks,
+            &key,
+            10,
+            "retry",
+            TaskPriority::Background,
+            || 5_u8,
+            Message::Ready,
+        )
+        .is_none()
+    );
     host.execute_command(Command::effect(retry))
         .expect("retry admission");
     assert_eq!(host.pending_worker_tasks().len(), 1);

@@ -1,8 +1,8 @@
 use super::*;
 use crate::{
     application::{
-        column, text, DeclarativeEffectOwner, IntoView, ResourceInterest, ResourceInterestError,
-        ResourceInterestKind, SharedResourceTasks,
+        DeclarativeEffectOwner, IntoView, ResourceInterest, ResourceInterestError,
+        ResourceInterestKind, SharedResourceTasks, column, text,
     },
     gui::types::Vector2,
     runtime::{
@@ -178,15 +178,17 @@ fn unavailable_owner_does_not_bind_or_leak_the_broker() {
     assert_eq!(tasks.interest_count(), 0);
 
     let (mut accepted_runtime, _) = runtime_with_owners(present, other);
-    assert!(admit(
-        &mut accepted_runtime,
-        &tasks,
-        "unavailable",
-        EffectOwner::Application,
-        1,
-        ResourceInterestKind::Visible,
-    )
-    .is_ok());
+    assert!(
+        admit(
+            &mut accepted_runtime,
+            &tasks,
+            "unavailable",
+            EffectOwner::Application,
+            1,
+            ResourceInterestKind::Visible,
+        )
+        .is_ok()
+    );
 }
 
 #[test]
@@ -339,15 +341,17 @@ fn aggregate_runtime_capacity_deduplicates_without_binding_or_leaking_rejected_b
     // A capacity-rejected broker has no accepted runtime attachment and can
     // therefore be admitted by a different runtime.
     let (mut other_runtime, _) = runtime_with_owners(first, second);
-    assert!(admit(
-        &mut other_runtime,
-        &rejected,
-        "rejected-fresh-broker",
-        EffectOwner::Application,
-        1,
-        ResourceInterestKind::Visible,
-    )
-    .is_ok());
+    assert!(
+        admit(
+            &mut other_runtime,
+            &rejected,
+            "rejected-fresh-broker",
+            EffectOwner::Application,
+            1,
+            ResourceInterestKind::Visible,
+        )
+        .is_ok()
+    );
 
     drop(retained);
 }

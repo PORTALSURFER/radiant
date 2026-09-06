@@ -3,7 +3,7 @@ use super::super::resource_interests::{
     ResourceInterestRuntimeId,
 };
 use super::*;
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::{Arc, atomic::AtomicBool};
 
 fn key(name: &str) -> ResourceKey {
     ResourceKey::scoped("operation-test", name)

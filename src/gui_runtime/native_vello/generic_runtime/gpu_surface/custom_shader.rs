@@ -166,7 +166,7 @@ pub(super) fn custom_shader_frame_requests(
 ) -> Option<Vec<CustomShaderFrameRequest>> {
     let mut requests = Vec::new();
     let mut request_key_bytes = 0usize;
-    let mut canonical_identities = HashSet::new();
+    let mut canonical_identities: HashSet<CustomShaderPipelineIdentity> = HashSet::new();
     for primitive in primitives {
         let crate::runtime::PaintPrimitive::GpuSurface(surface) = primitive else {
             continue;

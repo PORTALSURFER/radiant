@@ -9,6 +9,8 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[path = "rendering_baseline/artifacts.rs"]
 mod artifacts;
+#[path = "rendering_baseline/upload_trace.rs"]
+mod upload_trace;
 
 struct State {
     mode: String,
@@ -162,6 +164,7 @@ fn main() -> radiant::Result {
     {
         return Err("usage: rendering_baseline cold|pan|crossing|gain|shaders|local|two_windows|idle output.jsonl".into());
     }
+    let upload_trace = upload_trace::UploadTrace::from_environment()?;
     let output = artifacts::ArtifactOutput::create(&args[2])?;
     let mode = args[1].clone();
     let preparation_started = std::time::Instant::now();
@@ -196,6 +199,7 @@ fn main() -> radiant::Result {
         observations: Rc::clone(&observations),
     };
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        upload_trace.run(|| {
         radiant::app(state)
         .title("Radiant rendering baseline")
         .size(760, 520)
@@ -253,6 +257,7 @@ fn main() -> radiant::Result {
             }
         })
         .run_with_artifacts()
+    })
     }));
     // This executable never reuses the native runtime after an unwind. Preserve
     // already observed rows for diagnosis, but mark the entire run as failed.
@@ -274,6 +279,7 @@ fn main() -> radiant::Result {
         "startup_timing": startup,
         "run_error": result.as_ref().err(),
     }));
+    upload_trace.append_artifacts(&mut observations.borrow_mut());
     output.finish(&observations.borrow())?;
     result?;
     if !observations

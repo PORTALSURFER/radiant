@@ -5,9 +5,16 @@
 //! native adapter is unavailable.
 
 use super::*;
+use crate::gui::repaint::RepaintSignal;
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::gui_runtime::native_vello::generic_runtime::adapter::NativeAdapterGeneration;
 use crate::gui_runtime::native_vello::generic_runtime::closing::NativeLifecycle;
+use crate::gui_runtime::native_vello::generic_runtime::custom_shader_prepare::{
+    CustomShaderPreparationBroker, CustomShaderPreparationDispatch, CustomShaderPreparationRequest,
+    CustomShaderPreparationState, CustomShaderTargetId,
+};
+use crate::gui_runtime::native_vello::generic_runtime::device::wgpu_device_id;
+use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::custom_shader_pipeline_key;
 use crate::gui_runtime::native_vello::generic_runtime::native_encode_present::{
     NativeEncodePresentPath, NativeEncodePresentPlanContext,
 };
@@ -35,6 +42,12 @@ const TILE_SIZE: u32 = TARGET_SIZE / TILE_GRID_WIDTH as u32;
 const TILE_KEY_BASE: u64 = 200_000;
 const TILE_WIDGET_ID: u64 = 33;
 const UPDATED_TILE_INDEX: usize = 6;
+
+struct NativePreparationWake;
+
+impl RepaintSignal for NativePreparationWake {
+    fn request_repaint(&self) {}
+}
 
 const RED_SHADER: &str = r#"
 @vertex fn vertex_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
@@ -80,6 +93,10 @@ fn shared_pipeline_transition_renders_one_fresh_surface_and_retires_1024_old_ass
     assert_eq!(renderer.resources.custom_shader_pipeline_count(), 1);
 
     let primitives = vec![PaintPrimitive::GpuSurface(surface(FRESH_KEY, descriptor))];
+    assert_eq!(
+        stage_custom_shader_preparations(&mut renderer, &device, &primitives),
+        1
+    );
     let context = upload_plan_context(&device);
     let plan = renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
         context,
@@ -157,6 +174,10 @@ fn vetoed_transition_restores_predecessor_resources_without_accumulation() {
     let primitives = vec![PaintPrimitive::GpuSurface(surface(FRESH_KEY, descriptor))];
 
     for _ in 0..2 {
+        assert_eq!(
+            stage_custom_shader_preparations(&mut renderer, &device, &primitives),
+            1
+        );
         let context = upload_plan_context(&device);
         let mut plan = renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
             context,
@@ -255,6 +276,10 @@ fn assert_invalid_shader_preserves_resources(legacy_transition: bool) {
         OLD_KEY_BASE
     };
     let invalid_primitives = vec![PaintPrimitive::GpuSurface(surface(invalid_key, invalid))];
+    assert_eq!(
+        stage_custom_shader_preparations(&mut renderer, &device, &invalid_primitives),
+        1
+    );
     let context = (!legacy_transition).then(|| upload_plan_context(&device));
     let plan = context.map(|context| {
         renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
@@ -300,10 +325,14 @@ fn equivalent_custom_shader_tiles_share_one_pipeline_and_isolate_binding_updates
     let mut renderer = GpuSurfaceRenderer::default();
 
     let first_primitives = tile_primitives(None);
+    assert_eq!(
+        stage_custom_shader_preparations(&mut renderer, &device, &first_primitives),
+        1
+    );
     let (first_stats, first_texture) =
         render_tile_frame(&mut renderer, &device, &queue, &first_primitives, &[]);
     assert_eq!(first_stats.custom_shader.surfaces_rendered, TILE_COUNT);
-    assert_eq!(first_stats.custom_shader.pipeline_rebuilds, 1);
+    assert_eq!(first_stats.custom_shader.pipeline_rebuilds, 0);
     assert_eq!(first_stats.custom_shader.binding_rebuilds, TILE_COUNT);
     assert_tile_cache_residency(&renderer);
     let first_pixels = readback_rgba(&device, &queue, &first_texture);
@@ -369,6 +398,141 @@ fn equivalent_custom_shader_tiles_share_one_pipeline_and_isolate_binding_updates
             assert_eq!(second_write_states[index], first_write_states[index]);
         }
     }
+    renderer.recall_presentation_staging_belt();
+}
+
+#[test]
+#[ignore = "requires native GPU adapter and worker-prepared WGPU pipeline"]
+fn prepared_custom_shader_preflight_preserves_ordered_payload_and_presentation_actions() {
+    let (device, _queue) = native_device();
+    let mut renderer = GpuSurfaceRenderer::default();
+    let primitives = vec![PaintPrimitive::GpuSurface(tile_surface(
+        0,
+        tile_descriptor([0.2, 0.3, 0.4, 1.0], 1),
+    ))];
+    assert_eq!(
+        stage_custom_shader_preparations(&mut renderer, &device, &primitives),
+        1
+    );
+    let update = GpuShaderPresentationUniformUpdate::try_new(
+        TILE_WIDGET_ID,
+        tile_key(0),
+        91,
+        1,
+        2,
+        rgba_uniform_bytes([0.0, 1.0, 0.0, 0.0]),
+    )
+    .expect("aligned presentation update");
+
+    let plan = renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
+        upload_plan_context(&device),
+        &primitives,
+        crate::theme::DpiScale::ONE,
+        &[update],
+    );
+    let actions = &plan.actions;
+    assert!(matches!(
+        actions.first(),
+        Some(GpuSurfaceRenderCanvasUploadAction::BeginFrame)
+    ));
+    let position = |predicate: fn(&GpuSurfaceRenderCanvasUploadAction) -> bool| {
+        actions
+            .iter()
+            .position(predicate)
+            .expect("prepared custom shader action")
+    };
+    let pipeline = position(
+        |action| matches!(action, GpuSurfaceRenderCanvasUploadAction::CustomPipeline { key, rebuild: true, .. } if *key == tile_key(0)),
+    );
+    let binding = position(
+        |action| matches!(action, GpuSurfaceRenderCanvasUploadAction::CustomBinding { key, rebuild: true, .. } if *key == tile_key(0)),
+    );
+    let static_state = position(
+        |action| matches!(action, GpuSurfaceRenderCanvasUploadAction::CustomStaticState { key, write: true, .. } if *key == tile_key(0)),
+    );
+    let initial_presentation = position(
+        |action| matches!(action, GpuSurfaceRenderCanvasUploadAction::CustomPresentationState { key, source: GpuSurfaceRenderCanvasUploadCustomPresentationSource::Initial, write: true, .. } if *key == tile_key(0)),
+    );
+    let update_presentation = position(
+        |action| matches!(action, GpuSurfaceRenderCanvasUploadAction::CustomPresentationState { key, source: GpuSurfaceRenderCanvasUploadCustomPresentationSource::Update, revision: 2, write: true, .. } if *key == tile_key(0)),
+    );
+    let activate = position(
+        |action| matches!(action, GpuSurfaceRenderCanvasUploadAction::Activate { key, .. } if *key == tile_key(0)),
+    );
+    let prune = position(|action| {
+        matches!(
+            action,
+            GpuSurfaceRenderCanvasUploadAction::Prune { clear: false }
+        )
+    });
+    assert!(pipeline < binding);
+    assert!(binding < static_state);
+    assert!(static_state < initial_presentation);
+    assert!(initial_presentation < update_presentation);
+    assert!(update_presentation < activate);
+    assert!(activate < prune);
+    assert!(actions.iter().any(|action| matches!(
+        action,
+        GpuSurfaceRenderCanvasUploadAction::Upload {
+            class: GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
+            byte_len: 16,
+            ..
+        }
+    )));
+    assert!(actions.iter().any(|action| matches!(
+        action,
+        GpuSurfaceRenderCanvasUploadAction::Upload {
+            class: GpuSurfaceRenderCanvasUploadClass::VolatilePayload,
+            byte_len: 16,
+            ..
+        }
+    )));
+    assert!(renderer.resources.custom_shader_pipelines_are_empty());
+    assert!(renderer.resources.custom_shader_bindings_are_empty());
+}
+
+#[test]
+#[ignore = "requires native GPU adapter and a pending worker-prepared WGPU pipeline"]
+fn pending_replacement_preserves_cached_pipeline_while_cached_surface_renders() {
+    let (device, queue) = native_device();
+    let descriptor = valid_descriptor();
+    let mut renderer = seeded_renderer(&device, &queue, &descriptor);
+    let replacement = vec![PaintPrimitive::GpuSurface(surface(FRESH_KEY, descriptor))];
+    let (_broker, _dispatch) = begin_pending_custom_shader_preparation(&device, &replacement);
+
+    let cached = vec![PaintPrimitive::GpuSurface(surface(
+        OLD_KEY_BASE,
+        valid_descriptor(),
+    ))];
+    let (texture, view) = render_target(&device);
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("radiant_native_pending_custom_shader_replacement"),
+    });
+    let stats = {
+        let mut target = render_target_for_test(&device, &queue, &mut encoder, &view, None, None);
+        let mut occlusion = SurfaceOcclusionPlan::default();
+        occlusion.preprocess(&cached);
+        renderer.render(&mut target, &cached, &occlusion, &[])
+    };
+    renderer.finish_presentation_staging_belt();
+    queue.submit(std::iter::once(encoder.finish()));
+
+    assert_eq!(stats.custom_shader.surfaces_rendered, 1);
+    assert_eq!(stats.custom_shader.pipeline_rebuilds, 0);
+    assert!(
+        renderer
+            .resources
+            .custom_shader_pipeline_identity(OLD_KEY_BASE)
+            .is_some()
+    );
+    assert!(renderer.resources.has_custom_shader_binding(OLD_KEY_BASE));
+    assert!(
+        renderer
+            .resources
+            .custom_shader_pipeline_identity(FRESH_KEY)
+            .is_none()
+    );
+    assert_red_pixel(&device, &queue, &texture);
     renderer.recall_presentation_staging_belt();
 }
 
@@ -509,6 +673,10 @@ fn seeded_renderer(
         OLD_KEY_BASE,
         descriptor.clone(),
     ))];
+    assert_eq!(
+        stage_custom_shader_preparations(&mut renderer, device, &primitives),
+        1
+    );
     let (_texture, view) = render_target(device);
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("radiant_native_custom_shader_seed"),
@@ -525,6 +693,119 @@ fn seeded_renderer(
     );
     assert!(renderer.resources.has_custom_shader_binding(OLD_KEY_BASE));
     renderer
+}
+
+/// Exercises the same broker handoff as the native runner: request every
+/// surface's immutable pipeline, execute its worker preparation, drain the
+/// terminal receipt, and stage the resulting candidate before preflight.
+/// The broker coalesces equivalent tile requests, so the returned count is
+/// the number of actual pipeline preparations rather than surface interests.
+fn stage_custom_shader_preparations(
+    renderer: &mut GpuSurfaceRenderer,
+    device: &wgpu::Device,
+    primitives: &[PaintPrimitive],
+) -> usize {
+    let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+    let target_generation = NativeTargetGeneration::from_test_serial(1);
+    let mut broker = CustomShaderPreparationBroker::new(Arc::new(NativePreparationWake));
+    let mut requests = Vec::new();
+
+    for primitive in primitives {
+        let PaintPrimitive::GpuSurface(surface) = primitive else {
+            continue;
+        };
+        let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
+            continue;
+        };
+        let key =
+            custom_shader_pipeline_key(descriptor).expect("native descriptor has a pipeline key");
+        let target = CustomShaderTargetId::new(
+            WindowId::dummy(),
+            adapter_generation,
+            target_generation,
+            surface.key,
+        )
+        .expect("test target serial");
+        let request = CustomShaderPreparationRequest::new(
+            device.clone(),
+            wgpu_device_id(device),
+            adapter_generation,
+            wgpu::TextureFormat::Rgba8Unorm,
+            key,
+        );
+        assert!(matches!(
+            broker.request(target, request.clone()),
+            CustomShaderPreparationState::Pending | CustomShaderPreparationState::Ready
+        ));
+        requests.push((target, request));
+    }
+
+    let mut preparations = 0;
+    while let Some(dispatch) = broker.take_dispatch() {
+        preparations += 1;
+        dispatch.run();
+        broker.drain_completions();
+    }
+    let installs = requests
+        .into_iter()
+        .map(|(target, request)| {
+            let prepared = broker.prepared(target);
+            let failure = broker.failure(target);
+            assert!(
+                prepared.is_some() || failure.is_some(),
+                "native preparation reached a terminal state"
+            );
+            (target, request, prepared, failure)
+        })
+        .collect();
+    renderer.replace_custom_shader_preparations(installs);
+    preparations
+}
+
+/// Retains a real active broker dispatch. The caller deliberately does not run
+/// it, which keeps the replacement genuinely pending without injecting a fake
+/// pipeline candidate into the renderer.
+fn begin_pending_custom_shader_preparation(
+    device: &wgpu::Device,
+    primitives: &[PaintPrimitive],
+) -> (
+    CustomShaderPreparationBroker,
+    CustomShaderPreparationDispatch,
+) {
+    let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
+    let target_generation = NativeTargetGeneration::from_test_serial(1);
+    let mut broker = CustomShaderPreparationBroker::new(Arc::new(NativePreparationWake));
+    let PaintPrimitive::GpuSurface(surface) = primitives
+        .first()
+        .expect("replacement custom shader primitive")
+    else {
+        unreachable!("replacement fixture contains a GPU surface")
+    };
+    let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
+        unreachable!("replacement fixture contains a custom shader")
+    };
+    let request = CustomShaderPreparationRequest::new(
+        device.clone(),
+        wgpu_device_id(device),
+        adapter_generation,
+        wgpu::TextureFormat::Rgba8Unorm,
+        custom_shader_pipeline_key(descriptor).expect("native descriptor has a pipeline key"),
+    );
+    let target = CustomShaderTargetId::new(
+        WindowId::dummy(),
+        adapter_generation,
+        target_generation,
+        surface.key,
+    )
+    .expect("test target serial");
+    assert_eq!(
+        broker.request(target, request),
+        CustomShaderPreparationState::Pending
+    );
+    let dispatch = broker
+        .take_dispatch()
+        .expect("pending native worker dispatch");
+    (broker, dispatch)
 }
 
 fn valid_descriptor() -> GpuShaderSurfaceDescriptor {

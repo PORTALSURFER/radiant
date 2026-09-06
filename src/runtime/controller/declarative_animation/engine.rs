@@ -73,6 +73,7 @@ struct Group {
     paused: Duration,
 }
 
+#[derive(Default)]
 pub(super) struct Engine {
     active: BTreeMap<TargetKey, Active>,
     retained: BTreeMap<TargetKey, f64>,
@@ -80,18 +81,6 @@ pub(super) struct Engine {
     instances: BTreeSet<FeedbackInstance>,
     rejected: usize,
     last_now: Option<Instant>,
-}
-impl Default for Engine {
-    fn default() -> Self {
-        Self {
-            active: BTreeMap::new(),
-            retained: BTreeMap::new(),
-            groups: BTreeMap::new(),
-            instances: BTreeSet::new(),
-            rejected: 0,
-            last_now: None,
-        }
-    }
 }
 
 impl Engine {
@@ -272,10 +261,12 @@ impl Engine {
             self.active.remove(&key);
             self.retain(key, value);
         }
-        if !reduced && !hidden && !self.groups.is_empty() {
-            if let Some(deadline) = now.checked_add(Duration::from_nanos(16_666_667)) {
-                next = Some(next.map_or(deadline, |old| old.min(deadline)));
-            }
+        if !reduced
+            && !hidden
+            && !self.groups.is_empty()
+            && let Some(deadline) = now.checked_add(Duration::from_nanos(16_666_667))
+        {
+            next = Some(next.map_or(deadline, |old| old.min(deadline)));
         }
         Frame {
             next_deadline: next,

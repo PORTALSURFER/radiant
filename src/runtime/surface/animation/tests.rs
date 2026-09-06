@@ -41,7 +41,7 @@ fn nested_scenes_and_layers_preserve_animation_identity_and_samples() {
             .apply_animation_samples(&[(2, 7, 0.25), (3, 7, 0.5)])
             .changed
     );
-    assert_eq!(surface.root.clone().has_animation(), true);
+    assert!(surface.root.clone().has_animation());
 }
 #[test]
 fn cap_scale_sample_application_reuses_container_storage() {

@@ -135,6 +135,8 @@ where
         let Some(adapter_generation) = adapter.capture_generation() else {
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
+        let pending_signal_summary_installs =
+            self.reconcile_signal_summary_interests(adapter_generation);
         let target_generation = self.window.target_generation;
         let target_fenced = self.window.native_surface_target_fenced;
         // Volatile GPU updates are staged before the final stage-owner ticket
@@ -393,6 +395,16 @@ where
             let completion_identity = resources.completion_witness.retirement_identity();
             let surface = &mut resources.render_surface;
             let gpu_resources = &mut resources.gpu_resources;
+            for pending in pending_signal_summary_installs {
+                let _ = gpu_resources
+                    .gpu_surface_renderer
+                    .install_prepared_signal_summary(
+                        pending.surface_key,
+                        pending.revision,
+                        &pending.content,
+                        pending.prepared,
+                    );
+            }
             let request = BaseFramePresentRequest {
                 paint_plan: &self.frame.last_paint_plan,
                 occlusion_plan: &self.frame.surface_occlusion_plan,

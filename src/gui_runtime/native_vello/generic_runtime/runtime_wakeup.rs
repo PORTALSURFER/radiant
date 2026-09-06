@@ -8,6 +8,7 @@ use winit::event_loop::EventLoopProxy;
 
 pub(super) struct RuntimeWakeup {
     pending: Arc<AtomicBool>,
+    summary_pending: Arc<AtomicBool>,
     proxy: Option<EventLoopProxy<RuntimeUserEvent>>,
 }
 
@@ -15,6 +16,7 @@ impl Default for RuntimeWakeup {
     fn default() -> Self {
         Self {
             pending: Arc::new(AtomicBool::new(false)),
+            summary_pending: Arc::new(AtomicBool::new(false)),
             proxy: None,
         }
     }
@@ -34,6 +36,25 @@ impl RuntimeWakeup {
 
     pub(super) fn event_loop_proxy(&self) -> Option<EventLoopProxy<RuntimeUserEvent>> {
         self.proxy.clone()
+    }
+
+    /// Install the private wake used by the shared signal-summary broker.  It
+    /// is deliberately distinct from a redraw wake: completing CPU work must
+    /// first be reconciled against the current native target and paint plan.
+    pub(super) fn install_summary_work_signal(&self) -> Arc<dyn RepaintSignal> {
+        let pending = Arc::clone(&self.summary_pending);
+        let proxy = self.proxy.clone();
+        Arc::new(CoalescingRepaintSignal::new(pending, move || {
+            proxy.as_ref().is_some_and(|proxy| {
+                proxy
+                    .send_event(RuntimeUserEvent::SignalSummaryWorkReady)
+                    .is_ok()
+            })
+        }))
+    }
+
+    pub(super) fn clear_summary_work_pending(&self) {
+        self.summary_pending.store(false, Ordering::Release);
     }
 
     pub(super) fn clear_pending(&self) {

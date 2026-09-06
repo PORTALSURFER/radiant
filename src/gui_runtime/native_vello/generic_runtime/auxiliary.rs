@@ -1315,6 +1315,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             return;
         }
         self.discard_frame_diagnostics();
+        self.runner.release_signal_summary_interests();
         self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring;
         self.recovery_rebuild_pending = false;
         self.hide();
@@ -2223,6 +2224,9 @@ where
                         self.core.has_frame_gpu_timing_observer(),
                         owner.clone(),
                     );
+                    if let Some(broker) = self.shared_signal_summary_broker() {
+                        window.runner.install_signal_summary_broker(broker);
+                    }
                     window.runner.core.runtime.bridge_mut().command_service =
                         command_service.clone();
                     window

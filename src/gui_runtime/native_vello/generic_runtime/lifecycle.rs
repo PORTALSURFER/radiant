@@ -27,7 +27,7 @@ use crate::gui::pointer_ingress::{
 };
 use crate::runtime::{
     FrameGpuTimingSample, FrameProfile, NativeCpuFrameFairnessDiagnostics,
-    NativeCpuFrameObservationDiagnostics, RuntimeAnimationActivity, RuntimeBridge,
+    NativeCpuFrameObservationDiagnostics, RuntimeAnimationActivity, RuntimeBridge, TaskPriority,
 };
 use std::time::{Duration, Instant};
 use tracing::warn;
@@ -989,6 +989,9 @@ where
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
         match event {
+            RuntimeUserEvent::SignalSummaryWorkReady => {
+                self.handle_signal_summary_work_ready();
+            }
             RuntimeUserEvent::RepaintRequested => {
                 if !self.is_running() {
                     self.runtime_wakeup.clear_pending();
@@ -1581,6 +1584,77 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Parent-only scheduling boundary for the shared CPU summary broker.
+    /// The pending flag is cleared before draining so a completion racing this
+    /// turn queues the next event rather than being lost afterwards.
+    fn handle_signal_summary_work_ready(&mut self) {
+        self.runtime_wakeup.clear_summary_work_pending();
+        if !self.is_running() {
+            if let Some(preparation) = self.signal_summary_preparation.as_ref() {
+                preparation.shared().borrow_mut().maintain_retired();
+            }
+            return;
+        }
+        let Some(preparation) = self.signal_summary_preparation.as_ref() else {
+            return;
+        };
+        let broker = preparation.shared();
+        let ready = {
+            let mut broker = broker.borrow_mut();
+            let ready = broker.drain_completions();
+            broker.maintain_retired();
+            ready
+        };
+
+        // A ready completion dirties the exact current runner only after its
+        // serial is still registered.  Old epochs remain reusable CPU data but
+        // never author a GPU install or a frame for their former target.
+        for target in ready {
+            if self.accepts_signal_summary_target(target) {
+                self.defer_scene_rebuild();
+                continue;
+            }
+            if let Some(window) = self
+                .auxiliary_windows
+                .iter_mut()
+                .find(|window| window.runner.accepts_signal_summary_target(target))
+            {
+                window.runner.defer_scene_rebuild();
+            }
+        }
+
+        // Rescan only after a capacity transition, never by scheduling a
+        // frame solely to retry WaitingAdmission interests.
+        if let Some(adapter_generation) = self
+            .adapter
+            .as_ref()
+            .and_then(GenericNativeAdapterOwner::capture_generation)
+        {
+            let _ = self.reconcile_signal_summary_interests(adapter_generation);
+            for window in &mut self.auxiliary_windows {
+                let _ = window
+                    .runner
+                    .reconcile_signal_summary_interests(adapter_generation);
+            }
+        }
+
+        loop {
+            let dispatch = broker.borrow_mut().take_dispatch();
+            let Some(dispatch) = dispatch else { break };
+            let id = dispatch.id();
+            let accepted = self.core.runtime.host_spawn_worker_task(
+                "radiant-signal-summary",
+                TaskPriority::Background,
+                None,
+                Box::new(move || dispatch.run()),
+            );
+            if !accepted {
+                broker.borrow_mut().reject_dispatch(id);
+            }
+        }
+        broker.borrow_mut().maintain_retired();
+    }
+
     fn handle_native_gpu_timing_ready(
         &mut self,
         route: NativeGpuTimingRoute,

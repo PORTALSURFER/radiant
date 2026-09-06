@@ -236,7 +236,6 @@ where
             format,
             cached,
             Some(&retry_targets),
-            true,
         )
     }
 
@@ -281,7 +280,6 @@ where
         format: wgpu::TextureFormat,
         cached: &HashSet<CustomShaderPipelineIdentity>,
         retry_targets: Option<&HashSet<CustomShaderTargetId>>,
-        wake_new_admission: bool,
     ) -> Vec<PendingCustomShaderInstall> {
         let Some(window) = self.window.id else {
             return Vec::new();
@@ -352,7 +350,7 @@ where
                 live.insert(registration);
             }
             let capacity_changed = before != broker.capacity_status();
-            if wake_new_admission && capacity_changed {
+            if capacity_changed {
                 broker.request_pump();
             }
             let prepared = broker
@@ -383,7 +381,7 @@ where
             }
             before != broker.capacity_status()
         };
-        if wake_new_admission && capacity_changed {
+        if capacity_changed {
             preparation.capacity_retry_required = true;
             let broker = preparation.broker.borrow();
             broker.request_pump();

@@ -17,7 +17,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) type CustomShaderPrepa
 );
 
 enum Candidate {
-    Ready(PreparedCustomShaderPipeline),
+    Ready(Box<PreparedCustomShaderPipeline>),
     Failed(CustomShaderPreparationFailure),
 }
 
@@ -50,14 +50,17 @@ impl GpuSurfaceRenderer {
                 {
                     continue;
                 }
-                Candidate::Ready(prepared)
+                Candidate::Ready(Box::new(prepared))
             } else if let Some(failure) = failure {
                 Candidate::Failed(failure)
             } else {
                 // Pending markers never retain a descriptor or device owner.
                 continue;
             };
-            let identity = request.identity();
+            let identity = match &candidate {
+                Candidate::Ready(prepared) => prepared.identity(),
+                Candidate::Failed(_) => request.identity(),
+            };
             if !staging.candidates.contains_key(&identity) {
                 let next = text_bytes.saturating_add(identity.key.text_bytes());
                 if staging.candidates.len() >= 256 || next > 1024 * 1024 {

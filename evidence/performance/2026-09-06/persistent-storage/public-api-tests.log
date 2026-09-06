@@ -1,0 +1,10 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1459-persistent-storage-radiant)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.35s
+     Running tests/app_runtime_api.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/app_runtime_api-a99a739259cb4e0c)
+
+running 2 tests
+test persistent_storage::persistent_storage_gap_is_reported_and_repaired_by_snapshot ... ok
+test persistent_storage::persistent_storage_reports_ordered_admission_without_reprojection ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 73 filtered out; finished in 0.00s
+

@@ -1,0 +1,35 @@
+{
+  "adapter": "Apple M5 Pro",
+  "backend": "Metal",
+  "device_setup": "native WGPU adapter with default limits",
+  "device_type": "IntegratedGpu",
+  "driver": "",
+  "driver_info": "",
+  "shader_default_hasher": 4045831192821271630,
+  "source_revision": "08fccffc4016109ab16b7fd40298f3c3ce958802",
+  "stages": [
+    {
+      "name": "initial",
+      "rgba_default_hasher": 18340727135209999403,
+      "rgba_file": "persistent-storage-initial.rgba"
+    },
+    {
+      "name": "warm",
+      "rgba_default_hasher": 15454981482400419831,
+      "rgba_file": "persistent-storage-warm.rgba"
+    },
+    {
+      "name": "recovered",
+      "rgba_default_hasher": 15454981482400419831,
+      "rgba_file": "persistent-storage-recovered.rgba"
+    }
+  ],
+  "storage_capacity_bytes": 65536,
+  "target_size": 64,
+  "upload_logical_bytes": [
+    65536,
+    4,
+    0,
+    65536
+  ]
+}

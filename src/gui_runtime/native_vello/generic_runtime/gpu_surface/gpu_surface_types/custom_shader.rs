@@ -1,3 +1,4 @@
+use super::super::persistent_storage::PersistentStorageBindingCursor;
 use std::sync::Arc;
 use vello::wgpu;
 
@@ -54,6 +55,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Cu
         Option<wgpu::Buffer>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) write_state:
         CustomShaderBindingWriteState,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) persistent_storage_cursor:
+        PersistentStorageBindingCursor,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bind_group:
         wgpu::BindGroup,
 }

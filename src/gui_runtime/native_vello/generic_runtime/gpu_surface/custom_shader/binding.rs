@@ -71,6 +71,7 @@ impl GpuSurfaceRenderer {
                 storage_buffer: buffers.storage_buffer,
                 presentation_uniform_buffer: buffers.presentation_uniform_buffer,
                 write_state: Default::default(),
+                persistent_storage_cursor: Default::default(),
                 bind_group,
             },
         );

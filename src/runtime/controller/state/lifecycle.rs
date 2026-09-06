@@ -99,6 +99,8 @@ where
             fresh_surface_authority_exhausted: false,
             host_closing_hook_called: false,
             host_exit_hook_called: false,
+            gpu_persistent_storage_dirty: false,
+            gpu_persistent_storage: crate::runtime::GpuPersistentStorageStore::default(),
             gpu_shader_presentation_uniform_mailbox: GpuShaderPresentationUniformMailbox::default(),
             gpu_shader_presentation_uniform_updates: Vec::with_capacity(
                 GPU_SHADER_PRESENTATION_UNIFORM_MAILBOX_CAPACITY,

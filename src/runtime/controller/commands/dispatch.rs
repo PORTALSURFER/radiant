@@ -458,6 +458,25 @@ where
                     outcome.paint_only_requested = true;
                 }
             }
+            Command::UpdateGpuPersistentStorage {
+                update,
+                on_completed,
+            } => {
+                let result = self.gpu_persistent_storage.apply(update);
+                if result.is_ok() {
+                    self.gpu_persistent_storage_dirty = true;
+                    self.repaint_requested = true;
+                    outcome.repaint_requested = true;
+                    outcome.paint_only_requested = true;
+                }
+                self.dispatch_message_inner_with_refresh_state(
+                    on_completed(result),
+                    outcome,
+                    refresh_surface,
+                    deferred_surface_is_fresh,
+                    origin,
+                );
+            }
             Command::RequestProjectionRefresh => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;

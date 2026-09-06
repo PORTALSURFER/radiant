@@ -30,6 +30,8 @@ fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> 
 mod lifecycle;
 #[path = "app_runtime_api/paint_overlay.rs"]
 mod paint_overlay;
+#[path = "app_runtime_api/persistent_storage.rs"]
+mod persistent_storage;
 #[path = "app_runtime_api/render_canvas.rs"]
 mod render_canvas;
 #[path = "app_runtime_api/runtime_diagnostics.rs"]

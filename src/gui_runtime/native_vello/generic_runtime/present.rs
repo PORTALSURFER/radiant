@@ -207,6 +207,13 @@ where
         self.core.runtime.snapshot_gpu_shader_presentation_updates();
         let Some(snapshot_revision) = self.allocate_native_frame_snapshot_revision() else {
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         let path = if render_resize_frame_directly {
@@ -221,6 +228,13 @@ where
             snapshot_revision,
         ) else {
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         let mut ticket = Some(ticket);
@@ -234,6 +248,13 @@ where
                     let _ = self.veto_native_encode_present(ticket);
                 }
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 let disposition = self.handle_present_surface_acquire_error(
                     event_loop,
                     adapter,
@@ -245,6 +266,13 @@ where
         };
         let Some(ticket_ref) = ticket.as_ref() else {
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         if !self.native_presentation_target_is_ready(adapter)
@@ -259,6 +287,13 @@ where
                 let _ = self.veto_native_encode_present(ticket);
             }
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         let mut gpu_timing_admission =
@@ -283,6 +318,13 @@ where
                     let _ = self.veto_native_encode_present(ticket);
                 }
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let surface = &mut resources.render_surface;
@@ -292,6 +334,13 @@ where
                     let _ = self.veto_native_encode_present(ticket);
                 }
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let mut scene_texture_context = SceneTextureContext {
@@ -327,6 +376,13 @@ where
                     let _ = self.veto_native_encode_present(ticket);
                 }
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Err(failure);
             }
         };
@@ -339,6 +395,13 @@ where
         if render_resize_frame_directly {
             let Some(ticket_ref) = ticket.as_ref() else {
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             if !self.native_encode_present_ticket_is_current(
@@ -351,16 +414,37 @@ where
                     let _ = self.veto_native_encode_present(ticket);
                 }
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             }
             let (_, elapsed) = profile.measure(|| surface_texture.present());
             profile.submit_present = elapsed;
             let Some(ticket) = ticket.take() else {
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             if !self.complete_native_encode_present(ticket) {
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             }
             self.core.runtime.commit_gpu_shader_presentation_updates();
@@ -399,6 +483,13 @@ where
         let Some(ticket_ref) = ticket.as_ref() else {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         if !self.native_encode_present_ticket_is_current(ticket_ref, packet_identity, adapter, path)
@@ -408,6 +499,13 @@ where
                 let _ = self.veto_native_encode_present(ticket);
             }
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         let Some(dev_handle) = self
@@ -421,6 +519,13 @@ where
                 let _ = self.veto_native_encode_present(ticket);
             }
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         let encode_present_plan_context = ticket_ref.plan_context();
@@ -451,6 +556,13 @@ where
                     let _ = self.veto_native_encode_present(ticket);
                 }
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             };
             let resource_generation = resources.generation;
@@ -475,6 +587,11 @@ where
                 occlusion_plan: &self.frame.surface_occlusion_plan,
                 transient_overlay_primitives: &self.frame.transient_overlay_primitives,
                 presentation_updates,
+                persistent_storage: self.core.runtime.gpu_persistent_storage(),
+                has_persistent_storage_updates: self
+                    .core
+                    .runtime
+                    .has_gpu_persistent_storage_updates(),
                 collect_upload_plan: profile_enabled,
                 upload_plan_context,
             };
@@ -537,6 +654,13 @@ where
         let Some(ticket_ref) = ticket.as_ref() else {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         if !self.native_encode_present_ticket_is_current(ticket_ref, packet_identity, adapter, path)
@@ -546,6 +670,13 @@ where
                 let _ = self.veto_native_encode_present(ticket);
             }
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         if let Some(GpuTimingAdmission::Reserved(reservation)) = gpu_timing_admission {
@@ -559,6 +690,13 @@ where
             if !encoded {
                 self.cancel_native_gpu_timing(&mut gpu_timing_admission);
                 self.core.runtime.abort_gpu_shader_presentation_updates();
+                self.frame.composited_base_dirty = true;
+                if let Some(resources) = self.window.native_resources.as_mut() {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .abort_pending_persistent_storage();
+                }
                 return Ok(NativeVisualRequestDisposition::DropPacket);
             }
         }
@@ -582,14 +720,37 @@ where
         let Some(ticket) = ticket.take() else {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         };
         if !self.complete_native_encode_present(ticket) {
             self.cancel_native_gpu_timing(&mut gpu_timing_admission);
             self.core.runtime.abort_gpu_shader_presentation_updates();
+            self.frame.composited_base_dirty = true;
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .abort_pending_persistent_storage();
+            }
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         self.core.runtime.commit_gpu_shader_presentation_updates();
+        if gpu_surface_stats.persistent_storage_complete {
+            self.core.runtime.commit_gpu_persistent_storage_updates();
+            if let Some(resources) = self.window.native_resources.as_mut() {
+                resources
+                    .gpu_resources
+                    .gpu_surface_renderer
+                    .commit_pending_persistent_storage();
+            }
+        }
         // Candidate leases become installed-cache ownership only after the
         // whole encode/present transaction commits.  Any veto leaves broker
         // interests intact for a later admitted frame.

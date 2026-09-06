@@ -8,6 +8,7 @@ use super::upload_plan::{
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct GpuSurfaceRenderStats {
+    pub(crate) persistent_storage_complete: bool,
     pub(crate) atlas: GpuSurfaceAtlasRenderStats,
     pub(crate) signal: GpuSurfaceSignalRenderStats,
     pub(crate) composite: GpuSurfaceCompositeRenderStats,

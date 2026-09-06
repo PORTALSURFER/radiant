@@ -16,6 +16,10 @@ where
                 .debug_tuple("UpdateGpuShaderPresentationUniform")
                 .field(update)
                 .finish(),
+            Self::UpdateGpuPersistentStorage { update, .. } => f
+                .debug_tuple("UpdateGpuPersistentStorage")
+                .field(update)
+                .finish(),
             Self::RequestProjectionRefresh => f.write_str("RequestProjectionRefresh"),
             Self::RequestLayoutRefresh => f.write_str("RequestLayoutRefresh"),
             Self::SetDpiScale(scale) => f.debug_tuple("SetDpiScale").field(scale).finish(),

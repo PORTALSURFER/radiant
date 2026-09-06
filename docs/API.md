@@ -5799,6 +5799,15 @@ presentation-uniform bytes at `@group(0) @binding(3)`. `storage_identity` and
 `presentation_uniform_revision` on the descriptor and `presentation_revision`
 on volatile updates form the latest-only volatile fence per target plus storage
 fence.
+Persistent data edits are a separate opt-in contract. `GpuPersistentStorageSnapshot`
+initializes a bounded CPU shadow for the existing descriptor fence;
+`GpuPersistentStoragePatch` carries exact dependent revisions and aligned replace
+or append ranges. `UiUpdateContext::update_gpu_persistent_storage` reports CPU
+admission through a required UI-local completion mapper. The native renderer
+uploads changed ranges and retains the CPU shadow across device recovery.
+See [persistent shader storage](PERSISTENT_SHADER_STORAGE.md) and the
+`persistent_shader_storage` example for limits and recovery behavior.
+
 Presentation-uniform payloads may be empty, but every non-empty descriptor or
 update payload must have a byte length divisible by four for WGPU uniform
 writes. `GpuShaderPresentationUniformUpdate::try_new` reports an alignment

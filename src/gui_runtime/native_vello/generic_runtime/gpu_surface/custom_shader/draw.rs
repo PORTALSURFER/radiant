@@ -1,3 +1,6 @@
+use super::super::persistent_storage::{PersistentStorageSelection, select_persistent_storage};
+#[path = "draw/persistent.rs"]
+mod persistent;
 use super::super::GpuSurfaceRenderTarget;
 use super::super::encoding::uniforms_as_bytes;
 use super::super::gpu_surface_types::{
@@ -24,6 +27,7 @@ pub(super) struct CustomShaderBufferUploadRequest<'a, 'target> {
     pub(super) descriptor: &'a GpuShaderSurfaceDescriptor,
     pub(super) binding: &'a mut CustomShaderBinding,
     pub(super) presentation_update: Option<&'a GpuShaderPresentationUniformUpdate>,
+    pub(super) persistent_storage: &'a crate::runtime::GpuPersistentStorageStore,
     pub(super) presentation_updates: &'a [GpuShaderPresentationUniformUpdate],
     pub(super) presentation_staging_belt: Option<&'a mut wgpu::util::StagingBelt>,
 }
@@ -40,7 +44,26 @@ pub(super) struct CustomShaderDrawRequest<'a, 'target> {
 pub(super) fn upload_custom_shader_buffers(
     mut request: CustomShaderBufferUploadRequest<'_, '_>,
     stats: &mut GpuSurfaceRenderStats,
-) {
+) -> bool {
+    let selection = select_persistent_storage(
+        request.persistent_storage,
+        request.surface,
+        request.descriptor,
+        request.binding.persistent_storage_cursor,
+    );
+    if matches!(selection, PersistentStorageSelection::Mismatch) {
+        stats.mark_candidate_unavailable(
+            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+        );
+        return false;
+    }
+    let persistent = matches!(selection, PersistentStorageSelection::Upload { .. });
+    let restore_bulk = !persistent
+        && request
+            .binding
+            .persistent_storage_cursor
+            .effective()
+            .is_some();
     let static_payload = CustomShaderStaticPayloadKey::new(
         request.descriptor.storage_identity,
         request.descriptor.storage_revision,
@@ -67,6 +90,7 @@ pub(super) fn upload_custom_shader_buffers(
         .binding
         .write_state
         .static_payload_needs_write(static_payload)
+        || restore_bulk
     {
         if let Some(buffer) = &request.binding.app_uniform_buffer {
             let uniform_bytes = request.descriptor.uniform_bytes.as_ref();
@@ -76,10 +100,15 @@ pub(super) fn upload_custom_shader_buffers(
             stats.custom_shader.static_write_bytes += uniform_bytes.len();
             record_custom_shader_uniform_upload(stats, uniform_bytes.len());
         }
-        if let Some(buffer) = &request.binding.storage_buffer {
+        if request.binding.storage_buffer.is_some() && !persistent {
             let storage_bytes = request.descriptor.storage_bytes.as_ref();
             stats.record_candidate_immutable_payload(storage_bytes.len());
-            request.target.queue.write_buffer(buffer, 0, storage_bytes);
+            if !persistent::write_bulk(&mut request, storage_bytes) {
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+                return false;
+            }
             stats.custom_shader.static_writes += 1;
             stats.custom_shader.static_write_bytes += storage_bytes.len();
             record_custom_shader_storage_upload(stats, storage_bytes.len());
@@ -88,6 +117,12 @@ pub(super) fn upload_custom_shader_buffers(
             .binding
             .write_state
             .cache_static_payload(static_payload);
+    }
+    if !persistent::upload(&mut request, &selection, None, stats) {
+        stats.mark_candidate_unavailable(
+            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+        );
+        return false;
     }
     if let Some(buffer) = &request.binding.presentation_uniform_buffer {
         if request
@@ -184,6 +219,7 @@ pub(super) fn upload_custom_shader_buffers(
             }
         }
     }
+    true
 }
 
 pub(super) fn upload_custom_shader_buffers_with_plan(
@@ -191,6 +227,25 @@ pub(super) fn upload_custom_shader_buffers_with_plan(
     plan: &mut GpuSurfaceRenderCanvasUploadPlan,
     stats: &mut GpuSurfaceRenderStats,
 ) -> bool {
+    let selection = select_persistent_storage(
+        request.persistent_storage,
+        request.surface,
+        request.descriptor,
+        request.binding.persistent_storage_cursor,
+    );
+    if matches!(selection, PersistentStorageSelection::Mismatch) {
+        stats.mark_candidate_unavailable(
+            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+        );
+        return false;
+    }
+    let persistent = matches!(selection, PersistentStorageSelection::Upload { .. });
+    let restore_bulk = !persistent
+        && request
+            .binding
+            .persistent_storage_cursor
+            .effective()
+            .is_some();
     let static_payload = CustomShaderStaticPayloadKey::new(
         request.descriptor.storage_identity,
         request.descriptor.storage_revision,
@@ -241,10 +296,11 @@ pub(super) fn upload_custom_shader_buffers_with_plan(
     };
     if static_state.payload != static_payload
         || static_state.write
-            != request
+            != (request
                 .binding
                 .write_state
                 .static_payload_needs_write(static_payload)
+                || restore_bulk)
     {
         plan.veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
         stats.mark_candidate_unavailable(
@@ -288,7 +344,7 @@ pub(super) fn upload_custom_shader_buffers_with_plan(
             stats.custom_shader.static_write_bytes += uniform_bytes.len();
             record_custom_shader_uniform_upload(stats, uniform_bytes.len());
         }
-        if let Some(buffer) = &request.binding.storage_buffer {
+        if request.binding.storage_buffer.is_some() && !persistent {
             let storage_bytes = request.descriptor.storage_bytes.as_ref();
             let Some(byte_len) = plan.consume_upload(
                 request.surface_index,
@@ -307,7 +363,12 @@ pub(super) fn upload_custom_shader_buffers_with_plan(
                 return false;
             }
             stats.record_candidate_immutable_payload(storage_bytes.len());
-            request.target.queue.write_buffer(buffer, 0, storage_bytes);
+            if !persistent::write_bulk(&mut request, storage_bytes) {
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+                return false;
+            }
             stats.custom_shader.static_writes += 1;
             stats.custom_shader.static_write_bytes += storage_bytes.len();
             record_custom_shader_storage_upload(stats, storage_bytes.len());
@@ -318,6 +379,13 @@ pub(super) fn upload_custom_shader_buffers_with_plan(
             .cache_static_payload(static_payload);
     }
 
+    if !persistent::upload(&mut request, &selection, Some(plan), stats) {
+        plan.veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
+        stats.mark_candidate_unavailable(
+            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+        );
+        return false;
+    }
     let Some(presentation_buffer) = request.binding.presentation_uniform_buffer.as_ref() else {
         return true;
     };

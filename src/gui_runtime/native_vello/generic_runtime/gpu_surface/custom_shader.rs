@@ -2,6 +2,9 @@ use super::gpu_surface_types::{
     CustomShaderBindingKey, CustomShaderBindingWriteState, CustomShaderPipelineIdentity,
     CustomShaderStaticPayloadKey,
 };
+use super::persistent_storage::{
+    PersistentStorageBindingCursor, PersistentStorageSelection, select_persistent_storage,
+};
 use super::resources::{
     CustomShaderFrameRequest, CustomShaderPreflightCache,
     MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES, MAX_CUSTOM_SHADER_FRAME_REQUESTS,
@@ -42,10 +45,16 @@ pub(super) fn record_unsupported_custom_shader(
     diagnostics::record_unsupported_custom_shader(descriptor, stats);
 }
 
+pub(super) struct CustomShaderDataUpdates<'a> {
+    pub(super) presentation: &'a [GpuShaderPresentationUniformUpdate],
+    pub(super) persistent: &'a crate::runtime::GpuPersistentStorageStore,
+}
+
 pub(super) struct CustomShaderRenderRequest<'a> {
     pub(super) surface_index: usize,
     pub(super) surface: &'a PaintGpuSurface,
     pub(super) occlusion_regions: &'a [UiRect],
+    pub(super) persistent_storage: &'a crate::runtime::GpuPersistentStorageStore,
     pub(super) presentation_updates: &'a [GpuShaderPresentationUniformUpdate],
 }
 
@@ -60,6 +69,7 @@ pub(super) struct CustomShaderUploadPreflightState {
     cache: Option<CustomShaderPreflightCache>,
     pub(super) defer_transition: bool,
     bindings: HashMap<u64, Option<CustomShaderBindingPreflightIdentity>>,
+    persistent_cursors: HashMap<u64, PersistentStorageBindingCursor>,
 }
 
 pub(super) struct CustomShaderUploadPreflight {
@@ -72,6 +82,9 @@ impl CustomShaderUploadPreflightState {
         self.cache = cache;
         self.defer_transition = false;
         self.bindings.clear();
+        self.persistent_cursors.clear();
+        self.persistent_cursors
+            .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
         self.bindings
             .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
     }
@@ -218,10 +231,12 @@ impl GpuSurfaceRenderer {
         target: super::upload_plan::GpuSurfaceRenderCanvasUploadTarget,
         surface_index: usize,
         surface: &PaintGpuSurface,
-        presentation_updates: &[GpuShaderPresentationUniformUpdate],
+        updates: CustomShaderDataUpdates<'_>,
         state: &mut CustomShaderUploadPreflightState,
         actions: &mut Vec<GpuSurfaceRenderCanvasUploadAction>,
     ) -> CustomShaderUploadPreflight {
+        let presentation_updates = updates.presentation;
+        let persistent_storage = updates.persistent;
         let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
             actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
                 surface_index,
@@ -242,6 +257,25 @@ impl GpuSurfaceRenderer {
             return CustomShaderUploadPreflight {
                 renderable: false,
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Unsupported),
+            };
+        }
+        if matches!(
+            select_persistent_storage(
+                persistent_storage,
+                surface,
+                descriptor,
+                PersistentStorageBindingCursor::default()
+            ),
+            PersistentStorageSelection::Mismatch
+        ) {
+            actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
+                surface_index,
+                key: surface.key,
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            });
+            return CustomShaderUploadPreflight {
+                renderable: false,
+                unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
             };
         }
         let Some(pipeline_key) = custom_shader_pipeline_key(descriptor) else {
@@ -307,6 +341,29 @@ impl GpuSurfaceRenderer {
             rebuild: binding_rebuild,
         });
 
+        let mut persistent_cursor = if binding_rebuild {
+            PersistentStorageBindingCursor::default()
+        } else {
+            state
+                .persistent_cursors
+                .get(&surface.key)
+                .copied()
+                .unwrap_or_else(|| {
+                    self.resources
+                        .custom_shader_binding(surface.key)
+                        .map_or_else(PersistentStorageBindingCursor::default, |binding| {
+                            binding.persistent_storage_cursor
+                        })
+                })
+        };
+        let persistent_selection =
+            select_persistent_storage(persistent_storage, surface, descriptor, persistent_cursor);
+        let persistent_plan = match persistent_selection {
+            PersistentStorageSelection::Upload { plan, .. } => Some(plan),
+            PersistentStorageSelection::Absent => None,
+            PersistentStorageSelection::Mismatch => unreachable!("validated before preflight"),
+        };
+        let restore_bulk = persistent_plan.is_none() && persistent_cursor.effective().is_some();
         let static_payload = CustomShaderStaticPayloadKey::new(
             descriptor.storage_identity,
             descriptor.storage_revision,
@@ -318,7 +375,7 @@ impl GpuSurfaceRenderer {
             class: GpuSurfaceRenderCanvasUploadClass::RendererParameter,
             byte_len: std::mem::size_of::<super::gpu_surface_types::GpuSurfaceUniforms>(),
         });
-        let static_write = write_state.static_payload_needs_write(static_payload);
+        let static_write = write_state.static_payload_needs_write(static_payload) || restore_bulk;
         actions.push(GpuSurfaceRenderCanvasUploadAction::CustomStaticState {
             surface_index,
             key: surface.key,
@@ -333,7 +390,7 @@ impl GpuSurfaceRenderer {
                     byte_len: descriptor.uniform_bytes.len(),
                 });
             }
-            if !descriptor.storage_bytes.is_empty() {
+            if !descriptor.storage_bytes.is_empty() && persistent_plan.is_none() {
                 actions.push(GpuSurfaceRenderCanvasUploadAction::Upload {
                     surface_index,
                     class: GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
@@ -343,6 +400,29 @@ impl GpuSurfaceRenderer {
             write_state.cache_static_payload(static_payload);
             state.cache_static_payload(surface.key, static_payload);
         }
+
+        actions.push(
+            GpuSurfaceRenderCanvasUploadAction::CustomPersistentStorage {
+                surface_index,
+                key: surface.key,
+                plan: persistent_plan.clone(),
+            },
+        );
+        if let Some(plan) = &persistent_plan {
+            for range in &plan.ranges {
+                actions.push(GpuSurfaceRenderCanvasUploadAction::Upload {
+                    surface_index,
+                    class: GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
+                    byte_len: range.byte_len,
+                });
+            }
+            persistent_cursor.stage(plan.desired);
+        } else {
+            persistent_cursor.stage_bulk_reset();
+        }
+        state
+            .persistent_cursors
+            .insert(surface.key, persistent_cursor);
 
         if let Some(presentation_bytes) = descriptor
             .presentation_uniform_bytes
@@ -429,29 +509,45 @@ impl GpuSurfaceRenderer {
         let Some(descriptor) = supported_custom_shader_descriptor(surface, stats) else {
             return false;
         };
+        if matches!(
+            select_persistent_storage(
+                request.persistent_storage,
+                surface,
+                descriptor,
+                PersistentStorageBindingCursor::default()
+            ),
+            PersistentStorageSelection::Mismatch
+        ) {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
+            record_failed_custom_shader_surface(stats);
+            return false;
+        }
         if !self.prepare_custom_shader_resources(target, surface, descriptor, stats) {
             return false;
         }
         let presentation_update =
             matching_presentation_update(surface, descriptor, presentation_updates);
-        let presentation_staging_belt = descriptor
-            .presentation_uniform_bytes
-            .as_ref()
-            .filter(|bytes| !bytes.is_empty())
-            .map(|_| {
-                self.presentation_staging_belt.get_or_insert_with(|| {
-                    vello::wgpu::util::StagingBelt::new(
-                        target.device.clone(),
-                        PRESENTATION_STAGING_BELT_CHUNK_SIZE,
-                    )
-                })
-            });
+        let presentation_staging_belt = (!descriptor.storage_bytes.is_empty()
+            || descriptor
+                .presentation_uniform_bytes
+                .as_ref()
+                .is_some_and(|bytes| !bytes.is_empty()))
+        .then(|| {
+            self.presentation_staging_belt.get_or_insert_with(|| {
+                vello::wgpu::util::StagingBelt::new(
+                    target.device.clone(),
+                    PRESENTATION_STAGING_BELT_CHUNK_SIZE,
+                )
+            })
+        });
         {
             let Some(binding) = self.resources.custom_shader_binding_mut(surface.key) else {
                 record_failed_custom_shader_surface(stats);
                 return false;
             };
-            draw::upload_custom_shader_buffers(
+            if !draw::upload_custom_shader_buffers(
                 CustomShaderBufferUploadRequest {
                     target,
                     surface_index: 0,
@@ -460,10 +556,14 @@ impl GpuSurfaceRenderer {
                     binding,
                     presentation_update,
                     presentation_updates,
+                    persistent_storage: request.persistent_storage,
                     presentation_staging_belt,
                 },
                 stats,
-            );
+            ) {
+                record_failed_custom_shader_surface(stats);
+                return false;
+            }
         }
         let Some(pipeline) = self.resources.custom_shader_pipeline(surface.key) else {
             record_failed_custom_shader_surface(stats);
@@ -674,18 +774,19 @@ impl GpuSurfaceRenderer {
         {
             upload_plan.mark_execution_mutated();
         }
-        let presentation_staging_belt = descriptor
-            .presentation_uniform_bytes
-            .as_ref()
-            .filter(|bytes| !bytes.is_empty())
-            .map(|_| {
-                self.presentation_staging_belt.get_or_insert_with(|| {
-                    vello::wgpu::util::StagingBelt::new(
-                        target.device.clone(),
-                        PRESENTATION_STAGING_BELT_CHUNK_SIZE,
-                    )
-                })
-            });
+        let presentation_staging_belt = (!descriptor.storage_bytes.is_empty()
+            || descriptor
+                .presentation_uniform_bytes
+                .as_ref()
+                .is_some_and(|bytes| !bytes.is_empty()))
+        .then(|| {
+            self.presentation_staging_belt.get_or_insert_with(|| {
+                vello::wgpu::util::StagingBelt::new(
+                    target.device.clone(),
+                    PRESENTATION_STAGING_BELT_CHUNK_SIZE,
+                )
+            })
+        });
         let upload_succeeded = {
             let Some(binding) = self.resources.custom_shader_binding_mut(surface.key) else {
                 upload_plan
@@ -702,6 +803,7 @@ impl GpuSurfaceRenderer {
                     binding,
                     presentation_update,
                     presentation_updates,
+                    persistent_storage: request.persistent_storage,
                     presentation_staging_belt,
                 },
                 upload_plan,

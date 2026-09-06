@@ -451,7 +451,7 @@ fn render_canvas_upload_transaction_has_renderer_wide_preflight_scaffold() {
         .find("fn preflight_render_canvas_upload_plan")
         .expect("renderer-wide preflight should be present");
     let render = gpu_surface
-        .find("pub(super) fn render(")
+        .find("pub(super) fn render_with_persistent_storage(")
         .expect("renderer execution should remain the single render entry point");
     assert!(
         preflight < render,
@@ -475,7 +475,7 @@ fn render_canvas_upload_transaction_has_renderer_wide_preflight_scaffold() {
         .find("preflight_render_canvas_upload_plan(")
         .expect("composited-base presentation should invoke renderer preflight");
     let base_render = composited_base
-        .find(".render(")
+        .find(".render_with_persistent_storage(")
         .expect("composited-base presentation should retain renderer execution");
     assert!(
         base_preflight < base_render,

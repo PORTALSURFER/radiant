@@ -16,16 +16,20 @@ pub(super) struct DeviceFeatureSelection {
 }
 
 impl DeviceFeatureSelection {
-    pub(super) fn for_adapter(advertised: wgpu::Features) -> Self {
+    pub(super) fn for_adapter(backend: wgpu::Backend, advertised: wgpu::Features) -> Self {
         let baseline =
             advertised & (wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE);
         let timing_features =
             wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
-        let initial_request = if advertised.contains(timing_features) {
-            baseline | timing_features
-        } else {
-            baseline
-        };
+        // WGPU 29's Metal implementation routes a standalone timestamp marker
+        // through an unvalidated blit-encoder path. Do not admit that private
+        // strategy until a separate implementation has validated it.
+        let initial_request =
+            if backend != wgpu::Backend::Metal && advertised.contains(timing_features) {
+                baseline | timing_features
+            } else {
+                baseline
+            };
         Self {
             baseline,
             initial_request,
@@ -206,7 +210,7 @@ mod tests {
     #[test]
     fn unsupported_timestamps_use_vello_baseline_without_retry() {
         let advertised = wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE;
-        let selection = DeviceFeatureSelection::for_adapter(advertised);
+        let selection = DeviceFeatureSelection::for_adapter(wgpu::Backend::Vulkan, advertised);
 
         assert_eq!(selection.initial_request(), advertised);
         assert_eq!(selection.retry_after_failure(), None);
@@ -219,7 +223,7 @@ mod tests {
             | wgpu::Features::TIMESTAMP_QUERY
             | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS
             | wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES;
-        let selection = DeviceFeatureSelection::for_adapter(advertised);
+        let selection = DeviceFeatureSelection::for_adapter(wgpu::Backend::Vulkan, advertised);
 
         assert_eq!(
             selection.initial_request(),
@@ -242,8 +246,10 @@ mod tests {
             | wgpu::Features::TIMESTAMP_QUERY
             | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
         let fallback_advertised = wgpu::Features::CLEAR_TEXTURE;
-        let initial_selection = DeviceFeatureSelection::for_adapter(initial_advertised);
-        let fallback_selection = DeviceFeatureSelection::for_adapter(fallback_advertised);
+        let initial_selection =
+            DeviceFeatureSelection::for_adapter(wgpu::Backend::Vulkan, initial_advertised);
+        let fallback_selection =
+            DeviceFeatureSelection::for_adapter(wgpu::Backend::Vulkan, fallback_advertised);
 
         assert_eq!(
             initial_selection.retry_after_failure(),
@@ -263,7 +269,7 @@ mod tests {
     fn feature_selection_never_requests_unrelated_advertised_features() {
         let advertised = wgpu::Features::TEXTURE_COMPRESSION_BC
             | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
-        let selection = DeviceFeatureSelection::for_adapter(advertised);
+        let selection = DeviceFeatureSelection::for_adapter(wgpu::Backend::Vulkan, advertised);
 
         assert_eq!(selection.initial_request(), wgpu::Features::empty());
         assert_eq!(selection.retry_after_failure(), None);
@@ -272,8 +278,10 @@ mod tests {
     #[test]
     fn timestamp_only_advertisement_stays_on_the_baseline_request() {
         let baseline = wgpu::Features::CLEAR_TEXTURE;
-        let selection =
-            DeviceFeatureSelection::for_adapter(baseline | wgpu::Features::TIMESTAMP_QUERY);
+        let selection = DeviceFeatureSelection::for_adapter(
+            wgpu::Backend::Vulkan,
+            baseline | wgpu::Features::TIMESTAMP_QUERY,
+        );
 
         assert_eq!(selection.initial_request(), baseline);
         assert_eq!(selection.retry_after_failure(), None);
@@ -283,6 +291,7 @@ mod tests {
     fn inside_encoder_only_advertisement_stays_on_the_baseline_request() {
         let baseline = wgpu::Features::PIPELINE_CACHE;
         let selection = DeviceFeatureSelection::for_adapter(
+            wgpu::Backend::Vulkan,
             baseline | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
         );
 
@@ -293,7 +302,19 @@ mod tests {
     #[test]
     fn neither_timestamp_feature_stays_on_the_baseline_request() {
         let baseline = wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE;
-        let selection = DeviceFeatureSelection::for_adapter(baseline);
+        let selection = DeviceFeatureSelection::for_adapter(wgpu::Backend::Vulkan, baseline);
+
+        assert_eq!(selection.initial_request(), baseline);
+        assert_eq!(selection.retry_after_failure(), None);
+    }
+
+    #[test]
+    fn metal_uses_baseline_without_timestamp_retry() {
+        let baseline = wgpu::Features::CLEAR_TEXTURE | wgpu::Features::PIPELINE_CACHE;
+        let advertised = baseline
+            | wgpu::Features::TIMESTAMP_QUERY
+            | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+        let selection = DeviceFeatureSelection::for_adapter(wgpu::Backend::Metal, advertised);
 
         assert_eq!(selection.initial_request(), baseline);
         assert_eq!(selection.retry_after_failure(), None);

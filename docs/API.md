@@ -2177,9 +2177,19 @@ existing owner. A Winit preedit cursor pair is an adapter-local byte range and
 is converted to Unicode-scalar coordinates only when ordered, in bounds, and
 on UTF-8 character boundaries. `None` remains hidden; no `0..0`, end-of-
 preedit, or previous selection is fabricated. Invalid evidence cancels the
-active owner, or retains/cancels without mutation when no owner can be admitted.
-Winit IME events carry no native timestamp here, so normalized samples retain
-`None` and fabricate no sequence metadata.
+original native-owned composition without committing. Native payloads over
+1 MiB are rejected before UTF-8 range scanning. The adapter records the exact
+shared composition sequence it started. If focus, text replacement, recovery,
+or another producer retires that sequence, later preedit/commit/cancel events
+cannot rebind to a successor. Stale updates are discarded until a terminal or
+fresh native `Enabled` boundary; terminal transport evidence is cleared before
+application callbacks. A fresh direct commit still uses the ordinary shared
+Start/Commit path, and the adapter never adopts another producer's composition.
+
+Primary and auxiliary adapters preserve their monotonic receipt timestamp
+through Start, Update (including hidden selection), Commit and Cancel. This is
+the timestamp captured at the admitted Winit callback, not an OS-supplied IME
+event timestamp or hardware time. No native sequence range is fabricated.
 
 The bounded native Winit candidate-area publication is shipped: the adapter
 projects a finite logical caret area from exactly one focused `PaintTextInput`

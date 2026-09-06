@@ -1747,7 +1747,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 ) else {
                     return self.event_result(None, false);
                 };
-                let routed = self.runner.route_native_ime_event(ime);
+                let routed = self
+                    .runner
+                    .route_native_ime_event_with_timestamp(ime, Some(timestamp));
                 native_discrete_input_route = Some(AuxiliaryNativeDiscreteInputRoute {
                     ticket,
                     outcome: Some(routed),

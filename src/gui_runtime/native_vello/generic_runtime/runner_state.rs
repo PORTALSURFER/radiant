@@ -1394,6 +1394,7 @@ pub(super) struct NativeRunnerInputState {
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) input_sequence_allocator: NativeInputSequenceAllocator,
     pub(super) native_pointer_ingress: super::native_pointer_ingress::NativePointerIngressState,
+    pub(super) native_ime: super::ime::NativeImeSession,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scroll_container_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scrollbar_drag: Option<PendingScrollbarDrag>,
@@ -1416,6 +1417,7 @@ impl Default for NativeRunnerInputState {
             input_sequence_allocator: NativeInputSequenceAllocator::default(),
             native_pointer_ingress:
                 super::native_pointer_ingress::NativePointerIngressState::default(),
+            native_ime: super::ime::NativeImeSession::default(),
             pending_gpu_surface_wheel: None,
             pending_scroll_container_wheel: None,
             pending_scrollbar_drag: None,

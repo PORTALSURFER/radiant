@@ -956,9 +956,10 @@ impl SummaryBroker {
                 }
             }
             tracing::debug!(target: "radiant::signal_summary_prepare",
-                active_jobs = self.active, queued_jobs = self.queue.len(), retained_sources = self.sources.len(),
-                reserved_logical_bytes = self.bytes, reserved_source_bytes = self.source_bytes,
-                reserved_summary_bytes = self.summary_bytes, retained_source_bytes,
+                active_jobs = self.active + self.tiles.active, queued_jobs = self.queue.len() + self.tiles.queued(), retained_sources = self.sources.len(),
+                reserved_logical_bytes = self.bytes + self.tiles.bytes, reserved_source_bytes = self.source_bytes,
+                reserved_summary_bytes = self.summary_bytes, reserved_tile_bytes = self.tiles.bytes,
+                retained_tiles = self.tiles.len(), gpu_logical_bytes = self.gpu_budget.logical_bytes(), retained_source_bytes,
                 retained_ready_summary_bytes,
                 "raw signal preparation ownership");
         }

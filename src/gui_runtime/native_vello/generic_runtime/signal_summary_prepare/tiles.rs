@@ -127,6 +127,7 @@ impl TileDispatch {
         self.id
     }
     pub(super) fn run(self) {
+        let started = std::time::Instant::now();
         let spec = self.key.spec;
         let result = catch_unwind(AssertUnwindSafe(|| {
             build_bounded_tile(
@@ -141,6 +142,23 @@ impl TileDispatch {
             )
         }))
         .unwrap_or(Err(BoundedSignalError::InvalidShape));
+        if tracing::enabled!(target: "radiant::signal_summary_prepare", tracing::Level::DEBUG) {
+            let (state, ready_tile_bytes) = match &result {
+                Ok(tile) => (
+                    "ready",
+                    tile.buckets.len()
+                        * std::mem::size_of::<crate::runtime::GpuSignalSummaryBucket>(),
+                ),
+                Err(BoundedSignalError::Cancelled) => ("cancelled", 0),
+                Err(_) => ("failed", 0),
+            };
+            tracing::debug!(target: "radiant::signal_summary_prepare",
+                job = self.id, result = state,
+                preparation_elapsed_us = started.elapsed().as_micros() as u64,
+                first_frame = spec.first, bucket_frames = spec.width,
+                bucket_count = spec.count, ready_tile_bytes,
+                "raw signal detail worker terminal");
+        }
         // The source owner stays alive until the terminal is enqueued.
         let _ = self.sender.send(TileCompletion {
             key: self.key,

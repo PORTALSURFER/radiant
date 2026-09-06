@@ -187,8 +187,13 @@ impl SignalUploadPreflightState {
         Arc<GpuSignalSummary>,
         GpuSurfaceRenderCanvasUploadSignalSummaryOperation,
     ) {
-        let samples = match &surface.content {
-            GpuSurfaceContent::SignalBands { samples, .. } => samples,
+        let (samples, frames, band_count) = match &surface.content {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => (samples, *frames, *band_count),
             GpuSurfaceContent::SignalSummaryBands { summary, .. } => {
                 return (
                     Arc::clone(summary),
@@ -206,8 +211,7 @@ impl SignalUploadPreflightState {
                 );
             }
         };
-        let source_identity = SignalSourceIdentity::from_content(&surface.content)
-            .expect("signal summary preflight only receives signal content");
+        let source_identity = SignalSourceIdentity::samples(samples, frames, band_count);
         let sample_count = samples.len();
         let cached = self.summaries.get(&surface.key).cloned().or_else(|| {
             renderer
@@ -440,19 +444,21 @@ impl GpuSurfaceRenderer {
                 };
             }
         };
-        if matches!(&surface.content, GpuSurfaceContent::SignalBands { .. }) {
+        if let GpuSurfaceContent::SignalBands {
+            samples,
+            frames,
+            band_count,
+            ..
+        } = &surface.content
+        {
             actions.push(GpuSurfaceRenderCanvasUploadAction::SignalSummary {
                 surface_index,
                 key: surface.key,
                 revision: surface.revision,
-                source_identity: SignalSourceIdentity::from_content(&surface.content)
-                    .expect("signal summary action only receives signal content"),
+                source_identity: SignalSourceIdentity::samples(samples, *frames, *band_count),
                 frames: shape.frames,
                 band_count: shape.band_count,
-                sample_count: match &surface.content {
-                    GpuSurfaceContent::SignalBands { samples, .. } => samples.len(),
-                    _ => 0,
-                },
+                sample_count: samples.len(),
                 operation: summary_operation,
             });
         }
@@ -472,8 +478,26 @@ impl GpuSurfaceRenderer {
             composite_state.ensure_pipeline(self, target.device, target.format);
         let (signal_pipeline_generation, signal_pipeline_rebuild) =
             signal_state.ensure_pipeline(self, target.device, wgpu::TextureFormat::Rgba8Unorm);
-        let source_identity = SignalSourceIdentity::from_content(&surface.content)
-            .expect("signal buffer preflight only receives signal content");
+        let source_identity = match &surface.content {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::samples(samples, *frames, *band_count),
+            GpuSurfaceContent::SignalSummaryBands {
+                summary,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::summary(summary, *frames, *band_count),
+            GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
+                return SignalUploadPreflight {
+                    renderable: false,
+                    unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid),
+                };
+            }
+        };
         let buffer_cache_key = SignalBufferCacheKey::new(
             surface.revision,
             source_identity,
@@ -653,8 +677,26 @@ impl GpuSurfaceRenderer {
             }
             return true;
         };
-        let source_identity = SignalSourceIdentity::from_content(&surface.content)
-            .expect("signal buffer execution only receives signal content");
+        let source_identity = match &surface.content {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::samples(samples, *frames, *band_count),
+            GpuSurfaceContent::SignalSummaryBands {
+                summary,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::summary(summary, *frames, *band_count),
+            GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid,
+                );
+                return true;
+            }
+        };
         let buffer_cache_key = SignalBufferCacheKey::new(
             surface.revision,
             source_identity,
@@ -880,7 +922,12 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) -> Option<SignalRenderSource> {
         let summary = match &surface.content {
-            GpuSurfaceContent::SignalBands { samples, .. } => {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => {
                 if let Some(plan) = upload_plan {
                     let Some(execution) = plan.consume_signal_summary(surface_index, surface.key)
                     else {
@@ -889,8 +936,8 @@ impl GpuSurfaceRenderer {
                         );
                         return None;
                     };
-                    let source_identity = SignalSourceIdentity::from_content(&surface.content)
-                        .expect("signal summary execution only receives signal content");
+                    let source_identity =
+                        SignalSourceIdentity::samples(samples, *frames, *band_count);
                     let expected_operation = self.signal_summary_cache_operation(
                         surface.key,
                         surface.revision,
@@ -923,8 +970,7 @@ impl GpuSurfaceRenderer {
                 self.cached_signal_summary(super::resources::CachedSignalSummaryRequest {
                     key: surface.key,
                     revision: surface.revision,
-                    source_identity: SignalSourceIdentity::from_content(&surface.content)
-                        .expect("signal summary cache only receives signal content"),
+                    source_identity: SignalSourceIdentity::samples(samples, *frames, *band_count),
                     frames: shape.frames,
                     band_count: shape.band_count,
                     samples,

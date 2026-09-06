@@ -85,6 +85,26 @@ pub(super) enum SignalSourceIdentity {
 }
 
 impl SignalSourceIdentity {
+    pub(super) fn samples(samples: &Arc<[f32]>, frames: usize, band_count: usize) -> Self {
+        Self::Samples {
+            samples: arc_ptr(samples),
+            frames,
+            band_count,
+        }
+    }
+
+    pub(super) fn summary(
+        summary: &Arc<GpuSignalSummary>,
+        frames: usize,
+        band_count: usize,
+    ) -> Self {
+        Self::Summary {
+            summary: arc_ptr(summary),
+            frames,
+            band_count,
+        }
+    }
+
     pub(super) fn from_content(content: &GpuSurfaceContent) -> Option<Self> {
         match content {
             GpuSurfaceContent::SignalBands {
@@ -92,21 +112,13 @@ impl SignalSourceIdentity {
                 frames,
                 band_count,
                 ..
-            } => Some(Self::Samples {
-                samples: arc_ptr(samples),
-                frames: *frames,
-                band_count: *band_count,
-            }),
+            } => Some(Self::samples(samples, *frames, *band_count)),
             GpuSurfaceContent::SignalSummaryBands {
                 summary,
                 frames,
                 band_count,
                 ..
-            } => Some(Self::Summary {
-                summary: arc_ptr(summary),
-                frames: *frames,
-                band_count: *band_count,
-            }),
+            } => Some(Self::summary(summary, *frames, *band_count)),
             GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => None,
         }
     }

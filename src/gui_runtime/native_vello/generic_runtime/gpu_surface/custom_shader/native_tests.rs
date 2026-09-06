@@ -35,6 +35,8 @@ use std::time::Duration;
 use vello::wgpu;
 use winit::window::WindowId;
 
+#[path = "persistent_native_tests.rs"]
+mod persistent_native_tests;
 #[path = "native_tests/precise_signal.rs"]
 mod precise_signal;
 

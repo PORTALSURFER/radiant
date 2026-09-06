@@ -65,7 +65,7 @@ fn ordered_surface(occurrence: usize, descriptor: GpuShaderSurfaceDescriptor) ->
 }
 
 fn persistent_store(bytes: &[u8]) -> (GpuPersistentStorageStore, GpuPersistentStorageTarget) {
-    let target = GpuPersistentStorageTarget::new(1_u64.into(), FRESH_KEY, 91, 7);
+    let target = GpuPersistentStorageTarget::new(1_u64, FRESH_KEY, 91, 7);
     let mut store = GpuPersistentStorageStore::default();
     store
         .apply(GpuPersistentStorageUpdate::Snapshot(
@@ -80,7 +80,7 @@ fn persistent_store_with_logical_prefix(
     capacity: usize,
     initial_bytes: &[u8],
 ) -> (GpuPersistentStorageStore, GpuPersistentStorageTarget) {
-    let target = GpuPersistentStorageTarget::new(1_u64.into(), FRESH_KEY, 91, 7);
+    let target = GpuPersistentStorageTarget::new(1_u64, FRESH_KEY, 91, 7);
     let mut store = GpuPersistentStorageStore::default();
     store
         .apply(GpuPersistentStorageUpdate::Snapshot(
@@ -189,7 +189,7 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
 
 fn record_native_evidence(
     stages: &[(&str, &[u8])],
-    upload_bytes: &[Option<usize>],
+    upload_bytes: &[Option<u64>],
     adapter: &wgpu::AdapterInfo,
 ) {
     let Some(root) = std::env::var_os("RADIANT_PERSISTENT_STORAGE_OUTPUT_DIR") else {

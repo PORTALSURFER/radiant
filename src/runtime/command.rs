@@ -68,6 +68,18 @@ pub enum Command<Message> {
     RequestPaintOnly,
     /// Update volatile presentation uniforms for a custom GPU shader surface.
     UpdateGpuShaderPresentationUniform(GpuShaderPresentationUniformUpdate),
+    /// Apply one ordered persistent storage update and report CPU admission.
+    /// Completion does not assert that a native frame has presented the data.
+    UpdateGpuPersistentStorage {
+        /// Validated snapshot, dependent patch, or explicit resource release.
+        update: super::GpuPersistentStorageUpdate,
+        /// UI-local completion mapper, called for both acceptance and rejection.
+        on_completed: Box<
+            dyn FnOnce(
+                Result<Option<super::GpuPersistentStorageStatus>, super::GpuPersistentStorageError>,
+            ) -> Message,
+        >,
+    },
     /// Request fresh projection/traversal while reusing revision-proven layout.
     RequestProjectionRefresh,
     /// Request fresh projection/traversal and a layout pass.

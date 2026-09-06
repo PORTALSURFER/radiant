@@ -931,3 +931,24 @@ impl<Message> Command<Message> {
         }
     }
 }
+
+impl<Message> super::Command<Message> {
+    /// Apply an ordered persistent storage update and map its CPU admission result.
+    /// Native upload and presentation occur on a later frame. Rejected dependent
+    /// patches must be handled by the caller, usually by submitting a new snapshot.
+    pub fn update_gpu_persistent_storage(
+        update: crate::runtime::GpuPersistentStorageUpdate,
+        on_completed: impl FnOnce(
+            Result<
+                Option<crate::runtime::GpuPersistentStorageStatus>,
+                crate::runtime::GpuPersistentStorageError,
+            >,
+        ) -> Message
+        + 'static,
+    ) -> Self {
+        Self::UpdateGpuPersistentStorage {
+            update,
+            on_completed: Box::new(on_completed),
+        }
+    }
+}

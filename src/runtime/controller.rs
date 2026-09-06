@@ -198,6 +198,8 @@ where
     fresh_surface_authority_exhausted: bool,
     host_closing_hook_called: bool,
     host_exit_hook_called: bool,
+    gpu_persistent_storage_dirty: bool,
+    gpu_persistent_storage: super::GpuPersistentStorageStore,
     gpu_shader_presentation_uniform_mailbox: GpuShaderPresentationUniformMailbox,
     gpu_shader_presentation_uniform_updates: Vec<super::GpuShaderPresentationUniformUpdate>,
     pub(in crate::runtime) repaint_requested: bool,

@@ -839,10 +839,20 @@ impl GpuSurfaceResourceCache {
         &mut self,
         commit: bool,
     ) {
-        let Some(transition) = self.custom_shader_transition.take() else {
+        let Some(mut transition) = self.custom_shader_transition.take() else {
             return;
         };
         if !commit {
+            // Speculative bindings can share actual buffers with the predecessor.
+            // A later submission may execute their encoded writes despite rollback.
+            for (key, binding) in &mut self.custom_shader_resources.bindings {
+                if binding.persistent_storage_cursor.abort_unknown_submission()
+                    && let Some(previous) = transition.predecessor.bindings.get_mut(key)
+                {
+                    previous.persistent_storage_cursor = Default::default();
+                    previous.write_state = Default::default();
+                }
+            }
             self.custom_shader_resources = transition.predecessor;
         }
     }
@@ -1040,6 +1050,21 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logica
     u64::try_from(sample_buffer_bytes)
         .ok()?
         .checked_add(u64::try_from(uniform_buffer_bytes).ok()?)
+}
+
+impl GpuSurfaceResourceCache {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn finish_persistent_storage(
+        &mut self,
+        committed: bool,
+    ) {
+        for binding in self.custom_shader_resources.bindings.values_mut() {
+            if committed {
+                binding.persistent_storage_cursor.commit();
+            } else if binding.persistent_storage_cursor.abort_unknown_submission() {
+                binding.write_state = Default::default();
+            }
+        }
+    }
 }
 
 #[cfg(test)]

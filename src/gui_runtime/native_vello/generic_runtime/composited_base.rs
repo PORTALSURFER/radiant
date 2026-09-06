@@ -46,6 +46,8 @@ pub(super) struct BaseFramePresentRequest<'a> {
     pub(super) occlusion_plan: &'a SurfaceOcclusionPlan,
     pub(super) transient_overlay_primitives: &'a [PaintPrimitive],
     pub(super) presentation_updates: &'a [GpuShaderPresentationUniformUpdate],
+    pub(super) persistent_storage: &'a crate::runtime::GpuPersistentStorageStore,
+    pub(super) has_persistent_storage_updates: bool,
     pub(super) collect_upload_plan: bool,
     pub(super) upload_plan_context: Option<gpu_surface::GpuSurfaceRenderCanvasUploadPlanContext>,
 }
@@ -56,12 +58,14 @@ fn preflight_render_canvas_upload_plan(
     primitives: &[PaintPrimitive],
     dpi_scale: crate::theme::DpiScale,
     presentation_updates: &[GpuShaderPresentationUniformUpdate],
+    persistent_storage: &crate::runtime::GpuPersistentStorageStore,
 ) -> gpu_surface::GpuSurfaceRenderCanvasUploadPlan {
-    renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
+    renderer.preflight_render_canvas_upload_plan_with_persistent_storage(
         context,
         primitives,
         dpi_scale,
         presentation_updates,
+        persistent_storage,
     )
 }
 
@@ -104,7 +108,7 @@ pub(super) fn present_base_frame(
     let needs_refresh = composited_base_needs_refresh(
         *state.base_dirty,
         frame_recreated,
-        !request.presentation_updates.is_empty(),
+        !request.presentation_updates.is_empty() || request.has_persistent_storage_updates,
     );
     let stats = if needs_refresh {
         let refresh_state = BaseFrameRefreshState {
@@ -146,9 +150,10 @@ fn present_live_base(
             &request.paint_plan.primitives,
             target.dpi_scale,
             request.presentation_updates,
+            request.persistent_storage,
         )
     });
-    gpu_surface_renderer.render(
+    gpu_surface_renderer.render_with_persistent_storage(
         &mut gpu_surface::GpuSurfaceRenderTarget {
             device: target.device,
             queue: target.queue,
@@ -164,6 +169,7 @@ fn present_live_base(
         &request.paint_plan.primitives,
         request.occlusion_plan,
         request.presentation_updates,
+        request.persistent_storage,
     )
 }
 
@@ -190,9 +196,10 @@ fn refresh_composited_base_frame(
                 &request.paint_plan.primitives,
                 target.dpi_scale,
                 request.presentation_updates,
+                request.persistent_storage,
             )
         });
-        state.gpu_surface_renderer.render(
+        state.gpu_surface_renderer.render_with_persistent_storage(
             &mut gpu_surface::GpuSurfaceRenderTarget {
                 device: target.device,
                 queue: target.queue,
@@ -208,9 +215,12 @@ fn refresh_composited_base_frame(
             &request.paint_plan.primitives,
             request.occlusion_plan,
             request.presentation_updates,
+            request.persistent_storage,
         )
     });
-    *state.base_dirty = false;
+    *state.base_dirty = !stats.persistent_storage_complete
+        && (request.has_persistent_storage_updates
+            || request.persistent_storage.entries().next().is_some());
     state.profile.composited_base_refresh = elapsed;
     stats
 }
@@ -326,6 +336,8 @@ mod tests {
                 occlusion_plan: &occlusion_plan,
                 transient_overlay_primitives: &[],
                 presentation_updates: &[],
+                persistent_storage: &crate::runtime::GpuPersistentStorageStore::default(),
+                has_persistent_storage_updates: false,
                 collect_upload_plan,
                 upload_plan_context: Some(context),
             };

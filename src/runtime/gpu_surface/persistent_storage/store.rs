@@ -62,18 +62,18 @@ impl GpuPersistentStorageStore {
         snapshot: GpuPersistentStorageSnapshot,
     ) -> Result<GpuPersistentStorageStatus, GpuPersistentStorageError> {
         let target_key = (snapshot.target.widget_id, snapshot.target.surface_key);
-        if let Some(current_target) = self.target_fences.get(&target_key).copied() {
-            if current_target.storage_identity == snapshot.target.storage_identity {
-                let current = self
-                    .entries
-                    .get(&current_target)
-                    .expect("fence index must point to an entry");
-                if snapshot.target.storage_generation < current_target.storage_generation
-                    || (snapshot.target.storage_generation == current_target.storage_generation
-                        && snapshot.revision <= current.revision)
-                {
-                    return Err(GpuPersistentStorageError::StaleSnapshot);
-                }
+        if let Some(current_target) = self.target_fences.get(&target_key).copied()
+            && current_target.storage_identity == snapshot.target.storage_identity
+        {
+            let current = self
+                .entries
+                .get(&current_target)
+                .expect("fence index must point to an entry");
+            if snapshot.target.storage_generation < current_target.storage_generation
+                || (snapshot.target.storage_generation == current_target.storage_generation
+                    && snapshot.revision <= current.revision)
+            {
+                return Err(GpuPersistentStorageError::StaleSnapshot);
             }
         }
         let prior_capacity = self

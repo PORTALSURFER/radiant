@@ -256,6 +256,27 @@ where
             .abort_snapshot();
     }
 
+    /// Return the CPU admission state of an explicitly retained persistent buffer.
+    /// This describes desired data, independently of native GPU presentation.
+    pub fn gpu_persistent_storage_status(
+        &self,
+        target: crate::runtime::GpuPersistentStorageTarget,
+    ) -> Option<crate::runtime::GpuPersistentStorageStatus> {
+        self.gpu_persistent_storage.status(target)
+    }
+
+    pub(crate) fn has_gpu_persistent_storage_updates(&self) -> bool {
+        self.gpu_persistent_storage_dirty
+    }
+
+    pub(crate) fn commit_gpu_persistent_storage_updates(&mut self) {
+        self.gpu_persistent_storage_dirty = false;
+    }
+
+    pub(crate) fn gpu_persistent_storage(&self) -> &crate::runtime::GpuPersistentStorageStore {
+        &self.gpu_persistent_storage
+    }
+
     /// Return and clear the current runtime-exit request flag.
     pub fn take_exit_requested(&mut self) -> bool {
         let exit_requested = self.exit_requested;

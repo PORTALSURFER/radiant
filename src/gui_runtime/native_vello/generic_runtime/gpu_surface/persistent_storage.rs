@@ -48,6 +48,7 @@ impl PersistentStorageBindingCursor {
             self.committed = next;
         }
     }
+    #[cfg(test)]
     pub(super) fn abort(&mut self) {
         self.pending = None;
     }
@@ -55,15 +56,14 @@ impl PersistentStorageBindingCursor {
     /// A submitted encoder may have changed storage before a later native
     /// ticket veto. Forget only touched bindings so the next frame replays a
     /// full shadow instead of trusting an unknown GPU revision.
-    pub(super) fn abort_unknown_submission(&mut self) {
+    pub(super) fn abort_unknown_submission(&mut self) -> bool {
         if self.pending.is_some() {
             self.committed = None;
             self.pending = None;
+            true
+        } else {
+            false
         }
-    }
-
-    pub(super) fn invalidate(&mut self) {
-        *self = Self::default();
     }
 }
 
@@ -112,7 +112,7 @@ pub(super) fn select_persistent_storage<'a>(
             revision,
             vec![PersistentStorageRange {
                 offset: range.start,
-                byte_len: range.len(),
+                byte_len: if range.is_empty() { 0 } else { range.len() },
             }],
         ),
         PersistentStorageUploads::Ranges { revision, ranges } => (
@@ -121,7 +121,7 @@ pub(super) fn select_persistent_storage<'a>(
                 .into_iter()
                 .map(|range| PersistentStorageRange {
                     offset: range.start,
-                    byte_len: range.len(),
+                    byte_len: if range.is_empty() { 0 } else { range.len() },
                 })
                 .collect(),
         ),

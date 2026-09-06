@@ -416,6 +416,11 @@ pub(super) enum GpuSurfaceRenderCanvasUploadAction {
         class: GpuSurfaceRenderCanvasUploadClass,
         byte_len: usize,
     },
+    CustomPersistentStorage {
+        surface_index: usize,
+        key: u64,
+        plan: Option<super::persistent_storage::PersistentStorageUploadPlan>,
+    },
     CustomStaticState {
         surface_index: usize,
         key: u64,

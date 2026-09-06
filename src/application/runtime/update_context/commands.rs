@@ -120,3 +120,22 @@ impl<Message> UiUpdateContext<Message> {
         self.queue_command(Command::set_window_logical_size(size));
     }
 }
+
+impl<Message> UiUpdateContext<Message> {
+    /// Queue reliable persistent canvas data with explicit CPU admission feedback.
+    /// This does not acknowledge GPU presentation. Handle a rejected patch by
+    /// repairing the revision sequence or supplying a full replacement snapshot.
+    pub fn update_gpu_persistent_storage(
+        &mut self,
+        update: crate::runtime::GpuPersistentStorageUpdate,
+        on_completed: impl FnOnce(
+            Result<
+                Option<crate::runtime::GpuPersistentStorageStatus>,
+                crate::runtime::GpuPersistentStorageError,
+            >,
+        ) -> Message
+        + 'static,
+    ) {
+        self.queue_command(Command::update_gpu_persistent_storage(update, on_completed));
+    }
+}

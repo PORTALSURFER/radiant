@@ -27,6 +27,7 @@ pub(super) mod gpu_surface_types;
 mod identity;
 mod overlays;
 mod passes;
+mod persistent_storage;
 mod pipeline;
 mod resources;
 mod signal;
@@ -128,15 +129,16 @@ pub(super) struct GpuSurfaceRenderTarget<'a> {
 }
 
 impl GpuSurfaceRenderer {
-    pub(super) fn preflight_render_canvas_upload_plan_with_dpi_scale(
+    pub(super) fn preflight_render_canvas_upload_plan_with_persistent_storage(
         &mut self,
         context: GpuSurfaceRenderCanvasUploadPlanContext,
         primitives: &[PaintPrimitive],
         dpi_scale: crate::theme::DpiScale,
         presentation_updates: &[GpuShaderPresentationUniformUpdate],
+        persistent_storage: &crate::runtime::GpuPersistentStorageStore,
     ) -> GpuSurfaceRenderCanvasUploadPlan {
         let state_fingerprint =
-            self.upload_plan_state_fingerprint_with_presentation_updates(presentation_updates);
+            self.upload_plan_fingerprint_with_storage(presentation_updates, persistent_storage);
         let actions = self.upload_scratch.take_action_stream();
         let mut plan = GpuSurfaceRenderCanvasUploadPlan::preflight_with_actions(
             context,
@@ -215,7 +217,10 @@ impl GpuSurfaceRenderer {
                     context.target,
                     surface_index,
                     surface,
-                    presentation_updates,
+                    custom_shader::CustomShaderDataUpdates {
+                        presentation: presentation_updates,
+                        persistent: persistent_storage,
+                    },
                     &mut custom_shader_preflight_state,
                     &mut plan.actions,
                 );
@@ -350,6 +355,46 @@ impl GpuSurfaceRenderer {
         hasher.finish()
     }
 
+    fn upload_plan_fingerprint_with_storage(
+        &mut self,
+        presentation_updates: &[GpuShaderPresentationUniformUpdate],
+        store: &crate::runtime::GpuPersistentStorageStore,
+    ) -> u64 {
+        let base =
+            self.upload_plan_state_fingerprint_with_presentation_updates(presentation_updates);
+        let mut entries: Vec<_> = store
+            .entries()
+            .map(|entry| {
+                let target = entry.target();
+                (
+                    target.widget_id(),
+                    target.surface_key().get(),
+                    target.storage_identity(),
+                    target.storage_generation(),
+                    entry.incarnation(),
+                    entry.revision(),
+                    entry.logical_len(),
+                    entry.capacity_bytes(),
+                    entry.element_stride(),
+                )
+            })
+            .collect();
+        if entries.is_empty() {
+            return base;
+        }
+        entries.sort_unstable();
+        let mut hasher = DefaultHasher::new();
+        base.hash(&mut hasher);
+        entries.hash(&mut hasher);
+        for entry in &entries {
+            self.resources
+                .custom_shader_binding(entry.1)
+                .and_then(|binding| binding.persistent_storage_cursor.effective())
+                .hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
     fn commit_active_key(
         &mut self,
         plan_in_flight: bool,
@@ -425,12 +470,13 @@ impl GpuSurfaceRenderer {
         }
     }
 
-    pub(super) fn render(
+    pub(super) fn render_with_persistent_storage(
         &mut self,
         target: &mut GpuSurfaceRenderTarget<'_>,
         primitives: &[PaintPrimitive],
         occlusion_plan: &SurfaceOcclusionPlan,
         presentation_updates: &[GpuShaderPresentationUniformUpdate],
+        persistent_storage: &crate::runtime::GpuPersistentStorageStore,
     ) -> GpuSurfaceRenderStats {
         let mut upload_plan = target.upload_plan.take();
         let plan_started = upload_plan.as_mut().is_none_or(|plan| {
@@ -442,7 +488,7 @@ impl GpuSurfaceRenderer {
                 context,
                 primitives.as_ptr() as usize,
                 primitives.len(),
-                self.upload_plan_state_fingerprint_with_presentation_updates(presentation_updates),
+                self.upload_plan_fingerprint_with_storage(presentation_updates, persistent_storage),
             )
         });
         let mut plan_in_flight = plan_started && upload_plan.is_some();
@@ -632,6 +678,7 @@ impl GpuSurfaceRenderer {
                         surface,
                         occlusion_regions: &occlusion_regions,
                         presentation_updates,
+                        persistent_storage,
                     },
                     surface_upload_plan,
                     &mut stats,
@@ -694,7 +741,19 @@ impl GpuSurfaceRenderer {
         if transaction_complete {
             self.commit_custom_shader_preparations(primitives);
         }
+        if !transaction_complete {
+            self.abort_pending_persistent_storage();
+        }
+        stats.persistent_storage_complete = transaction_complete;
         stats
+    }
+
+    pub(super) fn commit_pending_persistent_storage(&mut self) {
+        self.resources.finish_persistent_storage(true);
+    }
+
+    pub(super) fn abort_pending_persistent_storage(&mut self) {
+        self.resources.finish_persistent_storage(false);
     }
 
     /// Close the mapped presentation staging chunks before the frame encoder
@@ -774,6 +833,40 @@ impl GpuSurfaceRenderer {
 #[cfg(test)]
 #[path = "gpu_surface/custom_shader/native_tests.rs"]
 mod native_tests;
+
+#[cfg(test)]
+impl GpuSurfaceRenderer {
+    pub(super) fn preflight_render_canvas_upload_plan_with_dpi_scale(
+        &mut self,
+        context: GpuSurfaceRenderCanvasUploadPlanContext,
+        primitives: &[PaintPrimitive],
+        dpi_scale: crate::theme::DpiScale,
+        presentation_updates: &[GpuShaderPresentationUniformUpdate],
+    ) -> GpuSurfaceRenderCanvasUploadPlan {
+        self.preflight_render_canvas_upload_plan_with_persistent_storage(
+            context,
+            primitives,
+            dpi_scale,
+            presentation_updates,
+            &crate::runtime::GpuPersistentStorageStore::default(),
+        )
+    }
+    pub(super) fn render(
+        &mut self,
+        target: &mut GpuSurfaceRenderTarget<'_>,
+        primitives: &[PaintPrimitive],
+        occlusion_plan: &SurfaceOcclusionPlan,
+        presentation_updates: &[GpuShaderPresentationUniformUpdate],
+    ) -> GpuSurfaceRenderStats {
+        self.render_with_persistent_storage(
+            target,
+            primitives,
+            occlusion_plan,
+            presentation_updates,
+            &crate::runtime::GpuPersistentStorageStore::default(),
+        )
+    }
+}
 
 #[cfg(test)]
 mod tests {

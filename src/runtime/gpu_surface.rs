@@ -3,6 +3,7 @@
 use crate::gui::types::Rgba8;
 
 mod content;
+mod persistent_storage;
 mod presentation;
 mod signal_summary;
 mod signal_viewport;
@@ -152,3 +153,12 @@ pub enum GpuSurfaceOverlay {
 
 /// Lightweight retained render-canvas overlay.
 pub type RenderCanvasOverlay = GpuSurfaceOverlay;
+
+pub use persistent_storage::{
+    GpuPersistentStorageError, GpuPersistentStoragePatch, GpuPersistentStoragePatchOperation,
+    GpuPersistentStorageSnapshot, GpuPersistentStorageStatus, GpuPersistentStorageTarget,
+    GpuPersistentStorageUpdate,
+};
+pub(crate) use persistent_storage::{
+    GpuPersistentStorageStore, PersistentStorageEntry, PersistentStorageUploads,
+};

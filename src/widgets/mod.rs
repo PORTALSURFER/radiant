@@ -135,3 +135,9 @@ pub(crate) use primitives::{
 };
 pub use text_metrics::{DeclaredTextMetrics, ResolvedTextMetrics, TextScaleParticipation};
 pub use theme::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_tokens};
+
+pub use primitives::{
+    MAX_TEXT_EDITOR_BYTES, MAX_TEXT_EDITOR_GRAPHEMES, TextEditorCompositionDelta, TextEditorDelta,
+    TextEditorDocument, TextEditorEdit, TextEditorError, TextEditorRevision, TextEditorSelection,
+    TextEditorSnapshot,
+};

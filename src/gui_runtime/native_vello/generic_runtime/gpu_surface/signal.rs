@@ -134,6 +134,7 @@ pub(super) struct SignalUploadPreflightState {
     summaries: HashMap<u64, SignalSummaryPreflightIdentity>,
     buffers: HashMap<u64, SignalBufferPreflightIdentity>,
     bodies: HashMap<u64, SignalBodyPreflightIdentity>,
+    planned_gpu_bytes: HashMap<usize, usize>,
 }
 
 pub(super) struct SignalUploadPreflight {
@@ -165,6 +166,7 @@ impl SignalUploadPreflightState {
         self.summaries.clear();
         self.buffers.clear();
         self.bodies.clear();
+        self.planned_gpu_bytes.clear();
     }
 
     #[cfg(test)]
@@ -262,7 +264,8 @@ impl SignalUploadPreflightState {
         sample_count: usize,
         pipeline_generation: u64,
     ) -> GpuSurfaceRenderCanvasUploadSignalBufferOperation {
-        let had_cached = self.buffers.contains_key(&key);
+        let had_cached =
+            self.buffers.contains_key(&key) || renderer.resources.signals.get(&key).is_some();
         let cached = self.buffers.entry(key).or_insert_with(|| {
             renderer
                 .resources
@@ -303,7 +306,8 @@ impl SignalUploadPreflightState {
         device: usize,
         cache_key: SignalBodyCacheKey,
     ) -> GpuSurfaceRenderCanvasUploadSignalBodyOperation {
-        let had_cached = self.bodies.contains_key(&key);
+        let had_cached =
+            self.bodies.contains_key(&key) || renderer.resources.signal_bodies.get(&key).is_some();
         let cached = self.bodies.entry(key).or_insert_with(|| {
             renderer
                 .resources
@@ -490,10 +494,6 @@ impl GpuSurfaceRenderer {
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
             };
         };
-        let (pipeline_generation, pipeline_rebuild) =
-            composite_state.ensure_pipeline(self, target.device, target.format);
-        let (signal_pipeline_generation, signal_pipeline_rebuild) =
-            signal_state.ensure_pipeline(self, target.device, wgpu::TextureFormat::Rgba8Unorm);
         let source_identity = match &surface.content {
             GpuSurfaceContent::SignalBands {
                 samples,
@@ -522,6 +522,99 @@ impl GpuSurfaceRenderer {
             body.bucket_count,
             source.prepared.as_ref().map(PreparedSummary::asset_key),
         );
+        if let Some(prepared) = &source.prepared {
+            let budget = prepared.gpu_budget();
+            let signal_pipeline_current = self.signal_pipeline.as_ref().is_some_and(|pipeline| {
+                pipeline.device == target.device
+                    && pipeline.format == wgpu::TextureFormat::Rgba8Unorm
+            });
+            let buffer_reused = if let Some(cached) = signal_state.buffers.get(&surface.key) {
+                cached.cache_key == buffer_cache_key
+                    && cached.sample_count == summary_bucket_value_count(body.buckets)
+            } else {
+                signal_pipeline_current
+                    && matches!(
+                        self.signal_buffer_operation(
+                            surface.key,
+                            buffer_cache_key,
+                            summary_bucket_value_count(body.buckets)
+                        ),
+                        GpuSurfaceRenderCanvasUploadSignalBufferOperation::Reuse
+                    )
+            };
+            let body_reused = signal_state.bodies.get(&surface.key).map_or_else(
+                || {
+                    self.resources
+                        .signal_bodies
+                        .get(&surface.key)
+                        .is_some_and(|cached| {
+                            cached.device == target.device && cached.cache_key == body.body_key
+                        })
+                },
+                |cached| cached.device == target.device && cached.cache_key == body.body_key,
+            );
+            let composite_current = self.pipeline.as_ref().is_some_and(|pipeline| {
+                pipeline.device == target.device && pipeline.format == target.format
+            });
+            let live_composite_reused = composite_current
+                && self
+                    .resources
+                    .composite_bindings
+                    .get(&surface.key)
+                    .is_some_and(|binding| {
+                        binding.cache_key.pipeline_generation == self.pipeline_generation
+                            && binding.cache_key.texture
+                                == GpuSurfaceTextureIdentity::SignalBody(body.body_key)
+                    });
+            let composite_reused = if signal_state.bodies.contains_key(&surface.key) {
+                body_reused
+            } else {
+                live_composite_reused
+            };
+            let buffer_bytes = if buffer_reused {
+                Some(0)
+            } else {
+                body.buckets
+                    .len()
+                    .checked_mul(std::mem::size_of::<crate::runtime::GpuSignalSummaryBucket>())
+                    .and_then(|bytes| bytes.checked_add(std::mem::size_of::<SignalUniforms>()))
+            };
+            let body_bytes = if body_reused {
+                Some(0)
+            } else {
+                (body.body_key.width as usize)
+                    .checked_mul(body.body_key.height as usize)
+                    .and_then(|pixels| pixels.checked_mul(4))
+            };
+            let composite_bytes = if composite_reused {
+                0
+            } else {
+                std::mem::size_of::<super::gpu_surface_types::GpuSurfaceUniforms>()
+            };
+            let identity = Arc::as_ptr(budget) as usize;
+            let planned = signal_state
+                .planned_gpu_bytes
+                .get(&identity)
+                .copied()
+                .unwrap_or(0);
+            let total = buffer_bytes
+                .and_then(|bytes| bytes.checked_add(body_bytes?))
+                .and_then(|bytes| bytes.checked_add(composite_bytes))
+                .and_then(|bytes| bytes.checked_add(planned));
+            let Some(total) = total.filter(|bytes| budget.can_fit_additional(*bytes)) else {
+                return SignalUploadPreflight {
+                    renderable: false,
+                    unavailable: Some(
+                        GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    ),
+                };
+            };
+            signal_state.planned_gpu_bytes.insert(identity, total);
+        }
+        let (pipeline_generation, pipeline_rebuild) =
+            composite_state.ensure_pipeline(self, target.device, target.format);
+        let (signal_pipeline_generation, signal_pipeline_rebuild) =
+            signal_state.ensure_pipeline(self, target.device, wgpu::TextureFormat::Rgba8Unorm);
         let sample_count = summary_bucket_value_count(body.buckets);
         let buffer_operation = signal_state.signal_buffer_operation(
             self,

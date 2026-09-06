@@ -285,10 +285,12 @@ fn async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary() {
         );
         assert_eq!(first.stats.signal.summary_builds, 0);
         assert_eq!(first.stats.signal.body_renders, 1);
-        assert!(renderer
-            .resources
-            .signal_summaries
-            .contains_key(&SIGNAL_KEY));
+        assert!(
+            renderer
+                .resources
+                .signal_summaries
+                .contains_key(&SIGNAL_KEY)
+        );
         assert!(renderer.resources.signals.get(&SIGNAL_KEY).is_some());
         assert!(renderer.resources.signal_bodies.get(&SIGNAL_KEY).is_some());
         let warm = render_case(
@@ -319,10 +321,12 @@ fn async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary() {
         };
         let pending = render_case(&mut renderer, &device, &queue, &primitives);
         assert_eq!(pending.stats.signal.summary_builds, 0);
-        assert!(!renderer
-            .resources
-            .signal_summaries
-            .contains_key(&SIGNAL_KEY));
+        assert!(
+            !renderer
+                .resources
+                .signal_summaries
+                .contains_key(&SIGNAL_KEY)
+        );
         assert!(renderer.resources.signals.get(&SIGNAL_KEY).is_none());
         assert!(renderer.resources.signal_bodies.get(&SIGNAL_KEY).is_none());
         broker.maintain_retired();
@@ -452,7 +456,12 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
     let pan_primitive = PaintPrimitive::GpuSurface(signal_surface(pan, 1));
     let pan_render = render_case(&mut renderer, &device, &queue, &[pan_primitive]);
     assert_eq!(
-        renderer.resources.signals[&SIGNAL_KEY].cache_key,
+        renderer
+            .resources
+            .signals
+            .get(&SIGNAL_KEY)
+            .unwrap()
+            .cache_key,
         tile_buffer_key
     );
     assert_eq!(

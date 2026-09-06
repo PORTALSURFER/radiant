@@ -80,6 +80,29 @@ impl SignalGpuBudget {
         }
     }
 
+    /// Conservative preflight admission; actual resources still reserve before
+    /// allocation. The caller includes earlier allocations in the same plan.
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn can_fit_additional(
+        &self,
+        bytes: usize,
+    ) -> bool {
+        if bytes > self.limit {
+            return false;
+        }
+        let used = self.used.load(Ordering::Acquire);
+        if used
+            .checked_add(bytes)
+            .is_some_and(|total| total <= self.limit)
+        {
+            return true;
+        }
+        self.waiting.store(true, Ordering::Release);
+        self.used
+            .load(Ordering::Acquire)
+            .checked_add(bytes)
+            .is_some_and(|total| total <= self.limit)
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn take_retry(&self) -> bool {
         self.retry_ready.swap(false, Ordering::AcqRel)
     }

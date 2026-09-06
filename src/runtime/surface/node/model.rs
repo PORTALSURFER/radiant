@@ -87,6 +87,9 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) resource_demand:
         Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
     pub(in crate::runtime::surface) has_resource_view_demand: bool,
+    pub(in crate::runtime::surface) notice_demand:
+        Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
+    pub(in crate::runtime::surface) has_notice_demand: bool,
 }
 
 /// Runtime-internal named construction fields for a [`SurfaceContainer`].
@@ -116,6 +119,10 @@ impl<Message> SurfaceContainer<Message> {
             .children
             .iter()
             .any(|child| child.child.has_resource_view_demand());
+        let has_notice_demand = parts
+            .children
+            .iter()
+            .any(|child| child.child.has_notice_demand());
         Self {
             _ui_affinity: UiAffinity::new(),
             id: parts.id,
@@ -141,6 +148,8 @@ impl<Message> SurfaceContainer<Message> {
             animation_values: Vec::new(),
             resource_demand: None,
             has_resource_view_demand,
+            notice_demand: None,
+            has_notice_demand,
         }
     }
 
@@ -502,6 +511,39 @@ impl<Message> SurfaceNode<Message> {
             Self::Scene(scene) => scene.has_resource_view_demand,
             Self::Container(container) => container.has_resource_view_demand,
             Self::FloatingLayer(layer) => layer.container.has_resource_view_demand,
+            Self::Widget(_) | Self::Overlay(_) => false,
+        }
+    }
+
+    pub(crate) fn with_notice_demand(
+        mut self,
+        demand: Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.notice_demand = demand;
+            container.has_notice_demand = container.notice_demand.is_some()
+                || container
+                    .children
+                    .iter()
+                    .any(|child| child.child.has_notice_demand());
+        }
+        self
+    }
+
+    pub(crate) fn notice_demand(
+        &self,
+    ) -> Option<Rc<crate::application::notifications::NoticeDemand<Message>>> {
+        match self {
+            Self::Container(container) => container.notice_demand.clone(),
+            Self::Scene(_) | Self::Widget(_) | Self::Overlay(_) | Self::FloatingLayer(_) => None,
+        }
+    }
+
+    pub(crate) fn has_notice_demand(&self) -> bool {
+        match self {
+            Self::Scene(scene) => scene.has_notice_demand,
+            Self::Container(container) => container.has_notice_demand,
+            Self::FloatingLayer(layer) => layer.container.has_notice_demand,
             Self::Widget(_) | Self::Overlay(_) => false,
         }
     }

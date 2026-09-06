@@ -158,6 +158,8 @@ fn same_retained_container_ancestor<Message>(
             previous.resource_demand.as_ref(),
             current.resource_demand.as_ref(),
         )
+        && previous.notice_demand.is_none()
+        && current.notice_demand.is_none()
         && previous.layout_policy.is_none()
         && current.layout_policy.is_none()
         && previous.layout_capabilities.is_none()

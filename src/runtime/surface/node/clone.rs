@@ -63,6 +63,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             resource_demand: self.resource_demand.clone(),
             has_resource_view_demand: self.has_resource_view_demand,
             has_notice_demand: self.has_notice_demand,
+            notice_demand: self.notice_demand.clone(),
         }
     }
 }

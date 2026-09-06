@@ -34,7 +34,7 @@ impl UploadTrace {
             None | Some("") => Ok(Self { buffer: None }),
             Some("1") if std::env::var(RENDER_PROFILE_ENV).ok().as_deref() == Some("1") => {
                 Ok(Self {
-                    buffer: Some(Arc::new(Mutex::new(TraceBuffer::default()))),
+                    buffer: Some(Arc::new(Mutex::new(TraceBuffer::new()))),
                 })
             }
             Some("1") => Err(format!(
@@ -49,9 +49,9 @@ impl UploadTrace {
             return run();
         };
         tracing::subscriber::with_default(
-            tracing::Dispatch::new(UploadTraceSubscriber {
+            UploadTraceSubscriber {
                 buffer: Arc::clone(buffer),
-            }),
+            },
             run,
         )
     }
@@ -84,13 +84,19 @@ impl UploadTrace {
     }
 }
 
-#[derive(Default)]
 struct TraceBuffer {
     events: Vec<UploadTraceEvent>,
     dropped: u64,
 }
 
 impl TraceBuffer {
+    fn new() -> Self {
+        Self {
+            events: Vec::with_capacity(CAPACITY),
+            dropped: 0,
+        }
+    }
+
     fn push(&mut self, event: UploadTraceEvent) {
         if self.events.len() < CAPACITY {
             self.events.push(event);
@@ -240,15 +246,15 @@ mod tests {
     #[test]
     fn capture_keeps_numeric_values_and_optional_fields() {
         // Exercise the visitor's field mapping through the production subscriber.
-        let buffer = Arc::new(Mutex::new(TraceBuffer::default()));
+        let buffer = Arc::new(Mutex::new(TraceBuffer::new()));
         let subscriber = UploadTraceSubscriber {
             buffer: Arc::clone(&buffer),
         };
-        tracing::subscriber::with_default(tracing::Dispatch::new(subscriber), || {
+        tracing::subscriber::with_default(subscriber, || {
             tracing::info!(
                 target: RENDER_PROFILE_TARGET,
-                window_identity = Option::<u64>::None,
-                frame_sequence = 11_u64,
+                window_identity = Some(7_u64),
+                frame_sequence = Some(11_u64),
                 gpu_surface_render_canvas_upload_immutable_payload_operations = 2_u64,
                 gpu_surface_render_canvas_upload_immutable_payload_bytes = 512_u64,
                 gpu_surface_render_canvas_upload_volatile_payload_operations = 3_u64,
@@ -257,23 +263,39 @@ mod tests {
                 gpu_surface_render_canvas_upload_renderer_parameter_bytes = 64_u64,
                 "render profile"
             );
+            tracing::info!(
+                target: RENDER_PROFILE_TARGET,
+                window_identity = Option::<u64>::None,
+                frame_sequence = Option::<u64>::None,
+                gpu_surface_render_canvas_upload_immutable_payload_operations = 0_u64,
+                gpu_surface_render_canvas_upload_immutable_payload_bytes = 0_u64,
+                gpu_surface_render_canvas_upload_volatile_payload_operations = 0_u64,
+                gpu_surface_render_canvas_upload_volatile_payload_bytes = 0_u64,
+                gpu_surface_render_canvas_upload_renderer_parameter_operations = 0_u64,
+                gpu_surface_render_canvas_upload_renderer_parameter_bytes = 0_u64,
+                "render profile without native correlation"
+            );
         });
         let buffer = buffer.lock().unwrap();
-        assert_eq!(buffer.events.len(), 1);
+        assert_eq!(buffer.events.len(), 2);
         let artifact = buffer.events[0].artifact();
-        assert!(artifact["window_identity"].is_null());
+        assert_eq!(artifact["window_identity"], 7);
+        assert_eq!(artifact["frame_sequence"], 11);
         assert_eq!(artifact["immutable_payload_bytes"], 512);
         assert_eq!(artifact["renderer_parameter_operations"], 1);
         assert!(artifact["volatile_payload_bytes"].is_number());
+        let missing_correlation = buffer.events[1].artifact();
+        assert!(missing_correlation["window_identity"].is_null());
+        assert!(missing_correlation["frame_sequence"].is_null());
     }
 
     #[test]
     fn subscriber_rejects_incomplete_profile_events() {
-        let buffer = Arc::new(Mutex::new(TraceBuffer::default()));
+        let buffer = Arc::new(Mutex::new(TraceBuffer::new()));
         let subscriber = UploadTraceSubscriber {
             buffer: Arc::clone(&buffer),
         };
-        tracing::subscriber::with_default(tracing::Dispatch::new(subscriber), || {
+        tracing::subscriber::with_default(subscriber, || {
             tracing::info!(
                 target: RENDER_PROFILE_TARGET,
                 window_identity = 7_u64,
@@ -286,7 +308,7 @@ mod tests {
 
     #[test]
     fn buffer_records_its_truncation_count() {
-        let mut buffer = TraceBuffer::default();
+        let mut buffer = TraceBuffer::new();
         for _ in 0..=CAPACITY {
             buffer.push(UploadTraceEvent::default());
         }

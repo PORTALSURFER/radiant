@@ -758,6 +758,7 @@ where
         &mut self,
         delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
     ) -> bool {
+        self.cancel_scroll_wheel_edit(true, None, true);
         self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
         self.cancel_layout_pointer_capture();
         let managed_record_present = self.interaction.pointer.managed_capture.is_some();

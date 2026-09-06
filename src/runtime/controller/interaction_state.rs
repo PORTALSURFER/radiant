@@ -210,6 +210,8 @@ pub(super) struct RuntimeFocusedKeyCapture {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(super) struct RuntimeWheelState {
     pub(super) managed_sequence: RuntimeManagedWheelSequenceState,
+    /// Current container edit evidence; managed_sequence remains the authority.
+    pub(super) scroll_edit: Option<ScrollWheelEditSequence>,
     /// The latest accepted offset for each container in an explicit scroll
     /// sequence. Nested chaining may settle more than one owner per sample.
     pub(super) pending_scroll_settlement: Vec<(NodeId, crate::gui::types::Vector2)>,
@@ -229,7 +231,30 @@ pub(super) enum RuntimeManagedWheelSequenceState {
     Active {
         widget_id: WidgetId,
     },
+    Scroll {
+        transaction: crate::widgets::EditTransaction,
+    },
+    /// A completed/retired container sequence rejects later explicit continuations.
+    ScrollClosed,
     Blocked,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ScrollWheelEditSequence {
+    pub(super) transaction: crate::widgets::EditTransaction,
+    pub(super) owners: Vec<ScrollWheelEditOwner>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ScrollWheelEditOwner {
+    pub(super) node_id: NodeId,
+    pub(super) content_id: NodeId,
+    pub(super) viewport_size: crate::gui::types::Vector2,
+    pub(super) content_size: crate::gui::types::Vector2,
+    pub(super) policy: crate::layout::ScrollPolicy,
+    pub(super) edit: crate::widgets::EditEvent<crate::gui::types::Vector2>,
+    pub(super) begun: bool,
+    pub(super) published: bool,
 }
 
 /// Runtime-owned lifecycle slot for one exact managed composition.

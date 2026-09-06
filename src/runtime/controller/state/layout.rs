@@ -934,7 +934,7 @@ mod tests {
         assert!(has_thumb(&runtime));
         runtime.dispatch_pointer_move_with_outcome(Point::new(-8.0, -8.0));
         assert!(has_thumb(&runtime));
-        assert!(!runtime.wheel_or_scroll_at_with_sample(
+        assert!(runtime.wheel_or_scroll_at_with_sample(
             Point::new(-8.0, -8.0),
             phaseful(crate::widgets::WheelPhase::Ended)
         ));
@@ -952,7 +952,7 @@ mod tests {
         ));
         runtime.dispatch_pointer_move_with_outcome(Point::new(-8.0, -8.0));
         assert!(has_thumb(&runtime));
-        assert!(!runtime.wheel_or_scroll_at_with_sample(
+        assert!(runtime.wheel_or_scroll_at_with_sample(
             Point::new(-8.0, -8.0),
             phaseful(crate::widgets::WheelPhase::Cancelled)
         ));
@@ -969,7 +969,7 @@ mod tests {
     }
 
     #[test]
-    fn terminal_over_wheel_sibling_finalizes_scroll_once_without_swallowing_widget() {
+    fn owned_scroll_terminal_does_not_rebind_to_wheel_sibling() {
         let mut runtime =
             SurfaceRuntime::new(WheelSiblingBridge::default(), Vector2::new(100.0, 160.0));
         let sample = |phase| {
@@ -992,13 +992,13 @@ mod tests {
             sample(crate::widgets::WheelPhase::Ended)
         ));
         assert_eq!(runtime.bridge().settled, 1);
-        assert_eq!(runtime.bridge().sibling_wheels, 1);
-        assert!(runtime.wheel_or_scroll_at_with_sample(
+        assert_eq!(runtime.bridge().sibling_wheels, 0);
+        assert!(!runtime.wheel_or_scroll_at_with_sample(
             Point::new(8.0, 100.0),
             sample(crate::widgets::WheelPhase::Ended)
         ));
         assert_eq!(runtime.bridge().settled, 1);
-        assert_eq!(runtime.bridge().sibling_wheels, 2);
+        assert_eq!(runtime.bridge().sibling_wheels, 0);
 
         assert!(runtime.wheel_or_scroll_at_with_sample(
             Point::new(8.0, 8.0),
@@ -1009,11 +1009,17 @@ mod tests {
             sample(crate::widgets::WheelPhase::Cancelled)
         ));
         assert_eq!(runtime.bridge().settled, 1);
-        assert_eq!(runtime.bridge().sibling_wheels, 3);
+        assert_eq!(runtime.bridge().sibling_wheels, 0);
         let now = Instant::now();
         runtime.set_timed_repaint_clock(Some(now));
         assert!(!runtime.advance_timed_repaints(now + Duration::from_millis(100)));
         assert_eq!(runtime.bridge().settled, 1);
+        // A fresh discrete interaction still reaches the sibling normally.
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(8.0, 100.0),
+            sample(crate::widgets::WheelPhase::Discrete)
+        ));
+        assert_eq!(runtime.bridge().sibling_wheels, 1);
     }
 
     #[test]

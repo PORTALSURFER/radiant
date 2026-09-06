@@ -1,5 +1,6 @@
 mod edit;
 pub use edit::ScrollEditBatch;
+mod retirement;
 mod scrollbar;
 mod wheel;
 
@@ -66,6 +67,7 @@ where
             delta,
             ScrollUpdateMetadata::default(),
             true,
+            crate::widgets::InteractionProvenance::Programmatic,
         )
     }
 
@@ -81,6 +83,7 @@ where
             delta,
             ScrollUpdateMetadata::default(),
             refresh_after_message,
+            crate::widgets::InteractionProvenance::Programmatic,
         )
     }
 
@@ -94,7 +97,15 @@ where
         delta: Vector2,
         metadata: ScrollUpdateMetadata,
         refresh_after_message: bool,
+        provenance: crate::widgets::InteractionProvenance,
     ) -> bool {
+        if !point.x.is_finite()
+            || !point.y.is_finite()
+            || !delta.x.is_finite()
+            || !delta.y.is_finite()
+        {
+            return false;
+        }
         let Some(deepest) = self.scroll_container_at(point) else {
             return false;
         };
@@ -144,6 +155,11 @@ where
             self.relayout_current_surface();
             let offset = self.layout_state.scroll_offset(node_id);
             if offset != current {
+                if provenance == crate::widgets::InteractionProvenance::Programmatic
+                    && !self.retire_replaced_scroll_edit(node_id, offset)
+                {
+                    return true;
+                }
                 let consumed = Vector2::new(offset.x - current.x, offset.y - current.y);
                 let mut residual = remaining;
                 if allows_horizontal {
@@ -158,7 +174,7 @@ where
                     .get(&node_id)
                     .map(|rect| Vector2::new(rect.width(), rect.height()))
                     .unwrap_or_default();
-                self.report_scroll_update_with_refresh(
+                self.report_atomic_scroll_edit(
                     ScrollUpdate {
                         node_id,
                         position: point,
@@ -168,6 +184,7 @@ where
                         viewport,
                         metadata,
                     },
+                    provenance,
                     refresh_after_message,
                 );
                 if !policy.chaining

@@ -46,6 +46,14 @@ where
         if self.pointer_capture_blocks_press(button) {
             return None;
         }
+        if self.interaction.wheel.scroll_edit.is_some() && !self.scroll_wheel_edit_is_live() {
+            self.cancel_scroll_wheel_edit(false, None, true);
+        }
+        if let Some(node_id) = self.scroll_affordance_at(position)
+            && self.scroll_wheel_edit_contains(node_id)
+        {
+            return None;
+        }
         if self.scroll_affordance_at(position).is_some()
             && self.clear_focus_with_transition() == FocusTransition::Vetoed
         {
@@ -238,6 +246,14 @@ where
             return None;
         }
         if self.pointer_capture_blocks_press(button) {
+            return None;
+        }
+        if self.interaction.wheel.scroll_edit.is_some() && !self.scroll_wheel_edit_is_live() {
+            self.cancel_scroll_wheel_edit(false, None, true);
+        }
+        if let Some(node_id) = self.scroll_affordance_at(position)
+            && self.scroll_wheel_edit_contains(node_id)
+        {
             return None;
         }
         if self.scroll_affordance_at(position).is_some()

@@ -2,6 +2,59 @@ use super::{SurfaceContainer, SurfaceNode, SurfaceScene};
 use crate::runtime::ScrollUpdate;
 
 impl<Message> SurfaceNode<Message> {
+    pub(in crate::runtime) fn scroll_edit_source(
+        &self,
+        node_id: crate::layout::NodeId,
+    ) -> Option<crate::runtime::FrozenSourceMetadata> {
+        if self.id() == node_id {
+            return self
+                .source_metadata_handle()
+                .as_deref()
+                .map(super::super::SourceMetadata::freeze);
+        }
+        match self {
+            Self::Scene(scene) => scene.base.scroll_edit_source(node_id).or_else(|| {
+                scene.ordered_layers().find_map(|layer| {
+                    layer
+                        .input
+                        .as_ref()
+                        .and_then(|input| input.scroll_edit_source(node_id))
+                        .or_else(|| layer.node.scroll_edit_source(node_id))
+                })
+            }),
+            Self::Container(container) => container
+                .children
+                .iter()
+                .find_map(|child| child.child.scroll_edit_source(node_id)),
+            Self::FloatingLayer(layer) => layer
+                .container
+                .children
+                .iter()
+                .find_map(|child| child.child.scroll_edit_source(node_id)),
+            Self::Widget(_) | Self::Overlay(_) => None,
+        }
+    }
+
+    pub(in crate::runtime) fn scroll_edit_mapper(
+        &self,
+        node_id: crate::layout::NodeId,
+    ) -> Option<crate::runtime::ScrollEditMessageMapper<Message>> {
+        match self {
+            Self::Scene(scene) => scene.base.scroll_edit_mapper(node_id).or_else(|| {
+                scene.ordered_layers().find_map(|layer| {
+                    layer
+                        .input
+                        .as_ref()
+                        .and_then(|input| input.scroll_edit_mapper(node_id))
+                        .or_else(|| layer.node.scroll_edit_mapper(node_id))
+                })
+            }),
+            Self::Container(container) => container.scroll_edit_mapper(node_id),
+            Self::FloatingLayer(layer) => layer.container.scroll_edit_mapper(node_id),
+            Self::Widget(_) | Self::Overlay(_) => None,
+        }
+    }
+
     pub(in crate::runtime) fn scroll_edit_message(
         &self,
         batch: crate::runtime::ScrollEditBatch,
@@ -38,6 +91,18 @@ impl<Message> SurfaceNode<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
+    fn scroll_edit_mapper(
+        &self,
+        node_id: crate::layout::NodeId,
+    ) -> Option<crate::runtime::ScrollEditMessageMapper<Message>> {
+        if self.id == node_id {
+            return self.scroll_edit.clone();
+        }
+        self.children
+            .iter()
+            .find_map(|child| child.child.scroll_edit_mapper(node_id))
+    }
+
     fn scroll_edit_message(&self, batch: crate::runtime::ScrollEditBatch) -> Option<Message> {
         if self.id == batch.node_id()
             && let Some(map) = &self.scroll_edit

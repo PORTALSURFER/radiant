@@ -22,6 +22,10 @@ use crate::widgets::WidgetId;
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+#[path = "refresh/tests/scroll_retirement.rs"]
+mod scroll_retirement_tests;
+
 const MAX_IDENTITY_REPLACEMENTS_PER_REFRESH: usize = 4;
 const MAX_IDENTITY_PATH_COMPONENTS: usize = 8;
 const INVALID_COMPATIBILITY_KIND: &str = "<invalid-cached-widget-evidence>";
@@ -3967,6 +3971,7 @@ where
             self.traversal.widgets.paths.previous = previous_paths;
         }
 
+        let scroll_edit_retirement = self.prepare_scroll_edit_retirement();
         self.surface = next_surface;
         self.replace_layout_root(layout_root);
         if self.interaction.pointer.managed_capture.is_some() {
@@ -3994,6 +3999,7 @@ where
         {
             self.capture_pointer_capture_state(capture.widget_id);
         }
+        self.retire_scroll_edits_after_refresh(scroll_edit_retirement, &mut terminal_messages);
         self.clear_stale_interaction_state();
         self.reconcile_pointer_ingress_sequences();
         self.validate_gesture_capture();

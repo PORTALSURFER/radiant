@@ -151,22 +151,8 @@ where
             return false;
         }
         let target = self.atomic_scroll_target(node_id);
-        // A replacement offset retires the old pointer edit before publishing
-        // the atomic successor. Cancellation must not restore into the replacement.
-        if let Some(capture) = self.interaction.pointer.scroll_drag_capture
-            && capture.node_id == node_id
-        {
-            self.interaction.pointer.scroll_drag_capture = None;
-            self.interaction
-                .pointer
-                .set_release_tombstone(capture.button, true);
-            self.cancel_scrollbar_edit(capture, false);
-            if self.layout_state.scroll_offset(node_id) != offset
-                || self.interaction.pointer.scroll_drag_capture.is_some()
-                || self.atomic_scroll_target(node_id) != target
-            {
-                return true;
-            }
+        if !self.retire_replaced_scroll_edit(node_id, offset) {
+            return true;
         }
         let viewport = self
             .layout
@@ -210,6 +196,41 @@ where
             && self.atomic_scroll_target(node_id) == target
         {
             self.emit_scroll_offset_settled(node_id, offset, true);
+        }
+        true
+    }
+
+    pub(in crate::runtime::controller) fn retire_replaced_scroll_edit(
+        &mut self,
+        node_id: NodeId,
+        offset: Vector2,
+    ) -> bool {
+        let target = self.atomic_scroll_target(node_id);
+        if self.scroll_wheel_edit_contains(node_id) {
+            self.cancel_scroll_wheel_edit(false, None, true);
+            if self.layout_state.scroll_offset(node_id) != offset
+                || self.atomic_scroll_target(node_id) != target
+                || self.interaction.wheel.scroll_edit.is_some()
+            {
+                return false;
+            }
+        }
+        // A replacement offset retires the old pointer edit before publishing
+        // the atomic successor. Cancellation must not restore into the replacement.
+        if let Some(capture) = self.interaction.pointer.scroll_drag_capture
+            && capture.node_id == node_id
+        {
+            self.interaction.pointer.scroll_drag_capture = None;
+            self.interaction
+                .pointer
+                .set_release_tombstone(capture.button, true);
+            self.cancel_scrollbar_edit(capture, false);
+            if self.layout_state.scroll_offset(node_id) != offset
+                || self.interaction.pointer.scroll_drag_capture.is_some()
+                || self.atomic_scroll_target(node_id) != target
+            {
+                return false;
+            }
         }
         true
     }

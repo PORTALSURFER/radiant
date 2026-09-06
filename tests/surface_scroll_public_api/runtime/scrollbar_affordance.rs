@@ -697,6 +697,362 @@ mod edit_lifecycle {
         assert_eq!(runtime.layout().rects[&32].min.y, -80.0);
     }
 
+    fn wheel_sample(delta: f32, phase: Option<WheelPhase>) -> WheelSample {
+        WheelSample::new(
+            WheelDelta::Pixels(Vector2::new(0.0, delta)),
+            phase,
+            PointerModifiers::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn wheel_sequence_keeps_its_container_outside_hit_bounds_and_ignores_stale_input() {
+        let (mut runtime, edits, _) = fixture(false);
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(20.0, 20.0),
+            wheel_sample(8.0, Some(WheelPhase::Started))
+        ));
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(900.0, 900.0),
+            wheel_sample(12.0, Some(WheelPhase::Changed))
+        ));
+        assert!(runtime.wheel_or_scroll_at_with_sample(
+            Point::new(900.0, 900.0),
+            wheel_sample(5.0, Some(WheelPhase::Ended))
+        ));
+        for phase in [
+            WheelPhase::Ended,
+            WheelPhase::Changed,
+            WheelPhase::Cancelled,
+        ] {
+            assert!(!runtime.wheel_or_scroll_at_with_sample(
+                Point::new(20.0, 20.0),
+                wheel_sample(50.0, Some(phase))
+            ));
+        }
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 3);
+        assert_eq!(phases(&edits[0]), [EditPhase::Begin, EditPhase::Update]);
+        assert_eq!(phases(&edits[1]), [EditPhase::Update]);
+        assert_eq!(phases(&edits[2]), [EditPhase::Update, EditPhase::Commit]);
+        assert!(
+            edits
+                .iter()
+                .all(|batch| batch.transaction() == edits[0].transaction())
+        );
+        assert_eq!(runtime.layout().rects[&32].min.y, -25.0);
+    }
+
+    #[test]
+    fn wheel_cancellation_and_capture_loss_restore_the_starting_offset() {
+        for capture_loss in [false, true] {
+            let (mut runtime, edits, _) = fixture(false);
+            runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, 40.0)));
+            edits.borrow_mut().clear();
+            runtime.wheel_or_scroll_at_with_sample(
+                Point::new(20.0, 20.0),
+                wheel_sample(20.0, Some(WheelPhase::Started)),
+            );
+            if capture_loss {
+                runtime.dispatch_event(Event::pointer_capture_cancelled());
+            } else {
+                runtime.wheel_or_scroll_at_with_sample(
+                    Point::new(900.0, 900.0),
+                    wheel_sample(500.0, Some(WheelPhase::Cancelled)),
+                );
+            }
+            let edits = edits.borrow();
+            assert_eq!(edits.len(), 2);
+            assert_eq!(phases(&edits[1]), [EditPhase::Cancel]);
+            assert_eq!(edits[1].offset_update().unwrap().offset.y, 40.0);
+            assert_eq!(runtime.layout().rects[&32].min.y, -40.0);
+        }
+    }
+
+    #[test]
+    fn replaced_wheel_geometry_cancels_without_rollback_or_rebinding() {
+        let (mut runtime, edits, height) = fixture(false);
+        runtime.wheel_or_scroll_at_with_sample(
+            Point::new(20.0, 20.0),
+            wheel_sample(20.0, Some(WheelPhase::Started)),
+        );
+        height.set(800.0);
+        runtime.refresh();
+        assert!(!runtime.wheel_or_scroll_at_with_sample(
+            Point::new(20.0, 20.0),
+            wheel_sample(30.0, Some(WheelPhase::Changed))
+        ));
+        assert_eq!(runtime.layout().rects[&32].min.y, -20.0);
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 2);
+        assert_eq!(phases(&edits[1]), [EditPhase::Cancel]);
+        assert!(edits[1].offset_update().is_none());
+    }
+
+    #[test]
+    fn phase_less_and_discrete_wheel_samples_are_atomic() {
+        let (mut runtime, edits, _) = fixture(false);
+        for phase in [None, Some(WheelPhase::Discrete)] {
+            runtime
+                .wheel_or_scroll_at_with_sample(Point::new(20.0, 20.0), wheel_sample(12.0, phase));
+        }
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 2);
+        assert_ne!(edits[0].transaction(), edits[1].transaction());
+        assert!(
+            edits
+                .iter()
+                .all(|batch| phases(batch)
+                    == [EditPhase::Begin, EditPhase::Update, EditPhase::Commit])
+        );
+        assert_eq!(runtime.layout().rects[&32].min.y, -24.0);
+    }
+
+    #[test]
+    fn wheel_noop_boundaries_and_superseding_start_have_one_terminal_each() {
+        let (mut runtime, edits, _) = fixture(false);
+        let point = Point::new(20.0, 20.0);
+        runtime.wheel_or_scroll_at_with_sample(point, wheel_sample(0.0, Some(WheelPhase::Started)));
+        runtime.wheel_or_scroll_at_with_sample(point, wheel_sample(0.0, Some(WheelPhase::Ended)));
+        {
+            let edits = edits.borrow();
+            assert_eq!(phases(&edits[0]), [EditPhase::Begin]);
+            assert_eq!(phases(&edits[1]), [EditPhase::Commit]);
+            assert!(edits.iter().all(|batch| batch.offset_update().is_none()));
+        }
+        edits.borrow_mut().clear();
+        runtime
+            .wheel_or_scroll_at_with_sample(point, wheel_sample(20.0, Some(WheelPhase::Started)));
+        runtime.wheel_or_scroll_at_with_sample(point, wheel_sample(5.0, Some(WheelPhase::Started)));
+        runtime.wheel_or_scroll_at_with_sample(point, wheel_sample(0.0, Some(WheelPhase::Ended)));
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 4);
+        assert_eq!(phases(&edits[1]), [EditPhase::Cancel]);
+        assert_eq!(edits[1].transaction(), edits[0].transaction());
+        assert_ne!(edits[2].transaction(), edits[0].transaction());
+        assert_eq!(edits[3].transaction(), edits[2].transaction());
+        assert_eq!(runtime.layout().rects[&32].min.y, -5.0);
+    }
+
+    #[test]
+    fn programmatic_wheel_replacement_and_competing_pointer_do_not_share_ownership() {
+        let (mut runtime, edits, _) = fixture(false);
+        let point = Point::new(20.0, 20.0);
+        runtime
+            .wheel_or_scroll_at_with_sample(point, wheel_sample(20.0, Some(WheelPhase::Started)));
+        let bar = thumb(&runtime);
+        runtime.dispatch_event(Event::primary_press(bar));
+        runtime.dispatch_event(Event::pointer_move(Point::new(bar.x, bar.y + 20.0)));
+        runtime.dispatch_event(Event::primary_release(Point::new(bar.x, bar.y + 20.0)));
+        assert_eq!(edits.borrow().len(), 1);
+        runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, 80.0)));
+        assert!(
+            !runtime.wheel_or_scroll_at_with_sample(
+                point,
+                wheel_sample(30.0, Some(WheelPhase::Changed))
+            )
+        );
+        assert!(
+            !runtime
+                .wheel_or_scroll_at_with_sample(point, wheel_sample(30.0, Some(WheelPhase::Ended)))
+        );
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 3);
+        assert_eq!(phases(&edits[1]), [EditPhase::Cancel]);
+        assert!(edits[1].offset_update().is_none());
+        assert_eq!(
+            phases(&edits[2]),
+            [EditPhase::Begin, EditPhase::Update, EditPhase::Commit]
+        );
+        assert_eq!(runtime.layout().rects[&32].min.y, -80.0);
+    }
+
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn nested_wheel_chain_commits_or_rolls_back_each_owner_after_parent_translation() {
+        for cancel in [false, true] {
+            let edits = Rc::new(RefCell::new(Vec::<ScrollEditBatch>::new()));
+            let sink = Rc::clone(&edits);
+            let bridge = declarative_runtime_bridge(
+                (),
+                |_| Arc::new(UiSurface::new(nested_wheel_surface())),
+                move |_, batch| sink.borrow_mut().push(batch),
+            );
+            let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+            let before_inner = runtime.layout().rects[&42];
+            let before_outer = runtime.layout().rects[&32];
+            runtime.wheel_or_scroll_at_with_sample(
+                Point::new(20.0, 20.0),
+                wheel_sample(1000.0, Some(WheelPhase::Started)),
+            );
+            {
+                let edits = edits.borrow();
+                assert_eq!(edits.len(), 2);
+                assert_eq!([edits[0].node_id(), edits[1].node_id()], [41, 31]);
+                assert!(
+                    edits
+                        .iter()
+                        .all(|batch| batch.offset_update().unwrap().offset.y > 0.0)
+                );
+            }
+            runtime.wheel_or_scroll_at_with_sample(
+                Point::new(900.0, 900.0),
+                wheel_sample(
+                    0.0,
+                    Some(if cancel {
+                        WheelPhase::Cancelled
+                    } else {
+                        WheelPhase::Ended
+                    }),
+                ),
+            );
+            let edits = edits.borrow();
+            assert_eq!(edits.len(), 4);
+            for index in 0..2 {
+                assert_eq!(edits[index + 2].transaction(), edits[index].transaction());
+                assert_eq!(
+                    phases(&edits[index + 2]),
+                    [if cancel {
+                        EditPhase::Cancel
+                    } else {
+                        EditPhase::Commit
+                    }]
+                );
+            }
+            if cancel {
+                assert_eq!(runtime.layout().rects[&42], before_inner);
+                assert_eq!(runtime.layout().rects[&32], before_outer);
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn controlled_wheel_echo_preserves_owner_and_new_value_retires_it() {
+        use radiant::layout::Controlled;
+        let controlled = Rc::new(Cell::new((0.0_f32, 1_u64)));
+        let projected = Rc::clone(&controlled);
+        let reduced = Rc::clone(&controlled);
+        let edits = Rc::new(RefCell::new(Vec::<ScrollEditBatch>::new()));
+        let sink = Rc::clone(&edits);
+        let bridge = declarative_runtime_bridge(
+            (),
+            move |_| {
+                let (offset, generation) = projected.get();
+                Arc::new(UiSurface::new(
+                    SurfaceNode::scroll_area(
+                        31,
+                        SurfaceNode::text(
+                            32,
+                            "content",
+                            WidgetSizing::fixed(Vector2::new(180.0, 400.0)),
+                        ),
+                    )
+                    .controlled_offset(Controlled::new(Vector2::new(0.0, offset), generation))
+                    .on_scroll_edit(|batch| batch),
+                ))
+            },
+            move |_, batch: ScrollEditBatch| {
+                if let Some(update) = batch.offset_update() {
+                    reduced.set((update.offset.y, reduced.get().1 + 1));
+                }
+                sink.borrow_mut().push(batch);
+            },
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+        let point = Point::new(20.0, 20.0);
+        runtime
+            .wheel_or_scroll_at_with_sample(point, wheel_sample(20.0, Some(WheelPhase::Started)));
+        runtime
+            .wheel_or_scroll_at_with_sample(point, wheel_sample(10.0, Some(WheelPhase::Changed)));
+        assert_eq!(controlled.get().0, 30.0);
+        controlled.set((80.0, 10));
+        runtime.refresh();
+        assert!(
+            !runtime.wheel_or_scroll_at_with_sample(
+                point,
+                wheel_sample(20.0, Some(WheelPhase::Changed))
+            )
+        );
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 3);
+        assert!(
+            edits
+                .iter()
+                .all(|batch| batch.transaction() == edits[0].transaction())
+        );
+        assert_eq!(phases(&edits[2]), [EditPhase::Cancel]);
+        assert!(edits[2].offset_update().is_none());
+        assert_eq!(controlled.get().0, 80.0);
+        assert_eq!(runtime.layout().rects[&32].min.y, -80.0);
+    }
+
+    fn nested_wheel_surface() -> SurfaceNode<ScrollEditBatch> {
+        use radiant::layout::{SizeModeMain, SlotParams};
+        let inner = SurfaceNode::scroll_area(
+            41,
+            SurfaceNode::text(42, "inner", WidgetSizing::fixed(Vector2::new(180.0, 400.0))),
+        )
+        .on_scroll_edit(|batch| batch);
+        let content = SurfaceNode::column(
+            32,
+            0.0,
+            vec![
+                SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(80.0),
+                        ..intrinsic_slot()
+                    },
+                    inner,
+                ),
+                SurfaceChild::new(
+                    intrinsic_slot(),
+                    SurfaceNode::text(43, "outer", WidgetSizing::fixed(Vector2::new(180.0, 400.0))),
+                ),
+            ],
+        );
+        SurfaceNode::scroll_area(31, content).on_scroll_edit(|batch| batch)
+    }
+
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn callback_replacement_never_cancels_an_ancestor_before_its_begin_is_delivered() {
+        use radiant::layout::Controlled;
+        let generation = Rc::new(Cell::new(1_u64));
+        let projected = Rc::clone(&generation);
+        let reduced = Rc::clone(&generation);
+        let edits = Rc::new(RefCell::new(Vec::<ScrollEditBatch>::new()));
+        let sink = Rc::clone(&edits);
+        let bridge = declarative_runtime_bridge(
+            (),
+            move |_| {
+                Arc::new(UiSurface::new(nested_wheel_surface().controlled_offset(
+                    Controlled::new(Vector2::new(0.0, 0.0), projected.get()),
+                )))
+            },
+            move |_, batch: ScrollEditBatch| {
+                if batch.node_id() == 41 && reduced.get() == 1 {
+                    reduced.set(2);
+                }
+                sink.borrow_mut().push(batch);
+            },
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+        runtime.wheel_or_scroll_at_with_sample(
+            Point::new(20.0, 20.0),
+            wheel_sample(1000.0, Some(WheelPhase::Started)),
+        );
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 2);
+        assert_eq!([edits[0].node_id(), edits[1].node_id()], [41, 41]);
+        assert_eq!(phases(&edits[0]), [EditPhase::Begin, EditPhase::Update]);
+        assert_eq!(phases(&edits[1]), [EditPhase::Cancel]);
+        assert_eq!(edits[0].transaction(), edits[1].transaction());
+        assert!(edits[1].offset_update().is_none());
+        assert_eq!(runtime.layout().rects[&32].min.y, 0.0);
+    }
+
     fn thumb<Bridge: RuntimeBridge<ScrollEditBatch>>(
         runtime: &SurfaceRuntime<Bridge, ScrollEditBatch>,
     ) -> Point {

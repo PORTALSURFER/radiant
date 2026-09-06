@@ -5701,6 +5701,35 @@ Source replacement, revision, detail level, or bucket-window changes rebuild
 the affected immutable data. This is an adapter detail; the public `key` and
 `revision` contract remains unchanged.
 
+Raw `SignalBands` preparation in the native adapter requires the parent
+`RuntimeBridge` task capability. The default application bridge provides it;
+a custom bridge without task hosting leaves raw preparation unavailable and
+uses the existing incomplete-surface fallback. `SignalSummaryBands` remains
+available without that capability. Applications can supply precomputed
+summaries when they already own this preparation.
+
+The native adapter coalesces raw preparation by immutable allocation, revision,
+and declared shape across its primary and auxiliary windows. Redraw only uses
+accepted ready summaries; it never builds a pyramid or waits for a worker.
+Pending work does not itself schedule repeated frames. A ready result schedules
+normal scene encoding only for a still-current interested target. Closing or
+replacing a target releases its interest, and the last release cancels pending
+work. GPU recovery does not give an old target authority to install a result.
+
+Preparation has application-wide limits: two active jobs, eight queued jobs,
+64 retained sources, 128 surface interests, and 256 MiB of reserved logical source-plus-
+summary ownership. This logical budget includes retired cache ownership; it is
+not a process-memory measurement or a limit on application-owned audio data.
+A temporary capacity denial waits for a capacity change; failed or oversized
+work does not retry on every redraw. Cached raw source and summary owners keep
+their reservation until native maintenance can release them outside redraw.
+Frame `summary_builds` no longer attributes worker preparation to redraw.
+Opt-in debug tracing at `radiant::signal_summary_prepare` reports worker terminal
+preparation time separately from maintenance snapshots of reserved bytes,
+retained source bytes, and retained ready-summary bytes. Active partial worker
+allocations are not reported as ready summaries. These are logical ownership
+counts, not process resident memory; unavailable preparation is a separate event.
+
 That keyed/revision contract is the current supported 0.1.x contract. The
 target-only migration path is registered `CanvasProgram` plus immutable,
 typed, bounded `CanvasGraph`, reached provisionally with

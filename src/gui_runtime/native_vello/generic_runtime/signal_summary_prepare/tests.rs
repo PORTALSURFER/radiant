@@ -78,7 +78,7 @@ fn caps_and_checked_bytes_reject_admission() {
     let samples: Arc<[f32]> = Arc::from([0.0; 4]);
     assert_eq!(
         broker.request(target(), request(samples, 1)),
-        SummaryRequestState::WaitingAdmission
+        SummaryRequestState::Unavailable
     );
     assert!(broker.sources.is_empty());
 }
@@ -103,7 +103,7 @@ fn cancelled_dispatch_publishes_terminal_before_wake() {
     let dispatch = broker.take_dispatch().expect("dispatch");
     broker.release_target(target);
     dispatch.run();
-    assert_eq!(wake.0.load(Ordering::Relaxed), 1);
+    assert_eq!(wake.0.load(Ordering::Relaxed), 2);
     broker.drain_completions();
     assert_eq!(broker.active, 0);
 }
@@ -210,4 +210,143 @@ fn close_and_recreate_target_only_notifies_current_epoch() {
     assert!(broker.drain_completions().is_empty());
     broker.take_dispatch().expect("replacement dispatch").run();
     assert_eq!(broker.drain_completions(), vec![new]);
+}
+
+#[test]
+fn cancelled_completion_with_full_queue_retries_after_capacity_recovers() {
+    let mut broker = broker(Limits {
+        queued: 1,
+        ..limits()
+    });
+    let first = target();
+    let samples: Arc<[f32]> = Arc::from([0.0; 4]);
+    broker.request(first, request(samples.clone(), 1));
+    let dispatch = broker.take_dispatch().expect("active");
+    let second = target();
+    broker.request(second, request(Arc::from([1.0; 4]), 1));
+    dispatch.cancelled.store(true, Ordering::Release);
+    dispatch.run();
+    assert!(broker.drain_completions().is_empty());
+    assert_eq!(broker.waiting_targets().collect::<Vec<_>>(), vec![first]);
+    broker.maintain_retired();
+    broker.release_target(second);
+    broker.maintain_retired();
+    assert_eq!(
+        broker.request(first, request(samples, 1)),
+        SummaryRequestState::Pending
+    );
+    broker.take_dispatch().expect("retry").run();
+    assert_eq!(broker.drain_completions(), vec![first]);
+}
+
+#[test]
+fn revived_queued_source_waits_when_queue_is_temporarily_full() {
+    let mut broker = broker(Limits {
+        queued: 1,
+        ..limits()
+    });
+    let first = target();
+    let samples: Arc<[f32]> = Arc::from([0.0; 4]);
+    broker.request(first, request(samples.clone(), 1));
+    broker.release_target(first);
+    let second = target();
+    broker.request(second, request(Arc::from([1.0; 4]), 1));
+    assert_eq!(
+        broker.request(first, request(samples.clone(), 1)),
+        SummaryRequestState::WaitingAdmission
+    );
+    broker.maintain_retired();
+    broker.release_target(second);
+    broker.maintain_retired();
+    assert_eq!(
+        broker.request(first, request(samples, 1)),
+        SummaryRequestState::Pending
+    );
+    broker.take_dispatch().expect("retry").run();
+    assert_eq!(broker.drain_completions(), vec![first]);
+}
+
+#[test]
+fn reversed_worker_terminals_keep_exact_sources_and_release_slots() {
+    let mut broker = broker(limits());
+    let first = target();
+    let second = target();
+    broker.request(first, request(Arc::from([0.0; 4]), 1));
+    broker.request(second, request(Arc::from([1.0; 4]), 2));
+    let a = broker.take_dispatch().expect("first");
+    let b = broker.take_dispatch().expect("second");
+    b.run();
+    a.run();
+    assert_eq!(broker.drain_completions(), vec![second, first]);
+    assert_eq!(broker.active, 0);
+    assert_eq!(
+        broker.prepared(first).expect("first ready").source()[0],
+        0.0
+    );
+    assert_eq!(
+        broker.prepared(second).expect("second ready").source()[0],
+        1.0
+    );
+}
+
+#[test]
+fn shutdown_cancels_active_workers_without_waiting() {
+    let mut broker = broker(limits());
+    broker.request(target(), request(Arc::from([0.0; 4]), 1));
+    let dispatch = broker.take_dispatch().expect("active");
+    assert!(!dispatch.cancelled.load(Ordering::Acquire));
+    drop(broker);
+    assert!(dispatch.cancelled.load(Ordering::Acquire));
+    dispatch.run();
+}
+
+#[test]
+fn concurrent_retired_lease_drops_leave_maintenance_wake_and_release_bytes() {
+    let wake = Arc::new(Wake(AtomicUsize::new(0)));
+    let mut broker = SummaryBroker::with_limits(wake.clone(), limits());
+    let target = target();
+    broker.request(target, request(Arc::from([0.0; 4]), 1));
+    broker.take_dispatch().expect("dispatch").run();
+    broker.drain_completions();
+    let a = broker.prepared(target).expect("ready");
+    let b = a.clone();
+    broker.release_target(target);
+    let before = wake.0.load(Ordering::Relaxed);
+    std::thread::scope(|scope| {
+        scope.spawn(move || drop(a));
+        scope.spawn(move || drop(b));
+    });
+    assert!(wake.0.load(Ordering::Relaxed) > before);
+    broker.maintain_retired();
+    assert_eq!(broker.bytes, 0);
+}
+
+#[test]
+fn failed_source_replacement_wakes_maintenance_before_capacity_is_reclaimed() {
+    let wake = Arc::new(Wake(AtomicUsize::new(0)));
+    let mut broker = SummaryBroker::with_limits(
+        wake.clone(),
+        Limits {
+            sources: 1,
+            ..limits()
+        },
+    );
+    let target = target();
+    broker.request(target, request(Arc::from([0.0; 4]), 1));
+    let dispatch = broker.take_dispatch().expect("dispatch");
+    let id = dispatch.id();
+    drop(dispatch);
+    broker.reject_dispatch(id);
+    let before = wake.0.load(Ordering::Relaxed);
+    let replacement: Arc<[f32]> = Arc::from([1.0; 4]);
+    assert_eq!(
+        broker.request(target, request(replacement.clone(), 2)),
+        SummaryRequestState::WaitingAdmission
+    );
+    assert!(wake.0.load(Ordering::Relaxed) > before);
+    broker.maintain_retired();
+    assert_eq!(
+        broker.request(target, request(replacement, 2)),
+        SummaryRequestState::Pending
+    );
 }

@@ -1,7 +1,7 @@
 //! Bounded UI-owned preparation of raw signal summary pyramids.
 //!
-//! This module deliberately has no renderer or runner wiring. The parent native
-//! runner owns it behind `Rc<RefCell<_>>`, calls dispatch outside that borrow,
+//! The parent native runner owns this broker behind `Rc<RefCell<_>>`,
+//! calls dispatch outside that borrow,
 //! and reconciles current paint plans after capacity changes.
 
 use super::{adapter::NativeAdapterGeneration, runner_state::NativeTargetGeneration};
@@ -154,7 +154,7 @@ pub(super) struct PreparedSummary {
     key: SourceKey,
     source: Arc<[f32]>,
     summary: Arc<GpuSignalSummary>,
-    lease: SummaryRetentionLease,
+    _lease: SummaryRetentionLease,
 }
 
 impl PreparedSummary {
@@ -213,7 +213,7 @@ struct SourceEntry {
 
 enum Interest {
     Source(SourceKey),
-    Waiting(SourceKey),
+    Waiting,
 }
 
 enum CompletionState {
@@ -246,6 +246,7 @@ impl SummaryDispatch {
 
     /// This consumes the reserved completion slot and emits exactly one terminal record.
     pub(super) fn run(self) {
+        let started = std::time::Instant::now();
         let state = match catch_unwind(AssertUnwindSafe(|| {
             GpuSignalSummary::from_interleaved_samples_cancellable(
                 &self.samples,
@@ -258,6 +259,18 @@ impl SummaryDispatch {
             Ok(None) => CompletionState::Cancelled,
             Err(_) => CompletionState::Failed,
         };
+        if tracing::enabled!(target: "radiant::signal_summary_prepare", tracing::Level::DEBUG) {
+            let (result, ready_summary_bytes) = match &state {
+                CompletionState::Ready(summary) => ("ready", logical_ready_summary_bytes(summary)),
+                CompletionState::Cancelled => ("cancelled", 0),
+                CompletionState::Failed => ("failed", 0),
+            };
+            tracing::debug!(target: "radiant::signal_summary_prepare",
+                job = self.id, result, preparation_elapsed_us = started.elapsed().as_micros() as u64,
+                source_bytes = self.samples.len().saturating_mul(std::mem::size_of::<f32>()),
+                ready_summary_bytes,
+                "raw signal worker terminal");
+        }
         let _ = self.sender.send(Completion {
             id: self.id,
             key: self.key,
@@ -313,6 +326,21 @@ impl Limits {
 impl SummaryBroker {
     pub(super) fn new(wake: Arc<dyn RepaintSignal>) -> Self {
         Self::with_limits(wake, Limits::production())
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_byte_limit_for_test(byte_limit: usize) -> Self {
+        struct NoopWake;
+        impl RepaintSignal for NoopWake {
+            fn request_repaint(&self) {}
+        }
+        Self::with_limits(
+            Arc::new(NoopWake),
+            Limits {
+                bytes: byte_limit,
+                ..Limits::production()
+            },
+        )
     }
 
     fn with_limits(wake: Arc<dyn RepaintSignal>, limits: Limits) -> Self {
@@ -383,8 +411,14 @@ impl SummaryBroker {
                     SummaryRequestState::Pending
                 }
                 EntryState::Retired { .. } => {
-                    entry.state = EntryState::Failed;
-                    SummaryRequestState::Unavailable
+                    entry.interests = entry.interests.saturating_sub(1);
+                    self.interests.insert(target, Interest::Waiting);
+                    // Keep the broker owner until off-redraw maintenance releases it.
+                    entry.state = EntryState::Retired {
+                        summary: None,
+                        token: None,
+                    };
+                    SummaryRequestState::WaitingAdmission
                 }
                 state => {
                     entry.state = state;
@@ -405,7 +439,7 @@ impl SummaryBroker {
                 .is_none_or(|bytes| bytes > self.limits.bytes)
             || self.queue.len() >= self.limits.queued
         {
-            self.interests.insert(target, Interest::Waiting(key));
+            self.interests.insert(target, Interest::Waiting);
             return SummaryRequestState::WaitingAdmission;
         }
         self.bytes += entry_bytes;
@@ -435,7 +469,7 @@ impl SummaryBroker {
             key: *key,
             source: Arc::clone(&entry.samples),
             summary: Arc::clone(summary),
-            lease: SummaryRetentionLease(Arc::clone(token)),
+            _lease: SummaryRetentionLease(Arc::clone(token)),
         })
     }
 
@@ -479,7 +513,7 @@ impl SummaryBroker {
 
     pub(super) fn waiting_targets(&self) -> impl Iterator<Item = SummaryTargetId> + '_ {
         self.interests.iter().filter_map(|(target, interest)| {
-            matches!(interest, Interest::Waiting(_)).then_some(*target)
+            matches!(interest, Interest::Waiting).then_some(*target)
         })
     }
 
@@ -490,7 +524,7 @@ impl SummaryBroker {
     fn mark_waiting_for(&mut self, key: SourceKey) {
         for interest in self.interests.values_mut() {
             if matches!(interest, Interest::Source(source) if *source == key) {
-                *interest = Interest::Waiting(key);
+                *interest = Interest::Waiting;
             }
         }
         if let Some(entry) = self.sources.get_mut(&key) {
@@ -641,6 +675,9 @@ impl SummaryBroker {
         if entry.interests != 0 {
             return;
         }
+        // A queued/failed source can release capacity without a worker terminal.
+        // The numeric capacity snapshot may not change until maintenance drops it.
+        self.wake.request_repaint();
         entry.state = match std::mem::replace(
             &mut entry.state,
             EntryState::Retired {
@@ -658,7 +695,6 @@ impl SummaryBroker {
             }
             EntryState::Ready { summary, token } => {
                 token.retired.store(true, Ordering::Release);
-                self.wake.request_repaint();
                 EntryState::Retired {
                     summary: Some(summary),
                     token: Some(token),
@@ -696,6 +732,34 @@ impl SummaryBroker {
                 self.bytes = self.bytes.saturating_sub(entry.bytes);
             }
         }
+        if tracing::enabled!(target: "radiant::signal_summary_prepare", tracing::Level::DEBUG) {
+            let mut retained_source_bytes = 0usize;
+            let mut retained_ready_summary_bytes = 0usize;
+            for entry in self.sources.values() {
+                retained_source_bytes = retained_source_bytes.saturating_add(
+                    entry
+                        .samples
+                        .len()
+                        .saturating_mul(std::mem::size_of::<f32>()),
+                );
+                let summary = match &entry.state {
+                    EntryState::Ready { summary, .. }
+                    | EntryState::Retired {
+                        summary: Some(summary),
+                        ..
+                    } => Some(summary),
+                    _ => None,
+                };
+                if let Some(summary) = summary {
+                    retained_ready_summary_bytes = retained_ready_summary_bytes
+                        .saturating_add(logical_ready_summary_bytes(summary));
+                }
+            }
+            tracing::debug!(target: "radiant::signal_summary_prepare",
+                active_jobs = self.active, queued_jobs = self.queue.len(), retained_sources = self.sources.len(),
+                reserved_logical_bytes = self.bytes, retained_source_bytes, retained_ready_summary_bytes,
+                "raw signal preparation ownership");
+        }
     }
 }
 
@@ -707,6 +771,17 @@ impl Drop for SummaryBroker {
             }
         }
     }
+}
+
+fn logical_ready_summary_bytes(summary: &GpuSignalSummary) -> usize {
+    summary.levels.iter().fold(0usize, |bytes, level| {
+        bytes.saturating_add(
+            level
+                .buckets
+                .len()
+                .saturating_mul(std::mem::size_of::<crate::runtime::GpuSignalSummaryBucket>()),
+        )
+    })
 }
 
 fn summary_bytes(request: &SummaryRequest) -> Option<usize> {

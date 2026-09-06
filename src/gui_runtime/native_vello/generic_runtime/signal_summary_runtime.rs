@@ -245,6 +245,13 @@ where
             let mut broker = preparation.broker.borrow_mut();
             let capacity_before = broker.capacity_status();
             let state = broker.request(target, request);
+            if matches!(
+                state,
+                super::signal_summary_prepare::SummaryRequestState::Unavailable
+            ) {
+                tracing::debug!(target: "radiant::signal_summary_prepare", surface_key = surface.key,
+                    "raw signal preparation unavailable");
+            }
             if is_new_target
                 && !matches!(
                     state,
@@ -300,5 +307,171 @@ where
             }
         }
         installs
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::types::{Point, Rect, Rgba8, Vector2},
+        runtime::{GpuSurfaceCapabilities, PaintGpuSurface, SurfacePaintPlan, UiSurface},
+    };
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct TestWake(AtomicUsize);
+
+    impl RepaintSignal for TestWake {
+        fn request_repaint(&self) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    struct EmptyBridge;
+
+    impl RuntimeBridge<()> for EmptyBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            crate::runtime::test_arc_surface(UiSurface::new(crate::runtime::SurfaceNode::widget(
+                crate::widgets::TextWidget::new(
+                    1,
+                    "",
+                    crate::widgets::WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
+                ),
+                crate::runtime::WidgetMessageMapper::none(),
+            )))
+        }
+    }
+
+    fn signal(key: u64, revision: u64, samples: Arc<[f32]>) -> PaintPrimitive {
+        PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: key,
+            key,
+            revision,
+            rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(32.0, 16.0)),
+            content: GpuSurfaceContent::SignalBands {
+                frames: 4,
+                band_count: 1,
+                frame_range: [0.0, 4.0],
+                samples,
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        })
+    }
+
+    fn runner(wake: Arc<TestWake>) -> GenericNativeVelloRunner<EmptyBridge, ()> {
+        let mut runner = GenericNativeVelloRunner::new(
+            crate::runtime::NativeRunOptions::default(),
+            EmptyBridge,
+            Vector2::new(64.0, 64.0),
+        );
+        runner.window.id = Some(WindowId::dummy());
+        runner.window.target_generation = NativeTargetGeneration::from_test_serial(1);
+        runner.signal_summary_preparation = Some(NativeSignalSummaryPreparation::new(wake));
+        runner
+    }
+
+    fn set_plan(
+        runner: &mut GenericNativeVelloRunner<EmptyBridge, ()>,
+        primitives: Vec<PaintPrimitive>,
+    ) {
+        runner.frame.last_paint_plan = SurfacePaintPlan {
+            clear_color: Rgba8::default(),
+            primitives,
+        };
+    }
+
+    fn adapter() -> NativeAdapterGeneration {
+        NativeAdapterGeneration::from_test_serial(1)
+    }
+
+    #[test]
+    fn stable_target_source_replacement_wakes_without_pending_retry_loop() {
+        let wake = Arc::new(TestWake(AtomicUsize::new(0)));
+        let mut runner = runner(Arc::clone(&wake));
+        set_plan(
+            &mut runner,
+            vec![signal(7, 1, Arc::from([0.0, 0.5, -0.5, 0.25]))],
+        );
+
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        assert_eq!(wake.0.load(Ordering::Relaxed), 1);
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        assert_eq!(wake.0.load(Ordering::Relaxed), 1);
+
+        set_plan(
+            &mut runner,
+            vec![signal(7, 2, Arc::from([0.1, 0.6, -0.4, 0.3]))],
+        );
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        // This test sink counts requests; the native signal coalesces release
+        // and admission into one event. A stable pending request issues neither.
+        let after_replacement = wake.0.load(Ordering::Relaxed);
+        assert!(after_replacement > 1);
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        assert_eq!(wake.0.load(Ordering::Relaxed), after_replacement);
+    }
+
+    #[test]
+    fn target_epoch_replacement_releases_the_old_registration() {
+        let wake = Arc::new(TestWake(AtomicUsize::new(0)));
+        let mut runner = runner(wake);
+        set_plan(
+            &mut runner,
+            vec![signal(9, 1, Arc::from([0.0, 0.5, -0.5, 0.25]))],
+        );
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        let old = runner.signal_summary_preparation.as_ref().unwrap().targets[&9];
+
+        runner.window.target_generation = NativeTargetGeneration::from_test_serial(2);
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        let preparation = runner.signal_summary_preparation.as_ref().unwrap();
+        assert_ne!(preparation.targets[&9], old);
+        assert_eq!(preparation.shared().borrow().capacity_status().interests, 1);
+    }
+
+    #[test]
+    fn ready_waiting_retry_and_duplicate_install_work_stay_bounded() {
+        let wake = Arc::new(TestWake(AtomicUsize::new(0)));
+        let mut runner = runner(wake);
+        let content: Arc<[f32]> = Arc::from([0.0, 0.5, -0.5, 0.25]);
+        set_plan(
+            &mut runner,
+            (0..200)
+                .map(|_| signal(11, 1, Arc::clone(&content)))
+                .collect(),
+        );
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        let broker = runner.shared_signal_summary_broker().unwrap();
+        broker
+            .borrow_mut()
+            .take_dispatch()
+            .expect("initial summary dispatch")
+            .run();
+        broker.borrow_mut().drain_completions();
+        let target = runner.signal_summary_preparation.as_ref().unwrap().targets[&11];
+        let waiting = HashSet::from([target]);
+        assert!(runner.reconcile_waiting_signal_summary_interests(adapter(), &waiting));
+        assert_eq!(
+            runner.reconcile_signal_summary_interests(adapter()).len(),
+            1
+        );
+
+        set_plan(
+            &mut runner,
+            (0..160)
+                .map(|key| signal(key, 1, Arc::clone(&content)))
+                .collect(),
+        );
+        let _ = runner.reconcile_signal_summary_interests(adapter());
+        assert_eq!(
+            runner
+                .signal_summary_preparation
+                .as_ref()
+                .unwrap()
+                .targets
+                .len(),
+            128
+        );
     }
 }

@@ -31,8 +31,8 @@ pub use scope::{
     CommandBinding, CommandInvocation, CommandScope, CommandScopeError, CommandScopeKind,
     CommandSource, CommandTarget,
 };
-pub(crate) use service::CommandResolver;
-pub use service::CommandService;
+pub(crate) use service::MAX_PRESENTATIONS;
+pub use service::{CommandPresentationError, CommandService};
 pub use validation::{
     CommandShortcutPresentation, KeymapConflict, KeymapConflictKind, KeymapResolutionChoice,
     KeymapValidation,
@@ -46,3 +46,6 @@ mod host_tests;
 
 #[cfg(test)]
 mod control_tests;
+
+#[cfg(test)]
+mod presentation_tests;

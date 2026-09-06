@@ -103,6 +103,11 @@ fn child_service_replacement_applies_keymaps_and_rejects_old_registry_targets() 
         Keymap::new(),
     ));
     let mut child = SurfaceRuntime::new(bridge, Vector2::new(320.0, 180.0));
+    let rows = child
+        .command_presentations(&[id()], ShortcutPlatform::Mac)
+        .unwrap();
+    assert_eq!(rows[0].label, "Action");
+    assert!(rows[0].enabled);
     let target = registry
         .target(&child.command_scopes::<u32>().unwrap(), &id())
         .unwrap();

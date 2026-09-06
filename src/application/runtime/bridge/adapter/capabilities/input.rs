@@ -51,10 +51,7 @@ where
             .as_ref()
             .map(|project| project(&self.state))
             .unwrap_or_default();
-        Some(crate::application::CommandService::from_resolver(
-            std::rc::Rc::clone(router),
-            keymap,
-        ))
+        Some(router.clone().with_keymap(keymap))
     }
 
     fn resolve_command_with_scopes(
@@ -70,7 +67,7 @@ where
                 .as_ref()
                 .map(|project| project(&self.state))
                 .unwrap_or_default();
-            router(request, scopes, &keymap)
+            router.resolve_with_keymap(request, scopes, &keymap)
         } else {
             self.resolve_command(request, focus)
         }

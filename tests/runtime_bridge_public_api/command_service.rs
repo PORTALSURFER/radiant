@@ -30,4 +30,14 @@ fn public_child_service_clones_without_context_or_message_clone_bounds() {
     );
     assert_eq!(dispatch.status, CommandDispatchStatus::Unhandled);
     assert!(dispatch.message.is_none());
+    let rows = child
+        .presentations(
+            CommandScopeProjection::empty(),
+            &[CommandId::new("action").unwrap()],
+            &Default::default(),
+            ShortcutPlatform::Mac,
+        )
+        .unwrap();
+    assert_eq!(rows[0].label, "Action");
+    assert!(!rows[0].enabled);
 }

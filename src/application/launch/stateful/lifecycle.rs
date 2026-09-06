@@ -96,14 +96,11 @@ where
         dispatcher: crate::application::CommandDispatcher<Context, Message>,
     ) -> Self {
         self.lifecycle.command_router = None;
-        self.lifecycle.declarative_command_router = Some(
-            crate::application::CommandService::new(
-                registry,
-                dispatcher,
-                crate::application::Keymap::new(),
-            )
-            .into_resolver(),
-        );
+        self.lifecycle.declarative_command_router = Some(crate::application::CommandService::new(
+            registry,
+            dispatcher,
+            crate::application::Keymap::new(),
+        ));
         self
     }
 

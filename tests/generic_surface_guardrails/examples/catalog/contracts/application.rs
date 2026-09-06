@@ -193,7 +193,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         &[
             "CommandRegistry::new(",
             "CommandDispatcher::new(",
-            "CommandRequest::Target(",
+            ".activation(CommandSource::Menu)",
             "dispatch_command_request(",
             "example_routes_shortcut_and_menu_through_reducer",
             ".command_registry(",
@@ -202,7 +202,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             ".menu_item()",
             ".palette_item()",
             ".shortcut_help()",
-            ".command_scopes::<u64>()",
+            ".command_presentations(",
         ],
     ),
 ];

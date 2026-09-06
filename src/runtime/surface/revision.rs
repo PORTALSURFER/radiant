@@ -1808,6 +1808,14 @@ fn compare_container<Message>(
 ) {
     let previous_revision = previous_container.revision();
     let current_revision = current_container.revision();
+    if previous_container.animation.is_some() || current_container.animation.is_some() {
+        delta.record_conservative();
+        delta.record(
+            ViewDeltaEffect::Geometry,
+            ViewDeltaCause::CustomLayoutPolicy,
+            path.path,
+        );
+    }
     if previous_revision.policy_changed(&current_revision) {
         delta.record(
             ViewDeltaEffect::Geometry,

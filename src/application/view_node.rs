@@ -146,6 +146,7 @@ pub struct ViewNode<Message> {
     command_scope: Option<crate::application::CommandScopeAttachment>,
     focus_scope: Option<crate::runtime::FocusScope>,
     layout_interaction: Option<Rc<dyn crate::layout::LayoutInteraction<Message>>>,
+    pub(in crate::application) animation: Option<Rc<dyn crate::animation::Animatable>>,
     pub(in crate::application) resource_demand:
         Option<Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
 }
@@ -251,6 +252,7 @@ impl<Message> ViewNode<Message> {
             command_scope: None,
             focus_scope: None,
             layout_interaction: None,
+            animation: None,
             resource_demand: None,
         }
     }
@@ -418,6 +420,21 @@ impl<Message> Layer<Message> {
 }
 
 impl<Message> ViewNode<Message> {
+    /// Attach immutable animation declarations to this view.
+    pub fn animatable(self, animation: Rc<dyn crate::animation::Animatable>) -> Self {
+        if matches!(
+            &self.kind,
+            ViewNodeKind::Container { .. } | ViewNodeKind::CustomLayout { .. }
+        ) {
+            let mut node = self;
+            node.animation = Some(animation);
+            node
+        } else {
+            let mut wrapper = crate::application::column([self]);
+            wrapper.animation = Some(animation);
+            wrapper
+        }
+    }
     pub(super) fn drain_layer_list_in_declaration_order(
         layers: &mut Vec<Layer<Message>>,
         owner_scope: NodeId,

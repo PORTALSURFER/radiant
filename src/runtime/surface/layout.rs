@@ -120,7 +120,7 @@ impl<Message> SurfaceNode<Message> {
                     container.id,
                     container.policy.clone(),
                     children,
-                    container.layout_policy.clone(),
+                    container.animated_layout_policy(),
                     container.split_pane_runtime,
                 )
             }
@@ -134,7 +134,7 @@ impl<Message> SurfaceNode<Message> {
                     layer.container.id,
                     layer.resolved_policy(environment),
                     children,
-                    layer.container.layout_policy.clone(),
+                    layer.container.animated_layout_policy(),
                     None,
                 )
             }
@@ -217,7 +217,7 @@ impl<Message> SurfaceNode<Message> {
                     container.id,
                     container.policy.clone(),
                     children,
-                    container.layout_policy.clone(),
+                    container.animated_layout_policy(),
                     container.split_pane_runtime,
                 )
             }
@@ -258,7 +258,7 @@ impl<Message> SurfaceNode<Message> {
                         layer.container.id,
                         layer.resolved_policy(environment),
                         children,
-                        layer.container.layout_policy.clone(),
+                        layer.container.animated_layout_policy(),
                         None,
                     )
                 } else {
@@ -270,7 +270,7 @@ impl<Message> SurfaceNode<Message> {
                         layer.container.id,
                         layer.resolved_policy(environment),
                         children,
-                        layer.container.layout_policy.clone(),
+                        layer.container.animated_layout_policy(),
                         None,
                     )
                 }

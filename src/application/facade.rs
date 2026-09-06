@@ -70,10 +70,12 @@ pub use details::{
     update_details_column_resize_edit, update_visible_details_column_reorder_drag,
 };
 pub use layout::{
-    BoundedScrollColumnParts, Children, ColorMarkerRunBuilder, DEFAULT_ACTION_ROW_HEIGHT,
-    DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, Keyed, Layer, LayerInputPolicy,
-    LayerKind, MarkerRunBuilder, MaterializedVirtualListBuilder, OverlayStack, Overlays, Scene,
-    SplitPaneBuilder, ToolbarAlignment, ToolbarParts, VirtualListBuilder, VirtualTreeListBuilder,
+    Animatable, AnimationEasing, AnimationError, AnimationImpact, AnimationPaintContext,
+    AnimationTarget, AnimationValues, BoundedScrollColumnParts, Children, ColorMarkerRunBuilder,
+    DEFAULT_ACTION_ROW_HEIGHT, DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
+    FeedbackAnimation, Keyed, Layer, LayerInputPolicy, LayerKind, MarkerRunBuilder,
+    MaterializedVirtualListBuilder, OverlayStack, Overlays, Scene, SplitPaneBuilder,
+    ToolbarAlignment, ToolbarParts, Transition, VirtualListBuilder, VirtualTreeListBuilder,
     WorkspaceShellBuilder, bounded_scroll_column, bounded_scroll_column_from_parts, children,
     column, column_key, fixed_slot_if, fixed_slot_opt, for_each, for_each_by, grid, grid_with_gaps,
     layout, list, list_row, list_row_id, local_drop_marker, marker_run, marker_run_colors,

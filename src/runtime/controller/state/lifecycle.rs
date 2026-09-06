@@ -39,9 +39,18 @@ where
     /// should continue to use [`Self::new`] unless they own an equivalent
     /// environment boundary.
     pub(crate) fn new_with_environment(
+        bridge: Bridge,
+        viewport: Vector2,
+        initial_environment: crate::runtime::WindowEnvironment,
+    ) -> Self {
+        Self::new_with_environment_and_clock(bridge, viewport, initial_environment, None)
+    }
+
+    pub(crate) fn new_with_environment_and_clock(
         mut bridge: Bridge,
         viewport: Vector2,
         initial_environment: crate::runtime::WindowEnvironment,
+        initial_clock: Option<std::time::Instant>,
     ) -> Self {
         let viewport = normalized_viewport(viewport);
         // Give environment-aware bridges the runtime-owned value before their
@@ -131,7 +140,8 @@ where
             base_paint_plan_reuse_eligible: false,
             identity_audit: super::super::IdentityAudit::default(),
             update_handler_diagnostics_policy: Default::default(),
-            timed_repaint_clock: None,
+            timed_repaint_clock: initial_clock,
+            declarative_animation: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),
             virtual_layout: Default::default(),
             pending_auxiliary_focus_requests: Vec::new(),
@@ -163,6 +173,7 @@ where
         runtime.relayout_with_traversal(traversal);
         runtime.install_declarative_owner_projection();
         let _ = runtime.transition_lifecycle(RuntimeLifecyclePhase::Running);
+        runtime.install_declarative_animations();
         runtime.install_resource_view_interests();
         runtime
     }
@@ -189,6 +200,7 @@ where
         self.external_layout_dirty = true;
         self.surface.set_window_environment(environment);
         self.bridge.set_window_environment(environment);
+        self.install_declarative_animations();
         true
     }
 
@@ -198,6 +210,12 @@ where
     ) -> bool {
         let transitioned = self.lifecycle.transition(next);
         if transitioned {
+            if matches!(
+                next,
+                RuntimeLifecyclePhase::Closing | RuntimeLifecyclePhase::Stopped
+            ) {
+                self.clear_declarative_animations();
+            }
             self.traversal
                 .rebuild_mixed_focus_order(next, &self.interaction.layout_state);
             if matches!(

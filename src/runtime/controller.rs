@@ -11,6 +11,7 @@ mod clipboard;
 mod commands;
 mod composition;
 mod context;
+mod declarative_animation;
 mod declarative_owner;
 mod effects;
 mod events;
@@ -70,6 +71,7 @@ pub(crate) use automation_compositor::{
 };
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
+pub use declarative_animation::DeclarativeAnimationStatus;
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
 pub use focus_authority::{FocusDirection, FocusTarget, FocusTransferOutcome};
 pub use focus_restoration::{FocusBookmark, FocusBookmarkError};
@@ -229,6 +231,7 @@ where
     identity_audit: IdentityAudit,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     timed_repaint_clock: Option<Instant>,
+    declarative_animation: declarative_animation::DeclarativeAnimator,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
     pub(in crate::runtime) virtual_layout: virtual_layout::RuntimeVirtualLayoutState<Message>,
     pending_auxiliary_focus_requests: Vec<auxiliary_focus::AuxiliaryFocusRequest>,
@@ -292,7 +295,10 @@ where
             return None;
         }
         earlier_deadline(
-            self.surface.timed_repaint_deadline(),
+            earlier_deadline(
+                self.surface.timed_repaint_deadline(),
+                self.declarative_animation_deadline(),
+            ),
             earlier_deadline(
                 self.interaction.tooltip.deadline,
                 earlier_deadline(
@@ -353,7 +359,8 @@ where
         if !self.lifecycle.accepts_work() {
             return false;
         }
-        let mut changed = self.surface.advance_timed_repaints(now);
+        let mut changed = self.advance_declarative_animation(now);
+        changed |= self.surface.advance_timed_repaints(now);
         if self
             .interaction
             .wheel

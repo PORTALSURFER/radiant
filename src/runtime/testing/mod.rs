@@ -898,10 +898,11 @@ where
         config.validate()?;
         let environment = config.environment();
         let instant_origin = Instant::now();
-        let mut runtime = SurfaceRuntime::new_with_environment(
+        let mut runtime = SurfaceRuntime::new_with_environment_and_clock(
             DeterministicBridge::new(bridge, config.into()),
             config.viewport(),
             environment,
+            Some(instant_origin),
         );
         runtime.set_timed_repaint_clock(Some(instant_origin));
         runtime.set_update_handler_diagnostics_policy(UiUpdateHandlerDiagnosticsPolicy::disabled());
@@ -1084,6 +1085,14 @@ where
         }
         let result = self.runtime.bridge_mut().release_due_timers();
         self.finish_adapter_operation(result?)
+    }
+
+    /// Set the qualified host's hidden/occluded animation policy at virtual time.
+    pub fn set_animation_hidden(&mut self, hidden: bool) -> Result<(), DeterministicHostError> {
+        self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
+        self.runtime.set_animation_hidden(hidden);
+        self.finish_adapter_operation(())
     }
 
     /// Explicitly execute one worker task; its mapped message waits for a later turn.

@@ -28,6 +28,7 @@ where
     pub(in crate::runtime::controller) fn relayout_current_surface(&mut self) {
         let traversal = self.take_reusable_traversal_index(true);
         self.relayout_with_traversal(traversal);
+        self.install_declarative_animations();
     }
 
     pub(in crate::runtime::controller) fn queue_current_surface_relayout(&mut self) {

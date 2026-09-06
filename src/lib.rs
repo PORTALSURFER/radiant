@@ -58,6 +58,7 @@
 //! adapters, [`runtime`] for the declarative view/message bridge, and the
 //! reusable [`layout`], [`widgets`], and [`theme`] contracts.
 
+mod animation;
 /// Readable application and view builder implementation.
 pub mod application;
 /// Shared environment-flag parsing helpers used by runtime internals.

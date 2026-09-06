@@ -248,6 +248,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let command_scope = node.command_scope.clone();
         let focus_scope = node.focus_scope;
         let layout_interaction = node.layout_interaction.clone();
+        let animation = node.animation.clone();
         let resource_demand = node.resource_demand.clone();
         let style = node.style;
         let hoverable = node.hoverable;
@@ -539,6 +540,10 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let mut metadata = SourceMetadata::new(source_identity, compatibility, source_topology);
         metadata.focus_scope = focus_scope.or_else(|| lowered.focus_scope());
         let lowered = lowered.with_source_metadata(metadata);
+        let lowered = match animation {
+            Some(animation) => lowered.with_animation(animation),
+            None => lowered,
+        };
         let lowered = match resource_demand {
             Some(demand) => lowered.with_resource_view_demand(Some(demand)),
             None => lowered,

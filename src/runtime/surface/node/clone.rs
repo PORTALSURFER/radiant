@@ -54,6 +54,12 @@ impl<Message> Clone for SurfaceContainer<Message> {
             children: self.children.clone(),
             source: self.source.clone(),
             command_scope: self.command_scope.clone(),
+            has_animation: self.has_animation,
+            animation: self.animation.clone(),
+            animation_targets: self.animation_targets.clone(),
+            animation_feedback: self.animation_feedback.clone(),
+            animation_valid: self.animation_valid,
+            animation_values: self.animation_values.clone(),
             resource_demand: self.resource_demand.clone(),
             has_resource_view_demand: self.has_resource_view_demand,
         }
@@ -73,6 +79,7 @@ impl<Message> Clone for SurfaceLayer<Message> {
 impl<Message> Clone for SurfaceScene<Message> {
     fn clone(&self) -> Self {
         Self {
+            has_animation: self.has_animation,
             _ui_affinity: self._ui_affinity,
             id: self.id,
             base: self.base.clone(),

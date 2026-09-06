@@ -4,6 +4,7 @@ use crate::UiAffinity;
 use crate::application::ApplicationEnvironment;
 use std::sync::Arc;
 
+mod animation;
 mod builders;
 mod command_scopes;
 mod focus_scopes;
@@ -27,6 +28,7 @@ mod source;
 mod state_sync;
 mod text_scaled_size;
 mod traversal;
+pub(crate) use animation::ProjectedAnimationIdentity;
 pub(crate) use text_scaled_size::{TextScaledExtent, TextScaledSize};
 mod view;
 mod virtual_layout;

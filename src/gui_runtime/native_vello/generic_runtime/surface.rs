@@ -841,6 +841,7 @@ where
             error @ NativeSurfaceAcquireFailure::Occluded => {
                 if !self.window.surface_occluded {
                     self.window.surface_occluded = true;
+                    self.sync_declarative_animation_visibility();
                     self.window.surface_occluded_by_acquire = true;
                 }
                 self.window.surface_recovery.observe_acquire_error(&error);

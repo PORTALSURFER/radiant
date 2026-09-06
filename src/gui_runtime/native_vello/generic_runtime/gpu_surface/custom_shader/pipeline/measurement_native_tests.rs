@@ -276,7 +276,10 @@ fn pipeline_key(shader_key: &str, source: &str) -> CustomShaderPipelineKey {
 
 fn native_device() -> (wgpu::AdapterInfo, wgpu::Device, Duration) {
     let setup_start = Instant::now();
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::PRIMARY,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::HighPerformance,
         compatible_surface: None,

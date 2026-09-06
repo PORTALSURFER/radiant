@@ -27,6 +27,10 @@ pub use resources::{
     SharedResourceTaskMode,
 };
 
+pub use crate::widgets::{
+    TextEditorDelta, TextEditorDocument, TextEditorEdit, TextEditorError, TextEditorRevision,
+    TextEditorSelection, TextEditorSnapshot,
+};
 pub use controls::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,
     DenseRowPolicy, DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption,
@@ -35,7 +39,7 @@ pub use controls::{
     InteractiveBadgeBuilder, InteractiveRowActions, InteractiveRowBuilder,
     InteractiveRowLocalActions, InteractiveRowUnderlayBuilder, KnobBuilder, KnobDomainBuilder,
     NumericInputBuilder, PointerTarget, PointerTargetBuilder, ProgressBarBuilder,
-    SelectableBuilder, SliderBuilder, SliderDomainBuilder, TextInputBuilder,
+    SelectableBuilder, SliderBuilder, SliderDomainBuilder, TextEditorBuilder, TextInputBuilder,
     TextInputWithClearButtonBuilder, ToggleBuilder, TreeRowBuilder, TreeRowDragDropState,
     TreeRowMessageBuilder, action_row, anchored_dropdown_menu_popover, badge, badge_mapped,
     badge_message, button, button_mapped, button_mapped_with, button_message, button_row,
@@ -46,7 +50,7 @@ pub use controls::{
     interactive_row_underlay, knob, knob_domain, knob_edit_mapped, knob_mapped, numeric_input,
     pointer_drop_target, pointer_move_target, pointer_target, progress_bar,
     progress_bar_for_snapshot, row_actions, row_actions_local, selectable, selectable_mapped,
-    slider, slider_domain, slider_edit_mapped, slider_mapped, text_input,
+    slider, slider_domain, slider_edit_mapped, slider_mapped, text_editor, text_input,
     text_input_clear_button_id, text_input_mapped, toggle, toggle_mapped, toggle_mapped_with,
     tree_row,
 };

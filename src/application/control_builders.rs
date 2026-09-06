@@ -19,6 +19,7 @@ mod progress_bar;
 mod scrollbar;
 mod selectable;
 mod slider;
+mod text_editor;
 mod text_input;
 mod toggle;
 mod tree_row;
@@ -66,6 +67,7 @@ pub use selectable::{SelectableBuilder, selectable, selectable_mapped};
 pub use slider::{
     SliderBuilder, SliderDomainBuilder, slider, slider_domain, slider_edit_mapped, slider_mapped,
 };
+pub use text_editor::{TextEditorBuilder, text_editor};
 pub use text_input::{
     TextInputBuilder, TextInputWithClearButtonBuilder, text_input, text_input_clear_button_id,
     text_input_mapped,

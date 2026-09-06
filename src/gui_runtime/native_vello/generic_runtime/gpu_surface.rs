@@ -169,11 +169,9 @@ impl GpuSurfaceRenderer {
             self.resources
                 .custom_shader_frame_preflight(requests, custom_transition)
         }));
-        if custom_transition {
+        if custom_transition && let Some(requests) = custom_requests.as_ref() {
             plan.push_action(GpuSurfaceRenderCanvasUploadAction::CustomShaderTransition {
-                requests: custom_requests
-                    .clone()
-                    .expect("validated custom shader interests"),
+                requests: requests.clone(),
             });
         }
         let mut has_active_keys = false;
@@ -458,10 +456,7 @@ impl GpuSurfaceRenderer {
                 .custom_shader_frame_requires_transition(requests)
         });
         let mut transition_authorized = true;
-        if custom_transition {
-            let requests = custom_requests
-                .as_ref()
-                .expect("validated custom shader interests");
+        if custom_transition && let Some(requests) = custom_requests.as_ref() {
             if let Some(plan) = upload_plan.as_mut() {
                 transition_authorized = plan_in_flight
                     && plan.consume_action(
@@ -732,6 +727,10 @@ impl GpuSurfaceRenderer {
         &self.occlusion_regions
     }
 }
+
+#[cfg(test)]
+#[path = "gpu_surface/custom_shader/native_tests.rs"]
+mod native_tests;
 
 #[cfg(test)]
 mod tests {

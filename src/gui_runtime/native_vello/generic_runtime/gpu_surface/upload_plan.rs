@@ -458,6 +458,11 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct GpuSurfaceRende
 }
 
 impl GpuSurfaceRenderCanvasUploadPlan {
+    #[cfg(test)]
+    pub(super) fn append_action_for_test(&mut self, action: GpuSurfaceRenderCanvasUploadAction) {
+        self.actions.push(action);
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn new(
         context: GpuSurfaceRenderCanvasUploadPlanContext,
     ) -> Self {
@@ -1589,10 +1594,10 @@ mod tests {
         let context = initial.context;
         let stream = [0_u8; 1];
         let pipeline_key = CustomShaderPipelineKey {
-            shader_key: String::from("test/custom-shader"),
+            shader_key: Arc::from("test/custom-shader"),
             wgsl_source: Arc::<str>::from("shader"),
-            vertex_entry_point: String::from("vertex_main"),
-            fragment_entry_point: String::from("fragment_main"),
+            vertex_entry_point: Arc::from("vertex_main"),
+            fragment_entry_point: Arc::from("fragment_main"),
             has_uniform_payload: true,
             has_storage_payload: false,
             has_presentation_uniform_payload: true,

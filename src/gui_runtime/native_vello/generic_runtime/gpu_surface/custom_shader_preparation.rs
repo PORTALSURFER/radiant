@@ -45,7 +45,9 @@ impl GpuSurfaceRenderer {
                 continue;
             }
             let candidate = if let Some(prepared) = prepared {
-                if !prepared.matches(&request) {
+                if prepared.adapter_generation() != target.adapter_generation()
+                    || !prepared.matches(&request)
+                {
                     continue;
                 }
                 Candidate::Ready(prepared)

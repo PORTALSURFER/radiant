@@ -9,7 +9,7 @@
 
 pub(super) use super::gpu_surface::custom_shader::pipeline::CustomShaderPreparationFailure;
 use super::gpu_surface::custom_shader::pipeline::{
-    prepare_custom_shader_pipeline, OwnedCustomShaderPipelineRequest,
+    OwnedCustomShaderPipelineRequest, prepare_custom_shader_pipeline,
 };
 use super::gpu_surface::gpu_surface_types::{
     CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
@@ -19,11 +19,11 @@ use crate::gui::repaint::RepaintSignal;
 use std::{
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::{sync_channel, Receiver, SyncSender},
         Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc::{Receiver, SyncSender, sync_channel},
     },
 };
 use vello::wgpu;
@@ -224,7 +224,6 @@ enum EntryState {
     Active {
         id: u64,
         cancelled: Arc<AtomicBool>,
-        retired: bool,
     },
     Ready {
         device: wgpu::Device,
@@ -538,7 +537,6 @@ impl CustomShaderPreparationBroker {
             entry.state = EntryState::Active {
                 id,
                 cancelled: Arc::clone(&cancelled),
-                retired: false,
             };
             self.active += 1;
             *self.active_devices.entry(key.device_identity).or_default() += 1;
@@ -709,11 +707,7 @@ impl CustomShaderPreparationBroker {
         ) {
             EntryState::Active { id, cancelled, .. } => {
                 cancelled.store(true, Ordering::Release);
-                EntryState::Active {
-                    id,
-                    cancelled,
-                    retired: true,
-                }
+                EntryState::Active { id, cancelled }
             }
             EntryState::Ready {
                 device,

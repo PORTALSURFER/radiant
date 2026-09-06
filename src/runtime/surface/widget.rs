@@ -16,6 +16,7 @@ use std::time::Instant;
 
 mod mapper;
 
+pub use mapper::ScrollEditMessageMapper;
 pub use mapper::{
     EventMapper, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper,
     WidgetMessageMapper,

@@ -96,6 +96,28 @@ impl<Message> SurfaceNode<Message> {
         self
     }
 
+    /// Set a UI-local optional mapping for complete scroll edit batches.
+    pub fn with_scroll_edit_message_local(
+        mut self,
+        message: crate::runtime::ScrollEditMessageMapper<Message>,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.scroll_edit = Some(message);
+        }
+        self
+    }
+
+    /// Map complete edit batches from this runtime-owned scroll container.
+    pub fn on_scroll_edit(
+        mut self,
+        message: impl Fn(crate::runtime::ScrollEditBatch) -> Message + 'static,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.scroll_edit = Some(std::rc::Rc::new(move |batch| Some(message(batch))));
+        }
+        self
+    }
+
     /// Return this node with a scroll movement message mapper when it is a container.
     pub fn with_scroll_message(
         mut self,

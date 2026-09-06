@@ -88,7 +88,7 @@ enum NativeTextPointerCaret {
     Accepted(WidgetId, crate::widgets::NativeCaretAffinity),
 }
 pub(crate) use scroll::WheelOrScrollRoute;
-pub use scroll::{ScrollUpdate, ScrollUpdateMetadata};
+pub use scroll::{ScrollEditBatch, ScrollUpdate, ScrollUpdateMetadata};
 pub(crate) use virtual_layout::VirtualLayoutSemanticClassificationBatch;
 
 use super::gpu_surface::GpuShaderPresentationUniformMailbox;

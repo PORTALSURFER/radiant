@@ -70,6 +70,8 @@ pub struct SurfaceContainer<Message> {
         Option<super::super::VirtualLayoutRegistration<Message>>,
     pub(in crate::runtime::surface) scroll_message:
         Option<EventMapper<crate::runtime::ScrollUpdate, Option<Message>>>,
+    pub(in crate::runtime::surface) scroll_edit:
+        Option<crate::runtime::ScrollEditMessageMapper<Message>>,
     pub(in crate::runtime::surface) offset_settled:
         Option<Rc<dyn Fn(crate::gui::types::Vector2) -> Message>>,
     pub(in crate::runtime::surface) children: super::children::SurfaceChildren<Message>,
@@ -109,6 +111,7 @@ impl<Message> SurfaceContainer<Message> {
             split_pane_ratio_settled: None,
             virtual_layout: None,
             scroll_message: None,
+            scroll_edit: None,
             offset_settled: None,
             children: parts.children.into(),
             source: None,
@@ -228,6 +231,9 @@ impl<Message> SurfaceContainer<Message> {
     pub(in crate::runtime::surface) fn scroll_mapper_descriptor(
         &self,
     ) -> crate::runtime::surface::widget::MapperDescriptor {
+        if self.scroll_edit.is_some() {
+            return crate::runtime::surface::widget::MapperDescriptor::Conservative;
+        }
         self.scroll_message
             .as_ref()
             .map(EventMapper::descriptor)

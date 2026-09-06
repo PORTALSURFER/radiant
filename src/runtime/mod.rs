@@ -128,8 +128,8 @@ pub use controller::{
     FocusBookmark, FocusBookmarkError, FocusDirection, FocusScope, FocusScopeBoundary, FocusTarget,
     FocusTransferOutcome, FocusTraversal, GestureAdmission, GestureOutcome, GestureRequest,
     GestureSequenceToken, IdentityAudit, PointerClickOutcome, PointerMoveOutcome, RuntimeContext,
-    RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollUpdate, ScrollUpdateMetadata,
-    SemanticActionOutcome, SemanticActionTarget, SurfaceIdentityDiagnostics,
+    RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollEditBatch, ScrollUpdate,
+    ScrollUpdateMetadata, SemanticActionOutcome, SemanticActionTarget, SurfaceIdentityDiagnostics,
     SurfaceIdentityOwnership, SurfaceIdentityPath, SurfaceIdentityReplacement,
     SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
     SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
@@ -257,8 +257,9 @@ pub(in crate::runtime) use surface::{
 };
 pub use surface::{
     Element, EventMapper, LayerKind, MessageMapper, NativeFileDropMessageMapper,
-    ScrollMessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceLayer, SurfaceNode,
-    SurfaceOverlay, SurfaceScene, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
+    ScrollEditMessageMapper, ScrollMessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame,
+    SurfaceLayer, SurfaceNode, SurfaceOverlay, SurfaceScene, SurfaceWidget, UiSurface, View,
+    WidgetMessageMapper,
 };
 pub(crate) use surface::{TextScaledExtent, TextScaledSize, lower_public_virtual_layout};
 pub use update_snapshot::RuntimeUpdateSnapshot;

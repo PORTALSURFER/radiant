@@ -2,6 +2,18 @@ use super::{SurfaceContainer, SurfaceNode, SurfaceScene};
 use crate::runtime::ScrollUpdate;
 
 impl<Message> SurfaceNode<Message> {
+    pub(in crate::runtime) fn scroll_edit_message(
+        &self,
+        batch: crate::runtime::ScrollEditBatch,
+    ) -> Option<Message> {
+        match self {
+            Self::Scene(scene) => scene.scroll_edit_message(batch),
+            Self::Container(container) => container.scroll_edit_message(batch),
+            Self::FloatingLayer(layer) => layer.container.scroll_edit_message(batch),
+            Self::Widget(_) | Self::Overlay(_) => None,
+        }
+    }
+
     pub(in crate::runtime) fn scroll_message(&self, update: ScrollUpdate) -> Option<Message> {
         match self {
             Self::Scene(scene) => scene.scroll_message(update),
@@ -26,6 +38,17 @@ impl<Message> SurfaceNode<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
+    fn scroll_edit_message(&self, batch: crate::runtime::ScrollEditBatch) -> Option<Message> {
+        if self.id == batch.node_id()
+            && let Some(map) = &self.scroll_edit
+        {
+            return map(batch);
+        }
+        self.children
+            .iter()
+            .find_map(|child| child.child.scroll_edit_message(batch))
+    }
+
     fn scroll_message(&self, update: ScrollUpdate) -> Option<Message> {
         if self.id == update.node_id
             && let Some(message) = &self.scroll_message
@@ -52,6 +75,18 @@ impl<Message> SurfaceContainer<Message> {
 }
 
 impl<Message> SurfaceScene<Message> {
+    fn scroll_edit_message(&self, batch: crate::runtime::ScrollEditBatch) -> Option<Message> {
+        self.base.scroll_edit_message(batch).or_else(|| {
+            self.ordered_layers().find_map(|layer| {
+                layer
+                    .input
+                    .as_ref()
+                    .and_then(|input| input.scroll_edit_message(batch))
+                    .or_else(|| layer.node.scroll_edit_message(batch))
+            })
+        })
+    }
+
     fn scroll_message(&self, update: ScrollUpdate) -> Option<Message> {
         self.base.scroll_message(update).or_else(|| {
             self.ordered_layers().find_map(|layer| {

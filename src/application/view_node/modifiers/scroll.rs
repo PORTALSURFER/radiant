@@ -5,6 +5,15 @@ use crate::{
 };
 
 impl<Message> ViewNode<Message> {
+    /// Emit complete edit batches from this runtime-owned scroll container.
+    pub fn on_scroll_edit(
+        mut self,
+        message: impl Fn(crate::runtime::ScrollEditBatch) -> Message + 'static,
+    ) -> Self {
+        self.scroll_edit = Some(std::rc::Rc::new(move |batch| Some(message(batch))));
+        self
+    }
+
     /// Configure the backend-neutral policy for this scroll container.
     pub fn scroll_policy(mut self, policy: ScrollPolicy) -> Self {
         self.scroll_policy = Some(policy);

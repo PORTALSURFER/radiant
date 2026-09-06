@@ -62,8 +62,8 @@ pub(in crate::runtime) use virtual_layout::{
     MAX_VIRTUAL_LAYOUT_REGISTRATIONS, VirtualLayoutRegistration,
 };
 pub use widget::{
-    EventMapper, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceWidget,
-    WidgetMessageMapper,
+    EventMapper, MessageMapper, NativeFileDropMessageMapper, ScrollEditMessageMapper,
+    ScrollMessageMapper, SurfaceWidget, WidgetMessageMapper,
 };
 
 pub(in crate::runtime) use crate::widgets::WidgetId;
@@ -122,6 +122,7 @@ pub(crate) fn application_node_kind<Message>(node: &SurfaceNode<Message>) -> App
                 || container.layout_capabilities.is_some()
                 || container.split_pane_ratio_settled.is_some()
                 || container.offset_settled.is_some()
+                || container.scroll_edit.is_some()
                 || container.virtual_layout.is_some(),
             scroll_mapper: container.scroll_mapper_descriptor(),
         },

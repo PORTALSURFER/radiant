@@ -1,5 +1,6 @@
 mod edit;
 pub use edit::ScrollEditBatch;
+mod retirement;
 mod scrollbar;
 mod wheel;
 

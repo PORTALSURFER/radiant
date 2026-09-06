@@ -215,7 +215,10 @@ where
         Some(self.scrollbar_offset_update(capture, point, previous_offset, offset, metadata))
     }
 
-    fn scrollbar_edit_geometry_matches(&self, capture: ScrollDragCapture) -> bool {
+    pub(in crate::runtime::controller) fn scrollbar_edit_geometry_matches(
+        &self,
+        capture: ScrollDragCapture,
+    ) -> bool {
         if self
             .scroll_policy_for_node(capture.node_id)
             .map(|container| container.scroll_policy)

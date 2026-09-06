@@ -302,6 +302,25 @@ where
             .is_some_and(|sequence| sequence.owners.iter().any(|owner| owner.node_id == node_id))
     }
 
+    pub(in crate::runtime::controller) fn retire_scroll_wheel_for_refresh(
+        &mut self,
+        transaction: crate::widgets::EditTransaction,
+    ) {
+        if self
+            .interaction
+            .wheel
+            .scroll_edit
+            .as_ref()
+            .is_some_and(|sequence| sequence.transaction == transaction)
+        {
+            self.interaction.wheel.scroll_edit = None;
+            self.interaction.wheel.managed_sequence =
+                RuntimeManagedWheelSequenceState::ScrollClosed;
+            self.clear_pending_scroll_settlements();
+            self.clear_phaseful_scroll_activity();
+        }
+    }
+
     pub(in crate::runtime::controller) fn cancel_scroll_wheel_edit(
         &mut self,
         restore: bool,

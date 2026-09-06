@@ -117,7 +117,11 @@ missing phase evidence is never used to invent an ongoing owner.
 
 Nested wheel chaining preserves residual deltas and the shared scroll policy.
 Controlled echoes preserve ownership; changed content, viewport size, policy,
-or offset retire it without rolling back a replacement. Cancellation is sent
+source identity, or offset retire it without rolling back a replacement.
+Surface replacement snapshots only active mapper handles, then queues terminal
+messages through the outgoing mapper after the successor surface/layout commits.
+Removing a container cannot drop its delivered edit or send its Cancel through
+a later replacement mapper. Cancellation is sent
 only for Begin batches already delivered to the application. Programmatic
 replacement also retires an owned wheel edit. Typed wheel provenance preserves
 the contributing sample's modifiers, timestamp, and sequence range; synthetic

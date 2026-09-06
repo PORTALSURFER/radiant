@@ -61,6 +61,14 @@ class NativeMetricsTests(unittest.TestCase):
         self.assertTrue(any("/auxiliary/warm/" in row["scenario"] for row in metrics))
         self.assertTrue(any("/primary/warm/" in row["scenario"] for row in metrics))
 
+    def test_runtime_failure_after_present_is_not_an_accepted_capture(self):
+        rows = self.rows()
+        rows[1]["run_error"] = "device lost after first present"
+        with self.assertRaisesRegex(ValueError, "diagnostic only"):
+            self.run_rows(rows)
+        rows[1]["run_error"] = None
+        self.assertEqual(self.run_rows(rows)[1]["frame_count"], 3)
+
     def test_empty_failed_and_nonfinite_runs_fail(self):
         with self.assertRaisesRegex(ValueError, "no native frames"):
             self.run_rows(self.rows()[:2])

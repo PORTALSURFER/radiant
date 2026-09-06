@@ -10,7 +10,10 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub(crate) struct ApplicationProjectionReceipt {
     pub(crate) nodes: Box<[ApplicationNodeReceipt]>,
-    pub(crate) components: Vec<(usize, Rc<()>)>,
+    pub(crate) components: Vec<(
+        usize,
+        Rc<crate::application::view_node::components::ComponentSnapshot>,
+    )>,
     pub(crate) supported: bool,
     pub(crate) emitted_records: usize,
     pub(crate) comparison_count: usize,
@@ -38,7 +41,10 @@ pub(crate) struct ApplicationProjectionRecorder<'r> {
     previous: Option<&'r ApplicationProjectionReceipt>,
     drafts: Vec<NodeDraft>,
     unsupported: bool,
-    components: Vec<(usize, Rc<()>)>,
+    components: Vec<(
+        usize,
+        Rc<crate::application::view_node::components::ComponentSnapshot>,
+    )>,
 }
 
 impl<'r> ApplicationProjectionRecorder<'r> {
@@ -72,7 +78,10 @@ impl<'r> ApplicationProjectionRecorder<'r> {
         });
     }
 
-    pub(crate) fn record_component(&mut self, snapshot: Rc<()>) {
+    pub(crate) fn record_component(
+        &mut self,
+        snapshot: Rc<crate::application::view_node::components::ComponentSnapshot>,
+    ) {
         if let Some(index) = self.drafts.len().checked_sub(1) {
             self.components.push((index, snapshot));
         } else {
@@ -127,20 +136,43 @@ fn compare_receipts(
     }
     // A token belongs to one immutable, Clone-qualified cache result. Keeping
     // both Rc owners alive prevents address reuse from accepting a replacement.
-    // Changed inputs, eviction and remount always create a new token.
+    // Changed inputs create a new token; only a proven immediate transition
+    // may contribute changed descendants. Eviction and remount have no edge.
     if previous.components.len() != current.components.len() {
         return (ReceiptComparison::Full, 0);
     }
     let mut comparison_count = 0;
+    let mut changed = Vec::new();
+    let mut changed_path_components: usize = 0;
     for ((old_index, old), (new_index, new)) in previous.components.iter().zip(&current.components)
     {
         comparison_count += 1;
-        if old_index != new_index || !Rc::ptr_eq(old, new) {
+        if old_index != new_index {
             return (ReceiptComparison::Full, comparison_count);
         }
+        let Some(relative) = new.changes_since(old) else {
+            return (ReceiptComparison::Full, comparison_count);
+        };
+        let Some(root) = current.nodes.get(*new_index) else {
+            return (ReceiptComparison::Full, comparison_count);
+        };
+        for leaf in relative {
+            let depth = root.path.len().saturating_add(leaf.child_path.len());
+            if changed.len() >= crate::runtime::MAX_EXACT_CHANGED_ROOTS
+                || changed_path_components.saturating_add(depth)
+                    > crate::runtime::MAX_EXACT_CHANGED_ROOT_PATH_COMPONENTS
+            {
+                return (ReceiptComparison::Full, comparison_count);
+            }
+            let mut path = root.path.to_vec();
+            path.extend_from_slice(&leaf.child_path);
+            changed.push(ExactChangedRoot {
+                node_id: leaf.node_id,
+                child_path: path,
+            });
+            changed_path_components += depth;
+        }
     }
-    let mut changed = Vec::new();
-    let mut changed_path_components: usize = 0;
     for (old, new) in previous.nodes.iter().zip(&current.nodes) {
         comparison_count += 1;
         if old.path != new.path

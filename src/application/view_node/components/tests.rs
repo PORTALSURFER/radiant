@@ -21,6 +21,72 @@ fn interaction_leaf(changed: bool) -> ViewNode<()> {
     .tooltip(if changed { "after" } else { "before" })
 }
 
+fn tooltip_component(value: &u8, _: &ResolvedEnvironment) -> ViewNode<()> {
+    column(
+        (0..100)
+            .map(|index| {
+                text("stable").tooltip(if index == 0 {
+                    value.to_string()
+                } else {
+                    "unchanged".to_owned()
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+#[test]
+fn changed_component_receipt_rebases_only_its_proven_interaction_leaf() {
+    use crate::application::{
+        ApplicationProjectionContext,
+        view_node::reconciliation::{ApplicationProjectionRecorder, ReceiptComparison},
+    };
+    let mut cache = ComponentProjectionCache::<()>::default();
+    let mut committed = None;
+    for value in 0..4 {
+        let mut context = cache.begin(environment());
+        let children = (0..32)
+            .map(|index| {
+                context.project(
+                    format!("component-{index}"),
+                    if index == 7 { value } else { 0 },
+                    tooltip_component,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            context.counters().callbacks,
+            if value == 0 { 32 } else { 1 }
+        );
+        assert_eq!(
+            context.comparison_node_visits(),
+            if value == 0 { 0 } else { 101 },
+            "unchanged sibling descendants must not be inspected"
+        );
+        context.finish();
+        let mut recorder = ApplicationProjectionRecorder::new(committed.as_ref());
+        let mut lowering = ApplicationProjectionContext::new(&mut recorder);
+        let _projection = column(children)
+            .id(1)
+            .into_application_projection(&mut lowering);
+        let (receipt, comparison) = lowering.finish();
+        if value == 1 || value == 2 {
+            let ReceiptComparison::Exact(changed) = comparison else {
+                panic!("one component-local interaction must qualify")
+            };
+            assert_eq!(changed.len(), 1);
+            assert_eq!(changed[0].child_path, vec![7, 0]);
+        } else {
+            assert_eq!(comparison, ReceiptComparison::Full);
+        }
+        // Do not acknowledge value 2. Value 3 has evidence only against that
+        // uncommitted snapshot, so it must not patch the committed value 1.
+        if value < 2 {
+            committed = Some(receipt);
+        }
+    }
+}
+
 #[test]
 fn immutable_component_receipts_skip_descendants_and_fence_replacements() {
     use crate::application::{
@@ -224,6 +290,92 @@ fn stable_component(_: &(), _: &ResolvedEnvironment) -> ViewNode<()> {
         ))
         .id(8)],
     )
+}
+
+fn changing_button_component(value: &bool, _: &ResolvedEnvironment) -> ViewNode<()> {
+    use crate::{
+        layout::Vector2,
+        widgets::{ButtonWidget, WidgetSizing},
+    };
+    column(
+        [crate::application::view_node_from_widget(ButtonWidget::new(
+            8,
+            "Stable",
+            WidgetSizing::fixed(Vector2::new(100.0, 28.0)),
+        ))
+        .id(8)
+        .tooltip(if *value { "after" } else { "before" })],
+    )
+}
+
+#[test]
+fn interaction_change_inside_component_preserves_captured_widget_like_full_refresh() {
+    use crate::{
+        application::app,
+        layout::Vector2,
+        runtime::{Event, RepaintScope, SurfaceRuntime},
+    };
+    let state = Rc::new(Cell::new(false));
+    let build = |fresh: bool| {
+        app(Rc::clone(&state))
+            .view_with_components(
+                |_| Default::default(),
+                move |value, context| {
+                    let component = if fresh {
+                        context.project("changing", value.get(), move |input, environment| {
+                            std::hint::black_box(fresh);
+                            changing_button_component(input, environment)
+                        })
+                    } else {
+                        context.project("changing", value.get(), changing_button_component)
+                    };
+                    column([
+                        component,
+                        context.project("unchanged", (), large_stable_component),
+                    ])
+                    .id(1)
+                },
+            )
+            .into_bridge()
+    };
+    let mut cached = SurfaceRuntime::new(build(false), Vector2::new(240.0, 200.0));
+    let mut fresh = SurfaceRuntime::new(build(true), Vector2::new(240.0, 200.0));
+    cached.refresh();
+    fresh.refresh();
+    let press = Event::primary_press(cached.layout().rects[&8].center());
+    cached.dispatch_event(press);
+    fresh.dispatch_event(press);
+    assert_eq!(cached.pointer_capture(), Some(8));
+    for value in [true, false, true] {
+        state.set(value);
+        let before = cached.refresh_counters();
+        cached.refresh_with_scope(RepaintScope::Projection);
+        fresh.refresh_with_scope(RepaintScope::Projection);
+        assert_eq!(
+            cached.refresh_counters().runtime_projection,
+            before.runtime_projection
+        );
+        assert_eq!(cached.refresh_counters().layout, before.layout);
+        assert_eq!(cached.pointer_capture(), Some(8));
+        assert_eq!(cached.focused_widget(), fresh.focused_widget());
+        assert_eq!(cached.layout(), fresh.layout());
+        assert_eq!(
+            cached.paint_plan(&Default::default()),
+            fresh.paint_plan(&Default::default())
+        );
+        let widget = cached.surface().find_widget(8).unwrap().widget();
+        let expected = fresh.surface().find_widget(8).unwrap().widget();
+        assert_eq!(widget.common().tooltip, expected.common().tooltip);
+        assert_eq!(
+            widget.automation_semantics(),
+            expected.automation_semantics()
+        );
+    }
+    let release = Event::primary_release(cached.layout().rects[&8].center());
+    cached.dispatch_event(release);
+    fresh.dispatch_event(release);
+    assert_eq!(cached.pointer_capture(), None);
+    assert_eq!(cached.pointer_capture(), fresh.pointer_capture());
 }
 
 #[test]
@@ -463,16 +615,26 @@ fn input_component(_: &(), _: &ResolvedEnvironment) -> ViewNode<()> {
     ])
 }
 
-fn input_bridge(state: Rc<Cell<u32>>, fresh: bool) -> impl crate::runtime::RuntimeBridge<()> {
-    crate::application::app((state, fresh))
+fn input_bridge(
+    state: Rc<Cell<u32>>,
+    fresh: bool,
+    interaction_only: bool,
+) -> impl crate::runtime::RuntimeBridge<()> {
+    crate::application::app((state, fresh, interaction_only))
         .view_with_components(
             |_| Default::default(),
-            |(state, fresh), context| {
-                let changed = context.project(
-                    "changed",
-                    LabelInput(state.get().to_string()),
-                    changed_component,
-                );
+            |(state, fresh, interaction_only), context| {
+                let changed = if *interaction_only {
+                    context.project("changed", state.get(), |value, _| {
+                        crate::application::row([text("stable").id(7).tooltip(value.to_string())])
+                    })
+                } else {
+                    context.project(
+                        "changed",
+                        LabelInput(state.get().to_string()),
+                        changed_component,
+                    )
+                };
                 let editor = if *fresh {
                     let force = *fresh;
                     context.project("editor", (), move |input, environment| {
@@ -495,67 +657,80 @@ fn unchanged_component_preserves_ime_during_unrelated_projection() {
         runtime::{RepaintScope, SurfaceRuntime},
         widgets::{CompositionRange, CompositionSample},
     };
-    let state = Rc::new(Cell::new(0));
-    let mut cached = SurfaceRuntime::new(
-        input_bridge(Rc::clone(&state), false),
-        Vector2::new(240.0, 100.0),
-    );
-    let mut fresh = SurfaceRuntime::new(
-        input_bridge(Rc::clone(&state), true),
-        Vector2::new(240.0, 100.0),
-    );
-    let range = CompositionRange::new(0, 0, 4).unwrap();
-    let preedit_range = CompositionRange::new(1, 1, 1).unwrap();
-    for runtime in [&mut cached, &mut fresh] {
-        assert!(runtime.focus_widget(9));
-        assert_eq!(
-            runtime.dispatch_composition_sample(CompositionSample::start(range, range).unwrap()),
-            Some(9)
+    for interaction_only in [false, true] {
+        let state = Rc::new(Cell::new(0));
+        let mut cached = SurfaceRuntime::new(
+            input_bridge(Rc::clone(&state), false, interaction_only),
+            Vector2::new(240.0, 100.0),
         );
-        assert_eq!(
-            runtime.dispatch_composition_sample(
-                CompositionSample::update("あ", preedit_range).unwrap()
-            ),
-            Some(9)
+        let mut fresh = SurfaceRuntime::new(
+            input_bridge(Rc::clone(&state), true, interaction_only),
+            Vector2::new(240.0, 100.0),
         );
-    }
-    state.set(1);
-    for runtime in [&mut cached, &mut fresh] {
-        runtime.refresh_with_scope(RepaintScope::Projection);
-        assert!(
-            runtime
+        cached.refresh();
+        fresh.refresh();
+        let range = CompositionRange::new(0, 0, 4).unwrap();
+        let preedit_range = CompositionRange::new(1, 1, 1).unwrap();
+        for runtime in [&mut cached, &mut fresh] {
+            assert!(runtime.focus_widget(9));
+            assert_eq!(
+                runtime
+                    .dispatch_composition_sample(CompositionSample::start(range, range).unwrap()),
+                Some(9)
+            );
+            assert_eq!(
+                runtime.dispatch_composition_sample(
+                    CompositionSample::update("あ", preedit_range).unwrap()
+                ),
+                Some(9)
+            );
+        }
+        let before = cached.refresh_counters();
+        state.set(1);
+        for runtime in [&mut cached, &mut fresh] {
+            runtime.refresh_with_scope(RepaintScope::Projection);
+            assert!(
+                runtime
+                    .surface()
+                    .find_widget(9)
+                    .unwrap()
+                    .widget()
+                    .retains_managed_composition()
+            );
+            assert_eq!(runtime.focused_widget(), Some(9));
+        }
+        if interaction_only {
+            assert_eq!(
+                cached.refresh_counters().runtime_projection,
+                before.runtime_projection
+            );
+            assert_eq!(cached.refresh_counters().layout, before.layout);
+        }
+        assert_eq!(
+            cached.paint_plan(&Default::default()),
+            fresh.paint_plan(&Default::default())
+        );
+        for runtime in [&mut cached, &mut fresh] {
+            assert_eq!(
+                runtime.dispatch_composition_sample(CompositionSample::commit("い")),
+                Some(9)
+            );
+        }
+        assert_eq!(
+            cached
                 .surface()
                 .find_widget(9)
                 .unwrap()
                 .widget()
-                .retains_managed_composition()
-        );
-        assert_eq!(runtime.focused_widget(), Some(9));
-    }
-    assert_eq!(
-        cached.paint_plan(&Default::default()),
-        fresh.paint_plan(&Default::default())
-    );
-    for runtime in [&mut cached, &mut fresh] {
-        assert_eq!(
-            runtime.dispatch_composition_sample(CompositionSample::commit("い")),
-            Some(9)
+                .automation_semantics(),
+            fresh
+                .surface()
+                .find_widget(9)
+                .unwrap()
+                .widget()
+                .automation_semantics()
         );
     }
-    assert_eq!(
-        cached
-            .surface()
-            .find_widget(9)
-            .unwrap()
-            .widget()
-            .automation_semantics(),
-        fresh
-            .surface()
-            .find_widget(9)
-            .unwrap()
-            .widget()
-            .automation_semantics()
-    );
 }
 
 #[test]

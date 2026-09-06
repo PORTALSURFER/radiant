@@ -1,5 +1,8 @@
 //! Bounded, application-owned memoization of pure component projections.
 
+mod snapshot;
+pub(crate) use snapshot::ComponentSnapshot;
+
 use super::{ViewNode, ViewNodeKind, slot::SlotBehavior};
 use crate::{
     application::IntoView,
@@ -25,7 +28,7 @@ struct Entry<Message> {
     root: SurfaceNode<Message>,
     slot: SlotBehavior,
     nodes: usize,
-    snapshot: std::rc::Rc<()>,
+    snapshot: std::rc::Rc<ComponentSnapshot>,
 }
 
 pub(in crate::application) struct ComponentProjectionCache<Message> {
@@ -69,6 +72,7 @@ pub struct ComponentProjectionContext<'a, Message> {
     seen: HashSet<String>,
     counters: ComponentProjectionCounters,
     finished: bool,
+    comparison_node_visits: usize,
 }
 
 impl<Message> ComponentProjectionCache<Message> {
@@ -90,6 +94,7 @@ impl<Message> ComponentProjectionCache<Message> {
                 ..Default::default()
             },
             finished: false,
+            comparison_node_visits: 0,
         }
     }
 }
@@ -132,11 +137,8 @@ impl<Message: 'static> ComponentProjectionContext<'_, Message> {
         }
         self.counters.callbacks += 1;
         let view = project(&input, &self.environment).key(key.clone());
-        let old_nodes = self
-            .cache
-            .entries
-            .remove(&key)
-            .map_or(0, |entry| entry.nodes);
+        let previous = self.cache.entries.remove(&key);
+        let old_nodes = previous.as_ref().map_or(0, |entry| entry.nodes);
         self.counters.retained_nodes -= old_nodes;
         if !plain_component(&view) {
             return view;
@@ -149,7 +151,19 @@ impl<Message: 'static> ComponentProjectionContext<'_, Message> {
             && self.cache.entries.len() < MAX_COMPONENTS
             && let Some(nodes) = root.component_cache_node_count(available)
         {
-            let identity = std::rc::Rc::new(());
+            let compatible = previous
+                .as_ref()
+                .filter(|old| old.projector == TypeId::of::<Project>() && old.input.is::<Input>());
+            let changes = compatible.and_then(|old| {
+                let (changes, visits) =
+                    old.root.compare_cached_component(&root, MAX_RETAINED_NODES);
+                self.comparison_node_visits = self.comparison_node_visits.saturating_add(visits);
+                changes
+            });
+            let identity = std::rc::Rc::new(ComponentSnapshot::new(
+                compatible.map(|old| old.snapshot.as_ref()),
+                changes,
+            ));
             snapshot = Some(identity.clone());
             self.cache.entries.insert(
                 key,
@@ -170,6 +184,14 @@ impl<Message: 'static> ComponentProjectionContext<'_, Message> {
     /// Read actual callback/cache work performed so far in this projection.
     pub fn counters(&self) -> ComponentProjectionCounters {
         self.counters
+    }
+
+    /// Nodes inspected while comparing changed components in this projection.
+    ///
+    /// Exact cache hits inspect no descendants. A rejected comparison reports
+    /// the actual bounded work performed before falling back to full refresh.
+    pub fn comparison_node_visits(&self) -> usize {
+        self.comparison_node_visits
     }
 
     /// Borrow the exact environment used to qualify every cached result.
@@ -198,7 +220,7 @@ impl<Message> Drop for ComponentProjectionContext<'_, Message> {
 fn snapshot_view<Message>(
     root: SurfaceNode<Message>,
     slot: SlotBehavior,
-    snapshot: Option<std::rc::Rc<()>>,
+    snapshot: Option<std::rc::Rc<ComponentSnapshot>>,
 ) -> ViewNode<Message> {
     let mut view = ViewNode::from(root);
     view.slot = slot;

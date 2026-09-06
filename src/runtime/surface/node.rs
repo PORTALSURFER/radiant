@@ -1,5 +1,6 @@
 mod children;
 mod clone;
+mod component;
 mod layer;
 mod model;
 mod native_file_drop;

@@ -7749,8 +7749,11 @@ slot and root contract all match the committed receipt, lowering and comparison
 skip the cached descendants. An interaction-only leaf beside unchanged cached
 components can therefore use the existing atomic partial refresh without a
 runtime projection or layout pass. The enclosing application view still runs.
-Changed component inputs, remounts, eviction, reordered roots, environment changes
-and raw runtime wrappers use the complete refresh path. The identity is emitted
+Interaction-only component changes may retain a bounded proof against the
+immediately preceding cache result. Only the changed component is compared;
+`comparison_node_visits()` reports that actual work. Geometry, unsupported changes,
+missing predecessor proofs, remounts, eviction, reordered roots, environment
+changes and raw runtime wrappers use the complete refresh path. The identity is emitted
 only for the existing Clone-qualified cache admission; it does not expand widget
 admission or replace runtime focus, capture, IME, or publication authority.
 

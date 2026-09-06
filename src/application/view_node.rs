@@ -110,7 +110,7 @@ pub struct ViewNode<Message> {
     kind: ViewNodeKind<Message>,
     // Minted only for an immutable, Clone-qualified component cache result.
     // Descendant equality evidence; never runtime ownership or state.
-    component_snapshot: Option<Rc<()>>,
+    component_snapshot: Option<Rc<crate::application::view_node::components::ComponentSnapshot>>,
     id: Option<NodeId>,
     key: Option<identity::ContinuityKey>,
     keyed_identity: Option<identity::KeyedIdentity>,

@@ -73,6 +73,7 @@ pub(crate) struct WidgetCapabilityEvidence {
     pub(crate) v2_semantics_revision: Option<WidgetSemanticsRevision>,
     pub(crate) hit_test_revision: Option<crate::widgets::WidgetHitTestRevision>,
     pub(crate) pointer_motion_revision: Option<WidgetPointerMotionRevision>,
+    pub(crate) semantic_actions_revision: Option<crate::widgets::WidgetSemanticActionRevision>,
 }
 
 impl WidgetCapabilityEvidence {
@@ -86,6 +87,7 @@ impl WidgetCapabilityEvidence {
             v2_semantics_revision: capabilities_v2.semantics_revision(),
             hit_test_revision: capabilities_v2.hit_test_revision(),
             pointer_motion_revision: capabilities_v2.pointer_motion_revision(),
+            semantic_actions_revision: capabilities_v2.semantic_actions_revision(),
         }
     }
 
@@ -97,6 +99,7 @@ impl WidgetCapabilityEvidence {
             v2_semantics_revision: None,
             hit_test_revision: None,
             pointer_motion_revision: None,
+            semantic_actions_revision: None,
         }
     }
 
@@ -109,6 +112,10 @@ impl WidgetCapabilityEvidence {
                 .is_some_and(|revision| !revision.is_exact())
             || self
                 .hit_test_revision
+                .as_ref()
+                .is_some_and(|revision| !revision.is_exact())
+            || self
+                .semantic_actions_revision
                 .as_ref()
                 .is_some_and(|revision| !revision.is_exact())
             || self
@@ -608,6 +615,48 @@ impl<Message> SurfaceWidget<Message> {
             return super::WidgetDispatchResult::NoOutput;
         };
         self.messages.dispatch_output(output)
+    }
+
+    pub(in crate::runtime) fn supports_semantic_action(
+        &self,
+        action: &crate::widgets::SemanticAction,
+    ) -> bool {
+        self.widget
+            .capabilities_v2()
+            .semantic_actions()
+            .is_some_and(|actions| actions.supports(action))
+    }
+
+    pub(in crate::runtime) fn has_semantic_action_handler(
+        &mut self,
+        action: &crate::widgets::SemanticAction,
+    ) -> bool {
+        self.widget
+            .action_capabilities()
+            .into_semantic_actions()
+            .is_some_and(|actions| actions.supports(action))
+    }
+
+    pub(in crate::runtime) fn dispatch_semantic_action(
+        &mut self,
+        action: crate::widgets::SemanticAction,
+        source: crate::widgets::SemanticActionSource,
+    ) -> Result<super::WidgetDispatchResult<Message>, ()> {
+        let Some(handler) = self.widget.action_capabilities().into_semantic_actions() else {
+            return Err(());
+        };
+        if !handler.supports(&action) {
+            return Err(());
+        }
+        match handler.dispatch(action, source) {
+            crate::widgets::WidgetSemanticActionResult::Unsupported => Err(()),
+            crate::widgets::WidgetSemanticActionResult::Accepted(None) => {
+                Ok(super::WidgetDispatchResult::NoOutput)
+            }
+            crate::widgets::WidgetSemanticActionResult::Accepted(Some(output)) => {
+                Ok(self.messages.dispatch_output(output))
+            }
+        }
     }
 
     pub(in crate::runtime) fn dispatch_accessibility_action(

@@ -142,6 +142,12 @@ pub trait Widget: WidgetClone + Any {
         WidgetRevision::conservative()
     }
 
+    /// Obtain mutable optional action capabilities after runtime admission.
+    /// Read-only support and revision evidence belongs in `capabilities_v2`.
+    fn action_capabilities(&mut self) -> crate::widgets::WidgetActionCapabilities<'_> {
+        crate::widgets::WidgetActionCapabilities::none()
+    }
+
     /// Prepare to release keyboard focus.
     ///
     /// This synchronous, allocation-free decision seam lets a focused widget

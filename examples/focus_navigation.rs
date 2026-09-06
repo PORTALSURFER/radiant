@@ -2,7 +2,10 @@
 use radiant::prelude::*;
 use radiant::{
     layout::Vector2,
-    runtime::{FocusDirection, FocusScope, FocusTransferOutcome, FocusTraversal, SurfaceRuntime},
+    runtime::{
+        FocusDirection, FocusScope, FocusTransferOutcome, FocusTraversal, SemanticAction,
+        SemanticActionOutcome, SemanticActionSource, SurfaceRuntime,
+    },
 };
 
 fn exercise() {
@@ -44,6 +47,25 @@ fn exercise() {
     assert_eq!(
         runtime.traverse_focus_explicit(FocusTraversal::Forward),
         FocusTransferOutcome::NoDestination
+    );
+    let action = runtime
+        .semantic_action_target(&radiant::gui::automation::AutomationNodeId::new("2"))
+        .expect("current materialized action target");
+    assert_eq!(
+        runtime.dispatch_semantic_action(
+            &action,
+            SemanticAction::Press,
+            SemanticActionSource::Programmatic
+        ),
+        SemanticActionOutcome::Accepted
+    );
+    assert_eq!(
+        runtime.dispatch_semantic_action(
+            &action,
+            SemanticAction::Press,
+            SemanticActionSource::Programmatic
+        ),
+        SemanticActionOutcome::Stale
     );
 }
 fn main() {

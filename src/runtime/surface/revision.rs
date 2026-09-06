@@ -405,7 +405,16 @@ fn classify_v2_widget_capabilities(
         current.pointer_motion_revision(),
         WidgetPointerMotionRevision::is_exact,
     );
-    combine_widget_revision_effect(semantics, hit_test, pointer_motion)
+    let actions = classify_optional_capability(
+        previous.semantic_actions_revision(),
+        current.semantic_actions_revision(),
+        WidgetSemanticsRevision::is_exact,
+    );
+    combine_widget_revision_effect(
+        actions,
+        semantics,
+        combine_widget_revision_effect(hit_test, pointer_motion, WidgetRevisionEffect::Unchanged),
+    )
 }
 
 fn classify_cached_widget_capabilities(
@@ -441,9 +450,14 @@ fn classify_cached_widget_capabilities(
         current.pointer_motion_revision.clone(),
         WidgetPointerMotionRevision::is_exact,
     );
+    let actions = classify_optional_capability(
+        previous.semantic_actions_revision.clone(),
+        current.semantic_actions_revision.clone(),
+        WidgetSemanticsRevision::is_exact,
+    );
     combine_widget_revision_effect(
-        semantics,
-        v2_semantics,
+        actions,
+        combine_widget_revision_effect(semantics, v2_semantics, WidgetRevisionEffect::Unchanged),
         combine_widget_revision_effect(hit_test, pointer_motion, WidgetRevisionEffect::Unchanged),
     )
 }
@@ -2096,7 +2110,8 @@ fn compare_layer_pair<Message>(
 mod tests {
     use super::{
         WidgetCapabilityEvidence, WidgetRevisionEffect, WidgetRevisionSnapshot,
-        classify_widget_capabilities, classify_widget_capability_sets, classify_widget_revision,
+        classify_v2_widget_capabilities, classify_widget_capabilities,
+        classify_widget_capability_sets, classify_widget_revision,
     };
     use crate::layout::Vector2;
     use crate::widgets::{
@@ -2219,6 +2234,69 @@ mod tests {
         fn automation_label(&self) -> Option<String> {
             std::panic::panic_any("semantic output must not be evaluated by the classifier")
         }
+    }
+
+    struct TestSemanticActions(WidgetSemanticsRevision);
+    impl crate::widgets::WidgetSemanticActions for TestSemanticActions {
+        fn revision(&self) -> WidgetSemanticsRevision {
+            self.0.clone()
+        }
+        fn supports(&self, _: &crate::widgets::SemanticAction) -> bool {
+            panic!("classification must not query action support")
+        }
+        fn dispatch(
+            &mut self,
+            _: crate::widgets::SemanticAction,
+            _: crate::widgets::SemanticActionSource,
+        ) -> crate::widgets::WidgetSemanticActionResult {
+            panic!("classification must not execute actions")
+        }
+    }
+
+    #[test]
+    fn semantic_action_revision_classifies_policy_without_executing_handlers() {
+        let hit = TestHitTest {
+            revision: WidgetHitTestRevision::exact(()),
+        };
+        let motion = TestPointerMotion {
+            revision: WidgetPointerMotionRevision::exact(()),
+        };
+        let base = TestSemanticActions(WidgetSemanticsRevision::exact(1_u32));
+        for (revision, expected) in [
+            (
+                WidgetSemanticsRevision::exact(1_u32),
+                WidgetRevisionEffect::Unchanged,
+            ),
+            (
+                WidgetSemanticsRevision::exact(2_u32),
+                WidgetRevisionEffect::Interaction,
+            ),
+            (
+                WidgetSemanticsRevision::exact(1_u64),
+                WidgetRevisionEffect::Interaction,
+            ),
+            (
+                WidgetSemanticsRevision::conservative(),
+                WidgetRevisionEffect::Structural,
+            ),
+        ] {
+            let current = TestSemanticActions(revision);
+            assert_eq!(
+                classify_v2_widget_capabilities(
+                    capabilities_v2(None, Some(&hit), Some(&motion)).with_semantic_actions(&base),
+                    capabilities_v2(None, Some(&hit), Some(&motion))
+                        .with_semantic_actions(&current),
+                ),
+                expected
+            );
+        }
+        assert_eq!(
+            classify_v2_widget_capabilities(
+                capabilities_v2(None, Some(&hit), Some(&motion)),
+                capabilities_v2(None, Some(&hit), Some(&motion)).with_semantic_actions(&base),
+            ),
+            WidgetRevisionEffect::Structural
+        );
     }
 
     struct TestHitTest {
@@ -2416,6 +2494,7 @@ mod tests {
             v2_semantics_revision: None,
             hit_test_revision: None,
             pointer_motion_revision: None,
+            semantic_actions_revision: None,
         };
         assert!(!absent.needs_conservative_fallback());
 

@@ -259,3 +259,126 @@ fn command_control_release_cannot_retarget_a_press_after_scope_replacement() {
     runtime.dispatch_input_at(point, WidgetInput::primary_release(point));
     assert_eq!(*calls.borrow(), [43]);
 }
+
+#[test]
+fn semantic_command_control_uses_shared_context_mapper_and_request_provenance() {
+    use crate::runtime::{SemanticAction, SemanticActionOutcome, SemanticActionSource};
+    let registry = registry();
+    let projection = registry.clone();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let observed = Rc::clone(&calls);
+    let mut runtime = SurfaceRuntime::new(
+        crate::app(scope(true))
+            .view(move |state: &CommandScope<u32>| view(&projection, state, true))
+            .command_registry(
+                registry,
+                CommandDispatcher::new(|invocation: CommandInvocation<u32>| {
+                    (*invocation.context(), invocation.source())
+                }),
+            )
+            .update(move |_, message| observed.borrow_mut().push(message))
+            .into_bridge(),
+        Vector2::new(400.0, 200.0),
+    );
+    assert!(runtime.focus_widget(101));
+    for source in [
+        SemanticActionSource::Accessibility,
+        SemanticActionSource::Programmatic,
+    ] {
+        let target = runtime
+            .semantic_action_target(&crate::gui::automation::AutomationNodeId::new("102"))
+            .unwrap();
+        assert_eq!(
+            runtime.dispatch_semantic_action(&target, SemanticAction::Press, source),
+            SemanticActionOutcome::Accepted
+        );
+    }
+    assert_eq!(
+        *calls.borrow(),
+        [
+            (42, CommandSource::Accessibility),
+            (42, CommandSource::Application)
+        ]
+    );
+    assert!(runtime.focus_widget(103));
+    let target = runtime
+        .semantic_action_target(&crate::gui::automation::AutomationNodeId::new("102"))
+        .unwrap();
+    assert!(matches!(
+        runtime.dispatch_semantic_action(
+            &target,
+            SemanticAction::Press,
+            SemanticActionSource::Accessibility
+        ),
+        SemanticActionOutcome::CommandRejected(_)
+    ));
+    assert_eq!(calls.borrow().len(), 2);
+}
+
+#[test]
+fn semantic_command_target_cannot_bypass_new_modal_precedence() {
+    use crate::application::{Layer, scene, text};
+    use crate::runtime::{SemanticAction, SemanticActionOutcome, SemanticActionSource};
+    let registry = registry();
+    let projection = registry.clone();
+    let modal = Rc::new(Cell::new(false));
+    let shown = Rc::clone(&modal);
+    let calls = Rc::new(Cell::new(0));
+    let observed = Rc::clone(&calls);
+    let mut runtime = SurfaceRuntime::new(
+        crate::app(scope(true))
+            .view(move |state: &CommandScope<u32>| {
+                let base = view(&projection, state, true);
+                if !shown.get() {
+                    return base;
+                }
+                scene(base)
+                    .layer(Layer::modal(
+                        text("Modal").id(104).command_scope(
+                            CommandScope::new(
+                                "modal",
+                                CommandScopeKind::Modal { order: 0 },
+                                [CommandBinding::new(id(), 99_u32)],
+                            )
+                            .unwrap(),
+                        ),
+                    ))
+                    .into_view()
+            })
+            .command_registry(
+                registry,
+                CommandDispatcher::new(|invocation: CommandInvocation<u32>| {
+                    (*invocation.context(), invocation.source())
+                }),
+            )
+            .update(move |_, _| observed.set(observed.get() + 1))
+            .into_bridge(),
+        Vector2::new(400.0, 200.0),
+    );
+    assert!(runtime.focus_widget(101));
+    let target = runtime
+        .semantic_action_target(&crate::gui::automation::AutomationNodeId::new("102"))
+        .unwrap();
+    assert_eq!(
+        runtime.dispatch_semantic_action(
+            &target,
+            SemanticAction::Press,
+            SemanticActionSource::Accessibility
+        ),
+        SemanticActionOutcome::Accepted
+    );
+    modal.set(true);
+    runtime.refresh();
+    let current = runtime
+        .semantic_action_target(&crate::gui::automation::AutomationNodeId::new("102"))
+        .unwrap();
+    assert!(matches!(
+        runtime.dispatch_semantic_action(
+            &current,
+            SemanticAction::Press,
+            SemanticActionSource::Accessibility
+        ),
+        SemanticActionOutcome::CommandRejected(_)
+    ));
+    assert_eq!(calls.get(), 1);
+}

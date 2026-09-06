@@ -8627,3 +8627,173 @@ fn scoped_prepared_surface_keeps_separator_order_and_boundary_policy() {
         FocusTransferOutcome::Admitted(2)
     );
 }
+
+#[test]
+fn semantic_press_preserves_incumbent_veto_and_reprojection_without_activation() {
+    use crate::runtime::{
+        FocusTransferOutcome, SemanticAction, SemanticActionOutcome, SemanticActionSource,
+    };
+    struct Bridge(FocusDecisionBridge);
+    impl RuntimeBridge<FocusDecisionEvent> for Bridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<FocusDecisionEvent>> {
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::column(
+                100,
+                0.0,
+                vec![
+                    fixed_child(28.0, self.0.row()),
+                    fixed_child(
+                        28.0,
+                        SurfaceNode::widget(
+                            ButtonWidget::new(
+                                30,
+                                "Action",
+                                WidgetSizing::fixed(Vector2::new(100.0, 28.0)),
+                            ),
+                            WidgetMessageMapper::button(|_| FocusDecisionEvent::Press(30)),
+                        ),
+                    ),
+                ],
+            )))
+        }
+        fn reduce_message(&mut self, message: FocusDecisionEvent) {
+            self.0.events.borrow_mut().push(message);
+        }
+    }
+    let mut runtime = SurfaceRuntime::new(
+        Bridge(FocusDecisionBridge::new()),
+        Vector2::new(240.0, 120.0),
+    );
+    assert!(runtime.focus_widget(10));
+    let target = runtime
+        .semantic_action_target(&crate::gui::automation::AutomationNodeId::new("30"))
+        .unwrap();
+    runtime.bridge().0.events.borrow_mut().clear();
+    runtime.bridge().0.old_decision.set(FocusLossDecision::Veto);
+    assert_eq!(
+        runtime.dispatch_semantic_action(
+            &target,
+            SemanticAction::Press,
+            SemanticActionSource::Accessibility
+        ),
+        SemanticActionOutcome::Focus(FocusTransferOutcome::Vetoed)
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(
+        *runtime.bridge().0.events.borrow(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+    runtime
+        .bridge()
+        .0
+        .old_decision
+        .set(FocusLossDecision::Allow);
+    runtime.bridge().0.events.borrow_mut().clear();
+    assert_eq!(
+        runtime.dispatch_semantic_action(
+            &target,
+            SemanticAction::Press,
+            SemanticActionSource::Accessibility
+        ),
+        SemanticActionOutcome::Focus(FocusTransferOutcome::Invalidated)
+    );
+    assert_eq!(
+        runtime
+            .bridge()
+            .0
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| **e == FocusDecisionEvent::HostOutput)
+            .count(),
+        1
+    );
+    assert!(
+        !runtime
+            .bridge()
+            .0
+            .events
+            .borrow()
+            .contains(&FocusDecisionEvent::Press(30))
+    );
+    assert_eq!(
+        runtime.dispatch_semantic_action(
+            &target,
+            SemanticAction::Press,
+            SemanticActionSource::Accessibility
+        ),
+        SemanticActionOutcome::Stale
+    );
+}
+
+#[test]
+fn semantic_text_rejects_disabled_read_only_composition_and_capture_before_focus() {
+    use super::super::interaction_state::RuntimeManagedCompositionState;
+    use crate::runtime::{SemanticAction, SemanticActionOutcome, SemanticActionSource};
+    let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
+    // Mutate only runtime-owned eligibility state of the fixture text input.
+    let id = runtime
+        .automation_target_snapshot()
+        .targets
+        .into_iter()
+        .find(|t| t.available_actions.iter().any(|a| a == "set_text"))
+        .unwrap()
+        .id;
+    let widget: u64 = id.0.parse().unwrap();
+    for (disabled, read_only, composition, capture, expected) in [
+        (
+            true,
+            false,
+            RuntimeManagedCompositionState::Idle,
+            None,
+            SemanticActionOutcome::Disabled,
+        ),
+        (
+            false,
+            true,
+            RuntimeManagedCompositionState::Idle,
+            None,
+            SemanticActionOutcome::ReadOnly,
+        ),
+        (
+            false,
+            false,
+            RuntimeManagedCompositionState::Active { widget_id: widget },
+            None,
+            SemanticActionOutcome::Blocked,
+        ),
+        (
+            false,
+            false,
+            RuntimeManagedCompositionState::Blocked,
+            None,
+            SemanticActionOutcome::Blocked,
+        ),
+        (
+            false,
+            false,
+            RuntimeManagedCompositionState::Idle,
+            Some(widget),
+            SemanticActionOutcome::Blocked,
+        ),
+    ] {
+        let common = runtime
+            .surface_widget_mut(widget)
+            .unwrap()
+            .widget_object_mut_runtime()
+            .common_mut();
+        common.state.disabled = disabled;
+        common.state.read_only = read_only;
+        runtime.interaction.composition.managed_composition = composition;
+        runtime.interaction.pointer.capture = capture;
+        let target = runtime.semantic_action_target(&id).unwrap();
+        assert_eq!(
+            runtime.dispatch_semantic_action(
+                &target,
+                SemanticAction::SetText("new".into()),
+                SemanticActionSource::Accessibility
+            ),
+            expected
+        );
+        assert_eq!(runtime.focused_widget(), None);
+    }
+}

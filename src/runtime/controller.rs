@@ -36,6 +36,7 @@ mod prepared_layout;
 mod refresh;
 mod scratch;
 mod scroll;
+mod semantic_actions;
 mod semantic_coordinate;
 mod semantic_demand;
 mod split_pane_ratio_action;
@@ -77,6 +78,7 @@ pub use refresh::{
     SurfaceIdentityReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
     SurfaceRefreshTimings,
 };
+pub use semantic_actions::{SemanticActionOutcome, SemanticActionTarget};
 
 enum NativeTextPointerCaret {
     Pending(WidgetId, String, usize, crate::widgets::NativeCaretAffinity),

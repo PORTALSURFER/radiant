@@ -163,6 +163,9 @@ impl Widget for CommandControlWidget {
     fn capabilities(&self) -> WidgetCapabilities<'_> {
         WidgetCapabilities::new().semantics(self)
     }
+    fn action_capabilities(&mut self) -> crate::widgets::WidgetActionCapabilities<'_> {
+        self.button.action_capabilities()
+    }
     fn capabilities_v2(&self) -> WidgetCapabilitiesV2<'_> {
         self.button.capabilities_v2()
     }

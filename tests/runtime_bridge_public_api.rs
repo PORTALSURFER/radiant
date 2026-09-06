@@ -34,6 +34,8 @@ mod focus_authority;
 mod lifecycle;
 #[path = "runtime_bridge_public_api/resources.rs"]
 mod resources;
+#[path = "runtime_bridge_public_api/semantic_actions.rs"]
+mod semantic_actions;
 #[path = "runtime_bridge_public_api/state_projection.rs"]
 mod state_projection;
 

@@ -111,7 +111,7 @@ where
         NumericAccessibilityDispatchResult::Accepted { widget_id, output }
     }
 
-    fn accessibility_incumbent_owner(
+    pub(super) fn accessibility_incumbent_owner(
         &self,
         target_widget_id: WidgetId,
     ) -> Option<NumericAccessibilityBlockOwner> {
@@ -464,6 +464,39 @@ mod tests {
         assert!(matches!(outcome, NumericAccessibilityOutcome::Edit(_)));
         assert_eq!(runtime.bridge().reductions.get(), 1);
         assert_eq!(runtime.bridge().mapped_accessibility.get(), 1);
+    }
+
+    #[test]
+    fn generic_semantic_boundary_reuses_numeric_typed_lifecycle_and_text_action_name() {
+        use crate::runtime::{SemanticAction, SemanticActionOutcome, SemanticActionSource};
+        let mut runtime = runtime(SurfaceMode::Numeric);
+        let id = crate::gui::automation::AutomationNodeId::new("42");
+        let target = runtime.semantic_action_target(&id).unwrap();
+        assert_eq!(
+            runtime.dispatch_semantic_action(
+                &target,
+                SemanticAction::Numeric(NumericAccessibilityAction::Increment),
+                SemanticActionSource::Programmatic
+            ),
+            SemanticActionOutcome::Unsupported
+        );
+        assert_eq!(runtime.bridge().mapped_accessibility.get(), 0);
+        for action in [
+            NumericAccessibilityAction::Increment,
+            NumericAccessibilityAction::SetValueText("7".into()),
+        ] {
+            let target = runtime.semantic_action_target(&id).unwrap();
+            assert!(matches!(
+                runtime.dispatch_semantic_action(
+                    &target,
+                    SemanticAction::Numeric(action),
+                    SemanticActionSource::Accessibility
+                ),
+                SemanticActionOutcome::Numeric(NumericAccessibilityDispatchResult::Accepted { .. })
+            ));
+        }
+        assert_eq!(runtime.bridge().mapped_accessibility.get(), 2);
+        assert_eq!(runtime.bridge().reductions.get(), 2);
     }
 
     #[test]

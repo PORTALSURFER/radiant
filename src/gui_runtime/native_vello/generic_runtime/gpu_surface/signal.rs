@@ -39,9 +39,28 @@ use window::{SignalBucketWindow, signal_bucket_window};
 struct SignalRenderSource {
     prepared: Option<PreparedSummary>,
     shape: GpuSignalRenderShape,
-    summary: Arc<GpuSignalSummary>,
+    data: SignalRenderData,
     gain_preview: Option<GpuSignalGainPreview>,
     sample_slide_frame_offset: i64,
+}
+
+enum SignalRenderData {
+    Overview(Arc<GpuSignalSummary>),
+    Tile(SignalTileData),
+}
+
+struct SignalTileData {
+    buckets: Arc<[GpuSignalSummaryBucket]>,
+    bucket_frames: usize,
+    band_count: usize,
+    query_start_bucket: f32,
+    query_span_buckets: f32,
+}
+
+#[derive(Clone, Copy)]
+struct TileQueryMapping {
+    start_bucket: f32,
+    span_buckets: f32,
 }
 
 struct SignalBodyRequest<'a> {
@@ -59,10 +78,15 @@ struct SelectedSignalLevel<'a> {
     bucket_window: SignalBucketWindow,
 }
 
+enum SelectedSignalData<'a> {
+    Overview(SelectedSignalLevel<'a>),
+    Tile(&'a SignalTileData),
+}
+
 struct SignalBodyKeyRequest<'a> {
     surface: &'a PaintGpuSurface,
     source: &'a SignalRenderSource,
-    selected: &'a SelectedSignalLevel<'a>,
+    selected: &'a SelectedSignalData<'a>,
     dpi_scale: DpiScale,
 }
 
@@ -436,12 +460,29 @@ impl GpuSurfaceRenderer {
                 operation: GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse,
             });
         }
+        let sample_slide_frame_offset = signal_sample_slide_frame_offset(&surface.content);
+        let data = prepared
+            .as_ref()
+            .and_then(|prepared| {
+                prepared.tile().and_then(|tile| {
+                    tile_query_mapping(shape, sample_slide_frame_offset, tile).map(|query| {
+                        SignalRenderData::Tile(SignalTileData {
+                            buckets: Arc::clone(&tile.buckets),
+                            bucket_frames: tile.bucket_frames,
+                            band_count: tile.band_count,
+                            query_start_bucket: query.start_bucket,
+                            query_span_buckets: query.span_buckets,
+                        })
+                    })
+                })
+            })
+            .unwrap_or(SignalRenderData::Overview(summary));
         let source = SignalRenderSource {
             prepared,
             shape,
-            summary,
+            data,
             gain_preview: signal_gain_preview(&surface.content),
-            sample_slide_frame_offset: signal_sample_slide_frame_offset(&surface.content),
+            sample_slide_frame_offset,
         };
         let Some(body) = signal_body_request_at_dpi(surface, &source, dpi_scale) else {
             return SignalUploadPreflight {
@@ -479,6 +520,7 @@ impl GpuSurfaceRenderer {
             body.level_index,
             body.bucket_start,
             body.bucket_count,
+            source.prepared.as_ref().map(PreparedSummary::asset_key),
         );
         let sample_count = summary_bucket_value_count(body.buckets);
         let buffer_operation = signal_state.signal_buffer_operation(
@@ -678,6 +720,7 @@ impl GpuSurfaceRenderer {
             body.level_index,
             body.bucket_start,
             body.bucket_count,
+            source.prepared.as_ref().map(PreparedSummary::asset_key),
         );
         if let Some(plan) = upload_plan {
             let Some(composite_pipeline) =
@@ -903,7 +946,7 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) -> Option<SignalRenderSource> {
         let mut prepared = None;
-        let summary = match &surface.content {
+        let overview = match &surface.content {
             GpuSurfaceContent::SignalBands {
                 samples,
                 frames,
@@ -971,10 +1014,26 @@ impl GpuSurfaceRenderer {
             _ => return None,
         };
         let sample_slide_frame_offset = signal_sample_slide_frame_offset(&surface.content);
+        let data = prepared
+            .as_ref()
+            .and_then(|prepared| {
+                prepared.tile().and_then(|tile| {
+                    tile_query_mapping(shape, sample_slide_frame_offset, tile).map(|query| {
+                        SignalRenderData::Tile(SignalTileData {
+                            buckets: Arc::clone(&tile.buckets),
+                            bucket_frames: tile.bucket_frames,
+                            band_count: tile.band_count,
+                            query_start_bucket: query.start_bucket,
+                            query_span_buckets: query.span_buckets,
+                        })
+                    })
+                })
+            })
+            .unwrap_or(SignalRenderData::Overview(overview));
         Some(SignalRenderSource {
             prepared,
             shape,
-            summary,
+            data,
             gain_preview: signal_gain_preview(&surface.content),
             sample_slide_frame_offset,
         })
@@ -1240,39 +1299,53 @@ fn signal_body_request_at_dpi<'a>(
         dpi_scale,
     })?;
     let uniforms = signal_uniforms(source, &selected, body_key);
-    Some(SignalBodyRequest {
-        body_key,
-        level_index: selected.index,
-        bucket_start: selected.bucket_window.start,
-        bucket_count: selected.bucket_window.bucket_count(),
-        buckets: selected
-            .bucket_window
-            .buckets(selected.level, source.shape.band_count),
-        uniforms,
-    })
+    match selected {
+        SelectedSignalData::Overview(selected) => Some(SignalBodyRequest {
+            body_key,
+            level_index: selected.index,
+            bucket_start: selected.bucket_window.start,
+            bucket_count: selected.bucket_window.bucket_count(),
+            buckets: selected
+                .bucket_window
+                .buckets(selected.level, source.shape.band_count),
+            uniforms,
+        }),
+        SelectedSignalData::Tile(tile) => Some(SignalBodyRequest {
+            body_key,
+            level_index: usize::MAX,
+            bucket_start: 0,
+            bucket_count: tile.buckets.len() / tile.band_count.max(1),
+            buckets: &tile.buckets,
+            uniforms,
+        }),
+    }
 }
 
 fn selected_signal_level<'a>(
     dpi_scale: DpiScale,
     surface: &PaintGpuSurface,
     source: &'a SignalRenderSource,
-) -> Option<SelectedSignalLevel<'a>> {
+) -> Option<SelectedSignalData<'a>> {
+    if let SignalRenderData::Tile(tile) = &source.data {
+        return Some(SelectedSignalData::Tile(tile));
+    }
+    let SignalRenderData::Overview(summary) = &source.data else {
+        return None;
+    };
     let visible = (source.shape.frame_range[1] - source.shape.frame_range[0]).max(1.0);
     let physical_width = dpi_scale.logical_to_physical(surface.rect.width()).max(1.0);
-    let index = source
-        .summary
-        .level_for_frames_per_pixel(visible / physical_width);
-    let level = source.summary.levels.get(index)?;
+    let index = summary.level_for_frames_per_pixel(visible / physical_width);
+    let level = summary.levels.get(index)?;
     let bucket_window = signal_bucket_window(
         signal_bucket_frame_range(source),
         level,
         source.shape.band_count,
     )?;
-    Some(SelectedSignalLevel {
+    Some(SelectedSignalData::Overview(SelectedSignalLevel {
         index,
         level,
         bucket_window,
-    })
+    }))
 }
 
 fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBodyCacheKey> {
@@ -1285,12 +1358,22 @@ fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBody
         band_count: request.source.shape.band_count,
         frame_range: request.source.shape.frame_range,
         sample_slide_frame_offset: request.source.sample_slide_frame_offset,
-        sample_count: request
-            .selected
-            .bucket_window
-            .sample_count(request.source.shape.band_count),
-        level_index: request.selected.index,
+        sample_count: match request.selected {
+            SelectedSignalData::Overview(selected) => selected
+                .bucket_window
+                .sample_count(request.source.shape.band_count),
+            SelectedSignalData::Tile(tile) => tile.buckets.len(),
+        },
+        level_index: match request.selected {
+            SelectedSignalData::Overview(selected) => selected.index,
+            SelectedSignalData::Tile(_) => usize::MAX,
+        },
         gain_preview: request.source.gain_preview,
+        prepared_asset: request
+            .source
+            .prepared
+            .as_ref()
+            .map(PreparedSummary::asset_key),
     }))
 }
 
@@ -1309,6 +1392,44 @@ fn signal_bucket_frame_range(source: &SignalRenderSource) -> [f32; 2] {
     } else {
         [0.0, frames]
     }
+}
+
+fn tile_query_mapping(
+    shape: GpuSignalRenderShape,
+    slide: i64,
+    tile: &crate::runtime::BoundedSignalTile,
+) -> Option<TileQueryMapping> {
+    if tile.source_frames != shape.frames
+        || tile.band_count != shape.band_count
+        || tile.bucket_frames == 0
+        || tile.buckets.len() % tile.band_count.max(1) != 0
+    {
+        return None;
+    }
+    let start = f64::from(shape.frame_range[0]);
+    let end = f64::from(shape.frame_range[1]);
+    let source_frames = tile.source_frames as f64;
+    if !start.is_finite() || !end.is_finite() || end <= start || source_frames <= 0.0 {
+        return None;
+    }
+    let visible = end - start;
+    let shifted = start - slide as f64;
+    let physical_start = shifted.rem_euclid(source_frames);
+    let tile_start = tile.first_frame as f64;
+    let tile_end =
+        tile_start + (tile.buckets.len() / tile.band_count.max(1) * tile.bucket_frames) as f64;
+    let cycles = ((tile_start - physical_start) / source_frames)
+        .ceil()
+        .max(0.0);
+    let query_start = physical_start + cycles * source_frames;
+    if query_start < tile_start || query_start + visible > tile_end {
+        return None;
+    }
+    let bucket_frames = tile.bucket_frames as f64;
+    Some(TileQueryMapping {
+        start_bucket: ((query_start - tile_start) / bucket_frames) as f32,
+        span_buckets: (visible / bucket_frames) as f32,
+    })
 }
 
 #[cfg(test)]
@@ -1484,6 +1605,47 @@ mod tests {
             ),
             2
         );
+    }
+
+    #[test]
+    fn bounded_tile_query_maps_wrapped_slide_to_contiguous_local_buckets() {
+        let tile = crate::runtime::BoundedSignalTile {
+            first_frame: 88,
+            source_frames: 100,
+            band_count: 1,
+            bucket_frames: 4,
+            buckets: Arc::from([GpuSignalSummaryBucket::default(); 8]),
+        };
+        let shape = GpuSignalRenderShape {
+            frames: 100,
+            band_count: 1,
+            frame_range: [96.0, 112.0],
+            sample_count: 100,
+        };
+
+        let query = tile_query_mapping(shape, 0, &tile).expect("wrapped tile covers viewport");
+
+        assert_eq!(query.start_bucket, 2.0);
+        assert_eq!(query.span_buckets, 4.0);
+    }
+
+    #[test]
+    fn bounded_tile_query_refuses_a_tile_that_does_not_cover_slide_range() {
+        let tile = crate::runtime::BoundedSignalTile {
+            first_frame: 8,
+            source_frames: 100,
+            band_count: 1,
+            bucket_frames: 4,
+            buckets: Arc::from([GpuSignalSummaryBucket::default(); 2]),
+        };
+        let shape = GpuSignalRenderShape {
+            frames: 100,
+            band_count: 1,
+            frame_range: [40.0, 56.0],
+            sample_count: 100,
+        };
+
+        assert!(tile_query_mapping(shape, 0, &tile).is_none());
     }
 
     #[test]

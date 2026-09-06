@@ -101,8 +101,9 @@ mod tests {
             band_count: 2,
             sample_count: 256,
             level_index: 0,
-            style_revision: 1,
+            style_revision: 2,
             gain_preview: cache_key::SignalGainPreviewKey::new(None),
+            prepared_asset: None,
         };
         let next_key = SignalBodyCacheKey { revision: 2, ..key };
 

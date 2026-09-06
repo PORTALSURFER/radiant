@@ -266,6 +266,7 @@ mod tests {
             sample_count: 256,
             level_index: 0,
             gain_preview: None,
+            prepared_asset: None,
         })
     }
 

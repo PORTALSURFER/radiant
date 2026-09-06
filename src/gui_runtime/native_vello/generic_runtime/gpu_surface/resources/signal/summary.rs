@@ -89,6 +89,7 @@ impl GpuSurfaceRenderer {
             .is_some_and(|cached| {
                 cached.revision == revision
                     && cached.source_identity == source_identity
+                    && cached.prepared.asset_key() == prepared.asset_key()
                     && cached.prepared.matches_raw_surface(content, revision)
             })
         {

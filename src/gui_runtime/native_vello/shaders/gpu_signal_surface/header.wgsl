@@ -10,6 +10,7 @@ struct Params {
     cursor_ratio: f32,
     cursor_width: f32,
     cursor_color: vec4<f32>,
+    tile_query: vec4<f32>,
 };
 
 @group(0) @binding(0)

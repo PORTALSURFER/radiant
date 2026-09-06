@@ -105,6 +105,7 @@ impl SignalSourceIdentity {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn from_content(content: &GpuSurfaceContent) -> Option<Self> {
         match content {
             GpuSurfaceContent::SignalBands {

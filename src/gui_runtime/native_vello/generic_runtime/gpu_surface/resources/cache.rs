@@ -835,7 +835,7 @@ mod tests {
         associations.remove(0);
         assert!(associations.can_admit(10_000, &shared));
 
-        let mut bytes = CustomShaderPipelineCacheState::default();
+        let bytes = CustomShaderPipelineCacheState::default();
         let too_large = CustomShaderPipelineIdentity {
             key: CustomShaderPipelineKey {
                 wgsl_source: Arc::from("x".repeat(super::MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES)),

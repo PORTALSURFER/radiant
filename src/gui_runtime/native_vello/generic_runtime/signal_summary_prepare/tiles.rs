@@ -109,7 +109,7 @@ struct TileCompletion {
     result: Result<BoundedSignalTile, BoundedSignalError>,
 }
 
-pub(super) struct TileDispatch {
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct TileDispatch {
     id: u64,
     key: TileKey,
     owner: PreparedSummary,
@@ -420,6 +420,16 @@ impl TileCache {
     }
 }
 
+impl Drop for TileCache {
+    fn drop(&mut self) {
+        for entry in self.entries.values() {
+            if let TileState::Active { cancel, .. } = &entry.state {
+                cancel.store(true, Ordering::Release);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -455,6 +465,7 @@ mod tests {
             }))),
             tile: None,
             _tile_lease: None,
+            gpu_budget: Arc::new(SignalGpuBudget::default()),
         }
     }
     fn spec(first: usize) -> TileSpec {

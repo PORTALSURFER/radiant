@@ -10,7 +10,7 @@ use std::sync::{
 
 const MAX_LOGICAL_SIGNAL_GPU_BYTES: usize = 128 * 1024 * 1024;
 
-pub(super) struct SignalGpuBudget {
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct SignalGpuBudget {
     limit: usize,
     used: AtomicUsize,
 }
@@ -24,7 +24,10 @@ impl SignalGpuBudget {
     }
 
     /// Reserve a logical resident handle before creating its native resource.
-    pub(super) fn reserve(self: &Arc<Self>, bytes: usize) -> Option<SignalGpuLease> {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn reserve(
+        self: &Arc<Self>,
+        bytes: usize,
+    ) -> Option<SignalGpuLease> {
         let mut used = self.used.load(Ordering::Acquire);
         loop {
             let next = used.checked_add(bytes)?;
@@ -47,12 +50,14 @@ impl SignalGpuBudget {
     }
 
     #[cfg(test)]
-    pub(super) fn with_limit_for_test(limit: usize) -> Arc<Self> {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn with_limit_for_test(
+        limit: usize,
+    ) -> Arc<Self> {
         Arc::new(Self::with_limit(limit))
     }
 
     #[cfg(test)]
-    pub(super) fn used_for_test(&self) -> usize {
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn used_for_test(&self) -> usize {
         self.used.load(Ordering::Acquire)
     }
 }
@@ -64,7 +69,7 @@ impl Default for SignalGpuBudget {
 }
 
 /// RAII ownership of one logical native handle reservation.
-pub(super) struct SignalGpuLease {
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct SignalGpuLease {
     budget: Arc<SignalGpuBudget>,
     bytes: usize,
 }

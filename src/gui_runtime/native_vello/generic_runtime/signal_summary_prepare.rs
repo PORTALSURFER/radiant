@@ -4,6 +4,10 @@
 //! calls dispatch outside that borrow,
 //! and reconciles current paint plans after capacity changes.
 
+mod gpu_budget;
+mod tiles;
+pub(super) use gpu_budget::{SignalGpuBudget, SignalGpuLease};
+
 use super::{adapter::NativeAdapterGeneration, runner_state::NativeTargetGeneration};
 use crate::{
     gui::repaint::RepaintSignal,
@@ -99,6 +103,7 @@ struct SourceKey {
 pub(super) struct SummaryRequest {
     key: SourceKey,
     samples: Arc<[f32]>,
+    tile_view: Option<[f32; 2]>,
 }
 
 impl SummaryRequest {
@@ -107,7 +112,7 @@ impl SummaryRequest {
             frames,
             band_count,
             samples,
-            ..
+            frame_range,
         } = content
         else {
             return None;
@@ -115,12 +120,9 @@ impl SummaryRequest {
         if *band_count == 0 || !content.is_renderable() {
             return None;
         }
-        Some(Self::new(
-            Arc::clone(samples),
-            *frames,
-            *band_count,
-            revision,
-        ))
+        let mut request = Self::new(Arc::clone(samples), *frames, *band_count, revision);
+        request.tile_view = Some(*frame_range);
+        Some(request)
     }
 
     pub(super) fn new(
@@ -142,6 +144,7 @@ impl SummaryRequest {
                 effective_bands,
             },
             samples,
+            tile_view: None,
         }
     }
 }
@@ -163,6 +166,7 @@ pub(super) struct PreparedSummary {
     _lease: SummaryRetentionLease,
     tile: Option<Arc<BoundedSignalTile>>,
     _tile_lease: Option<SummaryRetentionLease>,
+    gpu_budget: Arc<SignalGpuBudget>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -182,6 +186,9 @@ struct PreparedSignalTileKey {
 }
 
 impl PreparedSummary {
+    pub(super) fn gpu_budget(&self) -> &Arc<SignalGpuBudget> {
+        &self.gpu_budget
+    }
     #[cfg(test)]
     pub(super) fn source(&self) -> &Arc<[f32]> {
         &self._source
@@ -281,7 +288,7 @@ struct Completion {
     state: CompletionState,
 }
 
-pub(super) struct SummaryDispatch {
+pub(super) struct OverviewDispatch {
     id: u64,
     key: SourceKey,
     samples: Arc<[f32]>,
@@ -292,7 +299,7 @@ pub(super) struct SummaryDispatch {
     wake: Arc<dyn RepaintSignal>,
 }
 
-impl SummaryDispatch {
+impl OverviewDispatch {
     pub(super) const fn id(&self) -> u64 {
         self.id
     }
@@ -335,6 +342,25 @@ impl SummaryDispatch {
     }
 }
 
+pub(super) enum SummaryDispatch {
+    Overview(OverviewDispatch),
+    Tile(tiles::TileDispatch),
+}
+impl SummaryDispatch {
+    pub(super) fn id(&self) -> u64 {
+        match self {
+            Self::Overview(job) => job.id(),
+            Self::Tile(job) => job.id(),
+        }
+    }
+    pub(super) fn run(self) {
+        match self {
+            Self::Overview(job) => job.run(),
+            Self::Tile(job) => job.run(),
+        }
+    }
+}
+
 pub(super) struct SummaryBroker {
     wake: Arc<dyn RepaintSignal>,
     sender: SyncSender<Completion>,
@@ -348,6 +374,9 @@ pub(super) struct SummaryBroker {
     source_bytes: usize,
     summary_bytes: usize,
     limits: Limits,
+    tiles: tiles::TileCache,
+    tile_demands: HashMap<SummaryTargetId, [f32; 2]>,
+    gpu_budget: Arc<SignalGpuBudget>,
 }
 
 #[derive(Clone, Copy)]
@@ -371,6 +400,7 @@ pub(super) struct SummaryCapacityStatus {
     pub(super) logical_bytes: usize,
     pub(super) source_logical_bytes: usize,
     pub(super) summary_logical_bytes: usize,
+    pub(super) tiles: usize,
 }
 
 impl Limits {
@@ -411,6 +441,9 @@ impl SummaryBroker {
     fn with_limits(wake: Arc<dyn RepaintSignal>, limits: Limits) -> Self {
         let (sender, receiver) = sync_channel(limits.active);
         Self {
+            tiles: tiles::TileCache::new(Arc::clone(&wake)),
+            tile_demands: HashMap::new(),
+            gpu_budget: Arc::new(SignalGpuBudget::default()),
             wake,
             sender,
             receiver,
@@ -427,6 +460,67 @@ impl SummaryBroker {
     }
 
     pub(super) fn request(
+        &mut self,
+        target: SummaryTargetId,
+        request: SummaryRequest,
+    ) -> SummaryRequestState {
+        let view = request.tile_view;
+        let state = self.request_overview(target, request);
+        if matches!(self.interests.get(&target), Some(Interest::Source(_))) {
+            if let Some(view) = view {
+                self.tile_demands.insert(target, view);
+            } else {
+                self.tile_demands.remove(&target);
+                self.tiles.release(target);
+            }
+        }
+        self.sync_tiles();
+        state
+    }
+
+    fn sync_tiles(&mut self) {
+        let demands: Vec<_> = self
+            .tile_demands
+            .iter()
+            .map(|(target, view)| (*target, *view))
+            .collect();
+        for (target, view) in demands {
+            let Some(owner) = self.prepared_overview(target) else {
+                continue;
+            };
+            let Some(width) = owner
+                .summary
+                .levels
+                .first()
+                .map(|level| level.bucket_frames)
+            else {
+                continue;
+            };
+            let Some(spec) = tiles::TileSpec::for_view(
+                owner.key.effective_frames,
+                owner.key.effective_bands,
+                view,
+                0,
+                width,
+            ) else {
+                self.tiles.release(target);
+                continue;
+            };
+            let slots = self
+                .limits
+                .queued
+                .saturating_sub(self.queue.len() + self.tiles.queued());
+            let bytes = self
+                .limits
+                .summary_bytes
+                .saturating_sub(self.summary_bytes)
+                .min(self.limits.bytes.saturating_sub(self.bytes))
+                .min(48 * 1024 * 1024);
+            self.tiles.request(target, owner, spec, slots, bytes);
+        }
+    }
+
+    fn request_overview(
         &mut self,
         target: SummaryTargetId,
         request: SummaryRequest,
@@ -472,7 +566,9 @@ impl SummaryBroker {
                     entry.state = EntryState::Ready { summary, token };
                     SummaryRequestState::Ready
                 }
-                EntryState::Retired { .. } if self.queue.len() < self.limits.queued => {
+                EntryState::Retired { .. }
+                    if self.queue.len() + self.tiles.queued() < self.limits.queued =>
+                {
                     entry.state = EntryState::Queued;
                     self.queue.push_back(key);
                     SummaryRequestState::Pending
@@ -513,7 +609,8 @@ impl SummaryBroker {
                 .is_none_or(|bytes| bytes > self.limits.source_bytes)
             || self
                 .summary_bytes
-                .checked_add(reservation.summary)
+                .checked_add(self.tiles.bytes)
+                .and_then(|bytes| bytes.checked_add(reservation.summary))
                 .is_none_or(|bytes| bytes > self.limits.summary_bytes)
             || self
                 .summary_bytes
@@ -521,9 +618,10 @@ impl SummaryBroker {
                 .is_none_or(|bytes| bytes > self.limits.overview_bytes)
             || self
                 .bytes
-                .checked_add(total_bytes)
+                .checked_add(self.tiles.bytes)
+                .and_then(|bytes| bytes.checked_add(total_bytes))
                 .is_none_or(|bytes| bytes > self.limits.bytes)
-            || self.queue.len() >= self.limits.queued
+            || self.queue.len() + self.tiles.queued() >= self.limits.queued
         {
             self.interests.insert(target, Interest::Waiting);
             return SummaryRequestState::WaitingAdmission;
@@ -547,6 +645,12 @@ impl SummaryBroker {
     }
 
     pub(super) fn prepared(&self, target: SummaryTargetId) -> Option<PreparedSummary> {
+        let mut owner = self.prepared_overview(target)?;
+        self.tiles.attach(target, &mut owner);
+        Some(owner)
+    }
+
+    fn prepared_overview(&self, target: SummaryTargetId) -> Option<PreparedSummary> {
         let Interest::Source(key) = self.interests.get(&target)? else {
             return None;
         };
@@ -561,11 +665,13 @@ impl SummaryBroker {
             _lease: SummaryRetentionLease(Some(Arc::clone(token))),
             tile: None,
             _tile_lease: None,
+            gpu_budget: Arc::clone(&self.gpu_budget),
         })
     }
 
     pub(super) fn take_dispatch(&mut self) -> Option<SummaryDispatch> {
-        if self.active >= self.limits.active {
+        self.sync_tiles();
+        if self.active + self.tiles.active >= self.limits.active {
             return None;
         }
         while let Some(key) = self.queue.pop_front() {
@@ -588,7 +694,7 @@ impl SummaryBroker {
                 retired: false,
             };
             self.active += 1;
-            return Some(SummaryDispatch {
+            return Some(SummaryDispatch::Overview(OverviewDispatch {
                 id,
                 key,
                 samples: Arc::clone(&entry.samples),
@@ -597,9 +703,12 @@ impl SummaryBroker {
                 cancelled,
                 sender: self.sender.clone(),
                 wake: Arc::clone(&self.wake),
-            });
+            }));
         }
-        None
+        let next = self.next_job.checked_add(1)?;
+        let dispatch = self.tiles.dispatch(self.next_job)?;
+        self.next_job = next;
+        Some(SummaryDispatch::Tile(dispatch))
     }
 
     pub(super) fn waiting_targets(&self) -> impl Iterator<Item = SummaryTargetId> + '_ {
@@ -625,18 +734,22 @@ impl SummaryBroker {
 
     pub(super) fn capacity_status(&self) -> SummaryCapacityStatus {
         SummaryCapacityStatus {
-            active: self.active,
-            queued: self.queue.len(),
+            active: self.active + self.tiles.active,
+            queued: self.queue.len() + self.tiles.queued(),
             sources: self.sources.len(),
             interests: self.interests.len(),
-            logical_bytes: self.bytes,
+            logical_bytes: self.bytes + self.tiles.bytes,
             source_logical_bytes: self.source_bytes,
-            summary_logical_bytes: self.summary_bytes,
+            summary_logical_bytes: self.summary_bytes + self.tiles.bytes,
+            tiles: self.tiles.len(),
         }
     }
 
     /// Call only when the host rejected the returned dispatch closure.
     pub(super) fn reject_dispatch(&mut self, id: u64) {
+        if self.tiles.reject(id) {
+            return;
+        }
         for entry in self.sources.values_mut() {
             let retired = match &entry.state {
                 EntryState::Active {
@@ -661,7 +774,7 @@ impl SummaryBroker {
 
     /// Drain after the parent clears its pending wake flag. Returns current targets to re-prime.
     pub(super) fn drain_completions(&mut self) -> Vec<SummaryTargetId> {
-        let mut notify = Vec::new();
+        let mut notify = self.tiles.drain();
         while let Ok(completion) = self.receiver.try_recv() {
             let Some(entry) = self.sources.get_mut(&completion.key) else {
                 continue;
@@ -675,7 +788,8 @@ impl SummaryBroker {
             let ready = matches!(&completion.state, CompletionState::Ready(_));
             let cancelled_with_interest =
                 matches!(&completion.state, CompletionState::Cancelled) && entry.interests != 0;
-            let requeue = cancelled_with_interest && self.queue.len() < self.limits.queued;
+            let requeue = cancelled_with_interest
+                && self.queue.len() + self.tiles.queued() < self.limits.queued;
             entry.state = match completion.state {
                 CompletionState::Ready(summary) if entry.interests != 0 => EntryState::Ready {
                     summary,
@@ -714,10 +828,13 @@ impl SummaryBroker {
                 self.mark_waiting_for(completion.key);
             }
         }
+        self.sync_tiles();
         notify
     }
 
     pub(super) fn release_target(&mut self, target: SummaryTargetId) {
+        self.tile_demands.remove(&target);
+        self.tiles.release(target);
         let Some(interest) = self.interests.remove(&target) else {
             return;
         };
@@ -731,6 +848,7 @@ impl SummaryBroker {
         if entry.interests != 0 {
             return;
         }
+        self.tiles.retire_source(key);
         // A queued/failed source can release capacity without a worker terminal.
         // The numeric capacity snapshot may not change until maintenance drops it.
         self.wake.request_repaint();
@@ -772,6 +890,7 @@ impl SummaryBroker {
 
     /// Explicit non-redraw maintenance drops only retired payloads with no external lease.
     pub(super) fn maintain_retired(&mut self) {
+        self.tiles.maintain();
         let retired: Vec<_> = self
             .sources
             .iter()

@@ -35,6 +35,9 @@ use std::time::Duration;
 use vello::wgpu;
 use winit::window::WindowId;
 
+#[path = "native_tests/precise_signal.rs"]
+mod precise_signal;
+
 const TARGET_SIZE: u32 = 64;
 const OLD_ASSOCIATIONS: u64 = 1024;
 const OLD_KEY_BASE: u64 = 10_000;

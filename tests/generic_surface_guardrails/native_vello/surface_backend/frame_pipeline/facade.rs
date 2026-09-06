@@ -537,7 +537,9 @@ fn native_present_driver_uses_explicit_imports() {
             && present.contains("maybe_log_render_profile")
             && present.contains("post_gpu_overlay")
             && present.contains("reveal_window_after_first_present")
-            && present.contains("use crate::runtime::{GpuSurfaceContent, PaintPrimitive, RuntimeBridge};")
+            && present.contains(
+                "use crate::runtime::{GpuSurfaceContent, PaintPrimitive, RuntimeBridge};"
+            )
             && present.contains("use std::{collections::HashSet, time::Instant};")
             && present.contains("use vello::wgpu;")
             && present.contains("use winit::event_loop::ActiveEventLoop;")

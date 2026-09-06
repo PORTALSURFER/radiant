@@ -99,14 +99,21 @@ impl<Message> SurfaceNode<Message> {
     }
 
     fn has_notice_modal_bounded(&self, depth: usize, visited: &mut usize) -> bool {
-        if depth >= 128 || *visited >= 65_536 { return false; }
+        if depth >= 128 || *visited >= 65_536 {
+            return false;
+        }
         *visited += 1;
         match self {
-            Self::Scene(scene) => scene.layers.iter().any(|layer| {
-                layer.kind == super::LayerKind::Modal
-                    || layer.input.as_ref().is_some_and(|n| n.has_notice_modal_bounded(depth + 1, visited))
-                    || layer.node.has_notice_modal_bounded(depth + 1, visited)
-            }) || scene.base.has_notice_modal_bounded(depth + 1, visited),
+            Self::Scene(scene) => {
+                scene.layers.iter().any(|layer| {
+                    layer.kind == super::LayerKind::Modal
+                        || layer
+                            .input
+                            .as_ref()
+                            .is_some_and(|n| n.has_notice_modal_bounded(depth + 1, visited))
+                        || layer.node.has_notice_modal_bounded(depth + 1, visited)
+                }) || scene.base.has_notice_modal_bounded(depth + 1, visited)
+            }
             Self::Container(container) => container
                 .children
                 .iter()
@@ -127,24 +134,115 @@ fn collect_widgets<Message>(
     depth: usize,
     visited: &mut usize,
 ) -> Option<()> {
-    if depth >= 128 || *visited >= 65_536 { return None; }
+    if depth >= 128 || *visited >= 65_536 {
+        return None;
+    }
     *visited += 1;
     match node {
         SurfaceNode::Widget(widget) => out.push(widget.id()),
         SurfaceNode::Container(container) => {
-            for child in &container.children { collect_widgets(&child.child, out, depth + 1, visited)?; }
+            for child in &container.children {
+                collect_widgets(&child.child, out, depth + 1, visited)?;
+            }
         }
         SurfaceNode::FloatingLayer(layer) => {
-            for child in &layer.container.children { collect_widgets(&child.child, out, depth + 1, visited)?; }
+            for child in &layer.container.children {
+                collect_widgets(&child.child, out, depth + 1, visited)?;
+            }
         }
         SurfaceNode::Scene(scene) => {
             collect_widgets(&scene.base, out, depth + 1, visited)?;
             for layer in scene.ordered_layers() {
-                if let Some(input) = &layer.input { collect_widgets(input, out, depth + 1, visited)?; }
+                if let Some(input) = &layer.input {
+                    collect_widgets(input, out, depth + 1, visited)?;
+                }
                 collect_widgets(&layer.node, out, depth + 1, visited)?;
             }
         }
         SurfaceNode::Overlay(_) => {}
     }
     Some(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        application::{IntoView, NoticeQueue, NoticeSeverity, notifications},
+        layout::ContainerPolicy,
+        runtime::{SurfaceChild, SurfaceNode, UiSurface},
+    };
+
+    fn queue_with(count: u64) -> NoticeQueue {
+        let mut queue = NoticeQueue::new();
+        for id in 0..count {
+            queue
+                .push(
+                    crate::application::Notice::new(
+                        id,
+                        NoticeSeverity::Info,
+                        format!("notice-{id}"),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+        }
+        queue
+    }
+
+    #[test]
+    fn accepted_notice_projection_is_bounded_and_clone_preserves_demand() {
+        let queue = queue_with(64);
+        let surface = notifications::<()>(queue.snapshot())
+            .on_dismiss(|_| ())
+            .layer()
+            .into_surface();
+        let descriptors = surface
+            .notice_descriptors()
+            .expect("valid notice projection");
+        assert_eq!(descriptors.len(), 4);
+        assert!(descriptors.iter().all(|item| !item.widgets.is_empty()));
+        assert_eq!(surface.clone().notice_descriptors().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn notice_descriptor_collection_fails_closed_above_sixty_four() {
+        let queue = queue_with(1);
+        let demand = notifications::<()>(queue.snapshot())
+            .on_dismiss(|_| ())
+            .layer()
+            .into_surface()
+            .notice_descriptors()
+            .unwrap()
+            .remove(0)
+            .demand;
+        let children = (0..65)
+            .map(|id| {
+                SurfaceChild::fill(
+                    SurfaceNode::container(id + 1000, ContainerPolicy::default(), Vec::new())
+                        .with_notice_demand(Some(Rc::clone(&demand))),
+                )
+            })
+            .collect();
+        let surface = UiSurface::new(SurfaceNode::container(
+            999,
+            ContainerPolicy::default(),
+            children,
+        ));
+        assert!(surface.notice_descriptors().is_none());
+    }
+
+    #[test]
+    fn modal_detection_follows_accepted_scene_layers() {
+        let base = crate::application::text::<()>("base");
+        let modal = base
+            .overlays(crate::application::overlays().modal(crate::application::text("modal")))
+            .into_surface();
+        assert!(modal.has_notice_modal());
+        assert!(
+            !crate::application::text::<()>("plain")
+                .into_surface()
+                .has_notice_modal()
+        );
+    }
 }

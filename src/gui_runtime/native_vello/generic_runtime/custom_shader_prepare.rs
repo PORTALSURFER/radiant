@@ -770,4 +770,176 @@ mod tests {
         drop(lease);
         assert_eq!(wake.0.load(Ordering::Relaxed), 1);
     }
+
+    fn native_device() -> wgpu::Device {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::PRIMARY,
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
+        });
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            compatible_surface: None,
+            ..Default::default()
+        }))
+        .expect("shader preparation broker requires a native adapter");
+        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("radiant_shader_preparation_broker_test"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            ..Default::default()
+        }))
+        .expect("shader preparation broker requires a native device")
+        .0
+    }
+
+    fn request(device: &wgpu::Device, number: usize) -> CustomShaderPreparationRequest {
+        let source = format!(
+            "@vertex fn vertex_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {{ let x = f32(i); return vec4<f32>(x, 0.0, 0.0, 1.0); }}\n@fragment fn fragment_main() -> @location(0) vec4<f32> {{ return vec4<f32>({number}.0, 0.0, 0.0, 1.0); }}"
+        );
+        CustomShaderPreparationRequest::new(
+            device.clone(),
+            71,
+            NativeAdapterGeneration::from_test_serial(1),
+            wgpu::TextureFormat::Rgba8Unorm,
+            CustomShaderPipelineKey {
+                shader_key: Arc::from(format!("shader-{number}")),
+                wgsl_source: Arc::from(source),
+                vertex_entry_point: Arc::from("vertex_main"),
+                fragment_entry_point: Arc::from("fragment_main"),
+                has_uniform_payload: false,
+                has_storage_payload: false,
+                has_presentation_uniform_payload: false,
+            },
+        )
+    }
+
+    fn target(number: u64) -> CustomShaderTargetId {
+        CustomShaderTargetId::new(
+            WindowId::dummy(),
+            NativeAdapterGeneration::from_test_serial(1),
+            NativeTargetGeneration::from_test_serial(1),
+            number,
+        )
+        .expect("target serial")
+    }
+
+    #[test]
+    #[ignore = "requires a native WGPU device"]
+    fn native_broker_coalesces_bounds_rejects_cancels_and_retires() {
+        let device = native_device();
+        let wake = Arc::new(CountingWake(AtomicUsize::new(0)));
+        let mut bounded = CustomShaderPreparationBroker::new(Arc::clone(&wake));
+        let first_target = target(1);
+        let first_request = request(&device, 1);
+        assert_eq!(
+            bounded.request(first_target, first_request.clone()),
+            CustomShaderPreparationState::Pending
+        );
+        assert_eq!(
+            bounded.request(first_target, first_request.clone()),
+            CustomShaderPreparationState::Pending
+        );
+        assert_eq!(bounded.capacity_status().interests, 1);
+
+        for number in 2..=8 {
+            assert_eq!(
+                bounded.request(target(number), request(&device, number as usize)),
+                CustomShaderPreparationState::Pending
+            );
+        }
+        assert_eq!(
+            bounded.request(target(9), request(&device, 9)),
+            CustomShaderPreparationState::WaitingAdmission
+        );
+        assert_eq!(bounded.capacity_status().queued, MAX_QUEUED);
+
+        let mut broker = CustomShaderPreparationBroker::new(wake);
+        assert_eq!(
+            broker.request(first_target, first_request.clone()),
+            CustomShaderPreparationState::Pending
+        );
+        let first = broker.take_dispatch().expect("first dispatch");
+        let first_id = first.id();
+        let first_key = first.key.clone();
+        broker.release_target(first_target);
+        assert_eq!(
+            broker.request(first_target, first_request.clone()),
+            CustomShaderPreparationState::Pending
+        );
+        first
+            .sender
+            .send(Completion {
+                id: first_id,
+                key: first_key.clone(),
+                terminal: Terminal::Failed(CustomShaderPreparationFailure::Cancelled),
+            })
+            .expect("completion slot");
+        drop(first);
+        broker.drain_completions();
+        assert_eq!(broker.capacity_status().active, 0);
+
+        let second = broker.take_dispatch().expect("reactivated dispatch");
+        let second_id = second.id();
+        let second_key = second.key.clone();
+        // A delayed terminal from the cancelled job must not consume the new
+        // active reservation or overwrite its state.
+        second
+            .sender
+            .send(Completion {
+                id: first_id,
+                key: first_key,
+                terminal: Terminal::Failed(CustomShaderPreparationFailure::Cancelled),
+            })
+            .expect("completion slot");
+        broker.drain_completions();
+        assert_eq!(broker.capacity_status().active, 1);
+        broker.reject_dispatch(second_id);
+        assert_eq!(
+            broker.failure(first_target),
+            Some(CustomShaderPreparationFailure::Panicked)
+        );
+        broker.release_target(first_target);
+        broker.maintain_retired();
+        assert_eq!(
+            broker.request(first_target, first_request),
+            CustomShaderPreparationState::Pending
+        );
+        // The re-admitted target carries the exact original key after the
+        // failed entry was released and retired.
+        assert_eq!(
+            second_key,
+            broker
+                .interests
+                .get(&first_target)
+                .and_then(|interest| match interest {
+                    Interest::Entry(key) => Some(key),
+                    Interest::Waiting => None,
+                })
+                .expect("replacement interest")
+        );
+    }
+
+    #[test]
+    #[ignore = "requires a native WGPU device"]
+    fn native_ready_candidate_retires_after_final_consumed_lease() {
+        let device = native_device();
+        let target = target(41);
+        let mut broker =
+            CustomShaderPreparationBroker::new(Arc::new(CountingWake(AtomicUsize::new(0))));
+        let request = request(&device, 41);
+        assert_eq!(
+            broker.request(target, request.clone()),
+            CustomShaderPreparationState::Pending
+        );
+        broker.take_dispatch().expect("worker dispatch").run();
+        assert_eq!(broker.drain_completions(), vec![target]);
+        let prepared = broker.prepared(target).expect("ready candidate");
+        assert!(prepared.matches(&request));
+        assert_eq!(prepared.identity(), request.identity());
+        broker.consume_target(target);
+        // The renderer would retain only the cloned pipeline; this temporary
+        // broker lease must be dropped before off-redraw retirement can free it.
+        drop(prepared);
+        broker.maintain_retired();
+        assert_eq!(broker.capacity_status().entries, 0);
+    }
 }

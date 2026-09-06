@@ -16,7 +16,8 @@ use crate::gui_runtime::native_vello::generic_runtime::native_visual_packet::{
 };
 use crate::gui_runtime::native_vello::generic_runtime::runner_state::NativeTargetGeneration;
 use crate::runtime::{
-    GpuShaderSurfaceDescriptor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface,
+    GpuShaderPresentationUniformUpdate, GpuShaderSurfaceDescriptor, GpuSurfaceCapabilities,
+    GpuSurfaceContent, PaintGpuSurface,
 };
 use std::num::NonZeroU64;
 use std::sync::Arc;
@@ -28,6 +29,12 @@ const TARGET_SIZE: u32 = 64;
 const OLD_ASSOCIATIONS: u64 = 1024;
 const OLD_KEY_BASE: u64 = 10_000;
 const FRESH_KEY: u64 = 99_999;
+const TILE_COUNT: usize = 16;
+const TILE_GRID_WIDTH: usize = 4;
+const TILE_SIZE: u32 = TARGET_SIZE / TILE_GRID_WIDTH as u32;
+const TILE_KEY_BASE: u64 = 200_000;
+const TILE_WIDGET_ID: u64 = 33;
+const UPDATED_TILE_INDEX: usize = 6;
 
 const RED_SHADER: &str = r#"
 @vertex fn vertex_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
@@ -37,6 +44,20 @@ const RED_SHADER: &str = r#"
 }
 @fragment fn fragment_main() -> @location(0) vec4<f32> {
     return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+}
+"#;
+
+const TILE_SHADER: &str = r#"
+@group(0) @binding(1) var<uniform> base: vec4<f32>;
+@group(0) @binding(3) var<uniform> presentation: vec4<f32>;
+
+@vertex fn vertex_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
+    var positions = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0), vec2<f32>(3.0, -1.0), vec2<f32>(-1.0, 3.0));
+    return vec4<f32>(positions[index], 0.0, 1.0);
+}
+@fragment fn fragment_main() -> @location(0) vec4<f32> {
+    return base + presentation;
 }
 "#;
 
@@ -272,6 +293,193 @@ fn assert_invalid_shader_preserves_resources(legacy_transition: bool) {
     assert_eq!(stats.custom_shader.failures.shader_module_failures, 1);
 }
 
+#[test]
+#[ignore = "requires native GPU adapter and offscreen WGPU rendering"]
+fn equivalent_custom_shader_tiles_share_one_pipeline_and_isolate_binding_updates() {
+    let (device, queue) = native_device();
+    let mut renderer = GpuSurfaceRenderer::default();
+
+    let first_primitives = tile_primitives(None);
+    let (first_stats, first_texture) =
+        render_tile_frame(&mut renderer, &device, &queue, &first_primitives, &[]);
+    assert_eq!(first_stats.custom_shader.surfaces_rendered, TILE_COUNT);
+    assert_eq!(first_stats.custom_shader.pipeline_rebuilds, 1);
+    assert_eq!(first_stats.custom_shader.binding_rebuilds, TILE_COUNT);
+    assert_tile_cache_residency(&renderer);
+    let first_pixels = readback_rgba(&device, &queue, &first_texture);
+    for index in 0..TILE_COUNT {
+        assert_tile_color(&first_pixels, index, tile_base_color(index));
+    }
+    renderer.recall_presentation_staging_belt();
+    let first_write_states = (0..TILE_COUNT)
+        .map(|index| {
+            renderer
+                .resources
+                .custom_shader_binding(tile_key(index))
+                .expect("first-frame tile binding")
+                .write_state
+        })
+        .collect::<Vec<_>>();
+
+    let second_primitives = tile_primitives(Some(UPDATED_TILE_INDEX));
+    let update = GpuShaderPresentationUniformUpdate::try_new(
+        TILE_WIDGET_ID,
+        tile_key(UPDATED_TILE_INDEX),
+        91,
+        2,
+        2,
+        rgba_uniform_bytes([0.0, 1.0, 0.0, 0.0]),
+    )
+    .expect("aligned presentation update");
+    let (second_stats, second_texture) = render_tile_frame(
+        &mut renderer,
+        &device,
+        &queue,
+        &second_primitives,
+        &[update],
+    );
+    assert_eq!(second_stats.custom_shader.surfaces_rendered, TILE_COUNT);
+    assert_eq!(second_stats.custom_shader.pipeline_rebuilds, 0);
+    assert_eq!(second_stats.custom_shader.binding_rebuilds, 0);
+    assert_eq!(second_stats.custom_shader.static_writes, 1);
+    assert_eq!(second_stats.custom_shader.presentation_writes, 2);
+    assert_tile_cache_residency(&renderer);
+    let second_pixels = readback_rgba(&device, &queue, &second_texture);
+    for index in 0..TILE_COUNT {
+        let expected = if index == UPDATED_TILE_INDEX {
+            [0.0, 1.0, 0.0, 1.0]
+        } else {
+            tile_base_color(index)
+        };
+        assert_tile_color(&second_pixels, index, expected);
+    }
+    let second_write_states = (0..TILE_COUNT)
+        .map(|index| {
+            renderer
+                .resources
+                .custom_shader_binding(tile_key(index))
+                .expect("second-frame tile binding")
+                .write_state
+        })
+        .collect::<Vec<_>>();
+    for index in 0..TILE_COUNT {
+        if index == UPDATED_TILE_INDEX {
+            assert_ne!(second_write_states[index], first_write_states[index]);
+        } else {
+            assert_eq!(second_write_states[index], first_write_states[index]);
+        }
+    }
+    renderer.recall_presentation_staging_belt();
+}
+
+fn tile_primitives(updated_tile: Option<usize>) -> Vec<PaintPrimitive> {
+    (0..TILE_COUNT)
+        .map(|index| {
+            let updated = updated_tile == Some(index);
+            PaintPrimitive::GpuSurface(tile_surface(
+                index,
+                tile_descriptor(
+                    if updated {
+                        [0.0, 0.0, 0.0, 1.0]
+                    } else {
+                        tile_base_color(index)
+                    },
+                    if updated { 2 } else { 1 },
+                ),
+            ))
+        })
+        .collect()
+}
+
+fn tile_descriptor(base: [f32; 4], storage_revision: u64) -> GpuShaderSurfaceDescriptor {
+    GpuShaderSurfaceDescriptor::new("native-shared-tile")
+        .wgsl_source(Arc::<str>::from(TILE_SHADER))
+        .entry_point("vertex_main")
+        .fragment_entry_point("fragment_main")
+        .uniform_bytes(rgba_uniform_bytes(base))
+        .presentation_uniform(rgba_uniform_bytes([0.0; 4]), 1)
+        .storage_identity(91)
+        .storage_revision(storage_revision)
+}
+
+fn tile_surface(index: usize, descriptor: GpuShaderSurfaceDescriptor) -> PaintGpuSurface {
+    let x = (index % TILE_GRID_WIDTH) as f32 * TILE_SIZE as f32;
+    let y = (index / TILE_GRID_WIDTH) as f32 * TILE_SIZE as f32;
+    PaintGpuSurface {
+        widget_id: TILE_WIDGET_ID,
+        key: tile_key(index),
+        revision: 1,
+        rect: Rect::from_min_size(
+            Point::new(x, y),
+            Vector2::new(TILE_SIZE as f32, TILE_SIZE as f32),
+        ),
+        content: GpuSurfaceContent::CustomShader {
+            descriptor: Arc::new(descriptor),
+        },
+        capabilities: GpuSurfaceCapabilities::default(),
+        overlays: Vec::new(),
+    }
+}
+
+fn tile_key(index: usize) -> u64 {
+    TILE_KEY_BASE + index as u64
+}
+
+fn tile_base_color(index: usize) -> [f32; 4] {
+    [
+        0.2 + 0.1 * (index % TILE_GRID_WIDTH) as f32,
+        0.2 + 0.1 * (index / TILE_GRID_WIDTH) as f32,
+        0.4,
+        1.0,
+    ]
+}
+
+fn rgba_uniform_bytes(rgba: [f32; 4]) -> [u8; 16] {
+    let mut bytes = [0; 16];
+    for (index, value) in rgba.into_iter().enumerate() {
+        bytes[index * 4..(index + 1) * 4].copy_from_slice(&value.to_ne_bytes());
+    }
+    bytes
+}
+
+fn assert_tile_cache_residency(renderer: &GpuSurfaceRenderer) {
+    assert_eq!(renderer.resources.custom_shader_pipeline_count(), 1);
+    assert_eq!(renderer.resources.custom_shader_binding_count(), TILE_COUNT);
+    let residency = renderer.custom_shader_residency_snapshot();
+    assert_eq!(residency.pipeline_resident_count, 1);
+    assert_eq!(residency.binding_resident_count, TILE_COUNT);
+    assert_eq!(
+        residency.app_uniform_logical_bytes,
+        Some((TILE_COUNT * 16) as u64)
+    );
+    assert_eq!(
+        residency.presentation_uniform_logical_bytes,
+        Some((TILE_COUNT * 16) as u64)
+    );
+}
+
+fn render_tile_frame(
+    renderer: &mut GpuSurfaceRenderer,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    primitives: &[PaintPrimitive],
+    presentation_updates: &[GpuShaderPresentationUniformUpdate],
+) -> (GpuSurfaceRenderStats, wgpu::Texture) {
+    let (texture, view) = render_target(device);
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("radiant_native_custom_shader_tiles"),
+    });
+    let stats = {
+        let mut target = render_target_for_test(device, queue, &mut encoder, &view, None, None);
+        let mut occlusion = SurfaceOcclusionPlan::default();
+        occlusion.preprocess(primitives);
+        renderer.render(&mut target, primitives, &occlusion, presentation_updates)
+    };
+    renderer.finish_presentation_staging_belt();
+    queue.submit(std::iter::once(encoder.finish()));
+    (stats, texture)
+}
+
 fn native_device() -> (wgpu::Device, wgpu::Queue) {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::PRIMARY,
@@ -417,6 +625,30 @@ fn upload_plan_context(device: &wgpu::Device) -> GpuSurfaceRenderCanvasUploadPla
 }
 
 fn assert_red_pixel(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture) {
+    let pixels = readback_rgba(device, queue, texture);
+    assert_color(&pixels[..4], [1.0, 0.0, 0.0, 1.0]);
+}
+
+fn assert_tile_color(pixels: &[u8], index: usize, expected: [f32; 4]) {
+    let x = (index % TILE_GRID_WIDTH) as u32 * TILE_SIZE + TILE_SIZE / 2;
+    let y = (index / TILE_GRID_WIDTH) as u32 * TILE_SIZE + TILE_SIZE / 2;
+    let offset = y as usize * 256 + x as usize * 4;
+    assert_color(&pixels[offset..offset + 4], expected);
+}
+
+fn assert_color(pixel: &[u8], expected: [f32; 4]) {
+    let expected = expected.map(|component| (component * 255.0).round() as i16);
+    let actual = pixel[..4].map(i16::from);
+    assert!(
+        actual
+            .into_iter()
+            .zip(expected)
+            .all(|(actual, expected)| (actual - expected).abs() <= 8),
+        "expected {expected:?}, got {actual:?}"
+    );
+}
+
+fn readback_rgba(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture) -> Vec<u8> {
     let row_bytes = 256;
     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("radiant_native_custom_shader_readback"),
@@ -463,11 +695,8 @@ fn assert_red_pixel(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::
         .expect("native custom-shader readback callback")
         .expect("native custom-shader readback result");
     let mapped = slice.get_mapped_range();
-    assert!(
-        mapped[0] > 200 && mapped[1] < 20 && mapped[2] < 20,
-        "expected rendered red pixel, got {:?}",
-        &mapped[..4]
-    );
+    let pixels = mapped.to_vec();
     drop(mapped);
     buffer.unmap();
+    pixels
 }

@@ -1,0 +1,6 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1413-central-animator-radiant)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.86s
+     Running `/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/declarative_animation`
+{"phase":"half","width":50,"active":1}
+{"phase":"complete","width":150,"updates":1}
+{"phase":"removed","active":0}

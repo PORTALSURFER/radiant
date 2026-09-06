@@ -1,0 +1,162 @@
+{
+  "measured_source_revision": "adc50e2ff2aa5f0eb70be2d13215320c8fa1154a",
+  "guardrail_revision": "c2e6e954",
+  "adapter": {
+    "backend": "Metal",
+    "device": 0,
+    "device_type": "IntegratedGpu",
+    "name": "Apple M5 Pro",
+    "vendor": 0
+  },
+  "rgba": [
+    {
+      "file": "native/legacy.rgba",
+      "bytes": 16384,
+      "sha256": "85103f8e46d1ec045c5b589b293ba12db668fcde115a62fab98a0293d7db4545"
+    },
+    {
+      "file": "native/overview.rgba",
+      "bytes": 16384,
+      "sha256": "6a9af0100aebae853cfab46d699f3508da943cfc228ecae4a7fc0c0c47eac8bc"
+    },
+    {
+      "file": "native/tile.rgba",
+      "bytes": 16384,
+      "sha256": "85103f8e46d1ec045c5b589b293ba12db668fcde115a62fab98a0293d7db4545"
+    },
+    {
+      "file": "precise-reference/AdjacentPan-2pow24.rgba",
+      "bytes": 16384,
+      "sha256": "5decf4a492faebbb1bab675f52af8e513e13eb2ddd6876a17933b7aabcb0d165"
+    },
+    {
+      "file": "precise-reference/AdjacentPan-2pow40.rgba",
+      "bytes": 16384,
+      "sha256": "5decf4a492faebbb1bab675f52af8e513e13eb2ddd6876a17933b7aabcb0d165"
+    },
+    {
+      "file": "precise-reference/AdjacentPan-near.rgba",
+      "bytes": 16384,
+      "sha256": "5decf4a492faebbb1bab675f52af8e513e13eb2ddd6876a17933b7aabcb0d165"
+    },
+    {
+      "file": "precise-reference/Base-2pow24.rgba",
+      "bytes": 16384,
+      "sha256": "123b441dc587c1cde2e3e62f0be8b5080a3a8e2f4c17912c461276f955665850"
+    },
+    {
+      "file": "precise-reference/Base-2pow40.rgba",
+      "bytes": 16384,
+      "sha256": "123b441dc587c1cde2e3e62f0be8b5080a3a8e2f4c17912c461276f955665850"
+    },
+    {
+      "file": "precise-reference/Base-near.rgba",
+      "bytes": 16384,
+      "sha256": "123b441dc587c1cde2e3e62f0be8b5080a3a8e2f4c17912c461276f955665850"
+    },
+    {
+      "file": "precise-reference/FractionalZoom-2pow24.rgba",
+      "bytes": 16384,
+      "sha256": "e33fdf7f46e030db7c3f9a7602df5985043ba060dde0c53655deaf6a4b09f3e0"
+    },
+    {
+      "file": "precise-reference/FractionalZoom-2pow40.rgba",
+      "bytes": 16384,
+      "sha256": "e33fdf7f46e030db7c3f9a7602df5985043ba060dde0c53655deaf6a4b09f3e0"
+    },
+    {
+      "file": "precise-reference/FractionalZoom-near.rgba",
+      "bytes": 16384,
+      "sha256": "e33fdf7f46e030db7c3f9a7602df5985043ba060dde0c53655deaf6a4b09f3e0"
+    },
+    {
+      "file": "precise-reference/PartialGain-2pow24.rgba",
+      "bytes": 16384,
+      "sha256": "5f3643652a2e1f69826c2722c6ebd173b43570e582fe11a69b4772c1740bea8b"
+    },
+    {
+      "file": "precise-reference/PartialGain-2pow40.rgba",
+      "bytes": 16384,
+      "sha256": "5f3643652a2e1f69826c2722c6ebd173b43570e582fe11a69b4772c1740bea8b"
+    },
+    {
+      "file": "precise-reference/PartialGain-near.rgba",
+      "bytes": 16384,
+      "sha256": "5f3643652a2e1f69826c2722c6ebd173b43570e582fe11a69b4772c1740bea8b"
+    },
+    {
+      "file": "precise-reference/SlideBackward-2pow24.rgba",
+      "bytes": 16384,
+      "sha256": "5decf4a492faebbb1bab675f52af8e513e13eb2ddd6876a17933b7aabcb0d165"
+    },
+    {
+      "file": "precise-reference/SlideBackward-2pow40.rgba",
+      "bytes": 16384,
+      "sha256": "5decf4a492faebbb1bab675f52af8e513e13eb2ddd6876a17933b7aabcb0d165"
+    },
+    {
+      "file": "precise-reference/SlideBackward-near.rgba",
+      "bytes": 16384,
+      "sha256": "5decf4a492faebbb1bab675f52af8e513e13eb2ddd6876a17933b7aabcb0d165"
+    },
+    {
+      "file": "precise-reference/SlideForward-2pow24.rgba",
+      "bytes": 16384,
+      "sha256": "6c128817cb255873b3c1104b543c379faa8533aa6cc60e75a25582c1abf97dd9"
+    },
+    {
+      "file": "precise-reference/SlideForward-2pow40.rgba",
+      "bytes": 16384,
+      "sha256": "6c128817cb255873b3c1104b543c379faa8533aa6cc60e75a25582c1abf97dd9"
+    },
+    {
+      "file": "precise-reference/SlideForward-near.rgba",
+      "bytes": 16384,
+      "sha256": "6c128817cb255873b3c1104b543c379faa8533aa6cc60e75a25582c1abf97dd9"
+    },
+    {
+      "file": "precise-reference/legacy-current.rgba",
+      "bytes": 16384,
+      "sha256": "123b441dc587c1cde2e3e62f0be8b5080a3a8e2f4c17912c461276f955665850"
+    },
+    {
+      "file": "precise-reference/legacy-frozen.rgba",
+      "bytes": 16384,
+      "sha256": "123b441dc587c1cde2e3e62f0be8b5080a3a8e2f4c17912c461276f955665850"
+    },
+    {
+      "file": "precise-reference/sub-bucket-far.rgba",
+      "bytes": 16384,
+      "sha256": "091fe1e651d43d4592e6939a24410547d0327c12a90a16dcb3fe091fb93695e7"
+    },
+    {
+      "file": "precise-reference/sub-bucket-legacy.rgba",
+      "bytes": 16384,
+      "sha256": "091fe1e651d43d4592e6939a24410547d0327c12a90a16dcb3fe091fb93695e7"
+    },
+    {
+      "file": "precise-reference/sub-bucket-near.rgba",
+      "bytes": 16384,
+      "sha256": "091fe1e651d43d4592e6939a24410547d0327c12a90a16dcb3fe091fb93695e7"
+    }
+  ],
+  "precise_buffers_equal_to_previously_merged_reference": 23,
+  "bounded_tile_equals_legacy": true,
+  "overview_differs_from_detail": true,
+  "native_logical_bytes": {
+    "gpu": 82304,
+    "source": 262144,
+    "summary": 131048
+  },
+  "derived_legacy_full_pyramid": {
+    "frames": 65536,
+    "bands": 1,
+    "buckets": 131071,
+    "bucket_bytes": 8,
+    "summary_bytes": 1048568,
+    "note": "Derived from legacy constructor topology, not process RSS or a physical GPU allocation measurement."
+  },
+  "cold_detail_immutable_upload_bytes": 65520,
+  "same_page_pan_immutable_upload_operations": 0,
+  "measurement_limits": "No foreground latency, GPU duration, driver physical residency, or speedup claim."
+}

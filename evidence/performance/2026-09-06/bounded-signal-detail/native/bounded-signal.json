@@ -1,0 +1,28 @@
+{
+  "adapter": {
+    "backend": "Metal",
+    "device": 0,
+    "device_type": "IntegratedGpu",
+    "name": "Apple M5 Pro",
+    "vendor": 0
+  },
+  "broker_logical_bytes": {
+    "gpu": 82304,
+    "source": 262144,
+    "summary": 131048
+  },
+  "fixture": "bounded-signal-native-detail",
+  "immutable_uploads": {
+    "overview": "GpuSurfaceRenderCanvasUploadEvidence { operations: Some(1), logical_bytes: Some(32) }",
+    "tile": "GpuSurfaceRenderCanvasUploadEvidence { operations: Some(1), logical_bytes: Some(65520) }"
+  },
+  "measurement": "offscreen native render evidence; no foreground latency or GPU timing claim",
+  "rgba_default_hasher": {
+    "legacy": "0xcb7211e0646b9ee6",
+    "overview": "0x09cce86aeb9f80df",
+    "tile": "0xcb7211e0646b9ee6"
+  },
+  "source_default_hasher": "0x570e6076b3f7d331",
+  "source_frames": 65536,
+  "source_revision": "adc50e2ff2aa5f0eb70be2d13215320c8fa1154a"
+}

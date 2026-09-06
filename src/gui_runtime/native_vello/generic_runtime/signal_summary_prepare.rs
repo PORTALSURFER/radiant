@@ -81,6 +81,9 @@ impl SummaryRequest {
         else {
             return None;
         };
+        if *band_count == 0 || !content.is_renderable() {
+            return None;
+        }
         Some(Self::new(
             Arc::clone(samples),
             *frames,
@@ -123,6 +126,7 @@ pub(super) enum SummaryRequestState {
 /// Kept private so a renderer can only retain the source, summary, and lease together.
 #[derive(Clone)]
 pub(super) struct PreparedSummary {
+    key: SourceKey,
     source: Arc<[f32]>,
     summary: Arc<GpuSignalSummary>,
     lease: SummaryRetentionLease,
@@ -135,6 +139,10 @@ impl PreparedSummary {
     pub(super) fn summary(&self) -> &Arc<GpuSignalSummary> {
         &self.summary
     }
+    pub(super) fn matches_raw_surface(&self, content: &GpuSurfaceContent, revision: u64) -> bool {
+        SummaryRequest::from_raw_surface(content, revision)
+            .is_some_and(|request| request.key == self.key)
+    }
 }
 
 #[derive(Clone)]
@@ -142,11 +150,12 @@ struct SummaryRetentionLease(Arc<RetentionToken>);
 
 struct RetentionToken {
     wake: Arc<dyn RepaintSignal>,
+    retired: AtomicBool,
 }
 
 impl Drop for SummaryRetentionLease {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.0) == 2 {
+        if self.0.retired.load(Ordering::Acquire) {
             self.0.wake.request_repaint();
         }
     }
@@ -206,6 +215,10 @@ pub(super) struct SummaryDispatch {
 }
 
 impl SummaryDispatch {
+    pub(super) const fn id(&self) -> u64 {
+        self.id
+    }
+
     /// This consumes the reserved completion slot and emits exactly one terminal record.
     pub(super) fn run(self) {
         let state = match catch_unwind(AssertUnwindSafe(|| {
@@ -289,6 +302,15 @@ impl SummaryBroker {
         target: SummaryTargetId,
         request: SummaryRequest,
     ) -> SummaryRequestState {
+        if matches!(self.interests.get(&target), Some(Interest::Source(key)) if *key == request.key)
+        {
+            return match self.sources.get(&request.key).map(|entry| &entry.state) {
+                Some(EntryState::Ready { .. }) => SummaryRequestState::Ready,
+                Some(EntryState::Failed) => SummaryRequestState::Unavailable,
+                Some(_) => SummaryRequestState::Pending,
+                None => SummaryRequestState::WaitingAdmission,
+            };
+        }
         self.release_target(target);
         if !self.interests.contains_key(&target) && self.interests.len() >= self.limits.targets {
             return SummaryRequestState::Unavailable;
@@ -373,6 +395,7 @@ impl SummaryBroker {
             return None;
         };
         Some(PreparedSummary {
+            key: *key,
             source: Arc::clone(&entry.samples),
             summary: Arc::clone(summary),
             lease: SummaryRetentionLease(Arc::clone(token)),
@@ -417,6 +440,12 @@ impl SummaryBroker {
         None
     }
 
+    pub(super) fn waiting_targets(&self) -> impl Iterator<Item = SummaryTargetId> + '_ {
+        self.interests.iter().filter_map(|(target, interest)| {
+            matches!(interest, Interest::Waiting(_)).then_some(*target)
+        })
+    }
+
     /// Call only when the host rejected the returned dispatch closure.
     pub(super) fn reject_dispatch(&mut self, id: u64) {
         for entry in self.sources.values_mut() {
@@ -458,6 +487,7 @@ impl SummaryBroker {
                 continue;
             }
             self.active = self.active.saturating_sub(1);
+            let ready = matches!(&completion.state, CompletionState::Ready(_));
             let requeue = matches!(&completion.state, CompletionState::Cancelled)
                 && entry.interests != 0
                 && self.queue.len() < self.limits.queued;
@@ -466,12 +496,14 @@ impl SummaryBroker {
                     summary,
                     token: Arc::new(RetentionToken {
                         wake: Arc::clone(&self.wake),
+                        retired: AtomicBool::new(false),
                     }),
                 },
                 CompletionState::Ready(summary) => EntryState::Retired {
                     summary: Some(summary),
                     token: Some(Arc::new(RetentionToken {
                         wake: Arc::clone(&self.wake),
+                        retired: AtomicBool::new(true),
                     })),
                 },
                 CompletionState::Cancelled if requeue => EntryState::Queued,
@@ -485,10 +517,12 @@ impl SummaryBroker {
                     token: None,
                 },
             };
-            notify.extend(self.interests.iter().filter_map(|(target, interest)| {
-                matches!(interest, Interest::Source(key) if *key == completion.key)
-                    .then_some(*target)
-            }));
+            if ready {
+                notify.extend(self.interests.iter().filter_map(|(target, interest)| {
+                    matches!(interest, Interest::Source(key) if *key == completion.key)
+                        .then_some(*target)
+                }));
+            }
             if requeue {
                 self.queue.push_back(completion.key);
             }
@@ -525,16 +559,25 @@ impl SummaryBroker {
                     retired: true,
                 }
             }
-            EntryState::Ready { summary, token } => EntryState::Retired {
-                summary: Some(summary),
-                token: Some(token),
-            },
-            EntryState::Queued | EntryState::Failed | EntryState::Retired { .. } => {
+            EntryState::Ready { summary, token } => {
+                token.retired.store(true, Ordering::Release);
+                self.wake.request_repaint();
+                EntryState::Retired {
+                    summary: Some(summary),
+                    token: Some(token),
+                }
+            }
+            EntryState::Queued => {
+                self.queue.retain(|queued| *queued != key);
                 EntryState::Retired {
                     summary: None,
                     token: None,
                 }
             }
+            EntryState::Failed | EntryState::Retired { .. } => EntryState::Retired {
+                summary: None,
+                token: None,
+            },
         };
     }
 

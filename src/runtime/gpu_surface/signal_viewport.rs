@@ -29,17 +29,32 @@ pub struct GpuSignalViewport {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GpuSignalViewportError {
     /// A position fraction was not finite or was outside `[0, 1)`.
-    InvalidFraction { fraction: f64 },
+    InvalidFraction {
+        /// Rejected fractional-frame value.
+        fraction: f64,
+    },
     /// A viewport span was not finite and positive.
-    InvalidSpan { span: f64 },
+    InvalidSpan {
+        /// Rejected local frame span.
+        span: f64,
+    },
     /// A normalized viewport ratio was not finite or outside `[0, 1]`.
-    InvalidRatio { ratio: f64 },
+    InvalidRatio {
+        /// Rejected normalized viewport ratio.
+        ratio: f64,
+    },
     /// A legacy floating-point range was not finite, non-negative, and ascending.
-    InvalidLegacyRange { range: [f32; 2] },
+    InvalidLegacyRange {
+        /// Rejected legacy start/end pair.
+        range: [f32; 2],
+    },
     /// A coordinate operation would move outside the `u64` source-frame domain.
     FrameOutOfBounds,
     /// A local offset would require converting an inexact integer frame delta to `f64`.
-    LocalOffsetOutOfExactRange { frame_delta: u64 },
+    LocalOffsetOutOfExactRange {
+        /// Integer distance between the two source origins.
+        frame_delta: u64,
+    },
 }
 
 impl fmt::Display for GpuSignalViewportError {

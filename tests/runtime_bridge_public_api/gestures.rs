@@ -17,11 +17,16 @@ use std::{
 struct Probe {
     common: WidgetCommon,
     threshold: f32,
+    conservative: bool,
     raw: Rc<Cell<usize>>,
 }
 impl WidgetGestures for Probe {
     fn revision(&self) -> WidgetSemanticsRevision {
-        WidgetSemanticsRevision::exact(self.policy())
+        if self.conservative {
+            WidgetSemanticsRevision::conservative()
+        } else {
+            WidgetSemanticsRevision::exact(self.policy())
+        }
     }
     fn policy(&self) -> GesturePolicy {
         GesturePolicy::none()
@@ -132,6 +137,7 @@ fn bridge(
             }
             custom_widget_mapped(
                 Probe {
+                    conservative: false,
                     common: WidgetCommon::fixed(1, 120.0, 40.0).with_keyboard_focus(),
                     threshold: threshold.get(),
                     raw: Rc::clone(&raw),
@@ -537,6 +543,7 @@ fn pending_gesture_rechecks_original_anchor_before_claiming_moved_target() {
             .view(move |_: &()| {
                 radiant::application::column([custom_widget_mapped(
                     Probe {
+                        conservative: false,
                         common: WidgetCommon::fixed(1, 120.0, 40.0).with_keyboard_focus(),
                         threshold: 5.0,
                         raw: Rc::new(Cell::new(0)),
@@ -647,6 +654,7 @@ fn focus_commits_before_cancellation_message_can_request_another_target() {
                 vec![
                     SurfaceChild::fill(SurfaceNode::widget(
                         Probe {
+                            conservative: false,
                             common: WidgetCommon::fixed(1, 100.0, 40.0).with_keyboard_focus(),
                             threshold: 0.0,
                             raw: Rc::new(Cell::new(0)),
@@ -747,6 +755,7 @@ fn handler_withdrawn_during_focus_is_rejected_before_gesture_capture() {
             .view(|_: &()| {
                 custom_widget_mapped(
                     WithdrawOnFocus(Probe {
+                        conservative: false,
                         common: WidgetCommon::fixed(1, 120.0, 40.0).with_keyboard_focus(),
                         threshold: 0.0,
                         raw: Rc::new(Cell::new(0)),
@@ -772,4 +781,68 @@ fn handler_withdrawn_during_focus_is_rejected_before_gesture_capture() {
         1,
         WidgetInput::pointer_move(radiant::gui::types::Point::new(20.0, 15.0))
     ));
+}
+
+#[test]
+fn conservative_gesture_evidence_retires_on_reprojection() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let seen = events.clone();
+    let bridge = radiant::app(())
+        .view(|_| {
+            custom_widget_mapped(
+                Probe {
+                    common: WidgetCommon::fixed(1, 120.0, 40.0),
+                    conservative: true,
+                    threshold: 5.0,
+                    raw: Rc::new(Cell::new(0)),
+                },
+                |event: GestureEvent| event,
+            )
+            .id(1)
+        })
+        .update(move |_, event| seen.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    let pending = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(0.0, 0.0),
+    )));
+    let token = pending.token().unwrap();
+    runtime.refresh();
+    assert_eq!(
+        runtime
+            .dispatch_gesture_request(
+                GestureRequest::new(sample(
+                    GestureKind::Pan,
+                    GesturePhase::Changed,
+                    Vector2::new(6.0, 0.0)
+                ))
+                .with_token(token)
+            )
+            .outcome(),
+        &GestureOutcome::Stale
+    );
+    assert!(events.borrow().is_empty());
+    let active = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(6.0, 0.0),
+    )));
+    assert_eq!(active.outcome(), &GestureOutcome::Accepted(1));
+    // Started emits a reducer message and rebuilds. Only the old handler may
+    // receive the terminal cancellation; the fresh incarnation gets no token.
+    assert_eq!(active.token(), None);
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .map(|event| event.phase())
+            .collect::<Vec<_>>(),
+        [GesturePhase::Started, GesturePhase::Cancelled]
+    );
+    assert_eq!(
+        events.borrow()[1].cancellation(),
+        Some(radiant::widgets::GestureCancellation::Retired)
+    );
 }

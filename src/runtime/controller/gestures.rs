@@ -393,7 +393,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             && (!capture.active || self.interaction.pointer.capture == Some(capture.widget))
             && widget.gesture_policy().is_some_and(|(policy, revision)| {
                 policy == capture.policy
-                    && (revision == capture.revision
+                    && ((capture.revision.is_exact() && revision == capture.revision)
                         || (!capture.revision.is_exact()
                             && capture.generation == self.refresh_counters().runtime_projection))
             })
@@ -451,7 +451,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                         == Some(&capture.path)
                     && widget.gesture_policy().is_some_and(|(policy, revision)| {
                         policy == capture.policy
-                            && (revision == capture.revision
+                            && ((capture.revision.is_exact() && revision == capture.revision)
                                 || (!capture.revision.is_exact()
                                     && capture.generation
                                         == self.refresh_counters().runtime_projection))
@@ -503,7 +503,8 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                         && !common.state.read_only
                         && widget.widget_object().compatibility_kind() == capture.kind
                         && widget.gesture_policy().is_some_and(|(policy, revision)| {
-                            policy == capture.policy && revision == capture.revision
+                            policy == capture.policy
+                                && (capture.revision.is_exact() && revision == capture.revision)
                         })
                 });
         if compatible {

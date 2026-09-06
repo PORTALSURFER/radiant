@@ -1,8 +1,10 @@
+use super::super::ScrollEditBatch;
 use super::super::{ScrollUpdate, ScrollUpdateMetadata, SurfaceRuntime};
 use crate::{
     gui::types::{Point, Vector2},
     layout::NodeId,
     runtime::RuntimeBridge,
+    widgets::{EditEvent, InteractionProvenance},
 };
 use std::collections::BTreeSet;
 
@@ -99,13 +101,12 @@ where
             if next == current || !next.x.is_finite() || !next.y.is_finite() {
                 continue;
             }
-            self.layout_state.scroll_offsets.insert(node_id, next);
-            self.note_layout_state_mutation();
-            self.relayout_current_surface();
-            let settled = self.layout_state.scroll_offset(node_id);
-            if settled != current {
-                self.emit_scroll_offset_settled(node_id, settled, true);
-            }
+            self.scroll_to_offset_with_provenance(
+                node_id,
+                next,
+                InteractionProvenance::Programmatic,
+                false,
+            );
         }
     }
 
@@ -114,6 +115,31 @@ where
         node_id: NodeId,
         offset: Vector2,
     ) {
+        self.scroll_to_offset_with_provenance(
+            node_id,
+            offset,
+            InteractionProvenance::Programmatic,
+            true,
+        );
+    }
+
+    pub(in crate::runtime::controller) fn scroll_to_offset_with_provenance(
+        &mut self,
+        node_id: NodeId,
+        offset: Vector2,
+        provenance: InteractionProvenance,
+        report_legacy: bool,
+    ) -> bool {
+        if !offset.x.is_finite()
+            || !offset.y.is_finite()
+            || !self
+                .traversal
+                .containers
+                .scroll_content_by_container
+                .contains_key(&node_id)
+        {
+            return false;
+        }
         let previous_offset = self.layout_state.scroll_offset(node_id);
         self.layout_state.scroll_offsets.insert(node_id, offset);
         if offset != previous_offset {
@@ -122,7 +148,25 @@ where
         self.relayout_current_surface();
         let offset = self.layout_state.scroll_offset(node_id);
         if offset == previous_offset {
-            return;
+            return false;
+        }
+        let target = self.atomic_scroll_target(node_id);
+        // A replacement offset retires the old pointer edit before publishing
+        // the atomic successor. Cancellation must not restore into the replacement.
+        if let Some(capture) = self.interaction.pointer.scroll_drag_capture
+            && capture.node_id == node_id
+        {
+            self.interaction.pointer.scroll_drag_capture = None;
+            self.interaction
+                .pointer
+                .set_release_tombstone(capture.button, true);
+            self.cancel_scrollbar_edit(capture, false);
+            if self.layout_state.scroll_offset(node_id) != offset
+                || self.interaction.pointer.scroll_drag_capture.is_some()
+                || self.atomic_scroll_target(node_id) != target
+            {
+                return true;
+            }
         }
         let viewport = self
             .layout
@@ -130,16 +174,68 @@ where
             .get(&node_id)
             .map(|rect| Vector2::new(rect.width(), rect.height()))
             .unwrap_or_default();
-        self.report_scroll_update(ScrollUpdate {
+        let update = ScrollUpdate {
             node_id,
             position: Point::new(0.0, 0.0),
             delta: Vector2::new(offset.x - previous_offset.x, offset.y - previous_offset.y),
             previous_offset,
             offset,
             viewport,
-            metadata: ScrollUpdateMetadata::default(),
-        });
-        self.emit_scroll_offset_settled(node_id, offset, true);
+            metadata: ScrollUpdateMetadata {
+                timestamp: match provenance {
+                    InteractionProvenance::Keyboard { timestamp } => timestamp,
+                    _ => None,
+                },
+                ..ScrollUpdateMetadata::default()
+            },
+        };
+        let begin = EditEvent::begin(previous_offset, provenance);
+        let Some(changed) = begin.update(offset, provenance) else {
+            return true;
+        };
+        let Some(commit) = changed.commit(offset, provenance) else {
+            return true;
+        };
+        if let Some(batch) = ScrollEditBatch::new(node_id, &[begin, changed, commit], Some(update))
+        {
+            if report_legacy {
+                self.report_scroll_edit(batch, true);
+            } else {
+                // Focus reveal historically reports settlement only to legacy hosts.
+                self.report_scroll_edit_if_mapped(batch, true);
+            }
+        }
+        if self.layout_state.scroll_offset(node_id) == offset
+            && self.interaction.pointer.scroll_drag_capture.is_none()
+            && self.atomic_scroll_target(node_id) == target
+        {
+            self.emit_scroll_offset_settled(node_id, offset, true);
+        }
+        true
+    }
+
+    // The target must survive callbacks with its content, viewport, and policy intact.
+    fn atomic_scroll_target(
+        &self,
+        node_id: NodeId,
+    ) -> Option<(
+        NodeId,
+        crate::gui::types::Rect,
+        Vector2,
+        crate::layout::ScrollPolicy,
+    )> {
+        let content_id = *self
+            .traversal
+            .containers
+            .scroll_content_by_container
+            .get(&node_id)?;
+        let content = self.layout.rects.get(&content_id)?;
+        Some((
+            content_id,
+            *self.layout.rects.get(&node_id)?,
+            Vector2::new(content.width(), content.height()),
+            self.scroll_policy_for_node(node_id)?.scroll_policy,
+        ))
     }
 
     pub(in crate::runtime::controller) fn emit_scroll_offset_settled(

@@ -1174,7 +1174,7 @@ where
             if route.fallback_eligible
                 && let (Some(widget_id), Some(key)) = (route.widget_id, widget_key)
             {
-                self.scroll_keyboard_fallback(widget_id, key);
+                self.scroll_keyboard_fallback(widget_id, key, timestamp);
             }
             return route.routed;
         }
@@ -1205,7 +1205,7 @@ where
             return false;
         };
         if delivery.fallback_eligible && delivery.disposition == FocusedKeyDisposition::Unhandled {
-            self.scroll_keyboard_fallback(delivery.widget_id, key);
+            self.scroll_keyboard_fallback(delivery.widget_id, key, timestamp);
         }
         true
     }

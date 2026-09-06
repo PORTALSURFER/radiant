@@ -76,11 +76,22 @@ where
         batch: ScrollEditBatch,
         refresh_after_message: bool,
     ) {
-        if let Some(message) = self.surface.root().scroll_edit_message(batch) {
-            self.dispatch_scroll_edit_command(Command::Message(message), refresh_after_message);
-        } else if let Some(update) = batch.offset_update() {
+        if !self.report_scroll_edit_if_mapped(batch, refresh_after_message)
+            && let Some(update) = batch.offset_update()
+        {
             self.report_scroll_update_with_refresh(update, refresh_after_message);
         }
+    }
+    pub(in crate::runtime::controller) fn report_scroll_edit_if_mapped(
+        &mut self,
+        batch: ScrollEditBatch,
+        refresh_after_message: bool,
+    ) -> bool {
+        let Some(message) = self.surface.root().scroll_edit_message(batch) else {
+            return false;
+        };
+        self.dispatch_scroll_edit_command(Command::Message(message), refresh_after_message);
+        true
     }
     fn dispatch_scroll_edit_command(
         &mut self,

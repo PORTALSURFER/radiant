@@ -210,7 +210,7 @@ where
                 if route.fallback_eligible
                     && let (Some(widget_id), Some(key)) = (route.widget_id, Some(key))
                 {
-                    consumed |= self.scroll_keyboard_fallback(widget_id, key);
+                    consumed |= self.scroll_keyboard_fallback(widget_id, key, timestamp);
                 }
                 (route.widget_id, consumed)
             }
@@ -224,7 +224,8 @@ where
                     if delivery.fallback_eligible
                         && delivery.disposition == crate::widgets::FocusedKeyDisposition::Unhandled
                     {
-                        consumed |= self.scroll_keyboard_fallback(delivery.widget_id, key);
+                        consumed |=
+                            self.scroll_keyboard_fallback(delivery.widget_id, key, timestamp);
                     }
                     (Some(delivery.widget_id), consumed)
                 } else {

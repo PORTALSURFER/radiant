@@ -186,10 +186,6 @@ where
         accepted
     }
 
-    pub(super) fn report_scroll_update(&mut self, update: ScrollUpdate) {
-        self.report_scroll_update_with_refresh(update, true);
-    }
-
     pub(super) fn report_scroll_update_with_refresh(
         &mut self,
         update: ScrollUpdate,
@@ -288,6 +284,7 @@ where
         &mut self,
         widget_id: crate::widgets::WidgetId,
         key: crate::widgets::WidgetKey,
+        timestamp: Option<InputTimestamp>,
     ) -> bool {
         let candidates = self
             .traversal
@@ -358,8 +355,14 @@ where
             if next == current {
                 continue;
             }
-            self.scroll_to_offset(node_id, next);
-            return true;
+            if self.scroll_to_offset_with_provenance(
+                node_id,
+                next,
+                crate::widgets::InteractionProvenance::Keyboard { timestamp },
+                true,
+            ) {
+                return true;
+            }
         }
         false
     }

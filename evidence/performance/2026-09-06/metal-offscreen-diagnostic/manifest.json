@@ -1,0 +1,43 @@
+{
+  "captured_at_utc": "2026-09-06T07:09:59.818868+00:00",
+  "binary_sha256": "500cdadc6e7e6ca63e9d364ccbedd314822063d39d4da8e94bcbd4bc82d5a16d",
+  "runs": [
+    {
+      "mode": "basic",
+      "args": [],
+      "exit_code": 0
+    },
+    {
+      "mode": "timestamps",
+      "args": [
+        "--timestamps"
+      ],
+      "exit_code": 0
+    },
+    {
+      "mode": "vello",
+      "args": [
+        "--vello"
+      ],
+      "exit_code": 0
+    },
+    {
+      "mode": "vello-timestamps",
+      "args": [
+        "--vello",
+        "--timestamps"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "files": {
+    "Cargo.lock": "c1e6fc639f41a4027d380fdf8ba7dcd1942aed7bc83a5d4f80feeb243a6ecac0",
+    "Cargo.toml": "5d2bc23bc4035bf7519c38e28b06cbe4aab0d7d0511b844def936551fa8c76c7",
+    "basic.log": "673ba04e6d4d4622b8b1eedf7ef6457d738c25954817faea6ef7258be70964c8",
+    "native-retry.jsonl": "79c13b2b0fd6eedc513ea01aa285dbbc98155aabb8b11911eb9b5183134462b4",
+    "src/main.rs": "62481d0965c4b66bcee4783d9299dc89274be6d53fd5cbccfc11d7b8aa203742",
+    "timestamps.log": "144174ed72e83223040bb0b75dcbc4e16417f976935fa493ddffa2cf8b5313ef",
+    "vello-timestamps.log": "9cbf20e9feead1aaa92bd18d972a0548a1a729f0befbcf71677e6006bb7ae2d6",
+    "vello.log": "1a4ae11c1d3a1eb9768f7a50cfb13fa4cbbc79d6e9f7b40c6ce962eb162549e2"
+  }
+}

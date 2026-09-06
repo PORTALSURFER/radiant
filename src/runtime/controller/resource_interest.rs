@@ -23,7 +23,7 @@ struct RegisteredInterest {
 }
 
 impl ResourceInterestRegistry {
-    fn is_full(&mut self) -> bool {
+    pub(super) fn is_full(&mut self) -> bool {
         self.entries.retain(|entry| entry.lease.is_live());
         self.entries.len() >= MAX_RUNTIME_RESOURCE_INTERESTS
     }

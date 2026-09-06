@@ -1148,6 +1148,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn install_declarative_owner_projection(&mut self) {
+        self.install_resource_view_interests();
         self.declarative_owner
             .install_from_source(&self.scratch.projection_source);
         self.declarative_owner_ledger

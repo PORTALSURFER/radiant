@@ -409,3 +409,6 @@ fn shared_task_cancellation_fences_stale_completion_and_permits_fresh_work() {
     host.turn().expect("fresh terminal turn");
     assert_eq!(host.bridge().ready, vec![2]);
 }
+
+#[path = "shared_resource_tasks_public_api/resource_views.rs"]
+mod resource_views;

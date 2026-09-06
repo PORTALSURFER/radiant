@@ -26,6 +26,7 @@ struct NodeDraft {
     incoming_slot: Option<crate::layout::SlotParams>,
     id: crate::layout::NodeId,
     source: Option<Rc<SourceMetadata>>,
+    resource_demand: Option<Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
     kind: ApplicationNodeKind,
 }
 
@@ -65,6 +66,7 @@ impl<'r> ApplicationProjectionRecorder<'r> {
         node: &crate::runtime::SurfaceNode<Message>,
     ) {
         let source = node.source_metadata_handle();
+        let resource_demand = node.resource_view_demand();
         let kind = crate::runtime::application_node_kind(node);
         self.unsupported |= source.is_none()
             || matches!(kind, ApplicationNodeKind::Unsupported)
@@ -74,6 +76,7 @@ impl<'r> ApplicationProjectionRecorder<'r> {
             incoming_slot,
             id: node.id(),
             source,
+            resource_demand,
             kind,
         });
     }
@@ -106,6 +109,7 @@ impl<'r> ApplicationProjectionRecorder<'r> {
                     .as_deref()
                     .map(SourceMetadata::freeze)
                     .unwrap_or_else(FrozenSourceMetadata::empty),
+                resource_demand: draft.resource_demand,
                 kind: draft.kind,
             })
             .collect();
@@ -179,6 +183,7 @@ fn compare_receipts(
             || old.incoming_slot != new.incoming_slot
             || old.id != new.id
             || old.source != new.source
+            || !same_resource_demand(old.resource_demand.as_ref(), new.resource_demand.as_ref())
         {
             return (ReceiptComparison::Full, comparison_count);
         }
@@ -211,6 +216,17 @@ fn compare_receipts(
         }
     }
     (ReceiptComparison::Exact(changed), comparison_count)
+}
+
+fn same_resource_demand(
+    previous: Option<&Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+    current: Option<&Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+) -> bool {
+    match (previous, current) {
+        (Some(previous), Some(current)) => previous.same_demand(current),
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 #[cfg(test)]

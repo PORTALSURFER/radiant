@@ -279,3 +279,5 @@ pub use virtual_layout::{
 pub(crate) use virtual_layout::{
     adapt_coordinate_transform, adapt_item_provider, adapt_range_provider, provider_identity,
 };
+
+pub use controller::ResourceViewInterestStatus;

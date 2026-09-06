@@ -207,11 +207,7 @@ impl GpuSignalViewport {
     /// The returned local `f64` can still round its fractional component at a
     /// large, but exactly representable, integer delta.
     pub fn local_offset(self, position: GpuSignalPosition) -> Result<f64, GpuSignalViewportError> {
-        let frame_delta = if position.frame >= self.start.frame {
-            position.frame - self.start.frame
-        } else {
-            self.start.frame - position.frame
-        };
+        let frame_delta = position.frame.abs_diff(self.start.frame);
         if frame_delta > MAX_EXACT_F64_INTEGER {
             return Err(GpuSignalViewportError::LocalOffsetOutOfExactRange { frame_delta });
         }

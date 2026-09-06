@@ -196,3 +196,18 @@ fn precise_shader_parses_and_validates() {
     .validate(&module)
     .unwrap();
 }
+
+#[test]
+fn gain_projection_rejects_overflow_before_shader_arithmetic() {
+    let w = window(0);
+    let mut p = presentation(0);
+    let mut gain = GpuPreciseSignalGainPreview::new(
+        GpuSignalViewport::new(GpuSignalPosition::new(0, 0.0).unwrap(), 64.0).unwrap(),
+    );
+    gain.fade_in_extension = f32::MAX;
+    p.gain_preview = Some(gain);
+    assert_eq!(
+        w.presentation_bytes(&p),
+        Err(GpuSignalWindowError::InvalidPresentation)
+    );
+}

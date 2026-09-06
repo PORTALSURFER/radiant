@@ -199,7 +199,7 @@ impl GpuSignalSummaryWindow {
             storage.extend_from_slice(&bucket.min.to_le_bytes());
             storage.extend_from_slice(&bucket.max.to_le_bytes());
         }
-        let uniforms: Vec<u8> = [count as u32, band_count, 0, 0]
+        let uniforms: Vec<u8> = [count as u32, band_count, bucket_frames, 0]
             .into_iter()
             .flat_map(u32::to_le_bytes)
             .collect();
@@ -262,7 +262,8 @@ impl GpuSignalSummaryWindow {
                 presentation_uniform_bytes: Some(bytes),
                 presentation_uniform_revision: Some(presentation.revision),
                 vertex_count: 6,
-            }),
+            })
+            .into(),
         })
     }
 
@@ -374,7 +375,14 @@ fn encode_gain(
     }
     let selection_start = p.viewport.local_offset(g.selection.start())? / p.viewport.span();
     let selection_end = p.viewport.local_offset(g.selection.end()?)? / p.viewport.span();
-    if selection_end as f32 <= selection_start as f32 {
+    let projected_start = selection_start as f32;
+    let projected_end = selection_end as f32;
+    let projected_width = projected_end - projected_start;
+    if projected_end <= projected_start
+        || !projected_width.is_finite()
+        || !(projected_start - projected_width * g.fade_in_extension).is_finite()
+        || !(projected_end + projected_width * g.fade_out_extension).is_finite()
+    {
         return Err(GpuSignalWindowError::InvalidPresentation);
     }
     out.extend_from_slice(&[1.0, selection_start as f32, selection_end as f32, g.gain]);

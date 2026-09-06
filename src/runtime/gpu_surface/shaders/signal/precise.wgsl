@@ -16,7 +16,7 @@ struct SurfaceParams {
 struct PreciseMetadata {
     bucket_count: u32,
     band_count: u32,
-    reserved_a: u32,
+    bucket_frames: u32,
     reserved_b: u32,
 };
 
@@ -110,7 +110,8 @@ fn smoothed_band_peak(query: SignalBandQuery) -> f32 {
     if (bucket_fraction < 0.5) {
         boundary = floor(bucket_position);
     }
-    let bucket_width = 1.0 / max(presentation.query.y, 1.0);
+    let bucket_frames = f32(metadata.bucket_frames);
+    let bucket_width = bucket_frames / max(presentation.query.y * bucket_frames, 1.0);
     let pixel_width = 1.0 / max(params.dest.z, 1.0);
     let transition_width = min(pixel_width, bucket_width);
     let boundary_distance = abs(bucket_position - boundary) * bucket_width;

@@ -152,14 +152,15 @@ pub(super) enum SummaryRequestState {
 #[derive(Clone)]
 pub(super) struct PreparedSummary {
     key: SourceKey,
-    source: Arc<[f32]>,
+    _source: Arc<[f32]>,
     summary: Arc<GpuSignalSummary>,
     _lease: SummaryRetentionLease,
 }
 
 impl PreparedSummary {
+    #[cfg(test)]
     pub(super) fn source(&self) -> &Arc<[f32]> {
-        &self.source
+        &self._source
     }
     pub(super) fn summary(&self) -> &Arc<GpuSignalSummary> {
         &self.summary
@@ -467,7 +468,7 @@ impl SummaryBroker {
         };
         Some(PreparedSummary {
             key: *key,
-            source: Arc::clone(&entry.samples),
+            _source: Arc::clone(&entry.samples),
             summary: Arc::clone(summary),
             _lease: SummaryRetentionLease(Arc::clone(token)),
         })

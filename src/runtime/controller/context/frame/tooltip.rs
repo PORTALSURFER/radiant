@@ -43,7 +43,7 @@ where
         let Some(widget_id) = widget_id else {
             return;
         };
-        if self.interaction.pointer.capture.is_some()
+        if (self.gesture_owns_pointer_capture() || self.interaction.pointer.capture.is_some())
             || self
                 .surface_widget(widget_id)
                 .and_then(|widget| widget.tooltip())
@@ -76,7 +76,7 @@ where
         else {
             return;
         };
-        if self.interaction.pointer.capture.is_some() {
+        if self.gesture_owns_pointer_capture() || self.interaction.pointer.capture.is_some() {
             return;
         }
         let Some(tooltip) = self

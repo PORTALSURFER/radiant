@@ -395,6 +395,8 @@ pub enum NumericAccessibilityRejectedReason {
 /// an incumbent numeric interaction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NumericAccessibilityBlockOwner {
+    /// A recognized widget or container gesture owns interaction capture.
+    GestureCapture,
     /// A normal text edit owns the numeric input.
     TextEdit,
     /// An IME composition owns the numeric input.

@@ -17,11 +17,16 @@ use std::{
 struct Probe {
     common: WidgetCommon,
     threshold: f32,
+    conservative: bool,
     raw: Rc<Cell<usize>>,
 }
 impl WidgetGestures for Probe {
     fn revision(&self) -> WidgetSemanticsRevision {
-        WidgetSemanticsRevision::exact(self.policy())
+        if self.conservative {
+            WidgetSemanticsRevision::conservative()
+        } else {
+            WidgetSemanticsRevision::exact(self.policy())
+        }
     }
     fn policy(&self) -> GesturePolicy {
         GesturePolicy::none()
@@ -132,6 +137,7 @@ fn bridge(
             }
             custom_widget_mapped(
                 Probe {
+                    conservative: false,
                     common: WidgetCommon::fixed(1, 120.0, 40.0).with_keyboard_focus(),
                     threshold: threshold.get(),
                     raw: Rc::clone(&raw),
@@ -537,6 +543,7 @@ fn pending_gesture_rechecks_original_anchor_before_claiming_moved_target() {
             .view(move |_: &()| {
                 radiant::application::column([custom_widget_mapped(
                     Probe {
+                        conservative: false,
                         common: WidgetCommon::fixed(1, 120.0, 40.0).with_keyboard_focus(),
                         threshold: 5.0,
                         raw: Rc::new(Cell::new(0)),
@@ -647,6 +654,7 @@ fn focus_commits_before_cancellation_message_can_request_another_target() {
                 vec![
                     SurfaceChild::fill(SurfaceNode::widget(
                         Probe {
+                            conservative: false,
                             common: WidgetCommon::fixed(1, 100.0, 40.0).with_keyboard_focus(),
                             threshold: 0.0,
                             raw: Rc::new(Cell::new(0)),
@@ -747,6 +755,7 @@ fn handler_withdrawn_during_focus_is_rejected_before_gesture_capture() {
             .view(|_: &()| {
                 custom_widget_mapped(
                     WithdrawOnFocus(Probe {
+                        conservative: false,
                         common: WidgetCommon::fixed(1, 120.0, 40.0).with_keyboard_focus(),
                         threshold: 0.0,
                         raw: Rc::new(Cell::new(0)),
@@ -772,4 +781,554 @@ fn handler_withdrawn_during_focus_is_rejected_before_gesture_capture() {
         1,
         WidgetInput::pointer_move(radiant::gui::types::Point::new(20.0, 15.0))
     ));
+}
+
+#[test]
+fn conservative_gesture_evidence_retires_on_reprojection() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let seen = events.clone();
+    let bridge = radiant::app(())
+        .view(|_| {
+            custom_widget_mapped(
+                Probe {
+                    common: WidgetCommon::fixed(1, 120.0, 40.0),
+                    conservative: true,
+                    threshold: 5.0,
+                    raw: Rc::new(Cell::new(0)),
+                },
+                |event: GestureEvent| event,
+            )
+            .id(1)
+        })
+        .update(move |_, event| seen.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    let pending = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(0.0, 0.0),
+    )));
+    let token = pending.token().unwrap();
+    runtime.refresh();
+    assert_eq!(
+        runtime
+            .dispatch_gesture_request(
+                GestureRequest::new(sample(
+                    GestureKind::Pan,
+                    GesturePhase::Changed,
+                    Vector2::new(6.0, 0.0)
+                ))
+                .with_token(token)
+            )
+            .outcome(),
+        &GestureOutcome::Stale
+    );
+    assert!(events.borrow().is_empty());
+    let active = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(6.0, 0.0),
+    )));
+    assert_eq!(active.outcome(), &GestureOutcome::Accepted(1));
+    // Started emits a reducer message and rebuilds. Only the old handler may
+    // receive the terminal cancellation; the fresh incarnation gets no token.
+    assert_eq!(active.token(), None);
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .map(|event| event.phase())
+            .collect::<Vec<_>>(),
+        [GesturePhase::Started, GesturePhase::Cancelled]
+    );
+    assert_eq!(
+        events.borrow()[1].cancellation(),
+        Some(radiant::widgets::GestureCancellation::Retired)
+    );
+}
+
+fn pan_policy(threshold: f32) -> GesturePolicy {
+    GesturePolicy::none()
+        .recognize(GestureKind::Pan, threshold)
+        .unwrap()
+}
+fn arena_leaf(
+    threshold: f32,
+    raw: Rc<Cell<usize>>,
+) -> radiant::application::ViewNode<(u8, GestureEvent)> {
+    custom_widget_mapped(
+        Probe {
+            common: WidgetCommon::fixed(1, 120.0, 40.0),
+            conservative: false,
+            threshold,
+            raw,
+        },
+        |event: GestureEvent| (1, event),
+    )
+    .id(1)
+}
+#[test]
+fn container_arena_selects_deepest_crossed_threshold_and_keeps_one_owner() {
+    for (delta, expected) in [
+        (3.0, GestureOutcome::AcceptedContainer(10)),
+        (5.0, GestureOutcome::Accepted(1)),
+    ] {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let output = events.clone();
+        let raw = Rc::new(Cell::new(0));
+        let view_raw = raw.clone();
+        let bridge = radiant::app(())
+            .view(move |_| {
+                arena_leaf(5.0, view_raw.clone())
+                    .on_gesture_with_revision(pan_policy(3.0), (), |event| Some((10, event)))
+                    .id(10)
+            })
+            .update(move |_, event| output.borrow_mut().push(event))
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+        let started = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+            GestureKind::Pan,
+            GesturePhase::Started,
+            Vector2::default(),
+        )));
+        assert_eq!(started.outcome(), &GestureOutcome::Pending);
+        assert!(events.borrow().is_empty());
+        let token = started.token().unwrap();
+        let accepted = runtime.dispatch_gesture_request(
+            GestureRequest::new(sample(
+                GestureKind::Pan,
+                GesturePhase::Changed,
+                Vector2::new(delta, 0.0),
+            ))
+            .with_token(token),
+        );
+        assert_eq!(accepted.outcome(), &expected);
+        assert_eq!(accepted.token(), Some(token));
+        runtime.dispatch_input(
+            1,
+            WidgetInput::pointer_move(radiant::layout::Point::new(30.0, 15.0)),
+        );
+        assert_eq!(raw.get(), 0);
+        let semantic = runtime
+            .semantic_action_target(&radiant::gui::automation::AutomationNodeId::new("1"))
+            .unwrap();
+        assert_eq!(
+            runtime.dispatch_semantic_action(
+                &semantic,
+                radiant::widgets::SemanticAction::Press,
+                radiant::widgets::SemanticActionSource::Programmatic
+            ),
+            radiant::runtime::SemanticActionOutcome::Blocked
+        );
+        let ended = runtime.dispatch_gesture_request(
+            GestureRequest::new(sample(
+                GestureKind::Pan,
+                GesturePhase::Ended,
+                Vector2::new(10.0, 0.0),
+            ))
+            .with_token(token),
+        );
+        assert_eq!(ended.outcome(), &expected);
+        assert_eq!(ended.token(), None);
+        let winner = if delta == 3.0 { 10 } else { 1 };
+        assert_eq!(
+            events
+                .borrow()
+                .iter()
+                .map(|(id, event)| (*id, event.phase()))
+                .collect::<Vec<_>>(),
+            [
+                (winner, GesturePhase::Started),
+                (winner, GesturePhase::Ended)
+            ]
+        );
+    }
+}
+#[test]
+fn nested_container_candidates_choose_inner_and_cancel_old_binding_on_revision_change() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let output = events.clone();
+    let revision = Rc::new(Cell::new(0_u8));
+    let view_revision = revision.clone();
+    let bridge = radiant::app(())
+        .view(move |_| {
+            let revision = view_revision.get();
+            arena_leaf(100.0, Rc::new(Cell::new(0)))
+                .on_gesture_with_revision(pan_policy(2.0), revision, move |event| {
+                    Some((10 + revision, event))
+                })
+                .id(10)
+                .on_gesture_with_revision(pan_policy(2.0), (), |event| Some((20, event)))
+                .id(20)
+        })
+        .update(move |_, event| output.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    let started = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(2.0, 0.0),
+    )));
+    assert_eq!(started.outcome(), &GestureOutcome::AcceptedContainer(10));
+    let token = started.token().unwrap();
+    revision.set(1);
+    runtime.refresh();
+    runtime.refresh();
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .map(|(id, event)| (*id, event.phase()))
+            .collect::<Vec<_>>(),
+        [(10, GesturePhase::Started), (10, GesturePhase::Cancelled)]
+    );
+    assert_eq!(
+        runtime
+            .dispatch_gesture_request(
+                GestureRequest::new(sample(
+                    GestureKind::Pan,
+                    GesturePhase::Ended,
+                    Vector2::default()
+                ))
+                .with_token(token)
+            )
+            .outcome(),
+        &GestureOutcome::Stale
+    );
+    let fresh = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(2.0, 0.0),
+    )));
+    assert_eq!(fresh.outcome(), &GestureOutcome::AcceptedContainer(10));
+    assert_ne!(fresh.token(), Some(token));
+    assert_eq!(
+        events
+            .borrow()
+            .last()
+            .map(|(id, event)| (*id, event.phase())),
+        Some((11, GesturePhase::Started))
+    );
+}
+#[test]
+fn pending_arena_does_not_intercept_child_pointer_capture() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let output = events.clone();
+    let raw = Rc::new(Cell::new(0));
+    let view_raw = raw.clone();
+    let bridge = radiant::app(())
+        .view(move |_| {
+            arena_leaf(100.0, view_raw.clone())
+                .on_gesture_with_revision(pan_policy(3.0), (), |event| Some((10, event)))
+                .id(10)
+        })
+        .update(move |_, event| output.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    let pending = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::default(),
+    )));
+    runtime.dispatch_input(
+        1,
+        WidgetInput::pointer_press(
+            radiant::layout::Point::new(20.0, 15.0),
+            radiant::widgets::PointerButton::Primary,
+            Default::default(),
+        ),
+    );
+    assert!(raw.get() > 0);
+    assert_eq!(runtime.pointer_capture(), Some(1));
+    let result = runtime.dispatch_gesture_request(
+        GestureRequest::new(sample(
+            GestureKind::Pan,
+            GesturePhase::Changed,
+            Vector2::new(3.0, 0.0),
+        ))
+        .with_token(pending.token().unwrap()),
+    );
+    assert!(matches!(
+        result.outcome(),
+        GestureOutcome::Blocked | GestureOutcome::Stale
+    ));
+    assert_eq!(runtime.pointer_capture(), Some(1));
+    assert!(events.borrow().is_empty());
+}
+#[test]
+fn conservative_container_binding_cancels_after_its_reducer_rebuild() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let output = events.clone();
+    let bridge = radiant::app(())
+        .view(|_| {
+            arena_leaf(100.0, Rc::new(Cell::new(0)))
+                .on_gesture(pan_policy(2.0), |event| Some((10, event)))
+                .id(10)
+        })
+        .update(move |_, event| output.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+    let started = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(2.0, 0.0),
+    )));
+    assert_eq!(started.outcome(), &GestureOutcome::AcceptedContainer(10));
+    assert_eq!(started.token(), None);
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .map(|(id, event)| (*id, event.phase()))
+            .collect::<Vec<_>>(),
+        [(10, GesturePhase::Started), (10, GesturePhase::Cancelled)]
+    );
+}
+
+#[test]
+fn container_arena_rejects_candidate_overflow() {
+    // This deliberately deep tree exercises the 64-candidate boundary; use
+    // an explicit stack for the existing recursive declarative lowering.
+    std::thread::Builder::new()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(|| {
+            for count in [63, 64] {
+                let events = Rc::new(RefCell::new(Vec::new()));
+                let output = events.clone();
+                let bridge = radiant::app(())
+                    .view(move |_| {
+                        let mut view = arena_leaf(100.0, Rc::new(Cell::new(0)));
+                        for index in 0..count {
+                            view = view
+                                .on_gesture_with_revision(pan_policy(2.0), (), |event| {
+                                    Some((10, event))
+                                })
+                                .id(10 + index);
+                        }
+                        view
+                    })
+                    .update(move |_, event| output.borrow_mut().push(event))
+                    .into_bridge();
+                let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+                let result = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+                    GestureKind::Pan,
+                    GesturePhase::Started,
+                    Vector2::new(2.0, 0.0),
+                )));
+                if count == 64 {
+                    assert_eq!(result.outcome(), &GestureOutcome::Unsupported);
+                    assert_eq!(result.token(), None);
+                    assert!(events.borrow().is_empty());
+                } else {
+                    assert_eq!(result.outcome(), &GestureOutcome::AcceptedContainer(10));
+                    assert!(result.token().is_some());
+                }
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn container_descriptors_reject_projection_only_unsupported_and_duplicate_sources() {
+    use radiant::{
+        layout::{
+            LayoutCapabilities, LayoutGestures, LayoutInteraction, LayoutInteractionCapabilities,
+            LayoutInteractionRevision,
+        },
+        runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface},
+        widgets::{ButtonWidget, WidgetSizing},
+    };
+    struct Consumer {
+        version: u16,
+    }
+    impl LayoutInteraction<GestureEvent> for Consumer {
+        fn revision(&self) -> LayoutInteractionRevision {
+            LayoutInteractionRevision::exact(())
+        }
+        fn capabilities_v2(&self) -> LayoutInteractionCapabilities<'_, GestureEvent> {
+            LayoutInteractionCapabilities::none()
+                .with_gestures(self)
+                .with_contract_version(self.version)
+        }
+    }
+    impl LayoutGestures<GestureEvent> for Consumer {
+        fn revision(&self) -> LayoutInteractionRevision {
+            LayoutInteractionRevision::exact(())
+        }
+        fn policy(&self) -> GesturePolicy {
+            pan_policy(2.0)
+        }
+        fn dispatch(&self, event: GestureEvent) -> Option<GestureEvent> {
+            Some(event)
+        }
+    }
+    struct Bridge {
+        duplicate: bool,
+        version: u16,
+        contract: u16,
+        events: Rc<RefCell<Vec<GestureEvent>>>,
+    }
+    impl RuntimeBridge<GestureEvent> for Bridge {
+        fn project_surface(&mut self) -> std::sync::Arc<UiSurface<GestureEvent>> {
+            super::arc_surface(UiSurface::new(SurfaceNode::column(
+                if self.duplicate { 10 } else { 20 },
+                0.0,
+                vec![SurfaceChild::fill(
+                    SurfaceNode::column(
+                        10,
+                        0.0,
+                        vec![SurfaceChild::fill(SurfaceNode::static_widget(
+                            ButtonWidget::new(
+                                1,
+                                "Child",
+                                WidgetSizing::fixed(Vector2::new(120.0, 40.0)),
+                            ),
+                        ))],
+                    )
+                    .with_layout_capabilities(LayoutCapabilities {
+                        contract_version: self.contract,
+                        interaction: Some(Rc::new(Consumer {
+                            version: self.version,
+                        })),
+                    }),
+                )],
+            )))
+        }
+        fn reduce_message(&mut self, message: GestureEvent) {
+            self.events.borrow_mut().push(message);
+        }
+    }
+    for (duplicate, version, contract) in
+        [(true, 1, 4), (false, 2, 4), (false, 1, 2), (false, 1, 4)]
+    {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            Bridge {
+                duplicate,
+                version,
+                contract,
+                events: events.clone(),
+            },
+            Vector2::new(200.0, 80.0),
+        );
+        let started = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+            GestureKind::Pan,
+            GesturePhase::Started,
+            Vector2::new(2.0, 0.0),
+        )));
+        if duplicate || version != 1 || contract == 2 {
+            assert_eq!(started.outcome(), &GestureOutcome::Unsupported);
+            assert!(events.borrow().is_empty());
+        } else {
+            assert_eq!(started.outcome(), &GestureOutcome::AcceptedContainer(10));
+            assert!(started.token().is_some());
+            assert_eq!(events.borrow().len(), 1);
+        }
+    }
+}
+
+#[test]
+fn container_removal_and_layout_policy_changes_retire_the_original_sequence() {
+    for remove in [false, true] {
+        let changed = Rc::new(Cell::new(false));
+        let view_changed = changed.clone();
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let output = events.clone();
+        let bridge = radiant::app(())
+            .view(move |_| {
+                let leaf = arena_leaf(100.0, Rc::new(Cell::new(0)));
+                if remove && view_changed.get() {
+                    return leaf;
+                }
+                leaf.on_gesture_with_revision(pan_policy(2.0), (), |event| Some((10, event)))
+                    .id(10)
+                    .padding(if view_changed.get() { 1.0 } else { 0.0 })
+            })
+            .update(move |_, event| output.borrow_mut().push(event))
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+        let started = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+            GestureKind::Pan,
+            GesturePhase::Started,
+            Vector2::new(2.0, 0.0),
+        )));
+        let token = started.token().unwrap();
+        changed.set(true);
+        runtime.refresh();
+        changed.set(false);
+        runtime.refresh();
+        assert_eq!(
+            events
+                .borrow()
+                .iter()
+                .map(|(id, event)| (*id, event.phase()))
+                .collect::<Vec<_>>(),
+            [(10, GesturePhase::Started), (10, GesturePhase::Cancelled)]
+        );
+        assert_eq!(
+            runtime
+                .dispatch_gesture_request(
+                    GestureRequest::new(sample(
+                        GestureKind::Pan,
+                        GesturePhase::Changed,
+                        Vector2::new(10.0, 0.0)
+                    ))
+                    .with_token(token)
+                )
+                .outcome(),
+            &GestureOutcome::Stale
+        );
+    }
+}
+#[test]
+fn container_pinch_and_rotation_use_the_shared_accumulation_and_cancellation_lifecycle() {
+    for (kind, value) in [(GestureKind::Pinch, 1.15), (GestureKind::Rotate, 0.15)] {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let output = events.clone();
+        let bridge = radiant::app(())
+            .view(move |_| {
+                arena_leaf(100.0, Rc::new(Cell::new(0)))
+                    .on_gesture_with_revision(
+                        GesturePolicy::none().recognize(kind, 0.1).unwrap(),
+                        (),
+                        |event| Some((10, event)),
+                    )
+                    .id(10)
+            })
+            .update(move |_, event| output.borrow_mut().push(event))
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+        let started = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+            kind,
+            GesturePhase::Started,
+            Vector2::new(value, 0.0),
+        )));
+        assert_eq!(started.outcome(), &GestureOutcome::AcceptedContainer(10));
+        let token = started.token().unwrap();
+        let cancelled = runtime.dispatch_gesture_request(
+            GestureRequest::new(sample(
+                kind,
+                GesturePhase::Cancelled,
+                Vector2::new(if kind == GestureKind::Pinch { 1.0 } else { 0.0 }, 0.0),
+            ))
+            .with_token(token),
+        );
+        assert_eq!(cancelled.outcome(), &GestureOutcome::AcceptedContainer(10));
+        assert_eq!(cancelled.token(), None);
+        assert_eq!(
+            events
+                .borrow()
+                .iter()
+                .map(|(id, event)| (*id, event.phase()))
+                .collect::<Vec<_>>(),
+            [(10, GesturePhase::Started), (10, GesturePhase::Cancelled)]
+        );
+        assert_eq!(events.borrow()[0].1.accumulated().x, value);
+        assert_eq!(
+            events.borrow()[1].1.cancellation(),
+            Some(radiant::widgets::GestureCancellation::Source)
+        );
+    }
 }

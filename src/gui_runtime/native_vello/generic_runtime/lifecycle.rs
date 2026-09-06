@@ -6,8 +6,7 @@ use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
 use super::native_immediate_transient_stage::NativeImmediateTransientKind;
 use super::native_pointer_ingress::{
-    GestureInput, NativeGestureSample, NativeTouchSample, NativeUnsupportedInput,
-    normalize_gesture, normalize_touch,
+    GestureInput, NativeGestureSample, NativeTouchSample, normalize_gesture, normalize_touch,
 };
 use super::native_resource_maintenance::NATIVE_RESOURCE_MAINTENANCE_INTERVAL;
 use super::runner::select_due_admitted_auxiliary_index;
@@ -63,6 +62,11 @@ fn should_request_native_maximize_redraw(outcome: GenericRouteOutcome) -> bool {
         outcome.native_input_stage_disposition(),
         Some(NativeInputStageDisposition::DeferLowerPriority)
     )
+}
+
+pub(super) struct NativeGestureRoute {
+    pub(super) outcome: GenericRouteOutcome,
+    pub(super) deferred_wheel_effects: super::gpu_surface_wheel::DeferredWheelRouteEffects,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -224,6 +228,9 @@ where
             return;
         };
         let modifiers = self.pointer_modifiers();
+        self.input
+            .native_pointer_ingress
+            .retain_gesture_device(self.core.runtime.retained_gesture_device());
         let normalized = normalize_gesture(
             &mut self.input.native_pointer_ingress,
             device_id,
@@ -232,20 +239,31 @@ where
             modifiers,
             timestamp,
         );
-        if let Ok(Ok(sample)) = normalized {
-            let _ = self.dispatch_native_gesture_sample(sample);
-        } else if let Ok(Err(NativeUnsupportedInput::DesktopPan)) = normalized {
-            // Desktop pan remains an explicit unsupported transport in this
-            // phase, while the native transient is still completed exactly
-            // once.
+        let route = if let Ok(Ok(sample)) = normalized {
+            Some(self.route_native_gesture_sample(sample))
+        } else {
+            // Unsupported desktop pan and malformed transports complete their
+            // ticket once without fabricating a routed gesture.
+            None
+        };
+        let outcome = route
+            .as_ref()
+            .map_or(GenericRouteOutcome::default(), |route| route.outcome);
+        if let Some(outcome) = self.complete_native_immediate_transient_route(ticket, outcome) {
+            if let Some(route) = route {
+                self.apply_deferred_wheel_route_effects(
+                    route.deferred_wheel_effects,
+                    outcome.native_input_stage_disposition(),
+                );
+            }
+            self.handle_route_outcome(event_loop, outcome);
         }
-        let _ = self.complete_native_immediate_transient(ticket);
     }
 
-    fn dispatch_native_gesture_sample(
+    pub(super) fn route_native_gesture_sample(
         &mut self,
         sample: NativeGestureSample,
-    ) -> GestureIngressDisposition {
+    ) -> NativeGestureRoute {
         let phase = match sample.phase {
             winit::event::TouchPhase::Started => crate::gui::pointer_ingress::GesturePhase::Started,
             winit::event::TouchPhase::Moved => crate::gui::pointer_ingress::GesturePhase::Changed,
@@ -265,9 +283,33 @@ where
             Some(sample.timestamp),
             self.input.input_sequence_allocator.allocate(),
         ) else {
-            return GestureIngressDisposition::Invalid;
+            self.core
+                .runtime
+                .reject_native_gesture_continuation(sample.device, sample.kind, phase);
+            self.input
+                .native_pointer_ingress
+                .retain_gesture_device(self.core.runtime.retained_gesture_device());
+            return NativeGestureRoute {
+                outcome: self.core.route_outcome(false),
+                deferred_wheel_effects: Default::default(),
+            };
         };
-        self.core.runtime.dispatch_native_gesture_ingress(gesture)
+        // Earlier coalesced wheel samples route before this boundary; visual
+        // work remains deferred until the same native ticket completes.
+        let deferred_wheel_effects = self.route_pending_wheel_input_for_immediate_transient();
+        let disposition = self.core.runtime.dispatch_native_gesture_ingress(gesture);
+        self.input
+            .native_pointer_ingress
+            .retain_gesture_device(self.core.runtime.retained_gesture_device());
+        let outcome = self.core.route_outcome(matches!(
+            disposition,
+            GestureIngressDisposition::RoutedWidget(_)
+                | GestureIngressDisposition::RoutedContainer(_)
+        ));
+        NativeGestureRoute {
+            outcome,
+            deferred_wheel_effects,
+        }
     }
 }
 

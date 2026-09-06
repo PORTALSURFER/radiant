@@ -50,6 +50,7 @@ impl<Message> UiSurface<Message> {
         );
         traversal.command_scopes.qualify(source);
         traversal.focus_scopes.qualify(source);
+        traversal.qualify_layout_gestures(source);
         result
     }
 
@@ -88,6 +89,7 @@ impl<Message> UiSurface<Message> {
         );
         traversal.command_scopes.qualify(source);
         traversal.focus_scopes.qualify(source);
+        traversal.qualify_layout_gestures(source);
         result
     }
 
@@ -190,7 +192,8 @@ impl<Message> SurfaceNode<Message> {
                 })
             }
             Self::Container(container) => {
-                let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
+                let is_scroll =
+                    begin_container_runtime(container, scroll_stack, child_path, traversal);
                 let focus_order_candidate = split_pane_focus_order_candidate(container);
                 let children = container_layout_children(container, |child_index, child| {
                     child_path.push(child_index);
@@ -225,8 +228,12 @@ impl<Message> SurfaceNode<Message> {
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
             Self::FloatingLayer(layer) => {
                 if layer.interactive {
-                    let is_scroll =
-                        begin_container_runtime(&layer.container, scroll_stack, traversal);
+                    let is_scroll = begin_container_runtime(
+                        &layer.container,
+                        scroll_stack,
+                        child_path,
+                        traversal,
+                    );
                     let focus_order_candidate = split_pane_focus_order_candidate(&layer.container);
                     let children =
                         container_layout_children(&layer.container, |child_index, child| {
@@ -298,7 +305,8 @@ impl<Message> SurfaceNode<Message> {
                 });
             }
             Self::Container(container) => {
-                let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
+                let is_scroll =
+                    begin_container_runtime(container, scroll_stack, child_path, traversal);
                 let focus_order_candidate = split_pane_focus_order_candidate(container);
                 visit_container_children(
                     container,
@@ -322,7 +330,8 @@ impl<Message> SurfaceNode<Message> {
                 if !layer.interactive {
                     return;
                 }
-                let is_scroll = begin_container_runtime(&layer.container, scroll_stack, traversal);
+                let is_scroll =
+                    begin_container_runtime(&layer.container, scroll_stack, child_path, traversal);
                 let focus_order_candidate = split_pane_focus_order_candidate(&layer.container);
                 visit_container_children(
                     &layer.container,
@@ -533,6 +542,7 @@ fn runtime_owned_split_pane_source_evidence<Message>(
 fn begin_container_runtime<Message>(
     container: &SurfaceContainer<Message>,
     scroll_stack: &mut Vec<NodeId>,
+    child_path: &[usize],
     traversal: &mut SurfaceTraversalIndex<Message>,
 ) -> bool {
     let is_scroll = container.policy.kind == ContainerKind::ScrollView;
@@ -563,6 +573,8 @@ fn begin_container_runtime<Message>(
                         .is_some_and(|declaration| declaration.container_id() != container.id);
                     super::SurfaceLayoutInteractionRecord {
                         id: container.id,
+                        path: super::WidgetPath::from_slice(child_path),
+                        gesture_qualified: false,
                         contract_version: capabilities.contract_version,
                         interaction: interaction.clone(),
                         revision: interaction.revision(),

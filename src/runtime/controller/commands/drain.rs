@@ -231,7 +231,7 @@ where
     }
 
     fn runtime_drain_budget(&self) -> (usize, usize, usize) {
-        if self.interaction.pointer.capture.is_some()
+        if (self.gesture_owns_pointer_capture() || self.interaction.pointer.capture.is_some())
             || self.interaction.layout_capture.is_some()
             || self.interaction.drag.session.is_some()
         {

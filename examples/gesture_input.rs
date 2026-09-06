@@ -59,7 +59,7 @@ impl Widget for Pad {
     ) {
     }
 }
-fn exercise() {
+fn exercise(delta: f32, expected: GestureOutcome) {
     let events = Rc::new(RefCell::new(Vec::new()));
     let observed = Rc::clone(&events);
     let mut runtime = SurfaceRuntime::new(
@@ -72,6 +72,14 @@ fn exercise() {
                     |event: GestureEvent| event,
                 )
                 .id(1)
+                .on_gesture_with_revision(
+                    GesturePolicy::none()
+                        .recognize(GestureKind::Pan, 2.0)
+                        .unwrap(),
+                    (),
+                    Some,
+                )
+                .id(10)
             })
             .update(move |_, event| observed.borrow_mut().push(event))
             .into_bridge(),
@@ -92,11 +100,8 @@ fn exercise() {
     assert_eq!(start.outcome(), &GestureOutcome::Pending);
     let token = start.token().unwrap();
     assert_eq!(runtime.focused_widget(), None);
-    let moved = GestureRequest::new(sample(GesturePhase::Changed, 5.0)).with_token(token);
-    assert_eq!(
-        runtime.dispatch_gesture_request(moved).outcome(),
-        &GestureOutcome::Accepted(1)
-    );
+    let moved = GestureRequest::new(sample(GesturePhase::Changed, delta)).with_token(token);
+    assert_eq!(runtime.dispatch_gesture_request(moved).outcome(), &expected);
     let end = runtime.dispatch_gesture_request(
         GestureRequest::new(sample(GesturePhase::Ended, 0.0)).with_token(token),
     );
@@ -115,13 +120,15 @@ fn exercise() {
     );
 }
 fn main() {
-    exercise();
-    println!("Recognized one pan gesture and rejected a replayed continuation.");
+    exercise(5.0, GestureOutcome::Accepted(1));
+    exercise(2.0, GestureOutcome::AcceptedContainer(10));
+    println!("Recognized child and ancestor pan gestures and rejected replayed continuations.");
 }
 #[cfg(test)]
 mod tests {
     #[test]
     fn public_gesture_example_has_one_qualified_lifecycle() {
-        super::exercise();
+        super::exercise(5.0, super::GestureOutcome::Accepted(1));
+        super::exercise(2.0, super::GestureOutcome::AcceptedContainer(10));
     }
 }

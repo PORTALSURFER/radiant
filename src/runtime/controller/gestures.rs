@@ -1,4 +1,4 @@
-//! Qualified gesture lifecycle sharing the existing pointer capture owner.
+//! Bounded widget/ancestor recognition sharing controller capture admission and teardown.
 use super::{SurfaceRuntime, interaction_state::RuntimeManagedCompositionState};
 use crate::{
     gui::pointer_ingress::{
@@ -42,6 +42,8 @@ pub enum GestureOutcome {
     Pending,
     /// One recognized event reached the current widget.
     Accepted(WidgetId),
+    /// One recognized event reached a current container consumer.
+    AcceptedContainer(crate::layout::NodeId),
     /// The sequence ended without crossing its threshold.
     Unrecognized,
     /// No eligible gesture consumer exists at the anchor.
@@ -74,12 +76,44 @@ impl GestureAdmission {
     }
 }
 
-pub(super) struct GestureCapture {
-    widget: WidgetId,
-    kind: &'static str,
+#[derive(Clone)]
+struct GestureTarget {
+    id: WidgetId,
     path: crate::runtime::surface::WidgetPath,
     policy: GesturePolicy,
-    revision: WidgetSemanticsRevision,
+    owner: GestureOwner,
+}
+#[derive(Clone)]
+enum GestureOwner {
+    Widget {
+        kind: &'static str,
+        revision: WidgetSemanticsRevision,
+    },
+    Container {
+        revision: crate::layout::LayoutInteractionRevision,
+        interaction_revision: crate::layout::LayoutInteractionRevision,
+        policy: std::rc::Rc<crate::layout::ContainerPolicy>,
+        contract_version: u16,
+    },
+}
+impl GestureTarget {
+    fn outcome(&self) -> GestureOutcome {
+        match self.owner {
+            GestureOwner::Widget { .. } => GestureOutcome::Accepted(self.id),
+            GestureOwner::Container { .. } => GestureOutcome::AcceptedContainer(self.id),
+        }
+    }
+    fn is_widget(&self) -> bool {
+        matches!(self.owner, GestureOwner::Widget { .. })
+    }
+}
+
+pub(super) struct GestureCapture {
+    target: GestureTarget,
+    // Pending candidates are ordered deepest first. They never own capture.
+    candidates: Vec<GestureTarget>,
+    hit_widget: WidgetId,
+    hit_path: crate::runtime::surface::WidgetPath,
     generation: u64,
     token: GestureSequenceToken,
     sample: GestureIngress,
@@ -88,14 +122,18 @@ pub(super) struct GestureCapture {
     active: bool,
 }
 impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
-    /// Recognize one checked gesture and deliver it through the normal widget mapper.
-    /// Pending gestures do not focus or capture; a threshold crossing claims the
-    /// same pointer capture slot used by existing widget/layout interactions.
+    /// Recognize one checked gesture through widget and ancestor consumers.
+    /// Pending candidates do not focus or capture. The deepest candidate whose
+    /// threshold is crossed claims the sequence through shared controller
+    /// capture admission and teardown; all other pointer consumers are blocked.
     pub fn dispatch_gesture_request(&mut self, request: GestureRequest) -> GestureAdmission {
-        let outcome = self.route_gesture_request(request);
+        let mut admitted_token = None;
+        let outcome = self.route_gesture_request(request, &mut admitted_token);
         let token = if matches!(
             outcome,
-            GestureOutcome::Pending | GestureOutcome::Accepted(_)
+            GestureOutcome::Pending
+                | GestureOutcome::Accepted(_)
+                | GestureOutcome::AcceptedContainer(_)
         ) && !matches!(
             request.sample.phase(),
             GesturePhase::Ended | GesturePhase::Cancelled
@@ -104,7 +142,8 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 .gesture
                 .as_ref()
                 .filter(|capture| {
-                    capture.sample.device() == request.sample.device()
+                    Some(capture.token) == admitted_token
+                        && capture.sample.device() == request.sample.device()
                         && capture.sample.kind() == request.sample.kind()
                 })
                 .map(|capture| capture.token)
@@ -114,7 +153,11 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         GestureAdmission { outcome, token }
     }
 
-    fn route_gesture_request(&mut self, request: GestureRequest) -> GestureOutcome {
+    fn route_gesture_request(
+        &mut self,
+        request: GestureRequest,
+        admitted_token: &mut Option<GestureSequenceToken>,
+    ) -> GestureOutcome {
         if !self.lifecycle_accepts_work() {
             return GestureOutcome::Unavailable;
         }
@@ -151,36 +194,25 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             {
                 return GestureOutcome::Blocked;
             }
-            let Some((policy, revision)) = current.gesture_policy() else {
+            let Some(hit_path) = self.traversal.widgets.paths.current.get(&widget).cloned() else {
                 return GestureOutcome::Unsupported;
             };
-            if policy.threshold(sample.kind()).is_none() {
-                return GestureOutcome::Unsupported;
-            }
-            let kind = current.widget_object().compatibility_kind();
-            let Some(path) = self.traversal.widgets.paths.current.get(&widget).cloned() else {
-                return GestureOutcome::Unsupported;
-            };
-            if self
-                .traversal
-                .widgets
-                .duplicate_widget_ids
-                .contains(&widget)
-                || !self
-                    .surface_widget_mut(widget)
-                    .is_some_and(|widget| widget.has_gesture_handler(policy))
+            let candidates = match self.gesture_candidates(widget, &hit_path, sample.kind(), anchor)
             {
+                Ok(candidates) => candidates,
+                Err(outcome) => return outcome,
+            };
+            let Some(target) = candidates.first().cloned() else {
                 return GestureOutcome::Unsupported;
-            }
+            };
             let Ok(token) = self.interaction.pointer.ingress.allocator.issue() else {
                 return GestureOutcome::Unavailable;
             };
             GestureCapture {
-                widget,
-                kind,
-                path,
-                policy,
-                revision,
+                target,
+                candidates,
+                hit_widget: widget,
+                hit_path,
                 generation: self.refresh_counters().runtime_projection,
                 token: GestureSequenceToken(token),
                 sample,
@@ -210,17 +242,18 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             };
             capture
         };
+        *admitted_token = Some(capture.token);
         if !self.gesture_capture_is_current(&capture) {
             self.finish_gesture_capture(capture, GestureCancellation::Retired);
             return GestureOutcome::Stale;
         }
         if sample.phase() == GesturePhase::Cancelled {
             capture.sample = sample;
-            let widget = capture.widget;
+            let outcome = capture.target.outcome();
             let active = capture.active;
             self.finish_gesture_capture(capture, GestureCancellation::Source);
             return if active {
-                GestureOutcome::Accepted(widget)
+                outcome
             } else {
                 GestureOutcome::Unrecognized
             };
@@ -250,14 +283,17 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 GestureKind::Pinch => f64::from(accumulated.x - 1.0).abs(),
                 GestureKind::Rotate => f64::from(accumulated.x).abs(),
             };
-            if magnitude
-                < f64::from(
-                    capture
+            let winner = capture
+                .candidates
+                .iter()
+                .find(|target| {
+                    target
                         .policy
                         .threshold(sample.kind())
-                        .unwrap_or(f32::INFINITY),
-                )
-            {
+                        .is_some_and(|threshold| magnitude >= f64::from(threshold))
+                })
+                .cloned();
+            let Some(winner) = winner else {
                 if !terminal {
                     self.interaction.gesture = Some(capture);
                 }
@@ -266,18 +302,24 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 } else {
                     GestureOutcome::Pending
                 };
-            }
+            };
+            capture.target = winner;
             if !self.gesture_pending_target_is_current(&capture) {
                 return GestureOutcome::Stale;
             }
-            if self.gesture_has_incumbent() {
+            if self.gesture_has_incumbent()
+                || self
+                    .accessibility_incumbent_owner(capture.hit_widget)
+                    .is_some()
+            {
                 return GestureOutcome::Blocked;
             }
-            if self
-                .surface_widget(capture.widget)
-                .is_some_and(|widget| widget.is_focusable())
+            if capture.target.is_widget()
+                && self
+                    .surface_widget(capture.target.id)
+                    .is_some_and(|widget| widget.is_focusable())
             {
-                let Some(target) = self.focus_target(capture.widget) else {
+                let Some(target) = self.focus_target(capture.target.id) else {
                     return GestureOutcome::Stale;
                 };
                 match self.transfer_focus(&target) {
@@ -288,20 +330,25 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             if !self.gesture_capture_is_current(&capture)
                 || !self.gesture_pending_target_is_current(&capture)
                 || self.gesture_has_incumbent()
+                || self
+                    .accessibility_incumbent_owner(capture.hit_widget)
+                    .is_some()
             {
                 return GestureOutcome::Stale;
             }
-            if !self
-                .surface_widget_mut(capture.widget)
-                .is_some_and(|widget| widget.has_gesture_handler(capture.policy))
-            {
+            if !self.gesture_handler_available(&capture.target) {
                 return GestureOutcome::Unsupported;
             }
             capture.active = true;
-            self.interaction.pointer.capture = Some(capture.widget);
-            self.interaction.pointer.capture_button = None;
+            capture.candidates.clear();
+            if capture.target.is_widget() {
+                self.interaction.pointer.capture = Some(capture.target.id);
+                self.interaction.pointer.capture_button = None;
+            }
         }
-        let widget = capture.widget;
+        let target = capture.target.clone();
+        let token = capture.token;
+        let outcome = target.outcome();
         let event = GestureEvent {
             sample,
             anchor: capture.anchor,
@@ -314,51 +361,155 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             cancellation: None,
         };
         if terminal && was_active {
-            self.interaction.pointer.capture = None;
-            self.interaction.pointer.capture_button = None;
-            self.interaction.pointer.capture_state = None;
-            return if self.deliver_gesture(widget, event) {
-                GestureOutcome::Accepted(widget)
+            self.clear_gesture_pointer_capture(&target);
+            return if self.deliver_gesture(&target, event) {
+                outcome
             } else {
                 GestureOutcome::Unsupported
             };
         }
         self.interaction.gesture = Some(capture);
-        if !self.deliver_gesture(widget, event) {
+        if !self.deliver_gesture(&target, event) {
             self.cancel_gesture_capture(GestureCancellation::Retired);
             return GestureOutcome::Unsupported;
         }
-        // A threshold crossed on Ended still has a complete Started/Ended lifecycle.
+        // A reducer can retire this sequence or admit another one. Never end
+        // a replacement sequence solely because it selected the same node.
         if terminal
             && self
                 .interaction
                 .gesture
                 .as_ref()
-                .is_some_and(|capture| capture.widget == widget)
+                .is_some_and(|capture| capture.token == token)
         {
             self.interaction.gesture = None;
-            if self.interaction.pointer.capture == Some(widget) {
-                self.interaction.pointer.capture = None;
-                self.interaction.pointer.capture_state = None;
-            }
-            if !was_active {
-                self.deliver_gesture(
-                    widget,
-                    GestureEvent {
-                        phase: GesturePhase::Ended,
-                        ..event
-                    },
-                );
+            self.clear_gesture_pointer_capture(&target);
+            if !self.deliver_gesture(
+                &target,
+                GestureEvent {
+                    phase: GesturePhase::Ended,
+                    ..event
+                },
+            ) {
+                return GestureOutcome::Unsupported;
             }
         }
-        GestureOutcome::Accepted(widget)
+        outcome
     }
 
+    fn gesture_candidates(
+        &mut self,
+        widget: WidgetId,
+        path: &crate::runtime::surface::WidgetPath,
+        kind: GestureKind,
+        anchor: Point,
+    ) -> Result<Vec<GestureTarget>, GestureOutcome> {
+        if self
+            .traversal
+            .widgets
+            .duplicate_widget_ids
+            .contains(&widget)
+        {
+            return Err(GestureOutcome::Unsupported);
+        }
+        let mut candidates = Vec::new();
+        if let Some(current) = self.surface_widget(widget)
+            && let Some((policy, revision)) = current.gesture_policy()
+            && policy.threshold(kind).is_some()
+        {
+            let target = GestureTarget {
+                id: widget,
+                path: path.clone(),
+                policy,
+                owner: GestureOwner::Widget {
+                    kind: current.widget_object().compatibility_kind(),
+                    revision,
+                },
+            };
+            if self.gesture_handler_available(&target) {
+                candidates.push(target);
+            }
+        }
+        for record in &self.traversal.containers.layout_interactions {
+            if !path.as_slice().starts_with(record.path.as_slice())
+                || !self
+                    .layout
+                    .rects
+                    .get(&record.id)
+                    .is_some_and(|bounds| bounds.contains(anchor))
+            {
+                continue;
+            }
+            let facets = record.interaction.capabilities_v2();
+            let Some(gestures) = facets.gestures() else {
+                continue;
+            };
+            let policy = gestures.policy();
+            if policy.threshold(kind).is_none() {
+                continue;
+            }
+            if !record.gesture_qualified {
+                return Err(GestureOutcome::Unsupported);
+            }
+            if candidates.len() == 64
+                || self
+                    .traversal
+                    .containers
+                    .layout_interactions
+                    .iter()
+                    .filter(|other| other.id == record.id)
+                    .count()
+                    != 1
+            {
+                return Err(GestureOutcome::Unsupported);
+            }
+            let Some(container) = self.surface.find_container_at_path(&record.path) else {
+                continue;
+            };
+            // Custom measure/place policies expose no equality revision. They
+            // cannot authorize retained container gesture ownership yet.
+            if container.revision().layout_policy.is_some() {
+                continue;
+            }
+            candidates.push(GestureTarget {
+                id: record.id,
+                path: record.path.clone(),
+                policy,
+                owner: GestureOwner::Container {
+                    revision: gestures.revision(),
+                    interaction_revision: record.revision.clone(),
+                    policy: std::rc::Rc::new(container.revision().policy.clone()),
+                    contract_version: record.contract_version,
+                },
+            });
+        }
+        candidates.sort_by_key(|target| std::cmp::Reverse(target.path.as_slice().len()));
+        Ok(candidates)
+    }
     fn gesture_pending_target_is_current(&self, capture: &GestureCapture) -> bool {
         self.layout_target_at(capture.anchor).is_none()
+            && (capture.target.is_widget()
+                || self
+                    .layout
+                    .rects
+                    .get(&capture.target.id)
+                    .is_some_and(|bounds| bounds.contains(capture.anchor)))
+            && self
+                .surface_widget(capture.hit_widget)
+                .is_some_and(|widget| {
+                    let common = widget.widget_object().common();
+                    !common.state.disabled && !common.state.read_only
+                })
             && self.scroll_affordance_at(capture.anchor).is_none()
+            && self
+                .traversal
+                .widgets
+                .paths
+                .current
+                .get(&capture.hit_widget)
+                == Some(&capture.hit_path)
             && self.widget_at_for_input(capture.anchor, &WidgetInput::pointer_move(capture.anchor))
-                == Some(capture.widget)
+                == Some(capture.hit_widget)
     }
     fn gesture_has_incumbent(&self) -> bool {
         matches!(
@@ -371,42 +522,156 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             || self.interaction.composition.managed_composition
                 != RuntimeManagedCompositionState::Idle
     }
+    fn gesture_target_matches_surface(
+        target: &GestureTarget,
+        surface: &crate::runtime::UiSurface<Message>,
+        paths: &std::collections::HashMap<WidgetId, crate::runtime::WidgetPath>,
+        same_projection: bool,
+    ) -> bool {
+        match &target.owner {
+            GestureOwner::Widget { kind, revision } => {
+                paths.get(&target.id) == Some(&target.path)
+                    && surface
+                        .find_widget_at_path(target.id, &target.path)
+                        .is_some_and(|widget| {
+                            let common = widget.widget_object().common();
+                            !common.state.disabled
+                                && !common.state.read_only
+                                && widget.widget_object().compatibility_kind() == *kind
+                                && widget.gesture_policy().is_some_and(|(policy, current)| {
+                                    policy == target.policy
+                                        && ((revision.is_exact() && current == *revision)
+                                            || (!revision.is_exact() && same_projection))
+                                })
+                        })
+            }
+            GestureOwner::Container {
+                revision,
+                interaction_revision,
+                policy,
+                contract_version,
+            } => surface
+                .find_container_at_path(&target.path)
+                .is_some_and(|container| {
+                    container.node_id() == target.id
+                        && container.revision().layout_policy.is_none()
+                        && container.revision().policy == policy.as_ref()
+                        && container
+                            .revision()
+                            .layout_capabilities
+                            .is_some_and(|capabilities| {
+                                capabilities.contract_version == *contract_version
+                                    && capabilities.interaction.as_ref().is_some_and(
+                                        |interaction| {
+                                            let current = interaction.revision();
+                                            ((interaction_revision.is_exact()
+                                                && current == *interaction_revision)
+                                                || (!interaction_revision.is_exact()
+                                                    && same_projection))
+                                                && interaction
+                                                    .capabilities_v2()
+                                                    .gestures()
+                                                    .is_some_and(|gestures| {
+                                                        gestures.policy() == target.policy
+                                                            && ((revision.is_exact()
+                                                                && gestures.revision()
+                                                                    == *revision)
+                                                                || (!revision.is_exact()
+                                                                    && same_projection))
+                                                    })
+                                        },
+                                    )
+                            })
+                }),
+        }
+    }
     fn gesture_capture_is_current(&self, capture: &GestureCapture) -> bool {
-        if !self.lifecycle_accepts_work()
-            || !self.layout.rects.contains_key(&capture.widget)
-            || self
+        let current = |target: &GestureTarget| {
+            self.layout.rects.get(&target.id).is_some_and(|bounds| {
+                bounds.min.is_finite()
+                    && bounds.max.is_finite()
+                    && bounds.width() > 0.0
+                    && bounds.height() > 0.0
+            }) && !self
                 .traversal
                 .widgets
                 .duplicate_widget_ids
-                .contains(&capture.widget)
-            || self.traversal.widgets.paths.current.get(&capture.widget) != Some(&capture.path)
-        {
-            return false;
-        }
-        let Some(widget) = self.surface_widget(capture.widget) else {
-            return false;
+                .contains(&target.id)
+                && (!matches!(target.owner, GestureOwner::Container { .. })
+                    || self
+                        .traversal
+                        .containers
+                        .layout_interactions
+                        .iter()
+                        .filter(|record| record.id == target.id && record.gesture_qualified)
+                        .count()
+                        == 1)
+                && Self::gesture_target_matches_surface(
+                    target,
+                    &self.surface,
+                    &self.traversal.widgets.paths.current,
+                    capture.generation == self.refresh_counters().runtime_projection,
+                )
         };
-        let common = widget.widget_object().common();
-        !common.state.disabled
-            && !common.state.read_only
-            && widget.widget_object().compatibility_kind() == capture.kind
-            && (!capture.active || self.interaction.pointer.capture == Some(capture.widget))
-            && widget.gesture_policy().is_some_and(|(policy, revision)| {
-                policy == capture.policy
-                    && (revision == capture.revision
-                        || (!capture.revision.is_exact()
-                            && capture.generation == self.refresh_counters().runtime_projection))
-            })
+        self.lifecycle_accepts_work()
+            && current(&capture.target)
+            && (capture.active || capture.candidates.iter().all(current))
+            && (!capture.active
+                || !capture.target.is_widget()
+                || self.interaction.pointer.capture == Some(capture.target.id))
     }
-    fn deliver_gesture(&mut self, widget: WidgetId, event: GestureEvent) -> bool {
-        let Some(dispatch) = self
-            .surface_widget_mut(widget)
-            .and_then(|widget| widget.dispatch_gesture(event))
-        else {
+    fn gesture_handler_available(&mut self, target: &GestureTarget) -> bool {
+        if target.is_widget() {
+            self.surface_widget_mut(target.id)
+                .is_some_and(|widget| widget.has_gesture_handler(target.policy))
+        } else {
+            self.surface
+                .find_container_at_path(&target.path)
+                .and_then(|container| container.revision().layout_capabilities)
+                .and_then(|capabilities| capabilities.interaction.as_ref())
+                .and_then(|interaction| interaction.capabilities_v2().gestures())
+                .is_some_and(|gestures| gestures.policy() == target.policy)
+        }
+    }
+    fn gesture_dispatch(
+        &mut self,
+        target: &GestureTarget,
+        event: GestureEvent,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        if target.is_widget() {
+            self.surface_widget_mut(target.id)
+                .and_then(|widget| widget.dispatch_gesture(event))
+        } else {
+            let interaction = self
+                .surface
+                .find_container_at_path(&target.path)?
+                .revision()
+                .layout_capabilities?
+                .interaction
+                .clone()?;
+            let gestures = interaction.capabilities_v2().gestures()?;
+            if gestures.policy() != target.policy {
+                return None;
+            }
+            Some(gestures.dispatch(event).map_or(
+                WidgetDispatchResult::NoOutput,
+                WidgetDispatchResult::Message,
+            ))
+        }
+    }
+    fn deliver_gesture(&mut self, target: &GestureTarget, event: GestureEvent) -> bool {
+        let Some(dispatch) = self.gesture_dispatch(target, event) else {
             return false;
         };
         self.finish_gesture_dispatch(dispatch);
         true
+    }
+    fn clear_gesture_pointer_capture(&mut self, target: &GestureTarget) {
+        if target.is_widget() && self.interaction.pointer.capture == Some(target.id) {
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_button = None;
+            self.interaction.pointer.capture_state = None;
+        }
     }
     pub(super) fn finish_gesture_dispatch(&mut self, dispatch: WidgetDispatchResult<Message>) {
         match dispatch {
@@ -439,34 +704,25 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         capture: GestureCapture,
         reason: GestureCancellation,
     ) -> Option<WidgetDispatchResult<Message>> {
-        if capture.active && self.interaction.pointer.capture == Some(capture.widget) {
-            self.interaction.pointer.capture = None;
-            self.interaction.pointer.capture_button = None;
-            self.interaction.pointer.capture_state = None;
-        }
+        self.clear_gesture_pointer_capture(&capture.target);
         if capture.active
-            && self.surface_widget(capture.widget).is_some_and(|widget| {
-                widget.widget_object().compatibility_kind() == capture.kind
-                    && self.traversal.widgets.paths.current.get(&capture.widget)
-                        == Some(&capture.path)
-                    && widget.gesture_policy().is_some_and(|(policy, revision)| {
-                        policy == capture.policy
-                            && (revision == capture.revision
-                                || (!capture.revision.is_exact()
-                                    && capture.generation
-                                        == self.refresh_counters().runtime_projection))
-                    })
-            })
+            && Self::gesture_target_matches_surface(
+                &capture.target,
+                &self.surface,
+                &self.traversal.widgets.paths.current,
+                capture.generation == self.refresh_counters().runtime_projection,
+            )
         {
-            return self.surface_widget_mut(capture.widget).and_then(|widget| {
-                widget.dispatch_gesture(GestureEvent {
+            return self.gesture_dispatch(
+                &capture.target,
+                GestureEvent {
                     sample: capture.sample,
                     anchor: capture.anchor,
                     phase: GesturePhase::Cancelled,
                     accumulated: capture.accumulated,
                     cancellation: Some(reason),
-                })
-            });
+                },
+            );
         }
         None
     }
@@ -492,33 +748,25 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         let Some(capture) = self.interaction.gesture.as_ref() else {
             return;
         };
-        let compatible = !retired.contains(&capture.widget)
-            && paths.get(&capture.widget) == Some(&capture.path)
-            && next
-                .find_widget_at_path(capture.widget, &capture.path)
-                .is_some_and(|widget| {
-                    let common = widget.widget_object().common();
-                    common.id == capture.widget
-                        && !common.state.disabled
-                        && !common.state.read_only
-                        && widget.widget_object().compatibility_kind() == capture.kind
-                        && widget.gesture_policy().is_some_and(|(policy, revision)| {
-                            policy == capture.policy && revision == capture.revision
-                        })
-                });
-        if compatible {
+        let has_container = !capture.target.is_widget()
+            || capture.candidates.iter().any(|target| !target.is_widget());
+        let unambiguous = !has_container || next.gesture_source_is_unambiguous();
+        let compatible = |target: &GestureTarget| {
+            unambiguous
+                && (!target.is_widget() || !retired.contains(&target.id))
+                && Self::gesture_target_matches_surface(target, next, paths, false)
+        };
+        if compatible(&capture.target)
+            && (capture.active || capture.candidates.iter().all(compatible))
+        {
             return;
         }
         let Some(capture) = self.interaction.gesture.take() else {
             return;
         };
+        self.clear_gesture_pointer_capture(&capture.target);
         if !capture.active {
             return;
-        }
-        if self.interaction.pointer.capture == Some(capture.widget) {
-            self.interaction.pointer.capture = None;
-            self.interaction.pointer.capture_button = None;
-            self.interaction.pointer.capture_state = None;
         }
         let event = GestureEvent {
             sample: capture.sample,
@@ -527,9 +775,8 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             accumulated: capture.accumulated,
             cancellation: Some(GestureCancellation::Retired),
         };
-        if let Some(WidgetDispatchResult::Message(message)) = self
-            .surface_widget_mut(capture.widget)
-            .and_then(|widget| widget.dispatch_gesture(event))
+        if let Some(WidgetDispatchResult::Message(message)) =
+            self.gesture_dispatch(&capture.target, event)
         {
             terminal_messages.push(message);
         }
@@ -557,12 +804,35 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                     | WidgetInput::Wheel { .. }
             )
     }
-    pub(super) fn gesture_owns_pointer_capture(&self) -> bool {
+    pub(crate) fn gesture_owns_pointer_capture(&self) -> bool {
         self.interaction
             .gesture
             .as_ref()
             .is_some_and(|capture| capture.active)
     }
+    pub(crate) fn retained_gesture_device(
+        &self,
+    ) -> Option<crate::gui::pointer_ingress::InputDeviceId> {
+        self.interaction
+            .gesture
+            .as_ref()
+            .map(|capture| capture.sample.device())
+    }
+    pub(crate) fn reject_native_gesture_continuation(
+        &mut self,
+        device: crate::gui::pointer_ingress::InputDeviceId,
+        kind: GestureKind,
+        phase: GesturePhase,
+    ) {
+        if phase != GesturePhase::Started
+            && self.interaction.gesture.as_ref().is_some_and(|capture| {
+                capture.sample.device() == device && capture.sample.kind() == kind
+            })
+        {
+            self.cancel_gesture_capture(GestureCancellation::InvalidSample);
+        }
+    }
+
     pub(crate) fn dispatch_native_gesture_ingress(
         &mut self,
         sample: GestureIngress,
@@ -585,6 +855,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         };
         match self.dispatch_gesture_request(request).outcome {
             GestureOutcome::Accepted(widget) => GestureIngressDisposition::RoutedWidget(widget),
+            GestureOutcome::AcceptedContainer(node) => {
+                GestureIngressDisposition::RoutedContainer(node)
+            }
             GestureOutcome::Pending => GestureIngressDisposition::Pending,
             GestureOutcome::Unrecognized => GestureIngressDisposition::Unrecognized,
             GestureOutcome::Unsupported => GestureIngressDisposition::AdmittedUnsupportedConsumer,

@@ -679,7 +679,9 @@ where
 
     pub(super) fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
         let has_delta = delta.x.abs().max(delta.y.abs()) > f32::EPSILON;
-        has_delta && self.paint_plan_has_coalescing_gpu_surface_at(position, delta)
+        !self.core.runtime.gesture_owns_pointer_capture()
+            && has_delta
+            && self.paint_plan_has_coalescing_gpu_surface_at(position, delta)
     }
 
     #[cfg(test)]
@@ -691,6 +693,7 @@ where
     ) -> bool {
         let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
         is_vertical
+            && !self.core.runtime.gesture_owns_pointer_capture()
             && !self
                 .core
                 .runtime
@@ -710,6 +713,7 @@ where
     ) -> bool {
         let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
         is_vertical
+            && !self.core.runtime.gesture_owns_pointer_capture()
             && !self
                 .core
                 .runtime

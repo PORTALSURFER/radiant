@@ -181,7 +181,7 @@ where
     }
 
     pub(crate) fn interactive_pointer_route_active(&self) -> bool {
-        self.interaction.pointer.capture.is_some()
+        (self.gesture_owns_pointer_capture() || self.interaction.pointer.capture.is_some())
             || self.interaction.layout_capture.is_some()
             || self.interaction.drag.session.is_some()
     }

@@ -775,6 +775,11 @@ impl LayoutInteractionRevision {
 /// [`LayoutEventContext`]. Version 4 additionally supplies the optional
 /// runtime-owned [`LayoutContainerStateContext`].
 pub trait LayoutInteraction<Message> {
+    /// Optional borrowed interaction facets. Unsupported versions fail closed.
+    fn capabilities_v2(&self) -> LayoutInteractionCapabilities<'_, Message> {
+        LayoutInteractionCapabilities::none()
+    }
+
     /// Return typed revision evidence for this capability's layout behavior.
     ///
     /// Existing implementations inherit the conservative default. A custom
@@ -840,6 +845,57 @@ pub trait LayoutInteraction<Message> {
         _state: &mut LayoutContainerStateContext<'_>,
     ) {
         self.handle_layout_input(input, context);
+    }
+}
+
+/// A container gesture consumer. The controller owns recognition and capture.
+/// Exact revisions must include every behavior and mapper change.
+pub trait LayoutGestures<Message> {
+    /// Equality evidence for this gesture consumer.
+    fn revision(&self) -> LayoutInteractionRevision {
+        LayoutInteractionRevision::conservative()
+    }
+    /// Checked family thresholds, in logical gesture units.
+    fn policy(&self) -> crate::widgets::GesturePolicy;
+    /// Deliver one recognized lifecycle event through the application reducer.
+    fn dispatch(&self, event: crate::widgets::GestureEvent) -> Option<Message>;
+}
+
+/// Borrowed optional facets of a layout interaction. Existing descriptor
+/// struct literals and custom layout implementations remain source compatible.
+pub struct LayoutInteractionCapabilities<'a, Message> {
+    version: u16,
+    gestures: Option<&'a dyn LayoutGestures<Message>>,
+}
+impl<'a, Message> LayoutInteractionCapabilities<'a, Message> {
+    /// Construct the supported empty descriptor.
+    pub const fn none() -> Self {
+        Self {
+            version: 1,
+            gestures: None,
+        }
+    }
+    /// Select an explicit contract version. Only version 1 is supported.
+    pub const fn with_contract_version(mut self, version: u16) -> Self {
+        self.version = version;
+        self
+    }
+    /// Register a gesture consumer without declaring pointer hit regions.
+    pub fn with_gestures(mut self, gestures: &'a dyn LayoutGestures<Message>) -> Self {
+        self.gestures = Some(gestures);
+        self
+    }
+    /// Return the registered consumer when this descriptor is supported.
+    pub fn gestures(&self) -> Option<&'a dyn LayoutGestures<Message>> {
+        (self.version == 1).then_some(self.gestures).flatten()
+    }
+    pub(crate) const fn is_supported(&self) -> bool {
+        self.version == 1
+    }
+}
+impl<Message> Default for LayoutInteractionCapabilities<'_, Message> {
+    fn default() -> Self {
+        Self::none()
     }
 }
 

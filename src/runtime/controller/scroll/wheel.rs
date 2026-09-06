@@ -843,7 +843,10 @@ where
         point: Point,
         sample: WheelSample,
     ) -> bool {
-        if sample.phase() != Some(WheelPhase::Changed) || !sample.is_valid() {
+        if self.gesture_owns_pointer_capture()
+            || sample.phase() != Some(WheelPhase::Changed)
+            || !sample.is_valid()
+        {
             return false;
         }
 

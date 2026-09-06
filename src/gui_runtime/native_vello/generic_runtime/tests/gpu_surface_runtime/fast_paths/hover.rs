@@ -445,3 +445,125 @@ impl Widget for TestPointerMoveWidget {
     ) {
     }
 }
+
+#[test]
+fn native_container_gesture_blocks_hover_and_late_wheel_replay() {
+    use crate::gui_runtime::native_vello::generic_runtime::native_pointer_ingress::NativeGestureSample;
+    use crate::{
+        application::{IntoView, ViewNode},
+        gui::pointer_ingress::{GestureKind, GestureUnit, InputDeviceId},
+        widgets::GesturePolicy,
+    };
+    use winit::event::{MouseScrollDelta, TouchPhase};
+    struct Bridge {
+        inner: GpuWheelBridge,
+        events: std::rc::Rc<std::cell::Cell<usize>>,
+    }
+    impl RuntimeBridge<GpuWheelMessage> for Bridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<GpuWheelMessage>> {
+            let root = Arc::unwrap_or_clone(self.inner.project_surface()).into_root();
+            let events = self.events.clone();
+            let region = ViewNode::from(root)
+                .on_gesture_with_revision(
+                    GesturePolicy::none()
+                        .recognize(GestureKind::Pinch, 0.1)
+                        .unwrap(),
+                    (),
+                    move |_| {
+                        events.set(events.get() + 1);
+                        None
+                    },
+                )
+                .id(100);
+            crate::runtime::test_arc_surface(UiSurface::new(region.into_node()))
+        }
+        fn reduce_message(&mut self, message: GpuWheelMessage) {
+            self.inner.reduce_message(message);
+        }
+    }
+    let events = std::rc::Rc::new(std::cell::Cell::new(0));
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        Bridge {
+            inner: GpuWheelBridge::default(),
+            events: events.clone(),
+        },
+        Vector2::new(320.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(20.0, 20.0);
+    runner.input.last_cursor = Some(point);
+    runner.core.set_current_pointer_position(Some(point));
+    assert!(runner.can_fast_path_native_hover_move(point));
+    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, -40.0), Default::default());
+    assert_eq!(runner.core.runtime.bridge().inner.wheel_count, 0);
+    runner.frame.scene_texture_dirty = false;
+    let device = runner
+        .input
+        .native_pointer_ingress
+        .retain_device(
+            winit::event::DeviceId::dummy(),
+            crate::gui::pointer_ingress::DeviceKind::Trackpad,
+        )
+        .unwrap();
+    let sample = |phase, value| NativeGestureSample {
+        kind: GestureKind::Pinch,
+        unit: GestureUnit::Scale,
+        value,
+        phase,
+        device,
+        modifiers: Default::default(),
+        timestamp: crate::gui::input::InputTimestamp::capture(),
+    };
+    let started = runner.route_native_gesture_sample(sample(TouchPhase::Started, 1.2));
+    assert!(started.outcome.routed);
+    assert!(started.outcome.needs_redraw());
+    assert!(started.deferred_wheel_effects.gpu_surface.is_some());
+    assert!(
+        !runner.frame.scene_texture_dirty,
+        "lower-stage visual work waits for ticket completion"
+    );
+    assert_eq!(runner.core.runtime.bridge().inner.wheel_count, 1);
+    assert_eq!(runner.core.runtime.pointer_capture(), None);
+    assert!(!runner.can_fast_path_native_hover_move(point));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(Some(point), Point::new(30.0, 20.0)));
+    assert!(!runner.can_coalesce_gpu_surface_wheel(point, Vector2::new(0.0, -40.0)));
+    runner.route_native_mouse_wheel(MouseScrollDelta::LineDelta(0.0, -2.0));
+    assert!(runner.input.pending_gpu_surface_wheel.is_none());
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert_eq!(runner.core.runtime.bridge().inner.wheel_count, 1);
+    let ended = runner.route_native_gesture_sample(sample(TouchPhase::Ended, 1.0));
+    assert!(ended.outcome.routed);
+    runner.flush_pending_wheel_input_now();
+    assert_eq!(events.get(), 2);
+    assert_eq!(runner.core.runtime.bridge().inner.wheel_count, 1);
+    assert!(runner.can_fast_path_native_hover_move(point));
+    let again = runner.route_native_gesture_sample(sample(TouchPhase::Started, 1.2));
+    assert!(again.outcome.routed);
+    assert_eq!(events.get(), 3);
+    let invalid_start = runner.route_native_gesture_sample(sample(TouchPhase::Started, f32::NAN));
+    assert!(!invalid_start.outcome.routed);
+    assert_eq!(events.get(), 3);
+    let foreign = runner.route_native_gesture_sample(NativeGestureSample {
+        device: InputDeviceId::from_host(2).unwrap(),
+        ..sample(TouchPhase::Ended, f32::NAN)
+    });
+    assert!(!foreign.outcome.routed);
+    assert_eq!(runner.core.runtime.retained_gesture_device(), Some(device));
+    let malformed = crate::gui_runtime::native_vello::generic_runtime::native_pointer_ingress::normalize_gesture(
+        &mut runner.input.native_pointer_ingress, winit::event::DeviceId::dummy(),
+        crate::gui_runtime::native_vello::generic_runtime::native_pointer_ingress::GestureInput::Pinch { delta: f64::NAN, phase: TouchPhase::Ended },
+        crate::theme::DpiScale::ONE, Default::default(), crate::gui::input::InputTimestamp::capture(),
+    ).unwrap().unwrap();
+    let rejected = runner.route_native_gesture_sample(malformed);
+    assert!(!rejected.outcome.routed);
+    assert_eq!(runner.core.runtime.retained_gesture_device(), None);
+    assert_eq!(
+        events.get(),
+        4,
+        "malformed matching terminal cancels once using the last valid event"
+    );
+    runner.route_native_gesture_sample(malformed);
+    assert_eq!(events.get(), 4);
+    assert!(runner.can_fast_path_native_hover_move(point));
+}

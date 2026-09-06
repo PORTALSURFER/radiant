@@ -92,7 +92,7 @@ where
         };
 
         if self.interaction.layout_capture.is_some()
-            || self.interaction.pointer.capture.is_some()
+            || (self.gesture_owns_pointer_capture() || self.interaction.pointer.capture.is_some())
             || self.interaction.pointer.managed_capture.is_some()
             || self.interaction.pointer.scroll_drag_capture.is_some()
             || !delta.is_finite()

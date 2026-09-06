@@ -147,7 +147,7 @@ where
         let outcome =
             self.route_native_pointer_move(position, modifiers, timestamp, sequence_range);
         self.commit_accepted_native_text_pointer_caret();
-        if self.core.runtime.pointer_capture().is_none() {
+        if !self.core.runtime.interactive_pointer_route_active() {
             self.update_native_cursor_at_last_position();
         }
         maybe_log_route_profile("pointer_move", started.elapsed(), outcome);

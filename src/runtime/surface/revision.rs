@@ -111,6 +111,30 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
         if previous.has_interaction() != current.has_interaction() {
             return WidgetRevisionEffect::Structural;
         }
+        let mut gesture_changed = false;
+        if let (Some(previous), Some(current)) = (&previous.interaction, &current.interaction) {
+            let previous = previous.capabilities_v2();
+            let current = current.capabilities_v2();
+            if !previous.is_supported() || !current.is_supported() {
+                return WidgetRevisionEffect::Structural;
+            }
+            match (previous.gestures(), current.gestures()) {
+                (Some(previous), Some(current)) => {
+                    let previous_revision = previous.revision();
+                    let current_revision = current.revision();
+                    if !previous_revision.is_exact() || !current_revision.is_exact() {
+                        return WidgetRevisionEffect::Structural;
+                    }
+                    if previous_revision != current_revision
+                        || previous.policy() != current.policy()
+                    {
+                        gesture_changed = true;
+                    }
+                }
+                (None, None) => {}
+                _ => return WidgetRevisionEffect::Structural,
+            }
+        }
         let (Some(previous), Some(current)) = (
             self.layout_interaction_revision(),
             other.layout_interaction_revision(),
@@ -119,7 +143,7 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
         };
         if !previous.is_exact() || !current.is_exact() {
             WidgetRevisionEffect::Structural
-        } else if previous == current {
+        } else if previous == current && !gesture_changed {
             WidgetRevisionEffect::Unchanged
         } else {
             WidgetRevisionEffect::Interaction
@@ -132,6 +156,16 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
             .flatten()
             .any(|capabilities| {
                 !supports_layout_capabilities_contract(capabilities.contract_version)
+                    || capabilities
+                        .interaction
+                        .as_ref()
+                        .is_some_and(|interaction| {
+                            let facets = interaction.capabilities_v2();
+                            !facets.is_supported()
+                                || facets
+                                    .gestures()
+                                    .is_some_and(|gestures| !gestures.revision().is_exact())
+                        })
                     || capabilities
                         .interaction_revision()
                         .is_some_and(|revision| !revision.is_exact())

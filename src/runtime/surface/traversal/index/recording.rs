@@ -5,6 +5,29 @@ use super::{
 use std::collections::hash_map::Entry;
 
 impl<Message> SurfaceTraversalIndex<Message> {
+    pub(in crate::runtime) fn qualify_layout_gestures(
+        &mut self,
+        source: &crate::runtime::surface::SourceTraversalIndex,
+    ) {
+        if !self
+            .layout_interactions
+            .iter()
+            .any(|record| record.interaction.capabilities_v2().gestures().is_some())
+        {
+            return;
+        }
+        let mut seen = std::collections::HashSet::new();
+        let qualified = source.records.len() <= 65_536
+            && source
+                .records
+                .iter()
+                .all(|record| seen.insert(record.node_id));
+        for record in &mut self.layout_interactions {
+            record.gesture_qualified =
+                qualified && crate::layout::supports_layout_input_contract(record.contract_version);
+        }
+    }
+
     pub(in crate::runtime) fn record_container(
         &mut self,
         record: SurfaceContainerTraversalRecord<'_, Message>,

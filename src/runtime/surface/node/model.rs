@@ -84,6 +84,9 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) animation_feedback: Vec<crate::animation::FeedbackAnimation>,
     pub(in crate::runtime::surface) animation_valid: bool,
     pub(in crate::runtime::surface) animation_values: Vec<(u64, f64)>,
+    pub(in crate::runtime::surface) resource_demand:
+        Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+    pub(in crate::runtime::surface) has_resource_view_demand: bool,
 }
 
 /// Runtime-internal named construction fields for a [`SurfaceContainer`].
@@ -109,6 +112,10 @@ impl<Message> SurfaceContainer<Message> {
             .children
             .iter()
             .any(|child| child.child.has_animation());
+        let has_resource_view_demand = parts
+            .children
+            .iter()
+            .any(|child| child.child.has_resource_view_demand());
         Self {
             _ui_affinity: UiAffinity::new(),
             id: parts.id,
@@ -132,6 +139,8 @@ impl<Message> SurfaceContainer<Message> {
             animation_feedback: Vec::new(),
             animation_valid: true,
             animation_values: Vec::new(),
+            resource_demand: None,
+            has_resource_view_demand,
         }
     }
 
@@ -462,6 +471,39 @@ impl<Message> SurfaceNode<Message> {
             Self::FloatingLayer(layer) => layer.container.id = id,
         }
         self
+    }
+
+    pub(crate) fn with_resource_view_demand(
+        mut self,
+        demand: Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.resource_demand = demand;
+            container.has_resource_view_demand = container.resource_demand.is_some()
+                || container
+                    .children
+                    .iter()
+                    .any(|child| child.child.has_resource_view_demand());
+        }
+        self
+    }
+
+    pub(crate) fn resource_view_demand(
+        &self,
+    ) -> Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>> {
+        match self {
+            Self::Container(container) => container.resource_demand.clone(),
+            Self::Scene(_) | Self::Widget(_) | Self::Overlay(_) | Self::FloatingLayer(_) => None,
+        }
+    }
+
+    pub(crate) fn has_resource_view_demand(&self) -> bool {
+        match self {
+            Self::Scene(scene) => scene.has_resource_view_demand,
+            Self::Container(container) => container.has_resource_view_demand,
+            Self::FloatingLayer(layer) => layer.container.has_resource_view_demand,
+            Self::Widget(_) | Self::Overlay(_) => false,
+        }
     }
 
     pub(crate) fn with_source_metadata(mut self, mut metadata: SourceMetadata) -> Self {
@@ -815,5 +857,46 @@ impl<Message> SurfaceNode<Message> {
             }
         }
         Some(count)
+    }
+}
+
+#[cfg(test)]
+mod resource_view_tests {
+    use super::*;
+    use crate::{
+        application::{ResourceInterestKind, SharedResourceTasks},
+        layout::ContainerPolicy,
+        runtime::SurfaceChild,
+    };
+
+    fn demand(
+        tasks: SharedResourceTasks,
+        interest_id: u64,
+    ) -> Rc<crate::application::resource_view::demand::ResourceViewDemand> {
+        Rc::new(
+            crate::application::resource_view::demand::ResourceViewDemand {
+                tasks,
+                key: crate::runtime::ResourceKey::scoped("resource-view", "demand"),
+                kind: ResourceInterestKind::Visible,
+                interest_id,
+            },
+        )
+    }
+
+    #[test]
+    fn cloned_containers_preserve_subtree_demand_and_descriptor_changes_are_distinct() {
+        let tasks = SharedResourceTasks::new();
+        let first = demand(tasks.clone(), 1);
+        let second = demand(tasks, 2);
+        let child = SurfaceNode::<()>::container(2, ContainerPolicy::default(), Vec::new())
+            .with_resource_view_demand(Some(first.clone()));
+        let root = SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            vec![SurfaceChild::fill(child)],
+        );
+        assert!(root.has_resource_view_demand());
+        assert!(root.clone().has_resource_view_demand());
+        assert!(!first.same_demand(&second));
     }
 }

@@ -50,6 +50,7 @@ mod panel_section;
 mod presentation;
 mod property_panel;
 mod repaint_policy;
+pub(crate) mod resource_view;
 mod retained_canvas;
 mod status_bar;
 mod tree_list;

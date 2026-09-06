@@ -9,7 +9,8 @@ pub(crate) mod resource_operations;
 mod resource_tasks;
 mod shared_resource_tasks;
 pub use shared_resource_tasks::{
-    SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode,
+    SharedResourceCompletion, SharedResourceOperation, SharedResourceTaskError,
+    SharedResourceTaskMode,
 };
 
 pub use cancellation::CancellationToken;

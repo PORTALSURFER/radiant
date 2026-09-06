@@ -453,7 +453,7 @@ boundaries so cancellation and checkpoint diagnostics stay meaningful.
 Shared consumers can use `SharedResourceTasks` with explicit runtime-admitted
 interests and `Effect::resource_worker`. Its clones share a bounded broker;
 values and errors remain application-owned. See
-[Shared resource tasks](SHARED_RESOURCE_TASKS.md) and the deterministic
+[Shared resource tasks](SHARED_RESOURCE_TASKS.md), [Resource views](RESOURCE_VIEWS.md), and the deterministic
 `shared_resource_lifecycle` example for ownership, retention, and retry behavior.
 Independent resource-scoped work should use `ResourceKey` with `ResourceTasks` and the
 business request policies `latest_for_resource(...)` or `exclusive_for(...)`.

@@ -10,6 +10,7 @@ pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) has_animation: bool,
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
+    pub(in crate::runtime::surface) has_resource_view_demand: bool,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
     pub(in crate::runtime::surface) command_scope:
         Option<crate::application::CommandScopeAttachment>,
@@ -22,15 +23,35 @@ impl<Message> SurfaceScene<Message> {
             || layers.iter().any(|l| {
                 l.node.has_animation() || l.input.as_ref().is_some_and(SurfaceNode::has_animation)
             });
+        let has_resource_view_demand = Self::has_resource_view_demand_in(&base, &layers);
         Self {
             has_animation,
             _ui_affinity: UiAffinity::new(),
             id,
             base: Box::new(base),
             layers,
+            has_resource_view_demand,
             source: None,
             command_scope: None,
         }
+    }
+
+    fn has_resource_view_demand_in(
+        base: &SurfaceNode<Message>,
+        layers: &[SurfaceLayer<Message>],
+    ) -> bool {
+        base.has_resource_view_demand()
+            || layers.iter().any(|layer| {
+                layer
+                    .input
+                    .as_ref()
+                    .is_some_and(SurfaceNode::has_resource_view_demand)
+                    || layer.node.has_resource_view_demand()
+            })
+    }
+
+    pub(in crate::runtime::surface) fn refresh_resource_view_demand(&mut self) {
+        self.has_resource_view_demand = Self::has_resource_view_demand_in(&self.base, &self.layers);
     }
 
     pub(in crate::runtime) fn ordered_layers(
@@ -82,7 +103,11 @@ impl<Message> SurfaceScene<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::ContainerPolicy;
+    use crate::{
+        application::{ResourceInterestKind, SharedResourceTasks},
+        layout::ContainerPolicy,
+    };
+    use std::rc::Rc;
 
     #[test]
     fn ordered_layer_indices_group_by_layer_kind_order() {
@@ -135,5 +160,24 @@ mod tests {
         );
         assert_eq!(scene.ordered_layer_child_for_child(2), None);
         assert_eq!(scene.ordered_layer_child_count(), 2);
+    }
+
+    #[test]
+    fn nested_scene_caches_resource_view_demand() {
+        let demand = Rc::new(
+            crate::application::resource_view::demand::ResourceViewDemand {
+                tasks: SharedResourceTasks::new(),
+                key: crate::runtime::ResourceKey::scoped("resource-view", "scene"),
+                kind: ResourceInterestKind::Visible,
+                interest_id: 1,
+            },
+        );
+        let leaf = SurfaceNode::<()>::container(3, ContainerPolicy::default(), Vec::new())
+            .with_resource_view_demand(Some(demand));
+        let nested = SurfaceNode::scene(2, leaf, Vec::new());
+        let scene = SurfaceScene::new(1, nested, Vec::new());
+
+        assert!(scene.has_resource_view_demand);
+        assert!(SurfaceNode::Scene(scene.clone()).has_resource_view_demand());
     }
 }

@@ -128,6 +128,7 @@ where
             in_process_clipboard: super::super::clipboard::InProcessClipboard::default(),
             worker_effects: super::super::effects::WorkerEffects::new(effect_owner.clone()),
             resource_interests: Default::default(),
+            resource_views: Default::default(),
             timer_effects: super::super::timers::TimerEffects::new(effect_owner),
             diagnostics: Default::default(),
             last_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
@@ -173,6 +174,7 @@ where
         runtime.install_declarative_owner_projection();
         let _ = runtime.transition_lifecycle(RuntimeLifecyclePhase::Running);
         runtime.install_declarative_animations();
+        runtime.install_resource_view_interests();
         runtime
     }
 
@@ -302,6 +304,7 @@ where
         self.reset_tooltip_hover_intent();
         self.declarative_owner_ledger.retire_all();
         self.resource_interests.shutdown();
+        self.resource_views.clear();
         self.host_on_runtime_closing();
         self.invalidate_external_drag();
         self.retire_virtual_layout();

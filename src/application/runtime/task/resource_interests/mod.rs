@@ -31,11 +31,15 @@ impl ResourceInterestRuntimeId {
 
 /// Opaque identity for one accepted declarative owner generation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct ResourceInterestOwnerId(u64);
+pub(crate) struct ResourceInterestOwnerId(u64, bool);
 
 impl ResourceInterestOwnerId {
     pub(crate) const fn new(value: u64) -> Self {
-        Self(value)
+        Self(value, false)
+    }
+
+    pub(crate) const fn projected_view(value: u64) -> Self {
+        Self(value, true)
     }
 }
 
@@ -275,6 +279,10 @@ impl ResourceInterestLedger {
     }
 
     /// Return whether this key retains ready bookkeeping after its last lease.
+    pub(crate) fn same_registry(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.state, &other.state)
+    }
+
     pub(crate) fn keeps_ready(&self, key: &ResourceKey) -> bool {
         let mut state = lock_state(&self.state);
         state.prune_dead();

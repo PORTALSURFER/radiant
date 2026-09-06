@@ -1,0 +1,4 @@
+{"phase":"ready","interests":1,"value":42}
+{"phase":"failed","retained_value":42}
+{"phase":"cancelled_refresh","late_value_applied":false}
+{"phase":"released","interests":0}

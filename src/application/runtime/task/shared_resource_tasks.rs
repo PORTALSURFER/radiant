@@ -10,6 +10,10 @@ use super::resource_operations::{
 };
 use crate::runtime::ResourceKey;
 
+#[cfg(test)]
+#[path = "shared_resource_tasks/tests.rs"]
+mod tests;
+
 /// Whether an existing resource operation should be reused or replaced.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SharedResourceTaskMode {
@@ -69,6 +73,53 @@ impl<Output> SharedResourceCompletion<Output> {
     /// Monotonic operation identity within this broker.
     pub fn operation_id(&self) -> u64 {
         self.current.operation_epoch()
+    }
+}
+
+/// A read-only snapshot of one current shared resource operation.
+///
+/// Clones carry only immutable identifiers and weak currentness state. They do
+/// not retain the broker, an interest, a worker, or any resource value.
+#[derive(Clone)]
+pub struct SharedResourceOperation {
+    key: ResourceKey,
+    operation_id: u64,
+    current: ResourceOperationCurrent,
+    is_current: std::sync::Arc<dyn Fn() -> bool + Send + Sync + 'static>,
+}
+
+impl SharedResourceOperation {
+    /// Resource key observed while the operation was running.
+    pub fn key(&self) -> &ResourceKey {
+        &self.key
+    }
+
+    /// Monotonic operation identity within its originating broker.
+    pub fn operation_id(&self) -> u64 {
+        self.operation_id
+    }
+
+    /// Whether this exact operation remains live and current.
+    pub fn is_current(&self) -> bool {
+        (self.is_current)()
+    }
+
+    pub(crate) fn matches_completion<Output>(
+        &self,
+        completion: &SharedResourceCompletion<Output>,
+    ) -> bool {
+        self.is_current() && self.current.matches(&completion.current)
+    }
+
+    pub(crate) fn same_operation(&self, other: &Self) -> bool {
+        self.current.matches(&other.current)
+    }
+
+    /// Whether this operation's host admission was rejected after publication.
+    /// This evidence remains associated with the observed operation when a
+    /// later replacement reuses the same resource key.
+    pub(crate) fn was_rejected(&self) -> bool {
+        self.current.was_rejected()
     }
 }
 
@@ -209,9 +260,30 @@ impl SharedResourceTasks {
         self.operations.shutdown();
     }
 
+    pub(crate) fn same_broker(&self, other: &Self) -> bool {
+        self.ledger.same_registry(&other.ledger)
+    }
+
     /// Count current distinct interests after pruning retired owners.
     pub fn interest_count(&self) -> usize {
         self.ledger.live_lease_count()
+    }
+
+    /// Observe the current running operation for `key` without starting work.
+    pub fn operation(&self, key: &ResourceKey) -> Option<SharedResourceOperation> {
+        let current = self.operations.current_operation(key)?;
+        Some(SharedResourceOperation {
+            key: key.clone(),
+            operation_id: current.operation_epoch(),
+            is_current: self.operations.currentness_probe(&current),
+            current,
+        })
+    }
+
+    /// Cancel exactly the operation represented by a resource-state snapshot.
+    /// A replacement that races this request is never cancelled by key alone.
+    pub(crate) fn cancel_operation(&self, operation: &SharedResourceOperation) -> bool {
+        self.operations.cancel_current(&operation.current)
     }
 
     /// Cancel current work or retry state while preserving consumer interests.
@@ -286,6 +358,27 @@ impl SharedResourceTasks {
             kind,
             on_completed: Box::new(on_completed),
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn admit_view_interest(
+        &self,
+        runtime: u64,
+        owner_generation: u64,
+        interest_id: u64,
+        key: ResourceKey,
+        kind: ResourceInterestKind,
+        live: ResourceInterestLiveness,
+    ) -> Result<ResourceInterest, ResourceInterestError> {
+        let lease = self.ledger.admit(
+            ResourceInterestRuntimeId::new(runtime),
+            ResourceInterestOwnerId::projected_view(owner_generation),
+            ResourceInterestId::new(interest_id),
+            key.clone(),
+            kind.into(),
+            live,
+        )?;
+        Ok(ResourceInterest { lease, key })
     }
 
     #[allow(clippy::too_many_arguments)]

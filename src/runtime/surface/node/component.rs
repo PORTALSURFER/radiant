@@ -43,6 +43,7 @@ fn visit<Message>(
     if !source_metadata_matches(&previous_source, &current_source)
         || previous.animation_declaration_present()
         || current.animation_declaration_present()
+        || !same_resource_demand(previous, current)
     {
         return None;
     }
@@ -94,4 +95,18 @@ fn visit<Message>(
         _ => return None,
     }
     Some(())
+}
+
+fn same_resource_demand<Message>(
+    previous: &SurfaceNode<Message>,
+    current: &SurfaceNode<Message>,
+) -> bool {
+    match (
+        previous.resource_view_demand(),
+        current.resource_view_demand(),
+    ) {
+        (Some(previous), Some(current)) => previous.same_demand(&current),
+        (None, None) => true,
+        _ => false,
+    }
 }

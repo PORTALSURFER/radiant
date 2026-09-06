@@ -168,17 +168,15 @@ impl CustomShaderPreflightCache {
     fn from_resource_cache(resources: &CustomShaderResourceCache, bindings: bool) -> Self {
         Self {
             pipeline_state: resources.pipeline_state.clone(),
-            bindings: bindings
-                .then(|| {
-                    resources
-                        .bindings
-                        .iter()
-                        .map(|(key, binding)| {
-                            (*key, (binding.cache_key.clone(), binding.write_state))
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
+            bindings: if bindings {
+                resources
+                    .bindings
+                    .iter()
+                    .map(|(key, binding)| (*key, (binding.cache_key.clone(), binding.write_state)))
+                    .collect()
+            } else {
+                HashMap::new()
+            },
         }
     }
 

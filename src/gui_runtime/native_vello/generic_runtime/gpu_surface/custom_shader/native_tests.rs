@@ -495,32 +495,62 @@ fn prepared_custom_shader_preflight_preserves_ordered_payload_and_presentation_a
 }
 
 #[test]
+#[ignore = "requires native GPU adapter and worker-prepared WGPU pipelines"]
+fn ordered_duplicate_shader_occurrences_release_all_committed_broker_interests() {
+    let (device, queue) = native_device();
+    let mut second = valid_descriptor();
+    second.shader_key.push_str("-second");
+    let primitives = vec![
+        PaintPrimitive::GpuSurface(surface(FRESH_KEY, valid_descriptor())),
+        PaintPrimitive::GpuSurface(surface(FRESH_KEY, second)),
+    ];
+    let mut renderer = GpuSurfaceRenderer::default();
+    let (count, mut broker) =
+        stage_custom_shader_preparations_retained(&mut renderer, &device, &primitives);
+    assert_eq!(count, 2);
+    assert_eq!(broker.capacity_status().entries, 2);
+    let (texture, view) = render_target(&device);
+    let stats = render_prepared_frame(&mut renderer, &device, &queue, &view, &primitives);
+    assert_eq!(stats.custom_shader.surfaces_rendered, 2);
+    assert_eq!(stats.custom_shader.pipeline_rebuilds, 0);
+    let receipts = renderer.take_committed_custom_shader_targets();
+    assert_eq!(receipts.len(), 2);
+    for target in receipts {
+        broker.consume_target(target);
+    }
+    broker.maintain_retired();
+    assert_eq!(broker.capacity_status().entries, 0);
+    assert_eq!(broker.capacity_status().interests, 0);
+    assert_eq!(broker.capacity_status().key_text_bytes, 0);
+    assert_red_pixel(&device, &queue, &texture);
+}
+
+#[test]
 #[ignore = "requires native GPU adapter and a pending worker-prepared WGPU pipeline"]
 fn pending_replacement_preserves_cached_pipeline_while_cached_surface_renders() {
     let (device, queue) = native_device();
-    let descriptor = valid_descriptor();
-    let mut renderer = seeded_renderer(&device, &queue, &descriptor);
-    let replacement = vec![PaintPrimitive::GpuSurface(surface(FRESH_KEY, descriptor))];
-    let (_broker, _dispatch) = begin_pending_custom_shader_preparation(&device, &replacement);
-
-    let cached = vec![PaintPrimitive::GpuSurface(surface(
-        OLD_KEY_BASE,
-        valid_descriptor(),
-    ))];
+    let mut renderer = GpuSurfaceRenderer::default();
+    let cached = PaintPrimitive::GpuSurface(surface(OLD_KEY_BASE, valid_descriptor()));
+    stage_custom_shader_preparations(&mut renderer, &device, std::slice::from_ref(&cached));
     let (texture, view) = render_target(&device);
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("radiant_native_pending_custom_shader_replacement"),
-    });
-    let stats = {
-        let mut target = render_target_for_test(&device, &queue, &mut encoder, &view, None, None);
-        let mut occlusion = SurfaceOcclusionPlan::default();
-        occlusion.preprocess(&cached);
-        renderer.render(&mut target, &cached, &occlusion, &[])
-    };
-    renderer.finish_presentation_staging_belt();
-    queue.submit(std::iter::once(encoder.finish()));
-
+    let initial = render_prepared_frame(
+        &mut renderer,
+        &device,
+        &queue,
+        &view,
+        std::slice::from_ref(&cached),
+    );
+    assert_eq!(initial.custom_shader.surfaces_rendered, 1);
+    let mut replacement_descriptor = valid_descriptor();
+    replacement_descriptor.shader_key.push_str("-pending");
+    let replacement = PaintPrimitive::GpuSurface(surface(FRESH_KEY, replacement_descriptor));
+    let (_broker, _dispatch) =
+        begin_pending_custom_shader_preparation(&device, std::slice::from_ref(&replacement));
+    renderer.replace_custom_shader_preparations(Vec::new());
+    let primitives = [cached, replacement];
+    let stats = render_prepared_frame(&mut renderer, &device, &queue, &view, &primitives);
     assert_eq!(stats.custom_shader.surfaces_rendered, 1);
+    assert_eq!(stats.custom_shader.failures.surfaces_failed, 1);
     assert_eq!(stats.custom_shader.pipeline_rebuilds, 0);
     assert!(
         renderer
@@ -536,7 +566,28 @@ fn pending_replacement_preserves_cached_pipeline_while_cached_surface_renders() 
             .is_none()
     );
     assert_red_pixel(&device, &queue, &texture);
+}
+
+fn render_prepared_frame(
+    renderer: &mut GpuSurfaceRenderer,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    view: &wgpu::TextureView,
+    primitives: &[PaintPrimitive],
+) -> GpuSurfaceRenderStats {
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("radiant_native_prepared_shader_frame"),
+    });
+    let stats = {
+        let mut target = render_target_for_test(device, queue, &mut encoder, view, None, None);
+        let mut occlusion = SurfaceOcclusionPlan::default();
+        occlusion.preprocess(primitives);
+        renderer.render(&mut target, primitives, &occlusion, &[])
+    };
+    renderer.finish_presentation_staging_belt();
+    queue.submit(std::iter::once(encoder.finish()));
     renderer.recall_presentation_staging_belt();
+    stats
 }
 
 fn tile_primitives(updated_tile: Option<usize>) -> Vec<PaintPrimitive> {
@@ -708,12 +759,20 @@ fn stage_custom_shader_preparations(
     device: &wgpu::Device,
     primitives: &[PaintPrimitive],
 ) -> usize {
+    stage_custom_shader_preparations_retained(renderer, device, primitives).0
+}
+
+fn stage_custom_shader_preparations_retained(
+    renderer: &mut GpuSurfaceRenderer,
+    device: &wgpu::Device,
+    primitives: &[PaintPrimitive],
+) -> (usize, CustomShaderPreparationBroker) {
     let adapter_generation = NativeAdapterGeneration::from_test_serial(1);
     let target_generation = NativeTargetGeneration::from_test_serial(1);
     let mut broker = CustomShaderPreparationBroker::new(Arc::new(NativePreparationWake));
     let mut requests = Vec::new();
 
-    for primitive in primitives {
+    for (primitive_index, primitive) in primitives.iter().enumerate() {
         let PaintPrimitive::GpuSurface(surface) = primitive else {
             continue;
         };
@@ -722,11 +781,12 @@ fn stage_custom_shader_preparations(
         };
         let key =
             custom_shader_pipeline_key(descriptor).expect("native descriptor has a pipeline key");
-        let target = CustomShaderTargetId::new(
+        let target = CustomShaderTargetId::new_for_occurrence(
             WindowId::dummy(),
             adapter_generation,
             target_generation,
             surface.key,
+            primitive_index,
         )
         .expect("test target serial");
         let request = CustomShaderPreparationRequest::new(
@@ -762,7 +822,7 @@ fn stage_custom_shader_preparations(
         })
         .collect();
     renderer.replace_custom_shader_preparations(installs);
-    preparations
+    (preparations, broker)
 }
 
 /// Retains a real active broker dispatch. The caller deliberately does not run

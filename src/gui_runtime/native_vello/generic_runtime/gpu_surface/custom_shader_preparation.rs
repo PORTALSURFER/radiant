@@ -129,15 +129,17 @@ impl GpuSurfaceRenderer {
         let staging = &mut self.custom_shader_preparation;
         staging.committed.clear();
         for (target, identity) in &staging.targets {
-            let current = primitives.iter().rev().find_map(|primitive| {
-                let PaintPrimitive::GpuSurface(surface) = primitive else {
-                    return None;
-                };
-                (surface.key == target.surface_key()).then_some(surface)
-            });
-            let Some(surface) = current else {
+            let Some(PaintPrimitive::GpuSurface(surface)) =
+                primitives.get(target.primitive_index())
+            else {
                 continue;
             };
+            if surface.key != target.surface_key()
+                || !surface.rect.has_finite_positive_area()
+                || !surface.content.is_renderable()
+            {
+                continue;
+            }
             let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
                 continue;
             };
@@ -146,9 +148,10 @@ impl GpuSurfaceRenderer {
             {
                 continue;
             }
-            if self.resources.custom_shader_pipeline_identity(surface.key) == Some(identity) {
-                staging.committed.push(*target);
-            }
+            // Whole-frame commit proves each eligible ordered surface executed.
+            // An earlier duplicate can have been replaced in the final cache;
+            // its completed preparation still receives its own receipt.
+            staging.committed.push(*target);
         }
         // The broker still retains these objects until the parent consumes the
         // receipts and runs maintenance. Installed caches own GPU handles only.

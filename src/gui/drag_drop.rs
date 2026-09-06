@@ -193,6 +193,7 @@ pub struct DragEventContext {
     pub(crate) source: u64,
     pub(crate) target: Option<u64>,
     pub(crate) position: Point,
+    pub(crate) modifiers: crate::widgets::PointerModifiers,
 }
 impl DragEventContext {
     /// Read the originating session identity; this alone grants no action authority.
@@ -206,6 +207,10 @@ impl DragEventContext {
     /// Read the target associated with this event, if any.
     pub const fn target(self) -> Option<u64> {
         self.target
+    }
+    /// Read modifiers from the current checked gesture or pointer sample.
+    pub const fn modifiers(self) -> crate::widgets::PointerModifiers {
+        self.modifiers
     }
     /// Read the checked logical pointer position in the receiving surface.
     pub const fn position(self) -> Point {

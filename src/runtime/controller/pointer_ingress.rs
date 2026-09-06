@@ -60,6 +60,7 @@ impl TypedPointerDeliveryContext {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct PointerSequenceRecord {
+    pub(super) gesture_token: Option<super::gestures::GestureSequenceToken>,
     pub(super) token: PointerSequenceToken,
     pub(super) device: crate::gui::pointer_ingress::InputDeviceId,
     pub(super) contact: crate::gui::pointer_ingress::PointerContactId,
@@ -72,6 +73,8 @@ pub(super) struct PointerSequenceRecord {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PointerOwnerWitness {
+    Gesture,
+    GestureTransfer,
     Widget {
         id: WidgetId,
         button: PointerButton,
@@ -148,6 +151,7 @@ impl PointerIngressState {
         };
         let event = PointerEvent::from_ingress(ingress.with_token(token), Some(token));
         self.records[index] = Some(PointerSequenceRecord {
+            gesture_token: None,
             token,
             device: ingress.device(),
             contact: ingress.contact(),
@@ -240,6 +244,7 @@ where
                 {
                     return PointerIngressDisposition::Blocked;
                 }
+                let gesture = self.prepare_pointer_gesture(ingress);
                 let mut delivery = TypedPointerDeliveryContext::new(ingress);
                 let routed = self.dispatch_pointer_press_event_with_delivery(
                     ingress.logical_position(),
@@ -276,7 +281,7 @@ where
                 if let Some(record) = self.interaction.pointer.ingress.records[index].as_mut() {
                     record.owner = Some(witness);
                 }
-                let _ = event;
+                self.install_pointer_gesture(gesture, index, event.sequence_token());
                 match route {
                     TypedPointerRoute::Widget(owner) => {
                         PointerIngressDisposition::RoutedWidget(owner)
@@ -291,6 +296,9 @@ where
                 let Some((index, record)) = self.interaction.pointer.ingress.find(ingress) else {
                     return PointerIngressDisposition::Stale;
                 };
+                if let Some(disposition) = self.route_pointer_gesture(ingress, index, record) {
+                    return disposition;
+                }
                 let token = record.token;
                 let event = PointerEvent::from_ingress(ingress, Some(token));
                 let disposition = if matches!(ingress.phase(), PointerPhase::Cancelled) {
@@ -617,6 +625,7 @@ where
         let records = self.interaction.pointer.ingress.records;
         for record in records.into_iter().flatten() {
             let compatible = match record.owner {
+                Some(PointerOwnerWitness::Gesture) => self.pointer_gesture_is_current(record),
                 Some(PointerOwnerWitness::Widget { .. }) => {
                     self.pointer_widget_witness_is_current(record.owner)
                 }
@@ -636,7 +645,8 @@ where
                     .pointer
                     .scroll_drag_capture
                     .is_some_and(|capture| capture.node_id == node_id && capture.axis == axis),
-                Some(PointerOwnerWitness::Unsupported) | None => true,
+                Some(PointerOwnerWitness::GestureTransfer | PointerOwnerWitness::Unsupported)
+                | None => true,
             };
             if compatible {
                 continue;
@@ -958,7 +968,10 @@ where
         }
     }
 
-    fn pointer_widget_witness_is_current(&self, witness: Option<PointerOwnerWitness>) -> bool {
+    pub(super) fn pointer_widget_witness_is_current(
+        &self,
+        witness: Option<PointerOwnerWitness>,
+    ) -> bool {
         let Some(PointerOwnerWitness::Widget {
             id,
             button,

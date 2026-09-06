@@ -8207,8 +8207,8 @@ desktop pan remains an unsupported transport, while normalized public pan reques
 are executable. The historical `dispatch_gesture_ingress` observation-only entry
 retains its unsupported-consumer result; executable callers use the token-bearing
 request API. Widget/ancestor competition is supported as described below.
-Pending pointer-drag arbitration, touch-derived multi-contact recognition,
-cross-window payloads and native pointer adaptation remain OPT-1363 work.
+Touch-derived multi-contact recognition, cross-window payloads and owned external
+offers remain OPT-1363 work.
 
 
 ### Container gesture regions
@@ -8243,8 +8243,9 @@ provide equality evidence. Pointer hit regions and scrollbars retain priority.
 
 This boundary currently requires a hit-testable descendant at the anchor;
 empty region backgrounds do not acquire gesture authority. It consumes checked
-normalized pan/pinch/rotation samples. Pointer-drag arbitration, touch-derived
-multi-contact recognition and native drag initiation remain separate delivery work.
+normalized pan/pinch/rotation samples. Qualified primary mouse sequences also
+participate through the shared pointer-to-pan handoff described below.
+Touch-derived multi-contact recognition remains separate delivery work.
 The headless `gesture_input` example exercises child and ancestor priority.
 
 Native gesture samples flush earlier coalesced wheel routes in semantic order,
@@ -8301,8 +8302,43 @@ The opaque event token is observational and does not itself authorize actions.
 Preview movement without application messages requests overlay repaint without
 application projection or layout. `Command::end_drag()` cancels a typed session
 through shared gesture teardown. This delivery supports checked normalized pan
-requests within one surface. Native pointer-derived drag initiation,
-multi-contact arbitration, target styling/autoscroll, same-application
+and admitted primary mouse sequences within one surface. Multi-contact
+arbitration, target styling/autoscroll, same-application
 cross-window transfer and owned external-offer import/export remain OPT-1363 work.
 Run `cargo run --example gesture_input` for a headless typed payload drop through
 ordinary source and target declarations.
+
+
+### Pointer-to-gesture capture handoff
+
+A checked primary `DeviceKind::Mouse` press snapshots eligible pan recognizers
+before routing the ordinary child press. The snapshot becomes pending only if
+that exact child capture and source evidence remain current after its callback.
+Below threshold, ordinary movement and click release still reach the child.
+When the deepest crossed recognizer wins, the child receives cancellation with
+its original pointer token before the runtime rechecks source authority and
+transfers the existing capture. Removing the source in that cancellation callback
+prevents recognition. Numeric edits, composition, scrollbars and layout-target
+captures retain their existing ownership rules.
+
+`PointerIngressDisposition::RoutedGesture(NodeId)` reports a winning widget or
+container. Continue with the original opaque pointer token returned by
+`dispatch_pointer_ingress_with_admission`; do not construct a second gesture
+sequence. The transfer metadata in the fixed pointer table is not a second
+capture owner. Threshold crossing on release starts and terminates one gesture;
+normal cancellation, focus loss and source retirement never deliver the old
+child click afterward. A terminal or retired token cannot resume a new sequence.
+
+The native mouse adapter with a known device uses this same path, retains the
+contact token during the gesture, forwards its redraw/command outcomes and
+retires that token on release. Hover/GPU fast paths cannot skip active gesture
+capture. Legacy pointer entrypoints without qualified device/contact metadata do
+not fabricate gesture provenance. Other pointer kinds keep explicit unsupported
+outcomes until their adapter/recognizer delivery is implemented.
+
+`DragEventContext::modifiers()` exposes the current checked sample modifiers.
+A pure target predicate can select among source/target-allowed operations using
+those modifiers. Changed decisions arrive in target `Over` events and are
+requalified again before drop. The `gesture_input` example now uses an admitted
+mouse sequence for its typed drop and normalized samples for its widget/ancestor
+recognition demonstrations.

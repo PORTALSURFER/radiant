@@ -1,5 +1,6 @@
 //! Bounded widget/ancestor recognition sharing controller capture admission and teardown.
 pub(super) mod drag_drop;
+mod pointer;
 use super::{SurfaceRuntime, interaction_state::RuntimeManagedCompositionState};
 use crate::{
     gui::pointer_ingress::{
@@ -110,6 +111,7 @@ impl GestureTarget {
 }
 
 pub(super) struct GestureCapture {
+    pointer_sequence: Option<PointerSequenceToken>,
     target: GestureTarget,
     // Pending candidates are ordered deepest first. They never own capture.
     candidates: Vec<GestureTarget>,
@@ -210,6 +212,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 return GestureOutcome::Unavailable;
             };
             GestureCapture {
+                pointer_sequence: None,
                 target,
                 candidates,
                 hit_widget: widget,
@@ -279,21 +282,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         let terminal = sample.phase() == GesturePhase::Ended;
         let was_active = capture.active;
         if !was_active {
-            let magnitude = match sample.kind() {
-                GestureKind::Pan => f64::from(accumulated.x).hypot(f64::from(accumulated.y)),
-                GestureKind::Pinch => f64::from(accumulated.x - 1.0).abs(),
-                GestureKind::Rotate => f64::from(accumulated.x).abs(),
-            };
-            let winner = capture
-                .candidates
-                .iter()
-                .find(|target| {
-                    target
-                        .policy
-                        .threshold(sample.kind())
-                        .is_some_and(|threshold| magnitude >= f64::from(threshold))
-                })
-                .cloned();
+            let winner = capture.recognition_target(accumulated, sample.kind());
             let Some(winner) = winner else {
                 if !terminal {
                     self.interaction.gesture = Some(capture);
@@ -541,12 +530,15 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 == Some(capture.hit_widget)
     }
     fn gesture_has_incumbent(&self) -> bool {
+        self.gesture_has_non_pointer_incumbent()
+            || self.interaction.pointer.capture.is_some()
+            || self.interaction.pointer.managed_capture.is_some()
+    }
+    fn gesture_has_non_pointer_incumbent(&self) -> bool {
         matches!(
             self.interaction.wheel.managed_sequence,
             super::interaction_state::RuntimeManagedWheelSequenceState::Active { .. }
-        ) || self.interaction.pointer.capture.is_some()
-            || self.interaction.pointer.managed_capture.is_some()
-            || self.interaction.pointer.scroll_drag_capture.is_some()
+        ) || self.interaction.pointer.scroll_drag_capture.is_some()
             || self.interaction.layout_capture.is_some()
             || self.interaction.composition.managed_composition
                 != RuntimeManagedCompositionState::Idle
@@ -942,5 +934,27 @@ pub(super) enum GestureDispatch<Message> {
 impl<Message> From<WidgetDispatchResult<Message>> for GestureDispatch<Message> {
     fn from(dispatch: WidgetDispatchResult<Message>) -> Self {
         Self::Widget(dispatch)
+    }
+}
+
+impl GestureCapture {
+    fn recognition_target(&self, accumulated: Vector2, kind: GestureKind) -> Option<GestureTarget> {
+        if !accumulated.x.is_finite() || !accumulated.y.is_finite() {
+            return None;
+        }
+        let magnitude = match kind {
+            GestureKind::Pan => f64::from(accumulated.x).hypot(f64::from(accumulated.y)),
+            GestureKind::Pinch => f64::from(accumulated.x - 1.0).abs(),
+            GestureKind::Rotate => f64::from(accumulated.x).abs(),
+        };
+        self.candidates
+            .iter()
+            .find(|target| {
+                target
+                    .policy
+                    .threshold(kind)
+                    .is_some_and(|threshold| magnitude >= f64::from(threshold))
+            })
+            .cloned()
     }
 }

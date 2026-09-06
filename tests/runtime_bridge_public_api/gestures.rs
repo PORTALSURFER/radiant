@@ -1335,3 +1335,6 @@ fn container_pinch_and_rotation_use_the_shared_accumulation_and_cancellation_lif
 
 #[path = "gestures/drag_drop.rs"]
 mod drag_drop;
+
+#[path = "gestures/pointer_drag.rs"]
+mod pointer_drag;

@@ -1,0 +1,15 @@
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 1 test
+test gui_runtime::native_vello::generic_runtime::gpu_surface::custom_shader::pipeline::measurement_native_tests::records_sync_custom_shader_preparation_phases ... RADIANT_SHADER_PREPARATION_OUTPUT=/Users/portalsurfer/.codex/radiant-validation/opt-1457-cold-baseline-fixed-2/shader-preparation-samples.json
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4219 filtered out; finished in 0.05s
+

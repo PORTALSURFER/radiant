@@ -60,3 +60,42 @@ fn file_column_resize_clamps_width() {
         .unwrap();
     assert_eq!(width, MIN_FILE_COLUMN_WIDTH);
 }
+
+#[test]
+fn file_column_resize_cancellation_rolls_back_and_stale_column_messages_are_inert() {
+    let mut state = test_state();
+    let width = |state: &BrowserState| {
+        state
+            .columns
+            .file_columns
+            .iter()
+            .find(|column| column.id == "kind")
+            .unwrap()
+            .width
+    };
+    let start = width(&state);
+    state.resize_file_column(
+        "kind".into(),
+        ui::DragHandleMessage::started(ui::Point::new(100.0, 0.0)),
+    );
+    state.resize_file_column(
+        "size".into(),
+        ui::DragHandleMessage::moved(ui::Point::new(150.0, 0.0)),
+    );
+    assert_eq!(width(&state), start);
+    state.resize_file_column(
+        "kind".into(),
+        ui::DragHandleMessage::moved(ui::Point::new(150.0, 0.0)),
+    );
+    assert_eq!(width(&state), start + 50.0);
+    state.resize_file_column(
+        "kind".into(),
+        ui::DragHandleMessage::cancelled(ui::Point::new(150.0, 0.0)),
+    );
+    assert_eq!(width(&state), start);
+    state.resize_file_column(
+        "kind".into(),
+        ui::DragHandleMessage::ended(ui::Point::new(200.0, 0.0)),
+    );
+    assert_eq!(width(&state), start);
+}

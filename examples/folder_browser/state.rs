@@ -50,7 +50,7 @@ pub(super) struct BrowserRenameState {
 pub(super) struct BrowserColumnState {
     pub(super) file_columns: Vec<FileColumn>,
     pub(super) sort: DetailsSort,
-    pub(super) resize: Option<ColumnResize>,
+    pub(super) resize: Option<radiant::application::DetailsColumnResizeEdit>,
 }
 
 impl Default for BrowserState {

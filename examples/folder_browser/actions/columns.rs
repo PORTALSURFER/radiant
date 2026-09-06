@@ -48,43 +48,28 @@ impl BrowserState {
     }
 
     pub(crate) fn resize_file_column(&mut self, column_id: String, message: ui::DragHandleMessage) {
-        match message {
-            ui::DragHandleMessage::Started { origin, .. } => {
-                if let Some(column) = self
-                    .columns
-                    .file_columns
-                    .iter()
-                    .find(|column| column.id == column_id)
-                {
-                    self.columns.resize = Some(ColumnResize {
-                        column_id,
-                        start_x: origin.x,
-                        start_width: column.width,
-                    });
-                }
-            }
-            ui::DragHandleMessage::Moved { position, .. }
-            | ui::DragHandleMessage::Ended { position, .. } => {
-                let Some(resize) = self.columns.resize.clone() else {
-                    return;
-                };
-                if let Some(column) = self
-                    .columns
-                    .file_columns
-                    .iter_mut()
-                    .find(|column| column.id == resize.column_id)
-                {
-                    column.width = (resize.start_width + position.x - resize.start_x)
-                        .clamp(MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
-                }
-                if matches!(message, ui::DragHandleMessage::Ended { .. }) {
-                    self.columns.resize = None;
-                }
-            }
-            ui::DragHandleMessage::Cancelled { .. } => {
-                self.columns.resize = None;
-            }
-            ui::DragHandleMessage::DoubleActivate { .. } => {}
+        let current_width = self
+            .columns
+            .file_columns
+            .iter()
+            .find(|column| column.id == column_id && column.visible)
+            .map(|column| column.width);
+        let batch = radiant::application::update_details_column_resize_edit(
+            &mut self.columns.resize,
+            &column_id,
+            message,
+            current_width,
+            MIN_FILE_COLUMN_WIDTH,
+            MAX_FILE_COLUMN_WIDTH,
+        );
+        if let Some(update) = batch.and_then(|batch| batch.width_update())
+            && let Some(column) = self
+                .columns
+                .file_columns
+                .iter_mut()
+                .find(|column| column.id == update.column_id)
+        {
+            column.width = update.width;
         }
     }
 

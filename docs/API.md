@@ -1610,6 +1610,28 @@ intentionally have no `Default`. `InteractionProvenance::source()` returns the
 explicit `InteractionSource` category, so missing native evidence is not
 inferred as `Programmatic`.
 
+For complete width-edit lifecycles, store `Option<DetailsColumnResizeEdit>` and
+route the header's qualified drag messages through
+`update_details_column_resize_edit(...)`. Supply the current controlled width
+and limits on every call. `DetailsColumnResizeEditBatch::events()` preserves
+Begin/Update/Commit/Cancel and pointer provenance; `width_update()` projects
+only effective changes or rollback into the existing `DetailsColumnWidthUpdate`
+shape. A start that already crossed the drag threshold includes its initial
+Update. Final release motion precedes Commit, and no-op cancellation remains
+typed without emitting another width. Duplicate starts/terminals and messages
+for another column are inert.
+
+Controlled width replacement, column removal, or changed limits cancel the old
+transaction without overwriting the replacement model. `details_column_width_edit`
+provides the same atomic lifecycle for a caller-qualified keyboard, wheel,
+semantic, or programmatic candidate, with explicit provenance and no invented
+step policy. It refuses to join an active pointer resize. These model helpers do
+not own capture or make unqualified application messages native input authority.
+The older `DetailsColumnResizeDrag` helper remains available for source-compatible
+width-only consumers. `folder_browser` demonstrates the typed resize helper and
+uses its concise width projection for its durable columns.
+
+
 ### Shared edit-event lifecycle
 
 The consumer-free shared edit lifecycle is available through the qualified

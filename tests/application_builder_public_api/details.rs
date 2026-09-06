@@ -329,3 +329,61 @@ fn compact_details_header_accepts_ui_local_resize_mapper() {
     drop(surface);
     assert_eq!(Rc::strong_count(&calls), 1);
 }
+
+#[test]
+fn details_width_edit_api_preserves_transactions_and_legacy_width_projection() {
+    use radiant::application as ui;
+    use radiant::prelude::Point;
+    use radiant::widgets::{DragHandleMessage, EditPhase, InteractionProvenance};
+    let mut active: Option<ui::DetailsColumnResizeEdit> = None;
+    let begin: ui::DetailsColumnResizeEditBatch = ui::update_details_column_resize_edit(
+        &mut active,
+        "name",
+        DragHandleMessage::started(Point::new(100.0, 0.0)),
+        Some(240.0),
+        80.0,
+        400.0,
+    )
+    .unwrap();
+    let end = ui::update_details_column_resize_edit(
+        &mut active,
+        "name",
+        DragHandleMessage::ended(Point::new(130.0, 0.0)),
+        Some(240.0),
+        80.0,
+        400.0,
+    )
+    .unwrap();
+    assert_eq!(begin.transaction(), end.transaction());
+    assert_eq!(
+        end.events()
+            .iter()
+            .map(|event| event.phase)
+            .collect::<Vec<_>>(),
+        [EditPhase::Update, EditPhase::Commit]
+    );
+    assert_eq!(
+        end.width_update(),
+        Some(ui::DetailsColumnWidthUpdate {
+            column_id: "name".into(),
+            width: 270.0
+        })
+    );
+    let semantic = ui::details_column_width_edit(
+        &active,
+        "name",
+        270.0,
+        300.0,
+        80.0..=400.0,
+        InteractionProvenance::Accessibility,
+    )
+    .unwrap();
+    assert_eq!(semantic.column_id(), "name");
+    assert_ne!(semantic.transaction(), begin.transaction());
+    assert!(
+        semantic
+            .events()
+            .iter()
+            .all(|event| event.provenance == InteractionProvenance::Accessibility)
+    );
+}

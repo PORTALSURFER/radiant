@@ -39,13 +39,6 @@ pub(super) struct FolderDrag {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct ColumnResize {
-    pub(super) column_id: String,
-    pub(super) start_x: f32,
-    pub(super) start_width: f32,
-}
-
-#[derive(Clone, Debug)]
 pub(super) struct VisibleFolder {
     pub(super) id: String,
     pub(super) name: String,

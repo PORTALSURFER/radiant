@@ -49,7 +49,8 @@ impl GpuSignalSummary {
         }
     }
 
-    /// Build a retained min/max pyramid unless the native worker has been cancelled.
+    /// Compatibility fixture for cancellation in the full-pyramid builder.
+    #[cfg(test)]
     pub(crate) fn from_interleaved_samples_cancellable<F>(
         samples: &[f32],
         frames: usize,

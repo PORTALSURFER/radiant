@@ -30,6 +30,7 @@ pub(crate) struct BoundedSignalTile {
 }
 
 impl BoundedSignalOverview {
+    #[cfg(test)]
     pub(crate) fn logical_summary_bytes(&self) -> usize {
         self.levels
             .iter()
@@ -38,6 +39,7 @@ impl BoundedSignalOverview {
     }
 }
 impl BoundedSignalTile {
+    #[cfg(test)]
     pub(crate) fn logical_summary_bytes(&self) -> usize {
         self.buckets.len() * std::mem::size_of::<GpuSignalSummaryBucket>()
     }

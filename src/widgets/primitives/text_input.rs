@@ -220,6 +220,46 @@ impl WidgetPointerMotion for TextInputWidget {
     }
 }
 
+impl crate::widgets::WidgetSemanticActions for TextInputWidget {
+    fn revision(&self) -> crate::widgets::WidgetSemanticActionRevision {
+        crate::widgets::WidgetSemanticActionRevision::exact(self.props.character_limit)
+    }
+    fn supports(&self, action: &crate::widgets::SemanticAction) -> bool {
+        matches!(action, crate::widgets::SemanticAction::SetText(value) if value.len() <= 65_536)
+    }
+    fn dispatch(
+        &mut self,
+        action: crate::widgets::SemanticAction,
+        _source: crate::widgets::SemanticActionSource,
+    ) -> crate::widgets::WidgetSemanticActionResult {
+        use crate::widgets::WidgetSemanticActionResult;
+        if !self.supports(&action)
+            || self.common.state.disabled
+            || self.common.state.read_only
+            || self.composition.is_some()
+        {
+            return WidgetSemanticActionResult::Unsupported;
+        }
+        let crate::widgets::SemanticAction::SetText(value) = action else {
+            return WidgetSemanticActionResult::Unsupported;
+        };
+        let mut value = editing_ops::sanitize_single_line_text(&value);
+        if let Some(limit) = self.props.character_limit {
+            value = value.chars().take(limit).collect();
+        }
+        if self.state.value == value {
+            return WidgetSemanticActionResult::Accepted(None);
+        }
+        self.state = TextInputState::from_value(value.clone());
+        self.native_pointer_caret = None;
+        self.native_pointer_caret_acceptance = None;
+        self.native_caret_affinity = NativeCaretAffinity::Downstream;
+        WidgetSemanticActionResult::Accepted(Some(WidgetOutput::typed(TextInputMessage::Changed {
+            value,
+        })))
+    }
+}
+
 impl Widget for TextInputWidget {
     fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
         match key {
@@ -339,8 +379,14 @@ impl Widget for TextInputWidget {
         WidgetCapabilities::new().semantics(self)
     }
 
+    fn action_capabilities(&mut self) -> crate::widgets::WidgetActionCapabilities<'_> {
+        crate::widgets::WidgetActionCapabilities::none().with_semantic_actions(self)
+    }
+
     fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
-        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
+        crate::widgets::WidgetCapabilitiesV2::new()
+            .with_pointer_motion(self)
+            .with_semantic_actions(self)
     }
 
     fn selected_text_slice(&self) -> Option<&str> {

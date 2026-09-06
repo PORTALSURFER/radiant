@@ -99,6 +99,27 @@ impl WidgetPointerMotion for ListItemWidget {
     }
 }
 
+impl crate::widgets::WidgetSemanticActions for ListItemWidget {
+    fn revision(&self) -> crate::widgets::WidgetSemanticActionRevision {
+        crate::widgets::WidgetSemanticActionRevision::exact(())
+    }
+    fn supports(&self, action: &crate::widgets::SemanticAction) -> bool {
+        matches!(action, crate::widgets::SemanticAction::Select)
+    }
+    fn dispatch(
+        &mut self,
+        action: crate::widgets::SemanticAction,
+        _source: crate::widgets::SemanticActionSource,
+    ) -> crate::widgets::WidgetSemanticActionResult {
+        if !self.supports(&action) || self.common.state.disabled || self.common.state.read_only {
+            return crate::widgets::WidgetSemanticActionResult::Unsupported;
+        }
+        crate::widgets::WidgetSemanticActionResult::Accepted(Some(WidgetOutput::typed(
+            ListItemMessage::Invoked,
+        )))
+    }
+}
+
 impl Widget for ListItemWidget {
     fn focused_key_disposition(
         &self,
@@ -142,8 +163,13 @@ impl Widget for ListItemWidget {
         WidgetCapabilities::new().semantics(self)
     }
 
+    fn action_capabilities(&mut self) -> crate::widgets::WidgetActionCapabilities<'_> {
+        crate::widgets::WidgetActionCapabilities::none().with_semantic_actions(self)
+    }
     fn capabilities_v2(&self) -> crate::widgets::WidgetCapabilitiesV2<'_> {
-        crate::widgets::WidgetCapabilitiesV2::new().with_pointer_motion(self)
+        crate::widgets::WidgetCapabilitiesV2::new()
+            .with_pointer_motion(self)
+            .with_semantic_actions(self)
     }
 
     fn append_paint(

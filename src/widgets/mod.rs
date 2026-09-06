@@ -64,13 +64,15 @@ mod theme;
 
 pub use contract::{
     FocusBehavior, FocusLossDecision, FocusedKeyDisposition, PaintBounds, PaintContract,
-    PointerCapturePolicy, PointerPressAdmission, WIDGET_CAPABILITIES_CONTRACT_VERSION,
-    WIDGET_CAPABILITIES_V1_CONTRACT_VERSION, WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, Widget,
-    WidgetCapabilities, WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestResult,
-    WidgetHitTestRevision, WidgetId, WidgetPaintContext, WidgetPointerMotion,
-    WidgetPointerMotionRevision, WidgetProminence, WidgetRevision, WidgetSemantics,
-    WidgetSemanticsRevision, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
-    stable_widget_id, stable_widget_id_u64,
+    PointerCapturePolicy, PointerPressAdmission, SemanticAction, SemanticActionSource,
+    WIDGET_CAPABILITIES_CONTRACT_VERSION, WIDGET_CAPABILITIES_V1_CONTRACT_VERSION,
+    WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, Widget, WidgetActionCapabilities, WidgetCapabilities,
+    WidgetCapabilitiesV2, WidgetHitTest, WidgetHitTestResult, WidgetHitTestRevision, WidgetId,
+    WidgetPaintContext, WidgetPointerMotion, WidgetPointerMotionRevision, WidgetProminence,
+    WidgetRevision, WidgetSemanticActionResult, WidgetSemanticActionRevision,
+    WidgetSemanticActions, WidgetSemantics, WidgetSemanticsRevision, WidgetSizing,
+    WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, stable_widget_id,
+    stable_widget_id_u64,
 };
 pub(crate) use contract::{
     WidgetRevisionComponents, supports_capabilities_v2_contract, supports_semantics_contract,

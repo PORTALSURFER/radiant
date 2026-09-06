@@ -76,6 +76,7 @@ pub use crate::gui_runtime::{
 };
 pub use crate::theme::{AppearancePolicy, ResolvedAppearance};
 pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
+pub use crate::widgets::{SemanticAction, SemanticActionSource};
 #[cfg(target_os = "macos")]
 pub(crate) use automation::NativeSemanticContainerSnapshot;
 pub(crate) use automation::NativeSemanticCoordinateAuthority;
@@ -122,10 +123,10 @@ pub use controller::{
     FocusBookmark, FocusBookmarkError, FocusDirection, FocusScope, FocusScopeBoundary, FocusTarget,
     FocusTransferOutcome, FocusTraversal, IdentityAudit, PointerClickOutcome, PointerMoveOutcome,
     RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollUpdate,
-    ScrollUpdateMetadata, SurfaceIdentityDiagnostics, SurfaceIdentityOwnership,
-    SurfaceIdentityPath, SurfaceIdentityReplacement, SurfaceLayoutStateDiagnostics,
-    SurfaceLayoutStateReplacement, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
-    SurfaceRefreshTimings, SurfaceRuntime,
+    ScrollUpdateMetadata, SemanticActionOutcome, SemanticActionTarget, SurfaceIdentityDiagnostics,
+    SurfaceIdentityOwnership, SurfaceIdentityPath, SurfaceIdentityReplacement,
+    SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
+    SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
 };
 #[cfg(target_os = "macos")]
 pub(crate) use controller::{

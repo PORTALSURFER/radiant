@@ -594,3 +594,23 @@ fn overview_and_detail_share_global_active_capacity() {
     broker.drain_completions();
     assert!(broker.take_dispatch().is_some());
 }
+
+#[test]
+fn released_gpu_capacity_notifies_only_current_ready_targets_once() {
+    let mut broker = broker(limits());
+    broker.gpu_budget = SignalGpuBudget::with_limit_for_test(8);
+    let a = target();
+    broker.request(a, request(Arc::from([0.0; 4]), 1));
+    broker.take_dispatch().unwrap().run();
+    broker.drain_completions();
+    let held = broker.gpu_budget.reserve(8).unwrap();
+    assert!(broker.gpu_budget.reserve(1).is_none());
+    drop(held);
+    assert_eq!(broker.drain_completions(), vec![a]);
+    assert!(broker.drain_completions().is_empty());
+    let held = broker.gpu_budget.reserve(8).unwrap();
+    assert!(broker.gpu_budget.reserve(1).is_none());
+    broker.release_target(a);
+    drop(held);
+    assert!(broker.drain_completions().is_empty());
+}

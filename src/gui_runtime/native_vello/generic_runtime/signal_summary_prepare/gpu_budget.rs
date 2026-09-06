@@ -15,6 +15,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct SignalGpuBudget
     limit: usize,
     used: AtomicUsize,
     waiting: AtomicBool,
+    retry_ready: AtomicBool,
     wake: Option<Arc<dyn RepaintSignal>>,
 }
 
@@ -24,6 +25,7 @@ impl SignalGpuBudget {
             limit,
             used: AtomicUsize::new(0),
             waiting: AtomicBool::new(false),
+            retry_ready: AtomicBool::new(false),
             wake: None,
         }
     }
@@ -78,6 +80,14 @@ impl SignalGpuBudget {
         }
     }
 
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn take_retry(&self) -> bool {
+        self.retry_ready.swap(false, Ordering::AcqRel)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn logical_bytes(&self) -> usize {
+        self.used.load(Ordering::Acquire)
+    }
+
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn with_limit_for_test(
         limit: usize,
@@ -96,6 +106,7 @@ impl SignalGpuBudget {
             limit,
             used: AtomicUsize::new(0),
             waiting: AtomicBool::new(false),
+            retry_ready: AtomicBool::new(false),
             wake: Some(wake),
         })
     }
@@ -128,10 +139,11 @@ impl Drop for SignalGpuLease {
                 Ordering::Acquire,
             ) {
                 Ok(_) => {
-                    if self.budget.waiting.swap(false, Ordering::AcqRel)
-                        && let Some(wake) = &self.budget.wake
-                    {
-                        wake.request_repaint();
+                    if self.budget.waiting.swap(false, Ordering::AcqRel) {
+                        self.budget.retry_ready.store(true, Ordering::Release);
+                        if let Some(wake) = &self.budget.wake {
+                            wake.request_repaint();
+                        }
                     }
                     return;
                 }

@@ -401,6 +401,7 @@ pub(super) struct SummaryCapacityStatus {
     pub(super) source_logical_bytes: usize,
     pub(super) summary_logical_bytes: usize,
     pub(super) tiles: usize,
+    pub(super) gpu_logical_bytes: usize,
 }
 
 impl Limits {
@@ -742,6 +743,7 @@ impl SummaryBroker {
             source_logical_bytes: self.source_bytes,
             summary_logical_bytes: self.summary_bytes + self.tiles.bytes,
             tiles: self.tiles.len(),
+            gpu_logical_bytes: self.gpu_budget.logical_bytes(),
         }
     }
 
@@ -775,6 +777,19 @@ impl SummaryBroker {
     /// Drain after the parent clears its pending wake flag. Returns current targets to re-prime.
     pub(super) fn drain_completions(&mut self) -> Vec<SummaryTargetId> {
         let mut notify = self.tiles.drain();
+        // A released GPU reservation must reach the normal target acceptance
+        // path. The payload-free wake alone only pumps work, not scene rebuilds.
+        if self.gpu_budget.take_retry() {
+            notify.extend(self.interests.iter().filter_map(|(target, interest)| {
+                let Interest::Source(key) = interest else {
+                    return None;
+                };
+                self.sources
+                    .get(key)
+                    .is_some_and(|entry| matches!(entry.state, EntryState::Ready { .. }))
+                    .then_some(*target)
+            }));
+        }
         while let Ok(completion) = self.receiver.try_recv() {
             let Some(entry) = self.sources.get_mut(&completion.key) else {
                 continue;
@@ -829,6 +844,8 @@ impl SummaryBroker {
             }
         }
         self.sync_tiles();
+        notify.sort_unstable_by_key(|target| target.serial);
+        notify.dedup();
         notify
     }
 

@@ -21,7 +21,13 @@ fn limits() -> Limits {
     }
 }
 fn target() -> SummaryTargetId {
-    SummaryTargetId::new(1, 1, 1).expect("monotonic target id")
+    SummaryTargetId::new(
+        WindowId::dummy(),
+        NativeAdapterGeneration::from_test_serial(1),
+        NativeTargetGeneration::from_test_serial(1),
+        1,
+    )
+    .expect("monotonic target id")
 }
 fn request(samples: Arc<[f32]>, revision: u64) -> SummaryRequest {
     SummaryRequest::new(samples, 4, 1, revision)

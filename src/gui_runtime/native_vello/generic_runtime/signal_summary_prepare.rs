@@ -4,10 +4,12 @@
 //! runner owns it behind `Rc<RefCell<_>>`, calls dispatch outside that borrow,
 //! and reconciles current paint plans after capacity changes.
 
+use super::{adapter::NativeAdapterGeneration, runner_state::NativeTargetGeneration};
 use crate::{
     gui::repaint::RepaintSignal,
     runtime::{GpuSignalSummary, GpuSurfaceContent},
 };
+use std::hash::{Hash, Hasher};
 use std::{
     collections::{HashMap, VecDeque},
     panic::{AssertUnwindSafe, catch_unwind},
@@ -17,6 +19,7 @@ use std::{
         mpsc::{Receiver, SyncSender, TryRecvError, sync_channel},
     },
 };
+use winit::window::WindowId;
 
 const MAX_ACTIVE: usize = 2;
 const MAX_QUEUED: usize = 8;
@@ -24,19 +27,21 @@ const MAX_SOURCES: usize = 64;
 const MAX_TARGETS: usize = 128;
 const MAX_LOGICAL_BYTES: usize = 256 * 1024 * 1024;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct SummaryTargetId {
     serial: u64,
-    window: u64,
-    adapter_generation: u64,
-    target_generation: u64,
+    window: WindowId,
+    adapter_generation: NativeAdapterGeneration,
+    target_generation: NativeTargetGeneration,
+    surface_key: u64,
 }
 
 impl SummaryTargetId {
     pub(super) fn new(
-        window: u64,
-        adapter_generation: u64,
-        target_generation: u64,
+        window: WindowId,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+        surface_key: u64,
     ) -> Option<Self> {
         static NEXT_SERIAL: AtomicU64 = AtomicU64::new(1);
         let serial = NEXT_SERIAL
@@ -49,7 +54,27 @@ impl SummaryTargetId {
             window,
             adapter_generation,
             target_generation,
+            surface_key,
         })
+    }
+
+    pub(super) const fn window(&self) -> WindowId {
+        self.window
+    }
+    pub(super) const fn adapter_generation(&self) -> NativeAdapterGeneration {
+        self.adapter_generation
+    }
+    pub(super) const fn target_generation(&self) -> NativeTargetGeneration {
+        self.target_generation
+    }
+    pub(super) const fn surface_key(&self) -> u64 {
+        self.surface_key
+    }
+}
+
+impl Hash for SummaryTargetId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.serial.hash(state);
     }
 }
 
@@ -264,6 +289,15 @@ struct Limits {
     bytes: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct SummaryCapacityStatus {
+    pub(super) active: usize,
+    pub(super) queued: usize,
+    pub(super) sources: usize,
+    pub(super) interests: usize,
+    pub(super) logical_bytes: usize,
+}
+
 impl Limits {
     const fn production() -> Self {
         Self {
@@ -444,6 +478,49 @@ impl SummaryBroker {
         self.interests.iter().filter_map(|(target, interest)| {
             matches!(interest, Interest::Waiting(_)).then_some(*target)
         })
+    }
+
+    pub(super) fn capacity_status(&self) -> SummaryCapacityStatus {
+        SummaryCapacityStatus {
+            active: self.active,
+            queued: self.queue.len(),
+            sources: self.sources.len(),
+            interests: self.interests.len(),
+            logical_bytes: self.bytes,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn prepare_for_test(
+        content: &GpuSurfaceContent,
+        revision: u64,
+    ) -> (Self, PreparedSummary) {
+        struct NoopWake;
+        impl RepaintSignal for NoopWake {
+            fn request_repaint(&self) {}
+        }
+
+        let mut broker = Self::new(Arc::new(NoopWake));
+        let target = SummaryTargetId::new(
+            WindowId::dummy(),
+            NativeAdapterGeneration::from_test_serial(1),
+            NativeTargetGeneration::from_test_serial(1),
+            1,
+        )
+        .expect("test target serial");
+        let request = SummaryRequest::from_raw_surface(content, revision)
+            .expect("renderable raw signal content");
+        assert_eq!(
+            broker.request(target, request),
+            SummaryRequestState::Pending
+        );
+        broker
+            .take_dispatch()
+            .expect("admitted test dispatch")
+            .run();
+        broker.drain_completions();
+        let prepared = broker.prepared(target).expect("prepared test summary");
+        (broker, prepared)
     }
 
     /// Call only when the host rejected the returned dispatch closure.

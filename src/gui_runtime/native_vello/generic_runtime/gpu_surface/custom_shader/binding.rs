@@ -3,7 +3,7 @@ use super::super::gpu_surface_types::{
     CustomShaderBinding, CustomShaderBindingKey, GpuSurfaceUniforms,
 };
 use super::super::stats::GpuSurfaceRenderStats;
-use super::diagnostics::custom_shader_validation_error;
+use super::diagnostics::poll_custom_shader_validation;
 use crate::runtime::GpuShaderSurfaceDescriptor;
 use tracing::warn;
 use vello::wgpu;
@@ -47,15 +47,16 @@ impl GpuSurfaceRenderer {
         let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let buffers = custom_shader_binding_buffers(device, request.descriptor);
         let bind_group = custom_shader_bind_group(device, &pipeline.bind_group_layout, &buffers);
-        if let Some(error) = custom_shader_validation_error(error_scope) {
+        let validation = poll_custom_shader_validation(error_scope);
+        if !matches!(validation, std::task::Poll::Ready(None)) {
             stats.custom_shader.failures.binding_failures += 1;
             warn!(
                 surface_key = request.surface_key,
                 shader_key = %pipeline.key.shader_key,
                 uniform_bytes = request.descriptor.uniform_bytes.len(),
                 storage_bytes = request.descriptor.storage_bytes.len(),
-                error = %error,
-                "radiant custom shader bind group validation failed"
+                validation = ?validation,
+                "radiant custom shader bind group validation failed or was not immediately available"
             );
             self.resources
                 .remove_custom_shader_binding(&request.surface_key);

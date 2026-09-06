@@ -1,0 +1,20 @@
+[
+  {
+    "run": 1,
+    "worker_cold_ms": 2.19975,
+    "historical_cold_ms": 2.363875,
+    "source_hashes_match": true
+  },
+  {
+    "run": 2,
+    "worker_cold_ms": 1.290125,
+    "historical_cold_ms": 0.88425,
+    "source_hashes_match": true
+  },
+  {
+    "run": 3,
+    "worker_cold_ms": 0.97775,
+    "historical_cold_ms": 1.137,
+    "source_hashes_match": true
+  }
+]

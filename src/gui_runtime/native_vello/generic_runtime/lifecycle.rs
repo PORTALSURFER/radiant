@@ -995,6 +995,9 @@ where
             RuntimeUserEvent::SignalSummaryWorkReady => {
                 self.handle_signal_summary_work_ready();
             }
+            RuntimeUserEvent::CustomShaderWorkReady => {
+                self.handle_custom_shader_work_ready();
+            }
             RuntimeUserEvent::RepaintRequested => {
                 if !self.is_running() {
                     self.runtime_wakeup.clear_pending();
@@ -1666,6 +1669,81 @@ where
             let id = dispatch.id();
             let accepted = self.core.runtime.host_spawn_worker_task(
                 "radiant-signal-summary",
+                TaskPriority::Background,
+                None,
+                Box::new(move || dispatch.run()),
+            );
+            if !accepted {
+                broker.borrow_mut().reject_dispatch(id);
+            }
+        }
+        broker.borrow_mut().maintain_retired();
+    }
+
+    /// Parent-only completion pump for device-bound custom shader candidates.
+    /// This never creates a device or spins a redraw while work is pending;
+    /// installation is deferred to the next admitted present transaction.
+    fn handle_custom_shader_work_ready(&mut self) {
+        self.runtime_wakeup.clear_custom_shader_work_pending();
+        let Some(preparation) = self.custom_shader_preparation.as_ref() else {
+            return;
+        };
+        let broker = preparation.shared();
+        let capacity_changed = {
+            let mut broker = broker.borrow_mut();
+            let before = broker.capacity_status();
+            let ready = broker.drain_completions();
+            broker.maintain_retired();
+            let capacity_changed = before != broker.capacity_status();
+            if self.is_running() {
+                for target in ready {
+                    let Some(adapter_generation) = self
+                        .adapter
+                        .as_ref()
+                        .and_then(GenericNativeAdapterOwner::capture_generation)
+                    else {
+                        break;
+                    };
+                    if self.accepts_custom_shader_target(target, adapter_generation) {
+                        self.defer_scene_rebuild();
+                        continue;
+                    }
+                    if let Some(window) = self.auxiliary_windows.iter_mut().find(|window| {
+                        window.accepts_custom_shader_target(target, adapter_generation)
+                    }) {
+                        window.defer_custom_shader_scene_rebuild();
+                    }
+                }
+            }
+            capacity_changed
+        };
+        if !self.is_running() {
+            return;
+        }
+        // Select at most eight waiting targets from the shared broker, then
+        // mark the actual parent or auxiliary owner.  A retry selection must
+        // never make a sibling window render a target it does not own.
+        let mut capacity_retry_required = self.take_custom_shader_capacity_retry_required();
+        for window in &mut self.auxiliary_windows {
+            capacity_retry_required |= window.take_custom_shader_capacity_retry_required();
+        }
+        if capacity_changed || capacity_retry_required {
+            let waiting = self.take_waiting_custom_shader_targets(8);
+            if self.schedule_waiting_custom_shader_retry(&waiting) {
+                self.defer_scene_rebuild();
+            }
+            for window in &mut self.auxiliary_windows {
+                if window.schedule_waiting_custom_shader_retry(&waiting) {
+                    window.defer_custom_shader_scene_rebuild();
+                }
+            }
+        }
+        loop {
+            let dispatch = broker.borrow_mut().take_dispatch();
+            let Some(dispatch) = dispatch else { break };
+            let id = dispatch.id();
+            let accepted = self.core.runtime.host_spawn_worker_task(
+                "radiant-custom-shader-preparation",
                 TaskPriority::Background,
                 None,
                 Box::new(move || dispatch.run()),

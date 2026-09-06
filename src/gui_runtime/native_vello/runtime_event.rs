@@ -96,6 +96,8 @@ pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     RepaintRequested,
     /// Coalesced parent-owned pump for CPU signal-summary preparation.
     SignalSummaryWorkReady,
+    /// Coalesced parent-owned pump for device-bound custom shader preparation.
+    CustomShaderWorkReady,
     OpenFiles(Vec<PathBuf>),
     ApplicationReopenRequested,
     DeviceLost {
@@ -164,6 +166,7 @@ impl PartialEq for RuntimeUserEvent {
         match (self, other) {
             (Self::RepaintRequested, Self::RepaintRequested)
             | (Self::SignalSummaryWorkReady, Self::SignalSummaryWorkReady)
+            | (Self::CustomShaderWorkReady, Self::CustomShaderWorkReady)
             | (Self::ApplicationReopenRequested, Self::ApplicationReopenRequested) => true,
             (Self::OpenFiles(left), Self::OpenFiles(right)) => left == right,
             (

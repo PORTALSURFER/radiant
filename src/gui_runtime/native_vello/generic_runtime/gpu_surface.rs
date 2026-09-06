@@ -20,9 +20,10 @@ mod active_keys;
 #[path = "gpu_surface/async_signal_native_tests.rs"]
 mod async_signal_native_tests;
 mod atlas;
-mod custom_shader;
+pub(super) mod custom_shader;
+mod custom_shader_preparation;
 mod encoding;
-mod gpu_surface_types;
+pub(super) mod gpu_surface_types;
 mod identity;
 mod overlays;
 mod passes;
@@ -102,6 +103,10 @@ pub(super) struct GpuSurfaceRenderer {
     signal_pipeline: Option<SignalPipeline>,
     signal_pipeline_generation: u64,
     resources: GpuSurfaceResourceCache,
+    custom_shader_preparation: custom_shader_preparation::CustomShaderPreparationStaging,
+    preserve_custom_shader_cache: bool,
+    defer_custom_shader_transition: bool,
+    custom_shader_preparation_generation: u64,
     active_keys: ActiveGpuSurfaceKeys,
     occlusion_regions: Vec<UiRect>,
     occlusion_query_scratch: SurfaceOcclusionQueryScratch,
@@ -164,14 +169,20 @@ impl GpuSurfaceRenderer {
             context.target.device,
             context.target.format,
         );
-        let custom_transition = custom_requests.as_ref().is_some_and(|requests| {
+        let custom_preparation_pending = custom_requests
+            .as_ref()
+            .is_some_and(|requests| !self.custom_shader_frame_preparations_available(requests));
+        let transition_required = custom_requests.as_ref().is_some_and(|requests| {
             self.resources
                 .custom_shader_frame_requires_transition(requests)
         });
+        let custom_transition = transition_required && !custom_preparation_pending;
         custom_shader_preflight_state.reset(custom_requests.as_ref().map(|requests| {
             self.resources
                 .custom_shader_frame_preflight(requests, custom_transition)
         }));
+        custom_shader_preflight_state.defer_transition =
+            transition_required && custom_preparation_pending;
         if custom_transition && let Some(requests) = custom_requests.as_ref() {
             plan.push_action(GpuSurfaceRenderCanvasUploadAction::CustomShaderTransition {
                 requests: requests.clone(),
@@ -295,6 +306,7 @@ impl GpuSurfaceRenderer {
 
     fn upload_plan_state_fingerprint(&mut self) -> u64 {
         let mut hasher = DefaultHasher::new();
+        self.custom_shader_preparation_generation.hash(&mut hasher);
         self.pipeline_generation.hash(&mut hasher);
         self.signal_pipeline_generation.hash(&mut hasher);
         self.upload_scratch.fingerprint.reset();
@@ -375,7 +387,10 @@ impl GpuSurfaceRenderer {
                 return false;
             }
         }
-        if !self.active_keys.is_empty() {
+        if self.preserve_custom_shader_cache {
+            self.resources
+                .prune_inactive_with_shader_preservation(&self.active_keys, true);
+        } else if !self.active_keys.is_empty() {
             self.prune_inactive_resources();
         } else {
             self.clear_resources();
@@ -454,10 +469,16 @@ impl GpuSurfaceRenderer {
             wgpu_device_id(target.device),
             target.format,
         );
-        let custom_transition = custom_requests.as_ref().is_some_and(|requests| {
+        let custom_preparation_pending = custom_requests
+            .as_ref()
+            .is_some_and(|requests| !self.custom_shader_frame_preparations_available(requests));
+        let transition_required = custom_requests.as_ref().is_some_and(|requests| {
             self.resources
                 .custom_shader_frame_requires_transition(requests)
         });
+        let custom_transition = transition_required && !custom_preparation_pending;
+        self.preserve_custom_shader_cache = custom_preparation_pending;
+        self.defer_custom_shader_transition = transition_required && custom_preparation_pending;
         let mut transition_authorized = true;
         if custom_transition && let Some(requests) = custom_requests.as_ref() {
             if let Some(plan) = upload_plan.as_mut() {
@@ -648,8 +669,9 @@ impl GpuSurfaceRenderer {
             && self.finish_resource_cleanup(plan_in_flight, upload_plan.as_mut());
         self.occlusion_regions = occlusion_regions;
         // Shader rollback remains scoped to the speculative shader cache.
-        let mut transaction_complete =
-            cleanup_succeeded && stats.custom_shader.failures.surfaces_failed == 0;
+        let mut transaction_complete = cleanup_succeeded
+            && !custom_preparation_pending
+            && stats.custom_shader.failures.surfaces_failed == 0;
         let signal_cleanup_committed = if let Some(mut plan) = upload_plan.take() {
             let legacy_unmutated_fallback = !plan_in_flight && !plan.execution_mutated();
             let finished = plan.finish_execution();
@@ -669,6 +691,9 @@ impl GpuSurfaceRenderer {
         self.upload_scratch.signal.release_prepared_summaries();
         self.resources
             .finish_custom_shader_transition(transaction_complete);
+        if transaction_complete {
+            self.commit_custom_shader_preparations(primitives);
+        }
         stats
     }
 
@@ -1289,7 +1314,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_shader_preflight_records_ordered_actions_without_live_mutation() {
+    fn custom_shader_preflight_defers_unprepared_pipeline_without_live_mutation() {
         let mut renderer = GpuSurfaceRenderer::default();
         let context = upload_plan_context_for_test();
         let before_fingerprint = renderer.upload_plan_state_fingerprint();
@@ -1321,172 +1346,27 @@ mod tests {
             &[],
         );
 
+        assert_eq!(plan.actions.len(), 3);
         assert!(matches!(
-            &plan.actions[0],
+            plan.actions[0],
             GpuSurfaceRenderCanvasUploadAction::BeginFrame
         ));
         assert!(matches!(
-            &plan.actions[1],
-            GpuSurfaceRenderCanvasUploadAction::Surface {
+            plan.actions[1],
+            GpuSurfaceRenderCanvasUploadAction::Skip {
                 surface_index: 0,
                 key: 75,
-                surface: GpuSurfaceRenderCanvasUploadSurface::CustomShader,
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
             }
         ));
         assert!(matches!(
-            &plan.actions[2],
-            GpuSurfaceRenderCanvasUploadAction::CustomPipeline {
-                surface_index: 0,
-                key: 75,
-                device: 1,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                rebuild: true,
-                ..
-            }
-        ));
-        assert!(matches!(
-            &plan.actions[3],
-            GpuSurfaceRenderCanvasUploadAction::CustomBinding {
-                surface_index: 0,
-                key: 75,
-                rebuild: true,
-                ..
-            }
-        ));
-        assert_eq!(
-            plan.actions[4],
-            GpuSurfaceRenderCanvasUploadAction::Upload {
-                surface_index: 0,
-                class: GpuSurfaceRenderCanvasUploadClass::RendererParameter,
-                byte_len: 240,
-            }
-        );
-        assert!(matches!(
-            &plan.actions[5],
-            GpuSurfaceRenderCanvasUploadAction::CustomStaticState {
-                surface_index: 0,
-                key: 75,
-                write: true,
-                ..
-            }
-        ));
-        assert_eq!(
-            plan.actions[6],
-            GpuSurfaceRenderCanvasUploadAction::Upload {
-                surface_index: 0,
-                class: GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
-                byte_len: 4,
-            }
-        );
-        assert_eq!(
-            plan.actions[7],
-            GpuSurfaceRenderCanvasUploadAction::Upload {
-                surface_index: 0,
-                class: GpuSurfaceRenderCanvasUploadClass::ImmutablePayload,
-                byte_len: 4,
-            }
-        );
-        assert!(matches!(
-            &plan.actions[8],
-            GpuSurfaceRenderCanvasUploadAction::CustomPresentationState {
-                source: super::upload_plan::GpuSurfaceRenderCanvasUploadCustomPresentationSource::Initial,
-                revision: 2,
-                byte_len: 4,
-                write: true,
-                ..
-            }
-        ));
-        assert_eq!(
-            plan.actions[9],
-            GpuSurfaceRenderCanvasUploadAction::Upload {
-                surface_index: 0,
-                class: GpuSurfaceRenderCanvasUploadClass::VolatilePayload,
-                byte_len: 4,
-            }
-        );
-        assert!(matches!(
-            &plan.actions[10],
-            GpuSurfaceRenderCanvasUploadAction::CustomPresentationState {
-                source:
-                    super::upload_plan::GpuSurfaceRenderCanvasUploadCustomPresentationSource::Update,
-                revision: 0,
-                byte_len: 0,
-                write: false,
-                ..
-            }
-        ));
-        assert!(matches!(
-            &plan.actions[11],
-            GpuSurfaceRenderCanvasUploadAction::Activate {
-                surface_index: 0,
-                key: 75,
-            }
-        ));
-        assert!(matches!(
-            &plan.actions[12],
-            GpuSurfaceRenderCanvasUploadAction::Prune { clear: false }
+            plan.actions[2],
+            GpuSurfaceRenderCanvasUploadAction::Prune { clear: true }
         ));
         assert_eq!(renderer.upload_plan_state_fingerprint(), before_fingerprint);
         assert!(renderer.resources.custom_shader_pipelines_are_empty());
         assert!(renderer.resources.custom_shader_bindings_are_empty());
         assert!(renderer.active_keys.is_empty());
-    }
-
-    #[test]
-    fn custom_shader_preflight_matches_presentation_updates_after_initial_state() {
-        let mut renderer = GpuSurfaceRenderer::default();
-        let context = upload_plan_context_for_test();
-        let descriptor = Arc::new(
-            crate::runtime::GpuShaderSurfaceDescriptor::new("test/custom-shader")
-                .wgsl_source(
-                    "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }\n@fragment fn fragment_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }",
-                )
-                .entry_point("vertex_main")
-                .fragment_entry_point("fragment_main")
-                .storage_identity(11)
-                .storage_revision(13)
-                .storage_bytes([5, 6, 7, 8])
-                .presentation_uniform([9, 10, 11, 12], 2),
-        );
-        let primitives = [PaintPrimitive::GpuSurface(PaintGpuSurface {
-            widget_id: 5,
-            key: 75,
-            revision: 13,
-            rect: UiRect::from_min_size(Point::new(2.0, 2.0), Vector2::new(4.0, 4.0)),
-            content: GpuSurfaceContent::CustomShader { descriptor },
-            capabilities: GpuSurfaceCapabilities::default(),
-            overlays: Vec::new(),
-        })];
-        let update =
-            GpuShaderPresentationUniformUpdate::try_new(5, 75, 11, 13, 7, [13, 14, 15, 16])
-                .expect("valid presentation update");
-
-        let plan = renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
-            context,
-            &primitives,
-            crate::theme::DpiScale::ONE,
-            &[update],
-        );
-
-        assert!(matches!(
-            &plan.actions[9],
-            GpuSurfaceRenderCanvasUploadAction::CustomPresentationState {
-                source:
-                    super::upload_plan::GpuSurfaceRenderCanvasUploadCustomPresentationSource::Update,
-                revision: 7,
-                byte_len: 4,
-                write: true,
-                ..
-            }
-        ));
-        assert_eq!(
-            plan.actions[10],
-            GpuSurfaceRenderCanvasUploadAction::Upload {
-                surface_index: 0,
-                class: GpuSurfaceRenderCanvasUploadClass::VolatilePayload,
-                byte_len: 4,
-            }
-        );
     }
 
     #[test]

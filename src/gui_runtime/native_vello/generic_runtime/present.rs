@@ -14,8 +14,8 @@ use super::{
     post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
     slow_render_profile_enabled,
 };
-use crate::runtime::RuntimeBridge;
-use std::time::Instant;
+use crate::runtime::{GpuSurfaceContent, PaintPrimitive, RuntimeBridge};
+use std::{collections::HashSet, time::Instant};
 use vello::wgpu;
 use winit::event_loop::ActiveEventLoop;
 
@@ -25,6 +25,10 @@ use super::composited_base::{
     BaseFramePresentRequest, BaseFramePresentState, BaseFramePresentTarget, present_base_frame,
 };
 use super::device::wgpu_device_id;
+use super::gpu_surface::{
+    custom_shader::pipeline::custom_shader_pipeline_key,
+    gpu_surface_types::CustomShaderPipelineIdentity,
+};
 use super::scene_texture::{
     NativeFrameRenderFailure, SceneTextureContext, render_scene_texture_if_needed,
     render_scene_to_surface_view,
@@ -137,6 +141,64 @@ where
         };
         let pending_signal_summary_installs =
             self.reconcile_signal_summary_interests(adapter_generation);
+        // Capture the UI-side device identity and target format before worker
+        // reconciliation.  The broker must never derive identity from a
+        // worker-owned device clone.  Existing physical pipelines bypass the
+        // broker entirely.
+        let custom_shader_reconciliation =
+            self.window.native_resources.as_ref().and_then(|resources| {
+                let dev_handle = adapter.device_handle_for_surface(&resources.render_surface)?;
+                let device_identity = wgpu_device_id(&dev_handle.device);
+                let device = dev_handle.device.clone();
+                let format = resources.render_surface.config.format;
+                let cached = self
+                    .frame
+                    .last_paint_plan
+                    .primitives
+                    .iter()
+                    .filter_map(|primitive| {
+                        let PaintPrimitive::GpuSurface(surface) = primitive else {
+                            return None;
+                        };
+                        let GpuSurfaceContent::CustomShader { descriptor } = &surface.content
+                        else {
+                            return None;
+                        };
+                        let key = custom_shader_pipeline_key(descriptor)?;
+                        let identity = CustomShaderPipelineIdentity {
+                            device: device_identity,
+                            format,
+                            key,
+                        };
+                        resources
+                            .gpu_resources
+                            .gpu_surface_renderer
+                            .has_cached_custom_shader_preparation(
+                                &super::custom_shader_prepare::CustomShaderPreparationRequest::new(
+                                    device.clone(),
+                                    device_identity,
+                                    adapter_generation,
+                                    format,
+                                    identity.key.clone(),
+                                ),
+                            )
+                            .then_some(identity)
+                    })
+                    .collect::<HashSet<_>>();
+                Some((device, device_identity, format, cached))
+            });
+        let pending_custom_shader_installs = custom_shader_reconciliation.map_or_else(
+            Vec::new,
+            |(device, device_identity, format, cached)| {
+                self.reconcile_custom_shader_preparations(
+                    adapter_generation,
+                    &device,
+                    device_identity,
+                    format,
+                    &cached,
+                )
+            },
+        );
         let target_generation = self.window.target_generation;
         let target_fenced = self.window.native_surface_target_fenced;
         // Volatile GPU updates are staged before the final stage-owner ticket
@@ -405,6 +467,9 @@ where
                         pending.prepared,
                     );
             }
+            gpu_resources
+                .gpu_surface_renderer
+                .replace_custom_shader_preparations(pending_custom_shader_installs);
             let request = BaseFramePresentRequest {
                 paint_plan: &self.frame.last_paint_plan,
                 occlusion_plan: &self.frame.surface_occlusion_plan,
@@ -525,6 +590,26 @@ where
             return Ok(NativeVisualRequestDisposition::DropPacket);
         }
         self.core.runtime.commit_gpu_shader_presentation_updates();
+        // Candidate leases become installed-cache ownership only after the
+        // whole encode/present transaction commits.  Any veto leaves broker
+        // interests intact for a later admitted frame.
+        let committed_custom_shader_targets =
+            self.window
+                .native_resources
+                .as_mut()
+                .map_or_else(Vec::new, |resources| {
+                    resources
+                        .gpu_resources
+                        .gpu_surface_renderer
+                        .take_committed_custom_shader_targets()
+                });
+        if let Some(broker) = self.shared_custom_shader_broker() {
+            let mut broker = broker.borrow_mut();
+            for target in committed_custom_shader_targets {
+                broker.consume_target(target);
+            }
+            broker.maintain_retired();
+        }
         profile.submit_present = elapsed;
         profile.frame_sequence = self.timing.allocate_frame_sequence();
         let mut current_plan_context = None;

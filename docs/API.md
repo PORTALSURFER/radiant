@@ -5754,6 +5754,31 @@ diagnostic, never silent omission. The complete target identity includes
 program/contract/payload versions, retained allocation identity, uniforms,
 bounds, and adapter/target generations; hashes are lookup aids only.
 
+Native custom shader pipelines are prepared through the parent runtime task host.
+Exact device generation, target format and shader/layout keys coalesce requests.
+Creation and validation scopes run together on a worker; pending or unavailable
+preparation uses the incomplete-surface fallback. A custom bridge without task
+hosting cannot prepare a cold pipeline. The native WGPU creation calls remain
+synchronous inside that worker and cannot be interrupted mid-driver-call.
+
+Preparation admits two active jobs globally, at most one per captured device,
+eight queued jobs, 256 transient entries, 1,024 target interests and 1 MiB of
+retained exact key text. These transient limits are separate from each renderer's
+bounded installed cache and its temporary rollback predecessor. Installed GPU
+handles do not keep a broker reservation. Staged candidates remain available
+until the complete render transaction commits; replacement, close and recovery
+release their old interests. Failed keys do not retry on every frame. A new
+identity or a later interest after retirement can retry.
+
+Demand redraw performs no custom shader creation or validation wait, so its
+`pipeline_rebuilds` count no longer reports worker compilation. Opt-in debug
+tracing at `radiant::custom_shader_prepare` reports actual worker terminal CPU
+time and preparation capacity separately. This is not GPU timing or evidence
+of foreground responsiveness. Binding creation and uploads remain in rendering. The pinned native WGPU 29
+binding error scope returns an immediately ready future, checked with one poll.
+A backend that defers that result gets an explicit incomplete binding fallback;
+the renderer does not wait or assume validation succeeded.
+
 `PaintGpuSurface` supports the built-in v1 content payloads
 `RenderCanvasContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`, plus
 `RenderCanvasContent::CustomShader` for advanced surfaces that need to carry
@@ -5797,8 +5822,8 @@ validation failures are counted separately through
 `custom_shader.failures.surfaces_failed`,
 `custom_shader.failures.shader_module_failures`,
 `custom_shader.failures.pipeline_failures`, and
-`custom_shader.failures.binding_failures`; the native renderer also logs the
-backend validation error through tracing. Descriptors that do not provide source
+`custom_shader.failures.binding_failures`. Worker preparation emits a bounded
+typed failure outcome through tracing; binding validation logs its backend error. Descriptors that do not provide source
 or stage entry points report skipped surfaces through
 `custom_shader.unsupported.surfaces`, `custom_shader.unsupported.vertices`,
 `custom_shader.unsupported.source_bytes`,
@@ -5827,10 +5852,11 @@ capacity. At most two bounded cache sets exist during a transition (up to 512
 pipeline entries, 2,048 associations, and 2 MiB of distinct logical key text
 across the sets; these are not total allocator or GPU byte measurements).
 Normal under-capacity frames do not create a predecessor. Final-interest
-pruning retires unused physical pipelines. Validation failures are deliberately
-not retained: the exact identity is retried on a later upload, avoiding a
-growing negative-result cache. Failed shader-module or render-pipeline creation preserves the prior
-usable association and binding until normal end-of-frame interest pruning.
+pruning retires unused physical pipelines. The bounded preparation broker retains
+validation failures while the exact target interest remains live, preventing
+repeated compilation of a failing key on redraw. Failed or pending preparation
+preserves the prior bounded shader cache until a ready frame can commit or the
+owning plan/target retires.
 A failed speculative transition restores its predecessor even without an upload
 plan. Device recovery starts
 a fresh renderer cache.

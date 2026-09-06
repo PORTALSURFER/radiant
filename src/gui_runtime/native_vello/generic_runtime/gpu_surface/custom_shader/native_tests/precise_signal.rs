@@ -270,6 +270,9 @@ fn precise_signal_render_pixels(
     frozen_legacy: bool,
 ) -> Vec<u8> {
     let mut renderer = GpuSurfaceRenderer::default();
+    if custom {
+        stage_custom_shader_preparations(&mut renderer, device, primitives);
+    }
     if frozen_legacy {
         renderer.signal_pipeline = Some(frozen_legacy_signal_pipeline(device));
     }

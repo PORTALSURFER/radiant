@@ -3,6 +3,19 @@ use super::super::upload_plan::GpuSurfaceRenderCanvasUploadPlanUnavailableReason
 use crate::runtime::GpuShaderSurfaceDescriptor;
 use vello::wgpu;
 
+/// Native WGPU 29 pops its thread-local scope immediately and returns a ready
+/// future. Poll once instead of blocking demand redraw; another backend that
+/// defers validation is explicitly unavailable at this binding boundary.
+pub(super) fn poll_custom_shader_validation(
+    error_scope: wgpu::ErrorScopeGuard,
+) -> std::task::Poll<Option<wgpu::Error>> {
+    use std::future::Future;
+    let mut future = std::pin::pin!(error_scope.pop());
+    future
+        .as_mut()
+        .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()))
+}
+
 pub(super) fn custom_shader_validation_error(
     error_scope: wgpu::ErrorScopeGuard,
 ) -> Option<wgpu::Error> {

@@ -1,0 +1,17 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1457-bounded-shader-preparation-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 19s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 3 tests
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::native_broker_coalesces_bounds_rejects_cancels_and_retires ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::native_ready_candidate_retires_after_final_consumed_lease ... ok
+test gui_runtime::native_vello::generic_runtime::custom_shader_prepare::tests::native_scheduler_rotates_a_device_blocked_queue_entry ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4261 filtered out; finished in 0.06s
+

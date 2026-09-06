@@ -1,0 +1,129 @@
+{
+  "adapter": {
+    "device": 0,
+    "device_type": "IntegratedGpu",
+    "driver": "",
+    "driver_info": "",
+    "name": "Apple M5 Pro",
+    "vendor": 0
+  },
+  "backend": "Metal",
+  "cold_device_setup_ns": 35929250,
+  "fixture": "opt-1457-sync-custom-shader-preparation",
+  "label": "baseline",
+  "samples": [
+    {
+      "layout_create_ns": 94542,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 2834,
+      "render_pipeline_create_ns": 636416,
+      "shader_module_create_ns": 347708,
+      "shader_module_validation_pop_ns": 8625,
+      "source_hash": "675bb76ff1a197c1",
+      "total_ns": 1137000,
+      "variant": 0,
+      "workload": "cold_device"
+    },
+    {
+      "layout_create_ns": 32625,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 1416,
+      "render_pipeline_create_ns": 322334,
+      "shader_module_create_ns": 266750,
+      "shader_module_validation_pop_ns": 1125,
+      "source_hash": "675bb76ff1a197c1",
+      "total_ns": 636417,
+      "variant": 0,
+      "workload": "warm_device_identical_builder"
+    },
+    {
+      "layout_create_ns": 14917,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 1000,
+      "render_pipeline_create_ns": 263250,
+      "shader_module_create_ns": 231000,
+      "shader_module_validation_pop_ns": 1167,
+      "source_hash": "675bb76ff1a197c1",
+      "total_ns": 519375,
+      "variant": 1,
+      "workload": "warm_device_identical_builder"
+    },
+    {
+      "layout_create_ns": 21833,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 916,
+      "render_pipeline_create_ns": 278667,
+      "shader_module_create_ns": 385042,
+      "shader_module_validation_pop_ns": 2292,
+      "source_hash": "675bb76ff1a197c1",
+      "total_ns": 696000,
+      "variant": 2,
+      "workload": "warm_device_identical_builder"
+    },
+    {
+      "layout_create_ns": 11125,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 833,
+      "render_pipeline_create_ns": 237666,
+      "shader_module_create_ns": 217917,
+      "shader_module_validation_pop_ns": 833,
+      "source_hash": "379c1c08d8c7042f",
+      "total_ns": 473084,
+      "variant": 0,
+      "workload": "bounded_distinct_key"
+    },
+    {
+      "layout_create_ns": 8916,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 2417,
+      "render_pipeline_create_ns": 289417,
+      "shader_module_create_ns": 205708,
+      "shader_module_validation_pop_ns": 792,
+      "source_hash": "3798ba08d8c427d2",
+      "total_ns": 517958,
+      "variant": 1,
+      "workload": "bounded_distinct_key"
+    },
+    {
+      "layout_create_ns": 40584,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 2041,
+      "render_pipeline_create_ns": 383875,
+      "shader_module_create_ns": 319584,
+      "shader_module_validation_pop_ns": 1750,
+      "source_hash": "37a2fc08d8ccec7d",
+      "total_ns": 758667,
+      "variant": 2,
+      "workload": "bounded_distinct_key"
+    },
+    {
+      "layout_create_ns": 21417,
+      "outcome": "ready",
+      "pipeline_validation_pop_ns": 2291,
+      "render_pipeline_create_ns": 521042,
+      "shader_module_create_ns": 245750,
+      "shader_module_validation_pop_ns": 1125,
+      "source_hash": "379f9208d8ca0288",
+      "total_ns": 804333,
+      "variant": 3,
+      "workload": "bounded_distinct_key"
+    },
+    {
+      "layout_create_ns": 0,
+      "outcome": "shader_module_validation_failure",
+      "pipeline_validation_pop_ns": 0,
+      "render_pipeline_create_ns": 0,
+      "shader_module_create_ns": 83917,
+      "shader_module_validation_pop_ns": 959,
+      "source_hash": "f9ad30117ae69b1b",
+      "total_ns": 85541,
+      "variant": 0,
+      "workload": "invalid_wgsl"
+    }
+  ],
+  "schema_version": 1,
+  "source_hash_algorithm": "fnv1a64",
+  "source_revision": "1f9928e941ec753e95ad1e74685c916db60de4d0",
+  "target_format": "Rgba8Unorm",
+  "thread_id": "ThreadId(2)"
+}

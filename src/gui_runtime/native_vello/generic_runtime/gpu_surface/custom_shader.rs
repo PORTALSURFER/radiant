@@ -27,7 +27,7 @@ mod diagnostics;
 #[path = "custom_shader/draw.rs"]
 mod draw;
 #[path = "custom_shader/pipeline.rs"]
-mod pipeline;
+pub(in crate::gui_runtime::native_vello::generic_runtime) mod pipeline;
 use binding::CustomShaderBindingRequest;
 use diagnostics::record_failed_custom_shader_surface;
 use draw::{CustomShaderBufferUploadRequest, CustomShaderDrawRequest};
@@ -58,6 +58,7 @@ struct CustomShaderBindingPreflightIdentity {
 #[derive(Default)]
 pub(super) struct CustomShaderUploadPreflightState {
     cache: Option<CustomShaderPreflightCache>,
+    pub(super) defer_transition: bool,
     bindings: HashMap<u64, Option<CustomShaderBindingPreflightIdentity>>,
 }
 
@@ -69,6 +70,7 @@ pub(super) struct CustomShaderUploadPreflight {
 impl CustomShaderUploadPreflightState {
     pub(super) fn reset(&mut self, cache: Option<CustomShaderPreflightCache>) {
         self.cache = cache;
+        self.defer_transition = false;
         self.bindings.clear();
         self.bindings
             .shrink_to(MAX_CUSTOM_SHADER_PREFLIGHT_ASSOCIATIONS);
@@ -259,6 +261,17 @@ impl GpuSurfaceRenderer {
             format: target.format,
             key: pipeline_key.clone(),
         };
+        if state.defer_transition || !self.custom_shader_preparation_available(&identity) {
+            actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
+                surface_index,
+                key: surface.key,
+                reason: GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            });
+            return CustomShaderUploadPreflight {
+                renderable: false,
+                unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
+            };
+        }
         let Some(pipeline_rebuild) = state.pipeline_decision(surface.key, &identity) else {
             actions.push(GpuSurfaceRenderCanvasUploadAction::Skip {
                 surface_index,
@@ -482,6 +495,39 @@ impl GpuSurfaceRenderer {
         upload_plan: Option<&mut GpuSurfaceRenderCanvasUploadPlan>,
         stats: &mut GpuSurfaceRenderStats,
     ) -> bool {
+        if let GpuSurfaceContent::CustomShader { descriptor } = &request.surface.content
+            && custom_shader_descriptor_is_supported(descriptor)
+            && request.surface.content.is_renderable()
+            && let Some(key) = custom_shader_pipeline_key(descriptor)
+        {
+            let identity = CustomShaderPipelineIdentity {
+                device: super::wgpu_device_id(target.device),
+                format: target.format,
+                key,
+            };
+            if self.defer_custom_shader_transition
+                || !self.custom_shader_preparation_available(&identity)
+            {
+                Self::consume_terminal_surface_decision(
+                    upload_plan,
+                    request.surface_index,
+                    request.surface.key,
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    stats,
+                );
+                match self.custom_shader_preparation_failure(&identity) {
+                    Some(pipeline::CustomShaderPreparationFailure::ShaderModule) => {
+                        stats.custom_shader.failures.shader_module_failures += 1
+                    }
+                    Some(pipeline::CustomShaderPreparationFailure::Pipeline) => {
+                        stats.custom_shader.failures.pipeline_failures += 1
+                    }
+                    _ => {}
+                }
+                record_failed_custom_shader_surface(stats);
+                return false;
+            }
+        }
         if let Some(upload_plan) = upload_plan {
             if upload_plan.execution_is_available()
                 && let Some(rendered) =
@@ -761,7 +807,7 @@ fn supported_custom_shader_descriptor<'a>(
     Some(descriptor)
 }
 
-pub(super) fn custom_shader_descriptor_is_supported(
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn custom_shader_descriptor_is_supported(
     descriptor: &GpuShaderSurfaceDescriptor,
 ) -> bool {
     descriptor.wgsl_source.is_some() && descriptor.fragment_entry_point.is_some()

@@ -1,0 +1,40 @@
+{
+  "source_revision": "08fccffc4016109ab16b7fd40298f3c3ce958802",
+  "base_revision": "b45e74ada6248d5cba1540f2da267b9eb553189f",
+  "gpu_suite_source_revision": "61b0718c9d80ddda5bc4623e9c2dbf9da81faf06",
+  "gpu_suite_followup": "The final revision replaces private panic shortcuts with typed errors and corrects the ordered fixture pixel reference. Focused storage, guardrails, lint, portable and native checks ran at the final revision.",
+  "profile_scope": "Logical production upload bytes and offscreen pixel correctness; not latency, GPU duration, physical residency, or foreground host acceptance.",
+  "measured_upload_bytes": {
+    "initial": 65536,
+    "edit": 4,
+    "unchanged": 0,
+    "fresh_device_recovery": 65536
+  },
+  "qualified_checks": {
+    "gpu_surface_tests": 251,
+    "persistent_tests": 11,
+    "public_api_tests": 2,
+    "guardrails": 315,
+    "native_tests": 3,
+    "clippy": "pass",
+    "no_default_features": "pass",
+    "format": "pass"
+  },
+  "rgba_files": [
+    {
+      "file": "persistent-storage-initial.rgba",
+      "sha256": "94884b9d126db829b3d1842ef5410dcbb500be9fdf8c2d1ee31e4c01a83059f3",
+      "bytes": 16384
+    },
+    {
+      "file": "persistent-storage-warm.rgba",
+      "sha256": "215ca23b0360299fc6ace66c5c9060ebcadd6463d571d52ac4be0d2a9150f2f6",
+      "bytes": 16384
+    },
+    {
+      "file": "persistent-storage-recovered.rgba",
+      "sha256": "215ca23b0360299fc6ace66c5c9060ebcadd6463d571d52ac4be0d2a9150f2f6",
+      "bytes": 16384
+    }
+  ]
+}

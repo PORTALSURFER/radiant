@@ -1,0 +1,28 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1459-persistent-storage-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 34s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 14 tests
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::persistent_native_tests::persistent_storage_coalesces_replays_after_abort_and_invalidates_released_incarnation ... ignored, requires native GPU adapter and offscreen WGPU rendering
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::persistent_native_tests::persistent_storage_switches_through_bulk_and_recovers_after_submitted_abort ... ignored, requires native GPU adapter and offscreen WGPU rendering
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::persistent_native_tests::persistent_storage_uploads_full_then_ranges_and_replays_after_recovery ... ignored, requires native GPU adapter and offscreen WGPU rendering
+test gui_runtime::native_vello::generic_runtime::gpu_surface::persistent_storage::tests::abort_keeps_the_full_committed_identity_after_a_different_target_stages ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::persistent_storage::tests::bulk_reset_commits_only_after_the_outer_transaction ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::persistent_storage::tests::unknown_submission_abort_forgets_only_touched_cursor ... ok
+test runtime::gpu_surface::persistent_storage::tests::deterministic_reference_sequence_matches_mutable_shadow ... ok
+test runtime::gpu_surface::persistent_storage::tests::generation_replacement_is_deterministic_and_release_requires_exact_fence ... ok
+test runtime::gpu_surface::persistent_storage::tests::history_lag_requests_full_capacity_and_equal_cursor_is_empty ... ok
+test runtime::gpu_surface::persistent_storage::tests::layout_and_shadow_capacity_are_charged_by_allocated_capacity ... ok
+test runtime::gpu_surface::persistent_storage::tests::patch_operation_exposes_only_validated_payloads ... ok
+test runtime::gpu_surface::persistent_storage::tests::reincarnation_changes_when_a_released_fence_is_recreated ... ok
+test runtime::gpu_surface::persistent_storage::tests::replace_append_and_overlaps_coalesce_without_shadow_copying ... ok
+test runtime::gpu_surface::persistent_storage::tests::stale_gap_and_recovery_never_mutate_the_accepted_shadow ... ok
+
+test result: ok. 11 passed; 0 failed; 3 ignored; 0 measured; 4285 filtered out; finished in 0.00s
+

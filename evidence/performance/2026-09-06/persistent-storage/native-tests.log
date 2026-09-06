@@ -1,0 +1,8 @@
+
+running 3 tests
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::persistent_native_tests::persistent_storage_coalesces_replays_after_abort_and_invalidates_released_incarnation ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::persistent_native_tests::persistent_storage_switches_through_bulk_and_recovers_after_submitted_abort ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::persistent_native_tests::persistent_storage_uploads_full_then_ranges_and_replays_after_recovery ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4296 filtered out; finished in 0.14s
+

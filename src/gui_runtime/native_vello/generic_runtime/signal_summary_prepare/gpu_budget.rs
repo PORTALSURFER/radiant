@@ -3,9 +3,10 @@
 //! This deliberately accounts retained buffer and body-texture handles, not
 //! driver allocation size, submission completion, or GPU fences.
 
+use crate::gui::repaint::RepaintSignal;
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 const MAX_LOGICAL_SIGNAL_GPU_BYTES: usize = 128 * 1024 * 1024;
@@ -13,6 +14,8 @@ const MAX_LOGICAL_SIGNAL_GPU_BYTES: usize = 128 * 1024 * 1024;
 pub(in crate::gui_runtime::native_vello::generic_runtime) struct SignalGpuBudget {
     limit: usize,
     used: AtomicUsize,
+    waiting: AtomicBool,
+    wake: Option<Arc<dyn RepaintSignal>>,
 }
 
 impl SignalGpuBudget {
@@ -20,6 +23,17 @@ impl SignalGpuBudget {
         Self {
             limit,
             used: AtomicUsize::new(0),
+            waiting: AtomicBool::new(false),
+            wake: None,
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn with_wake(
+        wake: Arc<dyn RepaintSignal>,
+    ) -> Self {
+        Self {
+            wake: Some(wake),
+            ..Self::default()
         }
     }
 
@@ -28,10 +42,25 @@ impl SignalGpuBudget {
         self: &Arc<Self>,
         bytes: usize,
     ) -> Option<SignalGpuLease> {
+        // A single handle larger than the full budget can never be admitted;
+        // it must not arm a release-triggered retry loop.
+        if bytes > self.limit {
+            return None;
+        }
         let mut used = self.used.load(Ordering::Acquire);
         loop {
-            let next = used.checked_add(bytes)?;
+            let Some(next) = used.checked_add(bytes) else {
+                return None;
+            };
             if next > self.limit {
+                // Close the release/store race: if a lease released capacity
+                // while this flag was being armed, retry against its new use.
+                self.waiting.store(true, Ordering::Release);
+                let refreshed = self.used.load(Ordering::Acquire);
+                if refreshed != used {
+                    used = refreshed;
+                    continue;
+                }
                 return None;
             }
             match self
@@ -59,6 +88,16 @@ impl SignalGpuBudget {
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn used_for_test(&self) -> usize {
         self.used.load(Ordering::Acquire)
+    }
+
+    #[cfg(test)]
+    fn with_limit_and_wake_for_test(limit: usize, wake: Arc<dyn RepaintSignal>) -> Arc<Self> {
+        Arc::new(Self {
+            limit,
+            used: AtomicUsize::new(0),
+            waiting: AtomicBool::new(false),
+            wake: Some(wake),
+        })
     }
 }
 
@@ -88,7 +127,14 @@ impl Drop for SignalGpuLease {
                 Ordering::AcqRel,
                 Ordering::Acquire,
             ) {
-                Ok(_) => return,
+                Ok(_) => {
+                    if self.budget.waiting.swap(false, Ordering::AcqRel)
+                        && let Some(wake) = &self.budget.wake
+                    {
+                        wake.request_repaint();
+                    }
+                    return;
+                }
                 Err(observed) => used = observed,
             }
         }
@@ -98,6 +144,15 @@ impl Drop for SignalGpuLease {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    struct Wake(AtomicUsize);
+
+    impl RepaintSignal for Wake {
+        fn request_repaint(&self) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
 
     #[test]
     fn leases_release_logical_residency_only_after_the_last_handle_drops() {
@@ -120,5 +175,31 @@ mod tests {
         assert!(budget.reserve(usize::MAX).is_none());
         assert_eq!(budget.used_for_test(), 1);
         drop(held);
+    }
+
+    #[test]
+    fn capacity_denial_wakes_once_after_another_handle_releases() {
+        let wake = Arc::new(Wake(AtomicUsize::new(0)));
+        let budget = SignalGpuBudget::with_limit_and_wake_for_test(8, wake.clone());
+        let held = budget.reserve(8).expect("full reservation");
+
+        assert!(budget.reserve(1).is_none());
+        assert_eq!(wake.0.load(Ordering::Relaxed), 0);
+        drop(held);
+
+        assert_eq!(budget.used_for_test(), 0);
+        assert_eq!(wake.0.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn permanently_oversized_denial_does_not_arm_a_release_retry() {
+        let wake = Arc::new(Wake(AtomicUsize::new(0)));
+        let budget = SignalGpuBudget::with_limit_and_wake_for_test(8, wake.clone());
+        let held = budget.reserve(4).expect("held reservation");
+
+        assert!(budget.reserve(9).is_none());
+        drop(held);
+
+        assert_eq!(wake.0.load(Ordering::Relaxed), 0);
     }
 }

@@ -158,46 +158,6 @@ fn has_inline_value(arg: &str) -> bool {
     .any(|name| arg.starts_with(&format!("{name}=")))
 }
 
-#[cfg(test)]
-mod iteration_tests {
-    use super::*;
-
-    #[test]
-    fn iteration_override_is_bounded_and_never_becomes_a_scenario_filter() {
-        let args = |values: &[&str]| {
-            values
-                .iter()
-                .map(|value| (*value).to_owned())
-                .collect::<Vec<_>>()
-        };
-        for values in [
-            vec!["bench", "selected", "--iterations", "6000", "--jsonl"],
-            vec!["bench", "--iterations=6000", "selected"],
-        ] {
-            let input = args(&values);
-            assert_eq!(iterations_from_args(&input), Ok(Some(6000)));
-            assert_eq!(scenario_filters_from_args(&input), vec!["selected"]);
-        }
-        assert_eq!(
-            iterations_from_args(&args(&["bench", "selected"])),
-            Ok(None)
-        );
-        for values in [
-            vec!["--iterations"],
-            vec!["--iterations=0"],
-            vec!["--iterations=100001"],
-            vec!["--iterations=-1"],
-            vec!["--iterations=1.5"],
-            vec!["--iterations="],
-            vec!["--iterations=1", "--iterations=2"],
-        ] {
-            let mut input = vec!["bench".to_owned()];
-            input.extend(args(&values));
-            assert!(iterations_from_args(&input).is_err(), "{input:?}");
-        }
-    }
-}
-
 fn has_flag(args: &[String], name: &str) -> bool {
     args.iter().skip(1).any(|arg| arg == name)
 }
@@ -242,4 +202,45 @@ fn filter_values_after_arg(args: &[String], name: &str) -> Vec<String> {
 fn filter_value_error(name: &str) -> ! {
     eprintln!("radiant_perf filter error: {name} requires a non-empty value");
     std::process::exit(2);
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod iteration_tests {
+    use super::*;
+
+    #[test]
+    fn iteration_override_is_bounded_and_never_becomes_a_scenario_filter() {
+        let args = |values: &[&str]| {
+            values
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect::<Vec<_>>()
+        };
+        for values in [
+            vec!["bench", "selected", "--iterations", "6000", "--jsonl"],
+            vec!["bench", "--iterations=6000", "selected"],
+        ] {
+            let input = args(&values);
+            assert_eq!(iterations_from_args(&input), Ok(Some(6000)));
+            assert_eq!(scenario_filters_from_args(&input), vec!["selected"]);
+        }
+        assert_eq!(
+            iterations_from_args(&args(&["bench", "selected"])),
+            Ok(None)
+        );
+        for values in [
+            vec!["--iterations"],
+            vec!["--iterations=0"],
+            vec!["--iterations=100001"],
+            vec!["--iterations=-1"],
+            vec!["--iterations=1.5"],
+            vec!["--iterations="],
+            vec!["--iterations=1", "--iterations=2"],
+        ] {
+            let mut input = vec!["bench".to_owned()];
+            input.extend(args(&values));
+            assert!(iterations_from_args(&input).is_err(), "{input:?}");
+        }
+    }
 }

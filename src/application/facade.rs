@@ -11,6 +11,10 @@ mod menus;
 mod overlays;
 mod panels;
 mod runtime;
+pub use runtime::{
+    ResourceInterest, ResourceInterestError, ResourceInterestKind, SharedResourceTasks,
+};
+pub use runtime::{SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode};
 mod surfaces;
 mod view;
 mod virtual_layout;

@@ -16,7 +16,8 @@ use std::any::Any;
 mod bridge;
 mod queue;
 mod subscription;
-mod task;
+pub(crate) mod task;
+pub use task::{SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode};
 mod threading;
 mod timer;
 pub(crate) mod update_context;
@@ -31,6 +32,9 @@ pub use task::{
     ResourceTasks, TaskCompletion, TaskTicket,
 };
 pub(crate) use task::{LatestTaskTransaction, LatestTimerTransaction};
+pub use task::{
+    ResourceInterest, ResourceInterestError, ResourceInterestKind, SharedResourceTasks,
+};
 pub use update_context::{BusinessEventSink, BusinessWorkContext, UiUpdateContext};
 pub use update_context::{
     BusinessTaskAdmission, BusinessTaskAdmissionReceipt, BusinessTaskAdmissionReceiptState,

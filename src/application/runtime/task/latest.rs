@@ -143,6 +143,7 @@ impl LatestTask {
             state: Arc::downgrade(&state),
             committed: Cell::new(false),
             rejection_hook: None,
+            settlement_hook: None,
         }
     }
 
@@ -207,6 +208,27 @@ impl LatestTask {
         }
     }
 
+    /// Drop resolved replacement rollback bookkeeping without changing the
+    /// active ticket. The resource broker calls this only after settlement.
+    pub(crate) fn clear_resolved_replacement(&mut self, replacement: TaskTicket) {
+        if let LatestStorage::Shared { state, .. } = &mut self.storage {
+            let mut state = lock_state(state);
+            state.predecessors.remove(&replacement);
+            state.rejected.remove(&replacement);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rollback_entry_count(&self) -> usize {
+        match &self.storage {
+            LatestStorage::Inline { .. } => 0,
+            LatestStorage::Shared { state, .. } => {
+                let state = lock_state(state);
+                state.predecessors.len() + state.rejected.len()
+            }
+        }
+    }
+
     fn set_active(&mut self, active: Option<TaskTicket>) {
         match &mut self.storage {
             LatestStorage::Inline {
@@ -232,6 +254,12 @@ impl Drop for LatestTask {
 }
 
 /// A latest-task replacement that can be committed or rolled back by the controller.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LatestTaskTransactionSettlement {
+    Accepted,
+    Rejected,
+}
+
 pub(crate) struct LatestTaskTransaction {
     slot: u64,
     replacement: TaskTicket,
@@ -239,6 +267,7 @@ pub(crate) struct LatestTaskTransaction {
     state: Weak<Mutex<LatestState>>,
     committed: Cell<bool>,
     rejection_hook: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+    settlement_hook: Option<Arc<dyn Fn(LatestTaskTransactionSettlement) + Send + Sync + 'static>>,
 }
 
 impl LatestTaskTransaction {
@@ -278,6 +307,17 @@ impl LatestTaskTransaction {
         self
     }
 
+    /// Install a private observer that runs once after this transaction has
+    /// settled and the latest-task mutex has been released. Rejection hooks
+    /// intentionally retain their historical earlier ordering.
+    pub(crate) fn with_settlement_hook(
+        mut self,
+        hook: Arc<dyn Fn(LatestTaskTransactionSettlement) + Send + Sync + 'static>,
+    ) -> Self {
+        self.settlement_hook = Some(hook);
+        self
+    }
+
     pub(crate) fn replacement(&self) -> TaskTicket {
         self.replacement
     }
@@ -304,12 +344,12 @@ impl LatestTaskTransaction {
         if self.committed.replace(true) {
             return;
         }
-        let Some(state) = self.state.upgrade() else {
-            return;
-        };
-        let mut state = lock_state(&state);
-        state.predecessors.remove(&self.replacement);
-        state.rejected.remove(&self.replacement);
+        if let Some(state) = self.state.upgrade() {
+            let mut state = lock_state(&state);
+            state.predecessors.remove(&self.replacement);
+            state.rejected.remove(&self.replacement);
+        }
+        self.notify_settlement(LatestTaskTransactionSettlement::Accepted);
     }
 
     pub(crate) fn reject(&self) {
@@ -317,19 +357,25 @@ impl LatestTaskTransaction {
             return;
         }
         self.release_rejection_hook();
-        let Some(state) = self.state.upgrade() else {
-            return;
-        };
-        let mut state = lock_state(&state);
-        state.rejected.insert(self.replacement);
-        if state.active == Some(self.replacement) {
-            state.active = resolve_ticket(&state, self.previous);
+        if let Some(state) = self.state.upgrade() {
+            let mut state = lock_state(&state);
+            state.rejected.insert(self.replacement);
+            if state.active == Some(self.replacement) {
+                state.active = resolve_ticket(&state, self.previous);
+            }
         }
+        self.notify_settlement(LatestTaskTransactionSettlement::Rejected);
     }
 
     fn release_rejection_hook(&self) {
         if let Some(hook) = &self.rejection_hook {
             hook();
+        }
+    }
+
+    fn notify_settlement(&self, settlement: LatestTaskTransactionSettlement) {
+        if let Some(hook) = &self.settlement_hook {
+            hook(settlement);
         }
     }
 }
@@ -340,14 +386,14 @@ impl Drop for LatestTaskTransaction {
             return;
         }
         self.release_rejection_hook();
-        let Some(state) = self.state.upgrade() else {
-            return;
-        };
-        let mut state = lock_state(&state);
-        state.rejected.insert(self.replacement);
-        if state.active == Some(self.replacement) {
-            state.active = resolve_ticket(&state, self.previous);
+        if let Some(state) = self.state.upgrade() {
+            let mut state = lock_state(&state);
+            state.rejected.insert(self.replacement);
+            if state.active == Some(self.replacement) {
+                state.active = resolve_ticket(&state, self.previous);
+            }
         }
+        self.notify_settlement(LatestTaskTransactionSettlement::Rejected);
     }
 }
 

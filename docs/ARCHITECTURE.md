@@ -783,7 +783,7 @@ with typed outcomes, bounded adapter data, exact owner-generation admission,
 and pre-map/post-map fences. In-process clipboard coordination stays in the
 application-instance UI runtime; no clipboard payload or native handle crosses
 the adapter boundary. `runtime/effects` is not complete. The remaining
-effect-ownership boundaries are future work tracked by OPT-1390 and OPT-1421;
+effect-ownership audit remains tracked by OPT-1421;
 subscriptions, scheduler/thread design, native hosts, and product wiring
 remain deferred. External drag remains a separate lane.
 
@@ -800,8 +800,20 @@ coalesced owner streams, the cancellable latest-task one-shot and
 ordered/coalesced owner streams, ordered/coalesced latest-task owner streams,
 and coalesced
 keyed-latest owner streams reuse this same
-registry/lifecycle seam; broader platform and shared-resource ownership remain
-deferred.
+registry/lifecycle seam. Shared resource interests also retire at this accepted
+owner boundary; their workers remain application-owned while any consumer survives.
+
+### Shared resource interest ownership
+
+`SharedResourceTasks` binds on first successful interest admission to one runtime.
+The controller resolves an explicit application or declarative owner and keeps
+only a weak retirement guard for each distinct interest. Accepted owner removal
+releases exactly that generation; final consumer release fences application-owned
+work through a new demand generation. A later consumer cannot revive old work.
+The bounded operation registry reuses latest-task admission transactions and the
+existing worker lane, with one unsettled replacement per resource. Values and
+errors remain in application state. See [Shared resource tasks](SHARED_RESOURCE_TASKS.md)
+for completion, cancellation, retention, and retry contracts.
 
 The private declarative seam has five dependency-ordered stages. Generic
 matching registry retirement is now shipped at the accepted projection
@@ -813,8 +825,9 @@ the cancellable ordinary ordered and coalesced owner streams, the cancellable
 latest-task one-shot and ordered/coalesced owner streams,
 ordered/coalesced latest-task owner streams, coalesced keyed-latest owner
 streams, and the qualified platform-effect route are shipped;
-`ResourceTasks` ownership and broader product-facing demand/refresh/provider
-ownership remain deferred:
+`ResourceTasks` keeps its independent application-owned semantics. The additive
+`SharedResourceTasks` broker provides bounded shared demand, refresh, retention,
+and explicit logical-clock retries; product-facing resource views remain separate:
 
 1. Declarative lowering and traversal preserve crate-private source metadata
    alongside stable identity. The metadata may record independent eligible

@@ -1161,6 +1161,7 @@ where
             self.worker_effects.retire_origin(&origin);
             self.timer_effects.retire_origin(&origin);
             self.platform_registry.retire_origin(&origin);
+            self.resource_interests.retire_origin(&origin);
         }
     }
 

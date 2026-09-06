@@ -421,6 +421,17 @@ where
         }
         match command {
             Command::None => {}
+            Command::AcquireResourceInterest(effect) => {
+                let result = self.admit_resource_interest(&effect);
+                let message = (effect.on_completed)(result);
+                self.dispatch_message_inner_with_refresh_state(
+                    message,
+                    outcome,
+                    refresh_surface,
+                    deferred_surface_is_fresh,
+                    origin,
+                );
+            }
             Command::Message(message) => {
                 self.dispatch_message_inner_with_refresh_state(
                     message,

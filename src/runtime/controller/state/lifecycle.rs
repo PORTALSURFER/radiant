@@ -118,6 +118,7 @@ where
             )),
             in_process_clipboard: super::super::clipboard::InProcessClipboard::default(),
             worker_effects: super::super::effects::WorkerEffects::new(effect_owner.clone()),
+            resource_interests: Default::default(),
             timer_effects: super::super::timers::TimerEffects::new(effect_owner),
             diagnostics: Default::default(),
             last_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
@@ -282,6 +283,7 @@ where
         }
         self.reset_tooltip_hover_intent();
         self.declarative_owner_ledger.retire_all();
+        self.resource_interests.shutdown();
         self.host_on_runtime_closing();
         self.invalidate_external_drag();
         self.retire_virtual_layout();

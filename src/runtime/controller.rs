@@ -35,6 +35,7 @@ mod pointer;
 mod pointer_ingress;
 mod prepared_layout;
 mod refresh;
+mod resource_interest;
 mod scratch;
 mod scroll;
 mod semantic_actions;
@@ -213,6 +214,7 @@ where
     platform_results: std::sync::Arc<std::sync::Mutex<PlatformResultIngress>>,
     in_process_clipboard: InProcessClipboard,
     worker_effects: WorkerEffects<Message>,
+    resource_interests: resource_interest::ResourceInterestRegistry,
     timer_effects: TimerEffects<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
     last_refresh_diagnostics: SurfaceRefreshDiagnostics,

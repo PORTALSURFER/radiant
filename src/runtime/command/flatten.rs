@@ -40,6 +40,7 @@ impl<Message> Command<Message> {
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
             | Self::PerformWorker(..)
+            | Self::AcquireResourceInterest(..)
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }
@@ -73,6 +74,7 @@ impl<Message> Command<Message> {
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
             | Self::PerformWorker(..)
+            | Self::AcquireResourceInterest(..)
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }

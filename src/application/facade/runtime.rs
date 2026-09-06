@@ -14,6 +14,12 @@ pub use super::super::runtime::{
     CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, ResourceTaskTicket,
     ResourceTasks, Subscription, TaskCompletion, TaskTicket, UiUpdateContext,
 };
+pub use super::super::runtime::{
+    ResourceInterest, ResourceInterestError, ResourceInterestKind, SharedResourceTasks,
+};
+pub use super::super::runtime::{
+    SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode,
+};
 pub use crate::gui::shortcuts::ShortcutPlatform;
 
 pub use super::super::commands::{

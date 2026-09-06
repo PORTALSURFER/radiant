@@ -5156,10 +5156,15 @@ started samples are tokenless; continuations must match the current runtime,
 device, contact, and sequence token. `Widget::handle_pointer_event` is an
 additive opt-in consumer hook used by retained canvases and GPU surfaces;
 legacy `Event`, `WidgetInput`, and `CanvasGestureEvent` routing remains
-unchanged. Pan, pinch, and rotate samples are validated and explicitly
-reported as unsupported consumers in this bounded phase. Gesture arena
-recognition, typed drag payloads, cross-window payloads, and external offers
-remain later work.
+unchanged. Qualified `GestureRequest` consumers now recognize checked pan,
+pinch and rotation thresholds through optional widget and container descriptors.
+The topmost hit widget and eligible ancestors compete in one bounded candidate
+set. Opaque tokens fence continuations; recognition shares controller capture
+admission and teardown, with exact policy retention and terminal cancellation on
+replacement. Native normalized pinch/rotation use this boundary; native desktop
+pan remains explicitly unsupported. Pending pointer-drag arbitration, touch-derived
+multi-contact recognition, typed drag payloads, cross-window payloads and external
+offers remain later work.
 
 Radiant normalizes mouse, trackpad, touch, pen, and native scroll input into
 typed logical-coordinate events with timestamps, modifiers, device kind, and
@@ -6842,3 +6847,14 @@ identical counters. Harness samples use bounded batches, add finite nearest-rank
 ordering, and retain average-based baseline comparison. This is measured
 consumer evidence only: it establishes no production staged Projection,
 Reconciliation, Layout, or Paint execution and receives no design-only credit.
+
+
+Container gesture recognition now shares the qualified widget sequence lifecycle.
+The topmost hit widget and its eligible ancestor regions form a bounded pending
+candidate set. A threshold-crossing sample selects the deepest eligible owner;
+there is one active owner and no competing container pointer state machine.
+Root capability revisions and the optional gesture facet are classified together,
+while container layout policy and source path remain separate capture evidence.
+Conservative callback evidence retires at reprojection. Empty-background regions,
+custom measure/place gesture consumers, touch-derived gestures and typed drag/drop
+are not yet claimed by this normalized-sample slice.

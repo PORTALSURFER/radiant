@@ -142,6 +142,15 @@ where
             return None;
         }
 
+        let generation = self.refresh_counters().runtime_projection;
+        self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
+        if generation != self.refresh_counters().runtime_projection
+            || self.focused_widget() != Some(widget_id)
+        {
+            self.block_managed_composition();
+            return None;
+        }
+
         // Install ownership before widget dispatch.  A mapped output may
         // synchronously reproject or attempt another sample; that reentrant
         // work must observe the incumbent rather than create a second owner.

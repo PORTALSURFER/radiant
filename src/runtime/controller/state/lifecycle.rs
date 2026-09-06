@@ -275,6 +275,7 @@ where
     }
 
     pub(crate) fn begin_closing(&mut self) -> bool {
+        self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
         self.cancel_pointer_ingress_sequences();
         if !self.transition_lifecycle(RuntimeLifecyclePhase::Closing) {
             return false;

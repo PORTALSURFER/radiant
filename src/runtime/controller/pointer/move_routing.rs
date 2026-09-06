@@ -61,6 +61,9 @@ where
         sequence_range: Option<InputSequenceRange>,
         _delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
     ) -> PointerMoveDispatch {
+        if self.gesture_owns_pointer_capture() {
+            return PointerMoveDispatch::default();
+        }
         self.validate_managed_pointer_capture_authority();
         let metadata = PointerMoveMetadata {
             modifiers,

@@ -23,6 +23,7 @@ use std::time::Instant;
 
 pub(super) struct RuntimeInteractionState<Message> {
     pub(super) focus: RuntimeFocusState,
+    pub(super) gesture: Option<super::gestures::GestureCapture>,
     pub(super) focus_restoration: super::focus_restoration::FocusRestorationState,
     pub(super) hover: RuntimeHoverState,
     pub(super) tooltip: RuntimeTooltipState,
@@ -42,6 +43,7 @@ impl<Message> Default for RuntimeInteractionState<Message> {
         Self {
             focus: RuntimeFocusState::default(),
             focus_restoration: Default::default(),
+            gesture: None,
             hover: RuntimeHoverState::default(),
             tooltip: RuntimeTooltipState::default(),
             pointer: RuntimePointerState::default(),

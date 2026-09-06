@@ -42,6 +42,15 @@ where
                 | WidgetInput::PointerDoubleClick { .. }
                 | WidgetInput::PointerRelease { .. }
         );
+        if self.gesture_owns_pointer_capture()
+            && (is_pointer_input
+                || matches!(
+                    &input,
+                    WidgetInput::Wheel { .. } | WidgetInput::PointerModifiersChanged { .. }
+                ))
+        {
+            return None;
+        }
         if is_pointer_input {
             self.apply_native_text_pointer_caret(widget_id);
         } else {

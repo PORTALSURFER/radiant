@@ -74,6 +74,7 @@ pub(crate) struct WidgetCapabilityEvidence {
     pub(crate) hit_test_revision: Option<crate::widgets::WidgetHitTestRevision>,
     pub(crate) pointer_motion_revision: Option<WidgetPointerMotionRevision>,
     pub(crate) semantic_actions_revision: Option<crate::widgets::WidgetSemanticActionRevision>,
+    pub(crate) gestures_revision: Option<WidgetSemanticsRevision>,
 }
 
 impl WidgetCapabilityEvidence {
@@ -88,6 +89,7 @@ impl WidgetCapabilityEvidence {
             hit_test_revision: capabilities_v2.hit_test_revision(),
             pointer_motion_revision: capabilities_v2.pointer_motion_revision(),
             semantic_actions_revision: capabilities_v2.semantic_actions_revision(),
+            gestures_revision: capabilities_v2.gestures_revision(),
         }
     }
 
@@ -100,6 +102,7 @@ impl WidgetCapabilityEvidence {
             hit_test_revision: None,
             pointer_motion_revision: None,
             semantic_actions_revision: None,
+            gestures_revision: None,
         }
     }
 
@@ -112,6 +115,10 @@ impl WidgetCapabilityEvidence {
                 .is_some_and(|revision| !revision.is_exact())
             || self
                 .hit_test_revision
+                .as_ref()
+                .is_some_and(|revision| !revision.is_exact())
+            || self
+                .gestures_revision
                 .as_ref()
                 .is_some_and(|revision| !revision.is_exact())
             || self
@@ -615,6 +622,40 @@ impl<Message> SurfaceWidget<Message> {
             return super::WidgetDispatchResult::NoOutput;
         };
         self.messages.dispatch_output(output)
+    }
+
+    pub(in crate::runtime) fn gesture_policy(
+        &self,
+    ) -> Option<(crate::widgets::GesturePolicy, WidgetSemanticsRevision)> {
+        let caps = self.widget.capabilities_v2();
+        let gestures = caps.gestures()?;
+        Some((gestures.policy(), gestures.revision()))
+    }
+    pub(in crate::runtime) fn has_gesture_handler(
+        &mut self,
+        policy: crate::widgets::GesturePolicy,
+    ) -> bool {
+        self.widget
+            .action_capabilities()
+            .into_gestures()
+            .is_some_and(|handler| handler.policy() == policy)
+    }
+    pub(in crate::runtime) fn dispatch_gesture(
+        &mut self,
+        event: crate::widgets::GestureEvent,
+    ) -> Option<super::WidgetDispatchResult<Message>> {
+        let policy = self.gesture_policy()?.0;
+        let handler = self.widget.action_capabilities().into_gestures()?;
+        if handler.policy() != policy {
+            return None;
+        }
+        Some(
+            handler
+                .dispatch(event)
+                .map_or(super::WidgetDispatchResult::NoOutput, |output| {
+                    self.messages.dispatch_output(output)
+                }),
+        )
     }
 
     pub(in crate::runtime) fn supports_semantic_action(

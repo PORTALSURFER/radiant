@@ -230,7 +230,7 @@ where
 
     fn semantic_action_is_blocked(&self, widget: WidgetId) -> bool {
         self.interaction.composition.managed_composition != RuntimeManagedCompositionState::Idle
-            || self.interaction.pointer.capture.is_some()
+            || (self.gesture_owns_pointer_capture() || self.interaction.pointer.capture.is_some())
             || self.interaction.pointer.managed_capture.is_some()
             || self.interaction.layout_capture.is_some()
             || self

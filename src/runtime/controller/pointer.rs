@@ -143,6 +143,9 @@ where
         point: Point,
         input: WidgetInput,
     ) -> PointInputDispatch {
+        if self.gesture_owns_pointer_capture() {
+            return PointInputDispatch::Blocked;
+        }
         let Some(widget_id) = self.widget_at_for_input(point, &input) else {
             return PointInputDispatch::Miss;
         };
@@ -199,6 +202,9 @@ where
         managed_press_compatibility_kind: Option<&'static str>,
         delivery: Option<&mut TypedPointerDeliveryContext>,
     ) -> PointInputDispatch {
+        if self.gesture_blocks_widget_input(&input) {
+            return PointInputDispatch::Blocked;
+        }
         let managed_press = match &input {
             WidgetInput::PointerPress { button, .. }
                 if admission == PointerPressAdmission::ManagedCapture =>
@@ -752,6 +758,7 @@ where
         &mut self,
         delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
     ) -> bool {
+        self.cancel_gesture_capture(crate::widgets::GestureCancellation::CaptureLost);
         self.cancel_layout_pointer_capture();
         let managed_record_present = self.interaction.pointer.managed_capture.is_some();
         let managed_owner = self.begin_managed_pointer_capture_cancellation();

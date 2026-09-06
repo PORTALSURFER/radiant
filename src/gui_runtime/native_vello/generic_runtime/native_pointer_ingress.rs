@@ -78,7 +78,14 @@ struct NativePointerDeviceRecord {
     normalized: InputDeviceId,
     kind: DeviceKind,
     active_contacts: u8,
+    gesture_retained: bool,
     hover: bool,
+}
+
+impl NativePointerDeviceRecord {
+    fn is_reclaimable(self) -> bool {
+        self.active_contacts == 0 && !self.hover && !self.gesture_retained
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -118,6 +125,15 @@ impl NativePointerIngressState {
             .position(|record| record.is_some_and(|record| record.native == native))
     }
 
+    /// Keep the exact pending/active runtime gesture device out of idle eviction.
+    /// There is at most one retained gesture per window; teardown reconciles it
+    /// before the next gesture admission and window destruction drops the table.
+    pub(super) fn retain_gesture_device(&mut self, device: Option<InputDeviceId>) {
+        for record in self.devices.iter_mut().flatten() {
+            record.gesture_retained = Some(record.normalized) == device;
+        }
+    }
+
     /// Retain a native device, reclaiming the lowest idle non-hover slot.
     pub(super) fn retain_device(
         &mut self,
@@ -137,7 +153,7 @@ impl NativePointerIngressState {
             .position(Option::is_none)
             .or_else(|| {
                 self.devices.iter().position(|record| {
-                    record.is_some_and(|record| record.active_contacts == 0 && !record.hover)
+                    record.is_some_and(NativePointerDeviceRecord::is_reclaimable)
                 })
             })
             .ok_or(NativePointerIdentityError::Capacity)?;
@@ -147,6 +163,7 @@ impl NativePointerIngressState {
             normalized,
             kind,
             active_contacts: 0,
+            gesture_retained: false,
             hover: false,
         });
         Ok(normalized)
@@ -497,9 +514,8 @@ pub(super) fn normalize_gesture(
             Err(NativeUnsupportedInput::DesktopPan)
         }
         GestureInput::Pinch { delta, phase } => {
-            if !delta.is_finite() {
-                return Err(NativePointerIdentityError::InvalidSample);
-            }
+            // GestureIngress checks the resulting scalar at the controller
+            // boundary, where malformed continuations can retire their owner.
             Ok(NativeGestureSample {
                 kind: crate::gui::pointer_ingress::GestureKind::Pinch,
                 unit: crate::gui::pointer_ingress::GestureUnit::Scale,
@@ -515,20 +531,15 @@ pub(super) fn normalize_gesture(
         GestureInput::Rotate {
             delta_degrees,
             phase,
-        } => {
-            if !delta_degrees.is_finite() {
-                return Err(NativePointerIdentityError::InvalidSample);
-            }
-            Ok(NativeGestureSample {
-                kind: crate::gui::pointer_ingress::GestureKind::Rotate,
-                unit: crate::gui::pointer_ingress::GestureUnit::Radians,
-                value: delta_degrees.to_radians(),
-                phase,
-                device: normalized_device,
-                modifiers,
-                timestamp,
-            })
-        }
+        } => Ok(NativeGestureSample {
+            kind: crate::gui::pointer_ingress::GestureKind::Rotate,
+            unit: crate::gui::pointer_ingress::GestureUnit::Radians,
+            value: delta_degrees.to_radians(),
+            phase,
+            device: normalized_device,
+            modifiers,
+            timestamp,
+        }),
     };
     Ok(sample)
 }
@@ -757,5 +768,23 @@ mod tests {
             .unwrap(),
             Err(NativeUnsupportedInput::DesktopPan)
         );
+    }
+    #[test]
+    fn pending_and_active_gesture_devices_are_not_idle_eviction_candidates() {
+        let mut state = NativePointerIngressState::default();
+        let native = DeviceId::dummy();
+        let device = state.retain_device(native, DeviceKind::Trackpad).unwrap();
+        let index = state.find_device(native).unwrap();
+        assert!(state.devices[index].unwrap().is_reclaimable());
+        state.retain_gesture_device(Some(device));
+        assert!(!state.devices[index].unwrap().is_reclaimable());
+        assert_eq!(
+            state.retain_device(native, DeviceKind::Trackpad),
+            Ok(device)
+        );
+        state.retain_gesture_device(None);
+        assert!(state.devices[index].unwrap().is_reclaimable());
+        state.set_hover(native, true).unwrap();
+        assert!(!state.devices[index].unwrap().is_reclaimable());
     }
 }

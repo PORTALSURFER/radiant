@@ -563,6 +563,54 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    pub(in crate::runtime) fn find_container_at_path(
+        &self,
+        child_path: &[usize],
+    ) -> Option<&super::SurfaceContainer<Message>> {
+        match (self, child_path.split_first()) {
+            (Self::Container(container), None) => Some(container),
+            (Self::FloatingLayer(layer), None) if layer.interactive => Some(&layer.container),
+            (Self::Scene(scene), path) => {
+                if !scene.has_layers() {
+                    return scene.base.find_container_at_path(child_path);
+                }
+
+                let (child_index, remaining_path) = path?;
+                if *child_index == 0 {
+                    return scene.base.find_container_at_path(remaining_path);
+                }
+
+                let (layer_index, child_kind) =
+                    scene.ordered_layer_child_for_child(*child_index - 1)?;
+                match child_kind {
+                    SurfaceLayerChildKind::Input => scene.layers[layer_index]
+                        .input
+                        .as_ref()?
+                        .find_container_at_path(remaining_path),
+                    SurfaceLayerChildKind::Foreground => scene.layers[layer_index]
+                        .node
+                        .find_container_at_path(remaining_path),
+                }
+            }
+            (Self::Container(container), Some((child_index, remaining_path))) => container
+                .children
+                .get(*child_index)?
+                .child
+                .find_container_at_path(remaining_path),
+            (Self::FloatingLayer(layer), Some((child_index, remaining_path)))
+                if layer.interactive =>
+            {
+                layer
+                    .container
+                    .children
+                    .get(*child_index)?
+                    .child
+                    .find_container_at_path(remaining_path)
+            }
+            _ => None,
+        }
+    }
+
     pub(super) fn find_widget_mut(
         &mut self,
         widget_id: WidgetId,

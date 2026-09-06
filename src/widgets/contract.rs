@@ -5,6 +5,7 @@
 //! responsibilities and vocabulary rather than locking `radiant` into one
 //! retained-tree implementation.
 
+mod gestures;
 mod hit_test;
 mod identity;
 mod paint;
@@ -17,6 +18,9 @@ mod state;
 mod style;
 mod widget;
 
+pub use gestures::{
+    GestureCancellation, GestureEvent, GesturePolicy, InvalidGestureThreshold, WidgetGestures,
+};
 pub use hit_test::{WidgetHitTest, WidgetHitTestResult, WidgetHitTestRevision};
 pub use identity::{stable_widget_id, stable_widget_id_u64};
 pub use paint::{PaintBounds, PaintContract, WidgetPaintContext};
@@ -24,8 +28,8 @@ pub use pointer_motion::{WidgetPointerMotion, WidgetPointerMotionRevision};
 pub use revision::WidgetRevision;
 pub(crate) use revision::WidgetRevisionComponents;
 pub use semantic_actions::{
-    SemanticAction, SemanticActionSource, WidgetActionCapabilities, WidgetSemanticActionResult,
-    WidgetSemanticActionRevision, WidgetSemanticActions,
+    SemanticAction, SemanticActionSource, WidgetActionCapabilities, WidgetActionHandler,
+    WidgetSemanticActionResult, WidgetSemanticActionRevision, WidgetSemanticActions,
 };
 pub use semantics::{
     WIDGET_CAPABILITIES_CONTRACT_VERSION, WIDGET_CAPABILITIES_V1_CONTRACT_VERSION,

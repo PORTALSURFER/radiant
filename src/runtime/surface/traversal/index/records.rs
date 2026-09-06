@@ -74,6 +74,8 @@ pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a, Message> {
 }
 
 pub(in crate::runtime) struct SurfaceLayoutInteractionRecord<Message> {
+    pub(in crate::runtime) path: super::WidgetPath,
+    pub(in crate::runtime) gesture_qualified: bool,
     pub(in crate::runtime) id: NodeId,
     pub(in crate::runtime) contract_version: u16,
     pub(in crate::runtime) interaction: Rc<dyn LayoutInteraction<Message>>,

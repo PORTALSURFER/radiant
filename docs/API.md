@@ -6698,6 +6698,7 @@ manual validation:
 | Exact-input component projection reuse | `component_projection` |
 | Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
+| Qualified gesture recognition and capture lifecycle | `gesture_input` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
@@ -8170,3 +8171,86 @@ the existing conservative reconciliation behavior. Unsupported descriptor versio
 cannot dispatch. Automation metadata alone does not grant executable capability.
 The `focus_navigation` example exercises qualified action execution and stale-target
 rejection alongside focus navigation and restoration.
+
+
+### Qualified gesture consumers
+
+Run `cargo run --example gesture_input` for deterministic pan recognition,
+normal message reduction, and stale-token rejection. Custom widgets expose
+`WidgetGestures` through read-only v2 capabilities and the mutable action companion.
+`WidgetActionCapabilities::with_handler` registers both semantic and gesture facets
+from the same widget; consuming the descriptor selects only one mutable facet.
+`GesturePolicy` enables pan, pinch or rotation with checked nonnegative thresholds.
+Pan accumulates logical displacement; pinch multiplies positive scale factors;
+rotation sums radians. Crossing the threshold emits one Started event carrying
+all accumulated movement. Subsequent updates and Ended retain source sample,
+timestamp, modifier and sequence-range evidence. Ending below threshold emits no
+widget output. Overflow cancels an active sequence using its last valid sample.
+
+`dispatch_gesture_request(GestureRequest)` admits at most one pending or active
+gesture per runtime. Started is tokenless; continuations require its opaque
+`GestureSequenceToken`. Foreign, mismatched and retired requests are terminal.
+The finite initial logical anchor is latched separately from later source samples.
+Pending recognition does not focus or capture, and rechecks hit authority at that
+anchor before claiming a target that may have moved during refresh. Admission respects existing layout
+hit regions, pointer/scroll capture, text composition and focus-loss veto. Active
+widget gestures use the existing pointer capture slot; competing mouse and wheel input
+cannot produce a second winner. Explicit focus/capture loss and shutdown cancel
+once. Compatible exact policy revisions survive refresh; removal, path or policy
+replacement retires the old handler before publication and queues its terminal
+message through the established replacement transaction. Conservative policy
+revisions do not retain authority across refresh.
+
+Native normalized pinch and rotation use this same boundary with the current
+pointer anchor; missing anchors/consumers remain explicitly unsupported. Native
+desktop pan remains an unsupported transport, while normalized public pan requests
+are executable. The historical `dispatch_gesture_ingress` observation-only entry
+retains its unsupported-consumer result; executable callers use the token-bearing
+request API. Widget/ancestor competition is supported as described below.
+Pending pointer-drag arbitration, touch-derived multi-contact recognition,
+ordinary-view drag/drop attachments and cross-window payloads remain OPT-1363 work.
+
+
+### Container gesture regions
+
+`ViewNode::on_gesture_with_revision(policy, revision, map)` wraps a subtree in
+an ordinary layout container and registers its optional gesture consumer.
+The callback receives `GestureEvent` and returns `Option<Message>` through the
+normal application update path. Include every captured behavior value in the
+exact `Eq` revision. `on_gesture(policy, map)` is conservative: reprojection
+retires its pending or active sequence, cancelling the old active callback once.
+
+A normalized `GestureRequest` starts from the topmost ordinary widget hit and
+collects that widget's recognizer plus eligible ancestor regions. At most 64
+candidates participate. On each sample the deepest candidate whose family
+threshold has been crossed wins; no candidate captures or focuses before this
+choice. `GestureOutcome::AcceptedContainer(NodeId)` identifies a container
+winner. It uses the controller's existing capture admission and teardown and
+blocks competing pointer, wheel, activation and numeric actions without fabricating a
+widget identity or mouse button. Widget-only `pointer_capture()` stays `None`
+for a container owner. A rejected or terminal request grants no continuation
+for a different sequence.
+
+Layout integrations can supply `LayoutGestures<Message>` through the borrowed
+`LayoutInteractionCapabilities` companion. Contract 1 is supported; the root
+`LayoutCapabilities` must support executable input (version 3 or 4). Version 2
+remains query-only. Current source paths, unique source identities, positive
+finite geometry, gesture policy, mapper evidence and container layout policy
+qualify ownership. Source qualification is bounded to 65,536 nodes; ambiguous
+or over-budget sources decline container recognition. Container policies using
+custom measure/place objects currently decline because those objects do not
+provide equality evidence. Pointer hit regions and scrollbars retain priority.
+
+This boundary currently requires a hit-testable descendant at the anchor;
+empty region backgrounds do not acquire gesture authority. It consumes checked
+normalized pan/pinch/rotation samples. Pointer-drag arbitration, touch-derived
+multi-contact recognition and typed drag/drop remain separate delivery work.
+The headless `gesture_input` example exercises child and ancestor priority.
+
+Native gesture samples flush earlier coalesced wheel routes in semantic order,
+then carry redraw and command outcomes through the exact native input-ticket
+completion. GPU hover and wheel coalescers respect container capture. The
+pending/active native gesture device is excluded from idle device eviction.
+Malformed continuations from that exact device and gesture family cancel once
+using the last valid checked sample; malformed starts and foreign devices do
+not cancel another sequence.

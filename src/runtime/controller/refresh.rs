@@ -3890,6 +3890,12 @@ where
         // The ingress witness and its opt-in mapper belong to the old
         // surface. Retire incompatible sequences before generic ownership
         // cleanup clears that evidence or the old widget object.
+        self.reconcile_gesture_before_surface_replace(
+            &next_surface,
+            &traversal.widget_paths,
+            &retired_widget_ids,
+            &mut terminal_messages,
+        );
         self.reconcile_pointer_ingress_before_surface_replace(
             &next_surface,
             previous_paths_for_refresh,
@@ -3990,6 +3996,7 @@ where
         }
         self.clear_stale_interaction_state();
         self.reconcile_pointer_ingress_sequences();
+        self.validate_gesture_capture();
         if let Some(widget_id) = self.interaction.focus.focused_widget() {
             self.restore_focused_widget_state(widget_id);
         }

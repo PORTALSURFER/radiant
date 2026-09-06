@@ -301,6 +301,7 @@ pub struct WidgetCapabilitiesV2<'a> {
     hit_test: Option<&'a dyn WidgetHitTest>,
     pointer_motion: Option<&'a dyn WidgetPointerMotion>,
     semantic_actions: Option<&'a dyn super::WidgetSemanticActions>,
+    gestures: Option<&'a dyn super::WidgetGestures>,
 }
 
 impl<'a> WidgetCapabilitiesV2<'a> {
@@ -312,6 +313,7 @@ impl<'a> WidgetCapabilitiesV2<'a> {
             hit_test: None,
             pointer_motion: None,
             semantic_actions: None,
+            gestures: None,
         }
     }
 
@@ -368,6 +370,20 @@ impl<'a> WidgetCapabilitiesV2<'a> {
     pub fn semantic_actions_revision(&self) -> Option<super::WidgetSemanticActionRevision> {
         self.semantic_actions()
             .map(super::WidgetSemanticActions::revision)
+    }
+
+    /// Register read-only gesture policy and revision evidence.
+    pub fn with_gestures(mut self, gestures: &'a dyn super::WidgetGestures) -> Self {
+        self.gestures = Some(gestures);
+        self
+    }
+    /// Read a supported gesture descriptor.
+    pub fn gestures(&self) -> Option<&'a dyn super::WidgetGestures> {
+        self.is_supported().then_some(self.gestures).flatten()
+    }
+    /// Capture policy evidence without dispatching an event.
+    pub fn gestures_revision(&self) -> Option<WidgetSemanticsRevision> {
+        self.gestures().map(super::WidgetGestures::revision)
     }
 
     /// Return the descriptor contract version.
@@ -453,6 +469,7 @@ impl std::fmt::Debug for WidgetCapabilitiesV2<'_> {
             .field("hit_test", &self.hit_test.is_some())
             .field("pointer_motion", &self.pointer_motion.is_some())
             .field("semantic_actions", &self.semantic_actions.is_some())
+            .field("gestures", &self.gestures.is_some())
             .finish()
     }
 }

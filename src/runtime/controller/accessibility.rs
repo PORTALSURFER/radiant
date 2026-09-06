@@ -115,6 +115,9 @@ where
         &self,
         target_widget_id: WidgetId,
     ) -> Option<NumericAccessibilityBlockOwner> {
+        if self.gesture_owns_pointer_capture() {
+            return Some(NumericAccessibilityBlockOwner::GestureCapture);
+        }
         let focused_widget_id = self.focused_widget();
         let incumbent_widget_id = focused_widget_id.filter(|id| *id != target_widget_id);
         incumbent_widget_id
@@ -283,6 +286,7 @@ mod tests {
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum SurfaceMode {
         Numeric,
+        NumericGesture,
         NumericAndVeto,
         OwnedVeto,
         Empty,
@@ -306,7 +310,10 @@ mod tests {
         fn surface(&self) -> UiSurface<usize> {
             match self.mode.get() {
                 SurfaceMode::Empty => UiSurface::new(SurfaceNode::row(1, 0.0, Vec::new())),
-                SurfaceMode::Numeric | SurfaceMode::NumericAndVeto | SurfaceMode::OwnedVeto => {
+                SurfaceMode::Numeric
+                | SurfaceMode::NumericGesture
+                | SurfaceMode::NumericAndVeto
+                | SurfaceMode::OwnedVeto => {
                     let mut input = NumericInputWidget::try_new(
                         0.0,
                         TestCodec,
@@ -348,6 +355,18 @@ mod tests {
                                 )),
                             ],
                         ))
+                    } else if self.mode.get() == SurfaceMode::NumericGesture {
+                        use crate::application::IntoView;
+                        let view = crate::application::ViewNode::from(numeric)
+                            .on_gesture_with_revision(
+                                crate::widgets::GesturePolicy::none()
+                                    .recognize(crate::gui::pointer_ingress::GestureKind::Pan, 2.0)
+                                    .unwrap(),
+                                (),
+                                |_| None,
+                            )
+                            .id(100);
+                        UiSurface::new(view.into_node())
                     } else {
                         UiSurface::new(numeric)
                     }
@@ -646,5 +665,55 @@ mod tests {
         );
         assert_eq!(runtime.focused_widget(), Some(43));
         assert_eq!(runtime.bridge().mapped_accessibility.get(), 0);
+    }
+    #[test]
+    fn numeric_actions_do_not_interrupt_container_gesture_capture() {
+        use crate::{
+            gui::pointer_ingress::{GestureIngress, GesturePhase, InputDeviceId},
+            runtime::{GestureOutcome, GestureRequest},
+        };
+        let bridge = TestBridge::new(SurfaceMode::NumericGesture);
+        let reductions = bridge.reductions.clone();
+        let mapped = bridge.mapped_accessibility.clone();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+        let sample = |phase, delta| {
+            GestureIngress::pan(
+                phase,
+                Vector2::new(delta, 0.0),
+                InputDeviceId::from_host(1).unwrap(),
+                Some(crate::layout::Point::new(20.0, 15.0)),
+                Default::default(),
+            )
+            .unwrap()
+        };
+        let admitted = runtime
+            .dispatch_gesture_request(GestureRequest::new(sample(GesturePhase::Started, 2.0)));
+        assert_eq!(admitted.outcome(), &GestureOutcome::AcceptedContainer(100));
+        let token = admitted.token().unwrap();
+        let request = NumericAccessibilityRequest::new(
+            target(&runtime),
+            NumericAccessibilityAction::Increment,
+        );
+        assert_eq!(
+            runtime.dispatch_numeric_accessibility_action(request),
+            NumericAccessibilityDispatchResult::Blocked {
+                owner: NumericAccessibilityBlockOwner::GestureCapture
+            }
+        );
+        assert_eq!(reductions.get(), 0);
+        assert_eq!(mapped.get(), 0);
+        let cancelled = runtime.dispatch_gesture_request(
+            GestureRequest::new(sample(GesturePhase::Cancelled, 0.0)).with_token(token),
+        );
+        assert_eq!(cancelled.outcome(), &GestureOutcome::AcceptedContainer(100));
+        let request = NumericAccessibilityRequest::new(
+            target(&runtime),
+            NumericAccessibilityAction::Increment,
+        );
+        assert!(matches!(
+            runtime.dispatch_numeric_accessibility_action(request),
+            NumericAccessibilityDispatchResult::Accepted { .. }
+        ));
+        assert_eq!(mapped.get(), 1);
     }
 }

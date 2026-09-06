@@ -91,6 +91,10 @@ pub(in crate::runtime) struct SurfaceContainerParts<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
+    pub(in crate::runtime) fn node_id(&self) -> NodeId {
+        self.id
+    }
+
     /// Build a generic container node from runtime-internal named parts.
     pub(in crate::runtime) fn from_parts(parts: SurfaceContainerParts<Message>) -> Self {
         Self {

@@ -104,10 +104,10 @@ pub use crate::gui::types::{Point, Rect, Vector2};
 pub use capabilities::{
     ContainerStateDeclaration, ContainerStateId, LAYOUT_CAPABILITIES_CONTRACT_VERSION,
     LAYOUT_CAPABILITIES_PROJECTION_CONTRACT_VERSION, LAYOUT_CAPABILITIES_STATE_CONTRACT_VERSION,
-    LayoutCapabilities, LayoutContainerStateContext, LayoutEventContext, LayoutHitRegion,
-    LayoutHitRegionDeclarationError, LayoutHitRegionDiagnostics, LayoutHitRegionId,
-    LayoutHitTarget, LayoutInput, LayoutInteraction, LayoutInteractionRevision,
-    LayoutTargetIdentity,
+    LayoutCapabilities, LayoutContainerStateContext, LayoutEventContext, LayoutGestures,
+    LayoutHitRegion, LayoutHitRegionDeclarationError, LayoutHitRegionDiagnostics,
+    LayoutHitRegionId, LayoutHitTarget, LayoutInput, LayoutInteraction,
+    LayoutInteractionCapabilities, LayoutInteractionRevision, LayoutTargetIdentity,
 };
 pub(crate) use capabilities::{
     MountedContainerStateId, MountedContainerStateRead, supports_layout_capabilities_contract,

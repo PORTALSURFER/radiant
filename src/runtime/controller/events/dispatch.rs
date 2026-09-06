@@ -81,50 +81,8 @@ where
                 repeat,
                 timestamp,
             } => {
-                let host_press = KeyPress {
-                    key: key.to_key_code(),
-                    command: if std::env::consts::OS == "macos" {
-                        modifiers.command
-                    } else {
-                        modifiers.command || modifiers.control
-                    },
-                    control: std::env::consts::OS == "macos" && modifiers.control,
-                    shift: modifiers.shift,
-                    alt: modifiers.alt,
-                };
-                match self.dispatch_metadata_focused_key_press(
-                    Some(host_press),
-                    Some(key),
-                    modifiers,
-                    timestamp,
-                    repeat,
-                    FocusSurface::None,
-                ) {
-                    Some(route) => {
-                        if route.fallback_eligible
-                            && let (Some(widget_id), Some(key)) = (route.widget_id, Some(key))
-                        {
-                            self.scroll_keyboard_fallback(widget_id, key);
-                        }
-                        route.widget_id
-                    }
-                    None => {
-                        let delivery = self.dispatch_focused_key_input(
-                            WidgetInput::key_press_with_metadata(key, modifiers, repeat, timestamp),
-                        );
-                        if let Some(delivery) = delivery {
-                            if delivery.fallback_eligible
-                                && delivery.disposition
-                                    == crate::widgets::FocusedKeyDisposition::Unhandled
-                            {
-                                self.scroll_keyboard_fallback(delivery.widget_id, key);
-                            }
-                            Some(delivery.widget_id)
-                        } else {
-                            None
-                        }
-                    }
-                }
+                self.dispatch_key_press_outcome(key, modifiers, repeat, timestamp)
+                    .0
             }
             Event::KeyRelease {
                 key,
@@ -169,6 +127,111 @@ where
         };
         self.service_pending_current_surface_relayout();
         target
+    }
+
+    /// Dispatch a keyboard event and report whether the runtime consumes it.
+    ///
+    /// Embedded hosts must use this result for keyboard passthrough; the target
+    /// returned by `dispatch_event` does not indicate consumption. Characters
+    /// belong only to an enabled, editable text target. Non-keyboard events are
+    /// rejected without dispatch. Custom widgets retain their declared focused
+    /// key disposition, including consumption at an unchanged value boundary.
+    pub fn dispatch_keyboard_event(&mut self, event: Event) -> bool {
+        let consumed = match event {
+            Event::KeyPress {
+                key,
+                modifiers,
+                repeat,
+                timestamp,
+            } => {
+                self.dispatch_key_press_outcome(key, modifiers, repeat, timestamp)
+                    .1
+            }
+            Event::Character {
+                character,
+                timestamp,
+            } => {
+                let target = self.focused_text_input_id().filter(|id| {
+                    self.is_authoritative_focus_target(*id)
+                        && self.surface_widget(*id).is_some_and(|widget| {
+                            let state = &widget.widget_object().common().state;
+                            !state.disabled && !state.read_only
+                        })
+                });
+                !character.is_control()
+                    && target.is_some_and(|id| {
+                        self.dispatch_input(
+                            id,
+                            WidgetInput::character_with_timestamp(character, timestamp),
+                        )
+                    })
+            }
+            Event::KeyRelease {
+                key,
+                modifiers,
+                timestamp,
+            } => self
+                .dispatch_metadata_focused_key_release(Some(key), modifiers, timestamp)
+                .is_some_and(|route| route.consumed),
+            _ => false,
+        };
+        self.service_pending_current_surface_relayout();
+        consumed
+    }
+
+    fn dispatch_key_press_outcome(
+        &mut self,
+        key: crate::widgets::WidgetKey,
+        modifiers: crate::widgets::KeyboardModifiers,
+        repeat: bool,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> (Option<WidgetId>, bool) {
+        let host_press = KeyPress {
+            key: key.to_key_code(),
+            command: if std::env::consts::OS == "macos" {
+                modifiers.command
+            } else {
+                modifiers.command || modifiers.control
+            },
+            control: std::env::consts::OS == "macos" && modifiers.control,
+            shift: modifiers.shift,
+            alt: modifiers.alt,
+        };
+        match self.dispatch_metadata_focused_key_press(
+            Some(host_press),
+            Some(key),
+            modifiers,
+            timestamp,
+            repeat,
+            FocusSurface::None,
+        ) {
+            Some(route) => {
+                let mut consumed = route.consumed;
+                if route.fallback_eligible
+                    && let (Some(widget_id), Some(key)) = (route.widget_id, Some(key))
+                {
+                    consumed |= self.scroll_keyboard_fallback(widget_id, key);
+                }
+                (route.widget_id, consumed)
+            }
+            None => {
+                let delivery = self.dispatch_focused_key_input(
+                    WidgetInput::key_press_with_metadata(key, modifiers, repeat, timestamp),
+                );
+                if let Some(delivery) = delivery {
+                    let mut consumed =
+                        delivery.disposition == crate::widgets::FocusedKeyDisposition::Consumed;
+                    if delivery.fallback_eligible
+                        && delivery.disposition == crate::widgets::FocusedKeyDisposition::Unhandled
+                    {
+                        consumed |= self.scroll_keyboard_fallback(delivery.widget_id, key);
+                    }
+                    (Some(delivery.widget_id), consumed)
+                } else {
+                    (None, false)
+                }
+            }
+        }
     }
 
     fn observe_pointer_position(&mut self, position: Point) {

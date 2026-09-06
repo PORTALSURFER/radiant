@@ -1927,3 +1927,10 @@ does not replace the host view's backing layer or own the host's event loop.
 Native exception-test doubles live in the dev-only `crates/native-test-support`
 crate. Production builds compile only the exception bridge; test fixture ObjC
 classes must not be linked into embedding applications or plugins.
+
+Embedded plugin hosts use `SurfaceRuntime::dispatch_keyboard_event` to decide
+whether to consume a keyboard sample. The widget target returned by
+`dispatch_event` is routing evidence, not a handled result. Characters require
+an active editable text target; normalized keys use the widget's declared
+focused-key disposition and the actual scroll/shortcut outcome. Plugin-defined
+shortcuts must likewise return true only when their action is accepted.

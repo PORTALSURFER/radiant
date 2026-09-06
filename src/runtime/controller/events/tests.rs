@@ -233,6 +233,10 @@ impl KeyboardTimestampWidget {
 }
 
 impl Widget for KeyboardTimestampWidget {
+    fn accepts_text_input(&self) -> bool {
+        true
+    }
+
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -678,4 +682,41 @@ fn focused_key_competing_orphan_and_stale_samples_are_ignored_without_repaint() 
     assert_eq!(runtime.bridge().messages.len(), messages_before_stale);
     assert_eq!(runtime.bridge().host_calls, 2);
     assert!(!runtime.repaint_requested());
+}
+
+#[test]
+fn embedded_keyboard_result_distinguishes_ignored_keys_and_host_shortcuts() {
+    let mut runtime = SurfaceRuntime::new(
+        FocusedKeyBridge::new(false, false),
+        crate::gui::types::Vector2::new(120.0, 40.0),
+    );
+    assert!(!runtime.dispatch_keyboard_event(Event::character(' ')));
+    assert!(runtime.focus_widget(50));
+    assert!(!runtime.dispatch_keyboard_event(Event::character(' ')));
+    assert!(runtime.bridge().messages.is_empty());
+    assert!(!runtime.dispatch_keyboard_event(Event::key_press(WidgetKey::PageDown)));
+    assert_eq!(runtime.bridge().messages.len(), 1); // Routed but explicitly unhandled.
+    runtime.bridge_mut().host_handled = true;
+    assert!(runtime.dispatch_keyboard_event(Event::key_press(WidgetKey::Enter)));
+    assert_eq!(runtime.bridge().messages.len(), 1); // Host action, no widget target.
+}
+
+#[test]
+fn embedded_keyboard_keeps_space_in_active_text_input() {
+    let mut runtime = SurfaceRuntime::new(
+        KeyboardTimestampBridge::default(),
+        crate::gui::types::Vector2::new(120.0, 40.0),
+    );
+    assert!(runtime.focus_widget(40));
+    assert!(runtime.dispatch_keyboard_event(Event::character(' ')));
+    assert!(!runtime.dispatch_keyboard_event(Event::character('\0')));
+    assert_eq!(
+        runtime.bridge().messages,
+        vec![KeyboardTimestampMessage::Character {
+            character: ' ',
+            timestamp: None
+        }]
+    );
+    runtime.clear_focus();
+    assert!(!runtime.dispatch_keyboard_event(Event::character(' ')));
 }

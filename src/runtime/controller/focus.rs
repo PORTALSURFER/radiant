@@ -56,6 +56,7 @@ pub(super) enum SplitPaneSeparatorFocusAdmission {
 pub(crate) struct FocusedKeyDispatch {
     pub(crate) widget_id: Option<WidgetId>,
     pub(crate) routed: bool,
+    pub(crate) consumed: bool,
     pub(crate) fallback_eligible: bool,
 }
 
@@ -816,6 +817,7 @@ where
                 let _ = self.dispatch_semantic_key_input(input, focus);
                 return Some(FocusedKeyDispatch {
                     routed: true,
+                    consumed: true,
                     ..FocusedKeyDispatch::default()
                 });
             }
@@ -833,6 +835,7 @@ where
                 FocusedKeyDispatch {
                     widget_id: Some(widget_id),
                     routed: true,
+                    consumed: delivery.disposition == FocusedKeyDisposition::Consumed,
                     fallback_eligible: delivery.fallback_eligible
                         && delivery.disposition == FocusedKeyDisposition::Unhandled,
                 }
@@ -861,6 +864,7 @@ where
                     return Some(FocusedKeyDispatch {
                         widget_id: None,
                         routed: true,
+                        consumed: true,
                         fallback_eligible: false,
                     });
                 }
@@ -888,6 +892,7 @@ where
             return Some(FocusedKeyDispatch {
                 widget_id: None,
                 routed: true,
+                consumed: true,
                 fallback_eligible: false,
             });
         }
@@ -896,6 +901,7 @@ where
             return Some(FocusedKeyDispatch {
                 widget_id: None,
                 routed: true,
+                consumed: true,
                 fallback_eligible: false,
             });
         }
@@ -928,6 +934,7 @@ where
             return Some(FocusedKeyDispatch {
                 widget_id: Some(widget_id),
                 routed: true,
+                consumed: delivery.disposition == FocusedKeyDisposition::Consumed,
                 fallback_eligible: delivery.fallback_eligible
                     && delivery.disposition == FocusedKeyDisposition::Unhandled,
             });
@@ -978,6 +985,7 @@ where
         FocusedKeyDispatch {
             widget_id: Some(widget_id),
             routed: true,
+            consumed: true,
             fallback_eligible: false,
         }
     }

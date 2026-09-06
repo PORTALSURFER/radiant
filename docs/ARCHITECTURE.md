@@ -1031,6 +1031,13 @@ stale, duplicate, or lifecycle-invalid completions publish nothing. Device-loss/
 recovery or shutdown may conservatively cancel pending timing under the existing
 bounded lifecycle behavior.
 
+For one window resource generation, an exact mapped `{ start: 0, end: 0 }`
+timestamp pair attached to a successful present is an invalid/unwritten clock
+reading. The private pool reports `ConversionFailed` for that frame and blocks
+only subsequent timestamp admissions for that generation; rendering continues
+and already admitted slots retain normal asynchronous delivery or cancellation
+retirement. A replacement pool begins with fresh timestamp capability state.
+
 The generic native Vello runtime has one event-loop-confined adapter owner per
 application run. The primary window selects the shared WGPU context, device,
 queue, and device-loss callback witness; the owner publishes crate-private

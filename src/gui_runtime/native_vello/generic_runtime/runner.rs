@@ -2352,15 +2352,11 @@ where
         };
         match admission {
             GpuTimingAdmission::Disabled => {}
-            GpuTimingAdmission::Unsupported | GpuTimingAdmission::CapacityRefused => {
-                let reason = match admission {
-                    GpuTimingAdmission::Unsupported => {
-                        crate::runtime::FrameGpuTimingUnavailableReason::Unsupported
-                    }
-                    GpuTimingAdmission::CapacityRefused => {
-                        crate::runtime::FrameGpuTimingUnavailableReason::CapacityRefused
-                    }
-                    GpuTimingAdmission::Disabled | GpuTimingAdmission::Reserved(_) => return,
+            GpuTimingAdmission::Unsupported
+            | GpuTimingAdmission::InvalidClock
+            | GpuTimingAdmission::CapacityRefused => {
+                let Some(reason) = admission.unavailable_reason() else {
+                    return;
                 };
                 self.core.runtime.host_observe_frame_gpu_timing(
                     crate::runtime::FrameGpuTimingSample::new(

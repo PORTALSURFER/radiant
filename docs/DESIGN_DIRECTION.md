@@ -6675,6 +6675,13 @@ window identity and successful-present frame sequence through the existing
 parent handoff and ordering boundary; stale or lifecycle-invalid completions
 are discarded. Device-loss/recovery and shutdown retain the existing bounded
 conservative cancellation behavior rather than comprehensive timing draining.
+An exact mapped `{ start: 0, end: 0 }` pair for a correlated successful present
+is treated as an invalid or unwritten clock reading, not as a measured zero
+duration. It reports the existing `ConversionFailed` outcome and quarantines
+new timestamp admissions for that window resource generation. Already admitted
+slots continue their existing asynchronous delivery or cancellation retirement;
+rendering, scheduling, and presentation continue unchanged. A replacement
+resource generation starts with a fresh capability probe.
 
 ### Profile output
 

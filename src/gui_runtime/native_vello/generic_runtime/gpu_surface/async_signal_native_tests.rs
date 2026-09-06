@@ -4,8 +4,20 @@ use super::super::runner_state::NativeTargetGeneration;
 use super::super::signal_summary_prepare::{
     SummaryBroker, SummaryRequest, SummaryRequestState, SummaryTargetId,
 };
+use super::upload_plan::{
+    GpuSurfaceRenderCanvasUploadPlanContext, GpuSurfaceRenderCanvasUploadPlanObservation,
+    GpuSurfaceRenderCanvasUploadTarget,
+};
 use super::*;
 use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui_runtime::native_vello::generic_runtime::closing::NativeLifecycle;
+use crate::gui_runtime::native_vello::generic_runtime::device::wgpu_device_id;
+use crate::gui_runtime::native_vello::generic_runtime::native_encode_present::{
+    NativeEncodePresentPath, NativeEncodePresentPlanContext,
+};
+use crate::gui_runtime::native_vello::generic_runtime::native_visual_packet::{
+    NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestMailbox,
+};
 use crate::runtime::{GpuSurfaceCapabilities, PaintGpuSurface, PaintPrimitive};
 use std::{
     hash::{Hash, Hasher},
@@ -74,6 +86,78 @@ fn render_case(
         stats.render_canvas_upload_plan.is_none(),
         "legacy render must not report an upload plan"
     );
+    RenderedCase { stats, pixels }
+}
+
+fn upload_plan_context(device: &wgpu::Device) -> GpuSurfaceRenderCanvasUploadPlanContext {
+    use std::num::NonZeroU64;
+    let mut mailbox = NativeVisualRequestMailbox::new();
+    let window = winit::window::WindowId::dummy();
+    assert!(mailbox.bind_window(window));
+    let _ = mailbox
+        .enqueue_for_test(crate::gui_runtime::native_vello::generic_runtime::FrameWork::None);
+    let packet = match NativeVisualRequestAdapter::begin(&mut mailbox, window, true) {
+        NativeVisualRequestBegin::Requested(packet) => packet.identity(),
+        other => panic!("unexpected native upload-plan packet: {other:?}"),
+    };
+    GpuSurfaceRenderCanvasUploadPlanContext::new(
+        NativeEncodePresentPlanContext {
+            packet,
+            adapter_generation: NativeAdapterGeneration::from_test_serial(1),
+            target_generation: NativeTargetGeneration::from_test_serial(1),
+            lifecycle: NativeLifecycle::default(),
+            path: NativeEncodePresentPath::Composited,
+            snapshot_revision: NonZeroU64::MIN,
+        },
+        NativeAdapterGeneration::from_test_serial(1),
+        GpuSurfaceRenderCanvasUploadTarget::new(
+            wgpu_device_id(device),
+            wgpu::TextureFormat::Rgba8Unorm,
+            TARGET_SIZE,
+            TARGET_SIZE,
+        ),
+    )
+    .expect("valid native upload-plan context")
+}
+
+fn render_case_with_plan(
+    renderer: &mut GpuSurfaceRenderer,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    primitives: &[PaintPrimitive],
+) -> RenderedCase {
+    let context = upload_plan_context(device);
+    let plan = renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
+        context,
+        primitives,
+        crate::theme::DpiScale::ONE,
+        &[],
+    );
+    let (texture, view) = render_target(device);
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("radiant_offscreen_signal_upload_plan"),
+    });
+    let stats = {
+        let mut target = GpuSurfaceRenderTarget {
+            device,
+            queue,
+            encoder: &mut encoder,
+            target_view: &view,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            size: Vector2::new(TARGET_SIZE as f32, TARGET_SIZE as f32),
+            dpi_scale: crate::theme::DpiScale::ONE,
+            upload_plan_context: Some(context),
+            upload_plan: Some(plan),
+            collect_upload_plan: true,
+        };
+        let mut occlusion = SurfaceOcclusionPlan::default();
+        occlusion.preprocess(primitives);
+        renderer.render(&mut target, primitives, &occlusion, &[])
+    };
+    renderer.finish_presentation_staging_belt();
+    queue.submit(std::iter::once(encoder.finish()));
+    let pixels = readback_rgba(device, queue, &texture);
+    renderer.recall_presentation_staging_belt();
     RenderedCase { stats, pixels }
 }
 
@@ -225,8 +309,8 @@ fn capture_bounded_signal_fixture(
         "fixture": "bounded-signal-native-detail", "source_revision": revision,
         "adapter": {"name": adapter.name, "backend": format!("{:?}", adapter.backend),
             "device_type": format!("{:?}", adapter.device_type), "vendor": adapter.vendor, "device": adapter.device},
-        "source_frames": source.len(), "source_rootcanhash": hash(&source_bytes),
-        "rgba_rootcanhash": {"overview": hash(&overview.pixels),
+        "source_frames": source.len(), "source_default_hasher": hash(&source_bytes),
+        "rgba_default_hasher": {"overview": hash(&overview.pixels),
             "tile": hash(&tile.pixels), "legacy": hash(&legacy.pixels)},
         "immutable_uploads": {"overview": format!("{:?}", overview.stats.render_canvas_uploads.immutable_payload),
             "tile": format!("{:?}", tile.stats.render_canvas_uploads.immutable_payload)},
@@ -285,12 +369,10 @@ fn async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary() {
         );
         assert_eq!(first.stats.signal.summary_builds, 0);
         assert_eq!(first.stats.signal.body_renders, 1);
-        assert!(
-            renderer
-                .resources
-                .signal_summaries
-                .contains_key(&SIGNAL_KEY)
-        );
+        assert!(renderer
+            .resources
+            .signal_summaries
+            .contains_key(&SIGNAL_KEY));
         assert!(renderer.resources.signals.get(&SIGNAL_KEY).is_some());
         assert!(renderer.resources.signal_bodies.get(&SIGNAL_KEY).is_some());
         let warm = render_case(
@@ -321,12 +403,10 @@ fn async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary() {
         };
         let pending = render_case(&mut renderer, &device, &queue, &primitives);
         assert_eq!(pending.stats.signal.summary_builds, 0);
-        assert!(
-            !renderer
-                .resources
-                .signal_summaries
-                .contains_key(&SIGNAL_KEY)
-        );
+        assert!(!renderer
+            .resources
+            .signal_summaries
+            .contains_key(&SIGNAL_KEY));
         assert!(renderer.resources.signals.get(&SIGNAL_KEY).is_none());
         assert!(renderer.resources.signal_bodies.get(&SIGNAL_KEY).is_none());
         broker.maintain_retired();
@@ -417,6 +497,26 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
         .get(&SIGNAL_KEY)
         .expect("tile buffer")
         .cache_key;
+    let close_capacity = broker.capacity_status();
+    let tile_plan_warm = render_case_with_plan(
+        &mut renderer,
+        &device,
+        &queue,
+        std::slice::from_ref(&close_primitive),
+    );
+    assert!(matches!(
+        tile_plan_warm.stats.render_canvas_upload_plan,
+        Some(GpuSurfaceRenderCanvasUploadPlanObservation::Exact(_))
+    ));
+    assert_eq!(
+        tile_plan_warm
+            .stats
+            .render_canvas_uploads
+            .immutable_payload
+            .operations,
+        Some(0),
+        "a warm detail tile must reuse immutable buffer resources across plan reset"
+    );
 
     let legacy = GpuSurfaceContent::SignalSummaryBands {
         frames: FRAMES,
@@ -515,7 +615,6 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
         "near-end tile must retain legacy clamping"
     );
 
-    let capacity = broker.capacity_status();
     capture_bounded_signal_fixture(
         &adapter,
         &samples,
@@ -523,9 +622,9 @@ fn bounded_detail_matches_legacy_pixels_and_reuses_its_tile_page() {
         &tile,
         &legacy,
         (
-            capacity.source_logical_bytes,
-            capacity.summary_logical_bytes,
-            capacity.gpu_logical_bytes,
+            close_capacity.source_logical_bytes,
+            close_capacity.summary_logical_bytes,
+            close_capacity.gpu_logical_bytes,
         ),
     );
 }
@@ -564,7 +663,7 @@ fn prepared_signal_budget_denial_keeps_old_resources_until_renderer_drops() {
             &old,
             broker.prepared(target).expect("calibration prepared")
         ));
-        let _ = render_case(
+        let _ = render_case_with_plan(
             &mut renderer,
             &device,
             &queue,
@@ -595,7 +694,7 @@ fn prepared_signal_budget_denial_keeps_old_resources_until_renderer_drops() {
         &old,
         broker.prepared(target).expect("old prepared")
     ));
-    let old_render = render_case(
+    let old_render = render_case_with_plan(
         &mut renderer,
         &device,
         &queue,
@@ -617,7 +716,7 @@ fn prepared_signal_budget_denial_keeps_old_resources_until_renderer_drops() {
         &new,
         broker.prepared(target).expect("new prepared")
     ));
-    let denied = render_case(
+    let denied = render_case_with_plan(
         &mut renderer,
         &device,
         &queue,
@@ -633,9 +732,21 @@ fn prepared_signal_budget_denial_keeps_old_resources_until_renderer_drops() {
     );
     assert_eq!(
         broker.gpu_logical_bytes_for_test(),
-        first_used,
-        "old resources retain their charge until renderer drop"
+        0,
+        "the unavailable planned frame must retire stale committed resources"
     );
+    let retry = render_case_with_plan(
+        &mut renderer,
+        &device,
+        &queue,
+        &[PaintPrimitive::GpuSurface(signal_surface(new, 2))],
+    );
+    assert_eq!(retry.stats.signal.body_renders, 1);
+    assert_ne!(
+        retry.pixels, old_render.pixels,
+        "retry must render the new source"
+    );
+    assert!(broker.gpu_logical_bytes_for_test() <= first_used + 1);
     drop(renderer);
     assert_eq!(broker.gpu_logical_bytes_for_test(), 0);
 }

@@ -8101,7 +8101,7 @@ and runtime-owned separator stops. `traverse_focus_spatial(FocusDirection)` uses
 nearest center distance in the requested half-plane, ties in committed order,
 and positive visible intersection with the viewport and clipping ancestors.
 Without a current widget it returns `NoDestination`. Navigation observes only
-materialized targets and never creates virtual demand. Executable semantic actions remain follow-up work under OPT-1368; overlay-specific trapping/restoration is tracked by OPT-1394.
+materialized targets and never creates virtual demand. Overlay-specific trapping/restoration is tracked by OPT-1394.
 
 
 `capture_focus()` creates a UI-local `FocusBookmark` for the current focus owner.
@@ -8132,3 +8132,41 @@ duplicate source IDs and capacity violations make traversal `Invalidated`. Omitt
 scope layout grants no scope authority. Automation snapshots report the observational
 `radiant.focus_scope.sequential` and `radiant.focus_scope.spatial` metadata fields;
 these fields do not grant action or materialization authority.
+
+
+### Explicit semantic actions
+
+`SurfaceRuntime::semantic_action_target(&AutomationNodeId)` observes an opaque,
+runtime-qualified `SemanticActionTarget` for a current unique materialized widget.
+Queries do not move focus, dispatch messages or create virtual provider demand.
+`dispatch_semantic_action(&target, action, source)` checks current projection,
+semantic path, role, advertised action, disabled/read-only state and incumbent
+composition/capture ownership before focus admission or execution. Reprojection
+during focus loss terminates the request; a stale request is never retried.
+
+`SemanticAction` supports focus, button press, boolean toggle, selection, text
+replacement and the existing typed numeric accessibility operations. Selectable
+selection is idempotent; list-item selection emits its ordinary `Invoked` message.
+Text replacement removes line/control characters, converts tabs to spaces, obeys
+the character limit, collapses selection to the end and accepts an empty string.
+Text payloads are bounded to 64 KiB before any focus or handler work.
+Numeric operations require `SemanticActionSource::Accessibility` and retain their
+typed edit/policy outcomes; numeric `SetValueText` uses the existing `set_text`
+action advertisement. Runtime-owned separator actions remain a separate contract.
+
+`SemanticActionOutcome` reports accepted, unsupported, invalid, disabled,
+read-only, blocked, stale, unavailable, focus, command rejection or typed numeric
+results. Accepted handlers emit zero or one initial message through the ordinary
+widget mapper and reducer. Semantic button and command-control activation retains
+Accessibility or Programmatic provenance; command controls resolve through the
+shared command registry with Accessibility or Application source respectively.
+Failures are terminal and do not authorize pointer/keyboard fallback.
+
+Custom widgets opt in through the read-only v2 `WidgetSemanticActions` descriptor
+and mutable `WidgetActionCapabilities` companion. Capability acquisition and
+`supports` must be observational. Exact typed action-policy revisions participate
+in interaction equality; absent, conservative or incompatible evidence retains
+the existing conservative reconciliation behavior. Unsupported descriptor versions
+cannot dispatch. Automation metadata alone does not grant executable capability.
+The `focus_navigation` example exercises qualified action execution and stale-target
+rejection alongside focus navigation and restoration.

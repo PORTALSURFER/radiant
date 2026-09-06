@@ -300,6 +300,7 @@ pub struct WidgetCapabilitiesV2<'a> {
     semantics: Option<&'a dyn WidgetSemantics>,
     hit_test: Option<&'a dyn WidgetHitTest>,
     pointer_motion: Option<&'a dyn WidgetPointerMotion>,
+    semantic_actions: Option<&'a dyn super::WidgetSemanticActions>,
 }
 
 impl<'a> WidgetCapabilitiesV2<'a> {
@@ -310,6 +311,7 @@ impl<'a> WidgetCapabilitiesV2<'a> {
             semantics: None,
             hit_test: None,
             pointer_motion: None,
+            semantic_actions: None,
         }
     }
 
@@ -345,6 +347,27 @@ impl<'a> WidgetCapabilitiesV2<'a> {
     pub fn with_pointer_motion(mut self, pointer_motion: &'a dyn WidgetPointerMotion) -> Self {
         self.pointer_motion = Some(pointer_motion);
         self
+    }
+
+    /// Register read-only semantic-action support and revision evidence.
+    pub fn with_semantic_actions(mut self, actions: &'a dyn super::WidgetSemanticActions) -> Self {
+        self.semantic_actions = Some(actions);
+        self
+    }
+
+    /// Read the semantic execution descriptor only when the v2 contract is supported.
+    pub fn semantic_actions(&self) -> Option<&'a dyn super::WidgetSemanticActions> {
+        if self.is_supported() {
+            self.semantic_actions
+        } else {
+            None
+        }
+    }
+
+    /// Capture revision evidence without invoking an action handler.
+    pub fn semantic_actions_revision(&self) -> Option<super::WidgetSemanticActionRevision> {
+        self.semantic_actions()
+            .map(super::WidgetSemanticActions::revision)
     }
 
     /// Return the descriptor contract version.
@@ -429,6 +452,7 @@ impl std::fmt::Debug for WidgetCapabilitiesV2<'_> {
             .field("semantics", &self.semantics.is_some())
             .field("hit_test", &self.hit_test.is_some())
             .field("pointer_motion", &self.pointer_motion.is_some())
+            .field("semantic_actions", &self.semantic_actions.is_some())
             .finish()
     }
 }

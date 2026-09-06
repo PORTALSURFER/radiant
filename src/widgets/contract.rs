@@ -10,6 +10,7 @@ mod identity;
 mod paint;
 mod pointer_motion;
 mod revision;
+mod semantic_actions;
 mod semantics;
 mod sizing;
 mod state;
@@ -22,6 +23,10 @@ pub use paint::{PaintBounds, PaintContract, WidgetPaintContext};
 pub use pointer_motion::{WidgetPointerMotion, WidgetPointerMotionRevision};
 pub use revision::WidgetRevision;
 pub(crate) use revision::WidgetRevisionComponents;
+pub use semantic_actions::{
+    SemanticAction, SemanticActionSource, WidgetActionCapabilities, WidgetSemanticActionResult,
+    WidgetSemanticActionRevision, WidgetSemanticActions,
+};
 pub use semantics::{
     WIDGET_CAPABILITIES_CONTRACT_VERSION, WIDGET_CAPABILITIES_V1_CONTRACT_VERSION,
     WIDGET_CAPABILITIES_V2_CONTRACT_VERSION, WidgetCapabilities, WidgetCapabilitiesV2,

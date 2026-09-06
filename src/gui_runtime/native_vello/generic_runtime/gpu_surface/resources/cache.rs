@@ -45,8 +45,8 @@ const MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES: usize = 1024 * 1024;
 /// from the retained-association capacity.
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) const MAX_CUSTOM_SHADER_FRAME_REQUESTS: usize =
     MAX_CUSTOM_SHADER_ASSOCIATIONS;
-/// Bounds raw ordered request identity text during collection. The full fit
-/// validation separately applies the physical cache's distinct-key budget.
+/// Bounds distinct exact request identity text during collection. Equivalent
+/// requests share canonical text while preserving their original order.
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) const MAX_CUSTOM_SHADER_FRAME_REQUEST_KEY_BYTES: usize =
     MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES;
 

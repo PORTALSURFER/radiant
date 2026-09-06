@@ -195,7 +195,17 @@ fn vetoed_transition_restores_predecessor_resources_without_accumulation() {
 
 #[test]
 #[ignore = "requires native GPU adapter and offscreen WGPU rendering"]
-fn invalid_wgsl_replacement_preserves_existing_pipeline_and_binding() {
+fn planned_invalid_wgsl_replacement_preserves_existing_pipeline_and_binding() {
+    assert_invalid_shader_preserves_resources(false);
+}
+
+#[test]
+#[ignore = "requires native GPU adapter and offscreen WGPU rendering"]
+fn legacy_failed_transition_restores_predecessor_resources() {
+    assert_invalid_shader_preserves_resources(true);
+}
+
+fn assert_invalid_shader_preserves_resources(legacy_transition: bool) {
     let (device, queue) = native_device();
     let descriptor = valid_descriptor();
     let mut renderer = seeded_renderer(&device, &queue, &descriptor);
@@ -213,12 +223,31 @@ fn invalid_wgsl_replacement_preserves_existing_pipeline_and_binding() {
         .wgsl_source("this is not WGSL")
         .entry_point("vertex_main")
         .fragment_entry_point("fragment_main");
-    let invalid_primitives = vec![PaintPrimitive::GpuSurface(surface(OLD_KEY_BASE, invalid))];
+    let invalid_key = if legacy_transition {
+        for key in OLD_KEY_BASE + 1..OLD_KEY_BASE + OLD_ASSOCIATIONS {
+            renderer
+                .resources
+                .associate_custom_shader_pipeline(key, old_identity.clone());
+        }
+        FRESH_KEY
+    } else {
+        OLD_KEY_BASE
+    };
+    let invalid_primitives = vec![PaintPrimitive::GpuSurface(surface(invalid_key, invalid))];
+    let context = (!legacy_transition).then(|| upload_plan_context(&device));
+    let plan = context.map(|context| {
+        renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
+            context,
+            &invalid_primitives,
+            crate::theme::DpiScale::ONE,
+            &[],
+        )
+    });
     let (_texture, view) = render_target(&device);
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("radiant_native_invalid_custom_shader"),
     });
-    let mut target = render_target_for_test(&device, &queue, &mut encoder, &view, None, None);
+    let mut target = render_target_for_test(&device, &queue, &mut encoder, &view, context, plan);
     let mut occlusion = SurfaceOcclusionPlan::default();
     occlusion.preprocess(&invalid_primitives);
     let stats = renderer.render(&mut target, &invalid_primitives, &occlusion, &[]);

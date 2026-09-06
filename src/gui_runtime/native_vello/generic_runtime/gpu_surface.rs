@@ -644,7 +644,9 @@ impl GpuSurfaceRenderer {
         let cleanup_succeeded = transition_authorized
             && self.finish_resource_cleanup(plan_in_flight, upload_plan.as_mut());
         self.occlusion_regions = occlusion_regions;
-        let mut transaction_complete = cleanup_succeeded;
+        // Legacy execution also needs to abort speculative ownership on failure.
+        let mut transaction_complete =
+            cleanup_succeeded && stats.custom_shader.failures.surfaces_failed == 0;
         if let Some(mut plan) = upload_plan.take() {
             transaction_complete &= plan.finish_execution();
             self.upload_scratch.recycle_plan(plan);

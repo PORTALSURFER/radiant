@@ -5783,7 +5783,9 @@ Normal under-capacity frames do not create a predecessor. Final-interest
 pruning retires unused physical pipelines. Validation failures are deliberately
 not retained: the exact identity is retried on a later upload, avoiding a
 growing negative-result cache. Failed shader-module or render-pipeline creation preserves the prior
-usable association and binding. Device recovery starts
+usable association and binding until normal end-of-frame interest pruning.
+A failed speculative transition restores its predecessor even without an upload
+plan. Device recovery starts
 a fresh renderer cache.
 
 `RenderCanvasContent::validate()` returns a typed `RenderCanvasContentError` for

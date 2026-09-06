@@ -1413,11 +1413,16 @@ fn tile_query_mapping(
         return None;
     }
     let visible = end - start;
-    let shifted = start - slide as f64;
-    let physical_start = shifted.rem_euclid(source_frames);
+    // Resolve the integer slide before converting to a local float. Large
+    // signed slides must not lose their remainder through an f64 conversion.
+    let integral_start = start.floor();
+    let physical_start = ((integral_start as i128 - i128::from(slide))
+        .rem_euclid(tile.source_frames as i128)) as f64
+        + (start - integral_start);
     let tile_start = tile.first_frame as f64;
-    let tile_end =
-        tile_start + (tile.buckets.len() / tile.band_count.max(1) * tile.bucket_frames) as f64;
+    let tile_span =
+        (tile.buckets.len() / tile.band_count.max(1)).checked_mul(tile.bucket_frames)?;
+    let tile_end = tile_start + tile_span as f64;
     let cycles = ((tile_start - physical_start) / source_frames)
         .ceil()
         .max(0.0);

@@ -1,4 +1,3 @@
-use super::super::wgpu_target_matches;
 use std::sync::Arc;
 use vello::wgpu;
 
@@ -32,26 +31,12 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Cu
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipeline {
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) format:
-        wgpu::TextureFormat,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) device: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) key:
         CustomShaderPipelineKey,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bind_group_layout:
         wgpu::BindGroupLayout,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) pipeline:
         wgpu::RenderPipeline,
-}
-
-impl CustomShaderPipeline {
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn matches(
-        &self,
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-        key: &CustomShaderPipelineKey,
-    ) -> bool {
-        wgpu_target_matches(self.device, self.format, device, format) && self.key == *key
-    }
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderBinding {

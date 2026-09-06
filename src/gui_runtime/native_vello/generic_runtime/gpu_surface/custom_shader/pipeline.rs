@@ -72,8 +72,6 @@ impl GpuSurfaceRenderer {
             request.surface_key,
             identity,
             CustomShaderPipeline {
-                format: request.target_format,
-                device: wgpu_device_id(request.device),
                 key: request.key,
                 bind_group_layout: created.bind_group_layout,
                 pipeline: created.pipeline,

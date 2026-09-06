@@ -32,7 +32,6 @@ impl GpuSurfaceRenderer {
         if !self.custom_shader_pipeline_needs_rebuild(&request) {
             return;
         }
-        stats.custom_shader.pipeline_rebuilds += 1;
         self.resources
             .remove_custom_shader_binding(&request.surface_key);
         let identity = CustomShaderPipelineIdentity {
@@ -58,6 +57,7 @@ impl GpuSurfaceRenderer {
                 .associate_custom_shader_pipeline(request.surface_key, identity);
             return;
         }
+        stats.custom_shader.pipeline_rebuilds += 1;
         let Some(shader) = create_custom_shader_module(&request, stats) else {
             self.resources
                 .remove_custom_shader_pipeline(&request.surface_key);

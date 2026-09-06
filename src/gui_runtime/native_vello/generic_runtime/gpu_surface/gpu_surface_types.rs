@@ -10,7 +10,8 @@ pub(super) use composite::{
 };
 pub(super) use custom_shader::{
     CustomShaderBinding, CustomShaderBindingKey, CustomShaderBindingWriteState,
-    CustomShaderPipeline, CustomShaderPipelineKey, CustomShaderStaticPayloadKey,
+    CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
+    CustomShaderStaticPayloadKey,
 };
 pub(super) use pipeline::{GpuSurfacePipeline, SignalPipeline};
 pub(super) use signal::{

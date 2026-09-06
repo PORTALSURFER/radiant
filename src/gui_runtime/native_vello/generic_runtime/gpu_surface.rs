@@ -283,8 +283,7 @@ impl GpuSurfaceRenderer {
         self.resources.textures.len().hash(&mut hasher);
         self.resources.composite_bindings.len().hash(&mut hasher);
         self.resources
-            .custom_shader_pipelines
-            .len()
+            .custom_shader_pipeline_count()
             .hash(&mut hasher);
         self.resources
             .custom_shader_bindings
@@ -1298,7 +1297,7 @@ mod tests {
             GpuSurfaceRenderCanvasUploadAction::Prune { clear: false }
         ));
         assert_eq!(renderer.upload_plan_state_fingerprint(), before_fingerprint);
-        assert!(renderer.resources.custom_shader_pipelines.is_empty());
+        assert!(renderer.resources.custom_shader_pipelines_are_empty());
         assert!(renderer.resources.custom_shader_bindings.is_empty());
         assert!(renderer.active_keys.is_empty());
     }

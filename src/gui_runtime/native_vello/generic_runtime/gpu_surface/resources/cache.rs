@@ -90,12 +90,20 @@ impl CustomShaderPipelineCacheState {
     ) -> Option<CustomShaderPipelineIdentity> {
         self.entries.insert(identity.clone());
         let previous = self.associations.insert(surface_key, identity);
-        previous.filter(|previous| !self.associations.values().any(|other| other == previous))
+        let retired =
+            previous.filter(|previous| !self.associations.values().any(|other| other == previous));
+        if let Some(retired) = retired.as_ref() {
+            self.entries.remove(retired);
+        }
+        retired
     }
 
     fn remove(&mut self, surface_key: u64) -> Option<CustomShaderPipelineIdentity> {
         let identity = self.associations.remove(&surface_key)?;
-        (!self.associations.values().any(|other| other == &identity)).then_some(identity)
+        (!self.associations.values().any(|other| other == &identity)).then(|| {
+            self.entries.remove(&identity);
+            identity
+        })
     }
 
     fn prune(&mut self, active_keys: &ActiveGpuSurfaceKeys) -> Vec<CustomShaderPipelineIdentity> {
@@ -578,6 +586,19 @@ impl GpuSurfaceResourceCache {
         self.custom_shader_pipelines.contains_key(identity)
     }
 
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_pipeline_count(
+        &self,
+    ) -> usize {
+        self.custom_shader_pipelines.len()
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_pipelines_are_empty(
+        &self,
+    ) -> bool {
+        self.custom_shader_pipelines.is_empty()
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_pipeline_identity(
         &self,
         key: u64,
@@ -759,7 +780,6 @@ mod tests {
         assert_eq!(state.remove(1), None);
         assert!(state.entries.contains(&identity));
         assert_eq!(state.remove(2), Some(identity.clone()));
-        state.entries.remove(&identity);
         assert!(state.entries.is_empty());
     }
 
@@ -805,7 +825,6 @@ mod tests {
             assert_eq!(state.identity(2), Some(&base));
             assert_eq!(state.identity(1), Some(&incompatible));
             assert_eq!(state.remove(1), Some(incompatible.clone()));
-            state.entries.remove(&incompatible);
             state.associate(1, base.clone());
         }
     }
@@ -822,7 +841,7 @@ mod tests {
         assert!(!entries.can_admit(9_999, &rejected));
         assert!(!entries.entries.contains(&rejected));
         let retired = entries.remove(0).unwrap();
-        entries.entries.remove(&retired);
+        assert!(!entries.entries.contains(&retired));
         assert!(entries.can_admit(9_999, &rejected));
 
         let mut associations = CustomShaderPipelineCacheState::default();
@@ -845,6 +864,28 @@ mod tests {
         };
         assert!(!bytes.can_admit(1, &too_large));
         assert!(bytes.entries.is_empty());
+    }
+
+    #[test]
+    fn custom_shader_pipeline_cache_reuses_capacity_across_sequential_replacements() {
+        let mut state = CustomShaderPipelineCacheState::default();
+        for index in 0..super::MAX_CUSTOM_SHADER_UNIQUE_PIPELINES {
+            let identity = pipeline_identity(&format!("initial-{index}"));
+            state.associate(index as u64, identity);
+        }
+        for replacement in 0..4 {
+            let identity = pipeline_identity(&format!("replacement-{replacement}"));
+            assert!(state.can_admit(0, &identity));
+            let retired = state.associate(0, identity);
+            assert!(retired.is_some());
+            assert_eq!(
+                state.entries.len(),
+                super::MAX_CUSTOM_SHADER_UNIQUE_PIPELINES
+            );
+        }
+        let retired = state.remove(0).unwrap();
+        assert!(!state.entries.contains(&retired));
+        assert!(state.can_admit(9_999, &pipeline_identity("reused-capacity")));
     }
 
     #[test]

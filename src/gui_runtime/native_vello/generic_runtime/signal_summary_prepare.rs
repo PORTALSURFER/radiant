@@ -373,6 +373,7 @@ impl SummaryBroker {
                     summary: Some(summary),
                     token: Some(token),
                 } => {
+                    token.retired.store(false, Ordering::Release);
                     entry.state = EntryState::Ready { summary, token };
                     SummaryRequestState::Ready
                 }
@@ -392,9 +393,11 @@ impl SummaryBroker {
             };
         }
         let Some(entry_bytes) = summary_bytes(&request) else {
-            self.interests.insert(target, Interest::Waiting(key));
             return SummaryRequestState::Unavailable;
         };
+        if entry_bytes > self.limits.bytes {
+            return SummaryRequestState::Unavailable;
+        }
         if self.sources.len() >= self.limits.sources
             || self
                 .bytes
@@ -478,6 +481,21 @@ impl SummaryBroker {
         self.interests.iter().filter_map(|(target, interest)| {
             matches!(interest, Interest::Waiting(_)).then_some(*target)
         })
+    }
+
+    pub(super) fn request_pump(&self) {
+        self.wake.request_repaint();
+    }
+
+    fn mark_waiting_for(&mut self, key: SourceKey) {
+        for interest in self.interests.values_mut() {
+            if matches!(interest, Interest::Source(source) if *source == key) {
+                *interest = Interest::Waiting(key);
+            }
+        }
+        if let Some(entry) = self.sources.get_mut(&key) {
+            entry.interests = 0;
+        }
     }
 
     pub(super) fn capacity_status(&self) -> SummaryCapacityStatus {
@@ -565,9 +583,9 @@ impl SummaryBroker {
             }
             self.active = self.active.saturating_sub(1);
             let ready = matches!(&completion.state, CompletionState::Ready(_));
-            let requeue = matches!(&completion.state, CompletionState::Cancelled)
-                && entry.interests != 0
-                && self.queue.len() < self.limits.queued;
+            let cancelled_with_interest =
+                matches!(&completion.state, CompletionState::Cancelled) && entry.interests != 0;
+            let requeue = cancelled_with_interest && self.queue.len() < self.limits.queued;
             entry.state = match completion.state {
                 CompletionState::Ready(summary) if entry.interests != 0 => EntryState::Ready {
                     summary,
@@ -602,6 +620,8 @@ impl SummaryBroker {
             }
             if requeue {
                 self.queue.push_back(completion.key);
+            } else if cancelled_with_interest {
+                self.mark_waiting_for(completion.key);
             }
         }
         notify
@@ -666,14 +686,24 @@ impl SummaryBroker {
             .filter_map(|(key, entry)| match &entry.state {
                 EntryState::Retired {
                     token: Some(token), ..
-                } if Arc::strong_count(token) == 1 => Some(*key),
-                EntryState::Retired { token: None, .. } => Some(*key),
+                } if entry.interests == 0 && Arc::strong_count(token) == 1 => Some(*key),
+                EntryState::Retired { token: None, .. } if entry.interests == 0 => Some(*key),
                 _ => None,
             })
             .collect();
         for key in retired {
             if let Some(entry) = self.sources.remove(&key) {
                 self.bytes = self.bytes.saturating_sub(entry.bytes);
+            }
+        }
+    }
+}
+
+impl Drop for SummaryBroker {
+    fn drop(&mut self) {
+        for entry in self.sources.values() {
+            if let EntryState::Active { cancelled, .. } = &entry.state {
+                cancelled.store(true, Ordering::Release);
             }
         }
     }

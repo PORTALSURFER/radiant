@@ -289,6 +289,8 @@ mod composited_base;
 mod core;
 mod cpu_frame_fairness;
 mod cpu_frame_observation;
+mod custom_shader_prepare;
+mod custom_shader_runtime;
 mod device;
 mod event_routing;
 mod external_drag;
@@ -341,7 +343,6 @@ mod runtime_helpers;
 mod runtime_wakeup;
 mod scene;
 mod scene_texture;
-mod custom_shader_prepare;
 mod signal_summary_prepare;
 mod signal_summary_runtime;
 mod submission_completion;
@@ -508,6 +509,10 @@ where
     let summary_signal = runner.runtime_wakeup.install_summary_work_signal();
     runner.signal_summary_preparation = Some(
         signal_summary_runtime::NativeSignalSummaryPreparation::new(summary_signal),
+    );
+    let custom_shader_signal = runner.runtime_wakeup.install_custom_shader_work_signal();
+    runner.custom_shader_preparation = Some(
+        custom_shader_runtime::NativeCustomShaderPreparation::new(custom_shader_signal),
     );
     runner
         .core

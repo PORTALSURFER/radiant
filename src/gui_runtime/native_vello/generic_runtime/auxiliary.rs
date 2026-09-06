@@ -141,6 +141,20 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
     }
 
+    pub(super) fn accepts_custom_shader_target(
+        &self,
+        target: super::custom_shader_prepare::CustomShaderTargetId,
+        adapter: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_admitted() && self.runner.accepts_custom_shader_target(target, adapter)
+    }
+
+    pub(super) fn defer_custom_shader_scene_rebuild(&mut self) {
+        if self.is_admitted() {
+            self.runner.defer_scene_rebuild();
+        }
+    }
+
     pub(super) fn reconcile_waiting_signal_summary_interests(
         &mut self,
         adapter: NativeAdapterGeneration,
@@ -1348,6 +1362,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
         self.discard_frame_diagnostics();
         self.runner.release_signal_summary_interests();
+        self.runner.release_custom_shader_interests();
         self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring;
         self.recovery_rebuild_pending = false;
         self.hide();
@@ -2258,6 +2273,9 @@ where
                     );
                     if let Some(broker) = self.shared_signal_summary_broker() {
                         window.runner.install_signal_summary_broker(broker);
+                    }
+                    if let Some(broker) = self.shared_custom_shader_broker() {
+                        window.runner.install_custom_shader_broker(broker);
                     }
                     window.runner.core.runtime.bridge_mut().command_service =
                         command_service.clone();

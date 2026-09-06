@@ -995,6 +995,9 @@ where
             RuntimeUserEvent::SignalSummaryWorkReady => {
                 self.handle_signal_summary_work_ready();
             }
+            RuntimeUserEvent::CustomShaderWorkReady => {
+                self.handle_custom_shader_work_ready();
+            }
             RuntimeUserEvent::RepaintRequested => {
                 if !self.is_running() {
                     self.runtime_wakeup.clear_pending();
@@ -1666,6 +1669,68 @@ where
             let id = dispatch.id();
             let accepted = self.core.runtime.host_spawn_worker_task(
                 "radiant-signal-summary",
+                TaskPriority::Background,
+                None,
+                Box::new(move || dispatch.run()),
+            );
+            if !accepted {
+                broker.borrow_mut().reject_dispatch(id);
+            }
+        }
+        broker.borrow_mut().maintain_retired();
+    }
+
+    /// Parent-only completion pump for device-bound custom shader candidates.
+    /// This never creates a device or spins a redraw while work is pending;
+    /// installation is deferred to the next admitted present transaction.
+    fn handle_custom_shader_work_ready(&mut self) {
+        self.runtime_wakeup.clear_custom_shader_work_pending();
+        let Some(preparation) = self.custom_shader_preparation.as_ref() else {
+            return;
+        };
+        let broker = preparation.shared();
+        let capacity_changed = {
+            let mut broker = broker.borrow_mut();
+            let before = broker.capacity_status();
+            let ready = broker.drain_completions();
+            broker.maintain_retired();
+            let capacity_changed = before != broker.capacity_status();
+            if self.is_running() {
+                for target in ready {
+                    let Some(adapter_generation) = self
+                        .adapter
+                        .as_ref()
+                        .and_then(GenericNativeAdapterOwner::capture_generation)
+                    else {
+                        break;
+                    };
+                    if self.accepts_custom_shader_target(target, adapter_generation) {
+                        self.defer_scene_rebuild();
+                        continue;
+                    }
+                    if let Some(window) = self.auxiliary_windows.iter_mut().find(|window| {
+                        window.accepts_custom_shader_target(target, adapter_generation)
+                    }) {
+                        window.defer_custom_shader_scene_rebuild();
+                    }
+                }
+            }
+            capacity_changed
+        };
+        if !self.is_running() {
+            return;
+        }
+        // A bounded waiting retry is reconciled at the next present where the
+        // exact UI-side device handle and surface format are available.
+        if capacity_changed && !self.take_waiting_custom_shader_targets(8).is_empty() {
+            self.defer_scene_rebuild();
+        }
+        loop {
+            let dispatch = broker.borrow_mut().take_dispatch();
+            let Some(dispatch) = dispatch else { break };
+            let id = dispatch.id();
+            let accepted = self.core.runtime.host_spawn_worker_task(
+                "radiant-custom-shader-preparation",
                 TaskPriority::Background,
                 None,
                 Box::new(move || dispatch.run()),

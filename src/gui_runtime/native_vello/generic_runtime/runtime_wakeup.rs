@@ -9,6 +9,7 @@ use winit::event_loop::EventLoopProxy;
 pub(super) struct RuntimeWakeup {
     pending: Arc<AtomicBool>,
     summary_pending: Arc<AtomicBool>,
+    custom_shader_pending: Arc<AtomicBool>,
     proxy: Option<EventLoopProxy<RuntimeUserEvent>>,
 }
 
@@ -17,6 +18,7 @@ impl Default for RuntimeWakeup {
         Self {
             pending: Arc::new(AtomicBool::new(false)),
             summary_pending: Arc::new(AtomicBool::new(false)),
+            custom_shader_pending: Arc::new(AtomicBool::new(false)),
             proxy: None,
         }
     }
@@ -55,6 +57,22 @@ impl RuntimeWakeup {
 
     pub(super) fn clear_summary_work_pending(&self) {
         self.summary_pending.store(false, Ordering::Release);
+    }
+
+    pub(super) fn install_custom_shader_work_signal(&self) -> Arc<dyn RepaintSignal> {
+        let pending = Arc::clone(&self.custom_shader_pending);
+        let proxy = self.proxy.clone();
+        Arc::new(CoalescingRepaintSignal::new(pending, move || {
+            proxy.as_ref().is_some_and(|proxy| {
+                proxy
+                    .send_event(RuntimeUserEvent::CustomShaderWorkReady)
+                    .is_ok()
+            })
+        }))
+    }
+
+    pub(super) fn clear_custom_shader_work_pending(&self) {
+        self.custom_shader_pending.store(false, Ordering::Release);
     }
 
     pub(super) fn clear_pending(&self) {

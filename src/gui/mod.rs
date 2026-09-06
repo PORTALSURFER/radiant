@@ -25,6 +25,7 @@ pub mod badge;
 pub mod chrome;
 /// Generic disclosure and mutually-exclusive open-state primitives.
 pub mod disclosure;
+pub(crate) mod drag_drop;
 /// Generic user-feedback surface primitives.
 pub mod feedback;
 /// Stable fingerprint helpers for retained cache invalidation.

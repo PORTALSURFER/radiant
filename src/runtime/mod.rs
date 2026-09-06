@@ -63,6 +63,11 @@ pub use crate::gui::automation::{
     AutomationPoint, AutomationRole, AutomationTarget, AutomationTargetAuthority,
     GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
 };
+pub use crate::gui::drag_drop::{
+    DragCancelReason, DragDescriptorError, DragEventContext, DragOffer, DragOperation,
+    DragOperations, DragPreviewInfo, DragSessionToken, DragSourceEvent, DragSourcePhase,
+    DropDecision, DropEvent, DropPhase,
+};
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, EmbeddedVelloError, EmbeddedVelloRenderer,
     EmbeddedVelloSurfaceHandle, EmbeddedVelloUnsupportedPrimitive, FrameRate,

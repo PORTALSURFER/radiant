@@ -1,4 +1,5 @@
 //! Bounded widget/ancestor recognition sharing controller capture admission and teardown.
+pub(super) mod drag_drop;
 use super::{SurfaceRuntime, interaction_state::RuntimeManagedCompositionState};
 use crate::{
     gui::pointer_ingress::{
@@ -360,6 +361,30 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             accumulated,
             cancellation: None,
         };
+        if self.is_drag_source(&target) {
+            self.interaction.gesture = Some(capture);
+            if !self.deliver_typed_drag(&target, event) {
+                self.cancel_gesture_capture(GestureCancellation::Retired);
+                return GestureOutcome::Unsupported;
+            }
+            if terminal
+                && !was_active
+                && self
+                    .interaction
+                    .gesture
+                    .as_ref()
+                    .is_some_and(|capture| capture.token == token)
+            {
+                self.deliver_typed_drag(
+                    &target,
+                    GestureEvent {
+                        phase: GesturePhase::Ended,
+                        ..event
+                    },
+                );
+            }
+            return outcome;
+        }
         if terminal && was_active {
             self.clear_gesture_pointer_capture(&target);
             return if self.deliver_gesture(&target, event) {
@@ -445,6 +470,10 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 continue;
             };
             let policy = gestures.policy();
+            // Drag offers currently consume normalized logical pan only.
+            if facets.drag_source().is_some() && kind != GestureKind::Pan {
+                continue;
+            }
             if policy.threshold(kind).is_none() {
                 continue;
             }
@@ -476,7 +505,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 path: record.path.clone(),
                 policy,
                 owner: GestureOwner::Container {
-                    revision: gestures.revision(),
+                    revision: facets.revision_evidence(),
                     interaction_revision: record.revision.clone(),
                     policy: std::rc::Rc::new(container.revision().policy.clone()),
                     contract_version: record.contract_version,
@@ -574,7 +603,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                                                     .is_some_and(|gestures| {
                                                         gestures.policy() == target.policy
                                                             && ((revision.is_exact()
-                                                                && gestures.revision()
+                                                                && interaction
+                                                                    .capabilities_v2()
+                                                                    .revision_evidence()
                                                                     == *revision)
                                                                 || (!revision.is_exact()
                                                                     && same_projection))
@@ -673,7 +704,20 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             self.interaction.pointer.capture_state = None;
         }
     }
-    pub(super) fn finish_gesture_dispatch(&mut self, dispatch: WidgetDispatchResult<Message>) {
+    pub(super) fn finish_gesture_dispatch(
+        &mut self,
+        dispatch: impl Into<GestureDispatch<Message>>,
+    ) {
+        let dispatch = match dispatch.into() {
+            GestureDispatch::Widget(dispatch) => dispatch,
+            GestureDispatch::Messages(messages) => {
+                for message in messages {
+                    let outcome = self.dispatch_message(message);
+                    self.pending_input_command_outcome.merge(outcome);
+                }
+                return;
+            }
+        };
         match dispatch {
             WidgetDispatchResult::Message(message) => {
                 let outcome = self.dispatch_message(message);
@@ -703,8 +747,20 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         &mut self,
         capture: GestureCapture,
         reason: GestureCancellation,
-    ) -> Option<WidgetDispatchResult<Message>> {
+    ) -> Option<GestureDispatch<Message>> {
         self.clear_gesture_pointer_capture(&capture.target);
+        if self.interaction.drag.typed.is_some() {
+            let reason = match reason {
+                GestureCancellation::Retired => crate::runtime::DragCancelReason::SourceRetired,
+                GestureCancellation::InvalidSample => {
+                    crate::runtime::DragCancelReason::InvalidSample
+                }
+                _ => crate::runtime::DragCancelReason::CaptureLost,
+            };
+            return Some(GestureDispatch::Messages(
+                self.take_typed_drag_terminal(Some(reason)),
+            ));
+        }
         if capture.active
             && Self::gesture_target_matches_surface(
                 &capture.target,
@@ -713,23 +769,25 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 capture.generation == self.refresh_counters().runtime_projection,
             )
         {
-            return self.gesture_dispatch(
-                &capture.target,
-                GestureEvent {
-                    sample: capture.sample,
-                    anchor: capture.anchor,
-                    phase: GesturePhase::Cancelled,
-                    accumulated: capture.accumulated,
-                    cancellation: Some(reason),
-                },
-            );
+            return self
+                .gesture_dispatch(
+                    &capture.target,
+                    GestureEvent {
+                        sample: capture.sample,
+                        anchor: capture.anchor,
+                        phase: GesturePhase::Cancelled,
+                        accumulated: capture.accumulated,
+                        cancellation: Some(reason),
+                    },
+                )
+                .map(GestureDispatch::Widget);
         }
         None
     }
     pub(super) fn take_gesture_cancellation(
         &mut self,
         reason: GestureCancellation,
-    ) -> Option<WidgetDispatchResult<Message>> {
+    ) -> Option<GestureDispatch<Message>> {
         let capture = self.interaction.gesture.take()?;
         self.gesture_cancellation_dispatch(capture, reason)
     }
@@ -745,6 +803,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         retired: &[WidgetId],
         terminal_messages: &mut Vec<Message>,
     ) {
+        self.reconcile_drop_before_surface_replace(next, terminal_messages);
         let Some(capture) = self.interaction.gesture.as_ref() else {
             return;
         };
@@ -766,6 +825,14 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         };
         self.clear_gesture_pointer_capture(&capture.target);
         if !capture.active {
+            return;
+        }
+        if self.interaction.drag.typed.is_some() {
+            terminal_messages.extend(
+                self.take_typed_drag_terminal(Some(
+                    crate::runtime::DragCancelReason::SourceRetired,
+                )),
+            );
             return;
         }
         let event = GestureEvent {
@@ -865,5 +932,15 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             GestureOutcome::Stale => GestureIngressDisposition::Stale,
             _ => GestureIngressDisposition::Blocked,
         }
+    }
+}
+
+pub(super) enum GestureDispatch<Message> {
+    Widget(WidgetDispatchResult<Message>),
+    Messages(Vec<Message>),
+}
+impl<Message> From<WidgetDispatchResult<Message>> for GestureDispatch<Message> {
+    fn from(dispatch: WidgetDispatchResult<Message>) -> Self {
+        Self::Widget(dispatch)
     }
 }

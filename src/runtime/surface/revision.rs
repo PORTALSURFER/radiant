@@ -118,22 +118,22 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
             if !previous.is_supported() || !current.is_supported() {
                 return WidgetRevisionEffect::Structural;
             }
-            match (previous.gestures(), current.gestures()) {
-                (Some(previous), Some(current)) => {
-                    let previous_revision = previous.revision();
-                    let current_revision = current.revision();
-                    if !previous_revision.is_exact() || !current_revision.is_exact() {
-                        return WidgetRevisionEffect::Structural;
-                    }
-                    if previous_revision != current_revision
-                        || previous.policy() != current.policy()
-                    {
-                        gesture_changed = true;
-                    }
-                }
-                (None, None) => {}
-                _ => return WidgetRevisionEffect::Structural,
+            let presence = |facets: &crate::layout::LayoutInteractionCapabilities<'_, Message>| {
+                (
+                    facets.gestures().is_some(),
+                    facets.drag_source().is_some(),
+                    facets.drop_target().is_some(),
+                )
+            };
+            if presence(&previous) != presence(&current) {
+                return WidgetRevisionEffect::Structural;
             }
+            let previous_revision = previous.revision_evidence();
+            let current_revision = current.revision_evidence();
+            if !previous_revision.is_exact() || !current_revision.is_exact() {
+                return WidgetRevisionEffect::Structural;
+            }
+            gesture_changed = previous_revision != current_revision;
         }
         let (Some(previous), Some(current)) = (
             self.layout_interaction_revision(),
@@ -161,10 +161,7 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
                         .as_ref()
                         .is_some_and(|interaction| {
                             let facets = interaction.capabilities_v2();
-                            !facets.is_supported()
-                                || facets
-                                    .gestures()
-                                    .is_some_and(|gestures| !gestures.revision().is_exact())
+                            !facets.revision_evidence().is_exact()
                         })
                     || capabilities
                         .interaction_revision()

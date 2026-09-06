@@ -247,7 +247,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let previous_context = std::mem::replace(&mut self.source_context, node_context);
         let command_scope = node.command_scope.clone();
         let focus_scope = node.focus_scope;
-        let gesture_interaction = node.gesture_interaction.clone();
+        let layout_interaction = node.layout_interaction.clone();
         let style = node.style;
         let hoverable = node.hoverable;
         let split_pane_runtime = node.split_pane_runtime;
@@ -281,7 +281,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
                     .flatten();
                 let mut container =
                     lowering.lower_container(id, policy, layout_policy, style, hoverable, children);
-                if let Some(interaction) = gesture_interaction.clone() {
+                if let Some(interaction) = layout_interaction.clone() {
                     container = container.with_layout_capabilities(
                         crate::layout::LayoutCapabilities::new().interaction(interaction),
                     );

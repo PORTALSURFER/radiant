@@ -8544,3 +8544,42 @@ those modifiers. Changed decisions arrive in target `Over` events and are
 requalified again before drop. The `gesture_input` example now uses an admitted
 mouse sequence for its typed drop and normalized samples for its widget/ancestor
 recognition demonstrations.
+
+### Precise bounded signal windows
+
+`GpuSignalPosition` stores an exact `u64` frame and a normalized fractional
+frame. `GpuSignalViewport` combines that position with a finite positive local
+span. `position_at` maps a widget-local ratio to a source position;
+`zoom_anchored` keeps that position under the same ratio. `local_offset`
+subtracts integer origins before converting the delta to `f64`, rejecting
+integer deltas beyond 2^53. Local floating-point rounding still applies.
+`from_f32_range` is an explicit legacy adapter and cannot recover precision
+already lost in its input. Existing signal content variants retain their behavior.
+
+`GpuSignalSummaryWindow` encodes caller-supplied min/max buckets for a bounded
+source interval. Its origin and total source length are `u64`; only bucket-local
+coordinates reach the shader. A window admits at most 1,048,576 buckets and four
+bands (32 MiB encoded min/max storage). It does not build or retain a source-sized
+pyramid. The final bucket may end at the source boundary. Invalid shapes,
+non-finite or inverted buckets, and out-of-source ranges return typed errors.
+
+`content` produces the existing `GpuSurfaceContent::CustomShader` variant.
+Cloned windows and view changes share immutable storage and shader allocations.
+The constructor's identity and revision describe immutable data and metadata;
+replace the revision when replacing that data. `GpuPreciseSignalPresentation`
+contains the viewport, signed integer slide, precise gain selection, and cursor.
+Its bytes occupy the existing volatile presentation binding; callers can also
+use `presentation_bytes` with the existing presentation-uniform update API.
+
+Slide samples `(visual_frame - slide_frames) mod source_frames`, using integer
+arithmetic on the CPU before conversion. A presentation that needs absent data
+returns `GpuSignalWindowError::MissingWindow`; it never substitutes a boundary
+bucket for an absent source interval. A wrapping presentation requires the
+provided window to cover both source edges. Gain selections refer to the visual
+timeline before slide, and their endpoints remain relative to the viewport even
+when outside it, preserving partial fade phase. Malformed controls or a gain
+selection whose projected endpoints collapse return `InvalidPresentation`.
+
+See `examples/precise_signal_window.rs` for a 64-bucket fixture at frame 2^40,
+local pointer hit testing, anchored zoom, and content construction. Legacy
+`waveform_view` remains an example of the original signal content API.

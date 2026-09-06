@@ -24,7 +24,7 @@ pub(super) enum FeedbackChromeKind {
 /// Immutable paint capability for runtime-sampled feedback motion.
 pub(super) struct FeedbackChrome {
     kind: FeedbackChromeKind,
-    feedback: [FeedbackAnimation; 1],
+    feedback: Option<FeedbackAnimation>,
 }
 
 impl FeedbackChrome {
@@ -35,13 +35,13 @@ impl FeedbackChrome {
         };
         Self {
             kind,
-            feedback: [FeedbackAnimation::new(
+            feedback: FeedbackAnimation::new(
                 property,
                 FEEDBACK_GROUP,
                 FEEDBACK_PERIOD,
                 STATIC_PHASE,
             )
-            .expect("feedback animation declaration is valid")],
+            .ok(),
         }
     }
 }
@@ -52,7 +52,7 @@ impl Animatable for FeedbackChrome {
     }
 
     fn feedback(&self) -> &[FeedbackAnimation] {
-        &self.feedback
+        self.feedback.as_slice()
     }
 
     fn append_paint(
@@ -61,14 +61,13 @@ impl Animatable for FeedbackChrome {
         context: AnimationPaintContext<'_>,
         output: &mut Vec<PaintPrimitive>,
     ) {
-        let declaration = self.feedback[0];
         let phase = if context.environment.reduced_motion() {
-            declaration.static_value()
+            STATIC_PHASE
         } else {
-            values
-                .get(declaration.property())
+            self.feedback
+                .and_then(|declaration| values.get(declaration.property()))
                 .filter(|value| value.is_finite())
-                .unwrap_or(declaration.static_value())
+                .unwrap_or(STATIC_PHASE)
         };
         match self.kind {
             FeedbackChromeKind::Spinner => {

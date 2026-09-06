@@ -8,7 +8,10 @@ use std::{
 
 /// Stable application-chosen identity of a notice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct NoticeId(pub u64);
+pub struct NoticeId(
+    /// Application-defined identifier, unique within its owning queue.
+    pub u64,
+);
 
 impl From<u64> for NoticeId {
     fn from(value: u64) -> Self {
@@ -19,10 +22,15 @@ impl From<u64> for NoticeId {
 /// Presentation severity, independent of product error taxonomies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NoticeSeverity {
+    /// Neutral informational feedback.
     Info,
+    /// Successful completion feedback.
     Success,
+    /// A condition requiring attention.
     Warning,
+    /// An operation failed.
     Error,
+    /// Persistent attention; it has no timeout by default.
     Critical,
 }
 
@@ -39,9 +47,13 @@ pub struct Notice {
 /// Rejected notice input or bounded queue admission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoticeError {
+    /// A message or action label exceeds its documented UTF-8 byte limit.
     TextTooLong,
+    /// A timeout is zero or longer than one day.
     InvalidTimeout,
+    /// A new notice cannot be admitted because all 64 slots are occupied.
     Capacity,
+    /// The queue cannot allocate another version fence.
     RevisionExhausted,
 }
 
@@ -93,12 +105,15 @@ impl Notice {
         self.action = Some((label, command));
         Ok(self)
     }
+    /// Stable application identity.
     pub const fn id(&self) -> NoticeId {
         self.id
     }
+    /// Visible message, also used for accessible announcement content.
     pub fn message(&self) -> &str {
         &self.message
     }
+    /// Presentation severity.
     pub const fn severity(&self) -> NoticeSeverity {
         self.severity
     }
@@ -248,9 +263,11 @@ impl NoticeQueue {
             entries: self.entries.iter().cloned().collect(),
         }
     }
+    /// Number of retained notices, including notices not currently visible.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+    /// Whether the queue contains no notices.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -264,10 +281,12 @@ pub struct NoticeSnapshot {
 }
 impl NoticeSnapshot {
     /// Entries in stable application insertion order for framework projection.
+    #[cfg(test)]
     pub(crate) fn entries(&self) -> &[Entry] {
         &self.entries
     }
     /// Produce an exact entry token for a currently projected entry.
+    #[cfg(test)]
     pub(crate) fn token_for(&self, entry: &Entry) -> NoticeToken {
         entry.token(&self.queue)
     }
@@ -309,7 +328,9 @@ impl NoticeToken {
 /// Cause of a typed dismissal event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoticeDismissalReason {
+    /// The user explicitly activated the dismissal control.
     User,
+    /// The visible, unpaused timeout elapsed.
     Timeout,
 }
 
@@ -320,12 +341,15 @@ pub struct NoticeDismissal {
     pub(crate) reason: NoticeDismissalReason,
 }
 impl NoticeDismissal {
+    /// Notice requested for dismissal.
     pub const fn id(&self) -> NoticeId {
         self.token.id
     }
+    /// Whether the user dismissed the notice or its timeout elapsed.
     pub const fn reason(&self) -> NoticeDismissalReason {
         self.reason
     }
+    #[cfg(test)]
     pub(crate) fn is_live(&self) -> bool {
         self.token.is_live()
     }
@@ -337,9 +361,11 @@ pub struct NoticeAction {
     pub(crate) token: NoticeToken,
 }
 impl NoticeAction {
+    /// Notice whose semantic action was activated.
     pub const fn id(&self) -> NoticeId {
         self.token.id
     }
+    #[cfg(test)]
     pub(crate) fn is_live(&self) -> bool {
         self.token.is_live()
     }

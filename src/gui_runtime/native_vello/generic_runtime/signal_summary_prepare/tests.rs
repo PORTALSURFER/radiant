@@ -384,3 +384,55 @@ impl SummaryBroker {
         (broker, prepared)
     }
 }
+
+#[test]
+fn maintenance_during_off_thread_last_drop_observes_released_token() {
+    struct SynchronousWake {
+        armed: AtomicBool,
+        events: SyncSender<()>,
+        ack: std::sync::Mutex<Receiver<()>>,
+    }
+    impl RepaintSignal for SynchronousWake {
+        fn request_repaint(&self) {
+            if self.armed.load(Ordering::Acquire) {
+                self.events.send(()).expect("maintenance event");
+                self.ack
+                    .lock()
+                    .expect("ack lock")
+                    .recv_timeout(std::time::Duration::from_secs(5))
+                    .expect("maintenance completed during wake");
+            }
+        }
+    }
+    let (events, receiver) = sync_channel(1);
+    let (ack, ack_receiver) = sync_channel(1);
+    let wake = Arc::new(SynchronousWake {
+        armed: AtomicBool::new(false),
+        events,
+        ack: std::sync::Mutex::new(ack_receiver),
+    });
+    let mut broker = SummaryBroker::with_limits(wake.clone(), limits());
+    let target = target();
+    broker.request(target, request(Arc::from([0.0; 4]), 1));
+    broker.take_dispatch().expect("dispatch").run();
+    broker.drain_completions();
+    let prepared = broker.prepared(target).expect("ready");
+    broker.release_target(target);
+    wake.armed.store(true, Ordering::Release);
+    let observed_bytes = std::thread::scope(|scope| {
+        let dropper = scope.spawn(move || drop(prepared));
+        receiver
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("drop wake");
+        // The worker is deliberately paused inside request_repaint, before its
+        // Drop implementation returns. No later maintenance is allowed to mask
+        // token-release ordering.
+        broker.maintain_retired();
+        let bytes = broker.capacity_status().logical_bytes;
+        ack.send(()).expect("acknowledge maintenance");
+        dropper.join().expect("dropper");
+        bytes
+    });
+    assert_eq!(observed_bytes, 0);
+    assert!(broker.sources.is_empty());
+}

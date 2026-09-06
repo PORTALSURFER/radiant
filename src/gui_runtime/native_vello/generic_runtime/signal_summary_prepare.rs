@@ -172,17 +172,26 @@ impl PreparedSummary {
 }
 
 #[derive(Clone)]
-struct SummaryRetentionLease(Arc<RetentionToken>);
+struct SummaryRetentionLease(Option<Arc<RetentionToken>>);
 
 struct RetentionToken {
     wake: Arc<dyn RepaintSignal>,
-    retired: AtomicBool,
+    retired: Arc<AtomicBool>,
 }
 
 impl Drop for SummaryRetentionLease {
     fn drop(&mut self) {
-        if self.0.retired.load(Ordering::Acquire) {
-            self.0.wake.request_repaint();
+        let Some(token) = self.0.take() else {
+            return;
+        };
+        let retired = Arc::clone(&token.retired);
+        let wake = Arc::clone(&token.wake);
+        // A concurrent owner pump must see this lease already released when
+        // it handles our wake. The independent flag also closes the race with
+        // release_target retiring the source while this token is being dropped.
+        drop(token);
+        if retired.load(Ordering::Acquire) {
+            wake.request_repaint();
         }
     }
 }
@@ -470,7 +479,7 @@ impl SummaryBroker {
             key: *key,
             _source: Arc::clone(&entry.samples),
             summary: Arc::clone(summary),
-            _lease: SummaryRetentionLease(Arc::clone(token)),
+            _lease: SummaryRetentionLease(Some(Arc::clone(token))),
         })
     }
 
@@ -589,14 +598,14 @@ impl SummaryBroker {
                     summary,
                     token: Arc::new(RetentionToken {
                         wake: Arc::clone(&self.wake),
-                        retired: AtomicBool::new(false),
+                        retired: Arc::new(AtomicBool::new(false)),
                     }),
                 },
                 CompletionState::Ready(summary) => EntryState::Retired {
                     summary: Some(summary),
                     token: Some(Arc::new(RetentionToken {
                         wake: Arc::clone(&self.wake),
-                        retired: AtomicBool::new(true),
+                        retired: Arc::new(AtomicBool::new(true)),
                     })),
                 },
                 CompletionState::Cancelled if requeue => EntryState::Queued,

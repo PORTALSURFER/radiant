@@ -8,8 +8,10 @@ use crate::gui::text_layout::paragraph::{
     ClusterCaretOffset, MAX_PARAGRAPH_SOURCE_BYTES, ParagraphBaseDirection, ParagraphGeometry,
     ParagraphGeometryInput, ParagraphGeometryKey, ShapedLogicalCluster,
 };
+use unicode_bidi::{BidiInfo, Level};
+
 use std::{
-    collections::{BTreeSet, hash_map::DefaultHasher},
+    collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     ops::Range,
     sync::Arc,
@@ -98,7 +100,13 @@ pub(super) fn layout_editor_paragraph(
         // either use the exact native shaping result or remain unavailable.
         let shaped =
             compute_shaped_paragraph(font_stack, shaped_source, font_size, presentation).ok()?;
-        append_shaped_clusters(&shaped, bytes.start, &mut clusters, &mut payloads)?;
+        append_shaped_clusters(
+            &shaped,
+            bytes.start,
+            presentation,
+            &mut clusters,
+            &mut payloads,
+        )?;
     }
 
     let key = paragraph_key(
@@ -127,6 +135,7 @@ pub(super) fn layout_editor_paragraph(
 fn append_shaped_clusters(
     shaped: &super::ShapedParagraph,
     byte_offset: usize,
+    presentation: &TextPresentation,
     clusters: &mut Vec<ShapedLogicalCluster>,
     payloads: &mut Vec<NativeEditorClusterPayload>,
 ) -> Option<()> {
@@ -139,22 +148,14 @@ fn append_shaped_clusters(
         return None;
     }
 
-    // `ShapedParagraph` predates an explicit cluster-safety flag. Its glyph
-    // source ranges are the only proof available here, so any compatibility
-    // fallback makes all soft-wrap boundaries conservative/unsafe.
-    let safe_ends = (shaped.quality.fallback_glyphs == 0 && shaped.quality.missing_glyphs == 0)
-        .then(|| {
-            shaped
-                .glyphs
-                .iter()
-                .map(|glyph| glyph.cluster.end.0)
-                .collect::<BTreeSet<_>>()
-        })
-        .unwrap_or_default();
+    // `ShapedParagraph` predates Rustybuzz's unsafe-to-break flags. A
+    // glyph-cluster boundary alone is insufficient proof, because shaping can
+    // mark several distinct clusters unsafe together. Keep every soft-wrap
+    // boundary unavailable until those flags are retained by the shaper.
 
     for geometry in geometry {
         let bytes = shifted_range(geometry.range, byte_offset)?;
-        let bidi_level = bidi_level_for(shaped, geometry.range.start)?;
+        let bidi_level = pre_l1_bidi_level(shaped.source.as_ref(), presentation, geometry.range)?;
         let advance = (geometry.x_end - geometry.x_start).abs();
         if !advance.is_finite() {
             return None;
@@ -164,7 +165,7 @@ fn append_shaped_clusters(
             bytes: bytes.clone(),
             advance,
             bidi_level,
-            safe_break_after: safe_ends.contains(&geometry.range.end.0),
+            safe_break_after: false,
             carets: cluster_carets(geometry, advance),
         });
         payloads.push(NativeEditorClusterPayload {
@@ -210,12 +211,23 @@ fn shifted_glyph(mut glyph: GlyphPlacement, byte_offset: usize) -> Option<GlyphP
     Some(glyph)
 }
 
-fn bidi_level_for(shaped: &super::ShapedParagraph, byte: Utf8ByteOffset) -> Option<u8> {
-    shaped
-        .bidi_runs
+fn pre_l1_bidi_level(
+    source: &str,
+    presentation: &TextPresentation,
+    bytes: ShapeClusterRange,
+) -> Option<u8> {
+    let base = match presentation.direction {
+        Some(crate::application::WritingDirection::Ltr) => Some(Level::ltr()),
+        Some(crate::application::WritingDirection::Rtl) => Some(Level::rtl()),
+        None => None,
+    };
+    let bidi = BidiInfo::new(source, base);
+    let first = bidi.levels.get(bytes.start.0)?.number();
+    bidi.levels
+        .get(bytes.start.0..bytes.end.0)?
         .iter()
-        .find(|run| run.range.start <= byte.0 && byte.0 < run.range.end)
-        .map(|run| run.level)
+        .all(|level| level.number() == first)
+        .then_some(first)
 }
 
 fn base_direction(presentation: &TextPresentation) -> ParagraphBaseDirection {

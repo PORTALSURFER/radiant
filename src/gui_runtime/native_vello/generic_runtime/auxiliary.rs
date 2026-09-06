@@ -49,6 +49,7 @@ use crate::runtime::{ExternalDragIdentity, ExternalDragOutcome};
 pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
+use std::collections::HashSet;
 use std::time::Instant;
 use winit::{
     event::WindowEvent,
@@ -126,6 +127,31 @@ pub(super) struct AuxiliaryNativeWindow<Message> {
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
+    pub(super) fn accepts_signal_summary_target(
+        &self,
+        target: super::signal_summary_prepare::SummaryTargetId,
+        adapter: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_admitted() && self.runner.accepts_signal_summary_target(target, adapter)
+    }
+
+    pub(super) fn defer_signal_summary_scene_rebuild(&mut self) {
+        if self.is_admitted() {
+            self.runner.defer_scene_rebuild();
+        }
+    }
+
+    pub(super) fn reconcile_waiting_signal_summary_interests(
+        &mut self,
+        adapter: NativeAdapterGeneration,
+        targets: &HashSet<super::signal_summary_prepare::SummaryTargetId>,
+    ) {
+        if self.is_admitted() {
+            self.runner
+                .reconcile_waiting_signal_summary_interests(adapter, targets);
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn new(
         projection: AuxiliaryWindow<Message>,

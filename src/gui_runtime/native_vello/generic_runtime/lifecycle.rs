@@ -29,7 +29,10 @@ use crate::runtime::{
     FrameGpuTimingSample, FrameProfile, NativeCpuFrameFairnessDiagnostics,
     NativeCpuFrameObservationDiagnostics, RuntimeAnimationActivity, RuntimeBridge, TaskPriority,
 };
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 use tracing::warn;
 use winit::{
     application::ApplicationHandler,
@@ -1589,52 +1592,65 @@ where
     /// turn queues the next event rather than being lost afterwards.
     fn handle_signal_summary_work_ready(&mut self) {
         self.runtime_wakeup.clear_summary_work_pending();
-        if !self.is_running() {
-            if let Some(preparation) = self.signal_summary_preparation.as_ref() {
-                preparation.shared().borrow_mut().maintain_retired();
-            }
-            return;
-        }
         let Some(preparation) = self.signal_summary_preparation.as_ref() else {
             return;
         };
         let broker = preparation.shared();
-        let ready = {
+        let (ready, capacity_changed) = {
             let mut broker = broker.borrow_mut();
+            let before = broker.capacity_status();
             let ready = broker.drain_completions();
             broker.maintain_retired();
-            ready
+            (ready, before != broker.capacity_status())
         };
+        // Active jobs may complete while the runtime is recovering or closing.
+        // Drain and retire them, but never dispatch new work or request frames.
+        if !self.is_running() {
+            return;
+        }
 
         // A ready completion dirties the exact current runner only after its
         // serial is still registered.  Old epochs remain reusable CPU data but
         // never author a GPU install or a frame for their former target.
         for target in ready {
-            if self.accepts_signal_summary_target(target) {
+            let Some(adapter_generation) = self
+                .adapter
+                .as_ref()
+                .and_then(GenericNativeAdapterOwner::capture_generation)
+            else {
+                break;
+            };
+            if self.accepts_signal_summary_target(target, adapter_generation) {
                 self.defer_scene_rebuild();
                 continue;
             }
             if let Some(window) = self
                 .auxiliary_windows
                 .iter_mut()
-                .find(|window| window.runner.accepts_signal_summary_target(target))
+                .find(|window| window.accepts_signal_summary_target(target, adapter_generation))
             {
-                window.runner.defer_scene_rebuild();
+                window.defer_signal_summary_scene_rebuild();
             }
         }
 
-        // Rescan only after a capacity transition, never by scheduling a
-        // frame solely to retry WaitingAdmission interests.
-        if let Some(adapter_generation) = self
-            .adapter
-            .as_ref()
-            .and_then(GenericNativeAdapterOwner::capture_generation)
-        {
-            let _ = self.reconcile_signal_summary_interests(adapter_generation);
-            for window in &mut self.auxiliary_windows {
-                let _ = window
-                    .runner
-                    .reconcile_signal_summary_interests(adapter_generation);
+        // Rescan only a bounded rotating selection of the broker's waiting
+        // targets after a real capacity/interest transition.  This turn owns
+        // dispatch already, so reconciliation never queues another wake.
+        if capacity_changed {
+            let waiting: HashSet<_> = self
+                .take_waiting_signal_summary_targets(8)
+                .into_iter()
+                .collect();
+            if let Some(adapter_generation) = self
+                .adapter
+                .as_ref()
+                .and_then(GenericNativeAdapterOwner::capture_generation)
+                && !waiting.is_empty()
+            {
+                self.reconcile_waiting_signal_summary_interests(adapter_generation, &waiting);
+                for window in &mut self.auxiliary_windows {
+                    window.reconcile_waiting_signal_summary_interests(adapter_generation, &waiting);
+                }
             }
         }
 

@@ -26,6 +26,7 @@ pub(super) type SharedSummaryBroker = Rc<RefCell<SummaryBroker>>;
 pub(super) struct NativeSignalSummaryPreparation {
     broker: SharedSummaryBroker,
     targets: HashMap<u64, SummaryTargetId>,
+    waiting_cursor: usize,
 }
 
 impl NativeSignalSummaryPreparation {
@@ -33,6 +34,7 @@ impl NativeSignalSummaryPreparation {
         Self {
             broker: Rc::new(RefCell::new(SummaryBroker::new(wake))),
             targets: HashMap::new(),
+            waiting_cursor: 0,
         }
     }
 
@@ -40,6 +42,7 @@ impl NativeSignalSummaryPreparation {
         Self {
             broker,
             targets: HashMap::new(),
+            waiting_cursor: 0,
         }
     }
 
@@ -53,20 +56,27 @@ impl NativeSignalSummaryPreparation {
         adapter: NativeAdapterGeneration,
         target: NativeTargetGeneration,
         surface_key: u64,
-    ) -> Option<SummaryTargetId> {
+    ) -> Option<(SummaryTargetId, bool)> {
         if let Some(current) = self.targets.get(&surface_key).copied()
             && current.window() == window
             && current.adapter_generation() == adapter
             && current.target_generation() == target
         {
-            return Some(current);
+            return Some((current, false));
         }
         if let Some(previous) = self.targets.remove(&surface_key) {
             self.broker.borrow_mut().release_target(previous);
         }
-        let next = SummaryTargetId::new(window, adapter, target, surface_key)?;
-        self.targets.insert(surface_key, next);
-        Some(next)
+        // The broker has the application-wide 128-interest authority.  Keep
+        // this runner's registration map bounded too, and never retain a
+        // denied target that the broker did not admit.
+        if self.targets.len() >= 128 {
+            return None;
+        }
+        Some((
+            SummaryTargetId::new(window, adapter, target, surface_key)?,
+            true,
+        ))
     }
 
     pub(super) fn release_all(&mut self) {
@@ -81,6 +91,21 @@ impl NativeSignalSummaryPreparation {
         self.targets
             .get(&target.surface_key())
             .is_some_and(|current| *current == target)
+    }
+
+    fn waiting_targets_rotating(&mut self, limit: usize) -> Vec<SummaryTargetId> {
+        let mut waiting: Vec<_> = self.broker.borrow().waiting_targets().collect();
+        if waiting.is_empty() || limit == 0 {
+            return Vec::new();
+        }
+        waiting.sort_by_key(SummaryTargetId::surface_key);
+        let start = self.waiting_cursor % waiting.len();
+        let count = waiting.len().min(limit);
+        let selected = (0..count)
+            .map(|offset| waiting[(start + offset) % waiting.len()])
+            .collect();
+        self.waiting_cursor = (start + count) % waiting.len();
+        selected
     }
 }
 
@@ -114,10 +139,40 @@ where
         }
     }
 
-    pub(super) fn accepts_signal_summary_target(&self, target: SummaryTargetId) -> bool {
-        self.signal_summary_preparation
-            .as_ref()
-            .is_some_and(|preparation| preparation.accepts(target))
+    pub(super) fn accepts_signal_summary_target(
+        &self,
+        target: SummaryTargetId,
+        adapter: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_running()
+            && self.window.id == Some(target.window())
+            && self.window.target_generation == target.target_generation()
+            && adapter == target.adapter_generation()
+            && self
+                .signal_summary_preparation
+                .as_ref()
+                .is_some_and(|preparation| {
+                    preparation.accepts(target)
+                        && self
+                            .frame
+                            .last_paint_plan
+                            .primitives
+                            .iter()
+                            .any(|primitive| {
+                                let PaintPrimitive::GpuSurface(surface) = primitive else {
+                                    return false;
+                                };
+                                surface.key == target.surface_key()
+                                    && preparation.broker.borrow().prepared(target).is_some_and(
+                                        |prepared| {
+                                            prepared.matches_raw_surface(
+                                                &surface.content,
+                                                surface.revision,
+                                            )
+                                        },
+                                    )
+                            })
+                })
     }
 
     /// Reconcile raw surfaces from the authoritative plan.  This is called
@@ -126,6 +181,34 @@ where
     pub(super) fn reconcile_signal_summary_interests(
         &mut self,
         adapter: NativeAdapterGeneration,
+    ) -> Vec<PendingSummaryInstall> {
+        self.reconcile_signal_summary_interests_filtered(adapter, None, true)
+    }
+
+    pub(super) fn reconcile_waiting_signal_summary_interests(
+        &mut self,
+        adapter: NativeAdapterGeneration,
+        targets: &HashSet<SummaryTargetId>,
+    ) {
+        let _ = self.reconcile_signal_summary_interests_filtered(adapter, Some(targets), false);
+    }
+
+    pub(super) fn take_waiting_signal_summary_targets(
+        &mut self,
+        limit: usize,
+    ) -> Vec<SummaryTargetId> {
+        self.signal_summary_preparation
+            .as_mut()
+            .map_or_else(Vec::new, |preparation| {
+                preparation.waiting_targets_rotating(limit)
+            })
+    }
+
+    fn reconcile_signal_summary_interests_filtered(
+        &mut self,
+        adapter: NativeAdapterGeneration,
+        only_targets: Option<&HashSet<SummaryTargetId>>,
+        wake_new_admission: bool,
     ) -> Vec<PendingSummaryInstall> {
         let Some(window) = self.window.id else {
             return Vec::new();
@@ -145,18 +228,34 @@ where
             else {
                 continue;
             };
-            let Some(target) =
+            let Some((target, is_new_target)) =
                 preparation.target_for(window, adapter, target_generation, surface.key)
             else {
                 continue;
             };
-            live.insert(surface.key);
+            if only_targets.is_some_and(|targets| !targets.contains(&target)) {
+                continue;
+            }
             let mut broker = preparation.broker.borrow_mut();
             let state = broker.request(target, request);
-            if !matches!(
-                state,
-                super::signal_summary_prepare::SummaryRequestState::Ready
-            ) {
+            if is_new_target
+                && !matches!(
+                    state,
+                    super::signal_summary_prepare::SummaryRequestState::Unavailable
+                )
+            {
+                preparation.targets.insert(surface.key, target);
+            }
+            if preparation.targets.contains_key(&surface.key) {
+                live.insert(surface.key);
+            }
+            if wake_new_admission
+                && is_new_target
+                && matches!(
+                    state,
+                    super::signal_summary_prepare::SummaryRequestState::Pending
+                )
+            {
                 broker.request_pump();
             }
             if let Some(prepared) = broker.prepared(target)
@@ -170,16 +269,18 @@ where
                 });
             }
         }
-        let stale: Vec<_> = preparation
-            .targets
-            .keys()
-            .copied()
-            .filter(|key| !live.contains(key))
-            .collect();
-        let mut broker = preparation.broker.borrow_mut();
-        for key in stale {
-            if let Some(target) = preparation.targets.remove(&key) {
-                broker.release_target(target);
+        if only_targets.is_none() {
+            let stale: Vec<_> = preparation
+                .targets
+                .keys()
+                .copied()
+                .filter(|key| !live.contains(key))
+                .collect();
+            let mut broker = preparation.broker.borrow_mut();
+            for key in stale {
+                if let Some(target) = preparation.targets.remove(&key) {
+                    broker.release_target(target);
+                }
             }
         }
         installs

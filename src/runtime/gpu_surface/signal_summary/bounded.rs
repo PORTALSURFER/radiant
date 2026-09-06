@@ -107,6 +107,19 @@ pub(crate) fn build_bounded_tile(
     if !wrap && first_frame >= source_frames {
         return Err(BoundedSignalError::InvalidRange);
     }
+    // A non-wrapping request may end in a truncated bucket, but it must not
+    // include buckets wholly beyond the source.
+    if !wrap && bucket_count > (source_frames - first_frame).div_ceil(bucket_frames) {
+        return Err(BoundedSignalError::InvalidRange);
+    }
+    first_frame
+        .checked_add(
+            (bucket_count - 1)
+                .checked_mul(bucket_frames)
+                .and_then(|offset| offset.checked_add(bucket_frames - 1))
+                .ok_or(BoundedSignalError::InvalidRange)?,
+        )
+        .ok_or(BoundedSignalError::InvalidRange)?;
     let total = bucket_count
         .checked_mul(bands)
         .and_then(|n| n.checked_mul(std::mem::size_of::<GpuSignalSummaryBucket>()))
@@ -233,6 +246,9 @@ fn merge(
     cancel: &mut impl FnMut() -> bool,
 ) -> Result<Arc<[GpuSignalSummaryBucket]>, BoundedSignalError> {
     let count = previous.len() / bands;
+    if cancel() {
+        return Err(BoundedSignalError::Cancelled);
+    }
     let mut out = Vec::with_capacity(count.div_ceil(2) * bands);
     for bucket in 0..count.div_ceil(2) {
         for band in 0..bands {
@@ -248,5 +264,12 @@ fn merge(
             out.push(v);
         }
     }
+    if cancel() {
+        return Err(BoundedSignalError::Cancelled);
+    }
     Ok(out.into())
 }
+
+#[cfg(test)]
+#[path = "bounded/tests.rs"]
+mod tests;

@@ -2,7 +2,7 @@ use super::super::gpu_surface_types::{
     CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
 };
 use super::super::stats::GpuSurfaceRenderStats;
-use super::super::{wgpu_device_id, GpuSurfaceRenderer};
+use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use super::diagnostics::custom_shader_validation_error;
 #[path = "pipeline/layout.rs"]
 mod layout;
@@ -36,11 +36,6 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) enum CustomShaderPrepa
     ShaderModule,
     Pipeline,
     Panicked,
-}
-
-struct CreatedCustomShaderPipeline {
-    bind_group_layout: wgpu::BindGroupLayout,
-    pipeline: wgpu::RenderPipeline,
 }
 
 /// Builds both GPU objects with all validation scopes pushed and popped on the
@@ -128,25 +123,23 @@ impl GpuSurfaceRenderer {
                 .associate_custom_shader_pipeline(request.surface_key, identity);
             return true;
         }
-        stats.custom_shader.pipeline_rebuilds += 1;
-        let Some(shader) = create_custom_shader_module(&request, stats) else {
+        let Some(created) = self.prepared_custom_shader_pipeline(&identity) else {
+            match self.custom_shader_preparation_failure(&identity) {
+                Some(CustomShaderPreparationFailure::ShaderModule) => {
+                    stats.custom_shader.failures.shader_module_failures += 1;
+                }
+                Some(CustomShaderPreparationFailure::Pipeline) => {
+                    stats.custom_shader.failures.pipeline_failures += 1;
+                }
+                _ => {}
+            }
             return false;
         };
-        let Some(created) = create_custom_shader_pipeline(&request, &shader, stats) else {
-            return false;
-        };
-        // Only a validated replacement can release this surface's prior resources.
+        // Worker creation is not attributed to demand-redraw pipeline builds.
         self.resources
             .remove_custom_shader_binding(&request.surface_key);
-        self.resources.insert_custom_shader_pipeline(
-            request.surface_key,
-            identity,
-            CustomShaderPipeline {
-                key: request.key,
-                bind_group_layout: created.bind_group_layout,
-                pipeline: created.pipeline,
-            },
-        );
+        self.resources
+            .insert_custom_shader_pipeline(request.surface_key, identity, created);
         true
     }
 
@@ -164,6 +157,7 @@ impl GpuSurfaceRenderer {
     }
 }
 
+#[cfg(test)]
 fn create_custom_shader_module(
     request: &CustomShaderPipelineRequest<'_>,
     stats: &mut GpuSurfaceRenderStats,
@@ -188,35 +182,6 @@ fn create_custom_shader_module(
         return None;
     }
     Some(shader)
-}
-
-fn create_custom_shader_pipeline(
-    request: &CustomShaderPipelineRequest<'_>,
-    shader: &wgpu::ShaderModule,
-    stats: &mut GpuSurfaceRenderStats,
-) -> Option<CreatedCustomShaderPipeline> {
-    let error_scope = request
-        .device
-        .push_error_scope(wgpu::ErrorFilter::Validation);
-    let bind_group_layout = create_custom_shader_bind_group_layout(request);
-    let layout = create_custom_shader_pipeline_layout(request.device, &bind_group_layout);
-    let pipeline = create_custom_shader_render_pipeline(request, shader, &layout);
-    if let Some(error) = custom_shader_validation_error(error_scope) {
-        stats.custom_shader.failures.pipeline_failures += 1;
-        warn!(
-            surface_key = request.surface_key,
-            shader_key = %request.key.shader_key,
-            vertex_entry_point = %request.key.vertex_entry_point,
-            fragment_entry_point = %request.key.fragment_entry_point,
-            error = %error,
-            "radiant custom shader render pipeline validation failed"
-        );
-        return None;
-    }
-    Some(CreatedCustomShaderPipeline {
-        bind_group_layout,
-        pipeline,
-    })
 }
 
 fn create_custom_shader_render_pipeline(

@@ -682,47 +682,58 @@ impl GpuSurfaceResourceCache {
         &mut self,
         active_keys: &ActiveGpuSurfaceKeys,
     ) {
+        self.prune_inactive_with_shader_preservation(active_keys, false);
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn prune_inactive_with_shader_preservation(
+        &mut self,
+        active_keys: &ActiveGpuSurfaceKeys,
+        preserve_custom_shaders: bool,
+    ) {
         self.textures.retain(|key, _| active_keys.contains(key));
         self.composite_bindings
             .retain(|key, _| active_keys.contains(key));
-        let inactive_pipeline_keys: Vec<_> = self
-            .custom_shader_resources
-            .pipeline_state
-            .associations
-            .keys()
-            .copied()
-            .filter(|key| !active_keys.contains(key))
-            .collect();
-        for key in inactive_pipeline_keys {
-            if let Some(retired) = self.custom_shader_resources.pipeline_state.remove(key) {
+        if !preserve_custom_shaders {
+            let inactive_pipeline_keys: Vec<_> = self
+                .custom_shader_resources
+                .pipeline_state
+                .associations
+                .keys()
+                .copied()
+                .filter(|key| !active_keys.contains(key))
+                .collect();
+            for key in inactive_pipeline_keys {
+                if let Some(retired) = self.custom_shader_resources.pipeline_state.remove(key) {
+                    self.custom_shader_resources.pipelines.remove(&retired);
+                }
+            }
+            for retired in self
+                .custom_shader_resources
+                .pipeline_state
+                .prune(active_keys)
+            {
                 self.custom_shader_resources.pipelines.remove(&retired);
             }
+            self.custom_shader_resources
+                .residency
+                .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
+            let accounting = &mut self.custom_shader_resources.residency;
+            self.custom_shader_resources
+                .bindings
+                .retain(|key, binding| {
+                    if active_keys.contains(key) {
+                        true
+                    } else {
+                        accounting.remove_binding(custom_shader_binding_logical_bytes(
+                            &binding.cache_key,
+                        ));
+                        false
+                    }
+                });
+            self.custom_shader_resources
+                .residency
+                .set_binding_resident_count(self.custom_shader_resources.bindings.len());
         }
-        for retired in self
-            .custom_shader_resources
-            .pipeline_state
-            .prune(active_keys)
-        {
-            self.custom_shader_resources.pipelines.remove(&retired);
-        }
-        self.custom_shader_resources
-            .residency
-            .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
-        let accounting = &mut self.custom_shader_resources.residency;
-        self.custom_shader_resources
-            .bindings
-            .retain(|key, binding| {
-                if active_keys.contains(key) {
-                    true
-                } else {
-                    accounting
-                        .remove_binding(custom_shader_binding_logical_bytes(&binding.cache_key));
-                    false
-                }
-            });
-        self.custom_shader_resources
-            .residency
-            .set_binding_resident_count(self.custom_shader_resources.bindings.len());
         self.signal_bodies
             .retain(|key, _| active_keys.contains(key));
         self.signals.retain(|key, _| active_keys.contains(key));

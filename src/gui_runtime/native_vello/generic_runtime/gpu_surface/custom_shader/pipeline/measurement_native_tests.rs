@@ -224,10 +224,7 @@ fn measure_pipeline_preparation(
         PreparationOutcome::Ready
     };
     if matches!(outcome, PreparationOutcome::Ready) {
-        let _created = CreatedCustomShaderPipeline {
-            bind_group_layout,
-            pipeline: _pipeline,
-        };
+        let _created = (bind_group_layout, _pipeline);
     }
     PreparationSample {
         workload,

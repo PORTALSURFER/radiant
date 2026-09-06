@@ -12,9 +12,9 @@ fn native_gpu_surface_custom_shader_pipeline_uses_named_requests() {
     assert!(
         custom_shader.contains("CustomShaderPipelineRequest")
             && custom_shader_pipeline.contains("pub(super) struct CustomShaderPipelineRequest")
-            && custom_shader_pipeline.contains("struct CreatedCustomShaderPipeline")
+            && custom_shader_pipeline.contains("struct OwnedCustomShaderPipelineRequest")
             && custom_shader_pipeline.contains("fn create_custom_shader_module")
-            && custom_shader_pipeline.contains("fn create_custom_shader_pipeline")
+            && custom_shader_pipeline.contains("fn prepare_custom_shader_pipeline")
             && custom_shader_pipeline.contains("fn custom_shader_pipeline_needs_rebuild")
             && !custom_shader.contains("surface.key,\r\n            target.device")
             && !custom_shader_pipeline.contains("Option<(wgpu::BindGroupLayout"),

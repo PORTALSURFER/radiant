@@ -16,7 +16,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::{Receiver, SyncSender, TryRecvError, sync_channel},
+        mpsc::{Receiver, SyncSender, sync_channel},
     },
 };
 use winit::window::WindowId;
@@ -570,11 +570,7 @@ impl SummaryBroker {
     /// Drain after the parent clears its pending wake flag. Returns current targets to re-prime.
     pub(super) fn drain_completions(&mut self) -> Vec<SummaryTargetId> {
         let mut notify = Vec::new();
-        loop {
-            let completion = match self.receiver.try_recv() {
-                Ok(completion) => completion,
-                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
-            };
+        while let Ok(completion) = self.receiver.try_recv() {
             let Some(entry) = self.sources.get_mut(&completion.key) else {
                 continue;
             };

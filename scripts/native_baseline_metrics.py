@@ -112,11 +112,17 @@ def aggregate(raw):
                 output.append(metric(f"{prefix}/present_interval_us", [row["present_interval_us"] for row in selected]))
             samples = [gpu.get(identity(row)) for row in selected]
             complete = all(sample is not None and sample.get("gpu_us") is not None for sample in samples)
+            # Some adapters advertise timestamp support but return only zeros.
+            # Preserve those raw observations without presenting them as measured
+            # zero-cost GPU work. Mixed cohorts retain real zero samples.
+            zero_only = complete and all(sample["gpu_us"] == 0 for sample in samples)
+            status = "gpu_unavailable" if not complete else (
+                "gpu_unqualified_zero" if zero_only else "complete")
             availability.append({"role": role, "phase": phase, "frames": len(selected),
                                  "gpu_samples": sum(sample is not None and sample.get("gpu_us") is not None for sample in samples),
-                                 "status": "complete" if complete else "gpu_unavailable",
+                                 "status": status,
                                  "outcomes": sorted({str(sample.get("outcome")) if sample else "missing" for sample in samples})})
-            if complete:
+            if complete and not zero_only:
                 output.append(metric(f"{prefix}/gpu_us", [sample["gpu_us"] for sample in samples]))
     return output, {"schema": 1, "raw_sha256": hashlib.sha256(raw.encode()).hexdigest(),
                     "workload": workload, "frame_count": len(frames),

@@ -1,0 +1,6 @@
+vello_requested=false
+adapter=AdapterInfo { name: "Apple M5 Pro", vendor: 0, device: 0, device_type: IntegratedGpu, device_pci_bus_id: "", driver: "", driver_info: "", backend: Metal, subgroup_min_size: 4, subgroup_max_size: 64, transient_saves_memory: true }
+timestamps_requested=true advertised=true
+submitted_draw_passes=32 pixels=4096 first=[64, 128, 191, 255] all_expected=true
+timestamp_start=0 timestamp_end=0 period=1 nonzero_delta=false
+diagnostic=PASS; this is not a native presentation or performance baseline

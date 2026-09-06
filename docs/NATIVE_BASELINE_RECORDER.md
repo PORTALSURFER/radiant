@@ -67,8 +67,12 @@ overlay preparation, and submission/presentation remain separate. Successful
 present intervals exclude each window's first frame. GPU observations correlate
 by window identity and frame sequence, independent of delivery order. A cohort
 gets a GPU timing metric only when every presented frame has a measured GPU
-result; otherwise the availability report says `gpu_unavailable`. Missing warm
-frames say `no_samples`. Neither condition is a passing complete native pack.
+result and the cohort contains a nonzero duration. Missing results say
+`gpu_unavailable`; an entirely zero-valued cohort says `gpu_unqualified_zero`
+and emits no GPU metric. Zero-only readings can reflect unqualified queries or
+work below the available resolution; they do not establish zero-cost GPU work.
+Individual zero samples in a mixed cohort remain included. Missing warm frames
+say `no_samples`. None of these incomplete conditions is a passing native pack.
 Idle captures use frame count and elapsed duration as observed activity evidence;
 they do not infer event-loop wakeups or energy use from frame count.
 

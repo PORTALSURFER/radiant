@@ -11,7 +11,10 @@ use super::{
         CustomShaderPreparationState, CustomShaderTargetId, PreparedCustomShaderPipeline,
     },
     gpu_surface::{
-        custom_shader::pipeline::{CustomShaderPreparationFailure, custom_shader_pipeline_key},
+        custom_shader::{
+            custom_shader_descriptor_is_supported,
+            pipeline::{CustomShaderPreparationFailure, custom_shader_pipeline_key},
+        },
         gpu_surface_types::CustomShaderPipelineIdentity,
     },
     runner_state::NativeTargetGeneration,
@@ -31,6 +34,15 @@ use winit::window::WindowId;
 
 pub(super) type SharedCustomShaderBroker = Rc<RefCell<CustomShaderPreparationBroker>>;
 type RegistrationKey = (u64, usize);
+
+fn custom_shader_surface_is_preparable(surface: &crate::runtime::PaintGpuSurface) -> bool {
+    let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
+        return false;
+    };
+    surface.rect.has_finite_positive_area()
+        && surface.content.is_renderable()
+        && custom_shader_descriptor_is_supported(descriptor)
+}
 
 pub(super) struct NativeCustomShaderPreparation {
     broker: SharedCustomShaderBroker,
@@ -89,7 +101,13 @@ impl NativeCustomShaderPreparation {
             return None;
         }
         Some((
-            CustomShaderTargetId::new(window, adapter, target, registration.0)?,
+            CustomShaderTargetId::new_for_occurrence(
+                window,
+                adapter,
+                target,
+                registration.0,
+                registration.1,
+            )?,
             true,
         ))
     }
@@ -284,6 +302,9 @@ where
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
             };
+            if !custom_shader_surface_is_preparable(surface) {
+                continue;
+            }
             let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
                 continue;
             };
@@ -375,6 +396,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        gui::types::{Point, Rect, Vector2},
+        runtime::{GpuShaderSurfaceDescriptor, GpuSurfaceCapabilities},
+    };
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct TestWake(AtomicUsize);
@@ -510,5 +535,22 @@ mod tests {
 
         assert!(preparation.schedule_waiting_retry_targets(&[first, second]));
         assert_eq!(preparation.take_waiting_retry_targets().len(), 2);
+    }
+
+    #[test]
+    fn malformed_custom_shader_surface_is_not_preparation_eligible() {
+        let surface = crate::runtime::PaintGpuSurface {
+            widget_id: 1,
+            key: 1,
+            revision: 1,
+            rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(0.0, 12.0)),
+            content: GpuSurfaceContent::CustomShader {
+                descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("invalid")),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        };
+
+        assert!(!custom_shader_surface_is_preparable(&surface));
     }
 }

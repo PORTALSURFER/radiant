@@ -807,7 +807,7 @@ fn supported_custom_shader_descriptor<'a>(
     Some(descriptor)
 }
 
-pub(super) fn custom_shader_descriptor_is_supported(
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn custom_shader_descriptor_is_supported(
     descriptor: &GpuShaderSurfaceDescriptor,
 ) -> bool {
     descriptor.wgsl_source.is_some() && descriptor.fragment_entry_point.is_some()

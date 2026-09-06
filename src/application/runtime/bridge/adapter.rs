@@ -92,6 +92,9 @@ where
         if self.lifecycle.native_frame_gpu_timing.is_some() {
             capabilities = capabilities.with_frame_gpu_timing();
         }
+        if self.lifecycle.native_ime_adapter_observation.is_some() {
+            capabilities = capabilities.with_native_ime_adapter_observer();
+        }
         capabilities
     }
 }

@@ -2220,7 +2220,7 @@ separate unshipped boundaries:
 | 3. Wheel and pointer attempts during every other owner | A wheel attempt during TextEdit, ImeComposition, KeyboardAdjustment, PointerScrub, or AccessibilityEdit, and a scrub attempt during TextEdit, ImeComposition, KeyboardAdjustment, WheelSequence, or AccessibilityEdit, are denied by the incumbent-owner gate. Ineligible wheel input retains permitted scroll fallback; unmodified pointer input remains text selection; no partial lifecycle is emitted. |
 | 4. Accessibility pre-focus and post-focus checks | With an incumbent before focus transfer, accessibility returns Blocked { owner } without transferring focus. If an owner appears after an otherwise allowed transfer, the post-focus check returns Blocked { owner } before numeric mutation and performs no further focus or interaction mutation. |
 | 5. Terminal cleanup then independent admission | After an owner reaches its own terminal/cancel/authority boundary and cleanup completes, the owner is None; a later eligible interaction is admitted with a fresh transaction identity and does not join prior capture, continuity, or history. |
-| 6. Same-boundary IME commit and matching key suppression | An accepted IME Commit wins at the shared delivery boundary; matching-key suppression remains a deferred adapter boundary, while ordinary keyboard/character routing otherwise remains unchanged. |
+| 6. Same-boundary IME commit and matching key suppression | An accepted IME Commit wins at the shared delivery boundary; matching-key suppression is adapter-owned (verified for locked Winit AppKit, unavailable elsewhere), while ordinary keyboard/character routing otherwise remains unchanged. |
 | 7. Stale or observational evidence | Missing, stale, malformed, ambiguous, timestamp, sequence, geometry, snapshot, or diagnostic evidence cannot create, transfer, or terminate ownership and cannot authorize execution or fallback changes. |
 | 8. Denied admission preserves the incumbent | A denied candidate performs no parse, format, step, scrub, wheel adjustment, commit, cancel, focus transfer, or partial lifecycle. The incumbent's exact draft/value, caret/selection, capture/continuity, transaction identity, authority, and routing remain unchanged. |
 | 9. None admits one interaction | With None, one eligible interaction acquires its owner before its first operation; a second competing interaction at the same boundary observes that incumbent and is blocked without joining or replacing it. |
@@ -2282,11 +2282,20 @@ projects a finite logical caret area from exactly one focused `PaintTextInput`
 and publishes it through the actual per-window Winit cursor-area call, with
 conservative invalid/ambiguous evidence and repeat suppression fenced by
 `WindowId`, `NativeTargetGeneration`, and the actual native `DpiScale`.
+`on_native_ime_adapter_observation` optionally reports the actual admitted
+window backend once, including composition, full-area versus position-only
+candidate placement, and matching-key suppression capability. Unknown handles
+and handle errors report unavailable capabilities. The locked Winit AppKit
+boundary supplies verified matching-key suppression; other backends report it
+unavailable. This adds no generic keyboard filter or composition owner. See
+[NATIVE_IME_CAPABILITIES.md](NATIVE_IME_CAPABILITIES.md) for the adapter matrix
+and pinned-source evidence.
+
 Native Japanese/Chinese IME acceptance remains unperformed. The checked
 `macos_text_input_ime_acceptance` target provides the primary-window live
 procedure and production-projection tests for that boundary, but no live
-Japanese IME or AppKit candidate-panel run is evidence here. Matching-key
-suppression, candidate behavior beyond this bounded
+Japanese IME or AppKit candidate-panel run is evidence here. Other adapters’
+matching-key suppression, candidate behavior beyond this bounded
 caret-area publication, multiline editing, product integration, and other
 platform adapters remain separate boundaries.
 
@@ -2415,7 +2424,7 @@ Unicode-scalar convention above.
 | 4. Cancel | Original committed text, captured range, and selection are restored with no committed text change. |
 | 5. Direct commit with no update | `Start` followed directly by `Commit` is valid and produces one committed change. |
 | 6. Native Winit delivery and hidden cursor | `Enabled` alone does not start composition; a first `Preedit` or direct `Commit` captures the focused scalar context; `Preedit(..., None)` remains hidden and never becomes `0..0`, end-of-preedit, or a previous selection. |
-| 7. Native commit followed by ordinary key text | The native commit is handled by the composition owner; matching-key suppression remains deferred and ordinary keyboard/character routing otherwise remains unchanged. |
+| 7. Native commit followed by ordinary key text | The native commit is handled by the composition owner; matching-key suppression is adapter-owned (verified for locked Winit AppKit, unavailable elsewhere) and ordinary keyboard/character routing otherwise remains unchanged. |
 | 8. Reprojection and stale samples | Same-ID compatible equal/older revision preserves composition/preedit/selection; newer authority cancels/replaces; stale old `Start`/`Update`/`Commit`/`Cancel` is ignored. |
 | 9. Identity and focus boundaries | Identity change, disable/read-only, and uncommitted focus loss cancel/restore; explicit commit wins before focus loss when both share a boundary. |
 | 10. Malformed native range | Invalid byte endpoints, inverted endpoints, out-of-bounds endpoints, and non-character boundaries conservatively cancel and retain committed text/selection; no clamp, guess, append, or mutation occurs. |

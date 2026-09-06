@@ -5,6 +5,7 @@ mod cache_policy;
 mod frame;
 mod gpu_surface;
 mod gpu_timing;
+mod ime;
 mod lifecycle;
 mod profile;
 mod retained_surface;
@@ -36,6 +37,11 @@ pub use gpu_surface::{
 };
 pub use gpu_timing::{
     FrameGpuTimingOutcome, FrameGpuTimingSample, FrameGpuTimingUnavailableReason,
+};
+pub use ime::{
+    NativeImeAdapterObservation, NativeImeAdapterUnavailableReason, NativeImeBackend,
+    NativeImeCandidateCapability, NativeImeCompositionCapability, NativeImeMatchingKeySuppression,
+    NativeImeMatchingKeySuppressionUnavailableReason,
 };
 pub(crate) use lifecycle::RuntimeLifecycleController;
 pub use lifecycle::{

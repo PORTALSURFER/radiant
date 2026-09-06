@@ -39,9 +39,28 @@ use window::{SignalBucketWindow, signal_bucket_window};
 struct SignalRenderSource {
     prepared: Option<PreparedSummary>,
     shape: GpuSignalRenderShape,
-    summary: Arc<GpuSignalSummary>,
+    data: SignalRenderData,
     gain_preview: Option<GpuSignalGainPreview>,
     sample_slide_frame_offset: i64,
+}
+
+enum SignalRenderData {
+    Overview(Arc<GpuSignalSummary>),
+    Tile(SignalTileData),
+}
+
+struct SignalTileData {
+    buckets: Arc<[GpuSignalSummaryBucket]>,
+    bucket_frames: usize,
+    band_count: usize,
+    query_start_bucket: f32,
+    query_span_buckets: f32,
+}
+
+#[derive(Clone, Copy)]
+struct TileQueryMapping {
+    start_bucket: f32,
+    span_buckets: f32,
 }
 
 struct SignalBodyRequest<'a> {
@@ -59,10 +78,15 @@ struct SelectedSignalLevel<'a> {
     bucket_window: SignalBucketWindow,
 }
 
+enum SelectedSignalData<'a> {
+    Overview(SelectedSignalLevel<'a>),
+    Tile(&'a SignalTileData),
+}
+
 struct SignalBodyKeyRequest<'a> {
     surface: &'a PaintGpuSurface,
     source: &'a SignalRenderSource,
-    selected: &'a SelectedSignalLevel<'a>,
+    selected: &'a SelectedSignalData<'a>,
     dpi_scale: DpiScale,
 }
 
@@ -110,6 +134,7 @@ pub(super) struct SignalUploadPreflightState {
     summaries: HashMap<u64, SignalSummaryPreflightIdentity>,
     buffers: HashMap<u64, SignalBufferPreflightIdentity>,
     bodies: HashMap<u64, SignalBodyPreflightIdentity>,
+    planned_gpu_bytes: HashMap<usize, usize>,
 }
 
 pub(super) struct SignalUploadPreflight {
@@ -141,6 +166,7 @@ impl SignalUploadPreflightState {
         self.summaries.clear();
         self.buffers.clear();
         self.bodies.clear();
+        self.planned_gpu_bytes.clear();
     }
 
     #[cfg(test)]
@@ -238,7 +264,8 @@ impl SignalUploadPreflightState {
         sample_count: usize,
         pipeline_generation: u64,
     ) -> GpuSurfaceRenderCanvasUploadSignalBufferOperation {
-        let had_cached = self.buffers.contains_key(&key);
+        let had_cached =
+            self.buffers.contains_key(&key) || renderer.resources.signals.get(&key).is_some();
         let cached = self.buffers.entry(key).or_insert_with(|| {
             renderer
                 .resources
@@ -279,7 +306,8 @@ impl SignalUploadPreflightState {
         device: usize,
         cache_key: SignalBodyCacheKey,
     ) -> GpuSurfaceRenderCanvasUploadSignalBodyOperation {
-        let had_cached = self.bodies.contains_key(&key);
+        let had_cached =
+            self.bodies.contains_key(&key) || renderer.resources.signal_bodies.get(&key).is_some();
         let cached = self.bodies.entry(key).or_insert_with(|| {
             renderer
                 .resources
@@ -436,12 +464,29 @@ impl GpuSurfaceRenderer {
                 operation: GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse,
             });
         }
+        let sample_slide_frame_offset = signal_sample_slide_frame_offset(&surface.content);
+        let data = prepared
+            .as_ref()
+            .and_then(|prepared| {
+                prepared.tile().and_then(|tile| {
+                    tile_query_mapping(shape, sample_slide_frame_offset, tile).map(|query| {
+                        SignalRenderData::Tile(SignalTileData {
+                            buckets: Arc::clone(&tile.buckets),
+                            bucket_frames: tile.bucket_frames,
+                            band_count: tile.band_count,
+                            query_start_bucket: query.start_bucket,
+                            query_span_buckets: query.span_buckets,
+                        })
+                    })
+                })
+            })
+            .unwrap_or(SignalRenderData::Overview(summary));
         let source = SignalRenderSource {
             prepared,
             shape,
-            summary,
+            data,
             gain_preview: signal_gain_preview(&surface.content),
-            sample_slide_frame_offset: signal_sample_slide_frame_offset(&surface.content),
+            sample_slide_frame_offset,
         };
         let Some(body) = signal_body_request_at_dpi(surface, &source, dpi_scale) else {
             return SignalUploadPreflight {
@@ -449,10 +494,6 @@ impl GpuSurfaceRenderer {
                 unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete),
             };
         };
-        let (pipeline_generation, pipeline_rebuild) =
-            composite_state.ensure_pipeline(self, target.device, target.format);
-        let (signal_pipeline_generation, signal_pipeline_rebuild) =
-            signal_state.ensure_pipeline(self, target.device, wgpu::TextureFormat::Rgba8Unorm);
         let source_identity = match &surface.content {
             GpuSurfaceContent::SignalBands {
                 samples,
@@ -479,7 +520,101 @@ impl GpuSurfaceRenderer {
             body.level_index,
             body.bucket_start,
             body.bucket_count,
+            source.prepared.as_ref().map(PreparedSummary::asset_key),
         );
+        if let Some(prepared) = &source.prepared {
+            let budget = prepared.gpu_budget();
+            let signal_pipeline_current = self.signal_pipeline.as_ref().is_some_and(|pipeline| {
+                pipeline.device == target.device
+                    && pipeline.format == wgpu::TextureFormat::Rgba8Unorm
+            });
+            let buffer_reused = if let Some(cached) = signal_state.buffers.get(&surface.key) {
+                cached.cache_key == buffer_cache_key
+                    && cached.sample_count == summary_bucket_value_count(body.buckets)
+            } else {
+                signal_pipeline_current
+                    && matches!(
+                        self.signal_buffer_operation(
+                            surface.key,
+                            buffer_cache_key,
+                            summary_bucket_value_count(body.buckets)
+                        ),
+                        GpuSurfaceRenderCanvasUploadSignalBufferOperation::Reuse
+                    )
+            };
+            let body_reused = signal_state.bodies.get(&surface.key).map_or_else(
+                || {
+                    self.resources
+                        .signal_bodies
+                        .get(&surface.key)
+                        .is_some_and(|cached| {
+                            cached.device == target.device && cached.cache_key == body.body_key
+                        })
+                },
+                |cached| cached.device == target.device && cached.cache_key == body.body_key,
+            );
+            let composite_current = self.pipeline.as_ref().is_some_and(|pipeline| {
+                pipeline.device == target.device && pipeline.format == target.format
+            });
+            let live_composite_reused = composite_current
+                && self
+                    .resources
+                    .composite_bindings
+                    .get(&surface.key)
+                    .is_some_and(|binding| {
+                        binding.cache_key.pipeline_generation == self.pipeline_generation
+                            && binding.cache_key.texture
+                                == GpuSurfaceTextureIdentity::SignalBody(body.body_key)
+                    });
+            let composite_reused = if signal_state.bodies.contains_key(&surface.key) {
+                body_reused
+            } else {
+                live_composite_reused
+            };
+            let buffer_bytes = if buffer_reused {
+                Some(0)
+            } else {
+                body.buckets
+                    .len()
+                    .checked_mul(std::mem::size_of::<crate::runtime::GpuSignalSummaryBucket>())
+                    .and_then(|bytes| bytes.checked_add(std::mem::size_of::<SignalUniforms>()))
+            };
+            let body_bytes = if body_reused {
+                Some(0)
+            } else {
+                (body.body_key.width as usize)
+                    .checked_mul(body.body_key.height as usize)
+                    .and_then(|pixels| pixels.checked_mul(4))
+            };
+            let composite_bytes = if composite_reused {
+                0
+            } else {
+                std::mem::size_of::<super::gpu_surface_types::GpuSurfaceUniforms>()
+            };
+            let identity = Arc::as_ptr(budget) as usize;
+            let planned = signal_state
+                .planned_gpu_bytes
+                .get(&identity)
+                .copied()
+                .unwrap_or(0);
+            let total = buffer_bytes
+                .and_then(|bytes| bytes.checked_add(body_bytes?))
+                .and_then(|bytes| bytes.checked_add(composite_bytes))
+                .and_then(|bytes| bytes.checked_add(planned));
+            let Some(total) = total.filter(|bytes| budget.can_fit_additional(*bytes)) else {
+                return SignalUploadPreflight {
+                    renderable: false,
+                    unavailable: Some(
+                        GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    ),
+                };
+            };
+            signal_state.planned_gpu_bytes.insert(identity, total);
+        }
+        let (pipeline_generation, pipeline_rebuild) =
+            composite_state.ensure_pipeline(self, target.device, target.format);
+        let (signal_pipeline_generation, signal_pipeline_rebuild) =
+            signal_state.ensure_pipeline(self, target.device, wgpu::TextureFormat::Rgba8Unorm);
         let sample_count = summary_bucket_value_count(body.buckets);
         let buffer_operation = signal_state.signal_buffer_operation(
             self,
@@ -678,6 +813,7 @@ impl GpuSurfaceRenderer {
             body.level_index,
             body.bucket_start,
             body.bucket_count,
+            source.prepared.as_ref().map(PreparedSummary::asset_key),
         );
         if let Some(plan) = upload_plan {
             let Some(composite_pipeline) =
@@ -777,7 +913,7 @@ impl GpuSurfaceRenderer {
                 return true;
             }
             plan.mark_execution_mutated();
-            self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
+            if !self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
                 device: target.device,
                 queue: target.queue,
                 stats,
@@ -789,7 +925,18 @@ impl GpuSurfaceRenderer {
                 ),
                 buckets: body.buckets,
                 uniforms: &body.uniforms,
-            });
+                gpu_budget: source
+                    .prepared
+                    .as_ref()
+                    .map(|prepared| Arc::clone(prepared.gpu_budget())),
+            }) {
+                signal_plan_failure(
+                    plan,
+                    stats,
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                );
+                return true;
+            }
             let Some(body_execution) = plan.consume_signal_body(surface_index, surface.key) else {
                 stats.mark_candidate_unavailable(
                     GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
@@ -821,6 +968,7 @@ impl GpuSurfaceRenderer {
                 surface.key,
                 body.body_key,
                 stats,
+                source.prepared.as_ref().map(PreparedSummary::gpu_budget),
             ) else {
                 signal_plan_failure(
                     plan,
@@ -850,7 +998,7 @@ impl GpuSurfaceRenderer {
         }
         self.ensure_pipeline(target.device, target.format);
         self.ensure_signal_pipeline(target.device, wgpu::TextureFormat::Rgba8Unorm);
-        self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
+        if !self.ensure_signal_buffer(super::resources::EnsureSignalBufferRequest {
             device: target.device,
             queue: target.queue,
             stats,
@@ -862,13 +1010,23 @@ impl GpuSurfaceRenderer {
             ),
             buckets: body.buckets,
             uniforms: &body.uniforms,
-        });
+            gpu_budget: source
+                .prepared
+                .as_ref()
+                .map(|prepared| Arc::clone(prepared.gpu_budget())),
+        }) {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
+            return true;
+        }
         let Some(texture_view) = self.ensure_signal_body_texture(
             target.device,
             target.encoder,
             surface.key,
             body.body_key,
             stats,
+            source.prepared.as_ref().map(PreparedSummary::gpu_budget),
         ) else {
             stats.mark_candidate_unavailable(
                 GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
@@ -903,7 +1061,7 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) -> Option<SignalRenderSource> {
         let mut prepared = None;
-        let summary = match &surface.content {
+        let overview = match &surface.content {
             GpuSurfaceContent::SignalBands {
                 samples,
                 frames,
@@ -971,10 +1129,26 @@ impl GpuSurfaceRenderer {
             _ => return None,
         };
         let sample_slide_frame_offset = signal_sample_slide_frame_offset(&surface.content);
+        let data = prepared
+            .as_ref()
+            .and_then(|prepared| {
+                prepared.tile().and_then(|tile| {
+                    tile_query_mapping(shape, sample_slide_frame_offset, tile).map(|query| {
+                        SignalRenderData::Tile(SignalTileData {
+                            buckets: Arc::clone(&tile.buckets),
+                            bucket_frames: tile.bucket_frames,
+                            band_count: tile.band_count,
+                            query_start_bucket: query.start_bucket,
+                            query_span_buckets: query.span_buckets,
+                        })
+                    })
+                })
+            })
+            .unwrap_or(SignalRenderData::Overview(overview));
         Some(SignalRenderSource {
             prepared,
             shape,
-            summary,
+            data,
             gain_preview: signal_gain_preview(&surface.content),
             sample_slide_frame_offset,
         })
@@ -1240,39 +1414,53 @@ fn signal_body_request_at_dpi<'a>(
         dpi_scale,
     })?;
     let uniforms = signal_uniforms(source, &selected, body_key);
-    Some(SignalBodyRequest {
-        body_key,
-        level_index: selected.index,
-        bucket_start: selected.bucket_window.start,
-        bucket_count: selected.bucket_window.bucket_count(),
-        buckets: selected
-            .bucket_window
-            .buckets(selected.level, source.shape.band_count),
-        uniforms,
-    })
+    match selected {
+        SelectedSignalData::Overview(selected) => Some(SignalBodyRequest {
+            body_key,
+            level_index: selected.index,
+            bucket_start: selected.bucket_window.start,
+            bucket_count: selected.bucket_window.bucket_count(),
+            buckets: selected
+                .bucket_window
+                .buckets(selected.level, source.shape.band_count),
+            uniforms,
+        }),
+        SelectedSignalData::Tile(tile) => Some(SignalBodyRequest {
+            body_key,
+            level_index: usize::MAX,
+            bucket_start: 0,
+            bucket_count: tile.buckets.len() / tile.band_count.max(1),
+            buckets: &tile.buckets,
+            uniforms,
+        }),
+    }
 }
 
 fn selected_signal_level<'a>(
     dpi_scale: DpiScale,
     surface: &PaintGpuSurface,
     source: &'a SignalRenderSource,
-) -> Option<SelectedSignalLevel<'a>> {
+) -> Option<SelectedSignalData<'a>> {
+    if let SignalRenderData::Tile(tile) = &source.data {
+        return Some(SelectedSignalData::Tile(tile));
+    }
+    let SignalRenderData::Overview(summary) = &source.data else {
+        return None;
+    };
     let visible = (source.shape.frame_range[1] - source.shape.frame_range[0]).max(1.0);
     let physical_width = dpi_scale.logical_to_physical(surface.rect.width()).max(1.0);
-    let index = source
-        .summary
-        .level_for_frames_per_pixel(visible / physical_width);
-    let level = source.summary.levels.get(index)?;
+    let index = summary.level_for_frames_per_pixel(visible / physical_width);
+    let level = summary.levels.get(index)?;
     let bucket_window = signal_bucket_window(
         signal_bucket_frame_range(source),
         level,
         source.shape.band_count,
     )?;
-    Some(SelectedSignalLevel {
+    Some(SelectedSignalData::Overview(SelectedSignalLevel {
         index,
         level,
         bucket_window,
-    })
+    }))
 }
 
 fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBodyCacheKey> {
@@ -1285,12 +1473,22 @@ fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBody
         band_count: request.source.shape.band_count,
         frame_range: request.source.shape.frame_range,
         sample_slide_frame_offset: request.source.sample_slide_frame_offset,
-        sample_count: request
-            .selected
-            .bucket_window
-            .sample_count(request.source.shape.band_count),
-        level_index: request.selected.index,
+        sample_count: match request.selected {
+            SelectedSignalData::Overview(selected) => selected
+                .bucket_window
+                .sample_count(request.source.shape.band_count),
+            SelectedSignalData::Tile(tile) => tile.buckets.len(),
+        },
+        level_index: match request.selected {
+            SelectedSignalData::Overview(selected) => selected.index,
+            SelectedSignalData::Tile(_) => usize::MAX,
+        },
         gain_preview: request.source.gain_preview,
+        prepared_asset: request
+            .source
+            .prepared
+            .as_ref()
+            .map(PreparedSummary::asset_key),
     }))
 }
 
@@ -1309,6 +1507,49 @@ fn signal_bucket_frame_range(source: &SignalRenderSource) -> [f32; 2] {
     } else {
         [0.0, frames]
     }
+}
+
+fn tile_query_mapping(
+    shape: GpuSignalRenderShape,
+    slide: i64,
+    tile: &crate::runtime::BoundedSignalTile,
+) -> Option<TileQueryMapping> {
+    if tile.source_frames != shape.frames
+        || tile.band_count != shape.band_count
+        || tile.bucket_frames == 0
+        || !tile.buckets.len().is_multiple_of(tile.band_count.max(1))
+    {
+        return None;
+    }
+    let start = f64::from(shape.frame_range[0]);
+    let end = f64::from(shape.frame_range[1]);
+    let source_frames = tile.source_frames as f64;
+    if !start.is_finite() || !end.is_finite() || end <= start || source_frames <= 0.0 {
+        return None;
+    }
+    let visible = end - start;
+    // Resolve the integer slide before converting to a local float. Large
+    // signed slides must not lose their remainder through an f64 conversion.
+    let integral_start = start.floor();
+    let physical_start = ((integral_start as i128 - i128::from(slide))
+        .rem_euclid(tile.source_frames as i128)) as f64
+        + (start - integral_start);
+    let tile_start = tile.first_frame as f64;
+    let tile_span =
+        (tile.buckets.len() / tile.band_count.max(1)).checked_mul(tile.bucket_frames)?;
+    let tile_end = tile_start + tile_span as f64;
+    let cycles = ((tile_start - physical_start) / source_frames)
+        .ceil()
+        .max(0.0);
+    let query_start = physical_start + cycles * source_frames;
+    if query_start < tile_start || query_start + visible > tile_end {
+        return None;
+    }
+    let bucket_frames = tile.bucket_frames as f64;
+    Some(TileQueryMapping {
+        start_bucket: ((query_start - tile_start) / bucket_frames) as f32,
+        span_buckets: (visible / bucket_frames) as f32,
+    })
 }
 
 #[cfg(test)]
@@ -1484,6 +1725,70 @@ mod tests {
             ),
             2
         );
+    }
+
+    #[test]
+    fn bounded_tile_query_maps_wrapped_slide_to_contiguous_local_buckets() {
+        let tile = crate::runtime::BoundedSignalTile {
+            first_frame: 88,
+            source_frames: 100,
+            band_count: 1,
+            bucket_frames: 4,
+            buckets: Arc::from([GpuSignalSummaryBucket::default(); 8]),
+        };
+        let shape = GpuSignalRenderShape {
+            frames: 100,
+            band_count: 1,
+            frame_range: [96.0, 112.0],
+            sample_count: 100,
+        };
+
+        let query = tile_query_mapping(shape, 0, &tile).expect("wrapped tile covers viewport");
+
+        assert_eq!(query.start_bucket, 2.0);
+        assert_eq!(query.span_buckets, 4.0);
+    }
+
+    #[test]
+    fn bounded_tile_query_preserves_extreme_integer_slide_remainder() {
+        let tile = crate::runtime::BoundedSignalTile {
+            first_frame: 0,
+            source_frames: 100,
+            band_count: 1,
+            bucket_frames: 1,
+            buckets: Arc::from([GpuSignalSummaryBucket::default(); 200]),
+        };
+        let shape = GpuSignalRenderShape {
+            frames: 100,
+            band_count: 1,
+            frame_range: [10.25, 20.25],
+            sample_count: 100,
+        };
+        for slide in [i64::MIN, i64::MAX] {
+            let query = tile_query_mapping(shape, slide, &tile).unwrap();
+            let expected = (10_i128 - i128::from(slide)).rem_euclid(100) as f32 + 0.25;
+            assert_eq!(query.start_bucket, expected);
+            assert_eq!(query.span_buckets, 10.0);
+        }
+    }
+
+    #[test]
+    fn bounded_tile_query_refuses_a_tile_that_does_not_cover_slide_range() {
+        let tile = crate::runtime::BoundedSignalTile {
+            first_frame: 8,
+            source_frames: 100,
+            band_count: 1,
+            bucket_frames: 4,
+            buckets: Arc::from([GpuSignalSummaryBucket::default(); 2]),
+        };
+        let shape = GpuSignalRenderShape {
+            frames: 100,
+            band_count: 1,
+            frame_range: [40.0, 56.0],
+            sample_count: 100,
+        };
+
+        assert!(tile_query_mapping(shape, 0, &tile).is_none());
     }
 
     #[test]

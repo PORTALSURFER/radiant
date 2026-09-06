@@ -57,6 +57,14 @@ impl GpuSurfaceRenderer {
                 ) => current(key, prepared),
                 _ => true,
             });
+        self.resources
+            .composite_bindings
+            .retain(|key, binding| match &binding._signal_owner {
+                Some(super::super::super::identity::RenderCanvasContentOwner::PreparedSignal(
+                    prepared,
+                )) => current(key, prepared),
+                _ => true,
+            });
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn install_prepared_signal_summary(
@@ -89,6 +97,7 @@ impl GpuSurfaceRenderer {
             .is_some_and(|cached| {
                 cached.revision == revision
                     && cached.source_identity == source_identity
+                    && cached.prepared.asset_key() == prepared.asset_key()
                     && cached.prepared.matches_raw_surface(content, revision)
             })
         {

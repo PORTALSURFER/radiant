@@ -1,0 +1,7 @@
+
+running 2 tests
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::precise_signal::precise_signal_bucket_smoothing_matches_legacy_for_sub_bucket_views ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::precise_signal::precise_signal_window_matches_near_and_large_origins ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 4311 filtered out; finished in 0.73s
+

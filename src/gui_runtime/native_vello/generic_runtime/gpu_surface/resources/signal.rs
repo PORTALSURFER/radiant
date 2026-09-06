@@ -14,7 +14,9 @@ use super::super::upload_plan::{
 };
 use super::super::{GpuSurfaceRenderer, wgpu_device_id};
 use super::cache::{logical_signal_body_texture_bytes, logical_signal_buffer_bytes};
+use crate::gui_runtime::native_vello::generic_runtime::signal_summary_prepare::SignalGpuBudget;
 use crate::runtime::GpuSignalSummaryBucket;
+use std::sync::Arc;
 use std::time::Instant;
 use vello::wgpu;
 use wgpu::util::DeviceExt;
@@ -31,6 +33,8 @@ pub(crate) struct EnsureSignalBufferRequest<'a> {
     pub(crate) content_owner: RenderCanvasContentOwner,
     pub(crate) buckets: &'a [GpuSignalSummaryBucket],
     pub(crate) uniforms: &'a SignalUniforms,
+    /// Only broker-prepared raw signals participate in this bounded residency.
+    pub(crate) gpu_budget: Option<Arc<SignalGpuBudget>>,
 }
 
 impl GpuSurfaceRenderer {
@@ -73,6 +77,7 @@ impl GpuSurfaceRenderer {
         key: u64,
         body_key: SignalBodyCacheKey,
         stats: &mut GpuSurfaceRenderStats,
+        gpu_budget: Option<&Arc<SignalGpuBudget>>,
     ) -> Option<wgpu::TextureView> {
         if let Some(body) = self
             .resources
@@ -99,6 +104,13 @@ impl GpuSurfaceRenderer {
         let buffer = self.resources.signals.get(&key)?;
         let content_owner = buffer._content_owner.clone();
         let pipeline = self.signal_pipeline.as_ref()?;
+        let logical_bytes = logical_signal_body_texture_bytes(body_key.width, body_key.height)?;
+        let gpu_lease = match gpu_budget {
+            Some(budget) => Some(Arc::new(
+                budget.reserve(usize::try_from(logical_bytes).ok()?)?,
+            )),
+            None => None,
+        };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("radiant_gpu_signal_body_texture"),
             size: wgpu::Extent3d {
@@ -132,8 +144,9 @@ impl GpuSurfaceRenderer {
                 _content_owner: content_owner,
                 _texture: texture,
                 view,
+                _gpu_lease: gpu_lease,
             },
-            logical_signal_body_texture_bytes(body_key.width, body_key.height),
+            Some(logical_bytes),
         );
         Some(cached_view)
     }
@@ -141,7 +154,7 @@ impl GpuSurfaceRenderer {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_signal_buffer(
         &mut self,
         request: EnsureSignalBufferRequest<'_>,
-    ) {
+    ) -> bool {
         let EnsureSignalBufferRequest {
             device,
             queue,
@@ -151,6 +164,7 @@ impl GpuSurfaceRenderer {
             content_owner,
             buckets,
             uniforms,
+            gpu_budget,
         } = request;
         let sample_count = summary_bucket_value_count(buckets);
         if let Some(buffer) = self.resources.signals.get(&key).filter(|buffer| {
@@ -164,15 +178,38 @@ impl GpuSurfaceRenderer {
             stats
                 .render_canvas_uploads
                 .record_renderer_parameter(uniform_bytes.len());
-            return;
+            return true;
         }
         let Some(pipeline) = self.signal_pipeline.as_ref() else {
             stats.mark_candidate_unavailable(
                 GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
             );
-            return;
+            return false;
         };
         let bucket_bytes = summary_bucket_bytes(buckets);
+        let uniform_bytes = signal_uniforms_as_bytes(uniforms);
+        let logical_bytes = logical_signal_buffer_bytes(bucket_bytes.len(), uniform_bytes.len());
+        let Some(logical_bytes) = logical_bytes else {
+            stats.mark_candidate_unavailable(
+                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+            );
+            return false;
+        };
+        let gpu_lease = match gpu_budget {
+            Some(budget) => match usize::try_from(logical_bytes)
+                .ok()
+                .and_then(|bytes| budget.reserve(bytes))
+            {
+                Some(lease) => Some(lease),
+                None => {
+                    stats.mark_candidate_unavailable(
+                        GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                    );
+                    return false;
+                }
+            },
+            None => None,
+        };
         stats.record_candidate_immutable_payload(bucket_bytes.len());
         let sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_summary_buckets"),
@@ -182,9 +219,7 @@ impl GpuSurfaceRenderer {
         stats
             .render_canvas_uploads
             .record_immutable_payload(bucket_bytes.len());
-        let uniform_bytes = signal_uniforms_as_bytes(uniforms);
         stats.record_candidate_renderer_parameter(uniform_bytes.len());
-        let logical_bytes = logical_signal_buffer_bytes(bucket_bytes.len(), uniform_bytes.len());
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_uniforms"),
             contents: uniform_bytes,
@@ -217,9 +252,11 @@ impl GpuSurfaceRenderer {
                 _sample_buffer: sample_buffer,
                 uniform_buffer,
                 bind_group,
+                _gpu_lease: gpu_lease,
             },
-            logical_bytes,
+            Some(logical_bytes),
         );
+        true
     }
 }
 
@@ -266,6 +303,7 @@ mod tests {
             sample_count: 256,
             level_index: 0,
             gain_preview: None,
+            prepared_asset: None,
         })
     }
 

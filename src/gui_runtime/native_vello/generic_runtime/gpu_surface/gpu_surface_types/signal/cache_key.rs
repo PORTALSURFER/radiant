@@ -1,5 +1,6 @@
 use super::super::super::identity::{RenderCanvasContentIdentity, SignalSourceIdentity};
 use super::super::super::passes::SurfacePixelExtent;
+use crate::gui_runtime::native_vello::generic_runtime::signal_summary_prepare::PreparedSignalAssetKey;
 use crate::runtime::GpuSignalGainPreview;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBodyCacheKeyParts
@@ -18,6 +19,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) level_index: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) gain_preview:
         Option<GpuSignalGainPreview>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) prepared_asset:
+        Option<PreparedSignalAssetKey>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -29,6 +32,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_start: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) style_revision: u32,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) prepared_asset:
+        Option<PreparedSignalAssetKey>,
 }
 
 impl SignalBufferCacheKey {
@@ -38,6 +43,7 @@ impl SignalBufferCacheKey {
         level_index: usize,
         bucket_start: usize,
         bucket_count: usize,
+        prepared_asset: Option<PreparedSignalAssetKey>,
     ) -> Self {
         Self {
             revision,
@@ -46,6 +52,7 @@ impl SignalBufferCacheKey {
             bucket_start,
             bucket_count,
             style_revision: GPU_SIGNAL_STYLE_REVISION,
+            prepared_asset,
         }
     }
 }
@@ -68,6 +75,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) style_revision: u32,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) gain_preview:
         SignalGainPreviewKey,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) prepared_asset:
+        Option<PreparedSignalAssetKey>,
 }
 
 impl SignalBodyCacheKey {
@@ -88,11 +97,12 @@ impl SignalBodyCacheKey {
             level_index: parts.level_index,
             style_revision: GPU_SIGNAL_STYLE_REVISION,
             gain_preview: SignalGainPreviewKey::new(parts.gain_preview),
+            prepared_asset: parts.prepared_asset,
         }
     }
 }
 
-const GPU_SIGNAL_STYLE_REVISION: u32 = 1;
+const GPU_SIGNAL_STYLE_REVISION: u32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalGainPreviewKey {
@@ -140,17 +150,19 @@ mod tests {
 
     #[test]
     fn signal_buffer_cache_key_keeps_revision_and_level_independent() {
-        let high_revision = SignalBufferCacheKey::new(1_u64 << 32, Default::default(), 0, 4, 8);
-        let low_revision_high_level = SignalBufferCacheKey::new(0, Default::default(), 1, 4, 8);
+        let high_revision =
+            SignalBufferCacheKey::new(1_u64 << 32, Default::default(), 0, 4, 8, None);
+        let low_revision_high_level =
+            SignalBufferCacheKey::new(0, Default::default(), 1, 4, 8, None);
 
         assert_ne!(high_revision, low_revision_high_level);
     }
 
     #[test]
     fn signal_buffer_cache_key_tracks_uploaded_bucket_window() {
-        let first = SignalBufferCacheKey::new(9, Default::default(), 0, 4, 8);
-        let moved = SignalBufferCacheKey::new(9, Default::default(), 0, 5, 8);
-        let wider = SignalBufferCacheKey::new(9, Default::default(), 0, 4, 9);
+        let first = SignalBufferCacheKey::new(9, Default::default(), 0, 4, 8, None);
+        let moved = SignalBufferCacheKey::new(9, Default::default(), 0, 5, 8, None);
+        let wider = SignalBufferCacheKey::new(9, Default::default(), 0, 4, 9, None);
 
         assert_ne!(first, moved);
         assert_ne!(first, wider);
@@ -168,8 +180,8 @@ mod tests {
             frames: 128,
             band_count: 2,
         };
-        let first = SignalBufferCacheKey::new(9, samples, 0, 4, 8);
-        let changed_source = SignalBufferCacheKey::new(9, replacement, 0, 4, 8);
+        let first = SignalBufferCacheKey::new(9, samples, 0, 4, 8, None);
+        let changed_source = SignalBufferCacheKey::new(9, replacement, 0, 4, 8, None);
 
         assert_ne!(first, changed_source);
     }

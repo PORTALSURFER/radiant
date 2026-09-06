@@ -1,4 +1,4 @@
-use super::{SelectedSignalLevel, SignalRenderSource};
+use super::{SelectedSignalData, SignalRenderSource};
 use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::{
     SignalBodyCacheKey, SignalUniforms,
 };
@@ -6,10 +6,26 @@ use crate::runtime::{GpuSignalGainPreview, GpuSurfaceContent};
 
 pub(super) fn signal_uniforms(
     source: &SignalRenderSource,
-    selected: &SelectedSignalLevel<'_>,
+    selected: &SelectedSignalData<'_>,
     body_key: SignalBodyCacheKey,
 ) -> SignalUniforms {
     let gain_uniforms = signal_gain_preview_uniforms(source.gain_preview);
+    let (bucket_frames, bucket_count, level_index, bucket_offset, tile_query) = match selected {
+        SelectedSignalData::Overview(selected) => (
+            selected.level.bucket_frames as f32,
+            selected.bucket_window.bucket_count() as f32,
+            selected.index as f32,
+            selected.bucket_window.start as f32,
+            [0.0; 4],
+        ),
+        SelectedSignalData::Tile(tile) => (
+            tile.bucket_frames as f32,
+            (tile.buckets.len() / tile.band_count.max(1)) as f32,
+            0.0,
+            0.0,
+            [tile.query_start_bucket, tile.query_span_buckets, 1.0, 0.0],
+        ),
+    };
     SignalUniforms {
         dest: [0.0, 0.0, body_key.width as f32, body_key.height as f32],
         frame_range: [
@@ -19,12 +35,7 @@ pub(super) fn signal_uniforms(
             source.shape.band_count as f32,
         ],
         slide_preview: [source.sample_slide_frame_offset as f32, 0.0, 0.0, 0.0],
-        summary_meta: [
-            selected.level.bucket_frames as f32,
-            selected.bucket_window.bucket_count() as f32,
-            selected.index as f32,
-            selected.bucket_window.start as f32,
-        ],
+        summary_meta: [bucket_frames, bucket_count, level_index, bucket_offset],
         gain_preview_a: gain_uniforms[0],
         gain_preview_b: gain_uniforms[1],
         gain_preview_c: gain_uniforms[2],
@@ -32,6 +43,7 @@ pub(super) fn signal_uniforms(
         cursor_ratio: -1.0,
         cursor_width: 1.0,
         cursor_color: [1.0, 1.0, 1.0, 0.92],
+        tile_query,
     }
 }
 

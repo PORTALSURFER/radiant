@@ -2,6 +2,12 @@
 
 use std::sync::Arc;
 
+mod bounded;
+pub(crate) use bounded::{
+    BoundedSignalError, BoundedSignalTile, BoundedSignalTileRequest, bounded_overview_bytes,
+    build_bounded_overview, build_bounded_tile,
+};
+
 /// CPU-built min/max pyramid for retained GPU signal surfaces.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GpuSignalSummary {
@@ -36,6 +42,7 @@ impl GpuSignalSummary {
     /// Build a retained min/max pyramid from interleaved frame-major band samples.
     pub fn from_interleaved_samples(samples: &[f32], frames: usize, band_count: usize) -> Self {
         let construction = build_signal_summary(samples, frames, band_count, || false);
+        debug_assert!(!construction.cancelled);
         Self {
             frames: construction.frames,
             band_count: construction.band_count,
@@ -43,7 +50,8 @@ impl GpuSignalSummary {
         }
     }
 
-    /// Build a retained min/max pyramid unless the native worker has been cancelled.
+    /// Compatibility fixture for cancellation in the full-pyramid builder.
+    #[cfg(test)]
     pub(crate) fn from_interleaved_samples_cancellable<F>(
         samples: &[f32],
         frames: usize,

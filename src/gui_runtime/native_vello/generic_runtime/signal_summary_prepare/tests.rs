@@ -17,6 +17,9 @@ fn limits() -> Limits {
         queued: 8,
         sources: 64,
         targets: 128,
+        source_bytes: 1 << 20,
+        summary_bytes: 1 << 20,
+        overview_bytes: 1 << 20,
         bytes: 1 << 20,
     }
 }
@@ -84,12 +87,88 @@ fn caps_and_checked_bytes_reject_admission() {
 }
 
 #[test]
+fn bounded_overview_reservation_stays_small_for_a_long_source() {
+    let frames = 1 << 20;
+    let request = SummaryRequest::new(Arc::from(vec![0.0; frames]), frames, 1, 1);
+
+    let reservation = summary_reservation(&request).expect("bounded reservation");
+
+    assert_eq!(reservation.source, frames * std::mem::size_of::<f32>());
+    assert!(reservation.summary <= 256 * 1024);
+    assert_eq!(
+        reservation.total(),
+        Some(reservation.source + reservation.summary)
+    );
+}
+
+#[test]
+fn source_and_overview_budgets_are_admitted_and_accounted_independently() {
+    let samples: Arc<[f32]> = Arc::from([0.0; 4]);
+    let request = request(Arc::clone(&samples), 1);
+    let reservation = summary_reservation(&request).expect("reservation");
+    let target = target();
+    let mut broker = broker(Limits {
+        source_bytes: reservation.source,
+        summary_bytes: reservation.summary,
+        overview_bytes: reservation.summary,
+        bytes: reservation.total().expect("combined reservation"),
+        ..limits()
+    });
+
+    assert_eq!(
+        broker.request(target, request),
+        SummaryRequestState::Pending
+    );
+    let status = broker.capacity_status();
+    assert_eq!(status.source_logical_bytes, reservation.source);
+    assert_eq!(status.summary_logical_bytes, reservation.summary);
+    assert_eq!(
+        status.logical_bytes,
+        reservation.total().expect("combined reservation")
+    );
+
+    broker.release_target(target);
+    broker.maintain_retired();
+    let status = broker.capacity_status();
+    assert_eq!(status.source_logical_bytes, 0);
+    assert_eq!(status.summary_logical_bytes, 0);
+    assert_eq!(status.logical_bytes, 0);
+}
+
+#[test]
+fn source_and_overview_budgets_each_reject_oversized_admission() {
+    let samples: Arc<[f32]> = Arc::from([0.0; 4]);
+    let request = request(Arc::clone(&samples), 1);
+    let reservation = summary_reservation(&request).expect("reservation");
+
+    let mut source_limited = broker(Limits {
+        source_bytes: reservation.source - 1,
+        bytes: usize::MAX,
+        ..limits()
+    });
+    assert_eq!(
+        source_limited.request(target(), request.clone()),
+        SummaryRequestState::Unavailable
+    );
+
+    let mut summary_limited = broker(Limits {
+        summary_bytes: reservation.summary - 1,
+        bytes: usize::MAX,
+        ..limits()
+    });
+    assert_eq!(
+        summary_limited.request(target(), request),
+        SummaryRequestState::Unavailable
+    );
+}
+
+#[test]
 fn rejected_dispatch_releases_active_slot() {
     let mut broker = broker(limits());
     let samples: Arc<[f32]> = Arc::from([0.0; 4]);
     broker.request(target(), request(samples, 1));
     let dispatch = broker.take_dispatch().expect("queued dispatch");
-    broker.reject_dispatch(dispatch.id);
+    broker.reject_dispatch(dispatch.id());
     drop(dispatch);
     assert_eq!(broker.active, 0);
 }
@@ -141,7 +220,7 @@ fn stable_target_request_does_not_cancel_active_work() {
         broker.request(target, initial),
         SummaryRequestState::Pending
     );
-    assert!(!dispatch.cancelled.load(Ordering::Acquire));
+    assert!(!cancel_flag(&dispatch).load(Ordering::Acquire));
     dispatch.run();
     assert_eq!(broker.drain_completions(), vec![target]);
     assert!(broker.prepared(target).is_some());
@@ -172,7 +251,7 @@ fn cancelled_terminal_does_not_notify_interested_targets() {
     broker.request(first, request(Arc::clone(&samples), 1));
     broker.request(second, request(samples, 1));
     let dispatch = broker.take_dispatch().expect("dispatch");
-    dispatch.cancelled.store(true, Ordering::Release);
+    cancel_flag(&dispatch).store(true, Ordering::Release);
     dispatch.run();
     assert!(broker.drain_completions().is_empty());
     assert_eq!(broker.capacity_status().queued, 1);
@@ -224,7 +303,7 @@ fn cancelled_completion_with_full_queue_retries_after_capacity_recovers() {
     let dispatch = broker.take_dispatch().expect("active");
     let second = target();
     broker.request(second, request(Arc::from([1.0; 4]), 1));
-    dispatch.cancelled.store(true, Ordering::Release);
+    cancel_flag(&dispatch).store(true, Ordering::Release);
     dispatch.run();
     assert!(broker.drain_completions().is_empty());
     assert_eq!(broker.waiting_targets().collect::<Vec<_>>(), vec![first]);
@@ -294,9 +373,9 @@ fn shutdown_cancels_active_workers_without_waiting() {
     let mut broker = broker(limits());
     broker.request(target(), request(Arc::from([0.0; 4]), 1));
     let dispatch = broker.take_dispatch().expect("active");
-    assert!(!dispatch.cancelled.load(Ordering::Acquire));
+    assert!(!cancel_flag(&dispatch).load(Ordering::Acquire));
     drop(broker);
-    assert!(dispatch.cancelled.load(Ordering::Acquire));
+    assert!(cancel_flag(&dispatch).load(Ordering::Acquire));
     dispatch.run();
 }
 
@@ -435,4 +514,118 @@ fn maintenance_during_off_thread_last_drop_observes_released_token() {
     });
     assert_eq!(observed_bytes, 0);
     assert!(broker.sources.is_empty());
+}
+
+fn cancel_flag(dispatch: &SummaryDispatch) -> &AtomicBool {
+    match dispatch {
+        SummaryDispatch::Overview(job) => &job.cancelled,
+        SummaryDispatch::Tile(_) => panic!("expected overview fixture"),
+    }
+}
+
+#[test]
+fn long_source_publishes_overview_then_shared_detail_and_reuses_pan_page() {
+    let frames = 65_536;
+    let samples: Arc<[f32]> = (0..frames)
+        .map(|frame| if frame == 21 { 1.0 } else { 0.0 })
+        .collect();
+    let mut broker = SummaryBroker::new(Arc::new(Wake(AtomicUsize::new(0))));
+    let a = target();
+    let b = target();
+    let content = GpuSurfaceContent::SignalBands {
+        frames,
+        band_count: 1,
+        frame_range: [10.25, 50.25],
+        samples,
+    };
+    broker.request(a, SummaryRequest::from_raw_surface(&content, 1).unwrap());
+    broker.request(b, SummaryRequest::from_raw_surface(&content, 1).unwrap());
+    broker.take_dispatch().unwrap().run();
+    broker.drain_completions();
+    let coarse = broker.prepared(a).unwrap();
+    assert!(coarse.summary().levels[0].bucket_frames > 1);
+    assert!(coarse.tile().is_none());
+    assert_eq!(broker.tiles.len(), 1);
+    broker.take_dispatch().unwrap().run();
+    broker.drain_completions();
+    let detail = broker.prepared(a).unwrap();
+    assert_eq!(detail.tile().unwrap().bucket_frames, 1);
+    assert_eq!(detail.asset_key(), broker.prepared(b).unwrap().asset_key());
+    let mut moved = content.clone();
+    if let GpuSurfaceContent::SignalBands { frame_range, .. } = &mut moved {
+        *frame_range = [11.25, 51.25];
+    }
+    broker.request(a, SummaryRequest::from_raw_surface(&moved, 1).unwrap());
+    assert_eq!(detail.asset_key(), broker.prepared(a).unwrap().asset_key());
+    assert!(broker.take_dispatch().is_none());
+    broker.release_target(a);
+    broker.release_target(b);
+    broker.maintain_retired();
+    assert!(broker.capacity_status().source_logical_bytes > 0);
+    drop(detail);
+    drop(coarse);
+    broker.maintain_retired();
+    assert_eq!(broker.capacity_status().logical_bytes, 0);
+}
+
+#[test]
+fn overview_and_detail_share_global_active_capacity() {
+    let mut broker = SummaryBroker::new(Arc::new(Wake(AtomicUsize::new(0))));
+    let content = GpuSurfaceContent::SignalBands {
+        frames: 65_536,
+        band_count: 1,
+        frame_range: [10.0, 50.0],
+        samples: vec![0.0; 65_536].into(),
+    };
+    broker.request(
+        target(),
+        SummaryRequest::from_raw_surface(&content, 1).unwrap(),
+    );
+    broker.take_dispatch().unwrap().run();
+    broker.drain_completions();
+    let tile = broker.take_dispatch().unwrap();
+    broker.request(target(), request(Arc::from([0.0; 4]), 2));
+    let overview = broker.take_dispatch().unwrap();
+    broker.request(target(), request(Arc::from([1.0; 4]), 3));
+    assert!(broker.take_dispatch().is_none());
+    assert_eq!(broker.capacity_status().active, 2);
+    tile.run();
+    overview.run();
+    broker.drain_completions();
+    assert!(broker.take_dispatch().is_some());
+}
+
+#[test]
+fn released_gpu_capacity_notifies_only_current_ready_targets_once() {
+    let mut broker = broker(limits());
+    broker.gpu_budget = SignalGpuBudget::with_limit_for_test(8);
+    let a = target();
+    broker.request(a, request(Arc::from([0.0; 4]), 1));
+    broker.take_dispatch().unwrap().run();
+    broker.drain_completions();
+    let held = broker.gpu_budget.reserve(8).unwrap();
+    assert!(broker.gpu_budget.reserve(1).is_none());
+    drop(held);
+    assert_eq!(broker.drain_completions(), vec![a]);
+    assert!(broker.drain_completions().is_empty());
+    let held = broker.gpu_budget.reserve(8).unwrap();
+    assert!(broker.gpu_budget.reserve(1).is_none());
+    broker.release_target(a);
+    drop(held);
+    assert!(broker.drain_completions().is_empty());
+}
+
+#[test]
+fn outside_source_raw_viewports_keep_legacy_clamped_overview() {
+    let samples: Arc<[f32]> = vec![0.0; 65_536].into();
+    for frame_range in [[-2.0, 20.0], [65_530.0, 65_540.0], [70_000.0, 70_010.0]] {
+        let content = GpuSurfaceContent::SignalBands {
+            frames: 65_536,
+            band_count: 1,
+            frame_range,
+            samples: samples.clone(),
+        };
+        let request = SummaryRequest::from_raw_surface(&content, 1).unwrap();
+        assert!(request.tile_view.is_none());
+    }
 }

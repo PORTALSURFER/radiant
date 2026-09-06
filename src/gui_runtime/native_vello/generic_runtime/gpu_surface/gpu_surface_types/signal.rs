@@ -2,6 +2,7 @@ mod cache_key;
 
 use super::super::identity::{RenderCanvasContentOwner, SignalSourceIdentity};
 use super::super::wgpu_device_id;
+use crate::gui_runtime::native_vello::generic_runtime::signal_summary_prepare::SignalGpuLease;
 use crate::runtime::GpuSignalSummary;
 use std::sync::Arc;
 use vello::wgpu;
@@ -23,6 +24,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
         wgpu::Buffer,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bind_group:
         wgpu::BindGroup,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _gpu_lease:
+        Option<SignalGpuLease>,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CachedSignalSummary {
@@ -66,6 +69,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
         RenderCanvasContentOwner,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _texture: wgpu::Texture,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) view: wgpu::TextureView,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _gpu_lease:
+        Option<Arc<SignalGpuLease>>,
 }
 
 impl SignalBodyTexture {
@@ -101,8 +106,9 @@ mod tests {
             band_count: 2,
             sample_count: 256,
             level_index: 0,
-            style_revision: 1,
+            style_revision: 2,
             gain_preview: cache_key::SignalGainPreviewKey::new(None),
+            prepared_asset: None,
         };
         let next_key = SignalBodyCacheKey { revision: 2, ..key };
 

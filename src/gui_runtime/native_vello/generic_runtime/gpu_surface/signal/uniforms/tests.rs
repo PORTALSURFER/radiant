@@ -1,3 +1,4 @@
+use super::super::{SelectedSignalLevel, SignalRenderData, SignalTileData};
 use super::*;
 use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::SignalBodyCacheKeyParts;
@@ -37,24 +38,25 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
         sample_count: bucket_window.sample_count(shape.band_count),
         level_index: 1,
         gain_preview: None,
+        prepared_asset: None,
     });
 
     let source = SignalRenderSource {
         prepared: None,
         shape,
-        summary: Arc::new(GpuSignalSummary {
+        data: SignalRenderData::Overview(Arc::new(GpuSignalSummary {
             frames: shape.frames,
             band_count: shape.band_count,
             levels: vec![level.clone()],
-        }),
+        })),
         gain_preview: None,
         sample_slide_frame_offset: 12,
     };
-    let selected = SelectedSignalLevel {
+    let selected = SelectedSignalData::Overview(SelectedSignalLevel {
         index: 1,
         level: &level,
         bucket_window,
-    };
+    });
 
     let uniforms = signal_uniforms(&source, &selected, body_key);
 
@@ -63,6 +65,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
     assert_eq!(uniforms.slide_preview, [12.0, 0.0, 0.0, 0.0]);
     assert_eq!(uniforms.summary_meta, [4.0, 3.0, 1.0, 1.0]);
     assert_eq!(uniforms.gain_preview_a, [0.0; 4]);
+    assert_eq!(uniforms.tile_query, [0.0; 4]);
 }
 
 #[test]
@@ -86,4 +89,52 @@ fn signal_gain_preview_uniforms_mark_active_preview() {
     assert_eq!(uniforms[0], [1.0, 0.1, 0.8, 0.75]);
     assert_eq!(uniforms[1], [0.25, 0.4, 0.2, 0.6]);
     assert_eq!(uniforms[2], [0.0, 0.1, 1.0, 0.5]);
+}
+
+#[test]
+fn tile_uniforms_use_local_query_without_changing_visual_gain_range() {
+    let shape = GpuSignalRenderShape {
+        frames: 100,
+        band_count: 1,
+        frame_range: [96.0, 112.0],
+        sample_count: 100,
+    };
+    let key = SignalBodyCacheKey::new(SignalBodyCacheKeyParts {
+        revision: 1,
+        content_identity: Default::default(),
+        extent: surface_pixel_extent(
+            UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 20.0)),
+            DpiScale::ONE,
+        )
+        .unwrap(),
+        frames: shape.frames,
+        band_count: shape.band_count,
+        frame_range: shape.frame_range,
+        sample_slide_frame_offset: 0,
+        sample_count: 8,
+        level_index: usize::MAX,
+        gain_preview: None,
+        prepared_asset: None,
+    });
+    let source = SignalRenderSource {
+        prepared: None,
+        shape,
+        data: SignalRenderData::Tile(SignalTileData {
+            buckets: Arc::from([GpuSignalSummaryBucket::default(); 8]),
+            bucket_frames: 4,
+            band_count: 1,
+            query_start_bucket: 2.0,
+            query_span_buckets: 4.0,
+        }),
+        gain_preview: None,
+        sample_slide_frame_offset: 0,
+    };
+    let SignalRenderData::Tile(tile) = &source.data else {
+        unreachable!();
+    };
+
+    let uniforms = signal_uniforms(&source, &SelectedSignalData::Tile(tile), key);
+
+    assert_eq!(uniforms.frame_range, [96.0, 112.0, 100.0, 1.0]);
+    assert_eq!(uniforms.tile_query, [2.0, 4.0, 1.0, 0.0]);
 }

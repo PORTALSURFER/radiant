@@ -30,4 +30,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) cursor_ratio: f32,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) cursor_width: f32,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) cursor_color: [f32; 4],
+    /// Private bounded-tile query mapping: start bucket, span buckets, enabled, reserved.
+    /// The preceding legacy ABI remains unchanged for the precomputed-summary path.
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) tile_query: [f32; 4],
 }

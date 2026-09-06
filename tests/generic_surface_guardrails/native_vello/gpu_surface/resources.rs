@@ -75,8 +75,11 @@ fn native_gpu_signal_summary_cache_stays_in_focused_module() {
         .next()
         .expect("production prefix");
     assert!(
-        broker.contains("GpuSignalSummary::from_interleaved_samples_cancellable")
-            && !production_rendering.contains("GpuSignalSummary::from_interleaved_samples"),
-        "full raw summary construction must stay outside GPU preflight and execution"
+        broker.contains("build_bounded_overview(&self.samples")
+            && !broker.contains("GpuSignalSummary::from_interleaved_samples_cancellable")
+            && !production_rendering.contains("GpuSignalSummary::from_interleaved_samples")
+            && !production_rendering.contains("build_bounded_overview(")
+            && !production_rendering.contains("build_bounded_tile("),
+        "bounded raw summary construction must stay outside GPU preflight and execution"
     );
 }

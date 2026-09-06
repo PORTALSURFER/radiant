@@ -1,0 +1,8 @@
+
+running 3 tests
+test gui_runtime::native_vello::generic_runtime::gpu_surface::async_signal_native_tests::async_signal_replacement_releases_stale_gpu_leases_at_terminal_boundary ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::async_signal_native_tests::bounded_detail_matches_legacy_pixels_and_recovers_on_a_fresh_device ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::async_signal_native_tests::prepared_signal_budget_denial_keeps_old_resources_until_renderer_drops ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4310 filtered out; finished in 0.36s
+

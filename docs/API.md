@@ -90,9 +90,19 @@ content, viewport, scroll policy, or controlled offset retires it; cancellation
 then carries no offset projection and cannot roll back the replacement model.
 Terminal ownership is detached before application callbacks. New edit mappers
 have conservative revision evidence and disable retained ancestor shortcuts
-that cannot prove callback equivalence. Wheel, keyboard, and programmatic
-container scrolling continue through their existing routes while their edit
-lifecycle migration remains tracked by OPT-1395.
+that cannot prove callback equivalence.
+
+Accepted keyboard PageUp/PageDown/Home/End fallbacks produce one atomic
+Begin/Update/Commit batch per effective key press, including repeats. They
+retain keyboard provenance and the admitted timestamp. Programmatic scroll
+commands and focus-driven reveal use the same atomic lifecycle with explicit
+programmatic provenance. Focus reveal retains its settlement-only behavior for
+legacy offset subscribers. Clamped no-ops and non-finite direct offsets are
+silent. An effective replacement retires an active scrollbar pointer edit
+before publishing its successor, without rolling back the replacement offset.
+Settlement is suppressed if an application callback changes the offset or
+replaces the target. Wheel container scrolling continues through its existing
+route while its edit lifecycle migration remains tracked by OPT-1395.
 
 
 ```rust

@@ -104,7 +104,7 @@ where
                         if route.fallback_eligible
                             && let (Some(widget_id), Some(key)) = (route.widget_id, Some(key))
                         {
-                            self.scroll_keyboard_fallback(widget_id, key);
+                            self.scroll_keyboard_fallback(widget_id, key, timestamp);
                         }
                         route.widget_id
                     }
@@ -117,7 +117,7 @@ where
                                 && delivery.disposition
                                     == crate::widgets::FocusedKeyDisposition::Unhandled
                             {
-                                self.scroll_keyboard_fallback(delivery.widget_id, key);
+                                self.scroll_keyboard_fallback(delivery.widget_id, key, timestamp);
                             }
                             Some(delivery.widget_id)
                         } else {

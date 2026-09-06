@@ -526,6 +526,177 @@ mod edit_lifecycle {
             height,
         )
     }
+    #[test]
+    fn programmatic_offset_is_one_atomic_edit_and_clamped_noops_are_silent() {
+        use radiant::widgets::{InteractionProvenance, InteractionSource};
+        let (mut runtime, edits, _) = fixture(false);
+        runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, 1000.0)));
+        {
+            let edits = edits.borrow();
+            assert_eq!(edits.len(), 1);
+            let batch = &edits[0];
+            assert_eq!(
+                phases(batch),
+                [EditPhase::Begin, EditPhase::Update, EditPhase::Commit]
+            );
+            assert_eq!(
+                batch.transaction().source(),
+                InteractionSource::Programmatic
+            );
+            assert!(
+                batch
+                    .events()
+                    .iter()
+                    .all(|event| event.provenance == InteractionProvenance::Programmatic)
+            );
+            assert_eq!(batch.events()[0].value, Vector2::new(0.0, 0.0));
+            assert_eq!(batch.events()[2].value, Vector2::new(0.0, 304.0));
+            assert_eq!(batch.offset_update().unwrap().offset.y, 304.0);
+        }
+        runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, 2000.0)));
+        runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, f32::NAN)));
+        runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, f32::INFINITY)));
+        runtime.execute_command(Command::scroll_to(999, Vector2::new(0.0, 20.0)));
+        assert_eq!(edits.borrow().len(), 1);
+        assert_eq!(runtime.layout().rects[&32].min.y, -304.0);
+    }
+
+    #[test]
+    fn programmatic_replacement_cancels_pointer_owner_without_rolling_back() {
+        let (mut runtime, edits, _) = fixture(false);
+        let start = thumb(&runtime);
+        runtime.dispatch_event(Event::primary_press(start));
+        runtime.dispatch_event(Event::pointer_move(Point::new(start.x, start.y + 20.0)));
+        runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, 80.0)));
+        runtime.dispatch_event(Event::pointer_move(Point::new(start.x, start.y + 40.0)));
+        runtime.dispatch_event(Event::primary_release(Point::new(start.x, start.y + 40.0)));
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 4);
+        assert_eq!(phases(&edits[2]), [EditPhase::Cancel]);
+        assert!(edits[2].offset_update().is_none());
+        assert_eq!(edits[2].transaction(), edits[0].transaction());
+        assert_eq!(
+            phases(&edits[3]),
+            [EditPhase::Begin, EditPhase::Update, EditPhase::Commit]
+        );
+        assert_ne!(edits[3].transaction(), edits[0].transaction());
+        assert_eq!(runtime.layout().rects[&32].min.y, -80.0);
+    }
+
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn keyboard_repeats_are_distinct_atomic_edits_with_keyboard_provenance() {
+        use radiant::widgets::{InteractionProvenance, KeyboardModifiers, WidgetKey};
+        let edits = Rc::new(RefCell::new(Vec::<ScrollEditBatch>::new()));
+        let sink = Rc::clone(&edits);
+        let bridge = declarative_runtime_bridge(
+            (),
+            |_| {
+                Arc::new(UiSurface::new(
+                    SurfaceNode::scroll_area(
+                        31,
+                        SurfaceNode::button(
+                            32,
+                            "content",
+                            WidgetSizing::fixed(Vector2::new(180.0, 400.0)),
+                            None,
+                        ),
+                    )
+                    .on_scroll_edit(Some),
+                ))
+            },
+            move |_, batch: Option<ScrollEditBatch>| {
+                if let Some(batch) = batch {
+                    sink.borrow_mut().push(batch);
+                }
+            },
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+        assert!(runtime.focus_widget(32));
+        runtime.execute_command(radiant::runtime::Command::scroll_to(
+            31,
+            Vector2::new(0.0, 0.0),
+        ));
+        edits.borrow_mut().clear();
+        let timestamp = None;
+        for repeat in [false, true] {
+            runtime.dispatch_event(Event::KeyPress {
+                key: WidgetKey::PageDown,
+                modifiers: KeyboardModifiers::default(),
+                repeat,
+                timestamp,
+            });
+        }
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 2);
+        assert_ne!(edits[0].transaction(), edits[1].transaction());
+        for batch in edits.iter() {
+            assert_eq!(
+                phases(batch),
+                [EditPhase::Begin, EditPhase::Update, EditPhase::Commit]
+            );
+            assert!(
+                batch
+                    .events()
+                    .iter()
+                    .all(|event| event.provenance == InteractionProvenance::Keyboard { timestamp })
+            );
+            assert_eq!(batch.offset_update().unwrap().metadata.timestamp, timestamp);
+        }
+    }
+
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)]
+    fn replacement_during_pointer_cancellation_suppresses_stale_atomic_successor() {
+        let edits = Rc::new(RefCell::new(Vec::<ScrollEditBatch>::new()));
+        let sink = Rc::clone(&edits);
+        let bridge = declarative_runtime_bridge(
+            400.0,
+            |height| {
+                Arc::new(UiSurface::new(
+                    SurfaceNode::container(
+                        31,
+                        ContainerPolicy {
+                            kind: ContainerKind::ScrollView,
+                            overflow: OverflowPolicy::Scroll,
+                            scroll_policy: ScrollPolicy::default()
+                                .scrollbar_visibility(ScrollbarVisibility::Always),
+                            ..ContainerPolicy::default()
+                        },
+                        vec![SurfaceChild::fill(SurfaceNode::text(
+                            32,
+                            "content",
+                            WidgetSizing::fixed(Vector2::new(180.0, *height)),
+                        ))],
+                    )
+                    .on_scroll_edit(|batch| batch),
+                ))
+            },
+            move |height, batch: ScrollEditBatch| {
+                if batch
+                    .events()
+                    .last()
+                    .is_some_and(|event| event.phase == EditPhase::Cancel)
+                {
+                    *height = 800.0;
+                }
+                sink.borrow_mut().push(batch);
+            },
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+        let start = thumb(&runtime);
+        runtime.dispatch_event(Event::primary_press(start));
+        runtime.dispatch_event(Event::pointer_move(Point::new(start.x, start.y + 20.0)));
+        runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, 80.0)));
+        runtime.dispatch_event(Event::primary_release(Point::new(start.x, start.y + 40.0)));
+        let edits = edits.borrow();
+        assert_eq!(edits.len(), 3);
+        assert_eq!(phases(&edits[2]), [EditPhase::Cancel]);
+        assert!(edits[2].offset_update().is_none());
+        assert_eq!(runtime.layout().rects[&32].height(), 800.0);
+        assert_eq!(runtime.layout().rects[&32].min.y, -80.0);
+    }
+
     fn thumb<Bridge: RuntimeBridge<ScrollEditBatch>>(
         runtime: &SurfaceRuntime<Bridge, ScrollEditBatch>,
     ) -> Point {

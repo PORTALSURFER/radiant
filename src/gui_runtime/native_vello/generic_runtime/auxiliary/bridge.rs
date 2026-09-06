@@ -1,7 +1,8 @@
 use super::super::NativeFrameDiagnosticsPublication;
 use crate::runtime::{
     Command, FrameGpuTimingSample, NativeFrameDiagnostics, RuntimeBridge,
-    RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost, RuntimeHostCapabilities, UiSurface,
+    RuntimeFrameDiagnosticsHost, RuntimeFrameGpuTimingHost, RuntimeHostCapabilities,
+    RuntimeInputHost, UiSurface,
 };
 use std::sync::Arc;
 
@@ -38,6 +39,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct AuxiliaryFrameD
 }
 
 pub(super) struct AuxiliarySurfaceBridge<Message> {
+    pub(super) command_service: Option<crate::application::CommandService<Message>>,
     pub(super) surface: Arc<UiSurface<Message>>,
     outbox: Vec<Message>,
     frame_observation_enabled: bool,
@@ -70,6 +72,7 @@ impl<Message> AuxiliarySurfaceBridge<Message> {
     ) -> Self {
         Self {
             surface,
+            command_service: None,
             outbox: Vec::new(),
             frame_observation_enabled: frame_diagnostics_enabled || frame_profile_enabled,
             frame_profile_enabled,
@@ -146,7 +149,7 @@ impl<Message> RuntimeBridge<Message> for AuxiliarySurfaceBridge<Message> {
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
-        let mut capabilities = RuntimeHostCapabilities::new();
+        let mut capabilities = RuntimeHostCapabilities::new().with_input();
         if self.frame_observation_enabled {
             capabilities = capabilities.with_frame_diagnostics();
         }
@@ -154,6 +157,25 @@ impl<Message> RuntimeBridge<Message> for AuxiliarySurfaceBridge<Message> {
             capabilities = capabilities.with_frame_gpu_timing();
         }
         capabilities
+    }
+}
+
+impl<Message> RuntimeInputHost<Message> for AuxiliarySurfaceBridge<Message> {
+    fn command_service(&self) -> Option<crate::application::CommandService<Message>> {
+        self.command_service.clone()
+    }
+
+    fn resolve_command_with_scopes(
+        &mut self,
+        request: crate::application::CommandRequest<'_>,
+        _focus: crate::application::CommandFocus,
+        scopes: crate::application::CommandScopeProjection<'_>,
+    ) -> crate::application::CommandDispatch<Message> {
+        self.command_service
+            .as_ref()
+            .map_or_else(crate::application::CommandDispatch::unhandled, |service| {
+                service.resolve(request, scopes)
+            })
     }
 }
 
@@ -178,6 +200,9 @@ impl<Message> RuntimeFrameGpuTimingHost for AuxiliarySurfaceBridge<Message> {
         }
     }
 }
+
+#[cfg(test)]
+mod command_tests;
 
 #[cfg(test)]
 mod tests {

@@ -14,6 +14,7 @@ mod presentation;
 mod registry;
 mod resolution;
 mod scope;
+mod service;
 mod validation;
 
 pub use activation::CommandActivation;
@@ -30,6 +31,8 @@ pub use scope::{
     CommandBinding, CommandInvocation, CommandScope, CommandScopeError, CommandScopeKind,
     CommandSource, CommandTarget,
 };
+pub(crate) use service::CommandResolver;
+pub use service::CommandService;
 pub use validation::{
     CommandShortcutPresentation, KeymapConflict, KeymapConflictKind, KeymapResolutionChoice,
     KeymapValidation,

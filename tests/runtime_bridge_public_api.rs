@@ -24,6 +24,8 @@ fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> 
 mod capabilities;
 #[path = "runtime_bridge_public_api/command_flow.rs"]
 mod command_flow;
+#[path = "runtime_bridge_public_api/command_service.rs"]
+mod command_service;
 #[path = "runtime_bridge_public_api/diagnostics.rs"]
 mod diagnostics;
 #[path = "runtime_bridge_public_api/lifecycle.rs"]

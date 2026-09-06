@@ -57,6 +57,8 @@ use winit::{
 };
 
 mod bridge;
+#[cfg(test)]
+mod command_projection_tests;
 mod placement;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1218,12 +1220,23 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         Some(self.event_result(terminal_cause, admission.visual_deadline_completed))
     }
 
+    #[cfg(test)]
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
+        let service = self.runner.core.runtime.bridge().command_service.clone();
+        self.update_projection_with_commands(projection, service);
+    }
+
+    fn update_projection_with_commands(
+        &mut self,
+        projection: AuxiliaryWindow<Message>,
+        service: Option<crate::application::CommandService<Message>>,
+    ) {
         if !self.is_admitted() || self.recovery_rebuild_pending {
             return;
         }
         self.cache_on_close = projection.caches_on_close();
         self.close_message = projection.close_message;
+        self.runner.core.runtime.bridge_mut().command_service = service;
         self.runner.core.runtime.bridge_mut().surface = projection.surface;
         self.runner.core.refresh_surface();
         self.runner.rebuild_scene();
@@ -2153,6 +2166,7 @@ where
             return Ok(());
         }
         let projections = self.core.runtime.host_project_auxiliary_windows();
+        let command_service = self.core.runtime.command_service();
         for window in &mut self.auxiliary_windows {
             if window.is_admitted()
                 && !auxiliary_projection_contains_key(&projections, window.key())
@@ -2172,7 +2186,7 @@ where
             {
                 let was_active = window.active;
                 let owner = window.effect_owner();
-                window.update_projection(projection);
+                window.update_projection_with_commands(projection, command_service.clone());
                 if !was_active {
                     self.core
                         .runtime
@@ -2207,6 +2221,8 @@ where
                         self.core.has_frame_gpu_timing_observer(),
                         owner.clone(),
                     );
+                    window.runner.core.runtime.bridge_mut().command_service =
+                        command_service.clone();
                     window
                         .initialize_runtime(event_loop, parent_window, event_proxy.clone(), adapter)
                         .map(|()| window)

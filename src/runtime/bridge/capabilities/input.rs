@@ -34,6 +34,12 @@ pub trait RuntimeInputHost<Message> {
         crate::application::CommandDispatch::unhandled()
     }
 
+    /// Export a resolver and current keymap for separately owned child scopes.
+    /// Manual host projections may opt in by returning their own service.
+    fn command_service(&self) -> Option<crate::application::CommandService<Message>> {
+        None
+    }
+
     /// Resolve a request with qualified declarative scopes from the committed tree.
     /// Hosts with manual scope projection retain their existing resolver by default.
     fn resolve_command_with_scopes(
@@ -61,6 +67,7 @@ pub(crate) struct RuntimeInputCapability<Bridge, Message> {
     pub native_file_drop: fn(&mut Bridge, NativeFileDrop) -> Command<Message>,
     pub native_file_open: fn(&mut Bridge, NativeFileOpen) -> Command<Message>,
     pub native_focus_regained: fn(&mut Bridge) -> Command<Message>,
+    pub command_service: fn(&Bridge) -> Option<crate::application::CommandService<Message>>,
     pub resolve_command_with_scopes: fn(
         &mut Bridge,
         crate::application::CommandRequest<'_>,
@@ -83,6 +90,7 @@ where
             native_focus_regained: Bridge::native_focus_regained,
             resolve_key_press: Bridge::resolve_key_press,
             resolve_command_with_scopes: Bridge::resolve_command_with_scopes,
+            command_service: Bridge::command_service,
         }
     }
 }

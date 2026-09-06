@@ -43,6 +43,20 @@ where
             })
     }
 
+    fn command_service(&self) -> Option<crate::application::CommandService<Message>> {
+        let router = self.lifecycle.declarative_command_router.as_ref()?;
+        let keymap = self
+            .lifecycle
+            .command_keymap
+            .as_ref()
+            .map(|project| project(&self.state))
+            .unwrap_or_default();
+        Some(crate::application::CommandService::from_resolver(
+            std::rc::Rc::clone(router),
+            keymap,
+        ))
+    }
+
     fn resolve_command_with_scopes(
         &mut self,
         request: crate::application::CommandRequest<'_>,

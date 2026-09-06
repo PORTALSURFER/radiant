@@ -542,7 +542,8 @@ fn destructive_auxiliary_close_is_retiring_and_projection_vetoed() {
         "if self.is_retiring()",
         "fn auxiliary_key_is_retiring",
         "window.is_admitted() && window.key() == projection.key",
-        "window.update_projection(projection)",
+        "window.update_projection_with_commands(projection, command_service.clone())",
+        "if !self.is_admitted() || self.recovery_rebuild_pending",
         "self.show();",
     ] {
         assert!(

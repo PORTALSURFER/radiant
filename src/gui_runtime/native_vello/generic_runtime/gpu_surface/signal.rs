@@ -1,3 +1,4 @@
+use super::super::signal_summary_prepare::PreparedSummary;
 use super::atlas::AtlasUploadPreflightState;
 use super::atlas::TextureViewRenderRequest;
 use super::gpu_surface_types::{
@@ -36,6 +37,7 @@ use vello::wgpu;
 use window::{SignalBucketWindow, signal_bucket_window};
 
 struct SignalRenderSource {
+    prepared: Option<PreparedSummary>,
     shape: GpuSignalRenderShape,
     summary: Arc<GpuSignalSummary>,
     gain_preview: Option<GpuSignalGainPreview>,
@@ -71,7 +73,7 @@ struct SignalSummaryPreflightIdentity {
     frames: usize,
     band_count: usize,
     sample_count: usize,
-    summary: Arc<GpuSignalSummary>,
+    prepared: PreparedSummary,
 }
 
 #[derive(Clone, Copy)]
@@ -122,6 +124,10 @@ pub(super) struct SignalUploadPreflightContext<'a> {
 }
 
 impl SignalUploadPreflightState {
+    pub(super) fn release_prepared_summaries(&mut self) {
+        self.summaries.clear();
+    }
+
     pub(super) fn reset(&mut self, pipeline: Option<(usize, wgpu::TextureFormat, u64)>) {
         self.pipeline =
             pipeline.map(
@@ -183,36 +189,17 @@ impl SignalUploadPreflightState {
         renderer: &GpuSurfaceRenderer,
         surface: &PaintGpuSurface,
         shape: GpuSignalRenderShape,
-    ) -> (
-        Arc<GpuSignalSummary>,
-        GpuSurfaceRenderCanvasUploadSignalSummaryOperation,
-    ) {
-        let (samples, frames, band_count) = match &surface.content {
-            GpuSurfaceContent::SignalBands {
-                samples,
-                frames,
-                band_count,
-                ..
-            } => (samples, *frames, *band_count),
-            GpuSurfaceContent::SignalSummaryBands { summary, .. } => {
-                return (
-                    Arc::clone(summary),
-                    GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse,
-                );
-            }
-            GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
-                return (
-                    Arc::new(GpuSignalSummary {
-                        frames: 0,
-                        band_count: 0,
-                        levels: Vec::new(),
-                    }),
-                    GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Build,
-                );
-            }
+    ) -> Option<PreparedSummary> {
+        let GpuSurfaceContent::SignalBands {
+            samples,
+            frames,
+            band_count,
+            ..
+        } = &surface.content
+        else {
+            return None;
         };
-        let source_identity = SignalSourceIdentity::samples(samples, frames, band_count);
-        let sample_count = samples.len();
+        let source_identity = SignalSourceIdentity::samples(samples, *frames, *band_count);
         let cached = self.summaries.get(&surface.key).cloned().or_else(|| {
             renderer
                 .resources
@@ -224,41 +211,23 @@ impl SignalUploadPreflightState {
                     frames: cached.frames,
                     band_count: cached.band_count,
                     sample_count: cached.sample_count,
-                    summary: Arc::clone(&cached.summary),
+                    prepared: cached.prepared.clone(),
                 })
-        });
-        if let Some(cached) = cached
-            && cached.revision == surface.revision
-            && cached.source_identity == source_identity
-            && cached.frames == shape.frames
-            && cached.band_count == shape.band_count
-            && cached.sample_count == sample_count
+        })?;
+        if cached.revision != surface.revision
+            || cached.source_identity != source_identity
+            || cached.frames != shape.frames
+            || cached.band_count != shape.band_count
+            || cached.sample_count != samples.len()
+            || !cached
+                .prepared
+                .matches_raw_surface(&surface.content, surface.revision)
         {
-            return (
-                Arc::clone(&cached.summary),
-                GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse,
-            );
+            return None;
         }
-        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
-            samples,
-            shape.frames,
-            shape.band_count,
-        ));
-        self.summaries.insert(
-            surface.key,
-            SignalSummaryPreflightIdentity {
-                revision: surface.revision,
-                source_identity,
-                frames: shape.frames,
-                band_count: shape.band_count,
-                sample_count,
-                summary: Arc::clone(&summary),
-            },
-        );
-        (
-            summary,
-            GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Build,
-        )
+        let prepared = cached.prepared.clone();
+        self.summaries.insert(surface.key, cached);
+        Some(prepared)
     }
 
     fn signal_buffer_operation(
@@ -429,15 +398,20 @@ impl GpuSurfaceRenderer {
             };
         };
 
-        let (summary, summary_operation) = match &surface.content {
+        let (summary, prepared) = match &surface.content {
             GpuSurfaceContent::SignalBands { .. } => {
-                signal_state.signal_summary(self, surface, shape)
+                let Some(prepared) = signal_state.signal_summary(self, surface, shape) else {
+                    return SignalUploadPreflight {
+                        renderable: false,
+                        unavailable: Some(
+                            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                        ),
+                    };
+                };
+                (Arc::clone(prepared.summary()), Some(prepared))
             }
-            GpuSurfaceContent::SignalSummaryBands { summary, .. } => (
-                Arc::clone(summary),
-                GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse,
-            ),
-            GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
+            GpuSurfaceContent::SignalSummaryBands { summary, .. } => (Arc::clone(summary), None),
+            _ => {
                 return SignalUploadPreflight {
                     renderable: false,
                     unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid),
@@ -459,10 +433,11 @@ impl GpuSurfaceRenderer {
                 frames: shape.frames,
                 band_count: shape.band_count,
                 sample_count: samples.len(),
-                operation: summary_operation,
+                operation: GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse,
             });
         }
         let source = SignalRenderSource {
+            prepared,
             shape,
             summary,
             gain_preview: signal_gain_preview(&surface.content),
@@ -808,7 +783,10 @@ impl GpuSurfaceRenderer {
                 stats,
                 key: surface.key,
                 cache_key: buffer_cache_key,
-                content_owner: RenderCanvasContentOwner::from_content(&surface.content),
+                content_owner: source.prepared.as_ref().map_or_else(
+                    || RenderCanvasContentOwner::from_content(&surface.content),
+                    |prepared| RenderCanvasContentOwner::PreparedSignal(prepared.clone()),
+                ),
                 buckets: body.buckets,
                 uniforms: &body.uniforms,
             });
@@ -878,7 +856,10 @@ impl GpuSurfaceRenderer {
             stats,
             key: surface.key,
             cache_key: buffer_cache_key,
-            content_owner: RenderCanvasContentOwner::from_content(&surface.content),
+            content_owner: source.prepared.as_ref().map_or_else(
+                || RenderCanvasContentOwner::from_content(&surface.content),
+                |prepared| RenderCanvasContentOwner::PreparedSignal(prepared.clone()),
+            ),
             buckets: body.buckets,
             uniforms: &body.uniforms,
         });
@@ -921,6 +902,7 @@ impl GpuSurfaceRenderer {
         upload_plan: Option<&mut GpuSurfaceRenderCanvasUploadPlan>,
         stats: &mut GpuSurfaceRenderStats,
     ) -> Option<SignalRenderSource> {
+        let mut prepared = None;
         let summary = match &surface.content {
             GpuSurfaceContent::SignalBands {
                 samples,
@@ -967,21 +949,30 @@ impl GpuSurfaceRenderer {
                         plan.mark_execution_mutated();
                     }
                 }
-                self.cached_signal_summary(super::resources::CachedSignalSummaryRequest {
-                    key: surface.key,
-                    revision: surface.revision,
-                    source_identity: SignalSourceIdentity::samples(samples, *frames, *band_count),
-                    frames: shape.frames,
-                    band_count: shape.band_count,
-                    samples,
-                    stats,
-                })
+                let ready =
+                    self.cached_signal_summary(super::resources::CachedSignalSummaryRequest {
+                        key: surface.key,
+                        revision: surface.revision,
+                        source_identity: SignalSourceIdentity::samples(
+                            samples,
+                            *frames,
+                            *band_count,
+                        ),
+                        frames: shape.frames,
+                        band_count: shape.band_count,
+                        samples,
+                        stats,
+                    })?;
+                let summary = Arc::clone(ready.summary());
+                prepared = Some(ready);
+                summary
             }
             GpuSurfaceContent::SignalSummaryBands { summary, .. } => Arc::clone(summary),
             _ => return None,
         };
         let sample_slide_frame_offset = signal_sample_slide_frame_offset(&surface.content);
         Some(SignalRenderSource {
+            prepared,
             shape,
             summary,
             gain_preview: signal_gain_preview(&surface.content),

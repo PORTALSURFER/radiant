@@ -149,6 +149,8 @@ where
     pub(super) native_ime_adapter_observer_enabled: bool,
     pub(super) native_ime_adapter_observation: Option<crate::runtime::NativeImeAdapterObservation>,
     pub(super) automation_targets: NativeAutomationTargetExporter,
+    pub(super) signal_summary_preparation:
+        Option<super::signal_summary_runtime::NativeSignalSummaryPreparation>,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
     native_lifecycle: NativeLifecycle,
     auxiliary_owner: bool,
@@ -395,6 +397,7 @@ where
             native_ime_adapter_observer_enabled,
             native_ime_adapter_observation: None,
             automation_targets: NativeAutomationTargetExporter::from_env(),
+            signal_summary_preparation: None,
             auxiliary_windows: Vec::new(),
             native_lifecycle: NativeLifecycle::default(),
             auxiliary_owner,
@@ -1581,6 +1584,10 @@ where
         if self.is_closing() || self.native_lifecycle.is_stopped() {
             return;
         }
+
+        // Stop admitting raw-summary work before lifecycle shutdown.  Actual
+        // payload release remains in the broker's event-loop maintenance path.
+        self.release_signal_summary_interests();
 
         let Some(((primary_ticket, auxiliary_tickets), now)) =
             self.admit_native_shutdown_preterminal(cause)

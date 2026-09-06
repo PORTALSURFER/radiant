@@ -49,6 +49,7 @@ use crate::runtime::{ExternalDragIdentity, ExternalDragOutcome};
 pub(super) use bridge::AuxiliaryFrameDiagnostics;
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
+use std::collections::HashSet;
 use std::time::Instant;
 use winit::{
     event::WindowEvent,
@@ -126,6 +127,31 @@ pub(super) struct AuxiliaryNativeWindow<Message> {
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
+    pub(super) fn accepts_signal_summary_target(
+        &self,
+        target: super::signal_summary_prepare::SummaryTargetId,
+        adapter: NativeAdapterGeneration,
+    ) -> bool {
+        self.is_admitted() && self.runner.accepts_signal_summary_target(target, adapter)
+    }
+
+    pub(super) fn defer_signal_summary_scene_rebuild(&mut self) {
+        if self.is_admitted() {
+            self.runner.defer_scene_rebuild();
+        }
+    }
+
+    pub(super) fn reconcile_waiting_signal_summary_interests(
+        &mut self,
+        adapter: NativeAdapterGeneration,
+        targets: &HashSet<super::signal_summary_prepare::SummaryTargetId>,
+    ) -> bool {
+        self.is_admitted()
+            && self
+                .runner
+                .reconcile_waiting_signal_summary_interests(adapter, targets)
+    }
+
     #[cfg(test)]
     pub(super) fn new(
         projection: AuxiliaryWindow<Message>,
@@ -1321,6 +1347,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             return;
         }
         self.discard_frame_diagnostics();
+        self.runner.release_signal_summary_interests();
         self.lifecycle = AuxiliaryNativeWindowLifecycle::Retiring;
         self.recovery_rebuild_pending = false;
         self.hide();
@@ -2229,6 +2256,9 @@ where
                         self.core.has_frame_gpu_timing_observer(),
                         owner.clone(),
                     );
+                    if let Some(broker) = self.shared_signal_summary_broker() {
+                        window.runner.install_signal_summary_broker(broker);
+                    }
                     window.runner.core.runtime.bridge_mut().command_service =
                         command_service.clone();
                     window.runner.native_ime_adapter_observer_enabled =

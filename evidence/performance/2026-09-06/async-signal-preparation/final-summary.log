@@ -1,0 +1,61 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1456-async-signal-summaries-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 50s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 47 tests
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::cancelled_terminal_does_not_notify_interested_targets ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::cancelled_dispatch_publishes_terminal_before_wake ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::releasing_queued_source_reclaims_exact_queue_capacity ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::coalesces_targets_and_ignores_viewport ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::rejected_dispatch_releases_active_slot ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::failed_source_replacement_wakes_maintenance_before_capacity_is_reclaimed ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::caps_and_checked_bytes_reject_admission ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::cancelled_completion_with_full_queue_retries_after_capacity_recovers ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::close_and_recreate_target_only_notifies_current_epoch ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::revived_queued_source_waits_when_queue_is_temporarily_full ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::retired_bytes_remain_until_lease_drops_and_maintenance_runs ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::retired_leases_wake_but_ready_temporary_handles_do_not ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::reversed_worker_terminals_keep_exact_sources_and_release_slots ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::shutdown_cancels_active_workers_without_waiting ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::stable_target_request_does_not_cancel_active_work ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::waiting_marker_does_not_retain_denied_source ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_previews_outer_fade_extensions_as_crossfades ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_does_not_cap_gain_preview ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_smooths_high_band_center_neighbors ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_smooths_colored_bands_only_within_one_physical_pixel ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_has_no_summary_sample_scan_loop ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::concurrent_retired_lease_drops_leave_maintenance_wake_and_release_bytes ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_groups_projection_parameters ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_keeps_raw_carrier_nearest_bucket_and_reuses_precomputed_bands ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_uses_physical_width_and_nearest_lod_boundaries ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_uses_raw_peak_to_shape_colored_bands ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_uses_summary_sampling_without_looped_sample_scan ... ok
+test runtime::gpu_surface::signal_summary::tests::cancellable_summary_stops_before_work ... ok
+test runtime::gpu_surface::signal_summary::tests::cancellable_summary_does_not_publish_after_a_late_cancellation ... ok
+test runtime::gpu_surface::signal_summary::tests::cancellable_summary_stops_during_base_level ... ok
+test runtime::gpu_surface::signal_summary::tests::empty_signal_summary_level_lookup_defaults_to_zero ... ok
+test runtime::gpu_surface::signal_summary::tests::cancellable_summary_stops_during_merge_level ... ok
+test runtime::gpu_surface::signal_summary::tests::cancellable_summary_bounds_merge_probes_for_many_bands ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_presizes_level_vector_for_empty_input ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_presizes_level_vector_for_power_of_two_pyramid ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_base_level_maps_samples_without_merging ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_prepare::tests::maintenance_during_off_thread_last_drop_observes_released_token ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_merges_partial_higher_level_buckets ... ok
+test runtime::gpu_surface::signal_summary::tests::cancellable_summary_matches_legacy_output_without_cancellation ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::signal_summary_pyramid_preserves_band_min_max_and_level_selection ... ok
+test runtime::gpu_surface::content::tests::signal_shape::signal_summary_payload_must_match_declared_shape ... ok
+test runtime::gpu_surface::signal_summary::tests::signal_summary_level_lookup_uses_nearest_bucket_size ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_keeps_waveform_bands_visually_distinct ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_runtime::tests::stable_target_source_replacement_wakes_without_pending_retry_loop ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_runtime::tests::target_epoch_replacement_releases_the_old_registration ... ok
+test gui_runtime::native_vello::generic_runtime::signal_summary_runtime::tests::ready_waiting_retry_and_duplicate_install_work_stay_bounded ... ok
+test gui_runtime::native_vello::generic_runtime::tests::gpu_surface_runtime::signal_summary::gpu_signal_shader_parses_as_wgsl ... ok
+
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 4203 filtered out; finished in 0.03s
+

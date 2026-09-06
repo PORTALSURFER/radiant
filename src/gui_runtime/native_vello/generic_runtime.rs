@@ -341,6 +341,8 @@ mod runtime_helpers;
 mod runtime_wakeup;
 mod scene;
 mod scene_texture;
+mod signal_summary_prepare;
+mod signal_summary_runtime;
 mod submission_completion;
 mod surface;
 mod surface_size;
@@ -502,6 +504,10 @@ where
     let proxy = event_loop.create_proxy();
     let accessibility_display_observer = accessibility::install(proxy.clone());
     let repaint_signal: Arc<dyn RepaintSignal> = runner.runtime_wakeup.install_proxy(proxy);
+    let summary_signal = runner.runtime_wakeup.install_summary_work_signal();
+    runner.signal_summary_preparation = Some(
+        signal_summary_runtime::NativeSignalSummaryPreparation::new(summary_signal),
+    );
     runner
         .core
         .runtime

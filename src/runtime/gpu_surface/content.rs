@@ -28,7 +28,11 @@ pub enum GpuSurfaceContent {
         /// Shared RGBA atlas payload uploaded once per key/revision by native backends.
         atlas: Arc<ImageRgba>,
     },
-    /// Interleaved floating-point signal bands rendered directly at surface resolution.
+    /// Interleaved floating-point signal bands rendered at surface resolution.
+    ///
+    /// The native adapter prepares summaries through the parent runtime task host.
+    /// Until ready, or when that capability is unavailable, it uses the incomplete
+    /// surface fallback. Use `SignalSummaryBands` for caller-prepared summaries.
     SignalBands {
         /// Total frame count in the retained signal data.
         frames: usize,

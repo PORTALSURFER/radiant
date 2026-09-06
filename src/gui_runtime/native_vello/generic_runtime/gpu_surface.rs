@@ -16,6 +16,9 @@ use std::hash::{Hash, Hasher};
 use vello::wgpu;
 
 mod active_keys;
+#[cfg(test)]
+#[path = "gpu_surface/async_signal_native_tests.rs"]
+mod async_signal_native_tests;
 mod atlas;
 mod custom_shader;
 mod encoding;
@@ -644,13 +647,26 @@ impl GpuSurfaceRenderer {
         let cleanup_succeeded = transition_authorized
             && self.finish_resource_cleanup(plan_in_flight, upload_plan.as_mut());
         self.occlusion_regions = occlusion_regions;
-        // Legacy execution also needs to abort speculative ownership on failure.
+        // Shader rollback remains scoped to the speculative shader cache.
         let mut transaction_complete =
             cleanup_succeeded && stats.custom_shader.failures.surfaces_failed == 0;
-        if let Some(mut plan) = upload_plan.take() {
-            transaction_complete &= plan.finish_execution();
+        let signal_cleanup_committed = if let Some(mut plan) = upload_plan.take() {
+            let legacy_unmutated_fallback = !plan_in_flight && !plan.execution_mutated();
+            let finished = plan.finish_execution();
+            transaction_complete &= finished;
             self.upload_scratch.recycle_plan(plan);
+            // An unmutated veto may have executed the ordinary legacy path;
+            // its completed cleanup can release stale signal reservations.
+            finished || legacy_unmutated_fallback
+        } else {
+            true
+        };
+        if cleanup_succeeded && signal_cleanup_committed {
+            self.retire_stale_prepared_signals(primitives);
         }
+        // Preflight is consumed for this frame; its leases must not keep a
+        // cancelled source reserved until an unrelated future redraw.
+        self.upload_scratch.signal.release_prepared_summaries();
         self.resources
             .finish_custom_shader_transition(transaction_complete);
         stats
@@ -760,6 +776,7 @@ mod tests {
         NativeVisualRequestAdapter, NativeVisualRequestBegin, NativeVisualRequestMailbox,
     };
     use crate::gui_runtime::native_vello::generic_runtime::runner_state::NativeTargetGeneration;
+    use crate::gui_runtime::native_vello::generic_runtime::signal_summary_prepare::SummaryBroker;
     use crate::runtime::{GpuSignalSummary, GpuSurfaceCapabilities, PaintGpuSurface};
     use std::sync::Arc;
     use winit::window::WindowId;
@@ -774,6 +791,25 @@ mod tests {
             frames,
             band_count,
         }
+    }
+
+    fn prime_raw_summary(
+        renderer: &mut GpuSurfaceRenderer,
+        key: u64,
+        revision: u64,
+        samples: Arc<[f32]>,
+        frames: usize,
+        band_count: usize,
+    ) -> SummaryBroker {
+        let content = GpuSurfaceContent::SignalBands {
+            frames,
+            band_count,
+            frame_range: [0.0, frames as f32],
+            samples,
+        };
+        let (broker, prepared) = SummaryBroker::prepare_for_test(&content, revision);
+        assert!(renderer.install_prepared_signal_summary(key, revision, &content, prepared));
+        broker
     }
 
     fn upload_plan_context_for_test() -> GpuSurfaceRenderCanvasUploadPlanContext {
@@ -1095,7 +1131,6 @@ mod tests {
     fn signal_preflight_records_ordered_actions_without_live_mutation() {
         let mut renderer = GpuSurfaceRenderer::default();
         let context = upload_plan_context_for_test();
-        let before_fingerprint = renderer.upload_plan_state_fingerprint();
         let samples: Arc<[f32]> = [0.0, 1.0, -0.5, 0.25].into();
         let primitives = [PaintPrimitive::GpuSurface(PaintGpuSurface {
             widget_id: 2,
@@ -1106,11 +1141,14 @@ mod tests {
                 frames: 4,
                 band_count: 1,
                 frame_range: [0.0, 4.0],
-                samples,
+                samples: samples.clone(),
             },
             capabilities: GpuSurfaceCapabilities::default(),
             overlays: Vec::new(),
         })];
+
+        let _broker = prime_raw_summary(&mut renderer, 73, 11, samples, 4, 1);
+        let before_fingerprint = renderer.upload_plan_state_fingerprint();
 
         let plan = renderer.preflight_render_canvas_upload_plan_with_dpi_scale(
             context,
@@ -1147,7 +1185,7 @@ mod tests {
             GpuSurfaceRenderCanvasUploadAction::SignalSummary {
                 surface_index: 0,
                 key: 73,
-                operation: GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Build,
+                operation: GpuSurfaceRenderCanvasUploadSignalSummaryOperation::Reuse,
                 ..
             }
         ));
@@ -1237,7 +1275,7 @@ mod tests {
         assert!(renderer.signal_pipeline.is_none());
         assert!(renderer.resources.signals.is_empty());
         assert!(renderer.resources.signal_bodies.is_empty());
-        assert!(renderer.resources.signal_summaries.is_empty());
+        assert_eq!(renderer.resources.signal_summaries.len(), 1);
         assert!(renderer.resources.signal_summary_validations.is_empty());
         assert!(renderer.resources.composite_bindings.is_empty());
         let signal_residency = renderer.signal_residency_snapshot();
@@ -1823,16 +1861,7 @@ mod tests {
         ] {
             let mut renderer = GpuSurfaceRenderer::default();
             let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
-            let mut stats = GpuSurfaceRenderStats::default();
-            renderer.cached_signal_summary(CachedSignalSummaryRequest {
-                key: 99,
-                revision: 1,
-                source_identity: signal_source_identity(&samples, 4, 1),
-                frames: 4,
-                band_count: 1,
-                samples: &samples,
-                stats: &mut stats,
-            });
+            let _broker = prime_raw_summary(&mut renderer, 99, 1, samples, 4, 1);
 
             let context = upload_plan_context_for_test();
             let stream = [0_u8; 1];
@@ -1900,6 +1929,8 @@ mod tests {
             stats: &mut stats,
         });
 
+        let _first_broker = prime_raw_summary(&mut renderer, 7, 1, Arc::clone(&samples), 4, 1);
+        let _second_broker = prime_raw_summary(&mut renderer, 8, 1, Arc::clone(&samples), 4, 1);
         renderer.active_keys.mark_active(8);
         renderer.prune_inactive_resources();
 
@@ -1913,15 +1944,16 @@ mod tests {
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        let summary = renderer.cached_signal_summary(CachedSignalSummaryRequest {
-            key: 7,
-            revision: 1,
-            source_identity: signal_source_identity(&samples, 4, 1),
-            frames: 4,
-            band_count: 1,
-            samples: &samples,
-            stats: &mut stats,
-        });
+        let _broker = prime_raw_summary(&mut renderer, 7, 1, Arc::clone(&samples), 4, 1);
+        let summary = Arc::clone(
+            renderer
+                .resources
+                .signal_summaries
+                .get(&7)
+                .expect("installed prepared summary")
+                .prepared
+                .summary(),
+        );
         let surface = crate::runtime::PaintGpuSurface {
             widget_id: 7,
             key: 7,

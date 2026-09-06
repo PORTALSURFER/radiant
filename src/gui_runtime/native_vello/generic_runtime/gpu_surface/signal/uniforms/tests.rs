@@ -40,6 +40,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
     });
 
     let source = SignalRenderSource {
+        prepared: None,
         shape,
         summary: Arc::new(GpuSignalSummary {
             frames: shape.frames,

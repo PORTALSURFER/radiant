@@ -4,6 +4,9 @@
 //! ignored in the normal headless suite and fail explicitly when a requested
 //! native adapter is unavailable.
 
+use super::upload_plan::{
+    GpuSurfaceRenderCanvasUploadClass, GpuSurfaceRenderCanvasUploadCustomPresentationSource,
+};
 use super::*;
 use crate::gui::repaint::RepaintSignal;
 use crate::gui::types::{Point, Rect, Vector2};

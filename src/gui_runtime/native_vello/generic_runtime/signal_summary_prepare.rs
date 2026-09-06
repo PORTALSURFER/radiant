@@ -858,8 +858,8 @@ impl SummaryBroker {
             }
         }
         self.sync_tiles();
-        notify.sort_unstable_by_key(|target| target.serial);
-        notify.dedup();
+        let mut seen = std::collections::HashSet::new();
+        notify.retain(|target| seen.insert(*target));
         notify
     }
 

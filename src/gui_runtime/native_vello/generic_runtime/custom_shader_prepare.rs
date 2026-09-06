@@ -792,12 +792,20 @@ mod tests {
     }
 
     fn request(device: &wgpu::Device, number: usize) -> CustomShaderPreparationRequest {
+        request_with_identity(device, device as *const wgpu::Device as usize, number)
+    }
+
+    fn request_with_identity(
+        device: &wgpu::Device,
+        device_identity: usize,
+        number: usize,
+    ) -> CustomShaderPreparationRequest {
         let source = format!(
             "@vertex fn vertex_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {{ let x = f32(i); return vec4<f32>(x, 0.0, 0.0, 1.0); }}\n@fragment fn fragment_main() -> @location(0) vec4<f32> {{ return vec4<f32>({number}.0, 0.0, 0.0, 1.0); }}"
         );
         CustomShaderPreparationRequest::new(
             device.clone(),
-            71,
+            device_identity,
             NativeAdapterGeneration::from_test_serial(1),
             wgpu::TextureFormat::Rgba8Unorm,
             CustomShaderPipelineKey {
@@ -941,5 +949,48 @@ mod tests {
         drop(prepared);
         broker.maintain_retired();
         assert_eq!(broker.capacity_status().entries, 0);
+    }
+
+    #[test]
+    #[ignore = "requires two native WGPU devices"]
+    fn native_scheduler_rotates_a_device_blocked_queue_entry() {
+        let first_device = native_device();
+        let second_device = native_device();
+        let first_identity = &first_device as *const wgpu::Device as usize;
+        let second_identity = &second_device as *const wgpu::Device as usize;
+        assert_ne!(first_identity, second_identity);
+        let mut broker =
+            CustomShaderPreparationBroker::new(Arc::new(CountingWake(AtomicUsize::new(0))));
+        let first = target(61);
+        let blocked = target(62);
+        let runnable = target(63);
+        assert_eq!(
+            broker.request(
+                first,
+                request_with_identity(&first_device, first_identity, 61)
+            ),
+            CustomShaderPreparationState::Pending
+        );
+        let active = broker.take_dispatch().expect("first active job");
+        assert_eq!(
+            broker.request(
+                blocked,
+                request_with_identity(&first_device, first_identity, 62)
+            ),
+            CustomShaderPreparationState::Pending
+        );
+        assert_eq!(
+            broker.request(
+                runnable,
+                request_with_identity(&second_device, second_identity, 63)
+            ),
+            CustomShaderPreparationState::Pending
+        );
+        let rotated = broker
+            .take_dispatch()
+            .expect("second-device job after rotation");
+        assert_eq!(rotated.key.device_identity, second_identity);
+        broker.reject_dispatch(rotated.id());
+        broker.reject_dispatch(active.id());
     }
 }

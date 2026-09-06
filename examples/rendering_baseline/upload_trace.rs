@@ -179,7 +179,8 @@ impl Subscriber for UploadTraceSubscriber {
     fn record_follows_from(&self, _: &Id, _: &Id) {}
 
     fn event(&self, event: &Event<'_>) {
-        if !is_upload_event(event.metadata()) {
+        // Name the tracing API explicitly; this reads static event metadata.
+        if !is_upload_event(Event::metadata(event)) {
             return;
         }
         let mut captured = UploadTraceEvent::default();

@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 mod builders;
 mod command_scopes;
+mod focus_scopes;
 pub(in crate::runtime) use command_scopes::SurfaceCommandScopes;
+pub(in crate::runtime) use focus_scopes::SurfaceFocusScopes;
 mod dispatch;
 mod focus;
 mod frame;

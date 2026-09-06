@@ -529,12 +529,58 @@ where
         &mut self,
         direction: FocusTraversal,
     ) -> SequentialFocusTraversalDisposition {
+        let scope = match self.active_focus_scope() {
+            Ok(scope) => scope,
+            Err(()) => return SequentialFocusTraversalDisposition::Invalidated,
+        };
+        let mut scoped_order = Vec::new();
+        let (order, wrap) = if let Some((scope, policy)) = scope {
+            if self.traversal.widgets.mixed_focus_order.is_empty() {
+                scoped_order.extend(
+                    self.traversal
+                        .widgets
+                        .keyboard_focus
+                        .order()
+                        .iter()
+                        .copied()
+                        .filter(|id| self.traversal.focus_scopes.contains(scope, *id))
+                        .map(RuntimeFocusOrderEntry::Widget),
+                );
+            } else {
+                scoped_order.extend(
+                    self.traversal
+                        .widgets
+                        .mixed_focus_order
+                        .iter()
+                        .copied()
+                        .filter(|entry| {
+                            let node = match entry {
+                                RuntimeFocusOrderEntry::Widget(id) => *id,
+                                RuntimeFocusOrderEntry::SplitPaneSeparator(projection) => {
+                                    projection.target.container_id
+                                }
+                            };
+                            self.traversal.focus_scopes.contains(scope, node)
+                        }),
+                );
+            }
+            if scoped_order.is_empty() {
+                return SequentialFocusTraversalDisposition::NoDestination;
+            }
+            (
+                scoped_order.as_slice(),
+                policy.boundary == crate::runtime::FocusScopeBoundary::Wrap,
+            )
+        } else {
+            (self.traversal.widgets.mixed_focus_order.as_slice(), true)
+        };
         let Some(next) = next_focus_entry(
             self.interaction.focus.owner,
-            &self.traversal.widgets.mixed_focus_order,
+            order,
             self.traversal.widgets.keyboard_focus.order(),
             self.traversal.widgets.keyboard_focus.rank(),
             direction,
+            wrap,
         ) else {
             return SequentialFocusTraversalDisposition::NoDestination;
         };
@@ -562,7 +608,8 @@ where
 
     /// Move keyboard focus through the current committed traversal sequence.
     ///
-    /// Traversal uses stable tree order and wraps at either end. Runtime-owned
+    /// Traversal uses stable tree order. Without a declared scope it wraps at either
+    /// end; the nearest scope can instead stop at its boundary. Runtime-owned
     /// split separators may be private stops in that sequence; selecting one
     /// installs its private focus owner and returns `None` because this public
     /// compatibility projection reports widget destinations only. A widget
@@ -1182,6 +1229,7 @@ fn next_focus_entry(
     widget_order: &[WidgetId],
     widget_rank: &HashMap<WidgetId, usize>,
     direction: FocusTraversal,
+    wrap: bool,
 ) -> Option<RuntimeFocusOrderEntry> {
     if mixed_order.is_empty() {
         return next_focus_target(
@@ -1216,6 +1264,10 @@ fn next_focus_entry(
         })
     });
     let next_index = match (current_index, direction) {
+        (Some(index), FocusTraversal::Forward) if !wrap && index + 1 == mixed_order.len() => {
+            return None;
+        }
+        (Some(0), FocusTraversal::Backward) if !wrap => return None,
         (Some(index), FocusTraversal::Forward) => (index + 1) % mixed_order.len(),
         (Some(0), FocusTraversal::Backward) => mixed_order.len() - 1,
         (Some(index), FocusTraversal::Backward) => index - 1,

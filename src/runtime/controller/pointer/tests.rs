@@ -8580,3 +8580,50 @@ fn separator_bookmarks_restore_current_mount_but_cannot_alias_remounts() {
         FocusTransferOutcome::Stale
     );
 }
+
+#[test]
+fn scoped_prepared_surface_keeps_separator_order_and_boundary_policy() {
+    use crate::{
+        application::ViewNode,
+        runtime::{FocusScope, FocusScopeBoundary, FocusTransferOutcome},
+    };
+    let mut source =
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_focusable_panes();
+    let node = source.project_surface().root().clone();
+    let mut runtime = SurfaceRuntime::new(
+        crate::app(false)
+            .view(move |wrap: &bool| {
+                ViewNode::from(node.clone()).focus_scope(FocusScope::sequential().boundary(
+                    if *wrap {
+                        FocusScopeBoundary::Wrap
+                    } else {
+                        FocusScopeBoundary::Stop
+                    },
+                ))
+            })
+            .update(|wrap, _| *wrap = true)
+            .into_bridge(),
+        Vector2::new(200.0, 80.0),
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(2)
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::AdmittedRuntimeOwned
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(3)
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::NoDestination
+    );
+    runtime.dispatch_message(());
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(2)
+    );
+}

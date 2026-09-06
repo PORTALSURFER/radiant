@@ -181,6 +181,7 @@ impl SourceTopology {
 #[derive(Clone, Debug)]
 pub(crate) struct SourceMetadata {
     pub(crate) command_incarnation: Option<u64>,
+    pub(crate) focus_scope: Option<crate::runtime::FocusScope>,
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
     pub(crate) topology: SourceTopology,
@@ -189,6 +190,7 @@ pub(crate) struct SourceMetadata {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrozenSourceMetadata {
     pub(crate) command_incarnation: Option<u64>,
+    pub(crate) focus_scope: Option<crate::runtime::FocusScope>,
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
     pub(crate) keyed_nodes: Vec<(
@@ -203,6 +205,7 @@ impl FrozenSourceMetadata {
     pub(crate) fn empty() -> Self {
         Self {
             command_incarnation: None,
+            focus_scope: None,
             identity: SourceIdentity {
                 resolved_id: 0,
                 structural_scope: 0,
@@ -220,6 +223,7 @@ impl SourceMetadata {
     pub(crate) fn freeze(&self) -> FrozenSourceMetadata {
         FrozenSourceMetadata {
             command_incarnation: self.command_incarnation,
+            focus_scope: self.focus_scope,
             identity: self.identity,
             compatibility: self.compatibility,
             keyed_nodes: self
@@ -241,6 +245,7 @@ impl SourceMetadata {
     ) -> Self {
         Self {
             command_incarnation: None,
+            focus_scope: None,
             identity,
             compatibility,
             topology,
@@ -257,6 +262,7 @@ impl SourceMetadata {
 pub(crate) fn source_metadata_matches(first: &SourceMetadata, second: &SourceMetadata) -> bool {
     first.identity == second.identity
         && first.command_incarnation == second.command_incarnation
+        && first.focus_scope == second.focus_scope
         && first.compatibility == second.compatibility
         && source_topology_matches(&first.topology, &second.topology)
 }

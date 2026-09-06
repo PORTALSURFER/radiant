@@ -40,7 +40,10 @@ fn visit<Message>(
     }
     let previous_source = previous.source_metadata_handle()?;
     let current_source = current.source_metadata_handle()?;
-    if !source_metadata_matches(&previous_source, &current_source) {
+    if !source_metadata_matches(&previous_source, &current_source)
+        || previous.animation_declaration_present()
+        || current.animation_declaration_present()
+    {
         return None;
     }
     match (previous, current) {

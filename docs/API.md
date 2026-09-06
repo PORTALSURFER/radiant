@@ -4381,6 +4381,12 @@ radiant::app(state)
     .run();
 ```
 
+For runtime-owned declarative transitions, use `ViewNode::animatable` and the
+`animation::Animatable` capability. Its accepted targets use the central bounded
+animator, with pure paint/layout callbacks, shared feedback phases, reduced
+motion and visibility handling. See [Declarative animation](DECLARATIVE_ANIMATION.md)
+and the headless `declarative_animation` example.
+
 `FrameClock` is for host-state frame messages. `TransientOverlay` is for
 paint-only presentation work over the cached surface, and a `Presentation` can
 declare multiple keyed overlays in order with repeated

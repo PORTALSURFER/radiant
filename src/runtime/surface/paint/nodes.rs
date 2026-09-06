@@ -126,6 +126,20 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Container(container) => {
                 container.append_chrome_paint(context, plan);
+                if let (Some(animation), Some(bounds)) = (
+                    container.animation.as_ref(),
+                    context.layout.rects.get(&container.id).copied(),
+                ) {
+                    animation.append_paint(
+                        crate::animation::AnimationValues::new(&container.animation_values),
+                        crate::animation::AnimationPaintContext {
+                            bounds,
+                            theme: context.theme,
+                            environment: &context.environment,
+                        },
+                        &mut plan.primitives,
+                    );
+                }
                 if container.is_scroll_view() {
                     if let Some(clip_rect) = container.begin_scroll_clip(context, plan) {
                         let clipped_context = context.clipped_to(clip_rect);

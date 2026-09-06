@@ -54,6 +54,10 @@ impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn set_animation_hidden(&mut self, hidden: bool) {
+        self.runtime.set_animation_hidden(hidden);
+    }
+
     pub(super) fn timed_repaint_deadline(&self) -> Option<Instant> {
         self.runtime.timed_repaint_deadline()
     }

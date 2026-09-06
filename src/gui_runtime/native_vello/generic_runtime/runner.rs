@@ -1516,6 +1516,7 @@ where
             let _ = self.native_lifecycle.finish_recovery();
             return false;
         }
+        self.sync_declarative_animation_visibility();
         self.clear_cpu_frame_observation();
         self.fence_native_presentation();
         true
@@ -1545,6 +1546,7 @@ where
             return false;
         }
         if self.native_lifecycle.finish_recovery() {
+            self.sync_declarative_animation_visibility();
             return true;
         }
         let _ = self.core.begin_native_recovery();
@@ -3112,6 +3114,7 @@ where
     /// lifecycle recovery.  Eligibility never reads host visibility back.
     pub(super) fn set_native_window_visibility(&mut self, visible: bool) {
         self.window.logical_window_visible = visible;
+        self.sync_declarative_animation_visibility();
         if self.is_running() {
             self.apply_native_window_visibility(visible);
         }
@@ -3146,6 +3149,14 @@ where
         self.window.native_visual_requests.resume()
     }
 
+    pub(super) fn sync_declarative_animation_visibility(&mut self) {
+        self.core.set_animation_hidden(
+            !self.window.logical_window_visible
+                || self.window.surface_occluded
+                || !self.is_running(),
+        );
+    }
+
     pub(super) fn handle_surface_occlusion(&mut self, occluded: bool) {
         if occluded {
             self.window.surface_occluded = true;
@@ -3155,6 +3166,7 @@ where
             self.window.surface_occluded_by_acquire = false;
             self.request_redraw_after_surface_unoccluded();
         }
+        self.sync_declarative_animation_visibility();
     }
 
     /// Recover only a stale occlusion latch produced by surface acquisition.
@@ -3175,6 +3187,7 @@ where
     }
 
     fn request_redraw_after_surface_unoccluded(&mut self) {
+        self.sync_declarative_animation_visibility();
         let Some(window) = self.window.window.as_ref().cloned() else {
             return;
         };

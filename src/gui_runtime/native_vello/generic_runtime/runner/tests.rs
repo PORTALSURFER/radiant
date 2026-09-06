@@ -1680,21 +1680,46 @@ fn visibility_intent_survives_recovery_concealment_and_reapplies_after_success()
     assert!(!runner.window.logical_window_visible);
     runner.set_native_window_visibility(true);
     assert!(runner.window.logical_window_visible);
+    assert!(!runner.core.runtime.declarative_animation_status().hidden);
 
     assert!(runner.admit_device_recovery());
+    assert!(runner.core.runtime.declarative_animation_status().hidden);
     // Physical concealment must not erase the latest desired state.
     assert!(runner.window.logical_window_visible);
     assert!(runner.finish_device_recovery());
+    assert_eq!(
+        runner.core.runtime.declarative_animation_status().hidden,
+        !runner.window.logical_window_visible
+    );
     runner.apply_native_window_visibility(runner.window.logical_window_visible);
     assert!(runner.window.logical_window_visible);
 
     // An explicit hidden intent remains hidden through the same boundary.
     assert!(runner.admit_device_recovery());
+    assert!(runner.core.runtime.declarative_animation_status().hidden);
     runner.set_native_window_visibility(false);
     assert!(!runner.window.logical_window_visible);
     assert!(runner.finish_device_recovery());
+    assert_eq!(
+        runner.core.runtime.declarative_animation_status().hidden,
+        !runner.window.logical_window_visible
+    );
     runner.apply_native_window_visibility(runner.window.logical_window_visible);
     assert!(!runner.window.logical_window_visible);
+}
+
+#[test]
+fn declarative_animation_visibility_combines_occlusion_and_explicit_hide() {
+    let mut runner = runner();
+    runner.set_native_window_visibility(true);
+    assert!(!runner.core.runtime.declarative_animation_status().hidden);
+    runner.handle_surface_occlusion(true);
+    assert!(runner.core.runtime.declarative_animation_status().hidden);
+    runner.set_native_window_visibility(false);
+    runner.handle_surface_occlusion(false);
+    assert!(runner.core.runtime.declarative_animation_status().hidden);
+    runner.set_native_window_visibility(true);
+    assert!(!runner.core.runtime.declarative_animation_status().hidden);
 }
 
 #[test]

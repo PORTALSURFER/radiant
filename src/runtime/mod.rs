@@ -126,12 +126,13 @@ pub(crate) use controller::SequentialFocusTraversalDisposition;
 pub(crate) use controller::WheelOrScrollRoute;
 pub(crate) use controller::{AuxiliaryFocusRequest, AuxiliaryWindowOwner};
 pub use controller::{
-    CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
-    FocusBookmark, FocusBookmarkError, FocusDirection, FocusScope, FocusScopeBoundary, FocusTarget,
-    FocusTransferOutcome, FocusTraversal, GestureAdmission, GestureOutcome, GestureRequest,
-    GestureSequenceToken, IdentityAudit, PointerClickOutcome, PointerMoveOutcome, RuntimeContext,
-    RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollEditBatch, ScrollUpdate,
-    ScrollUpdateMetadata, SemanticActionOutcome, SemanticActionTarget, SurfaceIdentityDiagnostics,
+    CommandOutcome, DeclarativeAnimationStatus, DeclarativeOwnedSurfaceRuntime,
+    DeclarativeSurfaceRuntime, Event, FocusBookmark, FocusBookmarkError, FocusDirection,
+    FocusScope, FocusScopeBoundary, FocusTarget, FocusTransferOutcome, FocusTraversal,
+    GestureAdmission, GestureOutcome, GestureRequest, GestureSequenceToken, IdentityAudit,
+    PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
+    RuntimeSurfaceFrameRef, ScrollEditBatch, ScrollUpdate, ScrollUpdateMetadata,
+    SemanticActionOutcome, SemanticActionTarget, SurfaceIdentityDiagnostics,
     SurfaceIdentityOwnership, SurfaceIdentityPath, SurfaceIdentityReplacement,
     SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
     SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,

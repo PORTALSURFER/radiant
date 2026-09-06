@@ -78,6 +78,12 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
     pub(in crate::runtime::surface) command_scope:
         Option<crate::application::CommandScopeAttachment>,
+    pub(in crate::runtime::surface) animation: Option<Rc<dyn crate::animation::Animatable>>,
+    pub(in crate::runtime::surface) has_animation: bool,
+    pub(in crate::runtime::surface) animation_targets: Vec<crate::animation::AnimationTarget>,
+    pub(in crate::runtime::surface) animation_feedback: Vec<crate::animation::FeedbackAnimation>,
+    pub(in crate::runtime::surface) animation_valid: bool,
+    pub(in crate::runtime::surface) animation_values: Vec<(u64, f64)>,
 }
 
 /// Runtime-internal named construction fields for a [`SurfaceContainer`].
@@ -99,6 +105,10 @@ impl<Message> SurfaceContainer<Message> {
 
     /// Build a generic container node from runtime-internal named parts.
     pub(in crate::runtime) fn from_parts(parts: SurfaceContainerParts<Message>) -> Self {
+        let has_animation = parts
+            .children
+            .iter()
+            .any(|child| child.child.has_animation());
         Self {
             _ui_affinity: UiAffinity::new(),
             id: parts.id,
@@ -116,6 +126,12 @@ impl<Message> SurfaceContainer<Message> {
             children: parts.children.into(),
             source: None,
             command_scope: None,
+            animation: None,
+            has_animation,
+            animation_targets: Vec::new(),
+            animation_feedback: Vec::new(),
+            animation_valid: true,
+            animation_values: Vec::new(),
         }
     }
 
@@ -378,6 +394,37 @@ impl<Message> SurfaceNode<Message> {
             }
             node => node,
         }
+    }
+
+    pub(crate) fn with_animation(self, animation: Rc<dyn crate::animation::Animatable>) -> Self {
+        match self {
+            Self::Container(mut container) => {
+                let targets = animation.targets();
+                let feedback = animation.feedback();
+                container.animation_valid = targets.len().saturating_add(feedback.len()) <= 1024;
+                if container.animation_valid {
+                    container.animation_targets = targets.to_vec();
+                    container.animation_feedback = feedback.to_vec();
+                }
+                container.animation = Some(animation);
+                container.has_animation = true;
+                Self::Container(container)
+            }
+            node => node,
+        }
+    }
+
+    pub(crate) fn has_animation(&self) -> bool {
+        match self {
+            Self::Container(c) => c.has_animation,
+            Self::FloatingLayer(l) => l.container.has_animation,
+            Self::Scene(s) => s.has_animation,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn animation_declaration_present(&self) -> bool {
+        matches!(self, Self::Container(container) if container.animation.is_some())
     }
 
     pub(crate) fn with_split_pane_ratio_settled(

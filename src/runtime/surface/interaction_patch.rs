@@ -152,7 +152,9 @@ fn same_retained_container_ancestor<Message>(
     previous: &SurfaceContainer<Message>,
     current: &SurfaceContainer<Message>,
 ) -> bool {
-    previous.layout_policy.is_none()
+    !previous.has_animation
+        && !current.has_animation
+        && previous.layout_policy.is_none()
         && current.layout_policy.is_none()
         && previous.layout_capabilities.is_none()
         && current.layout_capabilities.is_none()

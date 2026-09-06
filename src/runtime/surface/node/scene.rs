@@ -7,6 +7,7 @@ use std::rc::Rc;
 pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
     pub(in crate::runtime::surface) id: NodeId,
+    pub(in crate::runtime::surface) has_animation: bool,
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
@@ -17,7 +18,12 @@ pub struct SurfaceScene<Message> {
 impl<Message> SurfaceScene<Message> {
     /// Build a surface scene.
     pub fn new(id: NodeId, base: SurfaceNode<Message>, layers: Vec<SurfaceLayer<Message>>) -> Self {
+        let has_animation = base.has_animation()
+            || layers.iter().any(|l| {
+                l.node.has_animation() || l.input.as_ref().is_some_and(SurfaceNode::has_animation)
+            });
         Self {
+            has_animation,
             _ui_affinity: UiAffinity::new(),
             id,
             base: Box::new(base),

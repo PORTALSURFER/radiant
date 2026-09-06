@@ -1,0 +1,26 @@
+   Compiling radiant-native-test-support v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1453-offscreen-baseline-radiant/crates/native-test-support)
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1453-offscreen-baseline-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 33s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 1 test
+test gui_runtime::native_vello::generic_runtime::gpu_surface::offscreen_signal_comparison::offscreen_signal_source_cache_comparison ... {"label":"baseline","case":"raw_initial","width":64,"height":64,"rgba_file":"baseline-signal-raw_initial.rgba","pixels_changed_from_previous":false,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":1,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"raw_nearby_pan","width":64,"height":64,"rgba_file":"baseline-signal-raw_nearby_pan.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":1,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"raw_interval_crossing","width":64,"height":64,"rgba_file":"baseline-signal-raw_interval_crossing.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":1,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"raw_lod_span","width":64,"height":64,"rgba_file":"baseline-signal-raw_lod_span.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":1,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"raw_source_replacement","width":64,"height":64,"rgba_file":"baseline-signal-raw_source_replacement.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":1,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"raw_revision","width":64,"height":64,"rgba_file":"baseline-signal-raw_revision.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":1,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"summary_initial","width":64,"height":64,"rgba_file":"baseline-signal-summary_initial.rgba","pixels_changed_from_previous":false,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":0,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"summary_gain_preview","width":64,"height":64,"rgba_file":"baseline-signal-summary_gain_preview.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":0,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"summary_fade_preview","width":64,"height":64,"rgba_file":"baseline-signal-summary_fade_preview.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":0,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+{"label":"baseline","case":"summary_nearby_pan","width":64,"height":64,"rgba_file":"baseline-signal-summary_nearby_pan.rgba","pixels_changed_from_previous":true,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":0,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4196 filtered out; finished in 0.64s
+

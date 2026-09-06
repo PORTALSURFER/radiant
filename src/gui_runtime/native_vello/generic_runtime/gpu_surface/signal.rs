@@ -4,8 +4,8 @@ use super::gpu_surface_types::{
     CachedSignalSummaryValidation, GpuSurfaceCompositeBindingKey, GpuSurfaceTextureIdentity,
     SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBufferCacheKey, SignalUniforms,
 };
-use super::identity::RenderCanvasContentIdentity;
 use super::identity::RenderCanvasContentOwner;
+use super::identity::{RenderCanvasContentIdentity, SignalSourceIdentity};
 use super::passes::surface_pixel_extent;
 use super::stats::GpuSurfaceRenderStats;
 use super::upload_plan::{
@@ -67,7 +67,7 @@ struct SignalBodyKeyRequest<'a> {
 #[derive(Clone)]
 struct SignalSummaryPreflightIdentity {
     revision: u64,
-    content_identity: RenderCanvasContentIdentity,
+    source_identity: SignalSourceIdentity,
     frames: usize,
     band_count: usize,
     sample_count: usize,
@@ -187,8 +187,13 @@ impl SignalUploadPreflightState {
         Arc<GpuSignalSummary>,
         GpuSurfaceRenderCanvasUploadSignalSummaryOperation,
     ) {
-        let samples = match &surface.content {
-            GpuSurfaceContent::SignalBands { samples, .. } => samples,
+        let (samples, frames, band_count) = match &surface.content {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => (samples, *frames, *band_count),
             GpuSurfaceContent::SignalSummaryBands { summary, .. } => {
                 return (
                     Arc::clone(summary),
@@ -206,7 +211,7 @@ impl SignalUploadPreflightState {
                 );
             }
         };
-        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let source_identity = SignalSourceIdentity::samples(samples, frames, band_count);
         let sample_count = samples.len();
         let cached = self.summaries.get(&surface.key).cloned().or_else(|| {
             renderer
@@ -215,7 +220,7 @@ impl SignalUploadPreflightState {
                 .get(&surface.key)
                 .map(|cached| SignalSummaryPreflightIdentity {
                     revision: cached.revision,
-                    content_identity: cached.content_identity,
+                    source_identity: cached.source_identity,
                     frames: cached.frames,
                     band_count: cached.band_count,
                     sample_count: cached.sample_count,
@@ -224,7 +229,7 @@ impl SignalUploadPreflightState {
         });
         if let Some(cached) = cached
             && cached.revision == surface.revision
-            && cached.content_identity == content_identity
+            && cached.source_identity == source_identity
             && cached.frames == shape.frames
             && cached.band_count == shape.band_count
             && cached.sample_count == sample_count
@@ -243,7 +248,7 @@ impl SignalUploadPreflightState {
             surface.key,
             SignalSummaryPreflightIdentity {
                 revision: surface.revision,
-                content_identity,
+                source_identity,
                 frames: shape.frames,
                 band_count: shape.band_count,
                 sample_count,
@@ -439,18 +444,21 @@ impl GpuSurfaceRenderer {
                 };
             }
         };
-        if matches!(&surface.content, GpuSurfaceContent::SignalBands { .. }) {
+        if let GpuSurfaceContent::SignalBands {
+            samples,
+            frames,
+            band_count,
+            ..
+        } = &surface.content
+        {
             actions.push(GpuSurfaceRenderCanvasUploadAction::SignalSummary {
                 surface_index,
                 key: surface.key,
                 revision: surface.revision,
-                content_identity: RenderCanvasContentIdentity::from_content(&surface.content),
+                source_identity: SignalSourceIdentity::samples(samples, *frames, *band_count),
                 frames: shape.frames,
                 band_count: shape.band_count,
-                sample_count: match &surface.content {
-                    GpuSurfaceContent::SignalBands { samples, .. } => samples.len(),
-                    _ => 0,
-                },
+                sample_count: samples.len(),
                 operation: summary_operation,
             });
         }
@@ -470,10 +478,29 @@ impl GpuSurfaceRenderer {
             composite_state.ensure_pipeline(self, target.device, target.format);
         let (signal_pipeline_generation, signal_pipeline_rebuild) =
             signal_state.ensure_pipeline(self, target.device, wgpu::TextureFormat::Rgba8Unorm);
-        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let source_identity = match &surface.content {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::samples(samples, *frames, *band_count),
+            GpuSurfaceContent::SignalSummaryBands {
+                summary,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::summary(summary, *frames, *band_count),
+            GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
+                return SignalUploadPreflight {
+                    renderable: false,
+                    unavailable: Some(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid),
+                };
+            }
+        };
         let buffer_cache_key = SignalBufferCacheKey::new(
             surface.revision,
-            content_identity,
+            source_identity,
             body.level_index,
             body.bucket_start,
             body.bucket_count,
@@ -650,10 +677,29 @@ impl GpuSurfaceRenderer {
             }
             return true;
         };
-        let content_identity = RenderCanvasContentIdentity::from_content(&surface.content);
+        let source_identity = match &surface.content {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::samples(samples, *frames, *band_count),
+            GpuSurfaceContent::SignalSummaryBands {
+                summary,
+                frames,
+                band_count,
+                ..
+            } => SignalSourceIdentity::summary(summary, *frames, *band_count),
+            GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
+                stats.mark_candidate_unavailable(
+                    GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Invalid,
+                );
+                return true;
+            }
+        };
         let buffer_cache_key = SignalBufferCacheKey::new(
             surface.revision,
-            content_identity,
+            source_identity,
             body.level_index,
             body.bucket_start,
             body.bucket_count,
@@ -876,7 +922,12 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) -> Option<SignalRenderSource> {
         let summary = match &surface.content {
-            GpuSurfaceContent::SignalBands { samples, .. } => {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => {
                 if let Some(plan) = upload_plan {
                     let Some(execution) = plan.consume_signal_summary(surface_index, surface.key)
                     else {
@@ -885,18 +936,18 @@ impl GpuSurfaceRenderer {
                         );
                         return None;
                     };
-                    let content_identity =
-                        RenderCanvasContentIdentity::from_content(&surface.content);
+                    let source_identity =
+                        SignalSourceIdentity::samples(samples, *frames, *band_count);
                     let expected_operation = self.signal_summary_cache_operation(
                         surface.key,
                         surface.revision,
-                        content_identity,
+                        source_identity,
                         shape.frames,
                         shape.band_count,
                         samples.len(),
                     );
                     if execution.revision != surface.revision
-                        || execution.content_identity != content_identity
+                        || execution.source_identity != source_identity
                         || execution.frames != shape.frames
                         || execution.band_count != shape.band_count
                         || execution.sample_count != samples.len()
@@ -919,7 +970,7 @@ impl GpuSurfaceRenderer {
                 self.cached_signal_summary(super::resources::CachedSignalSummaryRequest {
                     key: surface.key,
                     revision: surface.revision,
-                    content_identity: RenderCanvasContentIdentity::from_content(&surface.content),
+                    source_identity: SignalSourceIdentity::samples(samples, *frames, *band_count),
                     frames: shape.frames,
                     band_count: shape.band_count,
                     samples,
@@ -1299,6 +1350,190 @@ mod tests {
             capabilities: GpuSurfaceCapabilities::default(),
             overlays: Vec::new(),
         }
+    }
+
+    fn signal_preflight_actions(
+        renderer: &GpuSurfaceRenderer,
+        state: &mut SignalUploadPreflightState,
+        surface: &PaintGpuSurface,
+    ) -> Vec<GpuSurfaceRenderCanvasUploadAction> {
+        let mut composite_state = AtlasUploadPreflightState::default();
+        let mut actions = Vec::new();
+        let result = renderer.preflight_signal_upload_actions(
+            GpuSurfaceRenderCanvasUploadTarget::new(7, wgpu::TextureFormat::Bgra8Unorm, 640, 200),
+            DpiScale::ONE,
+            0,
+            surface,
+            SignalUploadPreflightContext {
+                composite_state: &mut composite_state,
+                signal_state: state,
+                actions: &mut actions,
+            },
+        );
+        assert!(result.renderable);
+        assert_eq!(result.unavailable, None);
+        actions
+    }
+
+    fn signal_buffer_action(
+        actions: &[GpuSurfaceRenderCanvasUploadAction],
+    ) -> (
+        SignalBufferCacheKey,
+        GpuSurfaceRenderCanvasUploadSignalBufferOperation,
+    ) {
+        actions
+            .iter()
+            .find_map(|action| match action {
+                GpuSurfaceRenderCanvasUploadAction::SignalBuffer {
+                    cache_key,
+                    operation,
+                    ..
+                } => Some((*cache_key, *operation)),
+                _ => None,
+            })
+            .expect("signal buffer action")
+    }
+
+    fn signal_body_operation(
+        actions: &[GpuSurfaceRenderCanvasUploadAction],
+    ) -> GpuSurfaceRenderCanvasUploadSignalBodyOperation {
+        actions
+            .iter()
+            .find_map(|action| match action {
+                GpuSurfaceRenderCanvasUploadAction::SignalBody { operation, .. } => {
+                    Some(*operation)
+                }
+                _ => None,
+            })
+            .expect("signal body action")
+    }
+
+    fn uploads_of_class(
+        actions: &[GpuSurfaceRenderCanvasUploadAction],
+        class: GpuSurfaceRenderCanvasUploadClass,
+    ) -> usize {
+        actions
+            .iter()
+            .filter(|action| {
+                matches!(
+                    action,
+                    GpuSurfaceRenderCanvasUploadAction::Upload {
+                        class: action_class,
+                        ..
+                    } if *action_class == class
+                )
+            })
+            .count()
+    }
+
+    #[test]
+    fn signal_preflight_reuses_bucket_data_for_nearby_presentation_updates() {
+        let samples = vec![0.25; 4_096];
+        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            &samples, 4_096, 1,
+        ));
+        let first = summary_surface(7, 4_096, 1, Arc::clone(&summary));
+        let mut presented = first.clone();
+        let GpuSurfaceContent::SignalSummaryBands {
+            frame_range,
+            gain_preview,
+            ..
+        } = &mut presented.content
+        else {
+            unreachable!()
+        };
+        *frame_range = [200.4, 403.4];
+        *gain_preview = Some(GpuSignalGainPreview {
+            start: 200.4,
+            end: 403.4,
+            gain: 0.75,
+            fade_in_length: 4.0,
+            fade_in_curve: 0.5,
+            fade_in_mute: 0.0,
+            fade_in_outer_gain: 1.0,
+            fade_out_length: 4.0,
+            fade_out_curve: 0.5,
+            fade_out_mute: 0.0,
+            fade_out_outer_gain: 1.0,
+        });
+        let mut first = first;
+        let GpuSurfaceContent::SignalSummaryBands { frame_range, .. } = &mut first.content else {
+            unreachable!()
+        };
+        *frame_range = [200.2, 403.2];
+
+        let renderer = GpuSurfaceRenderer::default();
+        let mut state = SignalUploadPreflightState::default();
+        let initial_actions = signal_preflight_actions(&renderer, &mut state, &first);
+        let presented_actions = signal_preflight_actions(&renderer, &mut state, &presented);
+
+        assert_eq!(
+            signal_buffer_action(&initial_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Upload
+        );
+        assert_eq!(
+            signal_buffer_action(&presented_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Reuse
+        );
+        assert_eq!(
+            signal_body_operation(&presented_actions),
+            GpuSurfaceRenderCanvasUploadSignalBodyOperation::Render
+        );
+        assert_eq!(
+            uploads_of_class(
+                &presented_actions,
+                GpuSurfaceRenderCanvasUploadClass::ImmutablePayload
+            ),
+            0
+        );
+        assert_eq!(
+            uploads_of_class(
+                &presented_actions,
+                GpuSurfaceRenderCanvasUploadClass::RendererParameter
+            ),
+            2
+        );
+    }
+
+    #[test]
+    fn signal_preflight_reuploads_bucket_data_when_window_or_detail_changes() {
+        let samples = vec![0.25; 4_096];
+        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            &samples, 4_096, 1,
+        ));
+        let mut first = summary_surface(7, 4_096, 1, Arc::clone(&summary));
+        let GpuSurfaceContent::SignalSummaryBands { frame_range, .. } = &mut first.content else {
+            unreachable!()
+        };
+        *frame_range = [200.2, 403.2];
+        let mut crossed_window = first.clone();
+        let GpuSurfaceContent::SignalSummaryBands { frame_range, .. } = &mut crossed_window.content
+        else {
+            unreachable!()
+        };
+        *frame_range = [600.2, 803.2];
+        let mut changed_detail = first.clone();
+        changed_detail.rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(64.0, 200.0));
+
+        let renderer = GpuSurfaceRenderer::default();
+        let mut state = SignalUploadPreflightState::default();
+        let first_actions = signal_preflight_actions(&renderer, &mut state, &first);
+        let window_actions = signal_preflight_actions(&renderer, &mut state, &crossed_window);
+        let detail_actions = signal_preflight_actions(&renderer, &mut state, &changed_detail);
+
+        let first_key = signal_buffer_action(&first_actions).0;
+        let window_key = signal_buffer_action(&window_actions).0;
+        let detail_key = signal_buffer_action(&detail_actions).0;
+        assert_ne!(first_key.bucket_start, window_key.bucket_start);
+        assert_eq!(
+            signal_buffer_action(&window_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Upload
+        );
+        assert_ne!(first_key.level_index, detail_key.level_index);
+        assert_eq!(
+            signal_buffer_action(&detail_actions).1,
+            GpuSurfaceRenderCanvasUploadSignalBufferOperation::Upload
+        );
     }
 
     #[test]

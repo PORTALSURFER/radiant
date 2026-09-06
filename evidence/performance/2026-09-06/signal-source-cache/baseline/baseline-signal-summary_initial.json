@@ -1,0 +1,1 @@
+{"label":"baseline","case":"summary_initial","width":64,"height":64,"rgba_file":"baseline-signal-summary_initial.rgba","pixels_changed_from_previous":false,"stats":{"immutable_payload":{"operations":1,"logical_bytes":2144},"signal":{"summary_builds":0,"summary_cache_hits":0,"body_renders":1,"body_cache_hits":0}}}

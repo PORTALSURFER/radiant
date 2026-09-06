@@ -5701,6 +5701,15 @@ or drag previews in overlays or paint-only repaint paths. This preserves one
 Radiant widget model instead of creating separate Vello and WGPU application
 models.
 
+The native signal renderer additionally separates its private immutable-source
+cache identity from the presentation identity used for the rendered body. A
+shared sample or summary allocation with the same declared shape can reuse its
+derived summary and uploaded bucket window while a changed visible range, gain
+preview, or slide offset still refreshes uniforms and invalidates the body.
+Source replacement, revision, detail level, or bucket-window changes rebuild
+the affected immutable data. This is an adapter detail; the public `key` and
+`revision` contract remains unchanged.
+
 That keyed/revision contract is the current supported 0.1.x contract. The
 target-only migration path is registered `CanvasProgram` plus immutable,
 typed, bounded `CanvasGraph`, reached provisionally with

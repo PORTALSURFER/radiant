@@ -65,6 +65,76 @@ pub(super) enum RenderCanvasContentIdentity {
     },
 }
 
+/// Immutable signal payload identity for resources whose contents do not
+/// depend on presentation state.  Kept separate from
+/// `RenderCanvasContentIdentity`: signal bodies must still invalidate for a
+/// changed frame range, gain preview, or sample slide, while summary and
+/// bucket-buffer reuse only depend on their immutable source and shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum SignalSourceIdentity {
+    Samples {
+        samples: usize,
+        frames: usize,
+        band_count: usize,
+    },
+    Summary {
+        summary: usize,
+        frames: usize,
+        band_count: usize,
+    },
+}
+
+impl SignalSourceIdentity {
+    pub(super) fn samples(samples: &Arc<[f32]>, frames: usize, band_count: usize) -> Self {
+        Self::Samples {
+            samples: arc_ptr(samples),
+            frames,
+            band_count,
+        }
+    }
+
+    pub(super) fn summary(
+        summary: &Arc<GpuSignalSummary>,
+        frames: usize,
+        band_count: usize,
+    ) -> Self {
+        Self::Summary {
+            summary: arc_ptr(summary),
+            frames,
+            band_count,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn from_content(content: &GpuSurfaceContent) -> Option<Self> {
+        match content {
+            GpuSurfaceContent::SignalBands {
+                samples,
+                frames,
+                band_count,
+                ..
+            } => Some(Self::samples(samples, *frames, *band_count)),
+            GpuSurfaceContent::SignalSummaryBands {
+                summary,
+                frames,
+                band_count,
+                ..
+            } => Some(Self::summary(summary, *frames, *band_count)),
+            GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => None,
+        }
+    }
+}
+
+impl Default for SignalSourceIdentity {
+    fn default() -> Self {
+        Self::Samples {
+            samples: 0,
+            frames: 0,
+            band_count: 0,
+        }
+    }
+}
+
 impl RenderCanvasContentIdentity {
     pub(super) fn from_content(content: &GpuSurfaceContent) -> Self {
         match content {
@@ -191,5 +261,31 @@ mod tests {
                 atlas: second,
             });
         assert_ne!(first_identity, second_identity);
+    }
+
+    #[test]
+    fn signal_source_identity_excludes_presentation_but_render_identity_keeps_it() {
+        let samples: Arc<[f32]> = [0.0, 0.5, -0.5, 1.0].into_iter().collect();
+        let first = GpuSurfaceContent::SignalBands {
+            frames: 4,
+            band_count: 1,
+            frame_range: [0.0, 2.0],
+            samples: Arc::clone(&samples),
+        };
+        let presented = GpuSurfaceContent::SignalBands {
+            frames: 4,
+            band_count: 1,
+            frame_range: [1.0, 3.0],
+            samples,
+        };
+
+        assert_eq!(
+            SignalSourceIdentity::from_content(&first),
+            SignalSourceIdentity::from_content(&presented)
+        );
+        assert_ne!(
+            RenderCanvasContentIdentity::from_content(&first),
+            RenderCanvasContentIdentity::from_content(&presented)
+        );
     }
 }

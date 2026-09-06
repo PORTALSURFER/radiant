@@ -1,4 +1,4 @@
-use super::super::super::identity::RenderCanvasContentIdentity;
+use super::super::super::identity::{RenderCanvasContentIdentity, SignalSourceIdentity};
 use super::super::super::passes::SurfacePixelExtent;
 use crate::runtime::GpuSignalGainPreview;
 
@@ -23,8 +23,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBufferCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) content_identity:
-        RenderCanvasContentIdentity,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) source_identity:
+        SignalSourceIdentity,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) level_index: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_start: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_count: usize,
@@ -34,14 +34,14 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
 impl SignalBufferCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn new(
         revision: u64,
-        content_identity: RenderCanvasContentIdentity,
+        source_identity: SignalSourceIdentity,
         level_index: usize,
         bucket_start: usize,
         bucket_count: usize,
     ) -> Self {
         Self {
             revision,
-            content_identity,
+            source_identity,
             level_index,
             bucket_start,
             bucket_count,
@@ -154,6 +154,24 @@ mod tests {
 
         assert_ne!(first, moved);
         assert_ne!(first, wider);
+    }
+
+    #[test]
+    fn signal_buffer_cache_key_tracks_immutable_source_identity() {
+        let samples = SignalSourceIdentity::Samples {
+            samples: 7,
+            frames: 128,
+            band_count: 2,
+        };
+        let replacement = SignalSourceIdentity::Samples {
+            samples: 8,
+            frames: 128,
+            band_count: 2,
+        };
+        let first = SignalBufferCacheKey::new(9, samples, 0, 4, 8);
+        let changed_source = SignalBufferCacheKey::new(9, replacement, 0, 4, 8);
+
+        assert_ne!(first, changed_source);
     }
 
     #[test]

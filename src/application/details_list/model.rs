@@ -1,5 +1,6 @@
 mod columns;
 mod drag;
+mod resize_edit;
 mod rows;
 mod sort;
 
@@ -15,3 +16,8 @@ pub use drag::{
 };
 pub use rows::{DetailsRow, DetailsRowParts};
 pub use sort::{DetailsSort, DetailsSortParts, SortDirection, details_sort_label};
+
+pub use resize_edit::{
+    DetailsColumnResizeEdit, DetailsColumnResizeEditBatch, details_column_width_edit,
+    update_details_column_resize_edit,
+};

@@ -3,12 +3,13 @@ mod view;
 
 pub use model::{
     DetailsColumn, DetailsColumnDragFeedback, DetailsColumnParts, DetailsColumnPlacement,
-    DetailsColumnReorderDrag, DetailsColumnResizeDrag, DetailsColumnWidthUpdate, DetailsRow,
-    DetailsRowParts, DetailsSort, DetailsSortParts, SortDirection,
-    details_column_drag_content_left, details_column_drag_feedback, details_column_reorder_index,
+    DetailsColumnReorderDrag, DetailsColumnResizeDrag, DetailsColumnResizeEdit,
+    DetailsColumnResizeEditBatch, DetailsColumnWidthUpdate, DetailsRow, DetailsRowParts,
+    DetailsSort, DetailsSortParts, SortDirection, details_column_drag_content_left,
+    details_column_drag_feedback, details_column_reorder_index, details_column_width_edit,
     details_sort_label, reorder_details_columns_by_id, reorder_visible_details_columns_by_id,
     update_details_column_reorder_drag, update_details_column_resize_drag,
-    update_visible_details_column_reorder_drag,
+    update_details_column_resize_edit, update_visible_details_column_reorder_drag,
 };
 pub use view::{
     CompactDetailsAnchoredCellBuilder, CompactDetailsAnchoredCellParts,

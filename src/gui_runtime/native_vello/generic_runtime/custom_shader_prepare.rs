@@ -325,6 +325,11 @@ impl CustomShaderPreparationBroker {
         target: CustomShaderTargetId,
         request: CustomShaderPreparationRequest,
     ) -> CustomShaderPreparationState {
+        // A result prepared for an old adapter is never admissible for this
+        // target, even if a caller accidentally reuses its surface serial.
+        if target.adapter_generation() != request.adapter_generation() {
+            return CustomShaderPreparationState::Unavailable;
+        }
         if matches!(self.interests.get(&target), Some(Interest::Entry(key)) if *key == request.key)
         {
             return self.state_for(&request.key);
@@ -363,10 +368,20 @@ impl CustomShaderPreparationBroker {
                     entry.state = EntryState::Failed(failure);
                     CustomShaderPreparationState::Unavailable
                 }
-                EntryState::Failed(_) => {
-                    entry.state = EntryState::Queued;
-                    self.queue.push_back(request.key);
-                    CustomShaderPreparationState::Pending
+                EntryState::Failed(_)
+                | EntryState::Retired {
+                    device: None,
+                    pipeline: None,
+                    token: None,
+                } if self.queue.len() >= MAX_QUEUED => {
+                    entry.interests = entry.interests.saturating_sub(1);
+                    entry.state = EntryState::Retired {
+                        device: None,
+                        pipeline: None,
+                        token: None,
+                    };
+                    self.interests.insert(target, Interest::Waiting);
+                    CustomShaderPreparationState::WaitingAdmission
                 }
                 EntryState::Retired {
                     device: Some(device),
@@ -381,7 +396,7 @@ impl CustomShaderPreparationBroker {
                     };
                     CustomShaderPreparationState::Ready
                 }
-                EntryState::Retired { .. } => {
+                EntryState::Failed(_) | EntryState::Retired { .. } => {
                     entry.state = EntryState::Queued;
                     self.queue.push_back(request.key);
                     CustomShaderPreparationState::Pending
@@ -867,6 +882,17 @@ mod tests {
         let mut bounded = CustomShaderPreparationBroker::new(Arc::clone(&wake));
         let first_target = target(1);
         let first_request = request(&device, 1);
+        let mismatched_adapter = CustomShaderPreparationRequest::new(
+            device.clone(),
+            &device as *const wgpu::Device as usize,
+            NativeAdapterGeneration::from_test_serial(2),
+            wgpu::TextureFormat::Rgba8Unorm,
+            first_request.key.pipeline.clone(),
+        );
+        assert_eq!(
+            bounded.request(first_target, mismatched_adapter),
+            CustomShaderPreparationState::Unavailable
+        );
         assert_eq!(
             bounded.request(first_target, first_request.clone()),
             CustomShaderPreparationState::Pending
@@ -885,6 +911,20 @@ mod tests {
         }
         assert_eq!(
             bounded.request(target(9), request(&device, 9)),
+            CustomShaderPreparationState::WaitingAdmission
+        );
+        assert_eq!(bounded.capacity_status().queued, MAX_QUEUED);
+        let rejected = bounded.take_dispatch().expect("queued dispatch");
+        bounded.reject_dispatch(rejected.id());
+        bounded.release_target(first_target);
+        drop(rejected);
+        assert_eq!(bounded.capacity_status().queued, MAX_QUEUED - 1);
+        assert_eq!(
+            bounded.request(target(10), request(&device, 10)),
+            CustomShaderPreparationState::Pending
+        );
+        assert_eq!(
+            bounded.request(first_target, first_request.clone()),
             CustomShaderPreparationState::WaitingAdmission
         );
         assert_eq!(bounded.capacity_status().queued, MAX_QUEUED);

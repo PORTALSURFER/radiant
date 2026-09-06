@@ -17,9 +17,15 @@ mod view;
 mod virtual_layout;
 
 pub use resources::{
-    ResourceInterest, ResourceInterestError, ResourceInterestKind, SharedResourceTasks,
+    Resource, ResourceCancelIntent, ResourceInterest, ResourceInterestError, ResourceInterestKind,
+    ResourcePhase, ResourceProgress, ResourceProgressError, ResourceRefreshPolicy,
+    ResourceRetryIntent, ResourceSnapshot, ResourceStateError, ResourceView, ResourceViewBranches,
+    SharedResourceTasks, resource,
 };
-pub use resources::{SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode};
+pub use resources::{
+    SharedResourceCompletion, SharedResourceOperation, SharedResourceTaskError,
+    SharedResourceTaskMode,
+};
 
 pub use controls::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,

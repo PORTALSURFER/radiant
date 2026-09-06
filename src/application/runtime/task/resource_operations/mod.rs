@@ -10,7 +10,10 @@ use super::{LatestTask, LatestTaskTransaction, LatestTaskTransactionSettlement, 
 use crate::{application::CancellationToken, runtime::ResourceKey};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, Weak},
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicU8, Ordering},
+    },
 };
 
 #[cfg(test)]
@@ -112,6 +115,7 @@ impl ResourceOperationRegistry {
         // match this replacement.
         if slot.demand_generation != demand_generation {
             slot.pending = None;
+            slot.settlement = None;
         }
         let previous = PreviousSlot {
             phase: slot.phase,
@@ -119,6 +123,7 @@ impl ResourceOperationRegistry {
             demand_generation: slot.demand_generation,
             cancellation: slot.cancellation.clone(),
             cancel_requested: slot.cancel_requested,
+            settlement: slot.settlement.clone(),
         };
         // The replacement owns its own token. The predecessor's token stays
         // with its rollback snapshot until this transaction settles.
@@ -127,9 +132,11 @@ impl ResourceOperationRegistry {
         let transaction = slot.latest.begin_replacement();
         let ticket = transaction.replacement();
         let effect_id = slot.latest.effect_id();
+        let settlement = Arc::new(OperationSettlement::pending());
         slot.epoch = epoch;
         slot.demand_generation = demand_generation;
         slot.phase = Phase::Running { ticket, effect_id };
+        slot.settlement = Some(Arc::clone(&settlement));
         slot.pending = Some(PendingOperation {
             ticket,
             epoch,
@@ -138,7 +145,9 @@ impl ResourceOperationRegistry {
         });
         let state_weak = Arc::downgrade(&self.state);
         let hook_key = key.clone();
+        let hook_settlement = Arc::clone(&settlement);
         let transaction = transaction.with_settlement_hook(Arc::new(move |settlement| {
+            hook_settlement.set(settlement);
             settle_pending(
                 &state_weak,
                 &hook_key,
@@ -155,6 +164,7 @@ impl ResourceOperationRegistry {
             operation_epoch: epoch,
             demand_generation,
             identity: Arc::downgrade(&self.identity),
+            settlement,
         };
         Ok(ResourceOperationReserve::Reserved(
             ResourceOperationReservation {
@@ -172,9 +182,50 @@ impl ResourceOperationRegistry {
                     demand_generation,
                 ),
                 identity: current.identity.clone(),
+                settlement: Arc::clone(&current.settlement),
                 state: Arc::downgrade(&self.state),
             },
         ))
+    }
+
+    /// Snapshot only a live running operation. The returned currentness probe
+    /// holds weak state and never starts, retains, or revives work.
+    pub(crate) fn currentness_probe(
+        &self,
+        current: &ResourceOperationCurrent,
+    ) -> Arc<dyn Fn() -> bool + Send + Sync + 'static> {
+        current_probe(
+            Arc::downgrade(&self.state),
+            current.key.clone(),
+            current.ticket.expect("running operation has a ticket"),
+            current.operation_epoch,
+            current.demand_generation,
+        )
+    }
+
+    pub(crate) fn current_operation(&self, key: &ResourceKey) -> Option<ResourceOperationCurrent> {
+        let mut state = lock(&self.state);
+        state.prune();
+        let demand_generation = state.ledger.demand_generation(key)?;
+        let slot = state.slots.get(key)?;
+        let Phase::Running { ticket, effect_id } = slot.phase else {
+            return None;
+        };
+        (slot.demand_generation == demand_generation
+            && !slot.is_cancelled()
+            && slot.latest.is_active(ticket))
+        .then(|| ResourceOperationCurrent {
+            key: key.clone(),
+            ticket: Some(ticket),
+            effect_id: Some(effect_id),
+            operation_epoch: slot.epoch,
+            demand_generation,
+            identity: Arc::downgrade(&self.identity),
+            settlement: slot
+                .settlement
+                .clone()
+                .expect("running resource operation has settlement evidence"),
+        })
     }
 
     /// Accept a UI-reducer completion only after the host effect fences have
@@ -215,6 +266,7 @@ impl ResourceOperationRegistry {
             return false;
         }
         slot.phase = if ready { Phase::Ready } else { Phase::Idle };
+        slot.settlement = None;
         slot.cancellation = None;
         slot.cancel_requested = false;
         true
@@ -249,6 +301,7 @@ impl ResourceOperationRegistry {
             return false;
         }
         slot.phase = Phase::Backoff { deadline };
+        slot.settlement = None;
         slot.cancellation = None;
         slot.cancel_requested = false;
         true
@@ -316,19 +369,36 @@ impl ResourceOperationRegistry {
         let Some(slot) = state.slots.get_mut(key) else {
             return false;
         };
-        slot.cancel_requested = true;
-        if let Some(token) = &slot.cancellation {
-            token.cancel();
+        cancel_slot(slot);
+        true
+    }
+
+    /// Cancel one exact snapshot under the operation mutex. A stale or foreign
+    /// snapshot cannot cancel a newer operation that reused the same key.
+    pub(crate) fn cancel_current(&self, current: &ResourceOperationCurrent) -> bool {
+        if !current.belongs_to(&self.identity) {
+            return false;
         }
-        if let Some(pending) = &mut slot.pending {
-            // Explicit key cancellation applies to both the replacement and
-            // its stable predecessor, so rejection cannot revive it.
-            pending.previous.cancel_requested = true;
-            if let Some(token) = &pending.previous.cancellation {
-                token.cancel();
-            }
+        let Some(ticket) = current.ticket else {
+            return false;
+        };
+        let mut state = lock(&self.state);
+        state.prune();
+        if state.ledger.demand_generation(&current.key) != Some(current.demand_generation) {
+            return false;
         }
-        slot.reset_cancelled_if_settled();
+        let Some(slot) = state.slots.get_mut(&current.key) else {
+            return false;
+        };
+        if slot.epoch != current.operation_epoch
+            || slot.demand_generation != current.demand_generation
+            || !matches!(slot.phase, Phase::Running { ticket: active, effect_id }
+                if active == ticket && current.effect_id == Some(effect_id))
+            || !slot.latest.is_active(ticket)
+        {
+            return false;
+        }
+        cancel_slot(slot);
         true
     }
 
@@ -338,6 +408,7 @@ impl ResourceOperationRegistry {
         for slot in state.slots.values_mut() {
             slot.latest.cancel();
             slot.pending = None;
+            slot.settlement = None;
         }
         state.slots.clear();
     }
@@ -413,6 +484,7 @@ pub(crate) struct ResourceOperationReservation {
     transaction: LatestTaskTransaction,
     current: Arc<dyn Fn() -> bool + Send + Sync + 'static>,
     identity: Weak<RegistryIdentity>,
+    settlement: Arc<OperationSettlement>,
     state: Weak<Mutex<State>>,
 }
 
@@ -425,6 +497,7 @@ impl ResourceOperationReservation {
             operation_epoch: self.operation_epoch,
             demand_generation: self.demand_generation,
             identity: self.identity.clone(),
+            settlement: Arc::clone(&self.settlement),
         }
     }
     pub(crate) fn ticket(&self) -> TaskTicket {
@@ -476,6 +549,7 @@ pub(crate) struct ResourceOperationCurrent {
     operation_epoch: u64,
     demand_generation: u64,
     identity: Weak<RegistryIdentity>,
+    settlement: Arc<OperationSettlement>,
 }
 
 impl ResourceOperationCurrent {
@@ -488,6 +562,24 @@ impl ResourceOperationCurrent {
     #[cfg(test)]
     pub(crate) fn demand_generation(&self) -> u64 {
         self.demand_generation
+    }
+
+    pub(super) fn matches(&self, other: &Self) -> bool {
+        self.key == other.key
+            && self.ticket == other.ticket
+            && self.effect_id == other.effect_id
+            && self.operation_epoch == other.operation_epoch
+            && self.demand_generation == other.demand_generation
+            && self.identity.upgrade().is_some_and(|identity| {
+                other
+                    .identity
+                    .upgrade()
+                    .is_some_and(|other| Arc::ptr_eq(&identity, &other))
+            })
+    }
+
+    pub(super) fn was_rejected(&self) -> bool {
+        self.settlement.was_rejected()
     }
 
     fn belongs_to(&self, identity: &Arc<RegistryIdentity>) -> bool {
@@ -516,6 +608,7 @@ struct Slot {
     keep_ready: bool,
     cancellation: Option<CancellationToken>,
     cancel_requested: bool,
+    settlement: Option<Arc<OperationSettlement>>,
 }
 
 impl Slot {
@@ -531,6 +624,7 @@ impl Slot {
         if self.pending.is_none() && self.is_cancelled() {
             self.latest.cancel();
             self.phase = Phase::Idle;
+            self.settlement = None;
             self.cancellation = None;
             self.cancel_requested = false;
         }
@@ -552,6 +646,7 @@ struct PreviousSlot {
     demand_generation: u64,
     cancellation: Option<CancellationToken>,
     cancel_requested: bool,
+    settlement: Option<Arc<OperationSettlement>>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -566,6 +661,22 @@ enum Phase {
     Backoff {
         deadline: u64,
     },
+}
+
+fn cancel_slot(slot: &mut Slot) {
+    slot.cancel_requested = true;
+    if let Some(token) = &slot.cancellation {
+        token.cancel();
+    }
+    if let Some(pending) = &mut slot.pending {
+        // Explicit cancellation applies to both replacement and predecessor,
+        // so rejection cannot revive the predecessor later.
+        pending.previous.cancel_requested = true;
+        if let Some(token) = &pending.previous.cancellation {
+            token.cancel();
+        }
+    }
+    slot.reset_cancelled_if_settled();
 }
 
 impl State {
@@ -599,6 +710,7 @@ impl State {
             if !live {
                 slot.latest.cancel();
                 slot.pending = None;
+                slot.settlement = None;
                 slot.cancellation = None;
                 slot.cancel_requested = false;
                 if !matches!(slot.phase, Phase::Ready) {
@@ -668,12 +780,14 @@ fn settle_pending(
             slot.demand_generation = pending.previous.demand_generation;
             slot.cancellation = pending.previous.cancellation;
             slot.cancel_requested = pending.previous.cancel_requested;
+            slot.settlement = pending.previous.settlement;
         } else {
             slot.phase = Phase::Idle;
             slot.epoch = 0;
             slot.demand_generation = 0;
             slot.cancellation = None;
             slot.cancel_requested = false;
+            slot.settlement = None;
         }
         // An explicit cancellation or a predecessor token that became
         // cancelled while replacement was pending must not revive running work.
@@ -681,6 +795,37 @@ fn settle_pending(
     }
     // The settlement callback runs after LatestTask has released its mutex.
     slot.latest.clear_resolved_replacement(ticket);
+}
+
+/// Operation-local settlement evidence survives slot replacement so application
+/// state can distinguish a rejected begin from an older predecessor.
+#[derive(Debug)]
+struct OperationSettlement {
+    state: AtomicU8,
+}
+
+impl OperationSettlement {
+    const PENDING: u8 = 0;
+    const ACCEPTED: u8 = 1;
+    const REJECTED: u8 = 2;
+
+    fn pending() -> Self {
+        Self {
+            state: AtomicU8::new(Self::PENDING),
+        }
+    }
+
+    fn set(&self, settlement: LatestTaskTransactionSettlement) {
+        let state = match settlement {
+            LatestTaskTransactionSettlement::Accepted => Self::ACCEPTED,
+            LatestTaskTransactionSettlement::Rejected => Self::REJECTED,
+        };
+        self.state.store(state, Ordering::Release);
+    }
+
+    fn was_rejected(&self) -> bool {
+        self.state.load(Ordering::Acquire) == Self::REJECTED
+    }
 }
 
 fn lock<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

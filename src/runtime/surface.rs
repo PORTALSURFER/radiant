@@ -20,7 +20,9 @@ mod node;
 mod paint;
 mod path;
 mod projection;
+mod resource_views;
 mod revision;
+pub(in crate::runtime) use resource_views::ResourceViewIdentity;
 mod source;
 mod state_sync;
 mod text_scaled_size;
@@ -107,6 +109,8 @@ pub(crate) struct ApplicationNodeReceipt {
     pub(crate) incoming_slot: Option<crate::layout::SlotParams>,
     pub(crate) id: crate::layout::NodeId,
     pub(crate) source: FrozenSourceMetadata,
+    pub(crate) resource_demand:
+        Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
     pub(crate) kind: ApplicationNodeKind,
 }
 

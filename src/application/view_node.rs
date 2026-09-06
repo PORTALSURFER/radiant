@@ -146,6 +146,8 @@ pub struct ViewNode<Message> {
     command_scope: Option<crate::application::CommandScopeAttachment>,
     focus_scope: Option<crate::runtime::FocusScope>,
     layout_interaction: Option<Rc<dyn crate::layout::LayoutInteraction<Message>>>,
+    pub(in crate::application) resource_demand:
+        Option<Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -249,6 +251,7 @@ impl<Message> ViewNode<Message> {
             command_scope: None,
             focus_scope: None,
             layout_interaction: None,
+            resource_demand: None,
         }
     }
 

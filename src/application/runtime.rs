@@ -15,9 +15,17 @@ use std::any::Any;
 
 mod bridge;
 mod queue;
+mod resource;
+pub use resource::{
+    Resource, ResourceCancelIntent, ResourcePhase, ResourceProgress, ResourceProgressError,
+    ResourceRefreshPolicy, ResourceRetryIntent, ResourceSnapshot, ResourceStateError,
+};
 mod subscription;
 pub(crate) mod task;
-pub use task::{SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode};
+pub use task::{
+    SharedResourceCompletion, SharedResourceOperation, SharedResourceTaskError,
+    SharedResourceTaskMode,
+};
 mod threading;
 mod timer;
 pub(crate) mod update_context;

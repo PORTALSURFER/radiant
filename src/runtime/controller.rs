@@ -36,6 +36,8 @@ mod pointer_ingress;
 mod prepared_layout;
 mod refresh;
 mod resource_interest;
+mod resource_views;
+pub use resource_views::ResourceViewInterestStatus;
 mod scratch;
 mod scroll;
 mod semantic_actions;
@@ -215,6 +217,7 @@ where
     in_process_clipboard: InProcessClipboard,
     worker_effects: WorkerEffects<Message>,
     resource_interests: resource_interest::ResourceInterestRegistry,
+    resource_views: resource_views::ResourceViewInterests,
     timer_effects: TimerEffects<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
     last_refresh_diagnostics: SurfaceRefreshDiagnostics,

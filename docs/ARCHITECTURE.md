@@ -815,6 +815,12 @@ existing worker lane, with one unsettled replacement per resource. Values and
 errors remain in application state. See [Shared resource tasks](SHARED_RESOURCE_TASKS.md)
 for completion, cancellation, retention, and retry contracts.
 
+Effect-backed `Resource<T, E>` state and `ResourceView` branches build on this
+broker. Accepted projected consumers own a separate strong lease; ordinary
+interest retirement remains weak. Snapshot reads select presentation only, and
+retry/cancel controls carry resource-instance and local revision/generation
+evidence. See [Resource views](RESOURCE_VIEWS.md).
+
 The private declarative seam has five dependency-ordered stages. Generic
 matching registry retirement is now shipped at the accepted projection
 boundary; the bounded explicit timer, one-shot owner-worker, cancellable ordinary

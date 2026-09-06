@@ -152,7 +152,10 @@ fn same_retained_container_ancestor<Message>(
     previous: &SurfaceContainer<Message>,
     current: &SurfaceContainer<Message>,
 ) -> bool {
-    previous.layout_policy.is_none()
+    same_resource_demand(
+        previous.resource_demand.as_ref(),
+        current.resource_demand.as_ref(),
+    ) && previous.layout_policy.is_none()
         && current.layout_policy.is_none()
         && previous.layout_capabilities.is_none()
         && current.layout_capabilities.is_none()
@@ -173,6 +176,17 @@ fn same_retained_container_ancestor<Message>(
             .scroll_mapper_descriptor()
             .relation(&current.scroll_mapper_descriptor())
             == super::widget::MapperRelation::Unchanged
+}
+
+fn same_resource_demand(
+    previous: Option<&std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+    current: Option<&std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+) -> bool {
+    match (previous, current) {
+        (Some(previous), Some(current)) => previous.same_demand(current),
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 fn membership<Message>(widget: &SurfaceWidget<Message>) -> [bool; 7] {

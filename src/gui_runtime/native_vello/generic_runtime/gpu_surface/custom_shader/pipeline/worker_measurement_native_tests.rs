@@ -1,8 +1,11 @@
 //! Opt-in native measurements of actual worker-side shader preparation.
 //!
-//! Worker elapsed time surrounds only `prepare_custom_shader_pipeline`; spawn
-//! and join are reported separately. This fixture makes no foreground, input,
-//! GPU-duration, or cache-hit claim.
+//! Worker elapsed time is wall-clock duration around only
+//! `prepare_custom_shader_pipeline`; it is not per-thread CPU accounting. The
+//! separately reported spawn/join interval is enclosing wall time and includes
+//! worker work, channel transfer, teardown, and join; it is not isolated
+//! scheduling overhead. This fixture makes no foreground, input, GPU-duration,
+//! or cache-hit claim.
 
 use super::measurement_native_tests::{
     INVALID_SHADER, VALID_SHADER, duration_ns, fnv1a64, native_device, pipeline_key,

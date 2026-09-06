@@ -300,26 +300,17 @@ impl CustomShaderResourceCache {
             .filter(|(identity, _)| requested_identities.contains(*identity))
             .map(|(identity, pipeline)| (identity.clone(), pipeline.clone()))
             .collect();
-        let associations: HashMap<_, _> = self
-            .pipeline_state
-            .associations
-            .iter()
-            .filter(|(surface_key, identity)| {
-                requests.iter().any(|request| {
-                    request.surface_key == **surface_key && request.identity == **identity
-                }) && pipelines.contains_key(*identity)
-            })
-            .map(|(surface_key, identity)| (*surface_key, identity.clone()))
-            .collect();
-        let entries = associations.values().cloned().collect();
+        let available_identities = pipelines.keys().cloned().collect();
+        let pipeline_state = filtered_custom_shader_pipeline_state(
+            &available_identities,
+            &self.pipeline_state.associations,
+            requests,
+        );
         let mut residency = CustomShaderResidencyAccounting::default();
         residency.set_pipeline_resident_count(pipelines.len());
         Self {
             pipelines,
-            pipeline_state: CustomShaderPipelineCacheState {
-                entries,
-                associations,
-            },
+            pipeline_state,
             bindings: HashMap::new(),
             residency,
         }
@@ -339,22 +330,31 @@ impl CustomShaderResourceCache {
             .filter(|identity| requested_identities.contains(*identity))
             .cloned()
             .collect();
-        let associations: HashMap<_, _> = self
-            .pipeline_state
-            .associations
-            .iter()
-            .filter(|(surface_key, identity)| {
-                requests.iter().any(|request| {
-                    request.surface_key == **surface_key && request.identity == **identity
-                }) && available_identities.contains(*identity)
-            })
-            .map(|(surface_key, identity)| (*surface_key, identity.clone()))
-            .collect();
-        let entries = associations.values().cloned().collect();
-        CustomShaderPipelineCacheState {
-            entries,
-            associations,
-        }
+        filtered_custom_shader_pipeline_state(
+            &available_identities,
+            &self.pipeline_state.associations,
+            requests,
+        )
+    }
+}
+
+fn filtered_custom_shader_pipeline_state(
+    available_identities: &HashSet<CustomShaderPipelineIdentity>,
+    current_associations: &HashMap<u64, CustomShaderPipelineIdentity>,
+    requests: &[CustomShaderFrameRequest],
+) -> CustomShaderPipelineCacheState {
+    let associations = current_associations
+        .iter()
+        .filter(|(surface_key, identity)| {
+            requests.iter().any(|request| {
+                request.surface_key == **surface_key && request.identity == **identity
+            }) && available_identities.contains(*identity)
+        })
+        .map(|(surface_key, identity)| (*surface_key, identity.clone()))
+        .collect();
+    CustomShaderPipelineCacheState {
+        entries: available_identities.clone(),
+        associations,
     }
 }
 
@@ -824,13 +824,6 @@ impl GpuSurfaceResourceCache {
         }
     }
 
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn has_custom_shader_pipeline(
-        &self,
-        key: u64,
-    ) -> bool {
-        self.custom_shader_pipeline(key).is_some()
-    }
-
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn has_custom_shader_pipeline_identity(
         &self,
         identity: &CustomShaderPipelineIdentity,
@@ -1050,13 +1043,15 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn logica
 #[cfg(test)]
 mod tests {
     use super::{
-        AccountedMap, CustomShaderBindingKey, CustomShaderBindingLogicalBytes,
-        CustomShaderFrameRequest, CustomShaderPipelineCacheState, CustomShaderPipelineIdentity,
-        CustomShaderPreflightCache, CustomShaderResidencyAccounting, GpuSurfaceResourceCache,
-        NativeAdapterGeneration, custom_shader_binding_logical_bytes, logical_rgba_texel_bytes,
+        AccountedMap, ActiveGpuSurfaceKeys, CustomShaderBindingKey,
+        CustomShaderBindingLogicalBytes, CustomShaderFrameRequest, CustomShaderPipelineCacheState,
+        CustomShaderPipelineIdentity, CustomShaderPreflightCache, CustomShaderResidencyAccounting,
+        GpuSurfaceResourceCache, NativeAdapterGeneration, custom_shader_binding_logical_bytes,
+        filtered_custom_shader_pipeline_state, logical_rgba_texel_bytes,
         logical_signal_body_texture_bytes, logical_signal_buffer_bytes,
     };
     use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::CustomShaderPipelineKey;
+    use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
     use vello::wgpu;
 
@@ -1113,6 +1108,34 @@ mod tests {
 
         assert_eq!(preflight.pipeline_decision(10_000, &identity), None);
         assert!(preflight.pipelines_capacity() >= 1);
+    }
+
+    #[test]
+    fn filtered_custom_shader_metadata_keeps_unassociated_pipelines_until_final_prune() {
+        let active = pipeline_identity("active");
+        let never_activated = pipeline_identity("never-activated");
+        let available_identities = HashSet::from([active.clone(), never_activated.clone()]);
+        let current_associations = HashMap::from([(1, active.clone())]);
+        let requests = [
+            frame_request(1, active.clone()),
+            frame_request(2, never_activated.clone()),
+        ];
+        let mut state = filtered_custom_shader_pipeline_state(
+            &available_identities,
+            &current_associations,
+            &requests,
+        );
+
+        assert_eq!(state.identity(1), Some(&active));
+        assert_eq!(state.identity(2), None);
+        assert!(state.entries.contains(&never_activated));
+        let mut preflight = CustomShaderPreflightCache::from_pipeline_state(state.clone());
+        assert_eq!(preflight.pipeline_decision(2, &never_activated), Some(true));
+
+        let mut active_keys = ActiveGpuSurfaceKeys::default();
+        active_keys.mark_active(1);
+        assert_eq!(state.prune(&active_keys), vec![never_activated]);
+        assert_eq!(state.entries, HashSet::from([active]));
     }
 
     #[test]

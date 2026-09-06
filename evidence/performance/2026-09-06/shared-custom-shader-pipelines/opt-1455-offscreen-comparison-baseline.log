@@ -1,0 +1,17 @@
+   Compiling radiant-native-test-support v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1455-offscreen-baseline-radiant/crates/native-test-support)
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1455-offscreen-baseline-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 33s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 1 test
+test gui_runtime::native_vello::generic_runtime::gpu_surface::offscreen_tile_comparison::offscreen_16_tile_shader_pipeline_comparison ... {"adapter":{"name":"Apple M5 Pro","backend":"Metal","vendor":0,"device":0,"device_type":"IntegratedGpu","driver":"","driver_info":""},"source_env_label":"baseline","expected_shader_pipelines":16,"cold":{"surfaces_rendered":16,"pipeline_rebuilds":16,"binding_rebuilds":16,"static_writes":16,"static_write_bytes":256,"presentation_writes":16,"presentation_write_bytes":256},"warm":{"surfaces_rendered":16,"pipeline_rebuilds":0,"binding_rebuilds":0,"static_writes":0,"static_write_bytes":0,"presentation_writes":0,"presentation_write_bytes":0},"updated":{"surfaces_rendered":16,"pipeline_rebuilds":0,"binding_rebuilds":0,"static_writes":1,"static_write_bytes":16,"presentation_writes":2,"presentation_write_bytes":32},"residency":{"pipeline_resident_count":16,"binding_resident_count":16},"tile_center_rgba":[[51,51,102,255],[77,51,102,255],[102,51,102,255],[128,51,102,255],[51,77,102,255],[77,77,102,255],[0,255,0,255],[128,77,102,255],[51,102,102,255],[77,102,102,255],[102,102,102,255],[128,102,102,255],[51,128,102,255],[77,128,102,255],[102,128,102,255],[128,128,102,255]]}
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4196 filtered out; finished in 0.08s
+

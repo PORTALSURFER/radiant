@@ -173,38 +173,6 @@ impl ScenarioRunner {
     }
 }
 
-#[cfg(test)]
-mod iteration_tests {
-    use super::*;
-    use std::{cell::Cell, rc::Rc};
-
-    #[test]
-    fn configured_iterations_run_exactly_that_many_samples_plus_one_warmup() {
-        for (iterations, expected) in [(None, 4), (Some(17), 18)] {
-            let mut runner = ScenarioRunner::new(ScenarioRunnerConfig {
-                iterations,
-                filters: Vec::new(),
-                category_filters: Vec::new(),
-                group_filters: Vec::new(),
-                output_format: OutputFormat::JsonLines,
-                baseline: None,
-                baseline_output: None,
-                fail_on_baseline_regression: false,
-                fail_on_missing_baseline: false,
-            });
-            let calls = Rc::new(Cell::new(0));
-            let observed = Rc::clone(&calls);
-            runner.run_scenario("counted", "test", "test", 3, move || {
-                move || {
-                    observed.set(observed.get() + 1);
-                    ScenarioCounters::default()
-                }
-            });
-            assert_eq!(calls.get(), expected);
-        }
-    }
-}
-
 pub(super) fn print_scenario_list(scenarios: &[ScenarioSpec]) {
     println!("radiant_perf scenarios:");
     for scenario in scenarios {
@@ -299,4 +267,37 @@ where
         output_format,
         baseline.map(|baseline| baseline.metric_for(name)),
     )
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod iteration_tests {
+    use super::*;
+    use std::{cell::Cell, rc::Rc};
+
+    #[test]
+    fn configured_iterations_run_exactly_that_many_samples_plus_one_warmup() {
+        for (iterations, expected) in [(None, 4), (Some(17), 18)] {
+            let mut runner = ScenarioRunner::new(ScenarioRunnerConfig {
+                iterations,
+                filters: Vec::new(),
+                category_filters: Vec::new(),
+                group_filters: Vec::new(),
+                output_format: OutputFormat::JsonLines,
+                baseline: None,
+                baseline_output: None,
+                fail_on_baseline_regression: false,
+                fail_on_missing_baseline: false,
+            });
+            let calls = Rc::new(Cell::new(0));
+            let observed = Rc::clone(&calls);
+            runner.run_scenario("counted", "test", "test", 3, move || {
+                move || {
+                    observed.set(observed.get() + 1);
+                    ScenarioCounters::default()
+                }
+            });
+            assert_eq!(calls.get(), expected);
+        }
+    }
 }

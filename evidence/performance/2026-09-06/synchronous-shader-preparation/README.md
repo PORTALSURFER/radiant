@@ -1,6 +1,6 @@
 # Pinned native synchronous shader-preparation baseline
 
-Observed 6 September 2026 on Apple M5 Pro / Metal, WGPU 29.0.4. All three fresh-process ignored native tests passed at fixture revision 1f9928e941ec753e95ad1e74685c916db60de4d0, based on production main 319e857f7d0add3af441607fe4c61cc5fa9ce55e. The fixture lives in gpu_surface/custom_shader/pipeline/measurement_native_tests.rs and directly measures the production module/layout/pipeline helper phases; it does not call the combined `prepare_custom_shader_pipeline` entry point. Its captured baseline remains phase-level synchronous evidence. The separate worker fixture measures that complete entry point. No production implementation changed.
+Observed 6 September 2026 on Apple M5 Pro / Metal, WGPU 29.0.4. All three fresh-process ignored native tests passed at fixture revision 1f9928e941ec753e95ad1e74685c916db60de4d0, based on production main 319e857f7d0add3af441607fe4c61cc5fa9ce55e. The fixture lives in gpu_surface/custom_shader/pipeline/measurement_native_tests.rs and duplicates the historical module/layout/pipeline phase sequence; it does not call the combined `prepare_custom_shader_pipeline` entry point. Its captured baseline remains phase-level synchronous evidence. The separate worker fixture measures that complete entry point; its results must be interpreted as worker CPU observations, not as a direct equivalence claim with the phase baseline. No production implementation changed.
 
 ## Bounded observations
 

@@ -31,9 +31,7 @@ enum WorkerOutcome {
 }
 
 impl WorkerOutcome {
-    const fn from_result(
-        result: Result<CustomShaderPipeline, CustomShaderPreparationFailure>,
-    ) -> Self {
+    fn from_result(result: Result<CustomShaderPipeline, CustomShaderPreparationFailure>) -> Self {
         match result {
             Ok(_) => Self::Ready,
             Err(CustomShaderPreparationFailure::Cancelled) => Self::Cancelled,
@@ -139,6 +137,11 @@ fn records_worker_custom_shader_preparation() {
         samples.last().expect("invalid sample").outcome,
         WorkerOutcome::ShaderModule
     ));
+    assert!(
+        samples
+            .iter()
+            .all(|sample| sample.submitting_thread_id != sample.worker_thread_id)
+    );
 
     let output = serde_json::json!({
         "schema_version": 1, "fixture": "opt-1457-worker-custom-shader-preparation",
@@ -193,9 +196,10 @@ fn measure(
         .spawn(move || {
             let worker_thread_id = format!("{:?}", std::thread::current().id());
             let worker_start = Instant::now();
-            let outcome =
-                WorkerOutcome::from_result(prepare_custom_shader_pipeline(request, || false));
-            let _ = sender.send((worker_thread_id, worker_start.elapsed(), outcome));
+            let result = prepare_custom_shader_pipeline(request, || false);
+            let worker_elapsed = worker_start.elapsed();
+            let outcome = WorkerOutcome::from_result(result);
+            let _ = sender.send((worker_thread_id, worker_elapsed, outcome));
         })
         .expect("spawn worker measurement thread");
     let (worker_thread_id, worker_elapsed, outcome) = receiver.recv().expect("worker result");

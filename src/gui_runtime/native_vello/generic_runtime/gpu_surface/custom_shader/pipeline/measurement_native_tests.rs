@@ -1,8 +1,9 @@
 //! Opt-in, offscreen phase measurements used as the synchronous baseline.
 //!
-//! The fixture calls the same module, layout, pipeline, and validation-scope
-//! builder functions as production. It deliberately does not render, wait for
-//! GPU work, or make a foreground timing claim.
+//! This fixture duplicates the historical module, layout, pipeline, and
+//! validation-scope phase sequence. The separate worker fixture calls the
+//! complete production entry point. Neither fixture renders, waits for GPU
+//! work, or makes a foreground timing claim.
 //! Repeated identical-key samples run the complete builder on an initialized
 //! device; they are not presented as Radiant cache-hit measurements.
 

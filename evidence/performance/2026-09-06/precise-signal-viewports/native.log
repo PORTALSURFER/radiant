@@ -1,0 +1,16 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1454-precise-signal-viewports-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 20s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 2 tests
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::precise_signal::precise_signal_bucket_smoothing_matches_legacy_for_sub_bucket_views ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::precise_signal::precise_signal_window_matches_near_and_large_origins ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 4243 filtered out; finished in 1.01s
+

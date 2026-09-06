@@ -236,8 +236,8 @@ mod tests {
     #[test]
     fn modal_detection_follows_accepted_scene_layers() {
         let base = crate::application::text::<()>("base");
-        let modal = base
-            .overlays(crate::application::overlays().modal(crate::application::text("modal")))
+        let modal = scene(base.overlays(crate::application::overlays().modal(text("modal"))))
+            .into_view()
             .into_surface();
         assert!(modal.has_notice_modal());
         assert!(

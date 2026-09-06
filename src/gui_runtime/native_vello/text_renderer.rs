@@ -13,6 +13,7 @@ use std::{
 use vello::{Glyph, Scene, peniko::Fill};
 
 mod cache;
+mod editor;
 mod encoding;
 mod font;
 mod layout;
@@ -21,6 +22,7 @@ mod renderability;
 
 pub(in crate::gui_runtime::native_vello) use cache::TextLayoutProfileCounters;
 use cache::{TextLayoutCache, VIEW_CACHE_BYTE_BUDGET, VIEW_CACHE_ENTRY_BUDGET};
+pub(in crate::gui_runtime::native_vello) use editor::NativeEditorParagraph;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 use font::NativeFontStack;
 pub(in crate::gui_runtime::native_vello) use model::{
@@ -684,6 +686,27 @@ impl NativeTextRenderer {
             available_width,
             align,
             wrap,
+        )
+    }
+
+    /// Shape one editor paragraph through the same font stack and presentation
+    /// used by scene text. The returned geometry is renderer-neutral; its
+    /// payload retains the native glyph and face selections for a later paint
+    /// adapter.
+    pub(in crate::gui_runtime::native_vello) fn layout_editor_paragraph(
+        &mut self,
+        source: Arc<str>,
+        font_size: f32,
+        wrap_width: f32,
+        line_height: f32,
+    ) -> Option<Arc<NativeEditorParagraph>> {
+        editor::layout_editor_paragraph(
+            &mut self.font_stack,
+            &self.layout_cache.presentation,
+            source,
+            font_size,
+            wrap_width,
+            line_height,
         )
     }
 

@@ -1,5 +1,7 @@
 //! Qualified effect construction.
 
+mod resource;
+
 use super::{BusinessEventSink, Command, TaskPriority};
 use crate::application::{
     CancellationToken, DeclarativeEffectOwner, LatestTask, TaskCompletion, TaskTicket,

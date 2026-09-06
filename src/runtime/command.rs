@@ -18,6 +18,21 @@ mod scroll;
 
 pub(crate) use constructors::WorkerStreamOptions;
 
+/// Closed payload for resource-interest admission on the UI runtime.
+#[doc(hidden)]
+pub struct ResourceInterestEffect<Message> {
+    pub(crate) tasks: crate::application::SharedResourceTasks,
+    pub(crate) key: super::ResourceKey,
+    pub(crate) owner: super::EffectOwner,
+    pub(crate) interest_id: u64,
+    pub(crate) kind: crate::application::ResourceInterestKind,
+    pub(crate) on_completed: Box<
+        dyn FnOnce(
+            Result<crate::application::ResourceInterest, crate::application::ResourceInterestError>,
+        ) -> Message,
+    >,
+}
+
 pub use repaint::RepaintScope;
 pub use repaint::{SurfaceInvalidation, SurfaceRevisions};
 pub use scroll::{ScrollFixedRowIntoViewParts, ScrollIntoViewParts};
@@ -82,6 +97,9 @@ pub enum Command<Message> {
     /// Run worker-only work and deliver its owned output to a UI-local mapper.
     #[doc(hidden)]
     PerformWorker(WorkerEffect<Message>),
+    /// Attach an application-held resource interest to an accepted owner.
+    #[doc(hidden)]
+    AcquireResourceInterest(ResourceInterestEffect<Message>),
     /// Move keyboard focus to one widget.
     Focus(WidgetId),
     /// Clear keyboard focus from any focused widget.

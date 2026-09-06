@@ -60,6 +60,7 @@ pub(crate) const REQUIRED_BEHAVIOR_TESTS: &[&str] = &[
     "perf_harness_runner.rs",
     "runtime_bridge_public_api.rs",
     "runtime_surface_public_api.rs",
+    "shared_resource_tasks_public_api.rs",
     "surface_hover_public_api.rs",
     "surface_node_public_api.rs",
     "surface_scroll_public_api.rs",

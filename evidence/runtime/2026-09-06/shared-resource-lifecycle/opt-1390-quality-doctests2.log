@@ -1,0 +1,33 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.41s
+   Doc-tests radiant
+
+running 4 tests
+test src/application/control_builders/interactive_row/builder/policy.rs - application::control_builders::interactive_row::builder::policy::DenseRowPolicy (line 13) ... ignored
+test src/lib.rs - (line 16) - compile ... ok
+test src/lib.rs - widgets (line 147) ... ok
+test src/gui/mod.rs - gui::layout_core (line 93) ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 16 tests
+test src/gui/layout_core/scroll.rs - gui::layout_core::scroll::ScrollPolicy (line 66) - compile fail ... ok
+test src/application/widget_view.rs - application::widget_view::WidgetViewContext (line 20) - compile fail ... ok
+test src/runtime/surface/widget.rs - runtime::surface::widget::SurfaceWidget (line 31) - compile fail ... ok
+test src/runtime/surface.rs - runtime::surface::UiSurface (line 180) - compile fail ... ok
+test src/runtime/surface/node/model.rs - runtime::surface::node::model::SurfaceNode (line 249) - compile fail ... ok
+test src/application/view_node.rs - application::view_node::ViewNode (line 102) - compile fail ... ok
+test src/lib.rs - prelude (line 130) - compile fail ... ok
+test src/lib.rs - prelude (line 118) - compile fail ... ok
+test src/lib.rs - prelude (line 123) - compile fail ... ok
+test src/lib.rs - prelude (line 85) - compile fail ... ok
+test src/lib.rs - prelude (line 90) - compile fail ... ok
+test src/lib.rs - prelude (line 102) - compile fail ... ok
+test src/lib.rs - prelude (line 110) - compile fail ... ok
+test src/lib.rs - prelude (line 95) - compile fail ... ok
+test src/runtime/controller.rs - runtime::controller::SurfaceRuntime (line 151) - compile fail ... ok
+test src/runtime/surface/widget/mapper.rs - runtime::surface::widget::mapper::WidgetMessageMapper (line 287) - compile fail ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+all doctests ran in 3.43s; merged doctests compilation took 2.96s

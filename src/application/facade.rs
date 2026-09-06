@@ -10,10 +10,16 @@ mod layout;
 mod menus;
 mod overlays;
 mod panels;
+mod resources;
 mod runtime;
 mod surfaces;
 mod view;
 mod virtual_layout;
+
+pub use resources::{
+    ResourceInterest, ResourceInterestError, ResourceInterestKind, SharedResourceTasks,
+};
+pub use resources::{SharedResourceCompletion, SharedResourceTaskError, SharedResourceTaskMode};
 
 pub use controls::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,

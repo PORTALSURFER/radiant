@@ -111,6 +111,7 @@ pub use bridge::{
     declarative_runtime_bridge,
 };
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
+pub(crate) use command::ResourceInterestEffect;
 pub(crate) use command::WorkerStreamOptions;
 pub use command::{
     Command, PlatformEffect, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,

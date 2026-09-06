@@ -8,6 +8,12 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::None => f.write_str("None"),
+            Self::AcquireResourceInterest(effect) => f
+                .debug_struct("AcquireResourceInterest")
+                .field("owner", &effect.owner)
+                .field("interest_id", &effect.interest_id)
+                .field("kind", &effect.kind)
+                .finish_non_exhaustive(),
             Self::Message(message) => f.debug_tuple("Message").field(message).finish(),
             Self::Batch(commands) => f.debug_tuple("Batch").field(commands).finish(),
             Self::RequestRepaint => f.write_str("RequestRepaint"),

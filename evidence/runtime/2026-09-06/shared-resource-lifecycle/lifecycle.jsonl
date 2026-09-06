@@ -1,0 +1,4 @@
+{"phase":"shared","interests":2,"workers":1}
+{"phase":"starter_released","interests":1,"value":42}
+{"phase":"ready_reused","new_workers":0}
+{"phase":"final_release","interests":0,"late_value_applied":false}

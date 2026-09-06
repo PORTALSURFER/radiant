@@ -437,9 +437,9 @@ admission-only and the UI-local mappers remain non-`Send` where permitted.
 Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host,
 capacity, and closing admissions fail closed without spawn, mapping, retry, or
 `Application` fallback; failed latest admission restores the predecessor ticket.
-Resource ownership beyond the application-owned `KeyedLatestTasks` route,
-including `ResourceTasks`, and platform ownership remain separate and deferred;
-owner timers remain a separate shipped consumer.
+Shared consumer ownership uses the additive `SharedResourceTasks` broker
+described below. Existing `ResourceTasks` remains application-owned; owner timers
+and qualified platform effects retain their separate admission lanes.
 
 Radiant runs interactive, background, blocking-IO, and idle business work on separate
 runtime-owned lanes so user-visible interactive work is not queued behind
@@ -450,7 +450,12 @@ ordinary background capacity. Long workers should call
 `BusinessWorkContext::checkpoint()`, `check_cancelled()`,
 `yield_if_elapsed(...)`, or `fail_if_over_budget(...)` at natural chunk
 boundaries so cancellation and checkpoint diagnostics stay meaningful.
-Resource-scoped work should use `ResourceKey` with `ResourceTasks` and the
+Shared consumers can use `SharedResourceTasks` with explicit runtime-admitted
+interests and `Effect::resource_worker`. Its clones share a bounded broker;
+values and errors remain application-owned. See
+[Shared resource tasks](SHARED_RESOURCE_TASKS.md) and the deterministic
+`shared_resource_lifecycle` example for ownership, retention, and retry behavior.
+Independent resource-scoped work should use `ResourceKey` with `ResourceTasks` and the
 business request policies `latest_for_resource(...)` or `exclusive_for(...)`.
 Build keys with `ResourceKey::scoped(scope, identity)` for stable host-owned
 classes such as documents, cache entries, folders, devices, or viewports, and
@@ -5147,8 +5152,9 @@ without application fallback and restores the predecessor ticket. The existing
 owner-scoped business, latest-task, keyed-latest, and timer routes keep their
 public handles, cancellation, admission, rollback, and stale/late protections.
 `runtime/effects` is not complete. The remaining effect-ownership boundaries
-are future work tracked by OPT-1390 and OPT-1421; subscriptions, ResourceTasks
-ownership, scheduler policy, and product wiring remain outside this slice.
+include the audit tracked by OPT-1421. Shared resource interest ownership is
+described in [Shared resource tasks](SHARED_RESOURCE_TASKS.md); subscriptions,
+scheduler policy, and product wiring remain outside this facade slice.
 
 The broader target contract is described in [the normative declarative effect-ownership design](DESIGN_DIRECTION.md#declarative-effect-ownership-and-cancellation). These shipped owner-scoped consumers select only one exact keyed/overlay candidate by explicit handle; candidates have no implicit precedence, and an invalid selection is rejected without fallback. Legacy ordinary timers and business work remain application-owned unless a facade or existing owner-scoped API explicitly selects a declarative owner. Ordinary ordered and coalesced owner-scoped streaming, the cancellable ordinary ordered owner stream, ordered and coalesced latest-task owner streaming, and the application-owned `KeyedLatestTasks` one-shot, ordered-stream, and coalesced-stream routes are shipped. The coalesced keyed-latest route retains the exact host key, keyed ticket, replacement transaction, owner generation, and receipt; keeps only the newest pending intermediate payload before UI drain; delivers the uncoalesced final exactly once after the retained event; and passes exact `KeyedTaskCompletion<Key, _>` values to UI-local/non-`Send` mappers. Keyed supersession and owner retirement independently fence worker, mapping, and reduction. Invalid, removed, ambiguous, unkeyed, incompatible, stale, host, capacity, closing, and same-update admissions fail closed without `Application` fallback and restore only the affected key's predecessor; sibling keys remain unchanged. The cancellable ordinary ordered owner-stream route reuses the same accepted surface, owner-generation ledger, worker registry, bounded FIFO ingress, and controller-composed cancellation probe. Callers clone `request.token()` before consuming the request. Token cancellation and declarative owner retirement are independent OR-composed fences for cooperative work, events, final delivery, mapping, and reduction, including later entries already queued for one UI drain; the admission receipt does not change after it resolves. Invalid, removed, ambiguous, unkeyed, incompatible, stale, same-update, host, capacity, and closing admissions reject atomically without spawn, mapping, retry, or `Application` fallback, and event/final mappers stay UI-local/non-`Send`. `ResourceTasks` ownership, platform ownership, and shared-resource semantics remain outside this public slice.
 

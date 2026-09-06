@@ -98,3 +98,27 @@ fn rejected_timer_replacements_restore_the_observable_chain() {
     third.reject();
     assert_eq!(task.active(), Some(first_ticket));
 }
+
+#[test]
+fn settlement_hook_runs_after_latest_state_and_cleanup_bounds_rejections() {
+    use super::LatestTaskTransactionSettlement;
+    use std::sync::{Arc, Mutex};
+
+    let mut task = LatestTask::new();
+    let settled_after_rejection = Arc::new(Mutex::new(None));
+    for _ in 0..32 {
+        let transaction = task.begin_replacement();
+        let cancelled = transaction.cancellation_probe();
+        let observed = Arc::clone(&settled_after_rejection);
+        let transaction = transaction.with_settlement_hook(Arc::new(move |state| {
+            if state == LatestTaskTransactionSettlement::Rejected {
+                *observed.lock().unwrap() = Some(cancelled());
+            }
+        }));
+        let ticket = transaction.replacement();
+        transaction.reject();
+        task.clear_resolved_replacement(ticket);
+        assert_eq!(task.rollback_entry_count(), 0);
+    }
+    assert_eq!(*settled_after_rejection.lock().unwrap(), Some(true));
+}

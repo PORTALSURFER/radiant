@@ -13,6 +13,7 @@ impl<Message> Command<Message> {
             | Self::RequestLayoutRefresh
             | Self::Timer(..)
             | Self::PerformWorker(..)
+            | Self::AcquireResourceInterest(..)
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }
@@ -59,6 +60,7 @@ impl<Message> Command<Message> {
             | Self::Message(_)
             | Self::Timer(..)
             | Self::PerformWorker(..)
+            | Self::AcquireResourceInterest(..)
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }
@@ -85,7 +87,7 @@ impl<Message> Command<Message> {
             Self::PerformWorker(effect) if effect.owner.is_some() || effect.lifecycle.is_some() => {
                 true
             }
-            Self::PlatformEffect(..) => true,
+            Self::PlatformEffect(..) | Self::AcquireResourceInterest(..) => true,
             Self::Focus(_)
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }

@@ -38,6 +38,7 @@ const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "src/gui_runtime/native_vello/generic_runtime/lifecycle.rs",
     "src/gui_runtime/native_vello/generic_runtime/window_environment.rs",
     "src/gui_runtime/native_vello/runtime_event.rs",
+    "src/gui_runtime/native_vello/embedded.rs",
     "src/gui_runtime/native_vello/generic_runtime/native_semantic_accessibility.rs",
     "src/gui_runtime/native_vello/generic_runtime/runner.rs",
     "src/runtime/automation.rs",

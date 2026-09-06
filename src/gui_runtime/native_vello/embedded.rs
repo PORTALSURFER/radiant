@@ -87,8 +87,17 @@ impl std::error::Error for EmbeddedVelloError {}
 /// Borrow-free raw handle pair for a native surface whose lifecycle is owned by an embedding host.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EmbeddedVelloSurfaceHandle {
-    display: RawDisplayHandle,
-    window: RawWindowHandle,
+    target: EmbeddedSurfaceTarget,
+}
+
+/// Native target kept independent of the public WGPU API.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum EmbeddedSurfaceTarget {
+    /// Host-owned window and display pair.
+    Window(RawDisplayHandle, RawWindowHandle),
+    /// Host-owned Metal layer, retained until the renderer is dropped.
+    #[cfg(target_os = "macos")]
+    MetalLayer(std::ptr::NonNull<std::ffi::c_void>),
 }
 
 impl EmbeddedVelloSurfaceHandle {
@@ -99,7 +108,42 @@ impl EmbeddedVelloSurfaceHandle {
     /// Both handles must remain valid until the associated [`EmbeddedVelloRenderer`] is dropped.
     /// The window handle must identify a surface target accepted by WGPU on the current platform.
     pub unsafe fn from_raw(display: RawDisplayHandle, window: RawWindowHandle) -> Self {
-        Self { display, window }
+        Self {
+            target: EmbeddedSurfaceTarget::Window(display, window),
+        }
+    }
+
+    /// Wrap a Metal layer owned by an embedded macOS host.
+    ///
+    /// This bypasses raw-window-handle's observer-layer construction, allowing
+    /// independently linked renderers to coexist in a plugin host process.
+    ///
+    /// # Safety
+    ///
+    /// `layer` must point to a live CAMetalLayer. The caller must retain it until
+    /// the renderer has been dropped, update its bounds and contents scale, and
+    /// create, use, and destroy the renderer on the main thread.
+    #[cfg(target_os = "macos")]
+    pub unsafe fn from_metal_layer(layer: std::ptr::NonNull<std::ffi::c_void>) -> Self {
+        Self {
+            target: EmbeddedSurfaceTarget::MetalLayer(layer),
+        }
+    }
+
+    /// Translate the native target without constructing a window observer layer.
+    fn surface_target(self) -> wgpu::SurfaceTargetUnsafe {
+        match self.target {
+            EmbeddedSurfaceTarget::Window(display, window) => {
+                wgpu::SurfaceTargetUnsafe::RawHandle {
+                    raw_display_handle: Some(display),
+                    raw_window_handle: window,
+                }
+            }
+            #[cfg(target_os = "macos")]
+            EmbeddedSurfaceTarget::MetalLayer(layer) => {
+                wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer.as_ptr())
+            }
+        }
     }
 }
 
@@ -177,10 +221,7 @@ impl EmbeddedVelloRenderer {
         let surface: wgpu::Surface<'static> = unsafe {
             render_context
                 .instance
-                .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-                    raw_display_handle: Some(handle.display),
-                    raw_window_handle: handle.window,
-                })
+                .create_surface_unsafe(handle.surface_target())
         }
         .map_err(|error| EmbeddedVelloError::CreateSurface(error.to_string()))?;
         let render_surface = pollster::block_on(render_context.create_render_surface(

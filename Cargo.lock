@@ -2613,6 +2613,7 @@ dependencies = [
  "objc2-foundation 0.2.2",
  "open",
  "pollster",
+ "radiant-native-test-support",
  "raw-window-handle",
  "rfd",
  "roxmltree 0.21.1",
@@ -2631,6 +2632,13 @@ dependencies = [
  "windows-core",
  "windows-sys 0.61.2",
  "winit",
+]
+
+[[package]]
+name = "radiant-native-test-support"
+version = "0.1.0"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

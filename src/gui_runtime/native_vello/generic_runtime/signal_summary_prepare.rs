@@ -543,39 +543,6 @@ impl SummaryBroker {
         }
     }
 
-    #[cfg(test)]
-    pub(super) fn prepare_for_test(
-        content: &GpuSurfaceContent,
-        revision: u64,
-    ) -> (Self, PreparedSummary) {
-        struct NoopWake;
-        impl RepaintSignal for NoopWake {
-            fn request_repaint(&self) {}
-        }
-
-        let mut broker = Self::new(Arc::new(NoopWake));
-        let target = SummaryTargetId::new(
-            WindowId::dummy(),
-            NativeAdapterGeneration::from_test_serial(1),
-            NativeTargetGeneration::from_test_serial(1),
-            1,
-        )
-        .expect("test target serial");
-        let request = SummaryRequest::from_raw_surface(content, revision)
-            .expect("renderable raw signal content");
-        assert_eq!(
-            broker.request(target, request),
-            SummaryRequestState::Pending
-        );
-        broker
-            .take_dispatch()
-            .expect("admitted test dispatch")
-            .run();
-        broker.drain_completions();
-        let prepared = broker.prepared(target).expect("prepared test summary");
-        (broker, prepared)
-    }
-
     /// Call only when the host rejected the returned dispatch closure.
     pub(super) fn reject_dispatch(&mut self, id: u64) {
         for entry in self.sources.values_mut() {

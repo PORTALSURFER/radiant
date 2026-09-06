@@ -57,8 +57,26 @@ fn native_gpu_signal_summary_cache_stays_in_focused_module() {
     assert!(
         summary.contains("fn cached_signal_summary")
             && summary.contains("signal.summary_cache_hits")
-            && summary.contains("signal.summary_builds")
-            && summary.contains("GpuSignalSummary::from_interleaved_samples"),
-        "GPU signal summary memoization should live in resources/signal/summary.rs"
+            && summary.contains("fn install_prepared_signal_summary")
+            && summary.contains("PreparedSummary")
+            && !summary.contains("GpuSignalSummary::from_interleaved_samples"),
+        "GPU signal summary caching should consume prepared ownership in its focused module"
+    );
+    let broker = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/signal_summary_prepare.rs"),
+    )
+    .expect("native summary preparation broker");
+    let rendering = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal.rs"),
+    )
+    .expect("native signal rendering");
+    let production_rendering = rendering
+        .split("#[cfg(test)]\nmod tests")
+        .next()
+        .expect("production prefix");
+    assert!(
+        broker.contains("GpuSignalSummary::from_interleaved_samples_cancellable")
+            && !production_rendering.contains("GpuSignalSummary::from_interleaved_samples"),
+        "full raw summary construction must stay outside GPU preflight and execution"
     );
 }

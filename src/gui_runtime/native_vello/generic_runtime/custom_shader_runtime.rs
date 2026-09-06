@@ -208,44 +208,9 @@ where
             device_identity,
             format,
             cached,
-            None,
             Some(&retry_targets),
             true,
         )
-    }
-
-    pub(super) fn reconcile_waiting_custom_shader_preparations(
-        &mut self,
-        adapter: NativeAdapterGeneration,
-        device: &wgpu::Device,
-        device_identity: usize,
-        format: wgpu::TextureFormat,
-        cached: &HashSet<CustomShaderPipelineIdentity>,
-        targets: &HashSet<CustomShaderTargetId>,
-    ) -> bool {
-        !self
-            .reconcile_custom_shader_preparations_filtered(
-                adapter,
-                device,
-                device_identity,
-                format,
-                cached,
-                Some(targets),
-                None,
-                false,
-            )
-            .is_empty()
-    }
-
-    pub(super) fn take_waiting_custom_shader_targets(
-        &mut self,
-        limit: usize,
-    ) -> Vec<CustomShaderTargetId> {
-        self.custom_shader_preparation
-            .as_mut()
-            .map_or_else(Vec::new, |preparation| {
-                preparation.waiting_targets_rotating(limit)
-            })
     }
 
     pub(super) fn schedule_waiting_custom_shader_retry(&mut self, limit: usize) -> bool {
@@ -261,7 +226,6 @@ where
         device_identity: usize,
         format: wgpu::TextureFormat,
         cached: &HashSet<CustomShaderPipelineIdentity>,
-        only_targets: Option<&HashSet<CustomShaderTargetId>>,
         retry_targets: Option<&HashSet<CustomShaderTargetId>>,
         wake_new_admission: bool,
     ) -> Vec<PendingCustomShaderInstall> {
@@ -304,9 +268,6 @@ where
             else {
                 continue;
             };
-            if only_targets.is_some_and(|targets| !targets.contains(&target)) {
-                continue;
-            }
             if waiting.contains(&target)
                 && retry_targets.is_some_and(|targets| !targets.contains(&target))
             {
@@ -349,28 +310,26 @@ where
             }
         }
 
-        if only_targets.is_none() {
-            let stale: Vec<_> = preparation
-                .targets
-                .keys()
-                .copied()
-                .filter(|key| !live.contains(key))
-                .collect();
-            let capacity_changed = {
-                let mut broker = preparation.broker.borrow_mut();
-                let before = broker.capacity_status();
-                for key in stale {
-                    if let Some(target) = preparation.targets.remove(&key) {
-                        broker.release_target(target);
-                    }
+        let stale: Vec<_> = preparation
+            .targets
+            .keys()
+            .copied()
+            .filter(|key| !live.contains(key))
+            .collect();
+        let capacity_changed = {
+            let mut broker = preparation.broker.borrow_mut();
+            let before = broker.capacity_status();
+            for key in stale {
+                if let Some(target) = preparation.targets.remove(&key) {
+                    broker.release_target(target);
                 }
-                before != broker.capacity_status()
-            };
-            if wake_new_admission && capacity_changed {
-                preparation.schedule_waiting_retry(8);
-                let broker = preparation.broker.borrow();
-                broker.request_pump();
             }
+            before != broker.capacity_status()
+        };
+        if wake_new_admission && capacity_changed {
+            preparation.schedule_waiting_retry(8);
+            let broker = preparation.broker.borrow();
+            broker.request_pump();
         }
         installs.reverse();
         installs

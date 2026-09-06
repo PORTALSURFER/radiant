@@ -52,7 +52,9 @@ impl SurfacePaintPlan {
                 | PaintPrimitive::StrokeRectBatch(_)
                 | PaintPrimitive::StrokePolygon(_)
                 | PaintPrimitive::StrokePolyline(_) => stats.strokes += 1,
-                PaintPrimitive::Text(_) | PaintPrimitive::TextInput(_) => stats.text += 1,
+                PaintPrimitive::Text(_)
+                | PaintPrimitive::TextInput(_)
+                | PaintPrimitive::TextEditor(_) => stats.text += 1,
                 PaintPrimitive::OverlayPanel(_) => stats.overlay_panels += 1,
                 PaintPrimitive::Image(_) => stats.images += 1,
                 PaintPrimitive::CustomSurface(_) => stats.custom_surfaces += 1,

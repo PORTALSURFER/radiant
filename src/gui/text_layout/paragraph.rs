@@ -11,7 +11,7 @@
 use crate::gui::types::{Point, Rect};
 use std::{collections::BTreeSet, ops::Range, sync::Arc};
 use unicode_bidi::{BidiClass, BidiInfo, Level};
-use unicode_linebreak::{linebreaks, BreakOpportunity};
+use unicode_linebreak::{BreakOpportunity, linebreaks};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub const MAX_PARAGRAPH_SOURCE_BYTES: usize = 1024 * 1024;
@@ -133,6 +133,7 @@ pub struct ParagraphGeometry {
     key: ParagraphGeometryKey,
     source: Arc<str>,
     line_height: f32,
+    wrap_width: f32,
     width: f32,
     lines: Vec<ParagraphVisualLine>,
     placements: Vec<Vec<ParagraphClusterPlacement>>,
@@ -231,6 +232,7 @@ impl ParagraphGeometry {
             key: input.key,
             source: input.source,
             line_height: input.line_height,
+            wrap_width: input.wrap_width,
             width,
             lines,
             placements,
@@ -260,6 +262,14 @@ impl ParagraphGeometry {
     }
     pub fn height(&self) -> f32 {
         self.lines.len() as f32 * self.line_height
+    }
+    /// Width used when resolving soft line breaks.
+    pub fn wrap_width(&self) -> f32 {
+        self.wrap_width
+    }
+    /// Fixed logical advance between visual lines.
+    pub fn line_height(&self) -> f32 {
+        self.line_height
     }
 
     pub fn caret(&self, caret: ParagraphCaret) -> Option<Point> {
@@ -811,15 +821,15 @@ mod tests {
     }
     #[test]
     fn l1_adjusts_trailing_whitespace_from_pre_l1_level() {
-        let mut levels = vec![Level::rtl(), Level::rtl()];
+        let mut levels = vec![Level::rtl(), Level::rtl(), Level::rtl()];
         apply_l1(
             "א ",
-            &[BidiClass::R, BidiClass::WS],
+            &[BidiClass::R, BidiClass::R, BidiClass::WS],
             &mut levels,
             Level::ltr(),
         );
         assert_eq!(levels[0].number(), 1);
-        assert_eq!(levels[1].number(), 0);
+        assert_eq!(levels[2].number(), 0);
     }
     #[test]
     fn narrow_wrap_reuses_one_precomputed_paragraph_bidi_snapshot() {

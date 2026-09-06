@@ -225,10 +225,11 @@ pub use paint::{
     PaintLinearGradient, PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList,
     PaintPrimitive, PaintRectList, PaintRenderCanvas, PaintStrokePolygon, PaintStrokePolyline,
     PaintStrokeRect, PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign,
-    PaintTextInput, PaintTextMetrics, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan,
-    SurfacePaintStats, SvgParseError, TransientOverlayContext, WidgetPaint, push_fill_polygon,
-    push_fill_rect, push_fill_rect_batch, push_stroke_polyline, push_stroke_rect,
-    push_stroke_rect_batch, push_text, push_text_run_with_metrics, push_visible_fill_rect,
+    PaintTextEditor, PaintTextInput, PaintTextMetrics, PaintTextRun, PaintTransform, Renderer,
+    SurfacePaintPlan, SurfacePaintStats, SvgParseError, TransientOverlayContext, WidgetPaint,
+    push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
+    push_stroke_rect, push_stroke_rect_batch, push_text, push_text_run_with_metrics,
+    push_visible_fill_rect,
 };
 #[cfg(test)]
 pub(crate) use paint::{PaintSegment, PaintSegmentAnchor};

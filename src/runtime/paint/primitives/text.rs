@@ -1,6 +1,9 @@
 use crate::{
-    gui::types::{Rect, Rgba8},
-    widgets::{TextInputState, TextWrap, WidgetId, WidgetStyle},
+    gui::{
+        text_layout::editor::TextEditorLayoutRequest,
+        types::{Rect, Rgba8, Vector2},
+    },
+    widgets::{TextEditorSelection, TextInputState, TextWrap, WidgetId, WidgetStyle},
 };
 use std::{
     fmt,
@@ -222,4 +225,25 @@ pub struct PaintTextInput {
     pub caret_color: Rgba8,
     /// Whether the field currently owns keyboard focus.
     pub focused: bool,
+}
+
+/// Multi-line editor primitive carrying an exact shared-geometry declaration.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintTextEditor {
+    /// Exact declaration that the host must satisfy with one geometry receipt.
+    pub request: TextEditorLayoutRequest,
+    /// Application-owned ordered selection and active caret.
+    pub selection: TextEditorSelection,
+    /// Logical viewport offset into the paragraph geometry.
+    pub scroll: Vector2,
+    /// Text color.
+    pub color: Rgba8,
+    /// Selection fill color.
+    pub selection_color: Rgba8,
+    /// Caret color.
+    pub caret_color: Rgba8,
+    /// Whether the editor owns keyboard focus.
+    pub focused: bool,
+    /// Whether native composition and caret adornments are temporarily hidden.
+    pub hide_adornments: bool,
 }

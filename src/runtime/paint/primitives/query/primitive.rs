@@ -1,6 +1,7 @@
 use super::super::{
     PaintClipStart, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintGpuSurface,
-    PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintTextInput, PaintTextRun,
+    PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintTextEditor,
+    PaintTextInput, PaintTextRun,
 };
 use crate::{gui::types::Rect, widgets::WidgetId};
 use std::{iter, slice};
@@ -18,6 +19,14 @@ impl PaintPrimitive {
     pub fn text_input(&self) -> Option<&PaintTextInput> {
         match self {
             Self::TextInput(input) => Some(input),
+            _ => None,
+        }
+    }
+
+    /// Return the multi-line editor paint payload carried by this primitive, if any.
+    pub fn text_editor(&self) -> Option<&PaintTextEditor> {
+        match self {
+            Self::TextEditor(editor) => Some(editor),
             _ => None,
         }
     }
@@ -114,6 +123,7 @@ impl PaintPrimitive {
             Self::Text(text) => Some(text.widget_id),
             Self::OverlayPanel(panel) => Some(panel.widget_id),
             Self::TextInput(input) => Some(input.widget_id),
+            Self::TextEditor(editor) => Some(editor.request.widget_id),
             Self::Image(image) => Some(image.widget_id),
             Self::GpuSurface(surface) => Some(surface.widget_id),
             Self::CustomSurface(surface) => Some(surface.widget_id),
@@ -139,6 +149,7 @@ impl PaintPrimitive {
             Self::Text(text) => Some(text.rect),
             Self::OverlayPanel(panel) => Some(panel.rect),
             Self::TextInput(input) => Some(input.rect),
+            Self::TextEditor(editor) => Some(editor.request.rect),
             Self::Image(image) => Some(image.rect),
             Self::GpuSurface(surface) => Some(surface.rect),
             Self::CustomSurface(surface) => Some(surface.rect),
@@ -186,6 +197,7 @@ impl PaintPrimitive {
             Self::Text(text) => PrimitiveRects::one(text.rect),
             Self::OverlayPanel(panel) => PrimitiveRects::one(panel.rect),
             Self::TextInput(input) => PrimitiveRects::one(input.rect),
+            Self::TextEditor(editor) => PrimitiveRects::one(editor.request.rect),
             Self::Image(image) => PrimitiveRects::one(image.rect),
             Self::GpuSurface(surface) => PrimitiveRects::one(surface.rect),
             Self::CustomSurface(surface) => PrimitiveRects::one(surface.rect),

@@ -304,6 +304,9 @@ where
                 encode_text_input(scene, text_renderer, input, animation_time, snapshot);
                 stats.record_text_runs(1);
             }
+            // TODO(OPT-1404): encode the accepted shared editor receipt. The neutral
+            // primitive is intentionally visible before its native glyph adapter lands.
+            PaintPrimitive::TextEditor(_) => {}
             PaintPrimitive::Image(draw) => {
                 stats.image_count = stats.image_count.saturating_add(1);
                 encode_image(

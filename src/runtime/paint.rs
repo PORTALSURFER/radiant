@@ -24,8 +24,8 @@ pub use primitives::{
     PaintLinearGradient, PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList,
     PaintPrimitive, PaintRectList, PaintRenderCanvas, PaintStrokePolygon, PaintStrokePolyline,
     PaintStrokeRect, PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign,
-    PaintTextInput, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats,
-    SvgParseError, TransientOverlayContext,
+    PaintTextEditor, PaintTextInput, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan,
+    SurfacePaintStats, SvgParseError, TransientOverlayContext,
 };
 pub(super) use scroll::{
     push_horizontal_scroll_affordance, push_scroll_affordance,

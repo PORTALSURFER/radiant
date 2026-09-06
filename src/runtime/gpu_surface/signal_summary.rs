@@ -2,6 +2,12 @@
 
 use std::sync::Arc;
 
+mod bounded;
+pub(crate) use bounded::{
+    BoundedSignalError, BoundedSignalOverview, BoundedSignalTile, build_bounded_overview,
+    build_bounded_tile,
+};
+
 /// CPU-built min/max pyramid for retained GPU signal surfaces.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GpuSignalSummary {

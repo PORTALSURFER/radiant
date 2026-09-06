@@ -572,7 +572,7 @@ fn wrap_line(
             return Err(ParagraphGeometryError::InvalidMetrics);
         }
         advance += cluster.advance;
-        if cluster.safe_break_after && breaks.contains(&cluster.bytes.end) {
+        if advance <= width && cluster.safe_break_after && breaks.contains(&cluster.bytes.end) {
             last_break = Some(cursor + 1);
         }
         if advance > width && cursor > start {
@@ -776,6 +776,13 @@ mod tests {
         assert_eq!(g.lines().len(), 2);
         let g = geometry("ab", 15.0);
         assert_eq!(g.lines().len(), 1);
+    }
+    #[test]
+    fn wrap_uses_the_last_safe_boundary_that_still_fits() {
+        let geometry = geometry("a b ", 25.0);
+        assert_eq!(geometry.lines().len(), 2);
+        assert_eq!(geometry.lines()[0].bytes, 0..2);
+        assert_eq!(geometry.lines()[0].width, 16.0);
     }
     #[test]
     fn combining_has_one_logical_grapheme_boundary() {

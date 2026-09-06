@@ -106,7 +106,9 @@ impl GpuSurfaceRenderer {
         let pipeline = self.signal_pipeline.as_ref()?;
         let logical_bytes = logical_signal_body_texture_bytes(body_key.width, body_key.height)?;
         let gpu_lease = match gpu_budget {
-            Some(budget) => Some(budget.reserve(usize::try_from(logical_bytes).ok()?)?),
+            Some(budget) => Some(Arc::new(
+                budget.reserve(usize::try_from(logical_bytes).ok()?)?,
+            )),
             None => None,
         };
         let texture = device.create_texture(&wgpu::TextureDescriptor {

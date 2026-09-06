@@ -637,6 +637,40 @@ impl GpuSurfaceRenderer {
                     stats.composite.binding_content_mismatches += 1;
                 }
             }
+            // A composite bind group retains the body texture view independently
+            // of the body cache; share that reservation until both owners drop.
+            let signal_body = match request.texture_identity {
+                GpuSurfaceTextureIdentity::SignalBody(key) => self
+                    .resources
+                    .signal_bodies
+                    .get(&surface.key)
+                    .filter(|body| body.cache_key == key),
+                GpuSurfaceTextureIdentity::RgbaAtlas { .. } => None,
+            };
+            let signal_owner = signal_body.map(|body| body._content_owner.clone());
+            let signal_body_lease = signal_body.and_then(|body| body._gpu_lease.clone());
+            let signal_uniform_lease =
+                if let Some(super::identity::RenderCanvasContentOwner::PreparedSignal(owner)) =
+                    &signal_owner
+                {
+                    let Some(lease) = owner
+                        .gpu_budget()
+                        .reserve(std::mem::size_of::<GpuSurfaceUniforms>())
+                    else {
+                        if let Some((_, plan)) = atlas_execution.as_mut() {
+                            plan.veto_execution(
+                                GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                            );
+                        }
+                        stats.mark_candidate_unavailable(
+                            GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete,
+                        );
+                        return;
+                    };
+                    Some(lease)
+                } else {
+                    None
+                };
             stats.composite.binding_rebuilds += 1;
             let uniform_buffer = target.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("radiant_gpu_surface_uniforms"),
@@ -668,6 +702,9 @@ impl GpuSurfaceRenderer {
                     cache_key,
                     uniform_buffer,
                     bind_group,
+                    _signal_owner: signal_owner,
+                    _signal_body_lease: signal_body_lease,
+                    _signal_uniform_lease: signal_uniform_lease,
                 },
             );
         } else {

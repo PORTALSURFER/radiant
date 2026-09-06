@@ -70,7 +70,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _texture: wgpu::Texture,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) view: wgpu::TextureView,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _gpu_lease:
-        Option<SignalGpuLease>,
+        Option<Arc<SignalGpuLease>>,
 }
 
 impl SignalBodyTexture {

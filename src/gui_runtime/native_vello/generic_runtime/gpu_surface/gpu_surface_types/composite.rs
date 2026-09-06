@@ -1,5 +1,8 @@
 use super::super::identity::RenderCanvasContentIdentity;
+use super::super::identity::RenderCanvasContentOwner;
 use super::signal::SignalBodyCacheKey;
+use crate::gui_runtime::native_vello::generic_runtime::signal_summary_prepare::SignalGpuLease;
+use std::sync::Arc;
 use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceCompositeBinding
@@ -10,6 +13,12 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
         wgpu::Buffer,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bind_group:
         wgpu::BindGroup,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _signal_owner:
+        Option<RenderCanvasContentOwner>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _signal_body_lease:
+        Option<Arc<SignalGpuLease>>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _signal_uniform_lease:
+        Option<SignalGpuLease>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]

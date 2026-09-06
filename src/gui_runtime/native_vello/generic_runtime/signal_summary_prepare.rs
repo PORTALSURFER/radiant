@@ -7,7 +7,7 @@
 use super::{adapter::NativeAdapterGeneration, runner_state::NativeTargetGeneration};
 use crate::{
     gui::repaint::RepaintSignal,
-    runtime::{GpuSignalSummary, GpuSurfaceContent},
+    runtime::{BoundedSignalTile, GpuSignalSummary, GpuSurfaceContent},
 };
 use std::hash::{Hash, Hasher};
 use std::{
@@ -155,6 +155,24 @@ pub(super) struct PreparedSummary {
     _source: Arc<[f32]>,
     summary: Arc<GpuSignalSummary>,
     _lease: SummaryRetentionLease,
+    tile: Option<Arc<BoundedSignalTile>>,
+    _tile_lease: Option<SummaryRetentionLease>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(super) struct PreparedSignalAssetKey {
+    overview_allocation: usize,
+    tile: Option<PreparedSignalTileKey>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct PreparedSignalTileKey {
+    allocation: usize,
+    first_frame: usize,
+    source_frames: usize,
+    band_count: usize,
+    bucket_frames: usize,
+    values: usize,
 }
 
 impl PreparedSummary {
@@ -164,6 +182,24 @@ impl PreparedSummary {
     }
     pub(super) fn summary(&self) -> &Arc<GpuSignalSummary> {
         &self.summary
+    }
+    pub(super) fn tile(&self) -> Option<&BoundedSignalTile> {
+        self.tile.as_deref()
+    }
+    pub(super) fn asset_key(&self) -> PreparedSignalAssetKey {
+        PreparedSignalAssetKey {
+            overview_allocation: Arc::as_ptr(&self.summary) as usize,
+            tile: self.tile.as_ref().map(|tile| PreparedSignalTileKey {
+                allocation: Arc::as_ptr(&tile.buckets)
+                    as *const crate::runtime::GpuSignalSummaryBucket
+                    as usize,
+                first_frame: tile.first_frame,
+                source_frames: tile.source_frames,
+                band_count: tile.band_count,
+                bucket_frames: tile.bucket_frames,
+                values: tile.buckets.len(),
+            }),
+        }
     }
     pub(super) fn matches_raw_surface(&self, content: &GpuSurfaceContent, revision: u64) -> bool {
         SummaryRequest::from_raw_surface(content, revision)
@@ -480,6 +516,8 @@ impl SummaryBroker {
             _source: Arc::clone(&entry.samples),
             summary: Arc::clone(summary),
             _lease: SummaryRetentionLease(Some(Arc::clone(token))),
+            tile: None,
+            _tile_lease: None,
         })
     }
 

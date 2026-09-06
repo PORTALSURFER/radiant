@@ -278,3 +278,8 @@ pub use virtual_layout::{
 pub(crate) use virtual_layout::{
     adapt_coordinate_transform, adapt_item_provider, adapt_range_provider, provider_identity,
 };
+
+pub(crate) use gpu_surface::{
+    BoundedSignalError, BoundedSignalOverview, BoundedSignalTile, build_bounded_overview,
+    build_bounded_tile,
+};

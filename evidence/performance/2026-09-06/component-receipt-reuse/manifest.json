@@ -1,0 +1,50 @@
+{
+  "binaries": {
+    "before": {
+      "sha256": "30f400ec07fda346418ba45cc51e5b35c274991af62500ff38f9392943244957",
+      "commit": "cbb2baba48e4ece4dbf3e934120f508e85a09014"
+    },
+    "after": {
+      "sha256": "f5051279e1c10dc715488471c267c5e2be0e5dda762a57e7515340a5b3f7192f",
+      "commit": "91b31ca1d571e44262eda5dca2f111b5a02f2db4"
+    }
+  },
+  "runs": [
+    {
+      "name": "before-1",
+      "started_at": "2026-09-06T08:29:45.983032+00:00",
+      "raw_sha256": "261b37cebbd4b1795d61415e6794024b08646c04f6cf934bc625cd8978194e6a",
+      "stderr": ""
+    },
+    {
+      "name": "after-1",
+      "started_at": "2026-09-06T08:29:46.717420+00:00",
+      "raw_sha256": "b071cb8dc07dab8dfb42a2cab8c8a85675eca15731d8e607d3e1ea77615a9fdb",
+      "stderr": ""
+    },
+    {
+      "name": "after-2",
+      "started_at": "2026-09-06T08:29:47.429590+00:00",
+      "raw_sha256": "4f33e45a7295a551a2be92d094b6a96abc6d37be01c69bcca84e7d3c3e3c7568",
+      "stderr": ""
+    },
+    {
+      "name": "before-2",
+      "started_at": "2026-09-06T08:29:47.789903+00:00",
+      "raw_sha256": "e111004a7cd2dc8b30e9a74a4d179d216a6b8986b74aa0f2028fbbf8cb86d5ca",
+      "stderr": ""
+    },
+    {
+      "name": "before-3",
+      "started_at": "2026-09-06T08:29:48.254365+00:00",
+      "raw_sha256": "d8ad6041fe89e16b5678653cee3335d667cc4c33649f7a767d968e2d8a4f70c5",
+      "stderr": ""
+    },
+    {
+      "name": "after-3",
+      "started_at": "2026-09-06T08:29:48.707175+00:00",
+      "raw_sha256": "adad8faba357c324fb27e72f0144db58d3f4899fe1b740840c3243cb51f962bd",
+      "stderr": ""
+    }
+  ]
+}

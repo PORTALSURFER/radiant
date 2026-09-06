@@ -6166,6 +6166,14 @@ Use `--jsonl` when collecting trend artifacts for scripts or CI storage:
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 ```
 
+Use `--iterations N` (or `--iterations=N`) to override measured calls per
+selected scenario when collecting longer samples. The harness accepts one
+integer from 1 through 100,000, retains one untimed warm-up call, and records the
+actual count in JSONL. Omitting it preserves each scenario's normal count.
+Compare evidence only when iteration and sampling settings agree; a short
+same-binary comparison can expose noise before attributing a timing change to
+an implementation.
+
 Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
 `total_us`, `avg_us`, and finite nearest-rank `p50_us`, `p95_us`, and `p99_us`,
 plus any scenario-owned counters such as

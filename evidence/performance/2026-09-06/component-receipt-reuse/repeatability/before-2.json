@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "backend": "backend-neutral SurfaceRuntime; no native frames or GPU submission",
+    "build_mode": "release",
+    "commit": "cbb2baba48e4ece4dbf3e934120f508e85a09014",
+    "dataset": "Interaction tooltip beside 32 cached components x 100 text leaves; fixed 3400x2700 viewport. Identical geometry, paint, full refresh and 9600-leaf application projection controls.",
+    "features": {
+      "cargo": "default",
+      "rustc": "1.97.1 (8bab26f4f 2026-07-14)",
+      "target": "aarch64-apple-darwin"
+    },
+    "hardware": {
+      "chip": "Apple M5 Pro",
+      "memory": "24 GiB",
+      "model": "Mac17,9"
+    },
+    "measurement_kind": "deterministic_harness",
+    "os": "macOS 26.6.2 (25G83)",
+    "power_state": "AC Power; battery 100%",
+    "refresh_hz": 60,
+    "sampling": {
+      "batch_size": 8,
+      "iterations": 100,
+      "ordering": "interleaved pairs before/after, after/before, before/after; identical scenario order",
+      "percentiles": "per-batch average, nearest rank",
+      "scale_refresh": "synthetic harness settings, not display measurements",
+      "warmup": "construct outside timing, then one scenario call"
+    },
+    "scale": 1
+  },
+  "metrics_jsonl": "{\"type\":\"radiant_perf\",\"scenario\":\"app_component_projection_cached_9600\",\"category\":\"application_projection\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":19514,\"avg_us\":195.140,\"p50_us\":185.375,\"p95_us\":267.979,\"p99_us\":267.979,\"application_projection_count\":100,\"component_projection_callback_count\":100,\"component_projection_cache_hit_count\":3100}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_component_local_geometry_3200\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":160086,\"avg_us\":1600.860,\"p50_us\":1556.281,\"p95_us\":2033.698,\"p99_us\":2033.698,\"layout_count\":100,\"layout_node_visit_count\":323300}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_component_local_interaction_3200\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":85195,\"avg_us\":851.950,\"p50_us\":847.932,\"p95_us\":937.016,\"p99_us\":937.016,\"application_projection_count\":100,\"runtime_projection_count\":100,\"layout_count\":0}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_surface_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":6339,\"avg_us\":63.390,\"p50_us\":59.896,\"p95_us\":75.760,\"p99_us\":75.760,\"scene_rebuild_count\":100,\"paint_primitive_count\":8900,\"paint_plan_rebuild_count\":100}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":39504,\"avg_us\":395.040,\"p50_us\":393.302,\"p95_us\":420.740,\"p99_us\":420.740,\"surface_refresh_count\":100,\"application_projection_count\":100,\"runtime_projection_count\":100,\"widget_state_sync_count\":100,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_projection_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":100,\"total_us\":39858,\"avg_us\":398.580,\"p50_us\":393.266,\"p95_us\":458.380,\"p99_us\":458.380,\"surface_refresh_count\":100,\"application_projection_count\":100,\"runtime_projection_count\":100,\"widget_state_sync_count\":100,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n",
+  "metrics_sha256": "ec5078d67df4ecd7c50254dbcd9e9b1273b23ca64f9d2507151d6307c44b0b91",
+  "schema": 1
+}

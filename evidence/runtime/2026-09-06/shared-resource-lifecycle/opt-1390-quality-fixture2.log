@@ -1,0 +1,7 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1390-resource-interests-radiant)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.31s
+     Running `/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/shared_resource_lifecycle`
+{"phase":"shared","interests":2,"workers":1}
+{"phase":"starter_released","interests":1,"value":42}
+{"phase":"ready_reused","new_workers":0}
+{"phase":"final_release","interests":0,"late_value_applied":false}

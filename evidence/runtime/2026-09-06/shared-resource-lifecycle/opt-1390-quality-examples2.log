@@ -1,0 +1,737 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1390-resource-interests-radiant)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 24.35s
+     Running unittests examples/animation_showcase.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/animation_showcase-2ce3ac5338d33ecf)
+
+running 13 tests
+test model::tests::animation_state_advances_meter_phase ... ok
+test pulse_meter::tests::pulse_meter_resolves_visible_motion_geometry ... ok
+test pulse_meter::tests::paused_pulse_meter_keeps_position_but_dims_activity ... ok
+test pulse_meter::tests::pulse_meter_wraps_trailing_pulses_without_edge_clamping ... ok
+test pulse_meter::tests::paused_phase_meter_paints_dimmed_activity ... ok
+test pulse_meter::tests::late_phase_meter_keeps_activity_localized_near_playhead ... ok
+test pulse_meter::tests::phase_meter_paints_rail_pulses_playhead_and_marker ... ok
+test tests::reset_stops_running_animation_on_first_frame ... ok
+test tests::animation_controls_survive_pending_frame_between_press_and_release ... ok
+test tests::reset_ignores_already_queued_animation_frame ... ok
+test tests::animation_controls_disable_and_reset_frame_driven_updates ... ok
+test tests::animation_control_labels_track_running_state ... ok
+test tests::animation_controls_pause_resume_and_reset_state ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/arrangement_shell.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/arrangement_shell-9085e8ea544827b6)
+
+running 8 tests
+test arrangement_shell::tests::arrangement_shell_tick_advances_playhead_and_meters_without_audio_or_dsp ... ok
+test arrangement_shell::tests::arrangement_overview_prepared_sync_is_state_only_and_callback_inert ... ok
+test arrangement_shell::tests::arrangement_overview_click_selects_clip_or_seeks_empty_space ... ok
+test arrangement_shell::tests::arrangement_shell_hover_uses_paint_only_runtime_overlay ... ok
+test arrangement_shell::tests::arrangement_overview_paints_lanes_clips_and_playhead_overlay ... ok
+test arrangement_shell::tests::arrangement_shell_runtime_hover_does_not_refresh_surface ... ok
+test arrangement_shell::tests::arrangement_shell_projects_browser_arrangement_inspector_and_mixer ... ok
+test arrangement_shell::tests::arrangement_shell_runtime_frame_messages_advance_status ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/background_loading.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/background_loading-cff54e384e64cb0e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/component_projection.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/component_projection-da7648af77d44eac)
+
+running 1 test
+test tests::public_component_example_skips_unchanged_sibling_after_click ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/context_menu.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/context_menu-b5199a826f7d184b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/contextual_commands.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/contextual_commands-435a1fd2082d0521)
+
+running 1 test
+test tests::example_routes_shortcut_and_menu_through_reducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/controlled_scroll.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/controlled_scroll-5c01973be001f8bd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/counter.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/counter-3ab907f88890e390)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/curve_area_fill.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/curve_area_fill-f28c3e6b80d3ac06)
+
+running 1 test
+test tests::example_emits_one_gradient_fill_path_and_one_curve_stroke ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/custom_layout.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/custom_layout-c0abe804e4159edc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/custom_shader_surface.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/custom_shader_surface-28049131e350e36f)
+
+running 2 tests
+test tests::custom_shader_surface_example_descriptor_is_valid ... ok
+test tests::custom_shader_surface_example_lowers_to_render_canvas_primitive ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/custom_widget.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/custom_widget-7da9a057d0165faf)
+
+running 2 tests
+test tests::custom_widget_exports_explicit_capability_descriptors ... ok
+test tests::custom_widget_routes_typed_output_through_application_runtime ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/devtools_overlay.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/devtools_overlay-96abe4033c53a6dd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/dpi_scaling.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/dpi_scaling-e618bdc1cd78f70d)
+
+running 1 test
+test tests::dpi_scaling_example_projects_metrics_for_selected_scale ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/eq_editor.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/eq_editor-6b1c9781d12f9176)
+
+running 3 tests
+test tests::eq_update_applies_gui_parameter_messages ... ok
+test tests::eq_widget_routes_select_and_drag_messages_without_dsp ... ok
+test tests::eq_widget_paints_curve_analyzer_and_band_handles ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/floating_overlay.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/floating_overlay-c7e6d4daeffddce1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/focus_controls.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/focus_controls-129fb01de77a20ca)
+
+running 1 test
+test tests::focus_controls_text_inputs_keep_typed_edits_after_programmatic_focus ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/focus_navigation.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/focus_navigation-b7c16094b6ee6f5e)
+
+running 1 test
+test tests::deterministic_focus_navigation_uses_public_runtime_authority ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/folder_browser.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/folder_browser-333e4e65033d3326)
+
+running 24 tests
+test tests::context_menus::opening_file_context_selects_file_and_records_target ... ok
+test tests::context_menus::opening_context_menu_records_target_folder ... ok
+test tests::file_columns::toggling_file_column_updates_visible_columns_and_keeps_name_locked ... ok
+test tests::file_storage::delete_file_from_context_clears_selection_and_removes_resource_entry ... ok
+test tests::file_storage::create_child_file_uses_unique_new_file_name_in_resource_graph ... ok
+test tests::file_columns::file_column_resize_cancellation_rolls_back_and_stale_column_messages_are_inert ... ok
+test tests::context_menus::rename_from_context_opens_inline_editor_with_folder_name ... ok
+test tests::context_menus::file_rename_from_context_opens_inline_editor_with_file_name ... ok
+test tests::file_columns::file_columns_start_with_default_visible_set ... ok
+test tests::file_columns::file_column_resize_clamps_width ... ok
+test tests::file_storage::file_rename_rejects_empty_and_invalid_names ... ok
+test tests::file_storage::file_rename_changes_resource_graph_without_touching_disk ... ok
+test tests::folder_storage::folder_move_reparents_resource_node ... ok
+test tests::folder_storage::create_child_folder_uses_unique_new_folder_name_in_resource_graph ... ok
+test tests::folder_storage::folder_move_rejects_root_self_and_descendant_targets ... ok
+test tests::folder_storage::folder_rename_rejects_root_empty_and_invalid_names ... ok
+test tests::folder_storage::folder_rename_updates_descendant_resource_ids ... ok
+test tests::layout_tree::expander_toggle_collapses_without_selecting_folder_first ... ok
+test tests::layout_tree::folder_click_expands_collapsed_branches_and_only_collapses_selected_expanded_branch ... ok
+test tests::layout_tree::folder_expansion_controls_visible_tree_rows ... ok
+test tests::layout_tree::in_memory_resource_graph_is_the_browser_default_root ... ok
+test tests::layout_tree::leaf_folder_click_selects_without_recording_expansion ... ok
+test tests::layout_tree::selecting_file_records_selected_file_id ... ok
+test tests::layout_tree::splitter_clamps_folder_tree_width ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/form.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/form-b6a4edf48f053dd4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/generic_native.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/generic_native-bb537873a83e83ae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/gesture_input.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/gesture_input-931efefa989857f2)
+
+running 2 tests
+test tests::public_gesture_example_has_one_qualified_lifecycle ... ok
+test tests::public_typed_drag_example_completes_through_update ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/grid_gallery.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/grid_gallery-eaba4bd238d20ade)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/hello_world.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/hello_world-ccffe653bfa8a287)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/host_surface_frame.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/host_surface_frame-1d9ffc245ed5e517)
+
+running 1 test
+test tests::host_surface_frame_demo_dispatches_events_and_reports_frame_stats ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/inspector_panel.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/inspector_panel-2bca1050b21b77df)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/keys.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/keys-4fe26b8abb4b2059)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/layout_diagnostics.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/layout_diagnostics-144863e99b49c02f)
+
+running 1 test
+test tests::layout_diagnostics_example_collects_diagnostics_and_debug_primitives ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/layout_rows_columns.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/layout_rows_columns-9a05750e74f7b131)
+
+running 4 tests
+test tests::dense_grids_use_compact_cards ... ok
+test tests::sparse_grids_keep_full_nested_layouts ... ok
+test tests::three_by_three_nested_grids_use_compact_cards ... ok
+test tests::three_column_deep_nested_grids_use_compact_cards ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/list.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/list-7c864af2fa6e7140)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/list_actions.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/list_actions-825c1942284cecd7)
+
+running 2 tests
+test tests::list_actions_adds_after_selection_and_removes_selected_item ... ok
+test tests::list_actions_projects_focusable_row_actions ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/localization_foundation.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/localization_foundation-a947f4a7bfb8eb20)
+
+running 1 test
+test tests::live_locale_switch_updates_menu_toolbar_help_and_semantic_names_together ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/logical_provider_attachment.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/logical_provider_attachment-2e57a50a4a49f693)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/macos_devtools_acceptance.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/macos_devtools_acceptance-e10568854c55e831)
+
+running 3 tests
+test tests::acceptance_builder_uses_the_existing_enabled_overlay_option ... ok
+test tests::input_state_is_bounded_by_the_documented_character_limit ... ok
+test tests::acceptance_surface_exposes_focusable_controls_and_one_text_input ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/macos_external_drag_acceptance.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/macos_external_drag_acceptance-e1d1362d7602044c)
+
+running 4 tests
+test tests::acceptance_state_reports_immediate_error_as_terminal_unaccepted ... ok
+test tests::acceptance_state_reports_terminal_copy_and_bounds_callback_count ... ok
+test tests::acceptance_state_bounds_terminal_error_status ... ok
+test tests::acceptance_surface_arms_external_drag_through_update_context ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/macos_frame_profile_acceptance.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/macos_frame_profile_acceptance-a75817fa974aa493)
+
+running 6 tests
+test tests::combined_frame_auxiliary_projection_waits_for_primary_identity ... ok
+test tests::auxiliary_frame_profiles_are_handed_off_with_distinct_identity ... ok
+test tests::auxiliary_frame_is_recorded_when_primary_is_off ... ok
+test tests::frame_recorder_keeps_bounded_monotonic_identity_and_gpu_evidence ... ok
+test tests::off_recorder_does_not_invent_profile_callbacks ... ok
+test tests::profile_config_defaults_to_off_and_parses_startup_modes ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/macos_numeric_accessibility_acceptance.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/macos_numeric_accessibility_acceptance-bba2b490a1c93923)
+
+running 2 tests
+test tests::application_update_reduces_a_native_edit_outcome ... ok
+test tests::production_stack_publishes_one_materialized_numeric_target ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/macos_text_input_ime_acceptance.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/macos_text_input_ime_acceptance-e7b3f53b3208a474)
+
+running 5 tests
+test tests::focused_text_input_publishes_the_caret_area_source_for_native_ime ... ok
+test tests::focus_loss_restores_committed_state_without_a_change ... ok
+test tests::disabled_cancel_restores_committed_state_without_a_change ... ok
+test tests::preedit_stays_widget_local_without_application_state_change ... ok
+test tests::commit_replaces_once_and_emits_one_changed_message ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/message_routing.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/message_routing-bed01459882043bc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/mixer_console.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/mixer_console-272accb8c595ee0b)
+
+running 18 tests
+test mixer_console::tests::model_behavior::mixer_fader_down_drives_meter_to_silence ... ok
+test mixer_console::tests::model_behavior::mixer_tick_animates_synthetic_decibel_meters_without_dsp ... ok
+test mixer_console::tests::model_behavior::mixer_solo_keeps_non_solo_meters_active_for_visual_information ... ok
+test mixer_console::tests::model_behavior::mixer_group_fader_drag_applies_relative_gain_delta_to_selected_channels ... ok
+test mixer_console::tests::panel_interaction::mixer_strip_drag_drop_emits_reorder_message ... ok
+test mixer_console::tests::model_behavior::mixer_group_fader_drag_preview_moves_selected_channels_together ... ok
+test mixer_console::tests::model_behavior::mixer_panel_fader_drag_preview_survives_rebuild_without_jittering_to_stale_gain ... ok
+test mixer_console::tests::panel_interaction::mixer_panel_send_drag_routes_dense_aux_control_change ... ok
+test mixer_console::tests::panel_interaction::mixer_panel_fader_drag_routes_gain_change ... ok
+test mixer_console::tests::panel_interaction::mixer_panel_hover_uses_paint_only_runtime_overlay ... ok
+test mixer_console::tests::panel_interaction::mixer_strip_drag_paints_insertion_line_without_spreading_strips ... ok
+test mixer_console::tests::panel_interaction::mixer_panel_supports_shift_and_control_multi_channel_selection ... ok
+test mixer_console::tests::model_behavior::mixer_reorder_moves_channel_identity_and_preserves_selection ... ok
+test mixer_console::tests::panel_paint::mixer_solo_grays_non_solo_meter_paint ... ok
+test mixer_console::tests::panel_paint::mixer_panel_paints_dense_channel_strips_sends_and_db_labels ... ok
+test mixer_console::tests::runtime::mixer_runtime_hover_does_not_refresh_surface ... ok
+test mixer_console::tests::runtime::mixer_runtime_fader_drag_motion_uses_paint_only_preview_until_release ... ok
+test mixer_console::tests::runtime::mixer_runtime_frame_messages_advance_status ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/modulation_matrix.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/modulation_matrix-130e538821b523d8)
+
+running 6 tests
+test modulation_matrix::tests::modulation_matrix_tick_advances_synthetic_activity_without_synth_or_dsp ... ok
+test modulation_matrix::tests::modulation_matrix_drag_routes_bipolar_amount_change ... ok
+test modulation_matrix::tests::modulation_matrix_hover_uses_paint_only_runtime_overlay ... ok
+test modulation_matrix::tests::modulation_matrix_widget_paints_sources_destinations_and_amounts ... ok
+test modulation_matrix::tests::modulation_matrix_runtime_hover_does_not_refresh_surface ... ok
+test modulation_matrix::tests::modulation_matrix_runtime_frame_messages_advance_status ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/multi_window_manifest.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/multi_window_manifest-f3707f0e6c776215)
+
+running 1 test
+test tests::multi_window_manifest_preserves_stable_window_specs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/native_file_drop.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/native_file_drop-2f1bb1c1fa79e42d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/node_editor.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/node_editor-0597ed922c41fb1f)
+
+running 2 tests
+test model::graph::tests::node_graph_model_reorders_and_rewires_without_duplicate_outputs ... ok
+test tests::node_editor_routes_drag_selection_and_rewiring_through_public_builders ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests examples/paint_helpers.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/paint_helpers-12f747e3a48cbb8c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/passive_widgets.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/passive_widgets-2e3ec41ca3956a79)
+
+running 1 test
+test tests::passive_widgets_lower_through_view_nodes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/piano_roll.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/piano_roll-8999d132f10df1ea)
+
+running 64 tests
+test piano_roll::tests::model_behavior::piano_roll_tick_advances_synthetic_playhead_without_midi_or_dsp ... ok
+test piano_roll::tests::marquee_selection::piano_roll_shift_command_marquee_adds_to_existing_selection ... ok
+test piano_roll::tests::model_behavior::piano_roll_resize_allows_notes_longer_than_four_beats ... ok
+test piano_roll::tests::marquee_selection::piano_roll_shift_drag_uses_marquee_selection_in_paint_tool ... ok
+test piano_roll::tests::model_behavior::piano_roll_undo_redo_restores_registered_note_edits ... ok
+test piano_roll::tests::marquee_selection::piano_roll_marquee_preview_lights_intersecting_notes_like_hover ... ok
+test piano_roll::tests::hover_overlay::piano_roll_hover_paints_left_resize_bracket_cursor ... ok
+test piano_roll::tests::hover_overlay::piano_roll_hover_uses_paint_only_runtime_overlay ... ok
+test piano_roll::tests::hover_overlay::piano_roll_hover_lights_left_keyboard_note_row ... ok
+test piano_roll::tests::hover_overlay::piano_roll_hover_lights_entire_note_tail ... ok
+test piano_roll::tests::keyboard_hover::piano_roll_grid_hover_lights_matching_left_keyboard_note_row ... ok
+test piano_roll::tests::hover_overlay::piano_roll_hover_paints_right_resize_bracket_cursor ... ok
+test piano_roll::tests::marquee_stress::piano_roll_stress_mode_generates_thousands_of_notes_for_marquee_selection ... ok
+test piano_roll::tests::model_behavior::piano_roll_viewport_zoom_and_pan_updates_visible_range ... ok
+test piano_roll::tests::model_behavior::piano_roll_coalesced_velocity_updates_skip_redundant_snapshots ... ok
+test piano_roll::tests::note_drag::piano_roll_single_click_places_edit_cursor_without_creating_note ... ok
+test piano_roll::tests::note_drag::piano_roll_drag_paints_new_note_length_before_commit ... ok
+test piano_roll::tests::model_behavior::piano_roll_velocity_updates_coalesce_into_one_undo_step ... ok
+test piano_roll::tests::note_drag::piano_roll_snap_off_places_cursor_at_exact_pointer_beat ... ok
+test piano_roll::tests::note_drag::piano_roll_snap_on_hover_cursor_uses_nearest_snap_point ... ok
+test piano_roll::tests::note_move_drag::piano_roll_drag_routes_move_message ... ok
+test piano_roll::tests::note_move_drag::piano_roll_dragging_selected_note_moves_the_selected_group ... ok
+test piano_roll::tests::note_static_paint::piano_roll_clips_notes_to_editor_grid_with_radiant_clip ... ok
+test piano_roll::tests::keyboard_hover::piano_roll_keyboard_press_lights_pitch_lane_and_selects_pitch ... ok
+test piano_roll::tests::note_static_paint::piano_roll_note_geometry_can_move_past_vertical_viewport_edges_for_clipping ... ok
+test piano_roll::tests::note_static_paint::piano_roll_viewport_scales_note_geometry ... ok
+test piano_roll::tests::paint_static::piano_roll_paints_all_keyboard_pitch_labels_when_rows_are_tall_enough ... ok
+test piano_roll::tests::pan_navigation::piano_roll_middle_mouse_drag_pans_view ... ok
+test piano_roll::tests::pan_navigation::piano_roll_middle_mouse_vertical_pan_accumulates_sub_row_motion ... ok
+test piano_roll::tests::paint_static::piano_roll_widget_paints_keyboard_grid_notes_and_playhead ... ok
+test piano_roll::tests::paint_static::piano_roll_merges_keyboard_labels_into_octave_chunks_when_rows_are_too_short ... ok
+test piano_roll::tests::selection::piano_roll_created_note_cuts_existing_note_into_left_and_right_fragments ... ok
+test piano_roll::tests::time_selection_drag::piano_roll_dragging_time_selection_moves_selection_as_object ... ok
+test piano_roll::tests::time_selection_drag::piano_roll_synchronize_preserves_committed_time_selection_from_state ... ok
+test piano_roll::tests::selection::piano_roll_selected_notes_paint_persistent_orange_borders ... ok
+test piano_roll::tests::time_selection_preview::piano_roll_moving_time_selection_slices_source_and_overwrites_target ... ok
+test piano_roll::tests::selection::piano_roll_shift_forces_marquee_and_command_toggles_note_selection ... ok
+test piano_roll::tests::time_selection_drag::piano_roll_command_dragging_time_selection_copies_notes_to_target_range ... ok
+test piano_roll::tests::time_selection_drag::piano_roll_single_drag_selects_time_range_with_overlay ... ok
+test piano_roll::tests::time_selection_preview::piano_roll_moving_time_selection_previews_clipped_notes_at_target ... ok
+test piano_roll::tests::velocity_drag_alt::piano_roll_alt_dragging_note_adjusts_velocity ... ok
+test piano_roll::tests::time_selection_preview::piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source ... ok
+test piano_roll::tests::velocity_drag::piano_roll_velocity_drag_edits_selected_notes_together ... ok
+test piano_roll::tests::velocity_drag_alt::piano_roll_alt_dragging_unselected_note_selects_it_before_velocity_drag ... ok
+test piano_roll::tests::velocity_drag_alt::piano_roll_velocity_drag_selects_unselected_handle_on_press_without_modifiers ... ok
+test piano_roll::tests::velocity_drag_alt::piano_roll_velocity_drag_starts_only_from_handle_rect ... ok
+test piano_roll::tests::velocity_drag_group::piano_roll_group_velocity_drag_preserves_offsets_until_floor_or_ceiling ... ok
+test piano_roll::tests::velocity_drag_group::piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag ... ok
+test piano_roll::tests::velocity_paint::piano_roll_selected_note_fill_alpha_tracks_velocity_while_border_marks_selection ... ok
+test piano_roll::tests::velocity_paint::piano_roll_selected_velocity_handle_uses_note_selection_orange ... ok
+test piano_roll::tests::velocity_paint::piano_roll_velocity_handle_hover_paints_runtime_highlight ... ok
+test piano_roll::tests::velocity_paint::piano_roll_velocity_pillars_align_to_note_start ... ok
+test piano_roll::tests::wheel_navigation::piano_roll_alt_vertical_wheel_zooms_time_only ... ok
+test piano_roll::tests::velocity_paint::piano_roll_note_fill_alpha_tracks_velocity_with_visible_floor ... ok
+test piano_roll::tests::wheel_navigation::piano_roll_horizontal_wheel_still_pans_time_range ... ok
+test piano_roll::tests::wheel_navigation::piano_roll_plain_vertical_wheel_zooms_pitch_only ... ok
+test piano_roll::tests::runtime::piano_roll_runtime_hover_does_not_refresh_surface ... ok
+test piano_roll::tests::runtime::piano_roll_runtime_frame_messages_advance_status ... ok
+test piano_roll::tests::runtime::piano_roll_runtime_routes_alt_mouse_wheel_to_time_zoom ... ok
+test piano_roll::tests::runtime::piano_roll_runtime_routes_mouse_wheel_to_viewport_zoom ... ok
+test piano_roll::tests::marquee_stress::piano_roll_marquee_selects_thousands_of_notes_with_paint_only_preview ... ok
+test piano_roll::tests::velocity_drag_group::piano_roll_stress_velocity_drag_updates_all_selected_notes_without_reselecting_each_move ... ok
+test piano_roll::tests::model_behavior::piano_roll_undo_redo_shortcuts_route_through_radiant_history_support ... ok
+test piano_roll::tests::velocity_paint::piano_roll_velocity_lane_paints_dense_pillars_for_stress_notes ... ok
+
+test result: ok. 64 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests examples/plugin_panel.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/plugin_panel-9dfa853d291cf2b4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/popup_window.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/popup_window-03d91066b3938fe9)
+
+running 10 tests
+test host::platform::readiness::tests::first_present_profile_line_requires_native_startup_prefix_and_metric ... ok
+test policy::tests::prewarmed_launch_uses_named_popup_prewarm_policy ... ok
+test tests::popup_policy_describes_focused_transient_window ... ok
+test tests::popup_policy_can_prepare_rendered_transient_window_offscreen ... ok
+test host::tests::popup_hosts_prepare_all_modes_without_replacing_on_selection ... ok
+test host::prewarm::tests::offscreen_visible_prime_steps_end_with_non_focused_ready_park ... ok
+test host::process::tests::popup_process_args_mark_prewarmed_hosts ... ok
+test tests::popup_spec_uses_borderless_popup_window_options ... ok
+test tests::launcher_view_tracks_selected_popup_mode_and_status ... ok
+test tests::popup_view_switches_between_modes_and_exposes_close_button ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/precise_signal_window.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/precise_signal_window-48bbbfdada0875e8)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/presentation_descriptors.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/presentation_descriptors-b85d80510329426b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/render_canvas.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/render_canvas-ea3a10eb534ed932)
+
+running 3 tests
+test tests::render_canvas_example_reuses_static_atlas_payload ... ok
+test tests::render_canvas_example_lowers_to_retained_gpu_primitive ... ok
+test tests::render_canvas_example_routes_input_to_state ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/render_canvas_stack_overlay.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/render_canvas_stack_overlay-ab5638cf7db0e002)
+
+running 7 tests
+test tests::transient::triangle_wave_bounces_between_edges ... ok
+test tests::selection::resize_selection_keeps_minimum_width ... ok
+test tests::selection::resize_preview_stays_widget_local_until_release ... ok
+test tests::selection::resize_release_commits_final_selection_once ... ok
+test tests::selection::runtime_resize_drag_previews_locally_and_commits_once ... ok
+test tests::gpu_content::demo_render_canvas_content_reuses_static_atlas_payload ... ok
+test tests::transient::animated_transient_overlay_requests_paint_only_frames ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests examples/rendering_baseline.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/rendering_baseline-3b71671e295e86eb)
+
+running 5 tests
+test upload_trace::tests::buffer_records_its_truncation_count ... ok
+test upload_trace::tests::subscriber_rejects_incomplete_profile_events ... ok
+test upload_trace::tests::capture_keeps_numeric_values_and_optional_fields ... ok
+test tests::profiles_preserve_window_identity_and_distinct_cpu_stages ... ok
+test tests::equivalent_shader_fixture_contains_sixteen_distinct_surface_keys ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/rendering_benchmark.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/rendering_benchmark-5acbb45337ff0419)
+
+running 1 test
+test tests::rendering_benchmark_reports_layout_and_paint_scale ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests examples/scene.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/scene-86a265771aa2bdae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/scroll.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/scroll-86ef0161c933d562)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/shared_resource_lifecycle.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/shared_resource_lifecycle-98016f06c9b4bedb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/sizing.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/sizing-29bf33d98344901f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/spectrogram.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/spectrogram-23b2215414694432)
+
+running 5 tests
+test tests::spectrogram_tick_scrolls_synthetic_columns_without_dsp ... ok
+test tests::spectrogram_hover_uses_paint_only_widget_local_state ... ok
+test tests::spectrogram_widget_paints_heatmap_grid_and_labels ... ok
+test tests::spectrogram_runtime_hover_does_not_refresh_surface ... ok
+test tests::spectrogram_runtime_frame_messages_advance_visual_state ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests examples/split_pane_runtime.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/split_pane_runtime-3d533aaa9b88204a)
+
+running 1 test
+test tests::runtime_split_example_reports_capture_and_live_ratio ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/split_pane_static.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/split_pane_static-ee437196dbd73918)
+
+running 1 test
+test tests::static_split_example_reports_two_panes_and_a_root ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/split_workspace.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/split_workspace-0e805337af9f18f7)
+
+running 1 test
+test model::tests::split_workspace_assigns_selected_rows_to_panes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/status_bar.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/status_bar-190f829a9014f09f)
+
+running 5 tests
+test tests::status_bar_allows_concurrent_worker_progress ... ok
+test tests::status_bar_paints_progress_inside_status_strip ... ok
+test tests::status_bar_state_tracks_actions_toggles_workers_and_progress ... ok
+test tests::status_line_log_keeps_latest_bounded_message ... ok
+test tests::status_bar_projects_controls_and_status_strip ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/styling.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/styling-457d1a6854c9f0a0)
+
+running 1 test
+test tests::styling_example_projects_stateful_toggle ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/svg.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/svg-d3fc180829edd7c7)
+
+running 1 test
+test tests::svg_example_paints_retained_svg_icons ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/theme_playground.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/theme_playground-f8445bbf307fa3e6)
+
+running 2 tests
+test tests::theme_playground_projects_distinct_tone_and_state_controls ... ok
+test tests::theme_playground_resolves_density_and_visual_tokens ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/timeline_editor.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/timeline_editor-2772a10cb1b24f07)
+
+running 27 tests
+test tests::input::timeline_widget_resizes_clips_from_edge_drag ... ok
+test tests::input::timeline_widget_focus_cancellation_discards_selection_preview_without_committing ... ok
+test tests::input::timeline_widget_capture_cancellation_discards_drag_preview_without_committing ... ok
+test tests::input::timeline_widget_short_selection_seeks_on_release ... ok
+test tests::input::timeline_widget_creates_and_moves_clips_from_pointer_input ... ok
+test tests::input::timeline_widget_short_reverse_selection_release_outside_bounds_seeks_stored_endpoint ... ok
+test tests::input::timeline_widget_long_selection_release_outside_bounds_commits_stored_range_once ... ok
+test tests::paint::timeline_cursor_overlay_tracks_unsnapped_pointer_position ... ok
+test tests::paint::timeline_widget_highlights_hovered_clip ... ok
+test tests::paint::previews::timeline_widget_paints_clip_preview_while_resizing ... ok
+test tests::paint::previews::timeline_widget_preserves_selection_preview_and_projected_cancel_baseline ... ok
+test tests::paint::previews::timeline_widget_keeps_resize_preview_from_captured_drag_state ... ok
+test tests::paint::previews::timeline_widget_paints_clip_preview_while_moving ... ok
+test tests::paint::previews::timeline_widget_keeps_move_preview_from_captured_drag_state ... ok
+test tests::paint::timeline_widget_paints_one_vertical_cursor_indicator ... ok
+test timeline_widget::input::clip_handles::tests::clip_drag_handles_prioritize_edges_over_body ... ok
+test tests::paint::previews::timeline_widget_paints_new_clip_preview_while_selecting ... ok
+test tests::state::delete_selected_clip_clears_selection_without_touching_other_clips ... ok
+test tests::state::resize_clip_updates_range_and_selection ... ok
+test tests::projection::timeline_editor_projects_arrangement_state ... ok
+test tests::state::moving_clip_cuts_existing_clips_on_target_lane ... ok
+test tests::state::resizing_clip_cuts_existing_clips_on_same_lane ... ok
+test tests::state::creating_clip_cuts_existing_clips_on_same_lane ... ok
+test tests::runtime::timeline_runtime_cursor_motion_uses_paint_only_redraw_after_hover_enter ... ok
+test tests::runtime::timeline_editor_deletes_selected_clip_from_toolbar ... ok
+test tests::runtime::timeline_editor_drag_preview_does_not_refresh_until_release ... ok
+test tests::runtime::timeline_editor_routes_surface_messages_through_runtime ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/todo_list.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/todo_list-15e28a6e0006e3b6)
+
+running 3 tests
+test tests::add_draft_inserts_new_items_at_top ... ok
+test tests::projected_rows_do_not_include_drop_target_gap_while_dragging ... ok
+test tests::drag_projection_keeps_active_handle_for_pointer_capture ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/toolbar_icons.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/toolbar_icons-335e3ec289963a0d)
+
+running 3 tests
+test tests::svg_toolbar_icons_parse_active_and_inactive_vector_icons ... ok
+test tests::toolbar_button_paints_svg_icon_and_active_marker ... ok
+test tests::toolbar_button_routes_toggle_through_runtime ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/tree_and_details.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/tree_and_details-69f136edb722a999)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/typed_pointer.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/typed_pointer-898aaf4076d5c810)
+
+running 1 test
+test tests::public_pointer_builder_delivers_one_sequence_and_rejects_replayed_terminal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/typography.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/typography-ea49514877b54f21)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/virtualized_list.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/virtualized_list-650d56e55f55e596)
+
+running 3 tests
+test tests::virtualized_list_scroll_change_maps_to_logical_rows ... ok
+test tests::virtualized_list_projects_bounded_window_from_scroll_state ... ok
+test tests::repeated_projection_leaves_host_state_unchanged ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/volume_slider.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/volume_slider-50aba0d00917e23c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/waveform_view.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/waveform_view-bd336613c5b075d1)
+
+running 11 tests
+test tests::source::interleaved_signal_bands_preserve_frame_order ... ok
+test tests::source::summary_stats_match_raw_range_stats ... ok
+test tests::rendering::waveform_widget_paints_cached_body_and_cursor_overlay ... ok
+test tests::rendering::waveform_widget_omits_cursor_overlay_when_absent ... ok
+test tests::runtime::waveform_playback_uses_paint_only_transient_playhead ... ok
+test tests::rendering::synthetic_waveform_renders_nonblank_mono_image ... ok
+test tests::interaction::zoom_around_anchor_keeps_anchor_frame_at_same_ratio ... ok
+test tests::interaction::zoom_and_pan_keep_viewport_inside_sample ... ok
+test tests::interaction::wheel_zoom_and_scrollbar_offset_update_viewport ... ok
+test tests::gpu_projection::gpu_low_band_projection_avoids_thin_cuts_without_flattening_detail ... ok
+test tests::source::default_waveform_source_uses_synthetic_signal_without_input_path ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running unittests examples/widget_gallery.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/widget_gallery-f386675b8ae24b64)
+
+running 1 test
+test tests::widget_gallery_lowers_public_widgets ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

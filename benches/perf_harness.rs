@@ -48,6 +48,10 @@ const GPU_ITERATIONS: usize = 60;
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
+    let iterations = runner::iterations_from_args(&args).unwrap_or_else(|error| {
+        eprintln!("radiant_perf argument error: {error}");
+        std::process::exit(2);
+    });
     let filters = runner::scenario_filters_from_args(&args);
     let category_filters = runner::category_filters_from_args(&args);
     let group_filters = runner::group_filters_from_args(&args);
@@ -67,6 +71,7 @@ fn main() {
     let fail_on_baseline_regression = runner::fail_on_baseline_regression_from_args(&args);
     let fail_on_missing_baseline = runner::fail_on_missing_baseline_from_args(&args);
     let mut runner = runner::ScenarioRunner::new(runner::ScenarioRunnerConfig {
+        iterations,
         filters,
         category_filters,
         group_filters,

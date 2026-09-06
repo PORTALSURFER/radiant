@@ -14,6 +14,32 @@ const FAIL_ON_BASELINE_REGRESSION_ARG: &str = "--fail-on-baseline-regression";
 const FAIL_ON_MISSING_BASELINE_ARG: &str = "--fail-on-missing-baseline";
 const JSONL_ARG: &str = "--jsonl";
 const LIST_ARG: &str = "--list";
+const ITERATIONS_ARG: &str = "--iterations";
+
+pub(crate) fn iterations_from_args(args: &[String]) -> Result<Option<usize>, &'static str> {
+    let mut value = None;
+    let mut args = args.iter().skip(1);
+    while let Some(arg) = args.next() {
+        let input = if arg == ITERATIONS_ARG {
+            Some(args.next().ok_or("--iterations requires a value")?.as_str())
+        } else {
+            arg.strip_prefix("--iterations=")
+        };
+        if let Some(input) = input {
+            if value.is_some() {
+                return Err("--iterations may be specified only once");
+            }
+            let parsed = input
+                .parse::<usize>()
+                .map_err(|_| "--iterations requires an integer from 1 to 100000")?;
+            if !(1..=100_000).contains(&parsed) {
+                return Err("--iterations requires an integer from 1 to 100000");
+            }
+            value = Some(parsed);
+        }
+    }
+    Ok(value)
+}
 
 pub(crate) fn scenario_filters_from_args(args: &[String]) -> Vec<String> {
     let mut filters = Vec::new();
@@ -111,6 +137,7 @@ pub(crate) fn fail_on_missing_baseline_from_args(args: &[String]) -> bool {
 
 fn consumes_next_value(arg: &str) -> bool {
     [
+        ITERATIONS_ARG,
         BASELINE_JSONL_ARG,
         WRITE_BASELINE_JSONL_ARG,
         CATEGORY_ARG,
@@ -121,6 +148,7 @@ fn consumes_next_value(arg: &str) -> bool {
 
 fn has_inline_value(arg: &str) -> bool {
     [
+        ITERATIONS_ARG,
         BASELINE_JSONL_ARG,
         WRITE_BASELINE_JSONL_ARG,
         CATEGORY_ARG,
@@ -128,6 +156,46 @@ fn has_inline_value(arg: &str) -> bool {
     ]
     .iter()
     .any(|name| arg.starts_with(&format!("{name}=")))
+}
+
+#[cfg(test)]
+mod iteration_tests {
+    use super::*;
+
+    #[test]
+    fn iteration_override_is_bounded_and_never_becomes_a_scenario_filter() {
+        let args = |values: &[&str]| {
+            values
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect::<Vec<_>>()
+        };
+        for values in [
+            vec!["bench", "selected", "--iterations", "6000", "--jsonl"],
+            vec!["bench", "--iterations=6000", "selected"],
+        ] {
+            let input = args(&values);
+            assert_eq!(iterations_from_args(&input), Ok(Some(6000)));
+            assert_eq!(scenario_filters_from_args(&input), vec!["selected"]);
+        }
+        assert_eq!(
+            iterations_from_args(&args(&["bench", "selected"])),
+            Ok(None)
+        );
+        for values in [
+            vec!["--iterations"],
+            vec!["--iterations=0"],
+            vec!["--iterations=100001"],
+            vec!["--iterations=-1"],
+            vec!["--iterations=1.5"],
+            vec!["--iterations="],
+            vec!["--iterations=1", "--iterations=2"],
+        ] {
+            let mut input = vec!["bench".to_owned()];
+            input.extend(args(&values));
+            assert!(iterations_from_args(&input).is_err(), "{input:?}");
+        }
+    }
 }
 
 fn has_flag(args: &[String], name: &str) -> bool {

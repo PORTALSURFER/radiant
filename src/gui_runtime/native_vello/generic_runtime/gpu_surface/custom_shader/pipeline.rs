@@ -33,6 +33,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct OwnedCustomShad
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime) enum CustomShaderPreparationFailure {
     Cancelled,
+    HostRejected,
     ShaderModule,
     Pipeline,
     Panicked,

@@ -9,7 +9,7 @@
 
 pub(super) use super::gpu_surface::custom_shader::pipeline::CustomShaderPreparationFailure;
 use super::gpu_surface::custom_shader::pipeline::{
-    OwnedCustomShaderPipelineRequest, prepare_custom_shader_pipeline,
+    prepare_custom_shader_pipeline, OwnedCustomShaderPipelineRequest,
 };
 use super::gpu_surface::gpu_surface_types::{
     CustomShaderPipeline, CustomShaderPipelineIdentity, CustomShaderPipelineKey,
@@ -19,11 +19,11 @@ use crate::gui::repaint::RepaintSignal;
 use std::{
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
-    panic::{AssertUnwindSafe, catch_unwind},
+    panic::{catch_unwind, AssertUnwindSafe},
     sync::{
-        Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::{Receiver, SyncSender, sync_channel},
+        mpsc::{sync_channel, Receiver, SyncSender},
+        Arc,
     },
 };
 use vello::wgpu;
@@ -42,13 +42,31 @@ pub(super) struct CustomShaderTargetId {
     adapter_generation: NativeAdapterGeneration,
     target_generation: NativeTargetGeneration,
     surface_key: u64,
+    primitive_index: usize,
 }
 impl CustomShaderTargetId {
+    #[cfg(test)]
     pub(super) fn new(
         window: WindowId,
         adapter_generation: NativeAdapterGeneration,
         target_generation: NativeTargetGeneration,
         surface_key: u64,
+    ) -> Option<Self> {
+        Self::new_for_occurrence(
+            window,
+            adapter_generation,
+            target_generation,
+            surface_key,
+            0,
+        )
+    }
+
+    pub(super) fn new_for_occurrence(
+        window: WindowId,
+        adapter_generation: NativeAdapterGeneration,
+        target_generation: NativeTargetGeneration,
+        surface_key: u64,
+        primitive_index: usize,
     ) -> Option<Self> {
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let serial = NEXT
@@ -62,6 +80,7 @@ impl CustomShaderTargetId {
             adapter_generation,
             target_generation,
             surface_key,
+            primitive_index,
         })
     }
     pub(super) const fn window(self) -> WindowId {
@@ -72,6 +91,9 @@ impl CustomShaderTargetId {
     }
     pub(super) const fn target_generation(self) -> NativeTargetGeneration {
         self.target_generation
+    }
+    pub(super) const fn primitive_index(self) -> usize {
+        self.primitive_index
     }
     pub(super) const fn surface_key(self) -> u64 {
         self.surface_key
@@ -219,6 +241,7 @@ enum EntryState {
 struct Entry {
     request: OwnedCustomShaderPipelineRequest,
     interests: usize,
+    submissions: u8,
     state: EntryState,
 }
 enum Interest {
@@ -228,6 +251,7 @@ enum Interest {
 enum Terminal {
     Ready(CustomShaderPipeline),
     Failed(CustomShaderPreparationFailure),
+    HostRejected,
 }
 struct Completion {
     id: u64,
@@ -261,6 +285,8 @@ impl CustomShaderPreparationDispatch {
             let result = match &terminal {
                 Terminal::Ready(_) => "ready",
                 Terminal::Failed(CustomShaderPreparationFailure::Cancelled) => "cancelled",
+                Terminal::Failed(CustomShaderPreparationFailure::HostRejected)
+                | Terminal::HostRejected => "host_rejected",
                 Terminal::Failed(CustomShaderPreparationFailure::ShaderModule) => "shader_module",
                 Terminal::Failed(CustomShaderPreparationFailure::Pipeline) => "pipeline",
                 Terminal::Failed(CustomShaderPreparationFailure::Panicked) => "panicked",
@@ -341,6 +367,9 @@ impl CustomShaderPreparationBroker {
         if let Some(entry) = self.entries.get_mut(&request.key) {
             let had_no_interest = entry.interests == 0;
             entry.interests += 1;
+            if had_no_interest {
+                entry.submissions = 0;
+            }
             self.interests
                 .insert(target, Interest::Entry(request.key.clone()));
             let state = std::mem::replace(
@@ -424,6 +453,7 @@ impl CustomShaderPreparationBroker {
             Entry {
                 request: request.request,
                 interests: 1,
+                submissions: 0,
                 state: EntryState::Queued,
             },
         );
@@ -504,6 +534,7 @@ impl CustomShaderPreparationBroker {
             let id = self.next_job;
             self.next_job = self.next_job.checked_add(1)?;
             let cancelled = Arc::new(AtomicBool::new(false));
+            entry.submissions = entry.submissions.saturating_add(1);
             entry.state = EntryState::Active {
                 id,
                 cancelled: Arc::clone(&cancelled),
@@ -540,26 +571,19 @@ impl CustomShaderPreparationBroker {
         }
     }
     pub(super) fn reject_dispatch(&mut self, id: u64) {
-        self.finish_rejected(id);
-    }
-    fn finish_rejected(&mut self, id: u64) {
         let key = self.entries.iter().find_map(|(key, entry)| {
             matches!(entry.state, EntryState::Active { id: active, .. } if active == id)
                 .then_some(key.clone())
         });
         if let Some(key) = key {
-            self.finish_active(&key);
-            if let Some(entry) = self.entries.get_mut(&key) {
-                entry.state = if entry.interests == 0 {
-                    EntryState::Retired {
-                        device: None,
-                        pipeline: None,
-                        token: None,
-                    }
-                } else {
-                    EntryState::Failed(CustomShaderPreparationFailure::Panicked)
-                };
-            }
+            // Keep active accounting until the terminal drain. An active
+            // dispatch has reserved a slot in this bounded completion channel.
+            let _ = self.sender.send(Completion {
+                id,
+                key,
+                terminal: Terminal::HostRejected,
+            });
+            self.wake.request_repaint();
         }
     }
     fn finish_active(&mut self, key: &PreparationKey) {
@@ -619,7 +643,20 @@ impl CustomShaderPreparationBroker {
                     }
                 }
                 Terminal::Failed(failure) if entry.interests != 0 => EntryState::Failed(failure),
+                Terminal::HostRejected
+                    if entry.interests != 0 && entry.submissions < 2 && can_requeue =>
+                {
+                    EntryState::Queued
+                }
+                Terminal::HostRejected if entry.interests != 0 => {
+                    EntryState::Failed(CustomShaderPreparationFailure::HostRejected)
+                }
                 Terminal::Failed(_) => EntryState::Retired {
+                    device: None,
+                    pipeline: None,
+                    token: None,
+                },
+                Terminal::HostRejected => EntryState::Retired {
                     device: None,
                     pipeline: None,
                     token: None,
@@ -955,6 +992,8 @@ mod tests {
         assert_eq!(bounded.capacity_status().queued, MAX_QUEUED);
         let rejected = bounded.take_dispatch().expect("queued dispatch");
         bounded.reject_dispatch(rejected.id());
+        assert_eq!(bounded.capacity_status().active, 1);
+        bounded.drain_completions();
         bounded.release_target(first_target);
         drop(rejected);
         assert_eq!(bounded.capacity_status().queued, MAX_QUEUED - 1);
@@ -1009,9 +1048,11 @@ mod tests {
         broker.drain_completions();
         assert_eq!(broker.capacity_status().active, 1);
         broker.reject_dispatch(second_id);
+        assert_eq!(broker.capacity_status().active, 1);
+        assert_eq!(broker.drain_completions(), vec![first_target]);
         assert_eq!(
             broker.failure(first_target),
-            Some(CustomShaderPreparationFailure::Panicked)
+            Some(CustomShaderPreparationFailure::HostRejected)
         );
         broker.release_target(first_target);
         broker.maintain_retired();
@@ -1031,6 +1072,27 @@ mod tests {
                     Interest::Waiting => None,
                 })
                 .expect("replacement interest")
+                .clone()
+        );
+
+        let mut host =
+            CustomShaderPreparationBroker::new(Arc::new(CountingWake(AtomicUsize::new(0))));
+        let host_target = target(53);
+        let host_request = request(&device, 53);
+        assert_eq!(
+            host.request(host_target, host_request),
+            CustomShaderPreparationState::Pending
+        );
+        let first_rejection = host.take_dispatch().expect("first host submission");
+        host.reject_dispatch(first_rejection.id());
+        assert_eq!(host.capacity_status().active, 1);
+        assert!(host.drain_completions().is_empty());
+        let accepted_later = host.take_dispatch().expect("single host retry");
+        host.reject_dispatch(accepted_later.id());
+        assert_eq!(host.drain_completions(), vec![host_target]);
+        assert_eq!(
+            host.failure(host_target),
+            Some(CustomShaderPreparationFailure::HostRejected)
         );
     }
 

@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "backend": "backend-neutral SurfaceRuntime; no native frames or GPU submission",
+    "build_mode": "release",
+    "commit": "8aec403c8c1d117416b0953215d621d804af810c",
+    "dataset": "Interaction tooltip beside 32 cached components x 100 text leaves, and tooltip inside one of 32 components x 100 text leaves; fixed 3400x2700 viewport. Identical geometry, paint, full refresh and 9600-leaf application projection controls.",
+    "features": {
+      "cargo": "default",
+      "rustc": "1.97.1 (8bab26f4f 2026-07-14)",
+      "target": "aarch64-apple-darwin"
+    },
+    "hardware": {
+      "chip": "Apple M5 Pro",
+      "memory": "24 GiB",
+      "model": "Mac17,9"
+    },
+    "measurement_kind": "deterministic_harness",
+    "os": "macOS 26.6.2 (25G83)",
+    "power_state": "AC Power; battery 100%",
+    "refresh_hz": 60,
+    "sampling": {
+      "batch_size": 8,
+      "iterations": 6000,
+      "ordering": "interleaved pairs before/after, after/before, before/after; identical scenario order",
+      "percentiles": "per-batch average, nearest rank",
+      "scale_refresh": "synthetic harness settings, not display measurements",
+      "warmup": "construct outside timing, then one scenario call"
+    },
+    "scale": 1
+  },
+  "metrics_jsonl": "{\"type\":\"radiant_perf\",\"scenario\":\"app_component_projection_cached_9600\",\"category\":\"application_projection\",\"group\":\"scene_cache\",\"iterations\":6000,\"total_us\":1096990,\"avg_us\":182.832,\"p50_us\":182.234,\"p95_us\":205.844,\"p99_us\":218.901,\"application_projection_count\":6000,\"component_projection_callback_count\":6000,\"component_projection_cache_hit_count\":186000}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_component_local_geometry_3200\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":6000,\"total_us\":9009375,\"avg_us\":1501.562,\"p50_us\":1488.917,\"p95_us\":1627.688,\"p99_us\":1728.005,\"layout_count\":6000,\"layout_node_visit_count\":19398000}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_component_local_interaction_3200\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":6000,\"total_us\":5166747,\"avg_us\":861.125,\"p50_us\":858.193,\"p95_us\":938.443,\"p99_us\":979.865,\"application_projection_count\":6000,\"runtime_projection_count\":6000,\"layout_count\":0}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_component_changed_interaction_3200\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":6000,\"total_us\":5559210,\"avg_us\":926.535,\"p50_us\":920.141,\"p95_us\":1003.880,\"p99_us\":1142.182,\"application_projection_count\":6000,\"runtime_projection_count\":6000,\"layout_count\":0,\"component_projection_callback_count\":6000,\"component_projection_cache_hit_count\":186000}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_surface_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":6000,\"total_us\":377403,\"avg_us\":62.901,\"p50_us\":59.734,\"p95_us\":77.182,\"p99_us\":87.875,\"scene_rebuild_count\":6000,\"paint_primitive_count\":534000,\"paint_plan_rebuild_count\":6000}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":6000,\"total_us\":2462429,\"avg_us\":410.405,\"p50_us\":407.260,\"p95_us\":451.911,\"p99_us\":477.958,\"surface_refresh_count\":6000,\"application_projection_count\":6000,\"runtime_projection_count\":6000,\"widget_state_sync_count\":6000,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n{\"type\":\"radiant_perf\",\"scenario\":\"runtime_projection_refresh_large_tree\",\"category\":\"runtime_surface\",\"group\":\"scene_cache\",\"iterations\":6000,\"total_us\":2470860,\"avg_us\":411.810,\"p50_us\":407.651,\"p95_us\":453.339,\"p99_us\":486.391,\"surface_refresh_count\":6000,\"application_projection_count\":6000,\"runtime_projection_count\":6000,\"widget_state_sync_count\":6000,\"layout_count\":0,\"paint_plan_rebuild_count\":0}\n",
+  "metrics_sha256": "bfda583e79352b5f55580ae84d2e72b3b8bd81be9397df4aa1d7dc096722f71b",
+  "schema": 1
+}

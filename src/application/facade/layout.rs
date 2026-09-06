@@ -19,3 +19,8 @@ pub use super::super::layout_builders::{
     virtual_scroll, virtual_tree_list_window, virtual_tree_list_windowed, workspace_shell, wrap,
 };
 pub use super::super::view_node::{Layer, LayerInputPolicy};
+
+pub use crate::animation::{
+    Animatable, AnimationEasing, AnimationError, AnimationImpact, AnimationPaintContext,
+    AnimationTarget, AnimationValues, FeedbackAnimation, Transition,
+};

@@ -1,6 +1,6 @@
 //! Deterministic custom-container animation without per-frame messages.
 use radiant::{
-    animation::{
+    application::{
         Animatable, AnimationImpact, AnimationPaintContext, AnimationTarget, AnimationValues,
         Transition,
     },
@@ -219,7 +219,7 @@ mod tests {
 #[cfg(test)]
 mod feedback_tests {
     use super::*;
-    use radiant::animation::FeedbackAnimation;
+    use radiant::application::FeedbackAnimation;
     struct Phase {
         declaration: [FeedbackAnimation; 1],
     }

@@ -4382,7 +4382,7 @@ radiant::app(state)
 ```
 
 For runtime-owned declarative transitions, use `ViewNode::animatable` and the
-`animation::Animatable` capability. Its accepted targets use the central bounded
+`application::Animatable` capability. Its accepted targets use the central bounded
 animator, with pure paint/layout callbacks, shared feedback phases, reduced
 motion and visibility handling. See [Declarative animation](DECLARATIVE_ANIMATION.md)
 and the headless `declarative_animation` example.

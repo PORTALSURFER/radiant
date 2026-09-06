@@ -61,6 +61,9 @@
 /// Readable application and view builder implementation.
 pub mod application;
 /// Shared environment-flag parsing helpers used by runtime internals.
+#[cfg(test)]
+extern crate radiant_native_test_support;
+
 mod env_flags;
 /// Internal marker for values owned by one UI runtime.
 mod ui_affinity;

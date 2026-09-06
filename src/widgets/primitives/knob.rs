@@ -377,7 +377,11 @@ impl Widget for KnobWidget {
                 FocusedKeyDisposition::Consumed
             }
             WidgetKey::PageUp | WidgetKey::PageDown => FocusedKeyDisposition::Unhandled,
-            _ => FocusedKeyDisposition::Consumed,
+            crate::widgets::WidgetKey::ArrowLeft
+            | crate::widgets::WidgetKey::ArrowRight
+            | crate::widgets::WidgetKey::ArrowUp
+            | crate::widgets::WidgetKey::ArrowDown => FocusedKeyDisposition::Consumed,
+            _ => FocusedKeyDisposition::Unhandled,
         }
     }
 

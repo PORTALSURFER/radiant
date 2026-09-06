@@ -1911,3 +1911,26 @@ or makes examples the only proof of a public feature. A feature is aligned when
 it has a coherent API, clean module ownership, tests or guardrails where
 practical, and an example or documentation path that shows how application code
 is expected to use it.
+
+
+### Embedded native surface targets
+
+`src/gui_runtime/native_vello/embedded.rs` is the renderer adapter for host-owned
+native surfaces. Its portable raw-window-handle path remains available. On macOS,
+`EmbeddedVelloSurfaceHandle::from_metal_layer` accepts a caller-owned CAMetalLayer
+and uses WGPU's direct CoreAnimationLayer target, avoiding process-global observer
+class registration when several independently linked libraries share a host.
+The host retains the layer until the renderer is destroyed, maintains its bounds
+and contents scale, and performs native operations on the main thread. This API
+does not replace the host view's backing layer or own the host's event loop.
+
+Native exception-test doubles live in the dev-only `crates/native-test-support`
+crate. Production builds compile only the exception bridge; test fixture ObjC
+classes must not be linked into embedding applications or plugins.
+
+Embedded plugin hosts use `SurfaceRuntime::dispatch_keyboard_event` to decide
+whether to consume a keyboard sample. The widget target returned by
+`dispatch_event` is routing evidence, not a handled result. Characters require
+an active editable text target; normalized keys use the widget's declared
+focused-key disposition and the actual scroll/shortcut outcome. Plugin-defined
+shortcuts must likewise return true only when their action is accepted.

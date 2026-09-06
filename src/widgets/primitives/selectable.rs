@@ -149,10 +149,13 @@ impl Widget for SelectableWidget {
         &self,
         key: crate::widgets::WidgetKey,
     ) -> crate::widgets::FocusedKeyDisposition {
-        if crate::widgets::interaction::is_scroll_fallback_key(key) {
-            crate::widgets::FocusedKeyDisposition::Unhandled
-        } else {
+        if matches!(
+            key,
+            crate::widgets::WidgetKey::Enter | crate::widgets::WidgetKey::Space
+        ) {
             crate::widgets::FocusedKeyDisposition::Consumed
+        } else {
+            crate::widgets::FocusedKeyDisposition::Unhandled
         }
     }
 

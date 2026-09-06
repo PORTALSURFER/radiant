@@ -4,6 +4,8 @@
 //! renderer transaction. Installed pipelines remain owned and bounded by the
 //! renderer's physical cache, so a saturated renderer can still stage its
 //! replacement without this broker retaining old installed objects.
+//! Backend driver creation calls remain blocking on the existing worker task;
+//! the broker only provides bounded admission and cancellation boundaries.
 
 use super::gpu_surface::custom_shader::pipeline::{
     prepare_custom_shader_pipeline, CustomShaderPreparationFailure,
@@ -246,6 +248,7 @@ impl CustomShaderPreparationDispatch {
         self.id
     }
     pub(super) fn run(self) {
+        let started = std::time::Instant::now();
         let cancelled = || self.cancelled.load(Ordering::Acquire);
         let terminal = match catch_unwind(AssertUnwindSafe(|| {
             prepare_custom_shader_pipeline(self.request, cancelled)
@@ -254,6 +257,23 @@ impl CustomShaderPreparationDispatch {
             Ok(Err(error)) => Terminal::Failed(error),
             Err(_) => Terminal::Failed(CustomShaderPreparationFailure::Panicked),
         };
+        if tracing::enabled!(target: "radiant::custom_shader_prepare", tracing::Level::DEBUG) {
+            let result = match &terminal {
+                Terminal::Ready(_) => "ready",
+                Terminal::Failed(CustomShaderPreparationFailure::Cancelled) => "cancelled",
+                Terminal::Failed(CustomShaderPreparationFailure::ShaderModule) => "shader_module",
+                Terminal::Failed(CustomShaderPreparationFailure::Pipeline) => "pipeline",
+                Terminal::Failed(CustomShaderPreparationFailure::Panicked) => "panicked",
+            };
+            tracing::debug!(target: "radiant::custom_shader_prepare",
+                job = self.id,
+                result,
+                preparation_elapsed_us = started.elapsed().as_micros() as u64,
+                device_identity = self.key.device_identity,
+                thread_id = ?std::thread::current().id(),
+                retained_key_text_bytes = self.key.pipeline.text_bytes(),
+                "custom shader preparation worker terminal");
+        }
         let _ = self.sender.send(Completion {
             id: self.id,
             key: self.key,
@@ -686,6 +706,15 @@ impl CustomShaderPreparationBroker {
             if self.entries.remove(&key).is_some() {
                 self.text_bytes = self.text_bytes.saturating_sub(key.pipeline.text_bytes());
             }
+        }
+        if tracing::enabled!(target: "radiant::custom_shader_prepare", tracing::Level::DEBUG) {
+            tracing::debug!(target: "radiant::custom_shader_prepare",
+                active_jobs = self.active,
+                queued_jobs = self.queue.len(),
+                retained_entries = self.entries.len(),
+                interests = self.interests.len(),
+                retained_key_text_bytes = self.text_bytes,
+                "custom shader preparation ownership");
         }
     }
 }

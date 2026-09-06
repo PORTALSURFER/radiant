@@ -1,0 +1,19 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1455-shared-shader-pipelines-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 24s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-0ca348cec41860e9)
+
+running 5 tests
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::equivalent_custom_shader_tiles_share_one_pipeline_and_isolate_binding_updates ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::legacy_failed_transition_restores_predecessor_resources ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::planned_invalid_wgsl_replacement_preserves_existing_pipeline_and_binding ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::shared_pipeline_transition_renders_one_fresh_surface_and_retires_1024_old_associations ... ok
+test gui_runtime::native_vello::generic_runtime::gpu_surface::native_tests::vetoed_transition_restores_predecessor_resources_without_accumulation ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 4208 filtered out; finished in 0.28s
+

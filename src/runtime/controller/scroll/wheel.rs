@@ -20,6 +20,9 @@ use crate::{
 
 use super::super::interaction_state::RuntimeManagedWheelSequenceState;
 
+#[path = "wheel/container_edit.rs"]
+mod container_edit;
+
 #[cfg(test)]
 #[path = "wheel/tests.rs"]
 mod tests;
@@ -218,10 +221,28 @@ where
         refresh_after_message: bool,
         exact_sample: bool,
     ) -> WheelOrScrollRoute {
-        if self.gesture_owns_pointer_capture() {
+        if self.gesture_owns_pointer_capture() || self.scrollbar_drag_active() {
             return WheelOrScrollRoute::NotRouted;
         }
         let phase = sample.phase();
+        if self.interaction.wheel.scroll_edit.is_some() && !self.scroll_wheel_edit_is_live() {
+            self.cancel_scroll_wheel_edit(false, None, refresh_after_message);
+        }
+        if self.interaction.wheel.scroll_edit.is_some() {
+            if phase == Some(WheelPhase::Started) {
+                self.cancel_scroll_wheel_edit(true, None, refresh_after_message);
+            } else if matches!(
+                phase,
+                Some(WheelPhase::Changed | WheelPhase::Ended | WheelPhase::Cancelled)
+            ) {
+                if !sample.is_valid() {
+                    return WheelOrScrollRoute::NotRouted;
+                }
+                return self.route_container_wheel_edit(point, sample, refresh_after_message);
+            } else {
+                return WheelOrScrollRoute::NotRouted;
+            }
+        }
         if phase == Some(WheelPhase::Started) {
             self.clear_phaseful_scroll_activity();
             if exact_sample && !sample.is_valid() {
@@ -249,6 +270,12 @@ where
             return WheelOrScrollRoute::NotRouted;
         }
         match (self.interaction.wheel.managed_sequence, phase) {
+            (
+                RuntimeManagedWheelSequenceState::ScrollClosed,
+                Some(WheelPhase::Changed | WheelPhase::Ended | WheelPhase::Cancelled),
+            ) => {
+                return WheelOrScrollRoute::NotRouted;
+            }
             (RuntimeManagedWheelSequenceState::Blocked, Some(WheelPhase::Changed)) => {
                 // A known orphan cannot be rebound by a continuation that
                 // happens to land over another widget.
@@ -362,6 +389,18 @@ where
         exact_sample: bool,
         refresh_after_message: bool,
     ) -> WheelOrScrollRoute {
+        if matches!(
+            sample.phase(),
+            Some(WheelPhase::Ended | WheelPhase::Cancelled)
+        ) {
+            // A terminal without retained container authority cannot produce a late delta.
+            return self.finish_scroll_terminal_after_routing(sample, refresh_after_message);
+        }
+        if sample.phase() == Some(WheelPhase::Started)
+            && self.begin_container_wheel_edit(point, sample)
+        {
+            return self.route_container_wheel_edit(point, sample, refresh_after_message);
+        }
         let Some(delta) = self.wheel_delta_for_scroll(sample, exact_sample) else {
             return WheelOrScrollRoute::NotRouted;
         };
@@ -379,6 +418,11 @@ where
             delta,
             sample.into(),
             refresh_after_message,
+            crate::widgets::InteractionProvenance::Pointer {
+                modifiers: sample.modifiers(),
+                timestamp: sample.timestamp(),
+                sequence_range: sample.sequence_range(),
+            },
         ) {
             let changed = before
                 .into_iter()
@@ -742,7 +786,15 @@ where
     ) -> bool {
         match self.interaction.wheel.managed_sequence {
             RuntimeManagedWheelSequenceState::Idle => true,
-            RuntimeManagedWheelSequenceState::Blocked => false,
+            RuntimeManagedWheelSequenceState::Blocked
+            | RuntimeManagedWheelSequenceState::ScrollClosed => false,
+            RuntimeManagedWheelSequenceState::Scroll { .. } => {
+                let live = self.scroll_wheel_edit_is_live();
+                if !live {
+                    self.block_managed_wheel_sequence();
+                }
+                live
+            }
             RuntimeManagedWheelSequenceState::Active { widget_id }
                 if self.managed_wheel_sequence_is_live(widget_id) =>
             {
@@ -786,7 +838,15 @@ where
     ) {
         let settlements = self.take_pending_scroll_settlements();
         for (node_id, offset) in settlements {
-            self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
+            if self.layout_state.scroll_offset(node_id) == offset
+                && self
+                    .traversal
+                    .containers
+                    .scroll_content_by_container
+                    .contains_key(&node_id)
+            {
+                self.emit_scroll_offset_settled(node_id, offset, refresh_after_message);
+            }
         }
     }
 

@@ -947,7 +947,7 @@ fn native_phaseful_scroll_container_flushes_before_switching_axis() {
 }
 
 #[test]
-fn native_phaseful_scroll_boundaries_flush_pending_movement_before_exact_route() {
+fn native_phaseful_scroll_retains_exact_sequence_after_pending_compatibility_flush() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         GpuWheelScrollBridge::default(),
@@ -980,7 +980,7 @@ fn native_phaseful_scroll_boundaries_flush_pending_movement_before_exact_route()
         MouseScrollDelta::LineDelta(0.0, 0.25),
         TouchPhase::Moved,
     );
-    assert_eq!(moved.diagnostic.result, NativePointerRouteResult::Coalesced);
+    assert_eq!(moved.diagnostic.result, NativePointerRouteResult::Routed);
 
     let ended = runner.route_native_mouse_wheel_with_phase(
         MouseScrollDelta::LineDelta(0.0, 0.25),
@@ -996,8 +996,27 @@ fn native_phaseful_scroll_boundaries_flush_pending_movement_before_exact_route()
         MouseScrollDelta::LineDelta(0.0, -0.25),
         TouchPhase::Moved,
     );
-    assert_eq!(moved.diagnostic.result, NativePointerRouteResult::Coalesced);
+    assert_eq!(moved.diagnostic.result, NativePointerRouteResult::Unrouted);
 
+    let cancelled = runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Cancelled,
+    );
+    assert_eq!(
+        cancelled.diagnostic.result,
+        NativePointerRouteResult::Unrouted
+    );
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 4);
+    // A fresh admitted sequence can start after the stale terminal.
+    runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Started,
+    );
+    runner.route_native_mouse_wheel_with_phase(
+        MouseScrollDelta::LineDelta(0.0, -0.25),
+        TouchPhase::Moved,
+    );
     let cancelled = runner.route_native_mouse_wheel_with_phase(
         MouseScrollDelta::LineDelta(0.0, -0.25),
         TouchPhase::Cancelled,
@@ -1006,8 +1025,7 @@ fn native_phaseful_scroll_boundaries_flush_pending_movement_before_exact_route()
         cancelled.diagnostic.result,
         NativePointerRouteResult::Routed
     );
-    assert!(runner.input.pending_scroll_container_wheel.is_none());
-    assert_eq!(runner.core.runtime.bridge().scroll_count, 6);
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 7);
 }
 
 #[derive(Default)]

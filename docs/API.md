@@ -101,8 +101,39 @@ legacy offset subscribers. Clamped no-ops and non-finite direct offsets are
 silent. An effective replacement retires an active scrollbar pointer edit
 before publishing its successor, without rolling back the replacement offset.
 Settlement is suppressed if an application callback changes the offset or
-replaces the target. Wheel container scrolling continues through its existing
-route while its edit lifecycle migration remains tracked by OPT-1395.
+replaces the target.
+
+An explicit container wheel Start pins the original scroll container and its
+eligible ancestor chain in the existing managed wheel slot. Each container
+that participates has one edit transaction. Changed and terminal samples stay
+with that sequence outside the hit bounds; native coalescing is disabled while
+the sequence is owned. End batches final motion before Commit. Cancel and
+capture/window focus loss restore live owners to their starting offsets. A retired or
+completed sequence rejects later explicit continuations and terminals until a
+fresh Start; it cannot deliver them to another widget under the pointer.
+Discrete and phase-less samples produce atomic edit batches. A Changed sample
+without any known preceding sequence retains the legacy atomic fallback;
+missing phase evidence is never used to invent an ongoing owner.
+
+Nested wheel chaining preserves residual deltas and the shared scroll policy.
+Controlled echoes preserve ownership; changed content, viewport size, policy,
+or offset retire it without rolling back a replacement. Cancellation is sent
+only for Begin batches already delivered to the application. Programmatic
+replacement also retires an owned wheel edit. Typed wheel provenance preserves
+the contributing sample's modifiers, timestamp, and sequence range; synthetic
+loss boundaries carry unknown timestamp/sequence evidence.
+
+The continuous value controls now expose the following typed routes. Raw drag
+handles and canvas gestures remain input primitives whose callers own their
+value policy; virtual semantic demand never grants edit authority.
+
+| Control | Typed edit route |
+| --- | --- |
+| Slider, Knob, NumericInput | Existing retained `EditEvent` / numeric edit sessions |
+| Split pane / panel resize | Existing admitted layout resize edit lifecycle |
+| Scrollbar widget | `ScrollbarEditBatch` through the retained public builders |
+| Runtime scroll container | `ScrollEditBatch` / `on_scroll_edit` for pointer, wheel, keyboard, and programmatic movement |
+| Details-column width | `DetailsColumnResizeEdit` for admitted drag messages; `details_column_width_edit` for caller-qualified keyboard, wheel, semantic, or programmatic changes |
 
 
 ```rust

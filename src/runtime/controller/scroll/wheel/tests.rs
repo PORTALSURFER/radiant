@@ -198,3 +198,78 @@ fn replacement_started_settles_a_before_old_deadline_and_keeps_b_pending() {
     assert_eq!(settled_a.get(), 1);
     assert_eq!(settled_b.get(), 1);
 }
+
+#[test]
+#[allow(clippy::arc_with_non_send_sync)]
+fn container_edit_preserves_sample_evidence_and_disables_native_coalescing() {
+    use crate::gui::input::{InputSequence, InputSequenceRange, InputTimestamp};
+    use crate::runtime::{ScrollEditBatch, declarative_runtime_bridge};
+    use crate::widgets::InteractionProvenance;
+    use std::cell::RefCell;
+    let edits = Rc::new(RefCell::new(Vec::<ScrollEditBatch>::new()));
+    let sink = Rc::clone(&edits);
+    let bridge = declarative_runtime_bridge(
+        (),
+        |_| {
+            Arc::new(UiSurface::new(
+                SurfaceNode::scroll_area(
+                    1,
+                    SurfaceNode::text(
+                        2,
+                        "content",
+                        WidgetSizing::fixed(Vector2::new(120.0, 400.0)),
+                    ),
+                )
+                .on_scroll_edit(|batch| batch),
+            ))
+        },
+        move |_, batch| sink.borrow_mut().push(batch),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 80.0));
+    let point = Point::new(10.0, 10.0);
+    let timestamp = Some(InputTimestamp::capture());
+    let sequence_range = Some(InputSequenceRange::singleton(
+        InputSequence::from_runtime_value(7),
+    ));
+    let modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    for phase in [WheelPhase::Started, WheelPhase::Changed, WheelPhase::Ended] {
+        let sample = WheelSample::from_parts(
+            WheelDelta::Pixels(Vector2::new(0.0, 4.0)),
+            Some(phase),
+            modifiers,
+            timestamp,
+            sequence_range,
+        );
+        assert!(runtime.wheel_or_scroll_at_deferred_refresh_with_sample(point, sample));
+        runtime.refresh();
+        let changed = WheelSample::from_parts(
+            sample.delta(),
+            Some(WheelPhase::Changed),
+            modifiers,
+            timestamp,
+            sequence_range,
+        );
+        assert!(!runtime.can_coalesce_scroll_container_wheel_with_sample(point, changed));
+    }
+    let edits = edits.borrow();
+    assert_eq!(edits.len(), 3);
+    for batch in edits.iter() {
+        assert!(batch.events().iter().all(|event| event.provenance
+            == InteractionProvenance::Pointer {
+                modifiers,
+                timestamp,
+                sequence_range
+            }));
+        assert_eq!(
+            batch.offset_update().unwrap().metadata,
+            ScrollUpdateMetadata {
+                modifiers,
+                timestamp,
+                sequence_range
+            }
+        );
+    }
+}

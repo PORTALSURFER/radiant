@@ -71,6 +71,29 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(in crate::runtime::controller) fn report_atomic_scroll_edit(
+        &mut self,
+        update: ScrollUpdate,
+        provenance: crate::widgets::InteractionProvenance,
+        refresh_after_message: bool,
+    ) {
+        if update.previous_offset == update.offset {
+            return;
+        }
+        let begin = EditEvent::begin(update.previous_offset, provenance);
+        let Some(changed) = begin.update(update.offset, provenance) else {
+            return;
+        };
+        let Some(commit) = changed.commit(update.offset, provenance) else {
+            return;
+        };
+        if let Some(batch) =
+            ScrollEditBatch::new(update.node_id, &[begin, changed, commit], Some(update))
+        {
+            self.report_scroll_edit(batch, refresh_after_message);
+        }
+    }
+
     pub(in crate::runtime::controller) fn report_scroll_edit(
         &mut self,
         batch: ScrollEditBatch,

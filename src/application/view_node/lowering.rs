@@ -323,16 +323,17 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
                 container
             };
 
-        if matches!(
-            &node.kind,
-            ViewNodeKind::Runtime(_)
-                | ViewNodeKind::VirtualLayout(_)
-                | ViewNodeKind::CustomLayout { .. }
-                | ViewNodeKind::Scroll { .. }
-                | ViewNodeKind::VirtualScroll { .. }
-                | ViewNodeKind::OverlayPanel { .. }
-                | ViewNodeKind::FloatingLayer { .. }
-        ) && let Some(context) = self.application_context.as_deref_mut()
+        if (matches!(&node.kind, ViewNodeKind::Runtime(_)) && node.component_snapshot.is_none()
+            || matches!(
+                &node.kind,
+                ViewNodeKind::VirtualLayout(_)
+                    | ViewNodeKind::CustomLayout { .. }
+                    | ViewNodeKind::Scroll { .. }
+                    | ViewNodeKind::VirtualScroll { .. }
+                    | ViewNodeKind::OverlayPanel { .. }
+                    | ViewNodeKind::FloatingLayer { .. }
+            ))
+            && let Some(context) = self.application_context.as_deref_mut()
         {
             context.mark_unsupported();
         }
@@ -539,6 +540,9 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let lowered = lowered.with_source_metadata(metadata);
         if let Some(context) = self.application_context.as_deref_mut() {
             context.record(&self.path, self.incoming_slot, &lowered);
+            if let Some(snapshot) = node.component_snapshot {
+                context.record_component(snapshot);
+            }
         }
         self.source_context = previous_context;
         lowered

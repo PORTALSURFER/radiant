@@ -680,8 +680,11 @@ reported with enough context to investigate the cause.
 The opt-in `view_with_components` path now avoids unchanged component functions
 and application lowering under exact inputs and environment snapshots. Its
 component/widget-lowering counters and differential capture/IME tests establish
-that bounded authoring-layer reuse; runtime projection and geometry still take
-the existing safe path. See `COMPONENT_PROJECTION.md`.
+that bounded authoring-layer reuse. Immutable component receipts also admit
+interaction-only updates beside unchanged components without runtime projection
+or layout. Interaction-only changes inside a component can also use a bounded comparison
+against its immediately preceding result. Geometry and unsupported changes retain
+the complete safe path. See `COMPONENT_PROJECTION.md`.
 
 The 60Hz target must not mean full UI work every frame. Frame cadence and frame
 work are separate contracts:

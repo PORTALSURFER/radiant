@@ -23,9 +23,12 @@ let bridge = app(0u32)
 Run `cargo run --example component_projection` for the message-driven example
 and actual callback/cache-hit counters. The enclosing view still executes on
 application projection. An unchanged component skips its function and its
-application lowering; runtime projection and geometry still use the existing
-safe refresh path. This is partial delivery of OPT-1388, not bounded geometry or
-complete incremental reconciliation.
+application lowering. Immutable snapshot identities now also let application
+receipts skip cached descendants. An interaction-only leaf beside unchanged
+components can use the existing atomic partial refresh, avoiding runtime
+projection and layout. Interaction-only changes inside a component can also qualify by comparing that
+result with its immediately preceding cache entry. Geometry and unsupported
+changes retain the complete safe refresh path; OPT-1388 remains partially delivered.
 
 ## Dependency and identity contract
 
@@ -75,6 +78,34 @@ is equivalent to constructing it again. Qualified snapshots use the existing
 runtime surface path, preserving runtime-local state. Text-only subtrees can
 share immutable child storage; button and text-input snapshots still clone.
 
+## Reconciliation receipt contract
+
+Only an admitted cache result receives a private shared snapshot identity. Cache
+hits retain that identity; new results, eviction and remount allocate a new one.
+When inputs change under the same function and input types, a bounded comparison
+may retain an interaction-only transition from the preceding result. This proof
+holds only one predecessor token and changed leaf paths, never a chain of old
+subtrees. The committed and candidate receipts own both identities during comparison, so
+allocation-address reuse cannot admit a replacement. Root path, slot, source,
+identity and kind evidence is still compared normally. Raw `SurfaceNode` wrappers
+receive no snapshot witness. A result without a direct proven transition from the committed snapshot selects
+full refresh. Geometry, paint, source, slot, membership and unknown mapper changes
+also select full refresh. Environment/type changes, eviction and remount never
+inherit a predecessor proof.
+
+The receipt is application-owned equality evidence. It does not acknowledge its
+own publication, synchronize runtime state, or authorize an interaction. The
+existing request/provider/generation fences and atomic runtime publication remain
+authoritative. Unchanged retained widgets keep focus, capture and composition;
+the partial operation changes only its admitted interaction leaves.
+
+`ComponentProjectionContext::comparison_node_visits()` reports actual node visits
+for changed-component comparison, including work before a rejected comparison.
+Cache hits inspect no descendants. Comparison is bounded by the retained node
+budget, 128 descendant levels, and the existing exact-change path/root limits.
+A 32-component test changes one tooltip and visits 101 nodes, leaving the other
+3,100 descendants unvisited; a skipped intermediate projection falls back.
+
 ## Evidence
 
 Focused tests check callback non-visitation, exact input changes, captured
@@ -90,3 +121,10 @@ only the first component. Both run the enclosing application projection once per
 operation. Separate component callback and hit counters expose the work rather
 than inferring it from wall-clock time. These are application projection
 controls, not native frame, GPU or display-latency measurements.
+
+`runtime_component_local_interaction_3200` changes one tooltip beside 32 cached
+components of 100 text leaves. It reports actual projection/layout work and
+verifies the updated tooltip after every refresh. A receipt test with 9,600 leaves
+emits 34 node records and performs 66 comparisons: 32 snapshot identities plus
+34 root/leaf records. Geometry and existing full-refresh/paint scenarios remain
+performance controls, not evidence of native frame or GPU improvements.

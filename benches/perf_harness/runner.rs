@@ -10,8 +10,8 @@ use std::{env, time::Instant};
 pub(super) use args::{
     baseline_from_args, baseline_output_from_args, category_filters_from_args,
     fail_on_baseline_regression_from_args, fail_on_missing_baseline_from_args,
-    group_filters_from_args, output_format_from_args, scenario_filters_from_args,
-    scenario_list_requested,
+    group_filters_from_args, iterations_from_args, output_format_from_args,
+    scenario_filters_from_args, scenario_list_requested,
 };
 use baseline::{BaselineOutput, BaselineSet, BaselineSummary};
 pub(crate) use metrics::ScenarioCounters;
@@ -54,6 +54,7 @@ impl ScenarioSpec {
 }
 
 pub(super) struct ScenarioRunner {
+    iterations: Option<usize>,
     filters: Vec<String>,
     category_filters: Vec<String>,
     group_filters: Vec<String>,
@@ -67,6 +68,7 @@ pub(super) struct ScenarioRunner {
 }
 
 pub(super) struct ScenarioRunnerConfig {
+    pub(super) iterations: Option<usize>,
     pub(super) filters: Vec<String>,
     pub(super) category_filters: Vec<String>,
     pub(super) group_filters: Vec<String>,
@@ -80,6 +82,7 @@ pub(super) struct ScenarioRunnerConfig {
 impl ScenarioRunner {
     pub(super) fn new(config: ScenarioRunnerConfig) -> Self {
         Self {
+            iterations: config.iterations,
             filters: config.filters,
             category_filters: config.category_filters,
             group_filters: config.group_filters,
@@ -120,7 +123,7 @@ impl ScenarioRunner {
             name,
             category,
             group,
-            iterations,
+            self.iterations.unwrap_or(iterations),
             build(),
             self.output_format,
             self.baseline.as_ref(),
@@ -264,4 +267,37 @@ where
         output_format,
         baseline.map(|baseline| baseline.metric_for(name)),
     )
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod iteration_tests {
+    use super::*;
+    use std::{cell::Cell, rc::Rc};
+
+    #[test]
+    fn configured_iterations_run_exactly_that_many_samples_plus_one_warmup() {
+        for (iterations, expected) in [(None, 4), (Some(17), 18)] {
+            let mut runner = ScenarioRunner::new(ScenarioRunnerConfig {
+                iterations,
+                filters: Vec::new(),
+                category_filters: Vec::new(),
+                group_filters: Vec::new(),
+                output_format: OutputFormat::JsonLines,
+                baseline: None,
+                baseline_output: None,
+                fail_on_baseline_regression: false,
+                fail_on_missing_baseline: false,
+            });
+            let calls = Rc::new(Cell::new(0));
+            let observed = Rc::clone(&calls);
+            runner.run_scenario("counted", "test", "test", 3, move || {
+                move || {
+                    observed.set(observed.get() + 1);
+                    ScenarioCounters::default()
+                }
+            });
+            assert_eq!(calls.get(), expected);
+        }
+    }
 }

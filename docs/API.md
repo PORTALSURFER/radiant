@@ -6201,6 +6201,14 @@ Use `--jsonl` when collecting trend artifacts for scripts or CI storage:
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 ```
 
+Use `--iterations N` (or `--iterations=N`) to override measured calls per
+selected scenario when collecting longer samples. The harness accepts one
+integer from 1 through 100,000, retains one untimed warm-up call, and records the
+actual count in JSONL. Omitting it preserves each scenario's normal count.
+Compare evidence only when iteration and sampling settings agree; a short
+same-binary comparison can expose noise before attributing a timing change to
+an implementation.
+
 Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
 `total_us`, `avg_us`, and finite nearest-rank `p50_us`, `p95_us`, and `p99_us`,
 plus any scenario-owned counters such as
@@ -6215,6 +6223,10 @@ plus any scenario-owned counters such as
 performance history parseable without scraping prose or losing which target
 area and review-risk group the scenario validates.
 The `p50_us`, `p95_us`, and `p99_us` are finite nearest-rank percentiles.
+
+The `runtime_component_local_interaction_3200` scenario toggles a tooltip beside
+3,200 unchanged cached text leaves and reports actual application projection,
+runtime projection and layout counts.
 
 The `runtime_component_local_geometry_3200` scenario uses fixed parent slots,
 asserts one actual layout pass per edit and reports both `layout_count` and
@@ -7765,6 +7777,20 @@ Current shipped boundary: prepared refresh constructs the Projection, layout,
 and paint-plan candidate synchronously, then uses a later no-yield publication
 gate. Independently schedulable Reconciliation, Layout, and Paint stages remain
 future work under OPT-1389.
+
+Exact-input component cache hits retain a private immutable snapshot identity in
+application lowering receipts. When that identity, root path, source metadata,
+slot and root contract all match the committed receipt, lowering and comparison
+skip the cached descendants. An interaction-only leaf beside unchanged cached
+components can therefore use the existing atomic partial refresh without a
+runtime projection or layout pass. The enclosing application view still runs.
+Interaction-only component changes may retain a bounded proof against the
+immediately preceding cache result. Only the changed component is compared;
+`comparison_node_visits()` reports that actual work. Geometry, unsupported changes,
+missing predecessor proofs, remounts, eviction, reordered roots, environment
+changes and raw runtime wrappers use the complete refresh path. The identity is emitted
+only for the existing Clone-qualified cache admission; it does not expand widget
+admission or replace runtime focus, capture, IME, or publication authority.
 
 The current interaction-only reconciliation slice is narrower than the full
 prepared-refresh contract. A `RuntimeBridge` may opt in by supplying a

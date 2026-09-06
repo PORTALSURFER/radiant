@@ -108,6 +108,9 @@ pub enum LayerInputPolicy {
 pub struct ViewNode<Message> {
     _ui_affinity: UiAffinity,
     kind: ViewNodeKind<Message>,
+    // Minted only for an immutable, Clone-qualified component cache result.
+    // Descendant equality evidence; never runtime ownership or state.
+    component_snapshot: Option<Rc<crate::application::view_node::components::ComponentSnapshot>>,
     id: Option<NodeId>,
     key: Option<identity::ContinuityKey>,
     keyed_identity: Option<identity::KeyedIdentity>,
@@ -210,6 +213,7 @@ impl<Message> ViewNode<Message> {
         Self {
             _ui_affinity: UiAffinity::new(),
             kind,
+            component_snapshot: None,
             id: None,
             key: None,
             keyed_identity: None,

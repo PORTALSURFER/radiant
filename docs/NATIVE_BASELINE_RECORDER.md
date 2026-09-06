@@ -89,6 +89,21 @@ Inspect work counters as well as timings. A CPU-only comparison does not close a
 GPU evidence requirement. Native acceptance remains at 60 Hz; 120 Hz is stretch.
 No result represents scanout or input-to-display latency.
 
+For raw signal-upload evidence, enable the native render profile and the
+recorder's separate bounded trace before launching the executable:
+
+```sh
+RADIANT_NATIVE_RENDER_PROFILE=1 RADIANT_BASELINE_UPLOAD_TRACE=1 \
+  target/release/examples/rendering_baseline gain /tmp/radiant-gain-upload.jsonl
+```
+
+The trace records only the render-profile event's window/frame correlation and
+immutable, volatile, and renderer-parameter upload operation and byte counters.
+It is retained in memory for at most 4,096 events, then writes its rows and a
+truncation count with the normal artifact at process exit. The opt-in subscriber
+adds tracing and synchronization work in the event loop; do not compare timings
+from a traced capture with captures made without it.
+
 Use the same fixtures and qualification on future native Windows and Wayland
 hosts, recording unsupported timing explicitly. Compilation on those targets
 alone does not satisfy their native acceptance gates.

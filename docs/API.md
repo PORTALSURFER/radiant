@@ -6694,6 +6694,7 @@ manual validation:
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Localization and shortcut presentation | `localization_foundation` |
 | Contextual command registry, keymaps and explicit host/reducer dispatch | `contextual_commands` |
+| Qualified focus transfers and current-geometry navigation | `focus_navigation` |
 | Exact-input component projection reuse | `component_projection` |
 | Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
@@ -6709,6 +6710,9 @@ manual validation:
 Run `cargo run --example rendering_baseline --release -- local /tmp/radiant-local.jsonl`
 for a bounded native observation capture. See `NATIVE_BASELINE_RECORDER.md` for
 qualification, cold/warm separation and unavailable GPU timing handling.
+
+Run `cargo run --example focus_navigation` for headless qualified focus transfers
+and sequential/spatial traversal.
 
 Run `cargo run --example contextual_commands` for headless command dispatch
 from declarative view scopes through the application reducer and revalidated presentation targets.
@@ -8077,3 +8081,26 @@ are excluded. Any finish staging, currentness, transition, or
 completion failure consumes or vetoes only its exact ticket, performs no retry,
 replay, redraw, or visibility restoration, and converges through bounded
 `Closing` with the original `RenderDeviceLost` cause.
+
+
+### Explicit focus authority
+
+`SurfaceRuntime::focus_target(widget)` observes an opaque `FocusTarget` for a
+current materialized, enabled focusable widget. It does not move focus, scroll or
+invoke a virtual provider. `transfer_focus(&target)` checks the issuing runtime,
+current projection, semantic path and role, then uses ordinary focus-loss, capture
+and composition teardown. A refresh retires old target evidence; query a fresh
+target for a new request. Revalidate after synchronous widget/reducer work.
+
+`FocusTransferOutcome` distinguishes `Admitted(widget)`, `AdmittedRuntimeOwned`,
+`NoDestination`, `Vetoed`, `Invalidated`, `Stale`, and `Unavailable`. Only
+`NoDestination` permits a caller-owned fallback. An invalidated transfer can have
+already emitted one focus-loss message; do not retry it implicitly.
+`traverse_focus_explicit(FocusTraversal)` retains the existing sequential order
+and runtime-owned separator stops. `traverse_focus_spatial(FocusDirection)` uses
+nearest center distance in the requested half-plane, ties in committed order,
+and positive visible intersection with the viewport and clipping ancestors.
+Without a current widget it returns `NoDestination`. Navigation observes only
+materialized targets and never creates virtual demand. Generic declarative focus
+scopes/restoration and executable semantic actions remain separate follow-up work
+under OPT-1368; overlay-specific trapping/restoration is tracked by OPT-1394.

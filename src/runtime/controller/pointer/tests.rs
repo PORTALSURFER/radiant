@@ -8460,3 +8460,67 @@ fn focused_ratio_action_revalidates_after_reentrant_remove_and_replacement_once(
         SplitPaneAxis::Vertical
     );
 }
+
+#[test]
+fn qualified_focus_transfer_preserves_veto_and_reports_reprojection_without_retry() {
+    use crate::runtime::FocusTransferOutcome;
+    let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
+    assert!(runtime.focus_widget(10));
+    let target = runtime.focus_target(20).expect("materialized target");
+    runtime.bridge().events.borrow_mut().clear();
+    runtime.bridge().old_decision.set(FocusLossDecision::Veto);
+    assert_eq!(
+        runtime.transfer_focus(&target),
+        FocusTransferOutcome::Vetoed
+    );
+    assert_eq!(runtime.focused_widget(), Some(10));
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(10)]
+    );
+    runtime.bridge().old_decision.set(FocusLossDecision::Allow);
+    runtime.bridge().events.borrow_mut().clear();
+    assert_eq!(
+        runtime.transfer_focus(&target),
+        FocusTransferOutcome::Invalidated
+    );
+    assert_eq!(
+        runtime
+            .bridge()
+            .events
+            .borrow()
+            .iter()
+            .filter(|event| **event == FocusDecisionEvent::HostOutput)
+            .count(),
+        1
+    );
+    assert_eq!(runtime.transfer_focus(&target), FocusTransferOutcome::Stale);
+    assert_eq!(
+        runtime
+            .bridge()
+            .events
+            .borrow()
+            .iter()
+            .filter(|event| **event == FocusDecisionEvent::HostOutput)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn explicit_traversal_reports_runtime_owned_separator_as_admitted() {
+    use crate::runtime::FocusTransferOutcome;
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned).with_focusable_panes(),
+        Vector2::new(200.0, 80.0),
+    );
+    assert!(matches!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(_)
+    ));
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::AdmittedRuntimeOwned
+    );
+    assert_eq!(runtime.focused_widget(), None);
+}

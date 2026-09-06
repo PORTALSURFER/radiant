@@ -354,3 +354,7 @@ path = "examples/component_projection.rs"
 [[example]]
 name = "contextual_commands"
 path = "examples/contextual_commands.rs"
+
+[[example]]
+name = "focus_navigation"
+path = "examples/focus_navigation.rs"

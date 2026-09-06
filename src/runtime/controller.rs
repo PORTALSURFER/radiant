@@ -15,6 +15,8 @@ mod declarative_owner;
 mod effects;
 mod events;
 mod focus;
+mod focus_authority;
+mod focus_navigation;
 mod fresh_surface_preparation;
 mod hit_order;
 mod hit_test;
@@ -61,6 +63,7 @@ pub(crate) use automation_compositor::{
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
+pub use focus_authority::{FocusDirection, FocusTarget, FocusTransferOutcome};
 pub(crate) use fresh_surface_preparation::PreparedSurfaceRefresh;
 pub use layout_state::{SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement};
 pub(crate) use owner::AuxiliaryWindowOwner;

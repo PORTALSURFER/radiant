@@ -28,6 +28,8 @@ mod command_flow;
 mod command_service;
 #[path = "runtime_bridge_public_api/diagnostics.rs"]
 mod diagnostics;
+#[path = "runtime_bridge_public_api/focus_authority.rs"]
+mod focus_authority;
 #[path = "runtime_bridge_public_api/lifecycle.rs"]
 mod lifecycle;
 #[path = "runtime_bridge_public_api/resources.rs"]

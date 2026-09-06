@@ -1,0 +1,150 @@
+{
+  "qualification": "Diagnostic only: all3processes complete, but captured Metal command-buffer OOM errors prevent native rendering acceptance. GPU readings unavailable. Initial admitted queries remain unsafe.",
+  "build": {
+    "head": "76ca1cc626ec8f12d19aaa705fc9e26fa1eed81f",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1452-invalid-gpu-clock-radiant",
+    "binary": "/Users/portalsurfer/.codex/radiant-validation/opt-1452-timestamp-isolation/binaries/rendering_baseline-invalid-clock",
+    "binary_sha256": "f88a59867027bdcb79e1f565f5316dcc65113f95b9af9d521c908c127cf272db",
+    "command": [
+      "cargo",
+      "build",
+      "--release",
+      "--locked",
+      "--example",
+      "rendering_baseline"
+    ],
+    "started_at": "2026-09-06T11:49:43.809462+00:00",
+    "cargo_target_dir": "/Users/portalsurfer/.codex/radiant-validation/target",
+    "cargo_incremental": "0"
+  },
+  "runs": [
+    {
+      "name": "invalid-clock-1",
+      "sha256": "c77ae9a424a0f636e38aa7812f56b8657891935acbe3653633197a9959786402",
+      "types": {
+        "native_fixture": 1,
+        "native_environment": 1,
+        "native_frame": 238,
+        "native_gpu": 238,
+        "native_run": 1
+      },
+      "gpu_outcomes": {
+        "Unavailable { reason: ConversionFailed }": 238
+      },
+      "run": {
+        "elapsed_us": 3842590.9579999996,
+        "first_present_ms": 1149.707417,
+        "run_error": null,
+        "startup_failure": null,
+        "startup_status": "complete",
+        "startup_timing": {
+          "deferred_model_refresh_ms": 0.0,
+          "deferred_model_refresh_total_ms": 1149.707417,
+          "failure_reason": null,
+          "first_present_draw_ms": 87.644334,
+          "first_present_ms": 1149.707417,
+          "first_redraw_started_ms": 1062.063083,
+          "first_scene_ready_ms": 1038.496333,
+          "renderer_build_ms": 793.850459,
+          "renderer_ready_ms": 1037.376292,
+          "status": "complete",
+          "surface_ready_ms": 243.525792,
+          "wgpu_device_ready_ms": 139.108958,
+          "wgpu_surface_create_ms": 0.902916,
+          "window_create_ms": 32.575292,
+          "window_revealed_ms": 1040.049667
+        },
+        "type": "native_run"
+      }
+    },
+    {
+      "name": "invalid-clock-2",
+      "sha256": "363eba419d30d6950d37c33515211db7837765cf7563b42a336b37a7eb6e9d31",
+      "types": {
+        "native_fixture": 1,
+        "native_environment": 1,
+        "native_frame": 241,
+        "native_gpu": 241,
+        "native_run": 1
+      },
+      "gpu_outcomes": {
+        "Unavailable { reason: ConversionFailed }": 241
+      },
+      "run": {
+        "elapsed_us": 3806709.541,
+        "first_present_ms": 1069.7265,
+        "run_error": null,
+        "startup_failure": null,
+        "startup_status": "complete",
+        "startup_timing": {
+          "deferred_model_refresh_ms": 0.0,
+          "deferred_model_refresh_total_ms": 1069.7265,
+          "failure_reason": null,
+          "first_present_draw_ms": 87.6345,
+          "first_present_ms": 1069.7265,
+          "first_redraw_started_ms": 982.092,
+          "first_scene_ready_ms": 956.427916,
+          "renderer_build_ms": 822.887959,
+          "renderer_ready_ms": 955.275,
+          "status": "complete",
+          "surface_ready_ms": 132.387041,
+          "wgpu_device_ready_ms": 59.154417,
+          "wgpu_surface_create_ms": 0.833542,
+          "window_create_ms": 21.087708,
+          "window_revealed_ms": 968.862333
+        },
+        "type": "native_run"
+      }
+    },
+    {
+      "name": "invalid-clock-3",
+      "sha256": "bd37463203b72ffec5d0c2bc1c0c954d98e86df51b9f85d05d610cb7a4ac0817",
+      "types": {
+        "native_fixture": 1,
+        "native_environment": 1,
+        "native_frame": 240,
+        "native_gpu": 240,
+        "native_run": 1
+      },
+      "gpu_outcomes": {
+        "Unavailable { reason: ConversionFailed }": 240
+      },
+      "run": {
+        "elapsed_us": 3833072.9579999996,
+        "first_present_ms": 1128.055333,
+        "run_error": null,
+        "startup_failure": null,
+        "startup_status": "complete",
+        "startup_timing": {
+          "deferred_model_refresh_ms": 0.0,
+          "deferred_model_refresh_total_ms": 1128.055333,
+          "failure_reason": null,
+          "first_present_draw_ms": 93.472166,
+          "first_present_ms": 1128.055333,
+          "first_redraw_started_ms": 1034.583167,
+          "first_scene_ready_ms": 1001.5125419999999,
+          "renderer_build_ms": 844.627416,
+          "renderer_ready_ms": 1000.434458,
+          "status": "complete",
+          "surface_ready_ms": 155.807042,
+          "wgpu_device_ready_ms": 62.691207999999996,
+          "wgpu_surface_create_ms": 1.129792,
+          "window_create_ms": 39.465624999999996,
+          "window_revealed_ms": 1012.8665830000001
+        },
+        "type": "native_run"
+      }
+    }
+  ],
+  "system_evidence": {
+    "invalid-clock-1-system.jsonl": {
+      "observed_oom_messages": 8,
+      "process_id": 68864
+    },
+    "invalid-clock-3-system.jsonl": {
+      "observed_oom_messages": 42,
+      "process_id": 68936
+    }
+  },
+  "system_capture_note": "Firstcapture maycoverrun2; no separate system log forrun2. Count only errors attributed to actualprocesspaths."
+}

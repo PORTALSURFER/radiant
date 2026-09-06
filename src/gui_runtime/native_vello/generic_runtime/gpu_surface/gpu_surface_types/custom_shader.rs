@@ -30,6 +30,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Cu
         CustomShaderPipelineKey,
 }
 
+#[derive(Clone)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipeline {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) key:
         CustomShaderPipelineKey,
@@ -39,6 +40,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Cu
         wgpu::RenderPipeline,
 }
 
+#[derive(Clone)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderBinding {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) cache_key:
         CustomShaderBindingKey,

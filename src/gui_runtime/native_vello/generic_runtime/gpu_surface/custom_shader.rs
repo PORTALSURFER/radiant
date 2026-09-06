@@ -141,8 +141,7 @@ impl CustomShaderUploadPreflightState {
         let cached = self.bindings.get(&surface_key).cloned().unwrap_or_else(|| {
             renderer
                 .resources
-                .custom_shader_bindings
-                .get(&surface_key)
+                .custom_shader_binding(surface_key)
                 .map(|binding| CustomShaderBindingPreflightIdentity {
                     cache_key: binding.cache_key.clone(),
                     write_state: binding.write_state,
@@ -411,7 +410,7 @@ impl GpuSurfaceRenderer {
                 })
             });
         {
-            let Some(binding) = self.resources.custom_shader_bindings.get_mut(&surface.key) else {
+            let Some(binding) = self.resources.custom_shader_binding_mut(surface.key) else {
                 record_failed_custom_shader_surface(stats);
                 return false;
             };
@@ -433,7 +432,7 @@ impl GpuSurfaceRenderer {
             record_failed_custom_shader_surface(stats);
             return false;
         };
-        let Some(binding) = self.resources.custom_shader_bindings.get(&surface.key) else {
+        let Some(binding) = self.resources.custom_shader_binding(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return false;
         };
@@ -589,11 +588,7 @@ impl GpuSurfaceRenderer {
             },
             stats,
         );
-        if !self
-            .resources
-            .custom_shader_bindings
-            .contains_key(&surface.key)
-        {
+        if !self.resources.has_custom_shader_binding(surface.key) {
             upload_plan
                 .veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
             record_failed_custom_shader_surface(stats);
@@ -623,7 +618,7 @@ impl GpuSurfaceRenderer {
                 })
             });
         let upload_succeeded = {
-            let Some(binding) = self.resources.custom_shader_bindings.get_mut(&surface.key) else {
+            let Some(binding) = self.resources.custom_shader_binding_mut(surface.key) else {
                 upload_plan
                     .veto_execution(GpuSurfaceRenderCanvasUploadPlanUnavailableReason::Incomplete);
                 record_failed_custom_shader_surface(stats);
@@ -654,7 +649,7 @@ impl GpuSurfaceRenderer {
             record_failed_custom_shader_surface(stats);
             return Some(false);
         };
-        let Some(binding) = self.resources.custom_shader_bindings.get(&surface.key) else {
+        let Some(binding) = self.resources.custom_shader_binding(surface.key) else {
             record_failed_custom_shader_surface(stats);
             return Some(false);
         };
@@ -715,11 +710,7 @@ impl GpuSurfaceRenderer {
             },
             stats,
         );
-        if self
-            .resources
-            .custom_shader_bindings
-            .contains_key(&surface.key)
-        {
+        if self.resources.has_custom_shader_binding(surface.key) {
             true
         } else {
             record_failed_custom_shader_surface(stats);

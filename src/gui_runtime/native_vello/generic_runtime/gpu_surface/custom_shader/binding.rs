@@ -81,8 +81,7 @@ impl GpuSurfaceRenderer {
         cache_key: &CustomShaderBindingKey,
     ) -> bool {
         self.resources
-            .custom_shader_bindings
-            .get(&surface_key)
+            .custom_shader_binding(surface_key)
             .is_none_or(|binding| binding.cache_key != *cache_key)
     }
 }

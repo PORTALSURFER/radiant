@@ -42,7 +42,7 @@ const MAX_CUSTOM_SHADER_UNIQUE_PIPELINES: usize = 256;
 const MAX_CUSTOM_SHADER_ASSOCIATIONS: usize = 1024;
 const MAX_CUSTOM_SHADER_RETAINED_KEY_BYTES: usize = 1024 * 1024;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct CustomShaderPipelineCacheState {
     entries: HashSet<CustomShaderPipelineIdentity>,
     associations: HashMap<u64, CustomShaderPipelineIdentity>,
@@ -160,7 +160,7 @@ impl LogicalBytesAccumulator {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct CustomShaderResidencyAccounting {
     pipeline_resident_count: usize,
     binding_resident_count: usize,
@@ -168,6 +168,14 @@ struct CustomShaderResidencyAccounting {
     app_uniform_logical_bytes: LogicalBytesAccumulator,
     storage_logical_bytes: LogicalBytesAccumulator,
     presentation_uniform_logical_bytes: LogicalBytesAccumulator,
+}
+
+#[derive(Clone, Default)]
+struct CustomShaderResourceCache {
+    pipelines: HashMap<CustomShaderPipelineIdentity, CustomShaderPipeline>,
+    pipeline_state: CustomShaderPipelineCacheState,
+    bindings: HashMap<u64, CustomShaderBinding>,
+    residency: CustomShaderResidencyAccounting,
 }
 
 impl CustomShaderResidencyAccounting {
@@ -209,10 +217,6 @@ impl CustomShaderResidencyAccounting {
 
     fn set_binding_resident_count(&mut self, resident_count: usize) {
         self.binding_resident_count = resident_count;
-    }
-
-    fn clear(&mut self) {
-        *self = Self::default();
     }
 }
 
@@ -464,11 +468,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
         AccountedMap<GpuSurfaceTexture>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) composite_bindings:
         HashMap<u64, GpuSurfaceCompositeBinding>,
-    custom_shader_pipelines: HashMap<CustomShaderPipelineIdentity, CustomShaderPipeline>,
-    custom_shader_pipeline_state: CustomShaderPipelineCacheState,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) custom_shader_bindings:
-        HashMap<u64, CustomShaderBinding>,
-    custom_shader_residency: CustomShaderResidencyAccounting,
+    custom_shader_resources: CustomShaderResourceCache,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_bodies:
         AccountedMap<SignalBodyTexture>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signals:
@@ -505,22 +505,31 @@ impl GpuSurfaceResourceCache {
         self.textures.retain(|key, _| active_keys.contains(key));
         self.composite_bindings
             .retain(|key, _| active_keys.contains(key));
-        for retired in self.custom_shader_pipeline_state.prune(active_keys) {
-            self.custom_shader_pipelines.remove(&retired);
+        for retired in self
+            .custom_shader_resources
+            .pipeline_state
+            .prune(active_keys)
+        {
+            self.custom_shader_resources.pipelines.remove(&retired);
         }
-        self.custom_shader_residency
-            .set_pipeline_resident_count(self.custom_shader_pipelines.len());
-        let accounting = &mut self.custom_shader_residency;
-        self.custom_shader_bindings.retain(|key, binding| {
-            if active_keys.contains(key) {
-                true
-            } else {
-                accounting.remove_binding(custom_shader_binding_logical_bytes(&binding.cache_key));
-                false
-            }
-        });
-        self.custom_shader_residency
-            .set_binding_resident_count(self.custom_shader_bindings.len());
+        self.custom_shader_resources
+            .residency
+            .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
+        let accounting = &mut self.custom_shader_resources.residency;
+        self.custom_shader_resources
+            .bindings
+            .retain(|key, binding| {
+                if active_keys.contains(key) {
+                    true
+                } else {
+                    accounting
+                        .remove_binding(custom_shader_binding_logical_bytes(&binding.cache_key));
+                    false
+                }
+            });
+        self.custom_shader_resources
+            .residency
+            .set_binding_resident_count(self.custom_shader_resources.bindings.len());
         self.signal_bodies
             .retain(|key, _| active_keys.contains(key));
         self.signals.retain(|key, _| active_keys.contains(key));
@@ -533,10 +542,7 @@ impl GpuSurfaceResourceCache {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn clear(&mut self) {
         self.textures.clear();
         self.composite_bindings.clear();
-        self.custom_shader_pipelines.clear();
-        self.custom_shader_pipeline_state = CustomShaderPipelineCacheState::default();
-        self.custom_shader_bindings.clear();
-        self.custom_shader_residency.clear();
+        self.custom_shader_resources = CustomShaderResourceCache::default();
         self.signal_bodies.clear();
         self.signals.clear();
         self.signal_summaries.clear();
@@ -567,9 +573,10 @@ impl GpuSurfaceResourceCache {
         &self,
         key: u64,
     ) -> Option<&CustomShaderPipeline> {
-        self.custom_shader_pipeline_state
+        self.custom_shader_resources
+            .pipeline_state
             .identity(key)
-            .and_then(|identity| self.custom_shader_pipelines.get(identity))
+            .and_then(|identity| self.custom_shader_resources.pipelines.get(identity))
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn has_custom_shader_pipeline(
@@ -583,27 +590,29 @@ impl GpuSurfaceResourceCache {
         &self,
         identity: &CustomShaderPipelineIdentity,
     ) -> bool {
-        self.custom_shader_pipelines.contains_key(identity)
+        self.custom_shader_resources
+            .pipelines
+            .contains_key(identity)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_pipeline_count(
         &self,
     ) -> usize {
-        self.custom_shader_pipelines.len()
+        self.custom_shader_resources.pipelines.len()
     }
 
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_pipelines_are_empty(
         &self,
     ) -> bool {
-        self.custom_shader_pipelines.is_empty()
+        self.custom_shader_resources.pipelines.is_empty()
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_pipeline_identity(
         &self,
         key: u64,
     ) -> Option<&CustomShaderPipelineIdentity> {
-        self.custom_shader_pipeline_state.identity(key)
+        self.custom_shader_resources.pipeline_state.identity(key)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn can_admit_custom_shader_pipeline(
@@ -611,7 +620,8 @@ impl GpuSurfaceResourceCache {
         surface_key: u64,
         identity: &CustomShaderPipelineIdentity,
     ) -> bool {
-        self.custom_shader_pipeline_state
+        self.custom_shader_resources
+            .pipeline_state
             .can_admit(surface_key, identity)
     }
 
@@ -621,12 +631,14 @@ impl GpuSurfaceResourceCache {
         identity: CustomShaderPipelineIdentity,
         pipeline: CustomShaderPipeline,
     ) {
-        self.custom_shader_pipelines
+        self.custom_shader_resources
+            .pipelines
             .entry(identity.clone())
             .or_insert(pipeline);
         self.replace_custom_shader_pipeline_association(key, identity);
-        self.custom_shader_residency
-            .set_pipeline_resident_count(self.custom_shader_pipelines.len());
+        self.custom_shader_resources
+            .residency
+            .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn associate_custom_shader_pipeline(
@@ -634,7 +646,11 @@ impl GpuSurfaceResourceCache {
         key: u64,
         identity: CustomShaderPipelineIdentity,
     ) {
-        debug_assert!(self.custom_shader_pipelines.contains_key(&identity));
+        debug_assert!(
+            self.custom_shader_resources
+                .pipelines
+                .contains_key(&identity)
+        );
         self.replace_custom_shader_pipeline_association(key, identity);
     }
 
@@ -643,11 +659,16 @@ impl GpuSurfaceResourceCache {
         key: u64,
         identity: CustomShaderPipelineIdentity,
     ) {
-        if let Some(previous) = self.custom_shader_pipeline_state.associate(key, identity) {
-            self.custom_shader_pipelines.remove(&previous);
+        if let Some(previous) = self
+            .custom_shader_resources
+            .pipeline_state
+            .associate(key, identity)
+        {
+            self.custom_shader_resources.pipelines.remove(&previous);
         }
-        self.custom_shader_residency
-            .set_pipeline_resident_count(self.custom_shader_pipelines.len());
+        self.custom_shader_resources
+            .residency
+            .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn remove_custom_shader_pipeline(
@@ -655,11 +676,13 @@ impl GpuSurfaceResourceCache {
         key: &u64,
     ) -> Option<CustomShaderPipeline> {
         let removed = self
-            .custom_shader_pipeline_state
+            .custom_shader_resources
+            .pipeline_state
             .remove(*key)
-            .and_then(|identity| self.custom_shader_pipelines.remove(&identity));
-        self.custom_shader_residency
-            .set_pipeline_resident_count(self.custom_shader_pipelines.len());
+            .and_then(|identity| self.custom_shader_resources.pipelines.remove(&identity));
+        self.custom_shader_resources
+            .residency
+            .set_pipeline_resident_count(self.custom_shader_resources.pipelines.len());
         removed
     }
 
@@ -669,34 +692,74 @@ impl GpuSurfaceResourceCache {
         binding: CustomShaderBinding,
     ) {
         let logical_bytes = custom_shader_binding_logical_bytes(&binding.cache_key);
-        let previous = self.custom_shader_bindings.insert(key, binding);
+        let previous = self.custom_shader_resources.bindings.insert(key, binding);
         if let Some(previous) = previous {
-            self.custom_shader_residency
+            self.custom_shader_resources
+                .residency
                 .remove_binding(custom_shader_binding_logical_bytes(&previous.cache_key));
         }
-        self.custom_shader_residency.insert_binding(logical_bytes);
-        self.custom_shader_residency
-            .set_binding_resident_count(self.custom_shader_bindings.len());
+        self.custom_shader_resources
+            .residency
+            .insert_binding(logical_bytes);
+        self.custom_shader_resources
+            .residency
+            .set_binding_resident_count(self.custom_shader_resources.bindings.len());
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn remove_custom_shader_binding(
         &mut self,
         key: &u64,
     ) -> Option<CustomShaderBinding> {
-        let removed = self.custom_shader_bindings.remove(key);
+        let removed = self.custom_shader_resources.bindings.remove(key);
         if let Some(binding) = removed.as_ref() {
-            self.custom_shader_residency
+            self.custom_shader_resources
+                .residency
                 .remove_binding(custom_shader_binding_logical_bytes(&binding.cache_key));
         }
-        self.custom_shader_residency
-            .set_binding_resident_count(self.custom_shader_bindings.len());
+        self.custom_shader_resources
+            .residency
+            .set_binding_resident_count(self.custom_shader_resources.bindings.len());
         removed
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_binding(
+        &self,
+        key: u64,
+    ) -> Option<&CustomShaderBinding> {
+        self.custom_shader_resources.bindings.get(&key)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_binding_mut(
+        &mut self,
+        key: u64,
+    ) -> Option<&mut CustomShaderBinding> {
+        self.custom_shader_resources.bindings.get_mut(&key)
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn has_custom_shader_binding(
+        &self,
+        key: u64,
+    ) -> bool {
+        self.custom_shader_binding(key).is_some()
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_binding_count(
+        &self,
+    ) -> usize {
+        self.custom_shader_resources.bindings.len()
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_bindings_are_empty(
+        &self,
+    ) -> bool {
+        self.custom_shader_resources.bindings.is_empty()
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn custom_shader_residency_snapshot(
         &self,
     ) -> GpuSurfaceCustomShaderResidencySnapshot {
-        self.custom_shader_residency.snapshot()
+        self.custom_shader_resources.residency.snapshot()
     }
 }
 

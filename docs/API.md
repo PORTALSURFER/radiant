@@ -8102,5 +8102,16 @@ nearest center distance in the requested half-plane, ties in committed order,
 and positive visible intersection with the viewport and clipping ancestors.
 Without a current widget it returns `NoDestination`. Navigation observes only
 materialized targets and never creates virtual demand. Generic declarative focus
-scopes/restoration and executable semantic actions remain separate follow-up work
+scopes and executable semantic actions remain separate follow-up work
 under OPT-1368; overlay-specific trapping/restoration is tracked by OPT-1394.
+
+
+`capture_focus()` creates a UI-local `FocusBookmark` for the current focus owner.
+`restore_focus(&bookmark)` revalidates continuous widget ownership, semantic path
+and role, then uses a fresh qualified transfer. Compatible refreshes preserve the
+bookmark; removal, incompatible replacement, duplicate identity or another runtime
+cannot restore it. Layout omission or disabled state makes restoration unavailable
+without materializing content. Restoring still respects current focus-loss veto.
+At most 64 distinct live widget incarnations may have bookmarks; dropping the last
+bookmark clone releases its capacity at the next capture. Runtime-owned separator bookmarks retain qualified mount identity and compatible
+behavior evidence; a remount or incompatible policy retires them. A bookmark records focus only, never selection.

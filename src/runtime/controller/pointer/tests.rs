@@ -8524,3 +8524,59 @@ fn explicit_traversal_reports_runtime_owned_separator_as_admitted() {
     );
     assert_eq!(runtime.focused_widget(), None);
 }
+
+#[test]
+fn bookmark_restoration_respects_current_focus_loss_veto() {
+    use crate::runtime::FocusTransferOutcome;
+    let mut runtime = SurfaceRuntime::new(FocusDecisionBridge::new(), Vector2::new(200.0, 80.0));
+    assert!(runtime.focus_widget(10));
+    let bookmark = runtime.capture_focus().unwrap();
+    assert!(runtime.focus_widget(20));
+    runtime.bridge().events.borrow_mut().clear();
+    runtime
+        .bridge()
+        .target_decision
+        .set(FocusLossDecision::Veto);
+    assert_eq!(
+        runtime.restore_focus(&bookmark),
+        FocusTransferOutcome::Vetoed
+    );
+    assert_eq!(runtime.focused_widget(), Some(20));
+    assert_eq!(
+        runtime.bridge().events.borrow().as_slice(),
+        [FocusDecisionEvent::Prepare(20)]
+    );
+}
+
+#[test]
+fn separator_bookmarks_restore_current_mount_but_cannot_alias_remounts() {
+    use crate::runtime::FocusTransferOutcome;
+    let mut runtime = SurfaceRuntime::new(
+        SplitInteractionBridge::new(SplitInteractionMode::RuntimeOwned),
+        Vector2::new(200.0, 80.0),
+    );
+    let initial = runtime.split_pane_separator_projections()[0];
+    assert_eq!(
+        runtime.request_split_pane_separator_focus(initial),
+        FocusTransition::Changed
+    );
+    let bookmark = runtime.capture_focus().unwrap();
+    runtime.clear_focus();
+    runtime.refresh();
+    assert_eq!(
+        runtime.restore_focus(&bookmark),
+        FocusTransferOutcome::AdmittedRuntimeOwned
+    );
+    runtime.bridge_mut().mounted = false;
+    runtime.refresh();
+    assert_eq!(
+        runtime.restore_focus(&bookmark),
+        FocusTransferOutcome::Stale
+    );
+    runtime.bridge_mut().mounted = true;
+    runtime.refresh();
+    assert_eq!(
+        runtime.restore_focus(&bookmark),
+        FocusTransferOutcome::Stale
+    );
+}

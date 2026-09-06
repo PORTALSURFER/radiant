@@ -210,6 +210,8 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         &[
             ".focus_target(",
             ".transfer_focus(",
+            ".capture_focus(",
+            ".restore_focus(",
             ".traverse_focus_spatial(",
             ".traverse_focus_explicit(",
             "deterministic_focus_navigation_uses_public_runtime_authority",

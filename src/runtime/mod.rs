@@ -119,12 +119,12 @@ pub(crate) use controller::WheelOrScrollRoute;
 pub(crate) use controller::{AuxiliaryFocusRequest, AuxiliaryWindowOwner};
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
-    FocusDirection, FocusTarget, FocusTransferOutcome, FocusTraversal, IdentityAudit,
-    PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
-    RuntimeSurfaceFrameRef, ScrollUpdate, ScrollUpdateMetadata, SurfaceIdentityDiagnostics,
-    SurfaceIdentityOwnership, SurfaceIdentityPath, SurfaceIdentityReplacement,
-    SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
-    SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
+    FocusBookmark, FocusBookmarkError, FocusDirection, FocusTarget, FocusTransferOutcome,
+    FocusTraversal, IdentityAudit, PointerClickOutcome, PointerMoveOutcome, RuntimeContext,
+    RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollUpdate, ScrollUpdateMetadata,
+    SurfaceIdentityDiagnostics, SurfaceIdentityOwnership, SurfaceIdentityPath,
+    SurfaceIdentityReplacement, SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement,
+    SurfaceRefreshCounters, SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
 };
 #[cfg(target_os = "macos")]
 pub(crate) use controller::{

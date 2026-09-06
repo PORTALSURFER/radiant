@@ -9,6 +9,10 @@ where
         &mut self,
         traversal: SurfaceTraversalIndex<Message>,
     ) {
+        self.interaction.focus_restoration.retain_live(|id| {
+            traversal.widget_paths.contains_key(&id)
+                && !traversal.duplicate_widget_ids.contains(&id)
+        });
         self.traversal.command_scopes = traversal.command_scopes;
         self.traversal.widgets.hit_order = traversal.widget_paint_order;
         self.traversal.widgets.paths.current = traversal.widget_paths;

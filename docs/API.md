@@ -8101,9 +8101,7 @@ and runtime-owned separator stops. `traverse_focus_spatial(FocusDirection)` uses
 nearest center distance in the requested half-plane, ties in committed order,
 and positive visible intersection with the viewport and clipping ancestors.
 Without a current widget it returns `NoDestination`. Navigation observes only
-materialized targets and never creates virtual demand. Generic declarative focus
-scopes and executable semantic actions remain separate follow-up work
-under OPT-1368; overlay-specific trapping/restoration is tracked by OPT-1394.
+materialized targets and never creates virtual demand. Executable semantic actions remain follow-up work under OPT-1368; overlay-specific trapping/restoration is tracked by OPT-1394.
 
 
 `capture_focus()` creates a UI-local `FocusBookmark` for the current focus owner.
@@ -8115,3 +8113,22 @@ without materializing content. Restoring still respects current focus-loss veto.
 At most 64 distinct live widget incarnations may have bookmarks; dropping the last
 bookmark clone releases its capacity at the next capture. Runtime-owned separator bookmarks retain qualified mount identity and compatible
 behavior evidence; a remount or incompatible policy retires them. A bookmark records focus only, never selection.
+
+
+`ViewNode::focus_scope(FocusScope)` declares traversal policy for a subtree.
+`FocusScope::sequential()` stops at the boundary and declines spatial traversal;
+`FocusScope::spatial_grid()` also enables nearest-geometry directional navigation.
+`.boundary(FocusScopeBoundary::Wrap)` wraps sequential traversal inside that scope.
+The closest declared scope owns an attempt, retaining both widget and runtime-owned
+separator stops in the existing order. Without a scope, sequential traversal keeps
+its compatibility wrap behavior. Explicit focus transfers and bookmark restoration
+may cross scope boundaries; overlay-specific trapping remains OPT-1394 work.
+
+Scope metadata participates in frozen source equality, so policy changes refresh the
+committed membership index while compatible widget state remains retained. Prepared
+surfaces preserve their scope unless an outer view explicitly replaces its policy.
+The index accepts at most 64 declared scopes and 65,536 qualified source nodes;
+duplicate source IDs and capacity violations make traversal `Invalidated`. Omitted
+scope layout grants no scope authority. Automation snapshots report the observational
+`radiant.focus_scope.sequential` and `radiant.focus_scope.spatial` metadata fields;
+these fields do not grant action or materialization authority.

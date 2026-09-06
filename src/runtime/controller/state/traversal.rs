@@ -14,6 +14,7 @@ where
                 && !traversal.duplicate_widget_ids.contains(&id)
         });
         self.traversal.command_scopes = traversal.command_scopes;
+        self.traversal.focus_scopes = traversal.focus_scopes;
         self.traversal.widgets.hit_order = traversal.widget_paint_order;
         self.traversal.widgets.paths.current = traversal.widget_paths;
         self.traversal.widgets.duplicate_widget_ids = traversal.duplicate_widget_ids;
@@ -119,6 +120,7 @@ where
         self.traversal.widgets.stateful_ordinals.clear();
         SurfaceTraversalIndex {
             command_scopes: std::mem::take(&mut self.traversal.command_scopes),
+            focus_scopes: std::mem::take(&mut self.traversal.focus_scopes),
             widget_paint_order: std::mem::take(&mut self.traversal.widgets.hit_order),
             focusable_widget_order: self.traversal.widgets.focusable.take_order(),
             keyboard_focus_order: self.traversal.widgets.keyboard_focus.take_order(),

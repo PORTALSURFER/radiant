@@ -444,6 +444,17 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    pub(crate) fn focus_scope(&self) -> Option<crate::runtime::FocusScope> {
+        let source = match self {
+            Self::Scene(node) => node.source.as_ref(),
+            Self::Container(node) => node.source.as_ref(),
+            Self::Widget(node) => node.source.as_ref(),
+            Self::Overlay(node) => node.source.as_ref(),
+            Self::FloatingLayer(node) => node.source.as_ref(),
+        };
+        source.and_then(|source| source.focus_scope)
+    }
+
     pub(crate) fn source_metadata_handle(&self) -> Option<Rc<SourceMetadata>> {
         match self {
             Self::Scene(scene) => scene.source.clone(),
@@ -580,6 +591,22 @@ impl<Message> SurfaceNode<Message> {
                 .unwrap_or_else(AutomationBounds::zero),
             self.automation_semantics(),
         );
+        if let Some(scope) = self.focus_scope() {
+            let boundary = match scope.boundary {
+                crate::runtime::FocusScopeBoundary::Stop => "stop",
+                crate::runtime::FocusScopeBoundary::Wrap => "wrap",
+            };
+            for (key, value) in [
+                ("radiant.focus_scope.sequential", boundary),
+                (
+                    "radiant.focus_scope.spatial",
+                    if scope.spatial { "true" } else { "false" },
+                ),
+            ] {
+                snapshot.metadata.insert(key.into(), value.into());
+                snapshot.semantics.metadata.insert(key.into(), value.into());
+            }
+        }
         if let Self::Widget(widget) = self
             && let Some(actions) = widget.automation_available_actions()
         {

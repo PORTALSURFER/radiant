@@ -9,6 +9,18 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn active_focus_scope(
+        &self,
+    ) -> Result<Option<(usize, crate::runtime::FocusScope)>, ()> {
+        let node = self.interaction.focus.owner.map(|owner| match owner {
+            super::interaction_state::RuntimeFocusOwner::Widget(id) => id,
+            super::interaction_state::RuntimeFocusOwner::SplitPaneSeparator(owner) => {
+                owner.target.container_id
+            }
+        });
+        self.traversal.focus_scopes.current(node, &self.layout)
+    }
+
     /// Traverse the current sequence with terminal veto/invalidation outcomes.
     /// Runtime-owned separator stops retain their ordinary position in the order.
     pub fn traverse_focus_explicit(&mut self, direction: FocusTraversal) -> FocusTransferOutcome {
@@ -42,6 +54,13 @@ where
         if !self.lifecycle_accepts_work() {
             return FocusTransferOutcome::Unavailable;
         }
+        let scope = match self.active_focus_scope() {
+            Ok(scope) => scope,
+            Err(()) => return FocusTransferOutcome::Invalidated,
+        };
+        if scope.is_some_and(|(_, policy)| !policy.spatial) {
+            return FocusTransferOutcome::NoDestination;
+        }
         let Some(current) = self.focused_widget() else {
             return FocusTransferOutcome::NoDestination;
         };
@@ -53,7 +72,10 @@ where
         }
         let mut best: Option<(f64, u64)> = None;
         for &id in self.traversal.widgets.keyboard_focus.order() {
-            if id == current || !self.is_live_focus_target(id) {
+            if id == current
+                || !self.is_live_focus_target(id)
+                || scope.is_some_and(|(scope, _)| !self.traversal.focus_scopes.contains(scope, id))
+            {
                 continue;
             }
             let Some(rect) = self.layout.rects.get(&id) else {

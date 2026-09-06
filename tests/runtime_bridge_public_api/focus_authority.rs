@@ -218,3 +218,140 @@ fn focus_bookmark_rejects_a_replaced_widget_even_after_its_original_kind_returns
         FocusTransferOutcome::Stale
     );
 }
+
+#[test]
+fn declarative_scopes_bound_navigation_and_refresh_policy_without_losing_widget_focus() {
+    use radiant::runtime::{FocusDirection, FocusScope, FocusScopeBoundary, FocusTraversal};
+    let mut runtime = SurfaceRuntime::new(
+        radiant::app(false)
+            .view(|wrap: &bool| {
+                column([
+                    column([
+                        button("One").message(false).id(1),
+                        button("Two").message(false).id(2),
+                    ])
+                    .id(10)
+                    .focus_scope(FocusScope::spatial_grid().boundary(if *wrap {
+                        FocusScopeBoundary::Wrap
+                    } else {
+                        FocusScopeBoundary::Stop
+                    })),
+                    button("Outside").message(false).id(3),
+                ])
+                .id(100)
+            })
+            .update(|wrap, next| *wrap = next)
+            .into_bridge(),
+        Vector2::new(320.0, 180.0),
+    );
+    let snapshot = runtime.automation_target_snapshot();
+    let scope = snapshot
+        .targets
+        .iter()
+        .find(|target| target.id.0 == "10")
+        .unwrap();
+    assert_eq!(scope.metadata["radiant.focus_scope.sequential"], "stop");
+    assert_eq!(scope.metadata["radiant.focus_scope.spatial"], "true");
+    assert!(runtime.focus_widget(1));
+    assert_eq!(
+        runtime.traverse_focus_spatial(FocusDirection::Down),
+        FocusTransferOutcome::Admitted(2)
+    );
+    assert_eq!(
+        runtime.traverse_focus_spatial(FocusDirection::Down),
+        FocusTransferOutcome::NoDestination
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::NoDestination
+    );
+    runtime.dispatch_message(true);
+    let snapshot = runtime.automation_target_snapshot();
+    assert_eq!(
+        snapshot
+            .targets
+            .iter()
+            .find(|target| target.id.0 == "10")
+            .unwrap()
+            .metadata["radiant.focus_scope.sequential"],
+        "wrap"
+    );
+    assert_eq!(runtime.focused_widget(), Some(2));
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(1)
+    );
+    // Legacy/native sequential routing uses the same scoped resolver.
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(2));
+}
+
+#[test]
+fn nearest_scope_owns_traversal_and_sequential_only_scope_declines_spatial_navigation() {
+    use radiant::runtime::{FocusDirection, FocusScope, FocusScopeBoundary, FocusTraversal};
+    let mut runtime = SurfaceRuntime::new(
+        radiant::app(())
+            .view(|_: &()| {
+                column([
+                    column([
+                        button("Inner one").message(()).id(1),
+                        button("Inner two").message(()).id(2),
+                    ])
+                    .id(10)
+                    .focus_scope(FocusScope::sequential()),
+                    button("Outer").message(()).id(3),
+                ])
+                .id(100)
+                .focus_scope(FocusScope::spatial_grid().boundary(FocusScopeBoundary::Wrap))
+            })
+            .update(|_, _| {})
+            .into_bridge(),
+        Vector2::new(320.0, 180.0),
+    );
+    assert!(runtime.focus_widget(1));
+    assert_eq!(
+        runtime.traverse_focus_spatial(FocusDirection::Down),
+        FocusTransferOutcome::NoDestination
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(2)
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::NoDestination
+    );
+    assert!(runtime.focus_widget(3));
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(1)
+    );
+}
+
+#[test]
+fn over_capacity_focus_scope_projection_is_terminal() {
+    use radiant::runtime::{FocusDirection, FocusScope, FocusTraversal};
+    let mut runtime = SurfaceRuntime::new(
+        radiant::app(())
+            .view(|_: &()| {
+                column((1..=65).map(|id| {
+                    button("Target")
+                        .message(())
+                        .id(id)
+                        .focus_scope(FocusScope::spatial_grid())
+                }))
+                .id(100)
+            })
+            .update(|_, _| {})
+            .into_bridge(),
+        Vector2::new(320.0, 180.0),
+    );
+    assert!(runtime.focus_widget(1));
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Invalidated
+    );
+    assert_eq!(
+        runtime.traverse_focus_spatial(FocusDirection::Down),
+        FocusTransferOutcome::Invalidated
+    );
+}

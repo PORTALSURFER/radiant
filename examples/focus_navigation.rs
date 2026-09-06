@@ -2,7 +2,7 @@
 use radiant::prelude::*;
 use radiant::{
     layout::Vector2,
-    runtime::{FocusDirection, FocusTransferOutcome, FocusTraversal, SurfaceRuntime},
+    runtime::{FocusDirection, FocusScope, FocusTransferOutcome, FocusTraversal, SurfaceRuntime},
 };
 
 fn exercise() {
@@ -14,6 +14,7 @@ fn exercise() {
                     button("Save").message(()).id(2),
                 ])
                 .id(100)
+                .focus_scope(FocusScope::spatial_grid())
             })
             .update(|_, _| {})
             .into_bridge(),
@@ -39,6 +40,10 @@ fn exercise() {
     assert_eq!(
         runtime.traverse_focus_explicit(FocusTraversal::Forward),
         FocusTransferOutcome::Admitted(2)
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::NoDestination
     );
 }
 fn main() {

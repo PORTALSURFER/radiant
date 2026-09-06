@@ -49,6 +49,7 @@ impl<Message> UiSurface<Message> {
             environment,
         );
         traversal.command_scopes.qualify(source);
+        traversal.focus_scopes.qualify(source);
         result
     }
 
@@ -86,6 +87,7 @@ impl<Message> UiSurface<Message> {
             &self.resolved_environment(),
         );
         traversal.command_scopes.qualify(source);
+        traversal.focus_scopes.qualify(source);
         result
     }
 
@@ -147,6 +149,7 @@ impl<Message> SurfaceNode<Message> {
     ) -> LayoutNode {
         source.record_node(self);
         let command_depth = traversal.command_scopes.enter(self, child_path);
+        let previous_focus_scope = traversal.focus_scopes.enter(self);
         let result = match self {
             Self::Scene(scene) => {
                 if !scene.has_layers() {
@@ -158,6 +161,7 @@ impl<Message> SurfaceNode<Message> {
                         environment,
                     );
                     traversal.command_scopes.leave(command_depth);
+                    traversal.focus_scopes.leave(previous_focus_scope);
                     return result;
                 }
                 scene_layout_node(scene, |scene_child_index, child| {
@@ -266,6 +270,7 @@ impl<Message> SurfaceNode<Message> {
             }
         };
         traversal.command_scopes.leave(command_depth);
+        traversal.focus_scopes.leave(previous_focus_scope);
         result
     }
 

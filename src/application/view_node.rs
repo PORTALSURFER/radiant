@@ -138,6 +138,7 @@ pub struct ViewNode<Message> {
     overlay_layers: Vec<Layer<Message>>,
     effect_owner: Option<DeclarativeEffectOwner>,
     command_scope: Option<crate::application::CommandScopeAttachment>,
+    focus_scope: Option<crate::runtime::FocusScope>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -237,6 +238,7 @@ impl<Message> ViewNode<Message> {
             overlay_layers: Vec::new(),
             effect_owner: None,
             command_scope: None,
+            focus_scope: None,
         }
     }
 
@@ -251,6 +253,12 @@ impl<Message> ViewNode<Message> {
         self.command_scope = Some(crate::application::CommandScopeAttachment::automatic(
             bindings,
         ));
+        self
+    }
+
+    /// Set sequential/spatial traversal policy for this declarative subtree.
+    pub fn focus_scope(mut self, scope: crate::runtime::FocusScope) -> Self {
+        self.focus_scope = Some(scope);
         self
     }
 

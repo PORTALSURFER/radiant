@@ -246,6 +246,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let source_topology = self.source_topology(&node_context);
         let previous_context = std::mem::replace(&mut self.source_context, node_context);
         let command_scope = node.command_scope.clone();
+        let focus_scope = node.focus_scope;
         let style = node.style;
         let hoverable = node.hoverable;
         let split_pane_runtime = node.split_pane_runtime;
@@ -523,11 +524,9 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         if let Some(candidate) = current_keyed_candidate {
             candidate.set_compatibility(compatibility);
         }
-        let lowered = lowered.with_source_metadata(SourceMetadata::new(
-            source_identity,
-            compatibility,
-            source_topology,
-        ));
+        let mut metadata = SourceMetadata::new(source_identity, compatibility, source_topology);
+        metadata.focus_scope = focus_scope.or_else(|| lowered.focus_scope());
+        let lowered = lowered.with_source_metadata(metadata);
         if let Some(context) = self.application_context.as_deref_mut() {
             context.record(&self.path, self.incoming_slot, &lowered);
         }

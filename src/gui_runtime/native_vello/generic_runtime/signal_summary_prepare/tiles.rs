@@ -533,6 +533,28 @@ mod tests {
         assert_eq!(cache.bytes, 0);
     }
     #[test]
+    fn returning_interest_reuses_retired_detail_still_held_by_renderer() {
+        let mut cache = TileCache::new(Arc::new(Wake));
+        let source = owner();
+        let a = target();
+        assert!(cache.request(a, source.clone(), spec(0), 8, 1024));
+        cache.dispatch(1).unwrap().run();
+        cache.drain();
+        let mut previous = source.clone();
+        cache.attach(a, &mut previous);
+        cache.release(a);
+        cache.retire_source(source.key);
+        cache.maintain();
+        let b = target();
+        assert!(cache.request(b, source.clone(), spec(0), 0, 0));
+        let mut current = source;
+        cache.attach(b, &mut current);
+        assert_eq!(previous.asset_key(), current.asset_key());
+        assert!(cache.dispatch(2).is_none());
+        assert_eq!(cache.bytes, 128);
+    }
+
+    #[test]
     fn cancelled_active_reservation_is_released_only_after_terminal() {
         let mut cache = TileCache::new(Arc::new(Wake));
         let source = owner();

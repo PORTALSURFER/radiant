@@ -27,13 +27,18 @@ fn exercise() {
         runtime.transfer_focus(&target),
         FocusTransferOutcome::Admitted(1)
     );
+    let bookmark = runtime.capture_focus().expect("focused widget");
     assert_eq!(
         runtime.traverse_focus_spatial(FocusDirection::Down),
         FocusTransferOutcome::Admitted(2)
     );
     assert_eq!(
-        runtime.traverse_focus_explicit(FocusTraversal::Backward),
+        runtime.restore_focus(&bookmark),
         FocusTransferOutcome::Admitted(1)
+    );
+    assert_eq!(
+        runtime.traverse_focus_explicit(FocusTraversal::Forward),
+        FocusTransferOutcome::Admitted(2)
     );
 }
 fn main() {

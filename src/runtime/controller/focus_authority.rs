@@ -9,7 +9,7 @@ use crate::{gui::automation::AutomationTarget, runtime::RuntimeBridge, widgets::
 #[derive(Clone, Debug)]
 pub struct FocusTarget {
     runtime: u64,
-    target: AutomationTarget,
+    pub(super) target: AutomationTarget,
     widget: WidgetId,
 }
 impl FocusTarget {

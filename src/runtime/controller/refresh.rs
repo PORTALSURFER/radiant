@@ -4394,6 +4394,7 @@ where
         &mut self,
         widget_id: WidgetId,
     ) -> SurfaceIdentityOwnership {
+        self.interaction.focus_restoration.retire(widget_id);
         self.mark_focused_key_capture_stale(widget_id);
         if self.interaction.focus.command_context_widget == Some(widget_id) {
             self.interaction.focus.command_context_widget = None;

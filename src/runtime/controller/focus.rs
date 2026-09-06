@@ -372,7 +372,7 @@ where
             && self.is_live_focus_target(widget_id)
     }
 
-    fn current_split_pane_separator_projection(
+    pub(super) fn current_split_pane_separator_projection(
         &self,
         target: crate::layout::LayoutTargetIdentity,
     ) -> Option<SplitPaneSeparatorProjection> {
@@ -440,7 +440,10 @@ where
             && owner.behavior.compatible_with(candidate.behavior)
     }
 
-    fn separator_focus_owner_is_current(&self, owner: RuntimeSplitPaneSeparatorFocusOwner) -> bool {
+    pub(super) fn separator_focus_owner_is_current(
+        &self,
+        owner: RuntimeSplitPaneSeparatorFocusOwner,
+    ) -> bool {
         self.current_split_pane_separator_projection(owner.target)
             .is_some_and(|projection| {
                 owner.mounted_state_id == projection.mounted_state_id

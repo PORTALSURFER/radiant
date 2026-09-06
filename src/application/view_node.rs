@@ -94,6 +94,15 @@ pub enum LayerInputPolicy {
     DismissOnOutsideClick,
 }
 
+/// Rare declarative metadata retained until the node is lowered.
+///
+/// Keeping resource and notification demand together preserves the compact
+/// outer `ViewNode` representation used by deeply nested projections.
+pub(crate) struct DeclarativeDemands<Message> {
+    pub(crate) resource: Option<Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+    pub(crate) notice: Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
+}
+
 /// Application view node with generated identity and default sizing.
 ///
 /// A view node belongs to the UI runtime that lowers it and is not transferable
@@ -147,10 +156,7 @@ pub struct ViewNode<Message> {
     focus_scope: Option<crate::runtime::FocusScope>,
     layout_interaction: Option<Rc<dyn crate::layout::LayoutInteraction<Message>>>,
     pub(in crate::application) animation: Option<Rc<dyn crate::animation::Animatable>>,
-    pub(in crate::application) resource_demand:
-        Option<Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
-    pub(in crate::application) notice_demand:
-        Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
+    pub(in crate::application) demands: Option<Rc<DeclarativeDemands<Message>>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -255,8 +261,7 @@ impl<Message> ViewNode<Message> {
             focus_scope: None,
             layout_interaction: None,
             animation: None,
-            resource_demand: None,
-            notice_demand: None,
+            demands: None,
         }
     }
 

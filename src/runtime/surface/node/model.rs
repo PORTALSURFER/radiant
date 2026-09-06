@@ -84,11 +84,9 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) animation_feedback: Vec<crate::animation::FeedbackAnimation>,
     pub(in crate::runtime::surface) animation_valid: bool,
     pub(in crate::runtime::surface) animation_values: Vec<(u64, f64)>,
-    pub(in crate::runtime::surface) resource_demand:
-        Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
+    pub(in crate::runtime::surface) demands:
+        Option<Rc<crate::application::DeclarativeDemands<Message>>>,
     pub(in crate::runtime::surface) has_resource_view_demand: bool,
-    pub(in crate::runtime::surface) notice_demand:
-        Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
     pub(in crate::runtime::surface) has_notice_demand: bool,
 }
 
@@ -105,6 +103,35 @@ pub(in crate::runtime) struct SurfaceContainerParts<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
+    fn demand_set(
+        resource: Option<
+            std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>,
+        >,
+        notice: Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
+    ) -> Option<Rc<crate::application::DeclarativeDemands<Message>>> {
+        (resource.is_some() || notice.is_some())
+            .then(|| Rc::new(crate::application::DeclarativeDemands { resource, notice }))
+    }
+
+    fn refresh_declarative_demand_flags(&mut self) {
+        self.has_resource_view_demand = self
+            .demands
+            .as_ref()
+            .is_some_and(|demands| demands.resource.is_some())
+            || self
+                .children
+                .iter()
+                .any(|child| child.child.has_resource_view_demand());
+        self.has_notice_demand = self
+            .demands
+            .as_ref()
+            .is_some_and(|demands| demands.notice.is_some())
+            || self
+                .children
+                .iter()
+                .any(|child| child.child.has_notice_demand());
+    }
+
     pub(in crate::runtime) fn node_id(&self) -> NodeId {
         self.id
     }
@@ -146,9 +173,8 @@ impl<Message> SurfaceContainer<Message> {
             animation_feedback: Vec::new(),
             animation_valid: true,
             animation_values: Vec::new(),
-            resource_demand: None,
+            demands: None,
             has_resource_view_demand,
-            notice_demand: None,
             has_notice_demand,
         }
     }
@@ -482,17 +508,28 @@ impl<Message> SurfaceNode<Message> {
         self
     }
 
+    pub(crate) fn with_declarative_demands(
+        mut self,
+        demands: Option<Rc<crate::application::DeclarativeDemands<Message>>>,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.demands = demands;
+            container.refresh_declarative_demand_flags();
+        }
+        self
+    }
+
     pub(crate) fn with_resource_view_demand(
         mut self,
         demand: Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>>,
     ) -> Self {
         if let Self::Container(container) = &mut self {
-            container.resource_demand = demand;
-            container.has_resource_view_demand = container.resource_demand.is_some()
-                || container
-                    .children
-                    .iter()
-                    .any(|child| child.child.has_resource_view_demand());
+            let notice = container
+                .demands
+                .as_ref()
+                .and_then(|demands| demands.notice.clone());
+            container.demands = SurfaceContainer::demand_set(demand, notice);
+            container.refresh_declarative_demand_flags();
         }
         self
     }
@@ -501,7 +538,10 @@ impl<Message> SurfaceNode<Message> {
         &self,
     ) -> Option<std::rc::Rc<crate::application::resource_view::demand::ResourceViewDemand>> {
         match self {
-            Self::Container(container) => container.resource_demand.clone(),
+            Self::Container(container) => container
+                .demands
+                .as_ref()
+                .and_then(|demands| demands.resource.clone()),
             Self::Scene(_) | Self::Widget(_) | Self::Overlay(_) | Self::FloatingLayer(_) => None,
         }
     }
@@ -520,12 +560,12 @@ impl<Message> SurfaceNode<Message> {
         demand: Option<Rc<crate::application::notifications::NoticeDemand<Message>>>,
     ) -> Self {
         if let Self::Container(container) = &mut self {
-            container.notice_demand = demand;
-            container.has_notice_demand = container.notice_demand.is_some()
-                || container
-                    .children
-                    .iter()
-                    .any(|child| child.child.has_notice_demand());
+            let resource = container
+                .demands
+                .as_ref()
+                .and_then(|demands| demands.resource.clone());
+            container.demands = SurfaceContainer::demand_set(resource, demand);
+            container.refresh_declarative_demand_flags();
         }
         self
     }
@@ -534,7 +574,10 @@ impl<Message> SurfaceNode<Message> {
         &self,
     ) -> Option<Rc<crate::application::notifications::NoticeDemand<Message>>> {
         match self {
-            Self::Container(container) => container.notice_demand.clone(),
+            Self::Container(container) => container
+                .demands
+                .as_ref()
+                .and_then(|demands| demands.notice.clone()),
             Self::Scene(_) | Self::Widget(_) | Self::Overlay(_) | Self::FloatingLayer(_) => None,
         }
     }
@@ -906,7 +949,10 @@ impl<Message> SurfaceNode<Message> {
 mod resource_view_tests {
     use super::*;
     use crate::{
-        application::{ResourceInterestKind, SharedResourceTasks},
+        application::{
+            IntoView, Notice, NoticeQueue, NoticeSeverity, ResourceInterestKind,
+            SharedResourceTasks, notifications, scene, text,
+        },
         layout::ContainerPolicy,
         runtime::SurfaceChild,
     };
@@ -940,5 +986,35 @@ mod resource_view_tests {
         assert!(root.has_resource_view_demand());
         assert!(root.clone().has_resource_view_demand());
         assert!(!first.same_demand(&second));
+    }
+
+    #[test]
+    fn direct_resource_and_notice_demands_coexist_and_clone() {
+        let tasks = SharedResourceTasks::new();
+        let resource = demand(tasks, 1);
+        let mut queue = NoticeQueue::new();
+        queue
+            .push(Notice::new(1, NoticeSeverity::Info, "ready").unwrap())
+            .unwrap();
+        let notice = scene(text::<()>("base"))
+            .layer(notifications(queue.snapshot()).on_dismiss(|_| ()).layer())
+            .into_view()
+            .into_surface()
+            .notice_descriptors()
+            .unwrap()
+            .remove(0)
+            .demand;
+
+        let node = SurfaceNode::container(1, ContainerPolicy::default(), Vec::new())
+            .with_resource_view_demand(Some(resource))
+            .with_notice_demand(Some(notice));
+        assert!(node.has_resource_view_demand());
+        assert!(node.resource_view_demand().is_some());
+        assert!(node.has_notice_demand());
+        assert!(node.notice_demand().is_some());
+
+        let clone = node.clone();
+        assert!(clone.resource_view_demand().is_some());
+        assert!(clone.notice_demand().is_some());
     }
 }

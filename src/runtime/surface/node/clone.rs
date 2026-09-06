@@ -60,10 +60,9 @@ impl<Message> Clone for SurfaceContainer<Message> {
             animation_feedback: self.animation_feedback.clone(),
             animation_valid: self.animation_valid,
             animation_values: self.animation_values.clone(),
-            resource_demand: self.resource_demand.clone(),
+            demands: self.demands.clone(),
             has_resource_view_demand: self.has_resource_view_demand,
             has_notice_demand: self.has_notice_demand,
-            notice_demand: self.notice_demand.clone(),
         }
     }
 }

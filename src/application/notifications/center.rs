@@ -109,11 +109,15 @@ impl<Message: 'static> NotificationCenter<Message> {
                     .spacing(4.0)
                     .key(format!("notice-{}", entry.notice.id.0));
                 if let Some(mapper) = &self.on_dismiss {
-                    card.notice_demand = Some(Rc::new(NoticeDemand {
-                        token,
-                        timeout: entry.notice.timeout,
-                        on_dismiss: mapper.clone(),
-                    }));
+                    card.demands =
+                        Some(Rc::new(crate::application::view_node::DeclarativeDemands {
+                            resource: None,
+                            notice: Some(Rc::new(NoticeDemand {
+                                token,
+                                timeout: entry.notice.timeout,
+                                on_dismiss: mapper.clone(),
+                            })),
+                        }));
                 }
                 card
             })

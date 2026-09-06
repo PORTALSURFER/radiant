@@ -157,11 +157,23 @@ fn same_retained_container_ancestor<Message>(
         && !previous.has_animation
         && !current.has_animation
         && same_resource_demand(
-            previous.resource_demand.as_ref(),
-            current.resource_demand.as_ref(),
+            previous
+                .demands
+                .as_ref()
+                .and_then(|demands| demands.resource.as_ref()),
+            current
+                .demands
+                .as_ref()
+                .and_then(|demands| demands.resource.as_ref()),
         )
-        && previous.notice_demand.is_none()
-        && current.notice_demand.is_none()
+        && previous
+            .demands
+            .as_ref()
+            .is_none_or(|demands| demands.notice.is_none())
+        && current
+            .demands
+            .as_ref()
+            .is_none_or(|demands| demands.notice.is_none())
         && previous.layout_policy.is_none()
         && current.layout_policy.is_none()
         && previous.layout_capabilities.is_none()

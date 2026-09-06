@@ -16,9 +16,10 @@ mod view_node;
 pub(in crate::application) use view_node::ViewNodeKind;
 #[allow(unused_imports)]
 pub(crate) use view_node::{
-    DeclarativeIdentityOrigin, DeclarativeOverlaySource, DeclarativeSourceContext,
-    SourceIdentitySeed, VirtualLayoutViewAdmissionError, VirtualLayoutViewBatch,
-    lower_virtual_layout_batch, lower_virtual_layout_item, lower_virtual_layout_shell,
+    DeclarativeDemands, DeclarativeIdentityOrigin, DeclarativeOverlaySource,
+    DeclarativeSourceContext, SourceIdentitySeed, VirtualLayoutViewAdmissionError,
+    VirtualLayoutViewBatch, lower_virtual_layout_batch, lower_virtual_layout_item,
+    lower_virtual_layout_shell,
 };
 
 /// Application view node type used by builder functions.

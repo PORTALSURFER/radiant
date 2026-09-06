@@ -61,6 +61,7 @@ where
         sequence_range: Option<InputSequenceRange>,
         _delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
     ) -> PointerMoveDispatch {
+        self.set_current_pointer_position(Some(position));
         if self.gesture_owns_pointer_capture() {
             return PointerMoveDispatch::default();
         }

@@ -178,6 +178,7 @@ where
     /// Replace the latest logical pointer position observed by this runtime.
     pub fn set_current_pointer_position(&mut self, position: Option<Point>) {
         self.interaction.pointer.current_position = position;
+        self.update_notice_pause(self.timed_repaint_now());
     }
 
     pub(crate) fn interactive_pointer_route_active(&self) -> bool {

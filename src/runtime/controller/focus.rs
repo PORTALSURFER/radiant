@@ -128,6 +128,7 @@ where
             self.mark_focused_key_capture_stale(previous_widget);
         }
         self.interaction.focus.owner = None;
+        self.update_notice_pause(self.timed_repaint_now());
         self.interaction.focus.command_context_widget = None;
         self.interaction.focus.focused_key_host_block = None;
         self.interaction.focus.focused_semantic_key_block = None;
@@ -170,10 +171,12 @@ where
                     if existing.behavior.compatible_with(current.behavior) {
                         if existing.behavior != current.behavior {
                             self.interaction.focus.owner = Some(next);
+                            self.update_notice_pause(self.timed_repaint_now());
                         }
                         return FocusTransition::Unchanged;
                     }
                     self.interaction.focus.owner = None;
+                    self.update_notice_pause(self.timed_repaint_now());
                     self.interaction.focus.command_context_widget = None;
                     return FocusTransition::InvalidTarget;
                 }
@@ -228,6 +231,7 @@ where
                     )
                 {
                     self.interaction.focus.owner = None;
+                    self.update_notice_pause(self.timed_repaint_now());
                     self.interaction.focus.command_context_widget = None;
                 }
                 SplitPaneSeparatorFocusAdmission::Invalidated
@@ -283,6 +287,7 @@ where
         };
 
         self.interaction.focus.owner = Some(next);
+        self.update_notice_pause(self.timed_repaint_now());
         let application_projection_before = self.refresh_counters().application_projection;
         if let Some(previous_widget) = previous_widget
             && previous_is_live
@@ -309,6 +314,7 @@ where
                     // A focus-loss output may remove or supersede the proposed
                     // target while the old owner is being routed out.
                     self.interaction.focus.owner = None;
+                    self.update_notice_pause(self.timed_repaint_now());
                     self.interaction.focus.command_context_widget = None;
                     return FocusTransition::InvalidTarget;
                 }
@@ -352,6 +358,7 @@ where
                         })
                     {
                         self.interaction.focus.owner = None;
+                        self.update_notice_pause(self.timed_repaint_now());
                         self.interaction.focus.command_context_widget = None;
                     }
                     FocusTransition::InvalidTarget
@@ -480,6 +487,7 @@ where
             RuntimeFocusOwner::Widget(widget_id) => {
                 if !self.traversal.widgets.focusable.contains(widget_id) {
                     self.interaction.focus.owner = None;
+                    self.update_notice_pause(self.timed_repaint_now());
                     self.interaction.focus.command_context_widget = None;
                 }
             }
@@ -487,6 +495,7 @@ where
                 let Some(projection) = self.current_split_pane_separator_projection(owner.target)
                 else {
                     self.interaction.focus.owner = None;
+                    self.update_notice_pause(self.timed_repaint_now());
                     self.interaction.focus.command_context_widget = None;
                     return;
                 };
@@ -495,6 +504,7 @@ where
                     || !owner.behavior.compatible_with(projection.behavior)
                 {
                     self.interaction.focus.owner = None;
+                    self.update_notice_pause(self.timed_repaint_now());
                     self.interaction.focus.command_context_widget = None;
                 } else if owner.behavior != projection.behavior {
                     self.interaction.focus.owner = Some(RuntimeFocusOwner::SplitPaneSeparator(
@@ -514,6 +524,7 @@ where
             Some(RuntimeFocusOwner::SplitPaneSeparator(_))
         ) {
             self.interaction.focus.owner = None;
+            self.update_notice_pause(self.timed_repaint_now());
             self.interaction.focus.command_context_widget = None;
             true
         } else {

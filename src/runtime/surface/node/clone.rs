@@ -87,6 +87,7 @@ impl<Message> Clone for SurfaceScene<Message> {
             base: self.base.clone(),
             layers: self.layers.clone(),
             has_resource_view_demand: self.has_resource_view_demand,
+            has_notice_demand: self.has_notice_demand,
             source: self.source.clone(),
             command_scope: self.command_scope.clone(),
         }

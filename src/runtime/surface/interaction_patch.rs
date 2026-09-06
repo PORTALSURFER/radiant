@@ -152,7 +152,9 @@ fn same_retained_container_ancestor<Message>(
     previous: &SurfaceContainer<Message>,
     current: &SurfaceContainer<Message>,
 ) -> bool {
-    !previous.has_animation
+    !previous.has_notice_demand
+        && !current.has_notice_demand
+        && !previous.has_animation
         && !current.has_animation
         && same_resource_demand(
             previous.resource_demand.as_ref(),

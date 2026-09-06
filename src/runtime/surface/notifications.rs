@@ -169,7 +169,7 @@ fn collect_widgets<Message>(
 mod tests {
     use super::*;
     use crate::{
-        application::{IntoView, NoticeQueue, NoticeSeverity, notifications},
+        application::{IntoView, NoticeQueue, NoticeSeverity, notifications, scene, text},
         layout::ContainerPolicy,
         runtime::{SurfaceChild, SurfaceNode, UiSurface},
     };
@@ -194,9 +194,9 @@ mod tests {
     #[test]
     fn accepted_notice_projection_is_bounded_and_clone_preserves_demand() {
         let queue = queue_with(64);
-        let surface = notifications::<()>(queue.snapshot())
-            .on_dismiss(|_| ())
-            .layer()
+        let surface = scene(text::<()>("base"))
+            .layer(notifications(queue.snapshot()).on_dismiss(|_| ()).layer())
+            .into_view()
             .into_surface();
         let descriptors = surface
             .notice_descriptors()
@@ -209,9 +209,9 @@ mod tests {
     #[test]
     fn notice_descriptor_collection_fails_closed_above_sixty_four() {
         let queue = queue_with(1);
-        let demand = notifications::<()>(queue.snapshot())
-            .on_dismiss(|_| ())
-            .layer()
+        let demand = scene(text::<()>("base"))
+            .layer(notifications(queue.snapshot()).on_dismiss(|_| ()).layer())
+            .into_view()
             .into_surface()
             .notice_descriptors()
             .unwrap()
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn modal_detection_pauses_on_bounded_walk_exhaustion() {
-        let mut node = SurfaceNode::container(1, ContainerPolicy::default(), Vec::new());
+        let mut node = SurfaceNode::<()>::container(1, ContainerPolicy::default(), Vec::new());
         for id in 2..140 {
             node = SurfaceNode::container(
                 id,

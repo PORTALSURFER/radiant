@@ -237,6 +237,7 @@ where
 
     fn observe_pointer_position(&mut self, position: Point) {
         self.interaction.pointer.current_position = Some(position);
+        self.update_notice_pause(self.timed_repaint_now());
     }
 
     /// Route a pointer press followed by a matching release at the same point.

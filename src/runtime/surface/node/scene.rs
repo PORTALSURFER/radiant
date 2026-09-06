@@ -60,7 +60,10 @@ impl<Message> SurfaceScene<Message> {
     fn has_notice_demand_in(base: &SurfaceNode<Message>, layers: &[SurfaceLayer<Message>]) -> bool {
         base.has_notice_demand()
             || layers.iter().any(|layer| {
-                layer.input.as_ref().is_some_and(SurfaceNode::has_notice_demand)
+                layer
+                    .input
+                    .as_ref()
+                    .is_some_and(SurfaceNode::has_notice_demand)
                     || layer.node.has_notice_demand()
             })
     }

@@ -40,11 +40,13 @@ pub(crate) use commands::{CommandScopeAttachment, MAX_PRESENTATIONS, ResolvedCom
 mod builders;
 mod details_list;
 mod environment;
+mod feedback;
 mod form_row;
 mod labeled_control;
 mod launch;
 mod localization;
 mod menu;
+pub(crate) mod notifications;
 mod option_list;
 mod panel_section;
 mod presentation;

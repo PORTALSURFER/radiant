@@ -885,7 +885,7 @@ mod tests {
     fn native_broker_coalesces_bounds_rejects_cancels_and_retires() {
         let device = native_device();
         let wake = Arc::new(CountingWake(AtomicUsize::new(0)));
-        let mut coalesced = CustomShaderPreparationBroker::new(Arc::clone(&wake));
+        let mut coalesced = CustomShaderPreparationBroker::new(wake.clone());
         let coalesced_request = request(&device, 50);
         assert_eq!(
             coalesced.request(target(50), coalesced_request.clone()),
@@ -918,7 +918,7 @@ mod tests {
             .expect("coalesced active completion requeues");
         coalesced.reject_dispatch(reactivated.id());
 
-        let mut bounded = CustomShaderPreparationBroker::new(Arc::clone(&wake));
+        let mut bounded = CustomShaderPreparationBroker::new(wake.clone());
         let first_target = target(1);
         let first_request = request(&device, 1);
         let mismatched_adapter = CustomShaderPreparationRequest::new(

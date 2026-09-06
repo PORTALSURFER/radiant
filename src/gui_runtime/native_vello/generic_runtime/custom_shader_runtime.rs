@@ -111,7 +111,7 @@ impl NativeCustomShaderPreparation {
         if waiting.is_empty() || limit == 0 {
             return Vec::new();
         }
-        waiting.sort_by_key(CustomShaderTargetId::surface_key);
+        waiting.sort_by_key(|target| target.surface_key());
         let start = self.waiting_cursor % waiting.len();
         let count = waiting.len().min(limit);
         let selected = (0..count)

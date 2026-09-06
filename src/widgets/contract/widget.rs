@@ -256,6 +256,19 @@ pub trait Widget: WidgetClone + Any {
         self.handle_input(bounds, input)
     }
 
+    /// Install an exact shared text-editor geometry receipt for the current layout.
+    ///
+    /// Widgets that do not implement multi-line editing retain the legacy behavior
+    /// and reject the receipt without observing renderer-specific state.
+    fn install_text_editor_geometry(
+        &mut self,
+        _receipt: crate::gui::text_layout::editor::TextEditorGeometryReceipt,
+        _bounds: Rect,
+        _environment: &ResolvedEnvironment,
+    ) -> bool {
+        false
+    }
+
     /// Route a focus transition with the runtime's current monotonic clock.
     ///
     /// The default preserves the existing [`WidgetInput::FocusChanged`] path.

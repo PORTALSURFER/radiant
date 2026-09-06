@@ -638,10 +638,10 @@ fn assert_tile_color(pixels: &[u8], index: usize, expected: [f32; 4]) {
 
 fn assert_color(pixel: &[u8], expected: [f32; 4]) {
     let expected = expected.map(|component| (component * 255.0).round() as i16);
-    let actual = pixel[..4].iter().copied().map(i16::from);
+    let actual: Vec<_> = pixel[..4].iter().copied().map(i16::from).collect();
     assert!(
         actual
-            .into_iter()
+            .iter()
             .zip(expected)
             .all(|(actual, expected)| (actual - expected).abs() <= 8),
         "expected {expected:?}, got {actual:?}"

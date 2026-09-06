@@ -698,15 +698,7 @@ impl<T, E> Resource<T, E> {
     }
 
     fn bump_revision(&mut self) {
-        self.revision = self
-            .revision
-            .checked_add(1)
-            .expect("checked before resource state mutation");
-    }
-}
-
-impl<T, E> Default for Resource<T, E> {
-    fn default() -> Self {
-        Self::new("default")
+        // Every mutating caller preflights exhaustion before changing state.
+        self.revision = self.revision.saturating_add(1);
     }
 }

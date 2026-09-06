@@ -194,10 +194,13 @@ impl ResourceOperationRegistry {
         &self,
         current: &ResourceOperationCurrent,
     ) -> Arc<dyn Fn() -> bool + Send + Sync + 'static> {
+        let Some(ticket) = current.ticket else {
+            return Arc::new(|| false);
+        };
         current_probe(
             Arc::downgrade(&self.state),
             current.key.clone(),
-            current.ticket.expect("running operation has a ticket"),
+            ticket,
             current.operation_epoch,
             current.demand_generation,
         )
@@ -211,6 +214,7 @@ impl ResourceOperationRegistry {
         let Phase::Running { ticket, effect_id } = slot.phase else {
             return None;
         };
+        let settlement = slot.settlement.clone()?;
         (slot.demand_generation == demand_generation
             && !slot.is_cancelled()
             && slot.latest.is_active(ticket))
@@ -221,10 +225,7 @@ impl ResourceOperationRegistry {
             operation_epoch: slot.epoch,
             demand_generation,
             identity: Arc::downgrade(&self.identity),
-            settlement: slot
-                .settlement
-                .clone()
-                .expect("running resource operation has settlement evidence"),
+            settlement,
         })
     }
 

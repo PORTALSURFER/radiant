@@ -51,9 +51,7 @@ impl SignalGpuBudget {
         }
         let mut used = self.used.load(Ordering::Acquire);
         loop {
-            let Some(next) = used.checked_add(bytes) else {
-                return None;
-            };
+            let next = used.checked_add(bytes)?;
             if next > self.limit {
                 // Close the release/store race: if a lease released capacity
                 // while this flag was being armed, retry against its new use.

@@ -1517,7 +1517,7 @@ fn tile_query_mapping(
     if tile.source_frames != shape.frames
         || tile.band_count != shape.band_count
         || tile.bucket_frames == 0
-        || tile.buckets.len() % tile.band_count.max(1) != 0
+        || !tile.buckets.len().is_multiple_of(tile.band_count.max(1))
     {
         return None;
     }

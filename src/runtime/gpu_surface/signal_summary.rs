@@ -42,6 +42,7 @@ impl GpuSignalSummary {
     /// Build a retained min/max pyramid from interleaved frame-major band samples.
     pub fn from_interleaved_samples(samples: &[f32], frames: usize, band_count: usize) -> Self {
         let construction = build_signal_summary(samples, frames, band_count, || false);
+        debug_assert!(!construction.cancelled);
         Self {
             frames: construction.frames,
             band_count: construction.band_count,

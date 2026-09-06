@@ -189,6 +189,8 @@ impl GpuSignalViewport {
     ///
     /// Integer origins are subtracted before conversion. Deltas beyond `2^53`
     /// are rejected because `f64` could not represent every intervening frame.
+    /// The returned local `f64` can still round its fractional component at a
+    /// large, but exactly representable, integer delta.
     pub fn local_offset(self, position: GpuSignalPosition) -> Result<f64, GpuSignalViewportError> {
         let frame_delta = if position.frame >= self.start.frame {
             position.frame - self.start.frame
@@ -203,7 +205,8 @@ impl GpuSignalViewport {
         } else {
             -(frame_delta as f64)
         };
-        Ok(frame_offset + position.fraction - self.start.fraction)
+        let fractional_offset = position.fraction - self.start.fraction;
+        Ok(frame_offset + fractional_offset)
     }
 }
 
@@ -221,24 +224,39 @@ fn add_local_frames(
     if !delta.is_finite() {
         return Err(GpuSignalViewportError::FrameOutOfBounds);
     }
-    let total_fraction = position.fraction + delta;
-    let whole = total_fraction.floor();
+    let whole = delta.trunc();
     if whole >= U64_EXCLUSIVE_F64 || whole <= -U64_EXCLUSIVE_F64 {
         return Err(GpuSignalViewportError::FrameOutOfBounds);
     }
-    let frame = if whole >= 0.0 {
+    let mut frame = if whole >= 0.0 {
         position.frame.checked_add(whole as u64)
     } else {
         position.frame.checked_sub((-whole) as u64)
     }
     .ok_or(GpuSignalViewportError::FrameOutOfBounds)?;
-    let fraction = if whole.abs() <= MAX_EXACT_F64_INTEGER as f64 {
-        total_fraction - whole
+
+    let local_fraction = position.fraction + (delta - whole);
+    let (fraction, carry) = if local_fraction >= 1.0 {
+        (local_fraction - 1.0, 1)
+    } else if local_fraction < 0.0 {
+        (local_fraction + 1.0, -1)
     } else {
-        // At this magnitude every representable `f64` is integral, so a
-        // conversion through `frame as f64` would only invent an artefact.
-        0.0
+        (local_fraction, 0)
     };
+    if !(0.0..1.0).contains(&fraction) {
+        // A negative subnormal residual at a zero fraction can round to 1.0
+        // after borrowing. Reject it rather than silently turning it into a
+        // whole-frame move.
+        return Err(GpuSignalViewportError::FrameOutOfBounds);
+    }
+    frame = if carry > 0 {
+        frame.checked_add(1)
+    } else if carry < 0 {
+        frame.checked_sub(1)
+    } else {
+        Some(frame)
+    }
+    .ok_or(GpuSignalViewportError::FrameOutOfBounds)?;
     GpuSignalPosition::new(frame, fraction)
 }
 
@@ -276,7 +294,9 @@ mod tests {
             zoomed.local_offset(zoomed_anchor).unwrap()
         );
         assert_eq!(
-            viewport.local_offset(GpuSignalPosition::new((1 << 40) - 1, 0.75).unwrap()),
+            viewport
+                .local_offset(GpuSignalPosition::new((1 << 40) - 1, 0.75).unwrap())
+                .unwrap(),
             -0.5
         );
     }
@@ -309,6 +329,46 @@ mod tests {
             GpuSignalPosition::new(u64::MAX, 0.0)
                 .unwrap()
                 .translated_frames(1),
+            Err(GpuSignalViewportError::FrameOutOfBounds)
+        );
+    }
+
+    #[test]
+    fn large_integral_deltas_preserve_the_local_fraction() {
+        let positive = add_local_frames(
+            GpuSignalPosition::new(7, 0.25).unwrap(),
+            (1_u64 << 53) as f64,
+        )
+        .unwrap();
+        assert_eq!(
+            positive,
+            GpuSignalPosition::new((1 << 53) + 7, 0.25).unwrap()
+        );
+
+        let negative = add_local_frames(
+            GpuSignalPosition::new((1 << 53) + 7, 0.75).unwrap(),
+            -((1_u64 << 53) as f64),
+        )
+        .unwrap();
+        assert_eq!(negative, GpuSignalPosition::new(7, 0.75).unwrap());
+    }
+
+    #[test]
+    fn fractional_carries_are_checked_at_source_edges() {
+        assert_eq!(
+            add_local_frames(GpuSignalPosition::new(u64::MAX - 1, 0.75).unwrap(), 0.5),
+            Ok(GpuSignalPosition::new(u64::MAX, 0.25).unwrap())
+        );
+        assert_eq!(
+            add_local_frames(GpuSignalPosition::new(1, 0.25).unwrap(), -0.5),
+            Ok(GpuSignalPosition::new(0, 0.75).unwrap())
+        );
+        assert_eq!(
+            add_local_frames(GpuSignalPosition::new(u64::MAX, 0.75).unwrap(), 0.5),
+            Err(GpuSignalViewportError::FrameOutOfBounds)
+        );
+        assert_eq!(
+            add_local_frames(GpuSignalPosition::new(1, 0.0).unwrap(), -f64::MIN_POSITIVE),
             Err(GpuSignalViewportError::FrameOutOfBounds)
         );
     }

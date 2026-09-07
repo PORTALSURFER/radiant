@@ -6,7 +6,9 @@ use radiant::{
         pointer_ingress::*,
         types::{Point, Rect},
     },
-    runtime::{GestureOutcome, GestureRequest, PaintPrimitive, SurfaceRuntime},
+    runtime::{
+        DragAutoscrollPolicy, GestureOutcome, GestureRequest, PaintPrimitive, SurfaceRuntime,
+    },
     widgets::{
         GestureEvent, GesturePolicy, Widget, WidgetActionCapabilities, WidgetCapabilitiesV2,
         WidgetCommon, WidgetGestures, WidgetInput, WidgetOutput, WidgetSemanticsRevision,
@@ -127,7 +129,7 @@ enum DragMessage {
 fn exercise_drag() {
     use radiant::{
         application::{DragSource, DropTarget},
-        runtime::{DragSourcePhase, DropPhase},
+        runtime::{DragSourcePhase, DropInsertionAxis, DropPhase},
     };
     let events = Rc::new(RefCell::new(Vec::new()));
     let observed = events.clone();
@@ -142,6 +144,7 @@ fn exercise_drag() {
                         .id(1)
                         .drag_source(
                             DragSource::new(String::from("sample.wav"))
+                                .autoscroll(DragAutoscrollPolicy::default())
                                 .on_event_with_revision((), |event| {
                                     Some(DragMessage::Source(event.phase()))
                                 }),
@@ -155,6 +158,7 @@ fn exercise_drag() {
                         .drop_target(
                             DropTarget::<String, DragMessage>::new()
                                 .feedback(radiant::runtime::DropTargetFeedback::themed())
+                                .insertion_axis(DropInsertionAxis::Horizontal)
                                 .on_event_with_revision((), |event| {
                                     assert_eq!(event.payload(), "sample.wav");
                                     Some(DragMessage::Target(event.phase()))

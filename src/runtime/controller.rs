@@ -309,13 +309,16 @@ where
             earlier_deadline(
                 self.interaction.tooltip.deadline,
                 earlier_deadline(
-                    self.interaction.wheel.scroll_settlement_deadline,
-                    self.interaction
-                        .wheel
-                        .scroll_activity
-                        .values()
-                        .filter_map(|deadline| *deadline)
-                        .min(),
+                    self.typed_drag_autoscroll_deadline(),
+                    earlier_deadline(
+                        self.interaction.wheel.scroll_settlement_deadline,
+                        self.interaction
+                            .wheel
+                            .scroll_activity
+                            .values()
+                            .filter_map(|deadline| *deadline)
+                            .min(),
+                    ),
                 ),
             ),
         )
@@ -369,6 +372,7 @@ where
         let mut changed = self.advance_notifications(now);
         changed |= self.advance_declarative_animation(now);
         changed |= self.surface.advance_timed_repaints(now);
+        changed |= self.advance_typed_drag_autoscroll(now);
         if self
             .interaction
             .wheel

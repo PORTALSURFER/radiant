@@ -1,0 +1,112 @@
+[
+  {
+    "name": "tests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ],
+    "exit_code": 0,
+    "seconds": 51.82,
+    "log": "tests.log",
+    "source_tree_commit": "93082a829c49370cd5aa927f28cf43642a2366da"
+  },
+  {
+    "name": "examples",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ],
+    "exit_code": 0,
+    "seconds": 45.6,
+    "log": "examples.log",
+    "source_tree_commit": "93082a829c49370cd5aa927f28cf43642a2366da"
+  },
+  {
+    "name": "clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "seconds": 0.8,
+    "log": "clippy.log",
+    "source_tree_commit": "c4bf74cba171c381c212585b332c49e6aab99461"
+  },
+  {
+    "name": "docs",
+    "command": [
+      "cargo",
+      "doc",
+      "--locked",
+      "--no-deps"
+    ],
+    "exit_code": 0,
+    "seconds": 10.25,
+    "log": "docs.log",
+    "source_tree_commit": "c4bf74cba171c381c212585b332c49e6aab99461"
+  },
+  {
+    "name": "doctests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--doc"
+    ],
+    "exit_code": 0,
+    "seconds": 4.76,
+    "log": "doctests.log",
+    "source_tree_commit": "c4bf74cba171c381c212585b332c49e6aab99461"
+  },
+  {
+    "name": "no-default",
+    "command": [
+      "cargo",
+      "check",
+      "--locked",
+      "--no-default-features",
+      "--lib"
+    ],
+    "exit_code": 0,
+    "seconds": 6.71,
+    "log": "no-default.log",
+    "source_tree_commit": "c4bf74cba171c381c212585b332c49e6aab99461"
+  },
+  {
+    "name": "format",
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 2.47,
+    "log": "format.log",
+    "source_tree_commit": "c4bf74cba171c381c212585b332c49e6aab99461"
+  },
+  {
+    "name": "diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.01,
+    "log": "diff.log",
+    "source_tree_commit": "c4bf74cba171c381c212585b332c49e6aab99461"
+  }
+]

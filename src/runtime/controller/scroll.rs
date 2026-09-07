@@ -19,6 +19,12 @@ use crate::{
 };
 use std::collections::BTreeSet;
 
+#[derive(Clone, Copy, Default)]
+pub(in crate::runtime::controller) struct ScrollAttempt {
+    pub(in crate::runtime::controller) accepted: bool,
+    pub(in crate::runtime::controller) moved: bool,
+}
+
 /// Observational input provenance carried by a runtime-owned scroll update.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollUpdateMetadata {
@@ -99,27 +105,53 @@ where
         refresh_after_message: bool,
         provenance: crate::widgets::InteractionProvenance,
     ) -> bool {
+        self.scroll_at_with_refresh_and_metadata_guarded(
+            point,
+            delta,
+            metadata,
+            refresh_after_message,
+            provenance,
+            None,
+        )
+        .accepted
+    }
+
+    /// Shared scroll path with an optional typed-drag lifetime fence. Public
+    /// callers retain the unguarded wrapper; a drag callback may rebuild,
+    /// cancel, or replace capture while ancestor chaining is in progress.
+    pub(in crate::runtime::controller) fn scroll_at_with_refresh_and_metadata_guarded(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        metadata: ScrollUpdateMetadata,
+        refresh_after_message: bool,
+        provenance: crate::widgets::InteractionProvenance,
+        typed_drag_guard: Option<crate::runtime::controller::GestureSequenceToken>,
+    ) -> ScrollAttempt {
         if !point.x.is_finite()
             || !point.y.is_finite()
             || !delta.x.is_finite()
             || !delta.y.is_finite()
         {
-            return false;
+            return ScrollAttempt::default();
         }
         let Some(deepest) = self.scroll_container_at(point) else {
-            return false;
+            return ScrollAttempt::default();
         };
         let mut candidates = vec![deepest];
         if let Some(ancestors) = self.traversal.containers.clip_ancestors.get(&deepest) {
             candidates.extend(ancestors.as_slice().iter().rev().copied());
         }
         let mut remaining = delta;
-        let mut accepted = false;
+        let mut attempt = ScrollAttempt::default();
         for node_id in candidates {
+            if typed_drag_guard.is_some_and(|token| !self.typed_drag_live(token)) {
+                return attempt;
+            }
             if node_id != deepest && !self.scroll_container_accepts_point(node_id, point) {
                 continue;
             }
-            accepted = true;
+            attempt.accepted = true;
             let Some(policy) = self
                 .scroll_policy_for_node(node_id)
                 .map(|container| container.scroll_policy)
@@ -146,19 +178,41 @@ where
             );
             if requested == current {
                 if !policy.chaining {
-                    return true;
+                    return attempt;
                 }
                 continue;
             }
+            let source_authority = (
+                self.refresh_counters().runtime_projection,
+                self.layout_root_authority,
+                self.mounted_layout_source_authority,
+            );
             self.layout_state.scroll_offsets.insert(node_id, requested);
             self.note_layout_state_mutation();
             self.relayout_current_surface();
             let offset = self.layout_state.scroll_offset(node_id);
             if offset != current {
+                attempt.moved = true;
+            }
+            if typed_drag_guard.is_some_and(|token| !self.typed_drag_live(token)) {
+                return attempt;
+            }
+            // A relayout can materialize virtual content or replace traversal
+            // records while preserving the drag token. The saved ancestor list
+            // is no longer authoritative in that case.
+            if typed_drag_guard.is_some()
+                && (self.layout_authority_exhausted
+                    || self.refresh_counters().runtime_projection != source_authority.0
+                    || self.layout_root_authority != source_authority.1
+                    || self.mounted_layout_source_authority != source_authority.2)
+            {
+                return attempt;
+            }
+            if offset != current {
                 if provenance == crate::widgets::InteractionProvenance::Programmatic
                     && !self.retire_replaced_scroll_edit(node_id, offset)
                 {
-                    return true;
+                    return attempt;
                 }
                 let consumed = Vector2::new(offset.x - current.x, offset.y - current.y);
                 let mut residual = remaining;
@@ -174,6 +228,11 @@ where
                     .get(&node_id)
                     .map(|rect| Vector2::new(rect.width(), rect.height()))
                     .unwrap_or_default();
+                let source_authority = (
+                    self.refresh_counters().runtime_projection,
+                    self.layout_root_authority,
+                    self.mounted_layout_source_authority,
+                );
                 self.report_atomic_scroll_edit(
                     ScrollUpdate {
                         node_id,
@@ -187,20 +246,33 @@ where
                     provenance,
                     refresh_after_message,
                 );
+                // Scroll callbacks may synchronously replace or cancel the drag.
+                // Do not offer residual movement to an ancestor from the old token.
+                if typed_drag_guard.is_some_and(|token| !self.typed_drag_live(token)) {
+                    return attempt;
+                }
+                if typed_drag_guard.is_some()
+                    && (self.layout_authority_exhausted
+                        || self.refresh_counters().runtime_projection != source_authority.0
+                        || self.layout_root_authority != source_authority.1
+                        || self.mounted_layout_source_authority != source_authority.2)
+                {
+                    return attempt;
+                }
                 if !policy.chaining
                     || (residual.x.abs() <= f32::EPSILON && residual.y.abs() <= f32::EPSILON)
                 {
-                    return true;
+                    return attempt;
                 }
                 remaining = residual;
                 continue;
             }
             // A boundary may offer its unconsumed delta to the next ancestor.
             if !policy.chaining {
-                return true;
+                return attempt;
             }
         }
-        accepted
+        attempt
     }
 
     pub(super) fn report_scroll_update_with_refresh(
@@ -245,7 +317,10 @@ where
         self.repaint_requested = true;
     }
 
-    fn scroll_container_at(&self, point: Point) -> Option<NodeId> {
+    pub(in crate::runtime::controller) fn scroll_container_at(
+        &self,
+        point: Point,
+    ) -> Option<NodeId> {
         self.traversal
             .containers
             .scroll

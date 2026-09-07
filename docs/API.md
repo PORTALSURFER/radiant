@@ -8539,18 +8539,35 @@ pointer-only movement. Paint never calls negotiation or event mappers. Exact
 source and layout evidence fence the snapshot; unrelated projection or geometry
 changes hide it until input requalifies the target. Compatible projection from a
 target event is requalified during that input transaction. Leaving, cancellation,
-and completion clear feedback through the existing drag lifecycle. Insertion
-markers and autoscroll remain separate delivery work.
+and completion clear feedback through the existing drag lifecycle.
+
+`DropTarget::insertion_axis(DropInsertionAxis::Horizontal)` or `Vertical` adds
+target-relative before/after insertion feedback. During each qualified input
+sample, the runtime compares the pointer to the full target rectangle midpoint
+(the midpoint itself is `After`), snapshots the result, and passes it through
+`DragEventContext::insertion()` to negotiation and target lifecycle mapping.
+The application owns stable target keys and revision evidence inside its mapper;
+Radiant does not infer collection identity or an insertion index. When target
+feedback is configured, the retained overlay is a clipped two-pixel interior
+edge marker. Custom `LayoutDropTarget` implementations must include their
+insertion declaration and every stable key/revision consumed by their mapper
+in exact revision evidence.
+
+Typed sources opt into bounded logical edge autoscroll with
+`DragSource::autoscroll(DragAutoscrollPolicy::default())`. The runtime ticks through
+its existing timed repaint clock and uses ordinary scroll-container axis/chaining
+behavior. Edge geometry excludes padding and reserved scrollbar strips; elapsed
+time is capped at 50ms, and a boundary with no movement stops the timer.
 
 
 Preview movement without application messages requests overlay repaint without
 application projection or layout. `Command::end_drag()` cancels a typed session
 through shared gesture teardown. This delivery supports checked normalized pan
-and admitted primary mouse sequences within one surface. Insertion-position feedback and autoscroll,
-same-application cross-window transfer and owned external-offer import/export remain
-OPT-1363 work.
+and admitted primary mouse sequences within one surface.
 Run `cargo run --example gesture_input` for a headless typed payload drop through
-ordinary source and target declarations.
+ordinary source and target declarations. Same-application cross-window transfer
+and owned external-offer import/export
+remain OPT-1363 work.
 
 
 ### Pointer-to-gesture capture handoff

@@ -345,13 +345,17 @@ mod tests {
         button_row_with_ids(&[(7, variant)])
     }
 
-    fn keyed_parent_view() -> super::super::ViewNode<()> {
-        let child = button_view(7, ButtonVariant::Plain).key("child");
+    fn keyed_parent_view_with_variant(variant: ButtonVariant) -> super::super::ViewNode<()> {
+        let child = button_view(7, variant).key("child");
         super::super::ViewNode::new(super::super::ViewNodeKind::Container {
             policy: ContainerPolicy::default(),
             children: vec![child],
         })
         .key("parent")
+    }
+
+    fn keyed_parent_view() -> super::super::ViewNode<()> {
+        keyed_parent_view_with_variant(ButtonVariant::Plain)
     }
 
     fn button_count_view(count: usize, interaction: Option<usize>) -> super::super::ViewNode<()> {
@@ -488,6 +492,13 @@ mod tests {
         } else {
             scene.into_view()
         }
+    }
+
+    fn scene_with_public_lifecycle_view() -> super::super::ViewNode<()> {
+        crate::application::scene(unidentified_marker_view())
+            .frame_clock(crate::application::FrameClock::<(), ()>::message(()))
+            .shortcuts(crate::gui::shortcuts::ShortcutCatalog::new())
+            .into_view()
     }
 
     fn base_owned_overlay_view() -> super::super::ViewNode<()> {
@@ -762,6 +773,49 @@ mod tests {
     }
 
     #[test]
+    fn actual_keyed_child_path_and_parent_compatibility_drive_one_exact_root() {
+        let (previous, _) = lower_view(keyed_parent_view(), None);
+        let parent = previous
+            .nodes
+            .iter()
+            .find(|node| {
+                node.path.is_empty() && matches!(node.kind, ApplicationNodeKind::Container { .. })
+            })
+            .expect("keyed parent container receipt");
+        let child = previous
+            .nodes
+            .iter()
+            .find(|node| {
+                node.path.as_ref() == [0] && matches!(node.kind, ApplicationNodeKind::Widget { .. })
+            })
+            .expect("keyed child widget receipt");
+        assert!(parent.source.compatibility.is_known());
+        assert!(child.source.compatibility.is_known());
+        assert!(
+            child
+                .source
+                .keyed_nodes
+                .iter()
+                .any(|(identity, compatibility, _)| {
+                    identity.origin == DeclarativeIdentityOrigin::ExplicitContinuityKey
+                        && compatibility.is_known()
+                })
+        );
+
+        let (_, comparison) = lower_view(
+            keyed_parent_view_with_variant(ButtonVariant::Interaction),
+            Some(&previous),
+        );
+        assert_eq!(
+            comparison,
+            ReceiptComparison::Exact(vec![ExactChangedRoot {
+                node_id: child.id,
+                child_path: vec![0],
+            }])
+        );
+    }
+
+    #[test]
     fn actual_changed_root_bound_admits_64_and_rejects_65() {
         let (previous_64, _) = lower_view(button_count_all_view(64, false), None);
         let (current_64, exact_64) =
@@ -876,6 +930,11 @@ mod tests {
             assert_eq!(scene_initial, ReceiptComparison::Full);
             assert!(!scene_receipt.supported);
         }
+
+        let (lifecycle_receipt, lifecycle_initial) =
+            lower_view(scene_with_public_lifecycle_view(), None);
+        assert_eq!(lifecycle_initial, ReceiptComparison::Full);
+        assert!(!lifecycle_receipt.supported);
 
         let (_, unsupported_to_supported) = lower_view(
             button_row(&[ButtonVariant::Plain]),

@@ -11,6 +11,7 @@ pub fn app<State>(state: State) -> StatefulAppBuilder<State> {
 }
 
 mod into_view;
+mod projection_producer;
 mod stateful;
 mod window;
 

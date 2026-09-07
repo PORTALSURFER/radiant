@@ -9,10 +9,8 @@ mod payload;
 #[path = "preview.rs"]
 mod preview;
 
-use crate::runtime::{
-    ExternalDragOutcome, ExternalDragPayload, ExternalDragRequest,
-    normalized_external_drag_mime_name,
-};
+use super::mime_format::normalized_external_drag_mime_name;
+use crate::runtime::{ExternalDragOutcome, ExternalDragPayload, ExternalDragRequest};
 use data_object::ExternalDragDataObject;
 use drop_source::SimpleDropSource;
 use payload::{external_drag_effect, normalize_path};

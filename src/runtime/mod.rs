@@ -200,8 +200,6 @@ pub use effect::{Effect, EffectOwner};
 pub use environment::{
     ResolvedEnvironment, WindowColorScheme, WindowEnvironment, WindowEnvironmentChange,
 };
-#[cfg(any(target_os = "windows", target_os = "macos"))]
-pub(crate) use external_drag::normalized_external_drag_mime_name;
 pub(crate) use external_drag::{
     ExternalDragCompletion, ExternalDragIdentity, ExternalDragLaunch, ExternalDragSession,
     PendingExternalDragCompletion,

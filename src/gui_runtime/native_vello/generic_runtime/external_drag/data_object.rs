@@ -1,7 +1,7 @@
 use super::payload::{
     build_drop_effect_format, build_file_format, build_mime_format, build_text_format,
-    build_url_format, create_hglobal_for_bytes, create_hglobal_for_paths, create_hglobal_for_text,
-    create_hglobal_for_url, drop_effect_formats, drop_effect_medium,
+    build_url_format, create_hglobal_for_paths, create_hglobal_for_text, create_hglobal_for_url,
+    drop_effect_formats, drop_effect_medium, mime_stream_medium,
 };
 #[path = "data_object/formats.rs"]
 mod formats;
@@ -74,7 +74,7 @@ impl ExternalDragDataObject {
     fn matches_format(&self, fmt: &FORMATETC) -> bool {
         data_object_format_matches(
             fmt,
-            self.format.cfFormat,
+            &self.format,
             self.preferred_drop_effect,
             self.performed_drop_effect,
         )
@@ -91,7 +91,7 @@ impl ExternalDragDataObject {
             ExternalDragData::Files(paths) => create_hglobal_for_paths(paths),
             ExternalDragData::Text(text) => create_hglobal_for_text(text),
             ExternalDragData::Url(url) => create_hglobal_for_url(url),
-            ExternalDragData::Mime(bytes) => create_hglobal_for_bytes(bytes),
+            ExternalDragData::Mime(bytes) => return mime_stream_medium(bytes),
         }
         .map_err(|_| windows::core::Error::from_thread())?;
         Ok(STGMEDIUM {
@@ -235,121 +235,5 @@ impl windows::Win32::System::Com::IDataObject_Impl for ExternalDragDataObject_Im
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::cell::Cell;
-    use windows::Win32::Foundation::HGLOBAL;
-    use windows::Win32::System::Memory::{GlobalLock, GlobalSize, GlobalUnlock};
-
-    fn controlled_medium() -> STGMEDIUM {
-        STGMEDIUM {
-            tymed: TYMED_HGLOBAL.0 as u32,
-            u: STGMEDIUM_0 {
-                hGlobal: HGLOBAL(std::ptr::null_mut()),
-            },
-            pUnkForRelease: ManuallyDrop::new(None),
-        }
-    }
-
-    fn count_releases(release: BOOL, repetitions: usize) -> usize {
-        let release_count = Cell::new(0);
-        let medium = controlled_medium();
-        for _ in 0..repetitions {
-            finish_set_data(Ok(()), &raw const medium, release, |_| {
-                release_count.set(release_count.get() + 1);
-            })
-            .expect("controlled SetData operation should succeed");
-        }
-        release_count.get()
-    }
-
-    #[test]
-    fn transferred_medium_is_released_once_per_successful_set_data() {
-        assert_eq!(count_releases(BOOL::from(true), 8), 8);
-    }
-
-    #[test]
-    fn caller_owned_medium_is_never_released() {
-        assert_eq!(count_releases(BOOL::from(false), 8), 0);
-    }
-
-    #[test]
-    fn failed_set_data_does_not_take_medium_ownership() {
-        let release_count = Cell::new(0);
-        let medium = controlled_medium();
-        let result = finish_set_data(
-            Err(windows::core::Error::from(E_INVALIDARG)),
-            &raw const medium,
-            BOOL::from(true),
-            |_| release_count.set(release_count.get() + 1),
-        );
-
-        assert!(result.is_err());
-        assert_eq!(release_count.get(), 0);
-    }
-
-    #[test]
-    fn drop_effect_medium_read_rejects_unlocked_null_handle() {
-        let medium = STGMEDIUM {
-            tymed: TYMED_HGLOBAL.0 as u32,
-            u: STGMEDIUM_0 {
-                hGlobal: HGLOBAL(std::ptr::null_mut()),
-            },
-            pUnkForRelease: ManuallyDrop::new(None),
-        };
-
-        assert!(drop_effect_from_medium(&medium).is_err());
-    }
-
-    #[test]
-    fn url_data_object_routes_only_the_single_url_format() {
-        let object = ExternalDragDataObject::url(String::from("https://example.test/drag"))
-            .expect("URL data object");
-        let mut wrong_lindex = object.format;
-        wrong_lindex.lindex = 0;
-
-        assert!(object.matches_format(&object.format));
-        assert!(!object.matches_format(&wrong_lindex));
-        assert!(!object.matches_format(&build_text_format()));
-    }
-
-    #[test]
-    fn mime_data_object_routes_one_custom_format_and_keeps_empty_bytes() {
-        let object =
-            ExternalDragDataObject::mime(String::from("application/x-radiant"), Vec::new())
-                .expect("MIME data object");
-        let mut wrong_lindex = object.format;
-        wrong_lindex.lindex = 0;
-
-        assert!(object.matches_format(&object.format));
-        assert!(!object.matches_format(&wrong_lindex));
-        let mut medium = object
-            .fill_medium(&object.format)
-            .expect("empty MIME medium");
-        let handle = unsafe { medium.u.hGlobal };
-        assert!(!handle.0.is_null());
-        assert_eq!(unsafe { GlobalSize(handle) }, 0);
-        unsafe { windows::Win32::System::Ole::ReleaseStgMedium(&raw mut medium) };
-    }
-
-    #[test]
-    fn mime_data_object_preserves_exact_nonempty_bytes() {
-        let expected = [0_u8, 1, 0, 0xff];
-        let object =
-            ExternalDragDataObject::mime(String::from("application/x-radiant"), expected.to_vec())
-                .expect("MIME data object");
-        let mut medium = object
-            .fill_medium(&object.format)
-            .expect("nonempty MIME medium");
-        let handle = unsafe { medium.u.hGlobal };
-        assert_eq!(unsafe { GlobalSize(handle) }, expected.len());
-        let bytes = unsafe { GlobalLock(handle) }.cast::<u8>();
-        assert!(!bytes.is_null());
-        {
-            let actual = unsafe { std::slice::from_raw_parts(bytes, expected.len()) };
-            assert_eq!(actual, expected);
-        }
-        unsafe { GlobalUnlock(handle) }.expect("unlock MIME allocation");
-        unsafe { ReleaseStgMedium(&raw mut medium) };
-    }
-}
+#[path = "data_object/tests.rs"]
+mod tests;

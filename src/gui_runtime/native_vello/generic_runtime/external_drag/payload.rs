@@ -5,8 +5,10 @@ use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use windows::Win32::Foundation::{GlobalFree, HGLOBAL};
+use windows::Win32::System::Com::StructuredStorage::CreateStreamOnHGlobal;
 use windows::Win32::System::Com::{
-    DVASPECT_CONTENT, FORMATETC, STGMEDIUM, STGMEDIUM_0, TYMED_HGLOBAL,
+    DVASPECT_CONTENT, FORMATETC, STGMEDIUM, STGMEDIUM_0, STREAM_SEEK_SET, TYMED_HGLOBAL,
+    TYMED_ISTREAM,
 };
 use windows::Win32::System::DataExchange::RegisterClipboardFormatW;
 use windows::Win32::System::Memory::{
@@ -76,7 +78,7 @@ pub(super) fn build_mime_format(name: &str) -> Result<FORMATETC, String> {
         ptd: std::ptr::null_mut(),
         dwAspect: DVASPECT_CONTENT.0,
         lindex: -1,
-        tymed: TYMED_HGLOBAL.0 as u32,
+        tymed: TYMED_ISTREAM.0 as u32,
     })
 }
 
@@ -172,27 +174,42 @@ pub(super) fn create_hglobal_for_url(url: &str) -> Result<HGLOBAL, std::io::Erro
     Ok(handle)
 }
 
-/// Allocate one movable `HGLOBAL` containing exact caller-owned bytes.
-///
-/// A zero-byte movable block is valid for an empty MIME representation. It
-/// must remain unlocked: locking a zero-byte movable allocation is not a data
-/// copy and may fail on Windows.
-pub(super) fn create_hglobal_for_bytes(bytes: &[u8]) -> Result<HGLOBAL, std::io::Error> {
-    let handle = unsafe { GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes.len()) }
-        .map_err(last_error_from_win32)?;
-    if bytes.is_empty() {
-        return Ok(handle);
+/// Return a fresh MIME stream with an exact logical length and an initial cursor at zero.
+/// The stream owns its backing allocation; ReleaseStgMedium releases both.
+pub(super) fn mime_stream_medium(bytes: &[u8]) -> windows::core::Result<STGMEDIUM> {
+    let stream = unsafe { CreateStreamOnHGlobal(HGLOBAL::default(), true)? };
+    let length = u32::try_from(bytes.len()).map_err(|_| {
+        windows::core::Error::new(
+            windows::Win32::Foundation::E_INVALIDARG,
+            "MIME payload is too large",
+        )
+    })?;
+    if length != 0 {
+        let mut written = 0;
+        unsafe {
+            stream
+                .Write(bytes.as_ptr().cast(), length, Some(&raw mut written))
+                .ok()?
+        };
+        if written != length {
+            return Err(windows::core::Error::new(
+                windows::Win32::Foundation::E_FAIL,
+                "Incomplete MIME stream write",
+            ));
+        }
     }
-    let ptr = unsafe { GlobalLock(handle) };
-    if ptr.is_null() {
-        free_hglobal(handle);
-        return Err(std::io::Error::last_os_error());
-    }
+    // GlobalAlloc can round its backing allocation up; logical stream size is explicit.
     unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr.cast::<u8>(), bytes.len());
-        let _ = GlobalUnlock(handle);
+        stream.SetSize(u64::from(length))?;
+        stream.Seek(0, STREAM_SEEK_SET, None)?;
     }
-    Ok(handle)
+    Ok(STGMEDIUM {
+        tymed: TYMED_ISTREAM.0 as u32,
+        u: STGMEDIUM_0 {
+            pstm: ManuallyDrop::new(Some(stream)),
+        },
+        pUnkForRelease: ManuallyDrop::new(None),
+    })
 }
 
 pub(super) fn external_drag_effect(effect: DROPEFFECT) -> ExternalDragEffect {
@@ -248,19 +265,11 @@ mod tests {
     }
 
     #[test]
-    fn mime_format_uses_one_custom_hglobal_slot() {
+    fn mime_format_uses_one_custom_stream_slot() {
         let format = build_mime_format("application/x-radiant").expect("MIME format");
 
         assert_eq!(format.lindex, -1);
         assert_eq!(format.dwAspect, DVASPECT_CONTENT.0);
-        assert_eq!(format.tymed, TYMED_HGLOBAL.0 as u32);
-    }
-
-    #[test]
-    fn empty_mime_bytes_allocate_without_global_locking() {
-        let handle = create_hglobal_for_bytes(&[]).expect("empty MIME HGLOBAL");
-
-        assert!(!handle.0.is_null());
-        free_hglobal(handle);
+        assert_eq!(format.tymed, TYMED_ISTREAM.0 as u32);
     }
 }

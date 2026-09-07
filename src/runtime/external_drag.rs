@@ -184,12 +184,6 @@ fn validate_external_drag_mime(name: &str, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-/// Prepare the platform MIME tag without changing the caller-owned payload.
-#[cfg(any(target_os = "windows", target_os = "macos", test))]
-pub(crate) fn normalized_external_drag_mime_name(name: &str) -> String {
-    name.to_ascii_lowercase()
-}
-
 /// Native drop effect reported by the platform after an external drag.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ExternalDragEffect {
@@ -365,10 +359,6 @@ mod tests {
             }
         );
         assert!(request.validate_for_native_launch().is_ok());
-        assert_eq!(
-            normalized_external_drag_mime_name("Application/X-Radiant"),
-            "application/x-radiant"
-        );
     }
 
     #[test]

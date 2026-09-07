@@ -3780,7 +3780,11 @@ request constructed directly with `ExternalDragPayload::Text`. MIME bytes are
 bounded to `MAX_EXTERNAL_OFFER_MIME_BYTES`; their MIME `type/subtype` name is
 syntactically validated and normalized to lowercase only for native format
 registration, while the caller-owned bytes remain exact, including an empty
-payload. MIME export is explicit authorization to offer opaque bytes. It does
+payload. On Windows, MIME consumers must accept `TYMED_ISTREAM`; each
+request receives a fresh stream with the exact logical byte length. HGLOBAL
+allocation rounding is not exposed as trailing payload bytes. On macOS, the
+MIME tag is mapped to a UTI and its exact bytes are copied into NSData.
+MIME export is explicit authorization to offer opaque bytes. It does
 not parse or semantically validate the content, nor guarantee a receiver
 supports the representation. The completion
 mapper is UI-owned and one-shot. On Windows the native drag call supplies its

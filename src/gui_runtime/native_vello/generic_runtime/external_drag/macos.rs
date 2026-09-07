@@ -10,9 +10,8 @@ mod payload;
 #[path = "macos/source.rs"]
 mod source;
 
-use crate::runtime::{
-    ExternalDragPayload, ExternalDragRequest, normalized_external_drag_mime_name,
-};
+use super::mime_format::normalized_external_drag_mime_name;
+use crate::runtime::{ExternalDragPayload, ExternalDragRequest};
 use std::time::Instant;
 use tracing::debug;
 

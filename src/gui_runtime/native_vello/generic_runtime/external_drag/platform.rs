@@ -8,6 +8,10 @@ mod text_encoding;
 #[path = "url_encoding.rs"]
 mod url_encoding;
 
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+#[path = "mime_format.rs"]
+mod mime_format;
+
 use super::ExternalDragLaunchDisposition;
 use crate::gui_runtime::native_vello::RuntimeUserEvent;
 use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};

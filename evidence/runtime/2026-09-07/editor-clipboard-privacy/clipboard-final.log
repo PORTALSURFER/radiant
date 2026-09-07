@@ -1,0 +1,30 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1405-editor-clipboard-privacy-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 33s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-aac666dda0f02901)
+
+running 16 tests
+test application::runtime::clipboard_lane::tests::revoked_request_does_not_initialize_native_backend ... ok
+test runtime::controller::clipboard::tests::clipboard_value_bounds_are_rejected_before_slot_replacement ... ok
+test widgets::interaction::text_grouping::tests::typing_continues_until_selection_and_clipboard_is_atomic ... ok
+test runtime::platform::tests::platform_result_ext_decodes_clipboard_results ... ok
+test runtime::controller::clipboard::tests::clipboard_replaces_by_generation_and_clears_only_on_shutdown ... ok
+test runtime::platform::tests::clipboard_debug_models_exclude_payloads ... ok
+test runtime::platform::tests::notification_and_clipboard_values_enforce_owned_bounds ... ok
+test widgets::primitives::text_editor::tests::document_replacement_and_loss_revoke_clipboard_without_reprojection ... ok
+test application::runtime::clipboard_lane::tests::lane_shutdown_skips_queued_work ... ok
+test application::runtime::clipboard_lane::tests::lane_admission_is_bounded_without_starting_a_clipboard_backend ... ok
+test application::runtime::clipboard_lane::tests::lane_preserves_order_and_skips_cancelled_work ... ok
+test widgets::primitives::text_input::tests::widget::text_clipboard_receipts_require_current_exact_state_policy_and_owner ... ok
+test runtime::controller::platform::tests::failed_clipboard_cut_never_deletes_the_selection ... ok
+test runtime::controller::platform::tests::closed_runtime_discards_a_late_clipboard_completion ... ok
+test runtime::controller::platform::tests::focused_clipboard_paste_is_deferred_and_applies_only_after_success ... ok
+test runtime::controller::platform::tests::stale_focused_clipboard_paste_is_rejected_after_focus_or_revision_changes ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 4401 filtered out; finished in 0.02s
+

@@ -607,6 +607,26 @@ impl<Message> SurfaceNode<Message> {
         self
     }
 
+    pub(crate) fn with_overlay_focus_marker(
+        mut self,
+        marker: crate::runtime::overlay_focus::OverlayFocusMarker,
+    ) -> Self {
+        let fallback = SourceMetadata::raw_overlay_focus(&self, marker.clone());
+        let source = match &mut self {
+            Self::Scene(node) => &mut node.source,
+            Self::Container(node) => &mut node.source,
+            Self::Widget(node) => &mut node.source,
+            Self::Overlay(node) => &mut node.source,
+            Self::FloatingLayer(node) => &mut node.source,
+        };
+        if let Some(metadata) = source {
+            Rc::make_mut(metadata).overlay_focus = Some(marker);
+        } else {
+            *source = Some(Rc::new(fallback));
+        }
+        self
+    }
+
     pub(crate) fn with_command_scope(
         mut self,
         scope: crate::application::CommandScopeAttachment,

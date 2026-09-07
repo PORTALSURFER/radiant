@@ -90,6 +90,7 @@ pub(crate) struct SourceIdentitySeed {
 pub(crate) struct DeclarativeOverlaySource {
     pub(crate) identity_scope: NodeId,
     pub(crate) layer_kind: LayerKind,
+    pub(crate) focus_policy: crate::runtime::OverlayFocusPolicy,
     pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
 }
 

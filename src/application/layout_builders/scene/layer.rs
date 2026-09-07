@@ -5,6 +5,12 @@ use crate::{
 };
 
 impl<Message> Layer<Message> {
+    /// Set focus behavior for this qualified declarative overlay.
+    pub fn focus_policy(mut self, policy: crate::runtime::OverlayFocusPolicy) -> Self {
+        self.focus_policy = policy;
+        self
+    }
+
     /// Attach an explicit delayed-work owner marker to this overlay.
     pub fn effect_owner(mut self, owner: DeclarativeEffectOwner) -> Self {
         self.effect_owner = Some(owner);

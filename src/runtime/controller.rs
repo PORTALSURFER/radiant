@@ -31,6 +31,7 @@ mod interaction_state;
 mod layout;
 mod layout_state;
 mod notifications;
+pub(crate) mod overlay_focus;
 mod owner;
 mod platform;
 mod pointer;
@@ -80,6 +81,7 @@ pub use focus_restoration::{FocusBookmark, FocusBookmarkError};
 pub use focus_scope::{FocusScope, FocusScopeBoundary};
 pub(crate) use fresh_surface_preparation::PreparedSurfaceRefresh;
 pub use layout_state::{SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement};
+pub use overlay_focus::{OverlayFocusOwner, OverlayFocusPolicy};
 pub(crate) use owner::AuxiliaryWindowOwner;
 pub(crate) use refresh::BasePaintPlanContext;
 pub use refresh::{

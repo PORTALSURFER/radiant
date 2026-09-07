@@ -52,6 +52,7 @@ pub struct Layer<Message> {
     pub(in crate::application) input_policy: LayerInputPolicy,
     pub(in crate::application) input: Option<ViewNode<Message>>,
     pub(in crate::application) view: ViewNode<Message>,
+    pub(in crate::application) focus_policy: crate::runtime::OverlayFocusPolicy,
     pub(in crate::application) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
@@ -62,6 +63,11 @@ impl<Message> Layer<Message> {
             input_policy: LayerInputPolicy::PassThrough,
             input: None,
             view,
+            focus_policy: if kind == LayerKind::Modal {
+                crate::runtime::OverlayFocusPolicy::Modal
+            } else {
+                crate::runtime::OverlayFocusPolicy::None
+            },
             effect_owner: None,
         }
     }
@@ -458,6 +464,7 @@ impl<Message> ViewNode<Message> {
                     crate::application::ids::StructuralRole::SceneLayer(index),
                 ),
                 layer_kind: layer.kind,
+                focus_policy: layer.focus_policy,
                 effect_owner: layer.effect_owner,
             });
             let input = layer.input.map(|input| {

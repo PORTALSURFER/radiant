@@ -94,6 +94,7 @@ pub(crate) struct OverlayIdentity {
 pub(crate) struct OverlayEvidence {
     pub(crate) identity: OverlayIdentity,
     pub(crate) layer_kind: LayerKind,
+    pub(crate) focus_policy: crate::runtime::OverlayFocusPolicy,
     pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
@@ -104,6 +105,7 @@ impl From<DeclarativeOverlaySource> for OverlayEvidence {
                 structural_scope: source.identity_scope,
             },
             layer_kind: source.layer_kind,
+            focus_policy: source.focus_policy,
             effect_owner: source.effect_owner,
         }
     }
@@ -182,6 +184,7 @@ impl SourceTopology {
 pub(crate) struct SourceMetadata {
     pub(crate) command_incarnation: Option<u64>,
     pub(crate) focus_scope: Option<crate::runtime::FocusScope>,
+    pub(crate) overlay_focus: Option<crate::runtime::overlay_focus::OverlayFocusMarker>,
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
     pub(crate) topology: SourceTopology,
@@ -191,6 +194,7 @@ pub(crate) struct SourceMetadata {
 pub(crate) struct FrozenSourceMetadata {
     pub(crate) command_incarnation: Option<u64>,
     pub(crate) focus_scope: Option<crate::runtime::FocusScope>,
+    pub(crate) overlay_focus: Option<crate::runtime::overlay_focus::OverlayFocusMarker>,
     pub(crate) identity: SourceIdentity,
     pub(crate) compatibility: SourceCompatibility,
     pub(crate) keyed_nodes: Vec<(
@@ -206,6 +210,7 @@ impl FrozenSourceMetadata {
         Self {
             command_incarnation: None,
             focus_scope: None,
+            overlay_focus: None,
             identity: SourceIdentity {
                 resolved_id: 0,
                 structural_scope: 0,
@@ -224,6 +229,7 @@ impl SourceMetadata {
         FrozenSourceMetadata {
             command_incarnation: self.command_incarnation,
             focus_scope: self.focus_scope,
+            overlay_focus: self.overlay_focus.clone(),
             identity: self.identity,
             compatibility: self.compatibility,
             keyed_nodes: self
@@ -238,6 +244,25 @@ impl SourceMetadata {
 }
 
 impl SourceMetadata {
+    pub(crate) fn raw_overlay_focus<Message>(
+        node: &SurfaceNode<Message>,
+        marker: crate::runtime::overlay_focus::OverlayFocusMarker,
+    ) -> Self {
+        Self {
+            command_incarnation: None,
+            focus_scope: None,
+            overlay_focus: Some(marker),
+            identity: SourceIdentity {
+                resolved_id: node.id(),
+                structural_scope: node.id(),
+                origin:
+                    crate::application::DeclarativeIdentityOrigin::UnreidentifiedDirectRuntimeRoot,
+            },
+            compatibility: SourceCompatibility::from_surface_node(node),
+            topology: SourceTopology::default(),
+        }
+    }
+
     pub(crate) fn new(
         identity: SourceIdentity,
         compatibility: SourceCompatibility,
@@ -246,6 +271,7 @@ impl SourceMetadata {
         Self {
             command_incarnation: None,
             focus_scope: None,
+            overlay_focus: None,
             identity,
             compatibility,
             topology,
@@ -263,6 +289,7 @@ pub(crate) fn source_metadata_matches(first: &SourceMetadata, second: &SourceMet
     first.identity == second.identity
         && first.command_incarnation == second.command_incarnation
         && first.focus_scope == second.focus_scope
+        && first.overlay_focus == second.overlay_focus
         && first.compatibility == second.compatibility
         && source_topology_matches(&first.topology, &second.topology)
 }

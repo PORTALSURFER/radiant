@@ -3759,11 +3759,19 @@ preview, a native external-drag payload, both, or neither. Use
 known to exist and should be started together. Explicit runtime bridges can use
 the corresponding `Command` constructors, but normal application handlers should
 stay on the typed `UiUpdateContext` surface.
-External drags use `ExternalDragRequest::files(...)` for filesystem paths or
-`ExternalDragRequest::text(...)` for plain text from `radiant::runtime`. The
-generic native Vello backend offers files and text through Windows OLE and
-macOS AppKit; unsupported targets deliver an explicit unsupported error through
-the same completion callback. Text is bounded to
+External drags use `ExternalDragRequest::files(...)` for filesystem paths,
+`ExternalDragRequest::text(...)` for plain text, or
+`ExternalDragRequest::url(...)` for one deliberately exported URL from
+`radiant::runtime`. The generic native Vello backend offers files, text, and
+single URLs through Windows OLE and macOS AppKit; unsupported targets deliver
+an explicit unsupported error through the same completion callback. A URL is
+bounded to `MAX_EXTERNAL_OFFER_ITEM_BYTES`, must have an absolute URI scheme
+and nonempty remainder, and cannot contain whitespace, control characters, or
+an embedded NUL byte. `Url` always represents one URL; applications needing
+multiple URLs must choose an explicit export representation instead of relying
+on platform-specific URL-list flattening. URL validation happens when the
+native drag launches, including for a request constructed directly with
+`ExternalDragPayload::Url`. Text is bounded to
 `MAX_EXTERNAL_OFFER_TEXT_BYTES`, may be empty, and cannot contain an embedded
 NUL byte; validation happens when the native drag launches, including for a
 request constructed directly with `ExternalDragPayload::Text`. The completion

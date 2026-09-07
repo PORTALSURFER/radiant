@@ -1,6 +1,7 @@
 use super::payload::{
-    build_drop_effect_format, build_file_format, build_text_format, create_hglobal_for_paths,
-    create_hglobal_for_text, drop_effect_formats, drop_effect_medium,
+    build_drop_effect_format, build_file_format, build_text_format, build_url_format,
+    create_hglobal_for_paths, create_hglobal_for_text, create_hglobal_for_url, drop_effect_formats,
+    drop_effect_medium,
 };
 #[path = "data_object/formats.rs"]
 mod formats;
@@ -35,6 +36,7 @@ pub(super) struct ExternalDragDataObject {
 enum ExternalDragData {
     Files(Vec<PathBuf>),
     Text(String),
+    Url(String),
 }
 
 impl ExternalDragDataObject {
@@ -47,6 +49,10 @@ impl ExternalDragDataObject {
 
     pub(super) fn text(text: String) -> Result<Self, String> {
         Self::new(ExternalDragData::Text(text), build_text_format())
+    }
+
+    pub(super) fn url(url: String) -> Result<Self, String> {
+        Self::new(ExternalDragData::Url(url), build_url_format()?)
     }
 
     fn new(payload: ExternalDragData, format: FORMATETC) -> Result<Self, String> {
@@ -79,6 +85,7 @@ impl ExternalDragDataObject {
         let hglobal = match &self.payload {
             ExternalDragData::Files(paths) => create_hglobal_for_paths(paths),
             ExternalDragData::Text(text) => create_hglobal_for_text(text),
+            ExternalDragData::Url(url) => create_hglobal_for_url(url),
         }
         .map_err(|_| windows::core::Error::from_thread())?;
         Ok(STGMEDIUM {
@@ -285,5 +292,17 @@ mod tests {
         };
 
         assert!(drop_effect_from_medium(&medium).is_err());
+    }
+
+    #[test]
+    fn url_data_object_routes_only_the_single_url_format() {
+        let object = ExternalDragDataObject::url(String::from("https://example.test/drag"))
+            .expect("URL data object");
+        let mut wrong_lindex = object.format;
+        wrong_lindex.lindex = 0;
+
+        assert!(object.matches_format(&object.format));
+        assert!(!object.matches_format(&wrong_lindex));
+        assert!(!object.matches_format(&build_text_format()));
     }
 }

@@ -1,4 +1,5 @@
 use crate::gui_runtime::native_vello::generic_runtime::external_drag::platform::text_encoding::encode_unicode_text;
+use crate::gui_runtime::native_vello::generic_runtime::external_drag::platform::url_encoding::encode_unicode_url;
 use crate::runtime::ExternalDragEffect;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
@@ -14,6 +15,7 @@ use windows::Win32::System::Memory::{
 use windows::Win32::System::Ole::{
     CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE,
 };
+use windows::Win32::UI::Shell::CFSTR_INETURLW;
 use windows::core::w;
 
 #[path = "payload/dropfiles.rs"]
@@ -39,6 +41,22 @@ pub(super) fn build_text_format() -> FORMATETC {
         lindex: -1,
         tymed: TYMED_HGLOBAL.0 as u32,
     }
+}
+
+pub(super) fn build_url_format() -> Result<FORMATETC, String> {
+    let format = unsafe { RegisterClipboardFormatW(CFSTR_INETURLW) };
+    if format == 0 {
+        return Err(String::from(
+            "RegisterClipboardFormatW failed for UniformResourceLocatorW",
+        ));
+    }
+    Ok(FORMATETC {
+        cfFormat: format as u16,
+        ptd: std::ptr::null_mut(),
+        dwAspect: DVASPECT_CONTENT.0,
+        lindex: -1,
+        tymed: TYMED_HGLOBAL.0 as u32,
+    })
 }
 
 pub(super) fn build_drop_effect_format(format: u16) -> FORMATETC {
@@ -117,6 +135,22 @@ pub(super) fn create_hglobal_for_text(text: &str) -> Result<HGLOBAL, std::io::Er
     Ok(handle)
 }
 
+pub(super) fn create_hglobal_for_url(url: &str) -> Result<HGLOBAL, std::io::Error> {
+    let payload = encode_unicode_url(url);
+    let handle = unsafe { GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, payload.len()) }
+        .map_err(last_error_from_win32)?;
+    let ptr = unsafe { GlobalLock(handle) };
+    if ptr.is_null() {
+        free_hglobal(handle);
+        return Err(std::io::Error::last_os_error());
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(payload.as_ptr(), ptr.cast::<u8>(), payload.len());
+        let _ = GlobalUnlock(handle);
+    }
+    Ok(handle)
+}
+
 pub(super) fn external_drag_effect(effect: DROPEFFECT) -> ExternalDragEffect {
     if effect.0 & DROPEFFECT_MOVE.0 != 0 {
         ExternalDragEffect::Move
@@ -158,5 +192,14 @@ mod tests {
     fn normalize_path_strips_windows_verbatim_prefix() {
         let normalized = normalize_path(Path::new(r"\\?\C:\samples\kick.wav"));
         assert_eq!(normalized, PathBuf::from(r"C:\samples\kick.wav"));
+    }
+
+    #[test]
+    fn url_format_uses_one_url_hglobal_slot() {
+        let format = build_url_format().expect("UniformResourceLocatorW format");
+
+        assert_eq!(format.lindex, -1);
+        assert_eq!(format.dwAspect, DVASPECT_CONTENT.0);
+        assert_eq!(format.tymed, TYMED_HGLOBAL.0 as u32);
     }
 }

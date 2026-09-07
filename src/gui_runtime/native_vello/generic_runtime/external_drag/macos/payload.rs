@@ -61,6 +61,33 @@ pub(super) unsafe fn text_dragging_items(text: &str) -> Result<Id, String> {
     Ok(items)
 }
 
+/// Builds one `NSURL` pasteboard writer for a native URL drag session.
+pub(super) unsafe fn url_dragging_items(url: &str) -> Result<Id, String> {
+    let items = unsafe { mutable_array(1)? };
+    let string = unsafe { ns_string(url)? };
+    let url = unsafe {
+        let class = class(c"NSURL")?;
+        msg_id_id(class, selector(c"URLWithString:"), string)
+    };
+    if url.is_null() {
+        return Err(String::from(
+            "NSURL URLWithString returned nil for external drag URL",
+        ));
+    }
+    let item = unsafe { dragging_item(url)? };
+    let contents = unsafe { file_type_icon_for_type("public.url")? };
+    unsafe {
+        msg_void_rect_id(
+            item,
+            selector(c"setDraggingFrame:contents:"),
+            dragging_frame(),
+            contents,
+        );
+        msg_void_id(items, selector(c"addObject:"), item);
+    }
+    Ok(items)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum DragPreviewKind {
     FileIcon,

@@ -4,6 +4,10 @@
 #[path = "text_encoding.rs"]
 mod text_encoding;
 
+#[cfg(any(target_os = "windows", test))]
+#[path = "url_encoding.rs"]
+mod url_encoding;
+
 use super::ExternalDragLaunchDisposition;
 use crate::gui_runtime::native_vello::RuntimeUserEvent;
 use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};
@@ -145,5 +149,15 @@ mod validation_tests {
             .expect_err("invalid text must fail before native context access");
             assert!(error.contains("External drag text"));
         }
+    }
+
+    #[test]
+    fn invalid_url_is_rejected_before_any_native_launch() {
+        let error = start_external_drag(
+            &ExternalDragRequest::url("relative-url", "invalid"),
+            ExternalDragLaunchContext::new(None, None, ExternalDragIdentity { id: 1, epoch: 1 }),
+        )
+        .expect_err("invalid URL must fail before native context access");
+        assert!(error.contains("External drag URL"));
     }
 }

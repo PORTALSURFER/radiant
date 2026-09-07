@@ -1,6 +1,6 @@
 //! Backend-neutral external drag-and-drop requests.
 
-use super::MAX_EXTERNAL_OFFER_TEXT_BYTES;
+use super::{MAX_EXTERNAL_OFFER_ITEM_BYTES, MAX_EXTERNAL_OFFER_TEXT_BYTES};
 use std::path::PathBuf;
 
 /// External drag payload that a native backend can offer to other applications.
@@ -10,6 +10,13 @@ pub enum ExternalDragPayload {
     Files(Vec<PathBuf>),
     /// UTF-8 text offered through the platform's standard text drag format.
     Text(String),
+    /// One deliberately exported absolute URL offered through the platform's
+    /// standard URL drag format.
+    ///
+    /// This variant represents exactly one URL. Callers that need to export
+    /// several URLs must choose an explicit application representation rather
+    /// than relying on platform-specific URL-list flattening.
+    Url(String),
 }
 
 /// Native drag image metadata.
@@ -54,6 +61,18 @@ impl ExternalDragRequest {
         }
     }
 
+    /// Build a single-URL drag request with a preview label.
+    ///
+    /// The caller deliberately chooses this exported URL. It is validated when
+    /// the native drag launches, including for direct [`ExternalDragPayload`]
+    /// construction.
+    pub fn url(url: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            payload: ExternalDragPayload::Url(url.into()),
+            preview: ExternalDragPreview::label(label),
+        }
+    }
+
     /// Validate a payload before a native backend starts an external drag.
     ///
     /// This is intentionally performed at launch, rather than only by the
@@ -63,6 +82,7 @@ impl ExternalDragRequest {
         match &self.payload {
             ExternalDragPayload::Files(_) => Ok(()),
             ExternalDragPayload::Text(text) => validate_external_drag_text(text),
+            ExternalDragPayload::Url(url) => validate_external_drag_url(url),
         }
     }
 }
@@ -76,6 +96,44 @@ fn validate_external_drag_text(text: &str) -> Result<(), String> {
     if text.contains('\0') {
         return Err(String::from(
             "External drag text contains an embedded NUL byte",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_external_drag_url(url: &str) -> Result<(), String> {
+    if url.len() > MAX_EXTERNAL_OFFER_ITEM_BYTES {
+        return Err(format!(
+            "External drag URL exceeds the {MAX_EXTERNAL_OFFER_ITEM_BYTES}-byte limit"
+        ));
+    }
+    if url.is_empty() {
+        return Err(String::from("External drag URL is empty"));
+    }
+    if url
+        .chars()
+        .any(|character| character.is_whitespace() || character.is_control())
+    {
+        return Err(String::from(
+            "External drag URL contains whitespace or a control character",
+        ));
+    }
+
+    let Some(colon) = url.find(':') else {
+        return Err(String::from("External drag URL has no absolute URI scheme"));
+    };
+    let scheme = &url[..colon];
+    let remainder = &url[colon + 1..];
+    if scheme.is_empty()
+        || !scheme.as_bytes()[0].is_ascii_alphabetic()
+        || !scheme
+            .bytes()
+            .skip(1)
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'.' | b'-'))
+        || remainder.is_empty()
+    {
+        return Err(String::from(
+            "External drag URL must be an absolute URI with a nonempty remainder",
         ));
     }
     Ok(())
@@ -192,5 +250,54 @@ mod tests {
                 .validate_for_native_launch()
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn url_request_preserves_its_url_and_preview_label() {
+        let request = ExternalDragRequest::url("https://example.test/drag", "Example");
+
+        assert_eq!(request.preview.label, "Example");
+        assert_eq!(
+            request.payload,
+            ExternalDragPayload::Url(String::from("https://example.test/drag"))
+        );
+        assert!(request.validate_for_native_launch().is_ok());
+    }
+
+    #[test]
+    fn direct_url_payloads_are_checked_at_native_launch() {
+        let invalid = [
+            String::new(),
+            String::from("relative/path"),
+            String::from("1http://example.test"),
+            String::from("ht*tp://example.test"),
+            String::from("https:"),
+            String::from("http://example.test/with space"),
+            String::from("http://example.test/before\0after"),
+            String::from("http://example.test/before\nafter"),
+            format!("x:{}", "a".repeat(MAX_EXTERNAL_OFFER_ITEM_BYTES)),
+        ];
+
+        for url in invalid {
+            let request = ExternalDragRequest {
+                payload: ExternalDragPayload::Url(url),
+                preview: ExternalDragPreview::label("URL"),
+            };
+            assert!(request.validate_for_native_launch().is_err());
+        }
+
+        let maximum_url = format!("x:{}", "a".repeat(MAX_EXTERNAL_OFFER_ITEM_BYTES - 2));
+        for url in [
+            "https://example.test/path?item=one",
+            "custom+scheme.v1:opaque-value",
+            "mailto:person@example.test",
+            &maximum_url,
+        ] {
+            assert!(
+                ExternalDragRequest::url(url, "URL")
+                    .validate_for_native_launch()
+                    .is_ok()
+            );
+        }
     }
 }

@@ -33,6 +33,16 @@ enum BookmarkOwner {
     Separator(RuntimeSplitPaneSeparatorFocusOwner),
 }
 
+impl FocusBookmark {
+    /// Observational source lookup only; restoration still validates the stamp.
+    pub(super) fn observed_node(&self) -> WidgetId {
+        match &self.owner {
+            BookmarkOwner::Widget { widget, .. } => *widget,
+            BookmarkOwner::Separator(owner) => owner.target.container_id,
+        }
+    }
+}
+
 /// Failure to record a bounded focus bookmark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FocusBookmarkError {

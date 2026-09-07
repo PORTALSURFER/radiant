@@ -37,6 +37,7 @@ pub(super) struct OverlayFocusTransition {
     prior: Option<FocusBookmark>,
     approved: bool,
     request: u64,
+    focused_before: Option<WidgetId>,
 }
 
 fn owner_node(owner: RuntimeFocusOwner) -> WidgetId {
@@ -98,6 +99,7 @@ where
             prior,
             approved: moves_live_owner,
             request: self.fresh_surface_request_revision,
+            focused_before: self.interaction.focus.owner.map(owner_node),
         })
     }
 
@@ -135,28 +137,65 @@ where
         mut transition: OverlayFocusTransition,
     ) -> bool {
         transition.projection.qualify(&self.layout);
-        let focused = self.interaction.focus.owner.map(owner_node);
+        let focused = transition.focused_before;
         let state = &mut self.interaction.overlay_focus;
         let mut old_entries = std::mem::take(&mut state.entries);
         // Outermost removed scope wins when several nested scopes close in one
         // publication: an inner bookmark can name a simultaneously retired body.
-        let restore = old_entries.iter().find_map(|entry| {
-            let survives = transition.projection.records().iter().any(|record| {
+        let survives = |entry: &OverlayEntry| {
+            transition.projection.records().iter().any(|record| {
                 record.active() && record.key() == &entry.key && record.policy() == entry.policy
+            })
+        };
+        let mut restore_index = old_entries
+            .iter()
+            .enumerate()
+            .find_map(|(entry_index, entry)| {
+                let owned_focus = state
+                    .projection
+                    .records()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, record)| record.key() == &entry.key)
+                    .is_some_and(|(index, _)| {
+                        focused.map_or_else(
+                            || {
+                                entry.policy == OverlayFocusPolicy::Modal
+                                    && state.projection.top_modal().is_some_and(|top| {
+                                        state.projection.contains_scope(index, top)
+                                    })
+                            },
+                            |node| state.projection.contains(index, node),
+                        )
+                    });
+                (!survives(entry) && owned_focus).then_some(entry_index)
             });
-            let owned_focus = state
-                .projection
-                .records()
-                .iter()
-                .enumerate()
-                .find(|(_, record)| record.key() == &entry.key)
-                .is_some_and(|(index, _)| {
-                    focused.is_none_or(|node| state.projection.contains(index, node))
-                });
-            (!survives && owned_focus)
-                .then(|| entry.prior.clone())
-                .flatten()
-        });
+        // Raw modal siblings also form a focus-restoration stack. Follow an
+        // observed prior node into an earlier removed scope before validating
+        // its bookmark; stop at a surviving scope or the base. Indices strictly
+        // decrease, and no node id itself grants focus authority.
+        while let Some(index) = restore_index {
+            let Some(prior) = old_entries[index].prior.as_ref() else {
+                break;
+            };
+            let earlier = old_entries[..index].iter().position(|entry| {
+                !survives(entry)
+                    && state
+                        .projection
+                        .records()
+                        .iter()
+                        .enumerate()
+                        .find(|(_, record)| record.key() == &entry.key)
+                        .is_some_and(|(scope, _)| {
+                            state.projection.contains(scope, prior.observed_node())
+                        })
+            });
+            let Some(earlier) = earlier else {
+                break;
+            };
+            restore_index = Some(earlier);
+        }
+        let restore = restore_index.map(|index| old_entries[index].prior.clone());
         let mut entries = Vec::new();
         for record in transition.projection.records() {
             if !record.active() || record.policy() == OverlayFocusPolicy::None {
@@ -191,14 +230,21 @@ where
         }
         let projection_before = self.refresh_counters.application_projection;
         let generation_before = self.fresh_surface_active_generation;
-        let changed = self.apply_overlay_focus_destination(restore.as_ref());
+        let changed = self.apply_overlay_focus_destination(
+            restore.as_ref().and_then(Option::as_ref),
+            restore.is_some(),
+        );
         self.interaction.overlay_focus.permit = None;
         changed
             || projection_before != self.refresh_counters.application_projection
             || generation_before != self.fresh_surface_active_generation
     }
 
-    fn apply_overlay_focus_destination(&mut self, restore: Option<&FocusBookmark>) -> bool {
+    fn apply_overlay_focus_destination(
+        &mut self,
+        restore: Option<&FocusBookmark>,
+        restore_requested: bool,
+    ) -> bool {
         if let Some(bookmark) = restore {
             match self.restore_focus(bookmark) {
                 FocusTransferOutcome::Admitted(_)
@@ -214,7 +260,7 @@ where
                 .focus
                 .owner
                 .is_none_or(|owner| !self.overlay_focus_allows(owner_node(owner)));
-        if !needs_modal_focus && restore.is_none() {
+        if !needs_modal_focus && !restore_requested {
             return false;
         }
         let target = if self.traversal.widgets.mixed_focus_order.is_empty() {
@@ -262,7 +308,8 @@ where
         timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<bool> {
         use crate::widgets::{FocusedKeyDisposition, WidgetInput, WidgetKey};
-        if key != WidgetKey::Escape
+        if !self.lifecycle_accepts_work()
+            || key != WidgetKey::Escape
             || modifiers.command
             || modifiers.control
             || modifiers.shift
@@ -346,6 +393,7 @@ where
             prior: None,
             approved: false,
             request: self.fresh_surface_request_revision,
+            focused_before: self.interaction.focus.owner.map(owner_node),
         };
         self.publish_overlay_focus_transition(transition);
     }

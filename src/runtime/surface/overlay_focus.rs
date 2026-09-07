@@ -127,6 +127,27 @@ impl OverlayFocusProjection {
         self.top_modal()
             .is_some_and(|record| self.contains(record, node))
     }
+    pub(crate) fn contains_scope(&self, ancestor: usize, mut scope: usize) -> bool {
+        if self.invalid {
+            return false;
+        }
+        loop {
+            let Some(record) = self.records.get(scope) else {
+                return false;
+            };
+            if !record.active {
+                return false;
+            }
+            if scope == ancestor {
+                return true;
+            }
+            let Some(parent) = record.parent else {
+                return false;
+            };
+            scope = parent;
+        }
+    }
+
     pub(crate) fn contains(&self, record: usize, node: WidgetId) -> bool {
         if self.invalid || record >= self.records.len() {
             return false;

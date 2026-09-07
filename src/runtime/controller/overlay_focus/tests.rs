@@ -542,3 +542,39 @@ fn modal_close_retires_pointer_capture_before_body_reopens() {
     runtime.dispatch_event(crate::runtime::Event::primary_release(position));
     assert_eq!(runtime.pointer_capture(), None);
 }
+
+#[test]
+fn initially_open_modal_without_prior_focus_closes_to_first_base_target() {
+    let mut runtime = SurfaceRuntime::new(
+        Bridge {
+            depth: 1,
+            ..Bridge::default()
+        },
+        Vector2::new(240.0, 160.0),
+    );
+    assert_eq!(runtime.focused_widget(), Some(11));
+    runtime.bridge_mut().depth = 0;
+    runtime.refresh();
+    assert_eq!(runtime.focused_widget(), Some(1));
+}
+
+#[test]
+fn nonmodal_close_preserves_explicitly_cleared_focus() {
+    let mut runtime = runtime();
+    assert!(runtime.focus_widget(1));
+    runtime.bridge_mut().policy = OverlayFocusPolicy::Restore;
+    runtime.bridge_mut().depth = 1;
+    runtime.refresh();
+    runtime.clear_focus();
+    runtime.bridge_mut().depth = 0;
+    runtime.refresh();
+    assert_eq!(runtime.focused_widget(), None);
+}
+
+#[test]
+fn closing_runtime_does_not_admit_overlay_escape() {
+    let mut runtime = escape_runtime();
+    assert!(runtime.begin_closing());
+    assert!(!runtime.dispatch_keyboard_event(escape_event(false)));
+    assert!(runtime.bridge().closed.is_empty());
+}

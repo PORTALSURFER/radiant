@@ -12,8 +12,8 @@ use crate::{
     },
     runtime::ResolvedEnvironment,
     widgets::{
-        CompositionRange, CompositionSample, KeyboardModifiers, TextEditCommand, Widget,
-        PointerModifiers, WheelDelta, WheelSample, WidgetInput, WidgetKey, WidgetSizing,
+        CompositionRange, CompositionSample, KeyboardModifiers, PointerModifiers, TextEditCommand,
+        WheelDelta, WheelSample, Widget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -102,9 +102,8 @@ fn input(
 }
 
 fn environment_with_text_scale(scale: f32) -> ResolvedEnvironment {
-    let application = crate::application::ApplicationEnvironment::default().with_text_scale(
-        crate::application::TextScale::new(scale).expect("valid test text scale"),
-    );
+    let application = crate::application::ApplicationEnvironment::default()
+        .with_text_scale(crate::application::TextScale::new(scale).expect("valid test text scale"));
     ResolvedEnvironment::from_snapshots(
         crate::runtime::WindowEnvironment::default(),
         Arc::new(application),
@@ -296,7 +295,7 @@ fn reflowed_geometry_reveals_offscreen_selection_and_clamps_scroll() {
 
 #[test]
 fn wheel_rejects_a_stale_receipt_after_text_scale_and_wrap_change_at_stable_bounds() {
-    let document = TextEditorDocument::new("a".repeat(200)).unwrap();
+    let document = TextEditorDocument::new("a ".repeat(200)).unwrap();
     let initial_environment = ResolvedEnvironment::default();
     let scaled_environment = environment_with_text_scale(1.5);
     let viewport = bounds(80.0, 48.0);
@@ -304,14 +303,16 @@ fn wheel_rejects_a_stale_receipt_after_text_scale_and_wrap_change_at_stable_boun
     install(&mut widget, viewport, &initial_environment);
 
     widget.wrap = false;
-    assert!(Widget::handle_wheel_sample_with_environment(
-        &mut widget,
-        viewport,
-        Point::new(20.0, 20.0),
-        wheel(Vector2::new(0.0, 5_000.0)),
-        &scaled_environment,
-    )
-    .is_some());
+    assert!(
+        Widget::handle_wheel_sample_with_environment(
+            &mut widget,
+            viewport,
+            Point::new(20.0, 20.0),
+            wheel(Vector2::new(0.0, 5_000.0)),
+            &scaled_environment,
+        )
+        .is_some()
+    );
     assert_eq!(
         widget.scroll_offset().y,
         5_000.0,
@@ -328,22 +329,90 @@ fn wheel_rejects_a_stale_receipt_after_text_scale_and_wrap_change_at_stable_boun
 
 #[test]
 fn wheel_scrolls_with_a_current_nondefault_environment_receipt() {
-    let document = TextEditorDocument::new("a".repeat(200)).unwrap();
+    let document = TextEditorDocument::new("a ".repeat(200)).unwrap();
     let environment = environment_with_text_scale(1.5);
     let viewport = bounds(80.0, 48.0);
     let mut widget = editor(&document);
     install(&mut widget, viewport, &environment);
 
-    assert!(Widget::handle_wheel_sample_with_environment(
-        &mut widget,
-        viewport,
-        Point::new(20.0, 20.0),
-        wheel(Vector2::new(0.0, 5_000.0)),
-        &environment,
-    )
-    .is_some());
+    assert!(
+        Widget::handle_wheel_sample_with_environment(
+            &mut widget,
+            viewport,
+            Point::new(20.0, 20.0),
+            wheel(Vector2::new(0.0, 5_000.0)),
+            &environment,
+        )
+        .is_some()
+    );
     assert!(widget.scroll_offset().y > 0.0);
     assert!(widget.scroll_offset().y < 5_000.0);
+}
+
+#[test]
+fn composition_normalizes_scalar_preedit_selection_and_commit_grapheme_seams() {
+    let document = TextEditorDocument::new("a").unwrap();
+    let environment = ResolvedEnvironment::default();
+    let viewport = bounds(100.0, 48.0);
+    let mut widget = editor(&document);
+    input(
+        &mut widget,
+        viewport,
+        &environment,
+        WidgetInput::FocusChanged(true),
+    );
+    let at_end = CompositionRange::new(1, 1, 1).unwrap();
+    assert!(
+        Widget::handle_composition_sample(
+            &mut widget,
+            CompositionSample::start(at_end, at_end).unwrap(),
+        )
+        .is_some()
+    );
+    assert!(
+        Widget::handle_composition_sample(
+            &mut widget,
+            CompositionSample::update("\u{301}", CompositionRange::new(0, 0, 1).unwrap()).unwrap(),
+        )
+        .is_some()
+    );
+    assert_eq!(
+        widget.selection(),
+        TextEditorSelection::caret("a\u{301}".len())
+    );
+    assert!(
+        Widget::handle_composition_sample(&mut widget, CompositionSample::commit("\u{301}"))
+            .is_some()
+    );
+    assert_eq!(widget.text(), "a\u{301}");
+
+    // CR creates a valid hard grapheme boundary before a following combining
+    // mark. Replacing it with a base scalar joins that suffix, so the raw
+    // post-commit byte position lies inside the resulting grapheme.
+    let mut seam_document = TextEditorDocument::new("\r\u{301}").unwrap();
+    let start = seam_document
+        .snapshot()
+        .edit(
+            TextEditorDelta::Composition(TextEditorCompositionDelta::Start { range: 0..1 }),
+            TextEditorSelection::caret(0),
+        )
+        .unwrap();
+    seam_document.apply(&start).unwrap();
+    let commit = seam_document
+        .snapshot()
+        .edit(
+            TextEditorDelta::Composition(TextEditorCompositionDelta::Commit {
+                text: Arc::from("a"),
+            }),
+            TextEditorSelection::caret(1),
+        )
+        .expect("commit seam selection is normalized instead of rejected");
+    assert_eq!(
+        commit.selection(),
+        TextEditorSelection::caret("a\u{301}".len())
+    );
+    seam_document.apply(&commit).unwrap();
+    assert_eq!(seam_document.text(), "a\u{301}");
 }
 
 #[test]

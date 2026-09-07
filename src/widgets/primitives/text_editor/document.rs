@@ -230,6 +230,7 @@ impl TextEditorSnapshot {
         }
         let next = next_revision()?;
         let result = self.transition(&delta, selection)?;
+        let selection = result.selection;
         validate_selection(&result.display_text(), selection)?;
         Ok(TextEditorEdit {
             owner: self.owner.clone(),
@@ -251,7 +252,7 @@ impl TextEditorSnapshot {
             return Err(TextEditorError::StaleRevision);
         }
         let mut result = self.transition(&edit.delta, edit.selection)?;
-        validate_selection(&result.display_text(), edit.selection)?;
+        validate_selection(&result.display_text(), result.selection)?;
         result.revision = edit.next;
         Ok(result)
     }
@@ -314,7 +315,18 @@ impl TextEditorSnapshot {
                 next.text = replace(&next.text, delta)?;
             }
         }
-        next.selection = selection;
+        next.selection = match delta {
+            // Native composition selections are scalar-indexed, whereas editor
+            // selections are constrained to extended-grapheme boundaries. A
+            // preedit or committed replacement can join a neighboring grapheme
+            // across the replacement seam, so normalize against the resulting
+            // displayed text rather than rejecting an otherwise valid IME update.
+            TextEditorDelta::Composition(
+                TextEditorCompositionDelta::Update { .. }
+                | TextEditorCompositionDelta::Commit { .. },
+            ) => normalize_composition_selection(next.display_text().as_ref(), selection)?,
+            _ => selection,
+        };
         Ok(next)
     }
 }
@@ -409,6 +421,55 @@ fn validate_selection(text: &str, selection: TextEditorSelection) -> Result<(), 
     } else {
         Err(TextEditorError::InvalidRange)
     }
+}
+
+fn normalize_composition_selection(
+    text: &str,
+    selection: TextEditorSelection,
+) -> Result<TextEditorSelection, TextEditorError> {
+    if selection.anchor > text.len()
+        || selection.caret > text.len()
+        || !text.is_char_boundary(selection.anchor)
+        || !text.is_char_boundary(selection.caret)
+    {
+        return Err(TextEditorError::InvalidRange);
+    }
+    let floor_boundary = |offset| {
+        text.grapheme_indices(true)
+            .map(|(at, _)| at)
+            .chain(std::iter::once(text.len()))
+            .take_while(|at| *at <= offset)
+            .last()
+            .unwrap_or(0)
+    };
+    let ceiling_boundary = |offset| {
+        text.grapheme_indices(true)
+            .map(|(at, _)| at)
+            .chain(std::iter::once(text.len()))
+            .find(|at| *at >= offset)
+            .unwrap_or(text.len())
+    };
+    let (anchor, caret) = if selection.anchor == selection.caret {
+        // A native scalar caret inside a grapheme advances to its downstream
+        // editor boundary, preserving continued composition after that cluster.
+        let boundary = ceiling_boundary(selection.caret);
+        (boundary, boundary)
+    } else if selection.anchor < selection.caret {
+        (
+            floor_boundary(selection.anchor),
+            ceiling_boundary(selection.caret),
+        )
+    } else {
+        (
+            ceiling_boundary(selection.anchor),
+            floor_boundary(selection.caret),
+        )
+    };
+    Ok(TextEditorSelection {
+        anchor,
+        caret,
+        affinity: selection.affinity,
+    })
 }
 fn validate_range(source: &str, range: &Range<usize>) -> Result<(), TextEditorError> {
     if range.start > range.end

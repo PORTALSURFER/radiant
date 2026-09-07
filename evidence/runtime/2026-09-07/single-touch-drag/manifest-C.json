@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "evidence_id": "C-macos-f0ebc3ae07f7f9cb5c15451161f444aef97c648c-single-touch-drag-20260907",
+  "source_commit": "f0ebc3ae07f7f9cb5c15451161f444aef97c648c",
+  "generated_at_utc": "2026-09-07T12:42:40.654675+00:00",
+  "lane": "C",
+  "outcome": "PASS",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical input"
+  },
+  "command_or_harness": [
+    [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    [
+      "cargo",
+      "doc",
+      "--locked",
+      "--no-deps"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--doc"
+    ],
+    [
+      "cargo",
+      "check",
+      "--locked",
+      "--no-default-features",
+      "--lib"
+    ],
+    [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    [
+      "git",
+      "diff",
+      "--check"
+    ]
+  ],
+  "assertions": [
+    {
+      "name": "static builds and documentation",
+      "outcome": "PASS"
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "b24e03708e4522d8688a92366a945d9efc4b2167330a7dfb84d0efed7fb4d236"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "aeac9f37657b75704e3406d5e50ef9e5ca1e134aa7eab97669538b38b7a04c03"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "371bca5f4ca6f6cec16a848c88d78828bda7ee66e129332b8a960b41dfad0902"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "fdcfc29dcd4d8c1c9dd0b4f6f44a78653cec5af9b7faab514e3179b379217b9b"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "76e099371cc64f3456de26f43730d2ff36bf6caf86983de4fe5c19b5c9a67843"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "182cd8d6f2b8c3f47cad7cb8c7861fdd56e326a78fceff0f655f08feed0a93f1"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "481ae70d7d751555ddec85a6e6899bf30ddb4460d161b84383d24ce1f47996c3"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "ab8fa19126b4b49819f6bb234dd580ee59b6b669aba74eb2f0cc3b4943dab958"
+    }
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Single-contact typed drag uses the existing capture, preserves nonparticipant touch admission, and safely arbitrates a second contact. Commands ran at f0ebc3ae; the later merge only adds the previously reviewed modal evidence and has identical source, tests, examples, docs and Cargo inputs.",
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Environment account identifier redacted."
+  ]
+}

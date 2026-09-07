@@ -1037,7 +1037,7 @@ mod autoscroll_tests {
 
     #[test]
     fn modal_publication_retires_an_armed_autoscroll_timer() {
-        use crate::application::{IntoView, Layer, scene};
+        use crate::application::{Layer, scene};
         let bridge = crate::app(false)
             .view(|open: &bool| {
                 let base = scroll(

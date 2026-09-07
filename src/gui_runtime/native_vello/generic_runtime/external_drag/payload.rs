@@ -16,6 +16,7 @@ use windows::Win32::System::Ole::{
     CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE,
 };
 use windows::Win32::UI::Shell::CFSTR_INETURLW;
+use windows::core::PCWSTR;
 use windows::core::w;
 
 #[path = "payload/dropfiles.rs"]
@@ -48,6 +49,26 @@ pub(super) fn build_url_format() -> Result<FORMATETC, String> {
     if format == 0 {
         return Err(String::from(
             "RegisterClipboardFormatW failed for UniformResourceLocatorW",
+        ));
+    }
+    Ok(FORMATETC {
+        cfFormat: format as u16,
+        ptd: std::ptr::null_mut(),
+        dwAspect: DVASPECT_CONTENT.0,
+        lindex: -1,
+        tymed: TYMED_HGLOBAL.0 as u32,
+    })
+}
+
+pub(super) fn build_mime_format(name: &str) -> Result<FORMATETC, String> {
+    let name = name
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let format = unsafe { RegisterClipboardFormatW(PCWSTR(name.as_ptr())) };
+    if format == 0 {
+        return Err(String::from(
+            "RegisterClipboardFormatW failed for external drag MIME type",
         ));
     }
     Ok(FORMATETC {
@@ -151,6 +172,29 @@ pub(super) fn create_hglobal_for_url(url: &str) -> Result<HGLOBAL, std::io::Erro
     Ok(handle)
 }
 
+/// Allocate one movable `HGLOBAL` containing exact caller-owned bytes.
+///
+/// A zero-byte movable block is valid for an empty MIME representation. It
+/// must remain unlocked: locking a zero-byte movable allocation is not a data
+/// copy and may fail on Windows.
+pub(super) fn create_hglobal_for_bytes(bytes: &[u8]) -> Result<HGLOBAL, std::io::Error> {
+    let handle = unsafe { GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes.len()) }
+        .map_err(last_error_from_win32)?;
+    if bytes.is_empty() {
+        return Ok(handle);
+    }
+    let ptr = unsafe { GlobalLock(handle) };
+    if ptr.is_null() {
+        free_hglobal(handle);
+        return Err(std::io::Error::last_os_error());
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr.cast::<u8>(), bytes.len());
+        let _ = GlobalUnlock(handle);
+    }
+    Ok(handle)
+}
+
 pub(super) fn external_drag_effect(effect: DROPEFFECT) -> ExternalDragEffect {
     if effect.0 & DROPEFFECT_MOVE.0 != 0 {
         ExternalDragEffect::Move
@@ -201,5 +245,22 @@ mod tests {
         assert_eq!(format.lindex, -1);
         assert_eq!(format.dwAspect, DVASPECT_CONTENT.0);
         assert_eq!(format.tymed, TYMED_HGLOBAL.0 as u32);
+    }
+
+    #[test]
+    fn mime_format_uses_one_custom_hglobal_slot() {
+        let format = build_mime_format("application/x-radiant").expect("MIME format");
+
+        assert_eq!(format.lindex, -1);
+        assert_eq!(format.dwAspect, DVASPECT_CONTENT.0);
+        assert_eq!(format.tymed, TYMED_HGLOBAL.0 as u32);
+    }
+
+    #[test]
+    fn empty_mime_bytes_allocate_without_global_locking() {
+        let handle = create_hglobal_for_bytes(&[]).expect("empty MIME HGLOBAL");
+
+        assert!(!handle.0.is_null());
+        free_hglobal(handle);
     }
 }

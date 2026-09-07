@@ -9,7 +9,10 @@ mod payload;
 #[path = "preview.rs"]
 mod preview;
 
-use crate::runtime::{ExternalDragOutcome, ExternalDragPayload, ExternalDragRequest};
+use crate::runtime::{
+    ExternalDragOutcome, ExternalDragPayload, ExternalDragRequest,
+    normalized_external_drag_mime_name,
+};
 use data_object::ExternalDragDataObject;
 use drop_source::SimpleDropSource;
 use payload::{external_drag_effect, normalize_path};
@@ -55,6 +58,9 @@ pub(super) fn start_external_drag(
         }
         ExternalDragPayload::Text(text) => ExternalDragDataObject::text(text.clone())?,
         ExternalDragPayload::Url(url) => ExternalDragDataObject::url(url.clone())?,
+        ExternalDragPayload::Mime { name, bytes } => {
+            ExternalDragDataObject::mime(normalized_external_drag_mime_name(name), bytes.clone())?
+        }
     };
     let data_object: IDataObject = data_object_impl.into();
     let drop_source: IDropSource = SimpleDropSource.into();

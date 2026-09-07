@@ -1,6 +1,8 @@
 //! Backend-neutral external drag-and-drop requests.
 
-use super::{MAX_EXTERNAL_OFFER_ITEM_BYTES, MAX_EXTERNAL_OFFER_TEXT_BYTES};
+use super::{
+    MAX_EXTERNAL_OFFER_ITEM_BYTES, MAX_EXTERNAL_OFFER_MIME_BYTES, MAX_EXTERNAL_OFFER_TEXT_BYTES,
+};
 use std::path::PathBuf;
 
 /// External drag payload that a native backend can offer to other applications.
@@ -17,6 +19,17 @@ pub enum ExternalDragPayload {
     /// several URLs must choose an explicit application representation rather
     /// than relying on platform-specific URL-list flattening.
     Url(String),
+    /// Arbitrary bytes offered under one deliberately exported MIME type.
+    ///
+    /// The MIME name is syntactically bounded at launch, but its bytes remain
+    /// opaque: exporting them does not parse or semantically validate content,
+    /// or guarantee that a receiver supports the representation.
+    Mime {
+        /// MIME `type/subtype` name selected by the caller.
+        name: String,
+        /// Exact bytes selected by the caller, including an empty payload.
+        bytes: Vec<u8>,
+    },
 }
 
 /// Native drag image metadata.
@@ -73,6 +86,26 @@ impl ExternalDragRequest {
         }
     }
 
+    /// Build an opaque MIME-drag request with a preview label.
+    ///
+    /// The caller deliberately authorizes export of these bytes. Their MIME
+    /// name and size are validated when the native drag launches, including
+    /// for direct [`ExternalDragPayload`] construction; that validation does
+    /// not parse the content or guarantee receiver support.
+    pub fn mime(
+        name: impl Into<String>,
+        bytes: impl Into<Vec<u8>>,
+        label: impl Into<String>,
+    ) -> Self {
+        Self {
+            payload: ExternalDragPayload::Mime {
+                name: name.into(),
+                bytes: bytes.into(),
+            },
+            preview: ExternalDragPreview::label(label),
+        }
+    }
+
     /// Validate a payload before a native backend starts an external drag.
     ///
     /// This is intentionally performed at launch, rather than only by the
@@ -83,6 +116,7 @@ impl ExternalDragRequest {
             ExternalDragPayload::Files(_) => Ok(()),
             ExternalDragPayload::Text(text) => validate_external_drag_text(text),
             ExternalDragPayload::Url(url) => validate_external_drag_url(url),
+            ExternalDragPayload::Mime { name, bytes } => validate_external_drag_mime(name, bytes),
         }
     }
 }
@@ -137,6 +171,23 @@ fn validate_external_drag_url(url: &str) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+fn validate_external_drag_mime(name: &str, bytes: &[u8]) -> Result<(), String> {
+    super::external_offer::validate_mime_name(name)
+        .map_err(|error| format!("External drag MIME type is invalid: {error}"))?;
+    if bytes.len() > MAX_EXTERNAL_OFFER_MIME_BYTES {
+        return Err(format!(
+            "External drag MIME bytes exceed the {MAX_EXTERNAL_OFFER_MIME_BYTES}-byte limit"
+        ));
+    }
+    Ok(())
+}
+
+/// Prepare the platform MIME tag without changing the caller-owned payload.
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+pub(crate) fn normalized_external_drag_mime_name(name: &str) -> String {
+    name.to_ascii_lowercase()
 }
 
 /// Native drop effect reported by the platform after an external drag.
@@ -295,6 +346,56 @@ mod tests {
         ] {
             assert!(
                 ExternalDragRequest::url(url, "URL")
+                    .validate_for_native_launch()
+                    .is_ok()
+            );
+        }
+    }
+
+    #[test]
+    fn mime_request_preserves_exact_bytes_and_preview_label() {
+        let request = ExternalDragRequest::mime("Application/X-Radiant", [0, 1, 255], "Preset");
+
+        assert_eq!(request.preview.label, "Preset");
+        assert_eq!(
+            request.payload,
+            ExternalDragPayload::Mime {
+                name: String::from("Application/X-Radiant"),
+                bytes: vec![0, 1, 255],
+            }
+        );
+        assert!(request.validate_for_native_launch().is_ok());
+        assert_eq!(
+            normalized_external_drag_mime_name("Application/X-Radiant"),
+            "application/x-radiant"
+        );
+    }
+
+    #[test]
+    fn direct_mime_payloads_are_checked_at_native_launch() {
+        for (name, bytes) in [
+            (String::from("text"), Vec::new()),
+            (String::from("text/plain; charset=utf-8"), Vec::new()),
+            (String::from("text/pla in"), Vec::new()),
+            (
+                String::from("text/plain"),
+                vec![0; MAX_EXTERNAL_OFFER_MIME_BYTES + 1],
+            ),
+        ] {
+            let request = ExternalDragRequest {
+                payload: ExternalDragPayload::Mime { name, bytes },
+                preview: ExternalDragPreview::label("MIME"),
+            };
+            assert!(request.validate_for_native_launch().is_err());
+        }
+
+        for bytes in [
+            Vec::new(),
+            vec![0, 1, 255],
+            vec![0; MAX_EXTERNAL_OFFER_MIME_BYTES],
+        ] {
+            assert!(
+                ExternalDragRequest::mime("application/x-radiant", bytes, "MIME")
                     .validate_for_native_launch()
                     .is_ok()
             );

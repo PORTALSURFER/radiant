@@ -10,7 +10,9 @@ mod payload;
 #[path = "macos/source.rs"]
 mod source;
 
-use crate::runtime::{ExternalDragPayload, ExternalDragRequest};
+use crate::runtime::{
+    ExternalDragPayload, ExternalDragRequest, normalized_external_drag_mime_name,
+};
 use std::time::Instant;
 use tracing::debug;
 
@@ -47,6 +49,13 @@ pub(super) fn start_external_drag(
             (unsafe { payload::text_dragging_items(text)? }, 1, "text")
         }
         ExternalDragPayload::Url(url) => (unsafe { payload::url_dragging_items(url)? }, 1, "URL"),
+        ExternalDragPayload::Mime { name, bytes } => (
+            unsafe {
+                payload::mime_dragging_items(&normalized_external_drag_mime_name(name), bytes)?
+            },
+            1,
+            "MIME",
+        ),
     };
     let items_elapsed = items_started_at.elapsed();
     let mut source = unsafe { source::dragging_source(event_proxy, window_id, context.identity)? };

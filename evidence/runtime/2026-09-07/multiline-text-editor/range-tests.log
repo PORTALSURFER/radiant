@@ -1,0 +1,28 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1404-multiline-editor-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 31s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-aac666dda0f02901)
+
+running 14 tests
+test gui::text_layout::paragraph::tests::l1_adjusts_trailing_whitespace_from_pre_l1_level ... ok
+test gui::text_layout::paragraph::tests::rejects_incomplete_or_nonfinite_input ... ok
+test gui::text_layout::paragraph::tests::rejects_cluster_cap_before_attempting_partial_geometry ... ok
+test gui::text_layout::paragraph::tests::rejects_finite_advances_whose_sum_overflows ... ok
+test gui::text_layout::paragraph::tests::rejects_provider_level_that_disagrees_with_l1_reordering ... ok
+test gui::text_layout::paragraph::tests::hard_and_trailing_lines ... ok
+test gui::text_layout::paragraph::tests::soft_wraps_only_safe_boundary ... ok
+test gui::text_layout::paragraph::tests::all_uax14_mandatory_separators_create_hard_lines ... ok
+test gui::text_layout::paragraph::tests::unavoidable_overflow_resets_at_its_next_safe_boundary ... ok
+test gui::text_layout::paragraph::tests::wrap_uses_the_last_safe_boundary_that_still_fits ... ok
+test gui::text_layout::paragraph::tests::combining_has_one_logical_grapheme_boundary ... ok
+test gui::text_layout::paragraph::tests::wrapped_rtl_whitespace_uses_l1_caret_direction ... ok
+test gui::text_layout::paragraph::tests::bidi_and_selection_use_same_placements ... ok
+test gui::text_layout::paragraph::tests::narrow_wrap_reuses_one_precomputed_paragraph_bidi_snapshot ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 4365 filtered out; finished in 0.01s
+

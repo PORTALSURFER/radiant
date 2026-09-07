@@ -53,3 +53,18 @@ The example's ASCII paragraph geometry is deliberately deterministic and
 headless. It is not a production text provider; native hosts must supply their
 own shaping result for each accepted declaration. Reflow, text-scale changes,
 wrap changes, and edits require a fresh matching receipt.
+
+Native hosts seed focused editor geometry first and admit an idle editor's exact
+current declaration before pointer or wheel dispatch. The shaping cache retains
+at most eight paragraphs; accepted-plan retention is capped at 64 editors and
+32 MiB. Idle entries can be evicted and readmitted, so an editor beyond the
+initial retention count still receives input. Painting uses the retained paragraph
+when its declaration matches the accepted plan.
+
+## Bounded reflow scenario
+
+`cargo bench --locked --bench perf_harness text_editor_reflow_64k -- --jsonl`
+measures renderer-neutral reflow at the 65,536-grapheme document limit, alternating
+320- and 640-unit wrap widths and resolving the final caret. It includes geometry
+input cloning and construction. It excludes native shaping, GPU encoding, and
+platform IME latency; those require separate host evidence.

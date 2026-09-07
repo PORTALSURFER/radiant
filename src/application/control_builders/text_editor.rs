@@ -9,7 +9,7 @@ use crate::{
 /// Builder for a controlled multi-line editor backed by an application document snapshot.
 pub struct TextEditorBuilder {
     snapshot: TextEditorSnapshot,
-    id: WidgetId,
+    id: Option<WidgetId>,
     wrap: bool,
     font_size: f32,
 }
@@ -17,7 +17,7 @@ pub struct TextEditorBuilder {
 impl TextEditorBuilder {
     /// Set a stable widget identity for geometry receipts and input routing.
     pub fn id(mut self, id: WidgetId) -> Self {
-        self.id = id;
+        self.id = Some(id);
         self
     }
 
@@ -41,13 +41,17 @@ impl TextEditorBuilder {
         map: impl Fn(TextEditorEdit) -> Message + 'static,
     ) -> ViewNode<Message> {
         let mut widget = TextEditorWidget::from_parts(TextEditorWidgetParts {
-            id: self.id,
+            id: self.id.unwrap_or(0),
             snapshot: self.snapshot,
             sizing: default_text_input_sizing(),
         });
         widget.wrap = self.wrap;
         widget.font_size = self.font_size;
-        view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)))
+        let node = view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)));
+        match self.id {
+            Some(id) => node.id(id),
+            None => node,
+        }
     }
 }
 
@@ -55,7 +59,7 @@ impl TextEditorBuilder {
 pub fn text_editor(snapshot: TextEditorSnapshot) -> TextEditorBuilder {
     TextEditorBuilder {
         snapshot,
-        id: 0,
+        id: None,
         wrap: true,
         font_size: 14.0,
     }

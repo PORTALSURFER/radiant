@@ -39,3 +39,6 @@ mod window_environment;
 #[path = "tests/window_policy.rs"]
 mod window_policy;
 use fixtures::*;
+
+#[path = "tests/text_editor.rs"]
+mod text_editor;

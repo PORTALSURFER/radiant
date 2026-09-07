@@ -14,7 +14,10 @@ impl NativeTextRenderer {
         scene: &mut Scene,
         input: &PaintTextEditor,
     ) -> bool {
-        let Some(paragraph) = self.editor_paragraph_for_request(&input.request) else {
+        let Some(paragraph) = self
+            .retained_editor_paragraph(&input.request)
+            .or_else(|| self.editor_paragraph_for_request(&input.request))
+        else {
             return false;
         };
         let geometry = paragraph.geometry();

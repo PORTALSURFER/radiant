@@ -421,12 +421,13 @@ mod tests {
 
     #[test]
     fn rtl_multigrapheme_ligature_payload_uses_logical_geometry_origin() {
-        use super::{
+        use super::super::model::{
             BidiDirection, BidiRun, GlyphPlacement, GraphemeBoundary, GraphemeGeometry,
-            LineBreakKind, LineBreakRecord, NativeEditorClusterPayload, ResolvedFontRun,
-            ShapeClusterRange, ShapedBreakBoundary, ShapedParagraph, SnapshotQuality,
-            TextPresentation, TextQuality, Utf8ByteOffset, append_shaped_clusters,
+            LineBreakKind, LineBreakRecord, ResolvedFontRun, ShapeClusterRange,
+            ShapedBreakBoundary, ShapedParagraph, SnapshotQuality, TextPresentation, TextQuality,
+            Utf8ByteOffset,
         };
+        use super::{NativeEditorClusterPayload, append_shaped_clusters};
         use crate::{
             application::WritingDirection,
             gui::text_layout::paragraph::{

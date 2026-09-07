@@ -30,7 +30,7 @@ use radiant::{
 use std::sync::Arc;
 
 const EDITOR_ID: u64 = 40;
-const VIEWPORT: Vector2 = Vector2::new(96.0, 36.0);
+const VIEWPORT: Vector2 = Vector2 { x: 96.0, y: 36.0 };
 
 enum Message {
     Edit(TextEditorEdit),
@@ -94,6 +94,7 @@ fn run_fixture() -> FixtureResult {
     assert!(runtime.focus_widget(EDITOR_ID));
 
     install_fixture_geometry(&mut runtime);
+    dispatch(&mut runtime, Event::key_press(WidgetKey::End));
     dispatch(&mut runtime, Event::character('!'));
     dispatch(&mut runtime, Event::key_press(WidgetKey::Enter));
     for character in "drum".chars() {
@@ -108,10 +109,18 @@ fn run_fixture() -> FixtureResult {
         FocusSurface::None,
     ));
 
+    assert_eq!(runtime.bridge().document.snapshot().selection().anchor, 10);
+    assert_eq!(runtime.bridge().document.snapshot().selection().caret, 4);
+
     // Preedit projects into the widget but does not change committed document text.
-    let empty = CompositionRange::new(0, 0, 0).expect("empty composition range");
+    install_fixture_geometry(&mut runtime);
+    dispatch(&mut runtime, Event::key_press(WidgetKey::Home));
+    let empty = CompositionRange::new(0, 0, runtime.bridge().document.text().chars().count())
+        .expect("current collapsed composition range");
     assert_eq!(
-        runtime.dispatch_composition_sample(CompositionSample::start(empty, empty)),
+        runtime.dispatch_composition_sample(
+            CompositionSample::start(empty, empty).expect("valid composition start")
+        ),
         Some(EDITOR_ID)
     );
     assert_eq!(runtime.bridge().document.text(), "kick!\ndrum");
@@ -217,7 +226,7 @@ mod tests {
             run_fixture(),
             FixtureResult {
                 text: "loopkick!\ndrum".into(),
-                applied_edits: 10,
+                applied_edits: 12,
                 deterministic_turns: 1,
             }
         );

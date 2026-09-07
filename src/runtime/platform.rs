@@ -245,12 +245,27 @@ impl Error for ClipboardValueError {}
 
 /// Owned, bounded, typed content retained by one application-instance
 /// clipboard coordinator. It is never sent to an adapter host.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum ClipboardValue {
     /// UTF-8 text content.
     Text(String),
     /// Owned file paths.
     FilePaths(Vec<PathBuf>),
+}
+
+impl fmt::Debug for ClipboardValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Text(text) => f
+                .debug_struct("Text")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::FilePaths(paths) => f
+                .debug_struct("FilePaths")
+                .field("path_count", &paths.len())
+                .finish(),
+        }
+    }
 }
 
 impl ClipboardValue {
@@ -353,7 +368,7 @@ impl NotificationRequest {
 pub type PlatformNotificationRequest = NotificationRequest;
 
 /// Platform-neutral request for host-visible OS or shell services.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PlatformRequest {
     /// Ask the platform integration to choose a folder.
     PickFolder(FileDialogRequest),
@@ -389,6 +404,33 @@ pub enum PlatformRequest {
     /// The controller handles this variant locally; it is never passed to a
     /// platform adapter.
     WriteClipboard(ClipboardValue),
+}
+
+impl fmt::Debug for PlatformRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PickFolder(value) => f.debug_tuple("PickFolder").field(value).finish(),
+            Self::PickFile(value) => f.debug_tuple("PickFile").field(value).finish(),
+            Self::SaveFile(value) => f.debug_tuple("SaveFile").field(value).finish(),
+            Self::OpenPath(value) => f.debug_tuple("OpenPath").field(value).finish(),
+            Self::RevealPath(value) => f.debug_tuple("RevealPath").field(value).finish(),
+            Self::OpenUrl(value) => f.debug_tuple("OpenUrl").field(value).finish(),
+            Self::CopyText(text) => f
+                .debug_struct("CopyText")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::CopyFilePaths(paths) => f
+                .debug_struct("CopyFilePaths")
+                .field("path_count", &paths.len())
+                .finish(),
+            Self::ReadText => f.write_str("ReadText"),
+            Self::ReadFilePaths => f.write_str("ReadFilePaths"),
+            Self::Confirm(value) => f.debug_tuple("Confirm").field(value).finish(),
+            Self::Notify(value) => f.debug_tuple("Notify").field(value).finish(),
+            Self::ReadClipboard(value) => f.debug_tuple("ReadClipboard").field(value).finish(),
+            Self::WriteClipboard(value) => f.debug_tuple("WriteClipboard").field(value).finish(),
+        }
+    }
 }
 
 impl PlatformRequest {
@@ -492,7 +534,7 @@ impl PlatformRequest {
 }
 
 /// Platform-neutral result for host-visible OS or shell services.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum PlatformResponse {
     /// The request completed without returning additional data.
     Completed,
@@ -508,6 +550,26 @@ pub enum PlatformResponse {
     Confirmation(ConfirmationResponse),
     /// A typed value read from the app-instance clipboard coordinator.
     Clipboard(ClipboardValue),
+}
+
+impl fmt::Debug for PlatformResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Completed => f.write_str("Completed"),
+            Self::Canceled => f.write_str("Canceled"),
+            Self::Path(value) => f.debug_tuple("Path").field(value).finish(),
+            Self::Text(text) => f
+                .debug_struct("Text")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::FilePaths(paths) => f
+                .debug_struct("FilePaths")
+                .field("path_count", &paths.len())
+                .finish(),
+            Self::Confirmation(value) => f.debug_tuple("Confirmation").field(value).finish(),
+            Self::Clipboard(value) => f.debug_tuple("Clipboard").field(value).finish(),
+        }
+    }
 }
 
 impl PlatformResponse {
@@ -899,6 +961,7 @@ pub type PlatformCompletion<Message> = Box<dyn FnOnce(PlatformResult) -> Message
 pub struct RuntimePlatformResultSink {
     identity: PlatformCompletionIdentity,
     callback: Option<Box<dyn FnOnce(PlatformResultDelivery) + Send + 'static>>,
+    cancellation: Option<std::sync::Arc<dyn Fn() -> bool + Send + Sync + 'static>>,
 }
 
 impl RuntimePlatformResultSink {
@@ -909,24 +972,48 @@ impl RuntimePlatformResultSink {
         Self {
             identity,
             callback: Some(Box::new(callback)),
+            cancellation: None,
         }
+    }
+
+    pub(crate) fn with_cancellation(
+        mut self,
+        cancellation: std::sync::Arc<dyn Fn() -> bool + Send + Sync + 'static>,
+    ) -> Self {
+        self.cancellation = Some(cancellation);
+        self
+    }
+
+    /// Whether the initiating owner has revoked this operation.
+    ///
+    /// Platform adapters should check immediately before starting an external
+    /// operation. Cancellation cannot undo a platform call that has already begun.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation.as_ref().is_some_and(|probe| probe())
     }
 
     /// Deliver one result to the runtime's deferred ingress.
     pub fn send(mut self, result: PlatformResult) {
         if let Some(callback) = self.callback.take() {
-            callback(PlatformResultDelivery::Completed {
-                identity: self.identity,
-                result: sanitize_platform_result(result),
-            });
+            callback(self.result_delivery(result));
         }
     }
 
     pub(crate) fn into_delivery(mut self, result: PlatformResult) -> PlatformResultDelivery {
         self.callback.take();
-        PlatformResultDelivery::Completed {
-            identity: self.identity,
-            result: sanitize_platform_result(result),
+        self.result_delivery(result)
+    }
+
+    fn result_delivery(&self, result: PlatformResult) -> PlatformResultDelivery {
+        if self.is_cancelled() {
+            PlatformResultDelivery::Discarded {
+                identity: self.identity,
+            }
+        } else {
+            PlatformResultDelivery::Completed {
+                identity: self.identity,
+                result: sanitize_platform_result(result),
+            }
         }
     }
 }
@@ -1278,6 +1365,65 @@ mod tests {
             observed.lock().expect("result lock").take(),
             Some(Ok(PlatformResponse::FilePaths(Vec::new())))
         );
+    }
+
+    #[test]
+    fn clipboard_debug_models_exclude_payloads() {
+        let secret = "unique-clipboard-payload-sentinel";
+        let samples = [
+            format!("{:?}", PlatformRequest::CopyText(secret.into())),
+            format!("{:?}", PlatformRequest::CopyFilePaths(vec![secret.into()])),
+            format!("{:?}", PlatformResponse::Text(secret.into())),
+            format!("{:?}", PlatformResponse::FilePaths(vec![secret.into()])),
+            format!(
+                "{:?}",
+                PlatformResponse::Clipboard(ClipboardValue::Text(secret.into()))
+            ),
+            format!(
+                "{:?}",
+                PlatformRequest::WriteClipboard(ClipboardValue::Text(secret.into()))
+            ),
+        ];
+        assert!(samples.iter().all(|sample| !sample.contains(secret)));
+        assert!(samples[0].contains("CopyText"));
+        assert!(samples[0].contains("text_bytes"));
+    }
+
+    #[test]
+    fn revoked_result_sink_discards_once_without_exposing_payload() {
+        use std::sync::{
+            Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
+        };
+        let revoked = Arc::new(AtomicBool::new(false));
+        let probe = Arc::clone(&revoked);
+        let deliveries = Arc::new(Mutex::new(Vec::new()));
+        let observed = Arc::clone(&deliveries);
+        let sink = RuntimePlatformResultSink::new(
+            PlatformCompletionIdentity { id: 9, epoch: 2 },
+            move |delivery| observed.lock().unwrap().push(delivery),
+        )
+        .with_cancellation(Arc::new(move || probe.load(Ordering::Acquire)));
+        assert!(!sink.is_cancelled());
+        revoked.store(true, Ordering::Release);
+        assert!(sink.is_cancelled());
+        sink.send(Ok(PlatformResponse::Text("private clipboard text".into())));
+        let deliveries = deliveries.lock().unwrap();
+        assert_eq!(deliveries.len(), 1);
+        assert!(matches!(
+            deliveries[0],
+            PlatformResultDelivery::Discarded { .. }
+        ));
+
+        let sink =
+            RuntimePlatformResultSink::new(PlatformCompletionIdentity { id: 10, epoch: 2 }, |_| {
+                panic!("converted sink must not invoke callback")
+            })
+            .with_cancellation(Arc::new(|| true));
+        assert!(matches!(
+            sink.into_delivery(Ok(PlatformResponse::Completed)),
+            PlatformResultDelivery::Discarded { .. }
+        ));
     }
 
     #[test]

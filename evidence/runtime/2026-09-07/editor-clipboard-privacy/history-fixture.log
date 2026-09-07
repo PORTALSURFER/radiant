@@ -1,0 +1,4 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1405-editor-clipboard-privacy-radiant)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.05s
+     Running `/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/text_editor_history`
+{"text":"abc!x","undo":3,"redo":0}

@@ -1,16 +1,332 @@
 use crate::application::{ApplicationEnvironment, LocaleId, TextScale, WritingDirection};
 use crate::gui::types::{Point, Rect, Vector2};
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, TextClipboardOperation};
 use crate::runtime::{ResolvedEnvironment, WindowEnvironment};
 use crate::theme::ThemeTokens;
 use crate::widgets::interaction::{
-    PointerButton, TextEditCommand, TextInputMessage, TextInputRevision, WidgetInput, WidgetKey,
+    CompositionRange, CompositionSample, PointerButton, TextEditCommand, TextInputMessage,
+    TextInputRevision, WidgetInput, WidgetKey,
 };
-use crate::widgets::{TextAlign, Widget};
+use crate::widgets::interaction::{TextEditBoundary, TextEditKind, TextInputEditEvent};
+use crate::widgets::{
+    SemanticAction, TextAlign, TextPrivacy, TextSecretPolicy, Widget, WidgetSemantics,
+};
 use std::sync::Arc;
 
 use super::super::NativeCaretAffinity;
 use super::super::{TextInputChrome, TextInputWidget, WidgetSizing};
+
+#[test]
+fn text_edit_authority_advances_for_edits_and_focus_loss_but_not_hover() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(100.0, 28.0));
+    let mut input =
+        TextInputWidget::new(7, "draft", WidgetSizing::fixed(Vector2::new(100.0, 28.0)));
+    input.common.state.focused = true;
+    let before_edit = input
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let _ = input.handle_input(bounds, WidgetInput::character('!'));
+    assert!(!input.is_current_text_edit_authority(&before_edit));
+    let before_hover = input
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let _ = input.handle_input(bounds, WidgetInput::pointer_move(Point::new(200.0, 0.0)));
+    assert!(input.is_current_text_edit_authority(&before_hover));
+
+    let _ = input.handle_input(bounds, WidgetInput::FocusChanged(false));
+    assert!(!input.is_current_text_edit_authority(&before_hover));
+}
+
+#[test]
+fn compatible_reprojection_shares_text_edit_authority_and_newer_revision_cancels_it() {
+    let sizing = WidgetSizing::fixed(Vector2::new(100.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "draft", sizing);
+    previous.props.revision = Some(TextInputRevision::new(3));
+    let authority = previous
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let mut compatible = TextInputWidget::new(7, "draft", sizing);
+    compatible.props.revision = Some(TextInputRevision::new(3));
+    compatible.synchronize_from_previous(&previous);
+    assert!(compatible.is_current_text_edit_authority(&authority));
+
+    let mut newer = TextInputWidget::new(7, "saved", sizing);
+    newer.props.revision = Some(TextInputRevision::new(4));
+    newer.synchronize_from_previous(&previous);
+    assert!(!previous.is_current_text_edit_authority(&authority));
+}
+
+#[test]
+fn editing_policy_reprojection_revokes_text_edit_authority() {
+    let sizing = WidgetSizing::fixed(Vector2::new(100.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "draft", sizing);
+    previous.props.character_limit = Some(5);
+    let authority = previous
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let mut compatible = TextInputWidget::new(7, "draft", sizing);
+    compatible.props.character_limit = Some(5);
+    compatible.synchronize_from_previous(&previous);
+    assert!(compatible.is_current_text_edit_authority(&authority));
+
+    let mut limited = TextInputWidget::new(7, "draft", sizing);
+    limited.props.character_limit = Some(3);
+    limited.synchronize_from_previous(&previous);
+    assert!(!previous.is_current_text_edit_authority(&authority));
+
+    let submit_previous = TextInputWidget::new(7, "draft", sizing);
+    let submit_authority = submit_previous
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+    let mut submit_changed = TextInputWidget::new(7, "draft", sizing);
+    submit_changed.props.submit_on_enter = false;
+    submit_changed.synchronize_from_previous(&submit_previous);
+    assert!(!submit_previous.is_current_text_edit_authority(&submit_authority));
+}
+
+#[test]
+fn secret_text_input_masks_paint_and_restricts_semantics() {
+    let secret = "secret-e\u{301}👩‍❤️‍💋‍👩";
+    let mut input = TextInputWidget::new(7, secret, WidgetSizing::fixed(Vector2::new(160.0, 28.0)))
+        .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    input.props.completion_suffix = Some("private suffix".into());
+    input.state.selection_anchor = 0;
+    input.state.caret = input.state.char_len();
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(160.0, 28.0));
+    let mut primitives = Vec::new();
+    input.append_paint(
+        &mut primitives,
+        bounds,
+        &crate::layout::LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    let paint = primitives
+        .into_iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(paint) => Some(paint),
+            _ => None,
+        });
+    let paint = paint.expect("text input paint is present");
+    assert_eq!(paint.state.value, "•••••••••");
+    assert_eq!(paint.completion_suffix, None);
+    assert!(!format!("{paint:?}").contains(secret));
+    assert_eq!(input.automation_value_text(), None);
+    assert_eq!(
+        input.automation_metadata().get("text.privacy"),
+        Some(&"secret".to_owned())
+    );
+    assert!(!crate::widgets::WidgetSemanticActions::supports(
+        &input,
+        &SemanticAction::SetText("updated".into())
+    ));
+
+    let exposed = input.with_privacy(TextPrivacy::Secret(
+        TextSecretPolicy::new().allow_automation(),
+    ));
+    assert_eq!(exposed.automation_value_text().as_deref(), Some(secret));
+}
+
+#[test]
+fn secret_text_input_maps_combining_and_zwj_pointer_boundaries() {
+    let text = "e\u{301}👩‍❤️‍💋‍👩";
+    let mut input = TextInputWidget::new(7, text, WidgetSizing::fixed(Vector2::new(160.0, 28.0)))
+        .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    input.state.caret = 1;
+    input.state.selection_anchor = 1;
+    assert_eq!(input.display_state().caret, 0);
+    assert!(input.set_native_pointer_display_caret(1, NativeCaretAffinity::Downstream));
+    assert_eq!(
+        input.take_native_pointer_caret().map(|(caret, _)| caret),
+        Some(2)
+    );
+    assert!(input.set_native_pointer_display_caret(2, NativeCaretAffinity::Downstream));
+    assert_eq!(
+        input.take_native_pointer_caret().map(|(caret, _)| caret),
+        Some(text.chars().count())
+    );
+}
+
+#[test]
+fn text_clipboard_receipts_require_current_exact_state_policy_and_owner() {
+    let sizing = WidgetSizing::fixed(Vector2::new(160.0, 28.0));
+    let mut input = TextInputWidget::new(7, "secret", sizing);
+    input.common.state.focused = true;
+    input.state.selection_anchor = 0;
+    input.state.caret = input.state.char_len();
+    let receipt = Widget::text_clipboard_receipt(&input, TextClipboardOperation::Copy)
+        .expect("public selected text is copyable");
+    assert!(Widget::accepts_text_clipboard_receipt(&input, &receipt));
+
+    input.state.caret = 1;
+    assert!(!Widget::accepts_text_clipboard_receipt(&input, &receipt));
+
+    input.state.caret = input.state.char_len();
+
+    let mut foreign = TextInputWidget::new(7, "secret", sizing);
+    foreign.common.state.focused = true;
+    foreign.state.selection_anchor = 0;
+    foreign.state.caret = foreign.state.char_len();
+    let foreign_receipt = Widget::text_clipboard_receipt(&foreign, TextClipboardOperation::Copy)
+        .expect("foreign public selected text is copyable");
+    assert!(!Widget::accepts_text_clipboard_receipt(
+        &input,
+        &foreign_receipt
+    ));
+
+    let receipt = Widget::text_clipboard_receipt(&input, TextClipboardOperation::Copy)
+        .expect("current selected text is copyable");
+    let mut limited = TextInputWidget::new(7, "secret", sizing);
+    limited.props.character_limit = Some(3);
+    limited.synchronize_from_previous(&input);
+    assert!(!Widget::accepts_text_clipboard_receipt(&input, &receipt));
+
+    let mut secret = TextInputWidget::new(7, "secret", sizing)
+        .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    secret.common.state.focused = true;
+    secret.state.selection_anchor = 0;
+    secret.state.caret = secret.state.char_len();
+    assert!(Widget::text_clipboard_receipt(&secret, TextClipboardOperation::Copy).is_none());
+
+    let copy_allowed =
+        secret.with_privacy(TextPrivacy::Secret(TextSecretPolicy::new().allow_copy()));
+    assert!(Widget::text_clipboard_receipt(&copy_allowed, TextClipboardOperation::Copy).is_some());
+}
+
+#[test]
+fn text_input_debug_redacts_active_secret_composition_and_adornments() {
+    let original = "original-secret";
+    let placeholder = "placeholder-secret";
+    let suffix = "suffix-secret";
+    let preedit = "preedit-secret";
+    let mut input =
+        TextInputWidget::new(7, original, WidgetSizing::fixed(Vector2::new(160.0, 28.0)))
+            .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    input.props.placeholder = Some(placeholder.into());
+    input.props.completion_suffix = Some(suffix.into());
+    input.common.state.focused = true;
+    let range = CompositionRange::new(0, input.state.char_len(), input.state.char_len())
+        .expect("full composition range is valid");
+    assert!(
+        Widget::handle_composition_sample(
+            &mut input,
+            CompositionSample::start(range, range).expect("composition start is valid"),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_composition_sample(
+            &mut input,
+            CompositionSample::update(
+                preedit,
+                CompositionRange::new(0, preedit.chars().count(), preedit.chars().count())
+                    .expect("preedit range is valid"),
+            )
+            .expect("composition update is valid"),
+        )
+        .is_none()
+    );
+    let debug = format!("{input:?}");
+    for sentinel in [original, placeholder, suffix, preedit] {
+        assert!(!debug.contains(sentinel), "Debug leaked {sentinel:?}");
+    }
+    assert!(debug.contains("TextInputComposition"));
+}
+
+#[test]
+fn text_input_grouping_is_opt_in_and_keeps_legacy_messages() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(160.0, 28.0));
+    let mut legacy = TextInputWidget::new(
+        7,
+        "",
+        WidgetSizing::fixed(crate::gui::types::Vector2::new(
+            bounds.width(),
+            bounds.height(),
+        )),
+    );
+    legacy.common.state.focused = true;
+    assert_eq!(
+        legacy.handle_input(bounds, WidgetInput::character('a')),
+        Some(TextInputMessage::Changed { value: "a".into() })
+    );
+
+    let mut grouped = TextInputWidget::new(
+        7,
+        "",
+        WidgetSizing::fixed(crate::gui::types::Vector2::new(
+            bounds.width(),
+            bounds.height(),
+        )),
+    )
+    .with_edit_events();
+    grouped.common.state.focused = true;
+    let first = Widget::handle_input(&mut grouped, bounds, WidgetInput::character('a'))
+        .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+        .expect("grouped typing emits an event");
+    assert_eq!(
+        first.legacy_message,
+        Some(TextInputMessage::Changed { value: "a".into() })
+    );
+    assert_eq!(
+        first.grouping.current.map(|event| event.kind),
+        Some(TextEditKind::Typing)
+    );
+    assert_eq!(
+        first.grouping.current.map(|event| event.phase),
+        Some(crate::widgets::EditPhase::Begin)
+    );
+    let second = Widget::handle_input(&mut grouped, bounds, WidgetInput::character('b'))
+        .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+        .expect("continued typing emits an event");
+    assert_eq!(
+        second.grouping.current.map(|event| event.phase),
+        Some(crate::widgets::EditPhase::Update)
+    );
+    assert_eq!(
+        first.grouping.current.map(|event| event.transaction),
+        second.grouping.current.map(|event| event.transaction)
+    );
+}
+
+#[test]
+fn grouped_composition_cancel_and_compatible_reprojection_preserve_boundaries() {
+    let sizing = WidgetSizing::fixed(Vector2::new(160.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "draft", sizing).with_edit_events();
+    previous.common.state.focused = true;
+    let range = CompositionRange::new(0, 5, 5).expect("composition range is valid");
+    let started = Widget::handle_composition_sample(
+        &mut previous,
+        CompositionSample::start(range, range).expect("composition start is valid"),
+    )
+    .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+    .expect("composition start emits a grouping event");
+    assert_eq!(started.legacy_message, None);
+    assert_eq!(
+        started.grouping.current.map(|event| event.kind),
+        Some(TextEditKind::Composition)
+    );
+
+    let mut successor = TextInputWidget::new(7, "draft", sizing).with_edit_events();
+    successor.common.state.focused = true;
+    successor.synchronize_from_previous(&previous);
+    let canceled = Widget::handle_composition_sample(&mut successor, CompositionSample::cancel())
+        .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+        .expect("composition cancel emits a boundary event");
+    assert_eq!(canceled.legacy_message, None);
+    assert_eq!(
+        canceled
+            .grouping
+            .current
+            .map(|event| (event.phase, event.boundary)),
+        Some((
+            crate::widgets::EditPhase::Cancel,
+            Some(TextEditBoundary::Composition)
+        ))
+    );
+}
 
 #[test]
 fn generic_pointer_caret_uses_resolved_alignment_and_environment_scale() {

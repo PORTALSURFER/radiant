@@ -98,9 +98,10 @@ pub use interaction::{
     NumericStepAttempt, NumericStepDirection, NumericStepModifiers, NumericWheelAttempt,
     NumericWheelPolicy, PointerButton, PointerModifiers, PointerShieldMessage, RenderCanvasMessage,
     ScrollbarEditBatch, ScrollbarMessage, SelectableMessage, SliderDomainError,
-    SliderDomainMessage, SliderEditBatch, SliderMessage, TextEditCommand, TextInputMessage,
-    TextInputMessageKind, TextInputMessageParts, TextInputRevision, ToggleMessage, ValueFormat,
-    ValueFormatError, ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind,
+    SliderDomainMessage, SliderEditBatch, SliderMessage, TextEditAuthority, TextEditAuthorityOwner,
+    TextEditCommand, TextInputMessage, TextInputMessageKind, TextInputMessageParts,
+    TextInputRevision, TextPrivacy, TextSecretPolicy, ToggleMessage, ValueFormat, ValueFormatError,
+    ValueFormatKind, ValueMapping, ValueMappingError, ValueMappingKind,
     WHEEL_LINE_EQUIVALENCE_PIXELS, WheelDelta, WheelDeltaError, WheelPhase, WheelSample,
     WheelSampleError, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
 };

@@ -1,12 +1,14 @@
 use crate::application::LatestTaskTransaction;
 use crate::runtime::command::EffectLifecycle;
 use crate::runtime::{
-    PlatformCompletion, PlatformCompletionIdentity, PlatformRequest, PlatformResultDelivery,
+    PlatformCompletion, PlatformCompletionIdentity, PlatformRequest, PlatformResult,
+    PlatformResultDelivery, TextClipboardReceipt,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
 use super::SurfaceRuntime;
+use super::commands::CommandOutcome;
 use super::owner::{AuxiliaryWindowOwner, EffectOrigin, LifecycleDescriptor, RuntimeOwner};
 use crate::runtime::RuntimeBridge;
 
@@ -31,6 +33,14 @@ enum PlatformResultValidation {
     Qualified(PlatformRequest),
 }
 
+enum PlatformCompletionTarget<Message> {
+    Application(PlatformCompletion<Message>),
+    Editor {
+        receipt: TextClipboardReceipt,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    },
+}
+
 impl<Message> Default for PlatformCompletionRegistry<Message> {
     fn default() -> Self {
         Self::new(RuntimeOwner::new())
@@ -53,7 +63,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
         origin: &EffectOrigin,
     ) -> PlatformCompletionIdentity {
         self.register_inner(
-            completion,
+            PlatformCompletionTarget::Application(completion),
             PlatformResultValidation::Legacy,
             origin,
             None,
@@ -68,11 +78,27 @@ impl<Message> PlatformCompletionRegistry<Message> {
         origin: &EffectOrigin,
     ) -> PlatformCompletionIdentity {
         self.register_inner(
-            completion,
+            PlatformCompletionTarget::Application(completion),
             PlatformResultValidation::Legacy,
             origin,
             None,
             None,
+        )
+    }
+
+    pub(super) fn register_text_clipboard(
+        &mut self,
+        receipt: TextClipboardReceipt,
+        origin: &EffectOrigin,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> PlatformCompletionIdentity {
+        let request = receipt.request();
+        self.register_inner(
+            PlatformCompletionTarget::Editor { receipt, timestamp },
+            PlatformResultValidation::Qualified(request),
+            origin,
+            None,
+            Some(PlatformRegistrationState::Accepted),
         )
     }
 
@@ -99,7 +125,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
             Some(transaction.newer_replacement_probe()),
         );
         self.register_inner(
-            completion,
+            PlatformCompletionTarget::Application(completion),
             PlatformResultValidation::Qualified(request.clone()),
             origin,
             Some(RegisteredPlatformEffect {
@@ -126,7 +152,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
 
     fn register_inner(
         &mut self,
-        completion: PlatformCompletion<Message>,
+        target: PlatformCompletionTarget<Message>,
         validation: PlatformResultValidation,
         origin: &EffectOrigin,
         effect: Option<RegisteredPlatformEffect>,
@@ -162,7 +188,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
         self.entries.insert(
             identity,
             RegisteredPlatformCompletion {
-                completion,
+                target,
                 validation,
                 origin: origin.clone(),
                 lifecycle,
@@ -252,10 +278,21 @@ impl<Message> PlatformCompletionRegistry<Message> {
         entry.effect_identity = None;
     }
 
+    #[cfg(test)]
     pub(super) fn map_delivery(
         &mut self,
         delivery: PlatformResultDelivery,
     ) -> Option<MappedPlatformMessage<Message>> {
+        match self.map_delivery_target(delivery)? {
+            MappedPlatformCompletion::Application(mapped) => Some(*mapped),
+            MappedPlatformCompletion::Editor(_) => None,
+        }
+    }
+
+    pub(super) fn map_delivery_target(
+        &mut self,
+        delivery: PlatformResultDelivery,
+    ) -> Option<MappedPlatformCompletion<Message>> {
         match delivery {
             PlatformResultDelivery::Completed { identity, result } => {
                 let mapper = self.entries.get(&identity)?;
@@ -294,11 +331,24 @@ impl<Message> PlatformCompletionRegistry<Message> {
                     lifecycle: mapper.lifecycle.clone(),
                     origin: mapper.origin.clone(),
                 });
-                Some(MappedPlatformMessage {
-                    message: (mapper.completion)(result),
-                    origin: mapper.origin,
-                    fence,
-                })
+                match mapper.target {
+                    PlatformCompletionTarget::Application(completion) => Some(
+                        MappedPlatformCompletion::Application(Box::new(MappedPlatformMessage {
+                            message: completion(result),
+                            origin: mapper.origin,
+                            fence,
+                        })),
+                    ),
+                    PlatformCompletionTarget::Editor { receipt, timestamp } => Some(
+                        MappedPlatformCompletion::Editor(Box::new(MappedTextClipboard {
+                            receipt,
+                            timestamp,
+                            result,
+                            origin: mapper.origin,
+                            fence,
+                        })),
+                    ),
+                }
             }
             PlatformResultDelivery::Discarded { identity } => {
                 self.entries.remove(&identity);
@@ -311,7 +361,12 @@ impl<Message> PlatformCompletionRegistry<Message> {
         &mut self,
         identity: PlatformCompletionIdentity,
     ) -> Option<PlatformCompletion<Message>> {
-        self.entries.remove(&identity).map(|entry| entry.completion)
+        self.entries
+            .remove(&identity)
+            .and_then(|entry| match entry.target {
+                PlatformCompletionTarget::Application(completion) => Some(completion),
+                PlatformCompletionTarget::Editor { .. } => None,
+            })
     }
 
     pub(super) fn retire_origin(&mut self, origin: &EffectOrigin) {
@@ -339,7 +394,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
 }
 
 struct RegisteredPlatformCompletion<Message> {
-    completion: PlatformCompletion<Message>,
+    target: PlatformCompletionTarget<Message>,
     validation: PlatformResultValidation,
     lifecycle: LifecycleDescriptor,
     rejection_lifecycle: LifecycleDescriptor,
@@ -348,6 +403,29 @@ struct RegisteredPlatformCompletion<Message> {
     generation: u64,
     state: PlatformRegistrationState,
     origin: EffectOrigin,
+}
+
+pub(super) enum MappedPlatformCompletion<Message> {
+    Application(Box<MappedPlatformMessage<Message>>),
+    Editor(Box<MappedTextClipboard>),
+}
+
+pub(super) struct MappedTextClipboard {
+    receipt: TextClipboardReceipt,
+    timestamp: Option<crate::gui::input::InputTimestamp>,
+    result: PlatformResult,
+    origin: EffectOrigin,
+    fence: Option<PlatformMappingFence>,
+}
+
+impl MappedTextClipboard {
+    fn is_current(&self, owner: &RuntimeOwner) -> bool {
+        self.origin.is_live()
+            && self
+                .fence
+                .as_ref()
+                .is_none_or(|fence| fence.is_current(owner))
+    }
 }
 
 struct RegisteredPlatformEffect {
@@ -403,6 +481,118 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Begin one deferred native clipboard operation for the exact focused text widget.
+    /// Host completion is always committed to the platform ingress for a later drain turn.
+    pub fn begin_focused_text_clipboard(
+        &mut self,
+        operation: crate::runtime::TextClipboardOperation,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> bool {
+        if !self.lifecycle_accepts_work() {
+            return false;
+        }
+        let Some(widget_id) = self.interaction.focus.focused_widget() else {
+            return false;
+        };
+        if !self.is_authoritative_focus_target(widget_id) {
+            return false;
+        }
+        let Some(receipt) = self
+            .surface_widget(widget_id)
+            .and_then(|widget| widget.widget_object().text_clipboard_receipt(operation))
+        else {
+            return false;
+        };
+        if receipt.widget != widget_id {
+            return false;
+        }
+        let request = receipt.request();
+        if request.validate().is_err() {
+            return false;
+        }
+        let Some(capability) = self.host_capabilities.platform_result.as_ref() else {
+            return false;
+        };
+        // Native focused input belongs to this surface runtime. Its owner closes on
+        // runtime shutdown, so an already queued clipboard lane call observes that
+        // terminal fence before touching the OS.
+        let origin = EffectOrigin::Application;
+        let receipt_cancellation = receipt.cancellation_probe();
+        let runtime_owner = self.effect_owner.clone();
+        let cancellation = Arc::new(move || receipt_cancellation() || !runtime_owner.is_open());
+        let identity = self
+            .platform_registry
+            .register_text_clipboard(receipt, &origin, timestamp);
+        let Some(reservation) = PlatformResultIngress::reserve(&self.platform_results) else {
+            let _ = self.platform_registry.remove(identity);
+            return false;
+        };
+        let sink = crate::runtime::RuntimePlatformResultSink::new(identity, move |delivery| {
+            let _ = reservation.commit(delivery);
+        })
+        .with_cancellation(cancellation);
+        if let Err(fallback) = (capability.request_platform_result)(&mut self.bridge, request, sink)
+        {
+            let (request, sink) = *fallback;
+            sink.send(Err(crate::runtime::PlatformFailure::Unavailable(
+                request.service(),
+            )));
+        }
+        true
+    }
+
+    pub(super) fn dispatch_mapped_platform_completion(
+        &mut self,
+        mapped: MappedPlatformCompletion<Message>,
+        outcome: &mut CommandOutcome,
+    ) {
+        match mapped {
+            MappedPlatformCompletion::Application(mapped) => {
+                if !mapped.is_current(&self.effect_owner)
+                    || !self.lifecycle_accepts_work()
+                    || !self.effect_origin_is_active(&mapped.origin)
+                {
+                    return;
+                }
+                self.dispatch_message_inner_with_origin(mapped.message, outcome, mapped.origin);
+            }
+            MappedPlatformCompletion::Editor(mapped) => {
+                if !mapped.is_current(&self.effect_owner)
+                    || !self.lifecycle_accepts_work()
+                    || !self.effect_origin_is_active(&mapped.origin)
+                    || self.interaction.focus.focused_widget() != Some(mapped.receipt.widget)
+                    || !self.is_authoritative_focus_target(mapped.receipt.widget)
+                    || !self
+                        .surface_widget(mapped.receipt.widget)
+                        .is_some_and(|widget| {
+                            widget
+                                .widget_object()
+                                .accepts_text_clipboard_receipt(&mapped.receipt)
+                        })
+                {
+                    return;
+                }
+                use crate::widgets::{TextEditCommand, WidgetInput};
+                let command = match (mapped.receipt.operation, mapped.result) {
+                    (crate::runtime::TextClipboardOperation::Copy, Ok(_)) => return,
+                    (
+                        crate::runtime::TextClipboardOperation::Cut,
+                        Ok(crate::runtime::PlatformResponse::Completed),
+                    ) => TextEditCommand::CutSelection,
+                    (
+                        crate::runtime::TextClipboardOperation::Paste,
+                        Ok(crate::runtime::PlatformResponse::Text(text)),
+                    ) => TextEditCommand::PasteText(text),
+                    _ => return,
+                };
+                let _ = self.dispatch_input(
+                    mapped.receipt.widget,
+                    WidgetInput::text_edit_with_timestamp(command, mapped.timestamp),
+                );
+            }
+        }
+    }
+
     pub(super) fn shutdown_platform_services(&mut self) {
         {
             let mut ingress = self
@@ -557,7 +747,10 @@ fn combine_cancellation_probes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::PlatformResponse;
+    use crate::runtime::{
+        PlatformResponse, RuntimeBridge, RuntimeHostCapabilities, RuntimePlatformResultHost,
+        RuntimePlatformResultSink, SurfaceNode, UiSurface,
+    };
     use crate::{
         application::{IntoView, column, text},
         gui::types::Vector2,
@@ -568,6 +761,152 @@ mod tests {
         rc::Rc,
         sync::{Arc, Mutex},
     };
+
+    #[derive(Default)]
+    struct TextClipboardBridge {
+        sinks: Vec<RuntimePlatformResultSink>,
+    }
+
+    impl RuntimeBridge<()> for TextClipboardBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            let editor = crate::widgets::TextEditorWidget::uncontrolled(
+                41,
+                "old",
+                crate::widgets::WidgetSizing::fixed(Vector2::new(120.0, 48.0)),
+            )
+            .expect("bounded editor");
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::static_widget(editor)))
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_platform_results()
+        }
+    }
+
+    impl RuntimePlatformResultHost for TextClipboardBridge {
+        fn request_platform_result(
+            &mut self,
+            _request: PlatformRequest,
+            sink: RuntimePlatformResultSink,
+        ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+            self.sinks.push(sink);
+            Ok(())
+        }
+    }
+
+    fn editor_text(runtime: &SurfaceRuntime<TextClipboardBridge, ()>) -> String {
+        runtime
+            .surface_widget(41)
+            .and_then(|widget| {
+                widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<crate::widgets::TextEditorWidget>()
+            })
+            .expect("editor")
+            .text()
+            .to_owned()
+    }
+
+    #[test]
+    fn focused_clipboard_paste_is_deferred_and_applies_only_after_success() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None,)
+        );
+        let sink = runtime.bridge_mut().sinks.pop().expect("paste sink");
+        sink.send(Ok(PlatformResponse::Text("new".into())));
+        assert_eq!(editor_text(&runtime), "old");
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "newold");
+    }
+
+    #[test]
+    fn failed_clipboard_cut_never_deletes_the_selection() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .dispatch_focused_input(crate::widgets::WidgetInput::text_edit(
+                    crate::widgets::TextEditCommand::SelectAll,
+                ))
+                .is_some()
+        );
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Cut, None,)
+        );
+        runtime
+            .bridge_mut()
+            .sinks
+            .pop()
+            .expect("cut sink")
+            .send(Err(crate::runtime::PlatformFailure::Unavailable(
+                crate::runtime::PlatformService::Clipboard,
+            )));
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "old");
+    }
+
+    #[test]
+    fn stale_focused_clipboard_paste_is_rejected_after_focus_or_revision_changes() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None)
+        );
+        let sink = runtime.bridge_mut().sinks.pop().expect("focus fenced sink");
+        runtime.clear_focus();
+        sink.send(Ok(PlatformResponse::Text("late".into())));
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "old");
+
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None)
+        );
+        let sink = runtime
+            .bridge_mut()
+            .sinks
+            .pop()
+            .expect("revision fenced sink");
+        assert!(
+            runtime
+                .dispatch_focused_input(crate::widgets::WidgetInput::text_edit(
+                    crate::widgets::TextEditCommand::InsertText("local".into()),
+                ))
+                .is_some()
+        );
+        sink.send(Ok(PlatformResponse::Text("late".into())));
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "localold");
+    }
+
+    #[test]
+    fn closed_runtime_discards_a_late_clipboard_completion() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None)
+        );
+        let sink = runtime.bridge_mut().sinks.pop().expect("close fenced sink");
+        assert!(
+            runtime
+                .execute_command(crate::runtime::Command::Exit)
+                .exit_requested
+        );
+        sink.send(Ok(PlatformResponse::Text("late".into())));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
 
     fn declarative_origins() -> (EffectOrigin, EffectOrigin, EffectOrigin) {
         let phase = Rc::new(Cell::new(0_u8));

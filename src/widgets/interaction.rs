@@ -15,7 +15,9 @@ mod numeric_policy;
 mod numeric_step_modifiers;
 mod output;
 mod provenance;
+mod text_input_event;
 mod text_input_revision;
+mod text_privacy;
 mod value;
 
 pub use activation::{ActivationInputPolicy, ActivationInputResult, handle_activation_input};
@@ -57,5 +59,13 @@ pub use numeric_policy::{NumericCodec, NumericParseResult};
 pub use numeric_step_modifiers::{KeyboardModifier, NumericStepModifiers};
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};
+pub use text_input_event::TextInputEditEvent;
 pub use text_input_revision::TextInputRevision;
+pub use text_privacy::{TextEditAuthority, TextEditAuthorityOwner, TextPrivacy, TextSecretPolicy};
 pub use value::{ValueMapping, ValueMappingError, ValueMappingKind};
+
+pub(crate) use text_privacy::{SecretTextMapping, SecretTextUnit};
+
+mod text_grouping;
+pub(crate) use text_grouping::TextEditGroups;
+pub use text_grouping::{TextEditBoundary, TextEditGroupEvent, TextEditGrouping, TextEditKind};

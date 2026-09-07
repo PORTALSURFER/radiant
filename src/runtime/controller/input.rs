@@ -96,8 +96,9 @@ where
         let Some(text_input) = widget.native_text_input_delegate_mut() else {
             return;
         };
-        if text_input.state.value == source {
-            text_input.set_native_pointer_caret(caret, affinity);
+        if text_input.native_pointer_source_matches(&source)
+            && text_input.set_native_pointer_display_caret(caret, affinity)
+        {
             self.pending_native_text_pointer_caret = Some(super::NativeTextPointerCaret::Applied(
                 widget_id, source, affinity,
             ));
@@ -117,7 +118,7 @@ where
             .surface_widget_mut(widget_id)
             .and_then(|widget| widget.native_text_input_delegate_mut())
             .is_some_and(|text_input| {
-                let accepted = text_input.state.value == source
+                let accepted = text_input.native_pointer_source_matches(&source)
                     && text_input.take_native_pointer_caret_acceptance() == Some(affinity);
                 if !accepted {
                     text_input.clear_native_pointer_caret();

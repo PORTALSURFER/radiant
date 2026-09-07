@@ -1108,6 +1108,19 @@ where
         })
     }
 
+    /// Whether the authoritative focused widget reserves Cmd/Ctrl C, X, and V.
+    /// This remains true when that widget subsequently denies an individual
+    /// clipboard operation for privacy or read-only policy.
+    pub(crate) fn focused_widget_owns_text_clipboard_shortcut(&self) -> bool {
+        let Some(widget_id) = self.interaction.focus.focused_widget() else {
+            return false;
+        };
+        self.is_authoritative_focus_target(widget_id)
+            && self
+                .surface_widget(widget_id)
+                .is_some_and(|widget| widget.widget_object().owns_text_clipboard_shortcut())
+    }
+
     /// Return the exact current scalar replacement and selection context for
     /// a focused native composition start.
     pub fn focused_composition_start_context(&self) -> Option<CompositionStartContext> {

@@ -10,6 +10,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 mod shared;
 
+pub(in crate::application::runtime) use shared::DeliveryReservation;
 use shared::Sequenced;
 pub(in crate::application) use shared::SharedRuntimeIngress;
 

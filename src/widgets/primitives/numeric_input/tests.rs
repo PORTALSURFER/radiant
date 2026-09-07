@@ -1019,6 +1019,10 @@ fn explicit_keyboard_policies_select_base_fine_and_coarse_per_sample() {
     for (policy, modifiers, expected) in cases {
         let mut input = complete_keyboard_u32_input(policy);
         focus(&mut input);
+        let authority = input
+            .text_input
+            .capture_text_edit_authority()
+            .expect("live embedded text input issues authority");
         assert!(
             Widget::handle_input(
                 &mut input,
@@ -1033,6 +1037,7 @@ fn explicit_keyboard_policies_select_base_fine_and_coarse_per_sample() {
             .is_some()
         );
         assert_eq!(input.value, expected);
+        assert!(!input.text_input.is_current_text_edit_authority(&authority));
     }
 }
 
@@ -1500,6 +1505,10 @@ fn keyboard_escape_focus_loss_and_replacement_cancel_once_and_restore_snapshot()
     let mut escape = active_keyboard_u32_input();
     escape.text_input.state.caret = 0;
     escape.text_input.state.selection_anchor = 1;
+    let authority = escape
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
     let cancelled = complete_output(Widget::handle_input(
         &mut escape,
         Rect::default(),
@@ -1516,6 +1525,7 @@ fn keyboard_escape_focus_loss_and_replacement_cancel_once_and_restore_snapshot()
     assert_eq!(escape.text_input.state.selection_anchor, 1);
     assert_eq!(escape.captured_focused_key(), None);
     assert_eq!(escape.interaction_gate.incumbent(), None);
+    assert!(!escape.text_input.is_current_text_edit_authority(&authority));
     assert!(
         Widget::handle_input(
             &mut escape,
@@ -2502,6 +2512,10 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     replace_u32(&mut previous, "8");
     previous.text_input.state.caret = 0;
     previous.text_input.state.selection_anchor = 1;
+    let authority = previous
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
 
     let mut retained = u32_input();
     Widget::synchronize_from_previous(&mut retained, &previous);
@@ -2512,6 +2526,21 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     assert_eq!(
         retained.interaction_gate.incumbent(),
         Some(NumericInteractionOwner::TextEdit)
+    );
+    assert!(
+        retained
+            .text_input
+            .is_current_text_edit_authority(&authority)
+    );
+
+    let mut character_limited = retained.clone();
+    character_limited.text_input.props.character_limit = Some(1);
+    Widget::synchronize_from_previous(&mut character_limited, &retained);
+    assert!(character_limited.active.is_none());
+    assert!(
+        !retained
+            .text_input
+            .is_current_text_edit_authority(&authority)
     );
 
     let mut changed = NumericInputWidget::try_new(
@@ -2535,6 +2564,11 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     assert_eq!(changed.text_input.state.value, "9");
     assert!(changed.active.is_none());
     assert_eq!(changed.interaction_gate.incumbent(), None);
+    assert!(
+        !previous
+            .text_input
+            .is_current_text_edit_authority(&authority)
+    );
 
     let mut disabled = u32_input();
     disabled.text_input.common.state.disabled = true;
@@ -2555,6 +2589,25 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     Widget::synchronize_from_previous(&mut identity_reset, &previous);
     assert!(identity_reset.active.is_none());
     assert_eq!(identity_reset.interaction_gate.incumbent(), None);
+}
+
+#[test]
+fn numeric_embedded_selection_authority_revokes_only_for_meaningful_changes() {
+    let mut input = u32_input();
+    let authority = input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
+
+    input.set_selection(0, 0);
+    assert!(!input.text_input.is_current_text_edit_authority(&authority));
+    let current = input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
+
+    input.set_selection(0, 0);
+    assert!(input.text_input.is_current_text_edit_authority(&current));
 }
 
 #[test]
@@ -2747,6 +2800,11 @@ fn pointer_scrub_first_effective_move_and_release_preserve_exact_metadata() {
         fixture.input.interaction_gate.incumbent(),
         Some(NumericInteractionOwner::PointerScrub)
     );
+    let authority = fixture
+        .input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
 
     let move_timestamp = Some(InputTimestamp::capture());
     let sequence_range = Some(InputSequenceRange::singleton(
@@ -2795,6 +2853,12 @@ fn pointer_scrub_first_effective_move_and_release_preserve_exact_metadata() {
     assert_eq!(fixture.input.text_input.state.value, "17");
     assert_eq!(fixture.input.text_input.state.caret, 2);
     assert_eq!(fixture.input.text_input.state.selection_anchor, 2);
+    assert!(
+        !fixture
+            .input
+            .text_input
+            .is_current_text_edit_authority(&authority)
+    );
 
     let release_timestamp = Some(InputTimestamp::capture());
     let release_modifiers = PointerModifiers {
@@ -3500,6 +3564,11 @@ fn complete_wheel_consumes_exact_units_atomically_and_keeps_legacy_vectors_unhan
     let mut fixture = wheel_u32_input(None, None, false);
     focus(&mut fixture.input);
     assert!(Widget::accepts_wheel_input(&fixture.input));
+    let authority = fixture
+        .input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
 
     let atomic = complete_output(Widget::handle_wheel_sample(
         &mut fixture.input,
@@ -3540,6 +3609,12 @@ fn complete_wheel_consumes_exact_units_atomically_and_keeps_legacy_vectors_unhan
     assert_eq!(fixture.last_step.get(), Some(NumericStep::Base));
     assert_eq!(fixture.wheel_calls.get(), 1);
     assert_eq!(fixture.input.value, 8);
+    assert!(
+        !fixture
+            .input
+            .text_input
+            .is_current_text_edit_authority(&authority)
+    );
 
     let legacy_before = fixture.input.value;
     assert!(
@@ -4139,6 +4214,10 @@ fn accessibility_increment_and_decrement_are_base_atomic_edits() {
     input.set_complete_output_mode();
     focus(&mut input);
     let initial_format_calls = format_calls.get();
+    let authority = input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
 
     let increment = input
         .handle_accessibility_action(NumericAccessibilityAction::Increment)
@@ -4163,6 +4242,7 @@ fn accessibility_increment_and_decrement_are_base_atomic_edits() {
     assert_eq!(step_calls.get(), 1);
     assert_eq!(format_calls.get(), initial_format_calls + 1);
     assert_eq!(input.interaction_gate.incumbent(), None);
+    assert!(!input.text_input.is_current_text_edit_authority(&authority));
 
     let decrement = input
         .handle_accessibility_action(NumericAccessibilityAction::Decrement)

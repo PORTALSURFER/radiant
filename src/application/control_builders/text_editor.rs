@@ -12,6 +12,7 @@ pub struct TextEditorBuilder {
     id: Option<WidgetId>,
     wrap: bool,
     font_size: f32,
+    privacy: crate::widgets::TextPrivacy,
 }
 
 impl TextEditorBuilder {
@@ -35,6 +36,12 @@ impl TextEditorBuilder {
         self
     }
 
+    /// Mask secret text and set explicit clipboard/automation permissions.
+    pub fn privacy(mut self, privacy: crate::widgets::TextPrivacy) -> Self {
+        self.privacy = privacy;
+        self
+    }
+
     /// Map exact application-owned document edits into ordinary host messages.
     pub fn message<Message: 'static>(
         self,
@@ -45,6 +52,7 @@ impl TextEditorBuilder {
             snapshot: self.snapshot,
             sizing: default_text_input_sizing(),
         });
+        widget = widget.with_privacy(self.privacy);
         widget.wrap = self.wrap;
         widget.font_size = self.font_size;
         let node =
@@ -63,5 +71,6 @@ pub fn text_editor(snapshot: TextEditorSnapshot) -> TextEditorBuilder {
         id: None,
         wrap: true,
         font_size: 14.0,
+        privacy: crate::widgets::TextPrivacy::Public,
     }
 }

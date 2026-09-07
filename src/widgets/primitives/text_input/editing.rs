@@ -28,6 +28,12 @@ impl TextInputWidget {
             }),
             _ => {
                 let result = self.state.apply_key(key);
+                if result.value_changed || result.selection_changed {
+                    if result.value_changed {
+                        self.refresh_text_privacy_mapping();
+                    }
+                    self.invalidate_text_edit_authority();
+                }
                 result.value_changed.then(|| TextInputMessage::Changed {
                     value: self.state.value.clone(),
                 })
@@ -42,6 +48,12 @@ impl TextInputWidget {
         let result = self
             .state
             .apply_edit_command(command, self.props.character_limit);
+        if result.value_changed || result.selection_changed {
+            if result.value_changed {
+                self.refresh_text_privacy_mapping();
+            }
+            self.invalidate_text_edit_authority();
+        }
         result.value_changed.then(|| TextInputMessage::Changed {
             value: self.state.value.clone(),
         })
@@ -49,16 +61,31 @@ impl TextInputWidget {
 
     pub(super) fn insert_text(&mut self, text: &str) -> Option<TextInputMessage> {
         let result = self.state.insert_text(text, self.props.character_limit);
+        if result.value_changed || result.selection_changed {
+            if result.value_changed {
+                self.refresh_text_privacy_mapping();
+            }
+            self.invalidate_text_edit_authority();
+        }
         result.value_changed.then(|| TextInputMessage::Changed {
             value: self.state.value.clone(),
         })
     }
 
     pub(super) fn set_caret(&mut self, caret: usize, extend_selection: bool) {
+        let previous = (self.state.caret, self.state.selection_anchor);
         self.state.set_caret(caret, extend_selection);
+        if previous != (self.state.caret, self.state.selection_anchor) {
+            self.invalidate_text_edit_authority();
+        }
     }
 
     pub(super) fn select_word_at(&mut self, caret: usize) -> bool {
-        self.state.select_word_at(caret)
+        let previous = (self.state.caret, self.state.selection_anchor);
+        let selected = self.state.select_word_at(caret);
+        if previous != (self.state.caret, self.state.selection_anchor) {
+            self.invalidate_text_edit_authority();
+        }
+        selected
     }
 }

@@ -472,12 +472,10 @@ fn hard_paragraphs(source: &str) -> Vec<HardParagraph> {
             });
             start = next;
             offset = next;
+        } else if let Some(ch) = source[offset..].chars().next() {
+            offset += ch.len_utf8();
         } else {
-            offset += source[offset..]
-                .chars()
-                .next()
-                .expect("valid UTF-8")
-                .len_utf8();
+            break;
         }
     }
     paragraphs.push(HardParagraph {

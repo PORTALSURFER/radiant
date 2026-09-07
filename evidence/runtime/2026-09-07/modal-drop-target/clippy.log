@@ -1,0 +1,3 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1363-cross-window-drag-radiant)
+    Checking radiant-native-test-support v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1363-cross-window-drag-radiant/crates/native-test-support)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 22.37s

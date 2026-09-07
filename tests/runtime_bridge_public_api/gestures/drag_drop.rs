@@ -470,3 +470,99 @@ fn typed_drag_targets_obey_clipping_and_topmost_widgets_but_accept_empty_regions
         );
     }
 }
+
+#[test]
+fn modal_drag_cannot_negotiate_with_background_drop_target() {
+    use radiant::application::{Layer, scene};
+    use radiant::layout::OverlayAnchor;
+    for modal in [false, true] {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let received = events.clone();
+        let bridge = radiant::app(())
+            .view(move |_| {
+                let target = button("Background")
+                    .filter_mapped(|_| None::<Event>)
+                    .id(2)
+                    .drop_target(
+                        DropTarget::<String, Event>::new().on_event_with_revision((), |event| {
+                            Some(Event::Target(event.phase(), event.decision()))
+                        }),
+                    )
+                    .id(20);
+                let source = button("Modal source")
+                    .filter_mapped(|_| None::<Event>)
+                    .id(1)
+                    .drag_source(
+                        DragSource::new(String::from("payload"))
+                            .on_event_with_revision((), |event| Some(Event::Source(event.phase()))),
+                    )
+                    .id(10);
+                scene(target)
+                    .layer(
+                        Layer::modal(source)
+                            .focus_policy(if modal {
+                                radiant::runtime::OverlayFocusPolicy::Modal
+                            } else {
+                                radiant::runtime::OverlayFocusPolicy::None
+                            })
+                            .pass_through()
+                            .anchored_to(OverlayAnchor::below(2, Vector2::new(100.0, 40.0))),
+                    )
+                    .into_view()
+            })
+            .update(move |_, event| received.borrow_mut().push(event))
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 80.0));
+        let anchor = runtime.layout().rects[&1].center();
+        let request = |phase, x| {
+            GestureIngress::pan(
+                phase,
+                Vector2::new(x, 0.0),
+                InputDeviceId::from_host(1).unwrap(),
+                Some(anchor),
+                Default::default(),
+            )
+            .unwrap()
+        };
+        let token = runtime
+            .dispatch_gesture_request(GestureRequest::new(request(GesturePhase::Started, 0.0)))
+            .token()
+            .unwrap();
+        let moved = runtime.dispatch_gesture_request(
+            GestureRequest::new(request(GesturePhase::Changed, 130.0)).with_token(token),
+        );
+        assert_eq!(moved.outcome(), &GestureOutcome::AcceptedContainer(10));
+        runtime.dispatch_gesture_request(
+            GestureRequest::new(request(GesturePhase::Ended, 0.0)).with_token(token),
+        );
+        if modal {
+            assert!(
+                events
+                    .borrow()
+                    .iter()
+                    .all(|event| !matches!(event, Event::Target(..))),
+                "{:?}",
+                events.borrow()
+            );
+            assert!(
+                events
+                    .borrow()
+                    .contains(&Event::Source(DragSourcePhase::Cancelled(
+                        DragCancelReason::NoTarget
+                    )))
+            );
+        } else {
+            assert!(events.borrow().contains(&Event::Target(
+                DropPhase::Dropped,
+                DropDecision::Accepted(DragOperation::Copy)
+            )));
+            assert!(
+                events
+                    .borrow()
+                    .contains(&Event::Source(DragSourcePhase::Completed(
+                        DragOperation::Copy
+                    )))
+            );
+        }
+    }
+}

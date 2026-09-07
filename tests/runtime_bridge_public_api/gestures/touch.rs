@@ -1,5 +1,6 @@
 use super::*;
 use radiant::{
+    application::{Layer, scene, text},
     gui::pointer_ingress::{
         DeviceKind, PointerButtons, PointerContactId, PointerIngress, PointerIngressDisposition,
         PointerPhase, PointerSequenceToken,
@@ -251,6 +252,50 @@ fn touch_cancellation_and_source_replacement_have_one_terminal() {
             PointerIngressDisposition::Stale
         );
     }
+}
+
+#[test]
+fn modal_retires_pending_touch_pair_tokens() {
+    let modal_open = Rc::new(Cell::new(false));
+    let view_modal_open = modal_open.clone();
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let observed = events.clone();
+    let bridge = radiant::app(())
+        .view(move |_| {
+            let base = custom_widget_mapped(
+                Probe {
+                    common: WidgetCommon::fixed(1, 120.0, 40.0),
+                    conservative: false,
+                    threshold: 5.0,
+                    raw: Rc::new(Cell::new(0)),
+                },
+                |event: GestureEvent| event,
+            )
+            .id(1);
+            let mut root = scene(base);
+            if view_modal_open.get() {
+                root = root.layer(Layer::modal(text("modal").id(2).width(120.0).height(40.0)));
+            }
+            root.into_view()
+        })
+        .update(move |_, event| observed.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+
+    let a = start(&mut runtime, 1, 20.0);
+    let b = start(&mut runtime, 2, 60.0);
+    assert!(events.borrow().is_empty());
+    modal_open.set(true);
+    runtime.refresh();
+    assert_eq!(
+        move_touch(&mut runtime, 1, a, 26.0, 20.0),
+        PointerIngressDisposition::Stale
+    );
+    assert_eq!(
+        move_touch(&mut runtime, 2, b, 66.0, 20.0),
+        PointerIngressDisposition::Stale
+    );
+    assert!(events.borrow().is_empty());
 }
 
 #[test]

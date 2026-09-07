@@ -257,6 +257,10 @@ where
         self.validate_managed_composition_authority();
         self.validate_managed_pointer_capture_authority();
         self.validate_managed_wheel_sequence_authority();
+        // Membership was installed before this retirement pass. Validate here
+        // even when no saved overlay owner was omitted: a newly admitted modal
+        // must retire active and pending base/ancestor gestures before focus
+        // routing can return background input authority.
         self.validate_gesture_capture();
         messages
     }

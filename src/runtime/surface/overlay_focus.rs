@@ -148,6 +148,7 @@ impl OverlayFocusProjection {
     ) {
         if seen.len() == MAX_SOURCE_NODES || !seen.insert(node.id()) {
             self.faulted = true;
+            return;
         }
         let mut current = inherited;
         if let Some(metadata) = node.source_metadata_handle() {
@@ -203,11 +204,14 @@ impl OverlayFocusProjection {
         node: WidgetId,
         parent: Option<usize>,
     ) -> Option<usize> {
-        if parent.is_some_and(|index| matches!(&self.records[index].key, OverlayFocusKey::Declarative { identity, layer_kind, .. } if *identity == evidence.identity && *layer_kind == evidence.layer_kind)) {
-            return parent;
-        }
-        if self.records.iter().any(|record| matches!(&record.key, OverlayFocusKey::Declarative { identity, layer_kind, root: existing_root, compatibility: existing_compatibility } if *identity == evidence.identity && *layer_kind == evidence.layer_kind && (*existing_root != root || *existing_compatibility != compatibility))) {
-            self.faulted = true; return None;
+        if let Some((index, existing)) = self.records.iter().enumerate().find(|(_, record)| {
+            matches!(&record.key, OverlayFocusKey::Declarative { identity, layer_kind, .. } if *identity == evidence.identity && *layer_kind == evidence.layer_kind)
+        }) {
+            if existing.policy != evidence.focus_policy || existing.layer_kind != evidence.layer_kind {
+                self.faulted = true;
+                return None;
+            }
+            return Some(index);
         }
         self.push(
             OverlayFocusKey::Declarative {
@@ -270,3 +274,7 @@ impl OverlayFocusProjection {
         Some(index)
     }
 }
+
+#[cfg(test)]
+#[path = "overlay_focus/tests.rs"]
+mod tests;

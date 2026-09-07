@@ -34,6 +34,10 @@ use radiant::{
 };
 use std::sync::{Arc, Mutex};
 
+#[cfg(test)]
+#[path = "runtime_surface_public_api/deterministic_host.rs"]
+mod deterministic_host;
+
 fn arc_surface<Message>(surface: UiSurface<Message>) -> Arc<UiSurface<Message>> {
     Arc::new(surface)
 }

@@ -239,6 +239,7 @@ pub(crate) use surface::{
     KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
 };
 pub use update_snapshot::RuntimeUpdateSnapshot;
+pub mod testing;
 pub use virtual_layout::{
     VirtualLayoutRevisions, VirtualLayoutSemanticDeferredReason, VirtualLayoutSemanticEntry,
     VirtualLayoutSemanticProvider, VirtualLayoutSemanticProviderOutcome,

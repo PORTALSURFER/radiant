@@ -22,6 +22,15 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         &mut self,
         ingress: PointerIngress,
         token: PointerSequenceToken,
+        cross_window: Option<(
+            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
+            &mut Option<
+                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
+                    Message,
+                >,
+            >,
+            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
+        )>,
     ) -> PointerIngressDisposition {
         // Unsupported contacts keep their bounded transport records until up.
         // Never form a new pair around an already-held, untracked finger.
@@ -54,7 +63,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 position: ingress.logical_position(),
             });
         match update {
-            TouchPairUpdate::FirstContact => self.route_single_touch_drag(ingress, token),
+            TouchPairUpdate::FirstContact => {
+                self.route_single_touch_drag(ingress, token, cross_window)
+            }
             TouchPairUpdate::Ignored => PointerIngressDisposition::AdmittedUnsupportedConsumer,
             TouchPairUpdate::PairEstablished(geometry) => {
                 if let Some(capture) = self.interaction.gesture.as_ref()
@@ -105,7 +116,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                     && reason == TouchPairReset::Terminal
                     && ingress.phase() != PointerPhase::Cancelled
                 {
-                    return self.route_single_touch_drag(ingress, token);
+                    return self.route_single_touch_drag(ingress, token, cross_window);
                 }
                 if owns_pair || owns_single {
                     self.cancel_gesture_capture(if reason == TouchPairReset::InvalidSample {

@@ -1,5 +1,6 @@
 //! Pointer lifecycle helpers for the generic native Vello runner.
 
+use super::cross_window_input::NativeCrossWindowInput;
 use super::frame_scheduler_policy::{
     ImmediateTransientCompletion, immediate_transient_completion_disposition,
 };
@@ -63,10 +64,20 @@ where
         self.apply_cursor_moved_route(route);
     }
 
+    #[cfg_attr(not(test), expect(dead_code, reason = "headless native routing tests"))]
     pub(super) fn route_cursor_moved_with_timestamp(
         &mut self,
         position: PhysicalPosition<f64>,
         timestamp: InputTimestamp,
+    ) -> NativeCursorMovedRoute {
+        self.route_cursor_moved_with_timestamp_and_cross_window_input(position, timestamp, None)
+    }
+
+    pub(super) fn route_cursor_moved_with_timestamp_and_cross_window_input(
+        &mut self,
+        position: PhysicalPosition<f64>,
+        timestamp: InputTimestamp,
+        mut cross_window: Option<&mut NativeCrossWindowInput<Message>>,
     ) -> NativeCursorMovedRoute {
         let timestamp = Some(timestamp);
         let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
@@ -95,8 +106,13 @@ where
             self.core.runtime.clear_native_text_pointer_caret();
             self.frame.text_renderer.reset_native_caret_affinities();
             if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
-                let outcome =
-                    self.route_native_pointer_move(position, modifiers, timestamp, sequence_range);
+                let outcome = self.route_native_pointer_move(
+                    position,
+                    modifiers,
+                    timestamp,
+                    sequence_range,
+                    cross_window.as_deref_mut(),
+                );
                 return NativeCursorMovedRoute {
                     outcome,
                     previous,
@@ -120,8 +136,13 @@ where
             };
         }
         if self.can_fast_path_native_hover_move(position) {
-            let ingress_outcome =
-                self.route_native_pointer_move(position, modifiers, timestamp, sequence_range);
+            let ingress_outcome = self.route_native_pointer_move(
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+                cross_window.as_deref_mut(),
+            );
             self.core.runtime.clear_native_text_pointer_caret();
             self.frame.text_renderer.reset_native_caret_affinities();
             self.update_gpu_surface_cursor_overlay(position);
@@ -144,8 +165,13 @@ where
         }
         self.stage_native_text_pointer_caret(position);
         let started = Instant::now();
-        let outcome =
-            self.route_native_pointer_move(position, modifiers, timestamp, sequence_range);
+        let outcome = self.route_native_pointer_move(
+            position,
+            modifiers,
+            timestamp,
+            sequence_range,
+            cross_window.as_deref_mut(),
+        );
         self.commit_accepted_native_text_pointer_caret();
         if !self.core.runtime.interactive_pointer_route_active() {
             self.update_native_cursor_at_last_position();
@@ -168,6 +194,7 @@ where
         modifiers: crate::widgets::PointerModifiers,
         timestamp: Option<InputTimestamp>,
         sequence_range: Option<crate::gui::input::InputSequenceRange>,
+        mut cross_window: Option<&mut NativeCrossWindowInput<Message>>,
     ) -> GenericRouteOutcome {
         let Some(native_device) = self.input.last_native_mouse_device else {
             return self.core.route_pointer_move_with_metadata(
@@ -189,7 +216,7 @@ where
             .native_pointer_ingress
             .contact_token(native_device, u64::MAX)
         {
-            self.core.runtime.dispatch_native_pointer_continuation(
+            self.dispatch_native_pointer_continuation_with_cross_window(
                 DeviceKind::Mouse,
                 device,
                 contact,
@@ -202,6 +229,7 @@ where
                 None,
                 timestamp,
                 sequence_range,
+                cross_window.as_deref_mut(),
             )
         } else {
             PointerIngress::new(
@@ -217,7 +245,7 @@ where
                 timestamp,
                 sequence_range,
             )
-            .map(|ingress| self.core.runtime.dispatch_pointer_ingress(ingress))
+            .map(|ingress| self.dispatch_checked_pointer_ingress(ingress, cross_window))
             .unwrap_or(PointerIngressDisposition::Invalid)
         };
         self.core.route_outcome(matches!(

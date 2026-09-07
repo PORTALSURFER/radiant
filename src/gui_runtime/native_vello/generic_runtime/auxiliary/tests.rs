@@ -118,6 +118,24 @@ fn auxiliary_transient_route_with_budget(
     }
 }
 
+fn auxiliary_touch_transient_route_with_budget(
+    window: &mut AuxiliaryNativeWindow<i32>,
+    phase: winit::event::TouchPhase,
+    budget: FrameStageBudgetBinding,
+) -> super::AuxiliaryNativeImmediateTransientRoute {
+    let super::AuxiliaryNativeImmediateTransientRoute { ticket, .. } =
+        auxiliary_transient_route_with_budget(
+            window,
+            NativeImmediateTransientKind::Touch(phase),
+            GenericRouteOutcome::default(),
+            budget,
+        );
+    super::AuxiliaryNativeImmediateTransientRoute {
+        ticket,
+        kind: super::AuxiliaryNativeImmediateTransientRouteKind::Touch,
+    }
+}
+
 fn auxiliary_window_with_diagnostics(
     cache_on_close: bool,
     frame_diagnostics_enabled: bool,
@@ -793,6 +811,50 @@ fn auxiliary_immediate_transient_settles_after_parent_reduction_once() {
 }
 
 #[test]
+fn auxiliary_touch_transient_settles_after_parent_reduction() {
+    let now = Instant::now();
+    let budget = Duration::from_millis(1);
+    let mut parent = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AuxiliarySurfaceBridge::new(
+            crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+            false,
+            false,
+        ),
+        Vector2::new(1280.0, 720.0),
+    );
+    parent.auxiliary_windows.push(auxiliary_window(false));
+    let pending = auxiliary_touch_transient_route_with_budget(
+        &mut parent.auxiliary_windows[0],
+        winit::event::TouchPhase::Moved,
+        FrameStageBudgetBinding::input_transient_at(budget, now),
+    );
+
+    let reduced_parent = parent.reduce_auxiliary_messages(None, Vec::new());
+    let resolution = parent.auxiliary_windows[0]
+        .resolve_native_immediate_transient_route_at(pending, Some(now + budget))
+        .expect("exact touch transient completion");
+    assert_eq!(
+        resolution.disposition,
+        NativeInputStageDisposition::ContinueNow
+    );
+    assert!(matches!(
+        resolution.child_route,
+        super::AuxiliaryNativeImmediateTransientResolvedRoute::None
+    ));
+    let parent_outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+        reduced_parent,
+        resolution.disposition,
+        None,
+    );
+    assert_eq!(
+        parent_outcome.native_input_stage_disposition(),
+        Some(NativeInputStageDisposition::ContinueNow)
+    );
+    assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+}
+
+#[test]
 fn auxiliary_immediate_transient_exceeded_matches_parent_and_defers_sibling_sync() {
     let now = Instant::now();
     let budget = Duration::from_millis(1);
@@ -852,6 +914,53 @@ fn auxiliary_immediate_transient_exceeded_matches_parent_and_defers_sibling_sync
             .immediate_transient_budget_breach_count(),
         1
     );
+}
+
+#[test]
+fn auxiliary_touch_transient_exceeded_defers_lower_priority_work() {
+    let now = Instant::now();
+    let budget = Duration::from_millis(1);
+    let mut parent = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AuxiliarySurfaceBridge::new(
+            crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+            false,
+            false,
+        ),
+        Vector2::new(1280.0, 720.0),
+    );
+    parent.auxiliary_windows.push(auxiliary_window(false));
+    let pending = auxiliary_touch_transient_route_with_budget(
+        &mut parent.auxiliary_windows[0],
+        winit::event::TouchPhase::Ended,
+        FrameStageBudgetBinding::input_transient_at(budget, now),
+    );
+
+    let resolution = parent.auxiliary_windows[0]
+        .resolve_native_immediate_transient_route_at(
+            pending,
+            Some(now + budget + Duration::from_micros(1)),
+        )
+        .expect("exceeded touch transient completion");
+    assert_eq!(
+        resolution.disposition,
+        NativeInputStageDisposition::DeferLowerPriority
+    );
+    assert!(matches!(
+        resolution.child_route,
+        super::AuxiliaryNativeImmediateTransientResolvedRoute::None
+    ));
+    let parent_outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+        GenericRouteOutcome::default(),
+        resolution.disposition,
+        None,
+    );
+    assert_eq!(
+        parent_outcome.native_input_stage_disposition(),
+        Some(NativeInputStageDisposition::DeferLowerPriority)
+    );
+    assert!(parent.timing.deferred_auxiliary_window_sync);
+    assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
 }
 
 #[test]

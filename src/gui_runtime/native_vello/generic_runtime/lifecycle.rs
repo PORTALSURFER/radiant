@@ -1,10 +1,13 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
 use super::auxiliary::AuxiliaryNativeWindow;
+use super::cross_window_input::NativeCrossWindowInput;
 use super::frame_scheduler_policy::NativeInputStageDisposition;
 use super::lifecycle_pointer::finalize_native_immediate_transient_route;
 use super::native_discrete_input_stage::NativeDiscreteInputKind;
-use super::native_immediate_transient_stage::NativeImmediateTransientKind;
+use super::native_immediate_transient_stage::{
+    NativeImmediateTransientKind, NativeImmediateTransientStageTicket,
+};
 use super::native_pointer_ingress::{
     GestureInput, NativeGestureSample, NativeTouchSample, normalize_gesture, normalize_touch,
 };
@@ -92,32 +95,30 @@ where
         }
     }
 
-    pub(super) fn normalize_native_touch_transient(
+    pub(super) fn normalize_native_touch_transient_with_cross_window_input_and_adapter_generation(
         &mut self,
         event_loop: &ActiveEventLoop,
         touch: winit::event::Touch,
-    ) {
+        mut cross_window: Option<&mut NativeCrossWindowInput<Message>>,
+        adapter_generation: super::adapter::NativeAdapterGeneration,
+        wrapper_eligible: bool,
+    ) -> Option<NativeImmediateTransientStageTicket> {
         let timestamp = InputTimestamp::capture();
-        let Some(adapter_generation) = self
-            .adapter
-            .as_ref()
-            .and_then(GenericNativeAdapterOwner::capture_generation)
-        else {
-            return;
-        };
         let Some(ticket) = self.begin_native_immediate_transient_event(
             event_loop,
             NativeImmediateTransientKind::Touch(touch.phase),
             timestamp,
             adapter_generation,
-            true,
+            wrapper_eligible,
         ) else {
-            return;
+            return None;
         };
-        let Some(ticket) =
-            self.revalidate_native_immediate_transient(ticket, adapter_generation, true)
-        else {
-            return;
+        let Some(ticket) = self.revalidate_native_immediate_transient(
+            ticket,
+            adapter_generation,
+            wrapper_eligible,
+        ) else {
+            return None;
         };
         let modifiers = self.pointer_modifiers();
         if let Ok(sample) = normalize_touch(
@@ -127,14 +128,18 @@ where
             modifiers,
             timestamp,
         ) {
-            let _ = self.dispatch_native_touch_sample(sample);
+            let _ = self.dispatch_native_touch_sample_with_cross_window_input(
+                sample,
+                cross_window.as_deref_mut(),
+            );
         }
-        let _ = self.complete_native_immediate_transient(ticket);
+        Some(ticket)
     }
 
-    fn dispatch_native_touch_sample(
+    fn dispatch_native_touch_sample_with_cross_window_input(
         &mut self,
         sample: NativeTouchSample,
+        cross_window: Option<&mut NativeCrossWindowInput<Message>>,
     ) -> PointerIngressDisposition {
         let phase = match sample.phase {
             winit::event::TouchPhase::Started => PointerPhase::Started {
@@ -180,7 +185,7 @@ where
             sample
                 .sequence_token
                 .map_or(PointerIngressDisposition::Stale, |token| {
-                    self.core.runtime.dispatch_native_pointer_continuation(
+                    self.dispatch_native_pointer_continuation_with_cross_window(
                         DeviceKind::Touch,
                         sample.device,
                         sample.contact,
@@ -193,6 +198,7 @@ where
                         sample.tilt,
                         Some(sample.timestamp),
                         sequence_range,
+                        cross_window,
                     )
                 })
         }
@@ -379,6 +385,7 @@ where
         let native_interactive_arrival = (self.frame_diagnostics_enabled
             && is_native_interactive_window_event(&event))
         .then(Instant::now);
+        let mut cross_window_sample = self.prepare_drag_sample(window_id, &event);
         if Some(window_id) != self.window.id {
             let Some(index) = self
                 .auxiliary_windows
@@ -413,11 +420,12 @@ where
                         .cpu_frame_observation
                         .as_mut()
                         .map(|ledger| CpuFrameObservationOwner::new(ledger, auxiliary_key.clone()));
-                    self.auxiliary_windows[index].route_window_event(
+                    self.auxiliary_windows[index].route_window_event_with_cross_window_input(
                         event_loop,
                         event,
                         adapter,
                         observation.as_mut(),
+                        cross_window_sample.as_mut().map(|sample| &mut sample.input),
                     )
                 }
                 None => {
@@ -442,6 +450,7 @@ where
                 visual_deadline_completed: _,
                 native_discrete_input_route: pending_native_discrete_input_route,
                 native_immediate_transient_route: pending_native_immediate_transient_route,
+                timed_frame_semantic_reduced,
             } = route_result;
             let mut pending_native_discrete_input_route = pending_native_discrete_input_route;
             let mut pending_native_immediate_transient_route =
@@ -529,21 +538,57 @@ where
                     index,
                     pending_native_immediate_transient_route.take(),
                 );
-                if !messages.is_empty() {
-                    self.dispatch_auxiliary_messages(event_loop, None, messages, None, None);
+                if let Some(drag) = self.dispatch_auxiliary_messages_with_unticketed_cancellations(
+                    event_loop, None, messages, true,
+                ) {
+                    self.apply_drag_route_visuals(
+                        &drag,
+                        Some(NativeInputStageDisposition::ContinueNow),
+                    );
                 }
-            } else if !messages.is_empty()
+            } else if timed_frame_semantic_reduced
+                || !messages.is_empty()
                 || pending_native_discrete_input_route.is_some()
                 || pending_native_immediate_transient_route.is_some()
             {
-                self.dispatch_auxiliary_messages(
-                    event_loop,
-                    message_origin,
-                    messages,
-                    pending_native_discrete_input_route.map(|route| (index, route)),
-                    pending_native_immediate_transient_route.map(|route| (index, route)),
-                );
+                let has_native_input_route = pending_native_discrete_input_route.is_some()
+                    || pending_native_immediate_transient_route.is_some();
+                if has_native_input_route {
+                    if let Some((completion, drag)) = self
+                        .dispatch_auxiliary_messages_with_cross_window_collector(
+                            event_loop,
+                            message_origin,
+                            messages,
+                            pending_native_discrete_input_route.map(|route| (index, route)),
+                            pending_native_immediate_transient_route.map(|route| (index, route)),
+                            cross_window_sample.take(),
+                        )
+                    {
+                        self.apply_drag_route_visuals(&drag, Some(completion));
+                    }
+                } else {
+                    if let Some(drag) = self
+                        .dispatch_auxiliary_messages_with_unticketed_cancellations(
+                            event_loop,
+                            message_origin,
+                            messages,
+                            true,
+                        )
+                    {
+                        self.apply_drag_route_visuals(
+                            &drag,
+                            Some(NativeInputStageDisposition::ContinueNow),
+                        );
+                    }
+                }
             }
+            // A deferred child refresh can retire a source after every
+            // ordinary input/timer collector has completed. Redraw remains a
+            // nonsemantic boundary: ask the parent user-event reducer to
+            // perform the qualified cancellation on its next turn.
+            self.runtime_wakeup.request_if(
+                observe_redraw && self.is_running() && self.has_expired_drag_transfer(),
+            );
             return;
         }
         if let Some(arrived_at) = native_interactive_arrival {
@@ -595,7 +640,25 @@ where
                     return;
                 };
                 self.window.native_window_focused = false;
-                let routed = self.handle_focus_lost_before_external_drag();
+                let mut routed = self.handle_focus_lost_before_external_drag();
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
+                let drag_route = self.route_drag_cancellations();
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
+                routed.merge(drag_route.outcome);
                 let launch_external_drag = self.core.runtime.external_drag_armed();
                 if let Some(routed) = finalize_native_immediate_transient_route(
                     self.complete_native_immediate_transient(ticket),
@@ -604,6 +667,10 @@ where
                     || self.launch_external_drag_if_armed(),
                 ) {
                     self.handle_route_outcome(event_loop, routed);
+                    self.apply_drag_route_visuals(
+                        &drag_route,
+                        routed.native_input_stage_disposition,
+                    );
                     #[cfg(target_os = "macos")]
                     self.republish_native_semantic_accessibility_passively();
                 }
@@ -700,12 +767,41 @@ where
                 else {
                     return;
                 };
-                let mut route = self.route_cursor_moved_with_timestamp(position, timestamp);
+                let mut route = self.route_cursor_moved_with_timestamp_and_cross_window_input(
+                    position,
+                    timestamp,
+                    cross_window_sample.as_mut().map(|sample| &mut sample.input),
+                );
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
+                let drag_route = cross_window_sample
+                    .take()
+                    .map(|sample| self.route_drag_sample(sample))
+                    .unwrap_or_else(|| self.route_drag_cancellations());
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
+                route.outcome.merge(drag_route.outcome);
                 if let Some(outcome) =
                     self.complete_native_immediate_transient_route(ticket, route.outcome)
                 {
                     route.outcome = outcome;
                     self.apply_cursor_moved_route(route);
+                    self.apply_drag_route_visuals(
+                        &drag_route,
+                        outcome.native_input_stage_disposition,
+                    );
                 }
             }
             WindowEvent::HoveredFile(path) => self.handle_native_file_hover(event_loop, path),
@@ -768,8 +864,28 @@ where
                 ) else {
                     return;
                 };
-                let route =
-                    self.route_native_mouse_input_with_timestamp(button, state, Some(timestamp));
+                let mut route = self
+                    .route_native_mouse_input_with_timestamp_and_cross_window_input(
+                        button,
+                        state,
+                        Some(timestamp),
+                        cross_window_sample.as_mut().map(|sample| &mut sample.input),
+                    );
+                if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true)
+                {
+                    let _ = self.veto_native_discrete_input(ticket);
+                    return;
+                }
+                let drag_route = cross_window_sample
+                    .take()
+                    .map(|sample| self.route_drag_sample(sample))
+                    .unwrap_or_else(|| self.route_drag_cancellations());
+                if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true)
+                {
+                    let _ = self.veto_native_discrete_input(ticket);
+                    return;
+                }
+                route.outcome.merge(drag_route.outcome);
                 let Some(route_outcome) =
                     self.complete_native_discrete_input_route(ticket, route.outcome)
                 else {
@@ -811,6 +927,10 @@ where
                     warn!("radiant generic native vello: app-owned window drag failed: {err}");
                 }
                 self.handle_route_outcome(event_loop, route_outcome);
+                self.apply_drag_route_visuals(
+                    &drag_route,
+                    route_outcome.native_input_stage_disposition,
+                );
             }
             WindowEvent::MouseWheel {
                 device_id,
@@ -842,12 +962,31 @@ where
                 };
                 let mut route =
                     self.route_native_mouse_wheel_with_phase_and_timestamp(delta, phase, timestamp);
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
+                let drag = self.route_drag_cancellations();
+                route.outcome.merge(drag.outcome);
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
                 if let Some(outcome) =
                     self.complete_native_immediate_transient_route(ticket, route.outcome)
                 {
                     route.outcome = outcome;
                     self.apply_native_mouse_wheel_route(route);
                     self.handle_route_outcome(event_loop, outcome);
+                    self.apply_drag_route_visuals(&drag, outcome.native_input_stage_disposition);
                 }
             }
             WindowEvent::Touch(touch) => {
@@ -881,9 +1020,41 @@ where
                     modifiers,
                     timestamp,
                 ) {
-                    let _ = self.dispatch_native_touch_sample(sample);
+                    let _ = self.dispatch_native_touch_sample_with_cross_window_input(
+                        sample,
+                        cross_window_sample.as_mut().map(|sample| &mut sample.input),
+                    );
                 }
-                let _ = self.complete_native_immediate_transient(ticket);
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
+                let drag_route = cross_window_sample
+                    .take()
+                    .map(|sample| self.route_drag_sample(sample))
+                    .unwrap_or_else(|| self.route_drag_cancellations());
+                if !self.native_immediate_transient_ticket_is_current(
+                    &ticket,
+                    adapter_generation,
+                    true,
+                ) {
+                    let _ = self.veto_native_immediate_transient(ticket);
+                    return;
+                }
+                let outcome = drag_route.outcome;
+                if let Some(outcome) =
+                    self.complete_native_immediate_transient_route(ticket, outcome)
+                {
+                    self.handle_route_outcome(event_loop, outcome);
+                    self.apply_drag_route_visuals(
+                        &drag_route,
+                        outcome.native_input_stage_disposition,
+                    );
+                }
             }
             WindowEvent::PinchGesture {
                 device_id,
@@ -946,14 +1117,27 @@ where
                 ) else {
                     return;
                 };
-                let routed = if self.should_launch_external_drag_before_app_switch(state) {
+                let mut routed = if self.should_launch_external_drag_before_app_switch(state) {
                     self.input.modifiers = state;
                     self.launch_external_drag_if_armed()
                 } else {
                     self.route_native_modifiers_changed_with_timestamp(state, Some(timestamp))
                 };
+                if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true)
+                {
+                    let _ = self.veto_native_discrete_input(ticket);
+                    return;
+                }
+                let drag = self.route_drag_cancellations();
+                routed.merge(drag.outcome);
+                if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true)
+                {
+                    let _ = self.veto_native_discrete_input(ticket);
+                    return;
+                }
                 if let Some(routed) = self.complete_native_discrete_input_route(ticket, routed) {
                     self.handle_route_outcome(event_loop, routed);
+                    self.apply_drag_route_visuals(&drag, routed.native_input_stage_disposition);
                 }
             }
             WindowEvent::Ime(ime) => {
@@ -974,20 +1158,53 @@ where
                 ) else {
                     return;
                 };
-                let routed = self.route_native_ime_event_with_timestamp(ime, Some(timestamp));
+                let mut routed = self.route_native_ime_event_with_timestamp(ime, Some(timestamp));
+                if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true)
+                {
+                    let _ = self.veto_native_discrete_input(ticket);
+                    return;
+                }
+                let drag = self.route_drag_cancellations();
+                routed.merge(drag.outcome);
+                if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true)
+                {
+                    let _ = self.veto_native_discrete_input(ticket);
+                    return;
+                }
                 if let Some(routed) = self.complete_native_discrete_input_route(ticket, routed) {
                     self.handle_route_outcome(event_loop, routed);
+                    self.apply_drag_route_visuals(&drag, routed.native_input_stage_disposition);
                 }
             }
             WindowEvent::RedrawRequested => {
                 self.redraw_and_exit_on_error(event_loop);
                 self.publish_staged_frame_diagnostics();
+                // Prepared and fallback surface refreshes can retire a
+                // source while presenting. Do not map callbacks from this
+                // paint path; wake the parent reducer for its existing
+                // qualified cancellation sweep instead.
+                self.runtime_wakeup
+                    .request_if(self.is_running() && self.has_expired_drag_transfer());
             }
             _ => {}
         }
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
+        // Only reducer-bearing asynchronous events may run semantic cleanup.
+        // Maintenance, timing, recovery and passive accessibility stay wake-only.
+        let collect_drag_cancellations = matches!(
+            &event,
+            RuntimeUserEvent::RepaintRequested
+                | RuntimeUserEvent::OpenFiles(_)
+                | RuntimeUserEvent::ExternalDragCompleted { .. }
+        );
+        #[cfg(target_os = "macos")]
+        let collect_drag_cancellations = collect_drag_cancellations
+            || matches!(
+                &event,
+                RuntimeUserEvent::NativeNumericAccessibilityAction { .. }
+            );
         match event {
             RuntimeUserEvent::RepaintRequested => {
                 if !self.is_running() {
@@ -1117,6 +1334,16 @@ where
                 {
                     self.handle_native_numeric_accessibility_action(token, *target, action);
                 }
+            }
+        }
+        if collect_drag_cancellations {
+            let drag = self.route_drag_cancellations();
+            if !drag.visual_work.is_empty() || drag.outcome != GenericRouteOutcome::default() {
+                self.handle_route_outcome(event_loop, drag.outcome);
+                self.apply_drag_route_visuals(
+                    &drag,
+                    Some(NativeInputStageDisposition::ContinueNow),
+                );
             }
         }
     }
@@ -1367,6 +1594,7 @@ where
                                 admission.outcome,
                             );
                         }
+                        self.finish_timed_drag_visuals(admission.visual_deadline_completed);
                         if admission.did_work {
                             self.record_frame_schedule_admission_with_lane(
                                 selected,
@@ -1432,6 +1660,7 @@ where
                                 visual_deadline_completed,
                                 native_discrete_input_route,
                                 native_immediate_transient_route,
+                                timed_frame_semantic_reduced,
                             } = result;
                             debug_assert!(close_admission.is_none());
                             debug_assert!(native_discrete_input_route.is_none());
@@ -1489,14 +1718,20 @@ where
                                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                                 return;
                             }
-                            if !messages.is_empty() {
-                                self.dispatch_auxiliary_messages_without_timed_frame(
-                                    event_loop,
-                                    message_origin,
-                                    messages,
-                                    None,
-                                    None,
-                                );
+                            if timed_frame_semantic_reduced || !messages.is_empty() {
+                                if let Some(drag) = self
+                                    .dispatch_auxiliary_messages_with_unticketed_cancellations(
+                                        event_loop,
+                                        message_origin,
+                                        messages,
+                                        false,
+                                    )
+                                {
+                                    self.apply_drag_route_visuals(
+                                        &drag,
+                                        Some(NativeInputStageDisposition::ContinueNow),
+                                    );
+                                }
                             }
                         }
                     }

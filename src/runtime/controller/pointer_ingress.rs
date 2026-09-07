@@ -200,6 +200,40 @@ where
         &mut self,
         ingress: PointerIngress,
     ) -> PointerIngressDisposition {
+        self.dispatch_pointer_ingress_with_cross_window(ingress, None)
+    }
+
+    pub(crate) fn dispatch_pointer_ingress_for_cross_window(
+        &mut self,
+        ingress: PointerIngress,
+        hint: crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
+    ) -> crate::runtime::controller::gestures::drag_drop::CrossWindowPointerRoute<Message> {
+        let mut terminal = None;
+        let mut source_moved = None;
+        let disposition = self.dispatch_pointer_ingress_with_cross_window(
+            ingress,
+            Some((hint, &mut terminal, &mut source_moved)),
+        );
+        crate::runtime::controller::gestures::drag_drop::CrossWindowPointerRoute {
+            disposition,
+            terminal,
+            source_moved,
+        }
+    }
+
+    fn dispatch_pointer_ingress_with_cross_window(
+        &mut self,
+        ingress: PointerIngress,
+        mut cross_window: Option<(
+            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
+            &mut Option<
+                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
+                    Message,
+                >,
+            >,
+            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
+        )>,
+    ) -> PointerIngressDisposition {
         if !self.lifecycle_accepts_work() {
             return PointerIngressDisposition::Blocked;
         }
@@ -208,7 +242,7 @@ where
         // other nonmouse samples retain unsupported transport sequences without
         // creating synthetic mouse ownership or disturbing an active mouse sequence.
         if ingress.kind() == DeviceKind::Touch {
-            return self.dispatch_touch_pointer_ingress(ingress);
+            return self.dispatch_touch_pointer_ingress(ingress, cross_window);
         }
         if ingress.kind() != DeviceKind::Mouse {
             return self.dispatch_unsupported_pointer_ingress(ingress);
@@ -310,7 +344,14 @@ where
                 }
                 let previous_position = self.current_pointer_position();
                 self.set_current_pointer_position(Some(ingress.logical_position()));
-                if let Some(disposition) = self.route_pointer_gesture(ingress, index, record) {
+                if let Some(disposition) = self.route_pointer_gesture(
+                    ingress,
+                    index,
+                    record,
+                    cross_window.as_mut().map(|(hint, terminal, source_moved)| {
+                        (*hint, &mut **terminal, &mut **source_moved)
+                    }),
+                ) {
                     if matches!(
                         disposition,
                         PointerIngressDisposition::Stale | PointerIngressDisposition::Invalid
@@ -498,6 +539,15 @@ where
     fn dispatch_touch_pointer_ingress(
         &mut self,
         ingress: PointerIngress,
+        mut cross_window: Option<(
+            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
+            &mut Option<
+                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
+                    Message,
+                >,
+            >,
+            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
+        )>,
     ) -> PointerIngressDisposition {
         match ingress.phase() {
             PointerPhase::Started { .. } => {
@@ -513,7 +563,13 @@ where
                 };
                 record.owner = Some(PointerOwnerWitness::Unsupported);
                 let token = record.token;
-                self.route_admitted_touch_gesture(ingress, token)
+                self.route_admitted_touch_gesture(
+                    ingress,
+                    token,
+                    cross_window.as_mut().map(|(hint, terminal, source_moved)| {
+                        (*hint, &mut **terminal, &mut **source_moved)
+                    }),
+                )
             }
             PointerPhase::Moved | PointerPhase::Ended { .. } | PointerPhase::Cancelled => {
                 let Some((index, record)) = self.interaction.pointer.ingress.find(ingress) else {
@@ -522,7 +578,13 @@ where
                 if !matches!(record.owner, Some(PointerOwnerWitness::Unsupported)) {
                     return PointerIngressDisposition::Stale;
                 }
-                let disposition = self.route_admitted_touch_gesture(ingress, record.token);
+                let disposition = self.route_admitted_touch_gesture(
+                    ingress,
+                    record.token,
+                    cross_window.as_mut().map(|(hint, terminal, source_moved)| {
+                        (*hint, &mut **terminal, &mut **source_moved)
+                    }),
+                );
                 if ingress.phase().is_terminal() {
                     if self.interaction.pointer.ingress.records[index].is_some_and(|current| {
                         current.token == record.token && current.kind == DeviceKind::Touch

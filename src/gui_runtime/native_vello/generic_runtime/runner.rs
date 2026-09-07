@@ -150,6 +150,11 @@ where
     pub(super) native_ime_adapter_observation: Option<crate::runtime::NativeImeAdapterObservation>,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
+    pub(super) cross_window_transfers: Vec<super::auxiliary::NativeDragTransfer>,
+    // Deadline-stage cross-window semantics must finish before this bounded,
+    // visual-only accumulator is published at the completed stage boundary.
+    pending_timed_drag_visuals: super::auxiliary::NativeDragRoute,
+    timed_frame_semantic_reduced_since_event: bool,
     native_lifecycle: NativeLifecycle,
     auxiliary_owner: bool,
     terminal_cause: Option<NativeGenericRunError>,
@@ -396,6 +401,9 @@ where
             native_ime_adapter_observation: None,
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
+            cross_window_transfers: Vec::new(),
+            pending_timed_drag_visuals: super::auxiliary::NativeDragRoute::default(),
+            timed_frame_semantic_reduced_since_event: false,
             native_lifecycle: NativeLifecycle::default(),
             auxiliary_owner,
             terminal_cause: None,
@@ -3741,8 +3749,43 @@ where
             return GenericRouteOutcome::default();
         }
         self.timing.last_timed_frame_drain = now;
-        self.core
-            .drain_timed_frame(animation_activity, needs_text_caret_animation)
+        let mut outcome = self
+            .core
+            .drain_timed_frame(animation_activity, needs_text_caret_animation);
+        self.collect_timed_drag_cancellations(&mut outcome);
+        outcome
+    }
+
+    /// Keep cross-window cancellation semantics inside a timed Deadline that
+    /// already reduced runtime messages. Visual requests remain retained until
+    /// the exact Deadline completion reaches its caller.
+    pub(super) fn collect_timed_drag_cancellations(&mut self, outcome: &mut GenericRouteOutcome) {
+        if !outcome.routed {
+            return;
+        }
+        if self.auxiliary_owner {
+            self.timed_frame_semantic_reduced_since_event = true;
+        }
+        let drag = self.route_drag_cancellations();
+        outcome.merge(drag.outcome);
+        if !drag.visual_work.is_empty() {
+            self.pending_timed_drag_visuals.merge_visuals_from(&drag);
+        }
+    }
+
+    /// Publish visual work only after the owning Deadline completed. A failed
+    /// completion has already consumed its semantic drain, so its visual
+    /// candidate is discarded rather than replayed under another stage.
+    pub(super) fn finish_timed_drag_visuals(&mut self, deadline_completed: bool) {
+        let visuals = std::mem::take(&mut self.pending_timed_drag_visuals);
+        if !deadline_completed {
+            return;
+        }
+        self.apply_drag_route_visuals(&visuals, Some(NativeInputStageDisposition::ContinueNow));
+    }
+
+    pub(super) fn take_timed_frame_semantic_reduced_since_event(&mut self) -> bool {
+        std::mem::take(&mut self.timed_frame_semantic_reduced_since_event)
     }
 
     /// Resume a Deadline drain retained by the scheduler before this redraw
@@ -3768,6 +3811,7 @@ where
             return true;
         }
         self.handle_route_outcome_deferred_publication(event_loop, admission.outcome);
+        self.finish_timed_drag_visuals(admission.visual_deadline_completed);
         self.is_running()
     }
 
@@ -3788,6 +3832,7 @@ where
         );
         if admission.route_outcome {
             self.handle_route_outcome_deferred_publication(event_loop, admission.outcome);
+            self.finish_timed_drag_visuals(admission.visual_deadline_completed);
         }
         self.is_running()
     }
@@ -3809,6 +3854,7 @@ where
         );
         if admission.route_outcome {
             self.handle_route_outcome_deferred_publication(event_loop, admission.outcome);
+            self.finish_timed_drag_visuals(admission.visual_deadline_completed);
         }
         self.is_running()
     }
@@ -3845,11 +3891,12 @@ where
         if !matches!(cadence, TimedFrameCadence::DrainNow { .. }) {
             return;
         }
-        outcome.merge(self.drain_timed_frame_now(
-            now,
-            animation_activity,
-            needs_text_caret_animation,
-        ));
+        let timed = self.drain_timed_frame_now(now, animation_activity, needs_text_caret_animation);
+        // This direct merge has no Deadline ticket. Its semantic drain is
+        // complete, so publish the bounded visual batch before the caller
+        // applies ordinary route visuals.
+        self.finish_timed_drag_visuals(true);
+        outcome.merge(timed);
     }
 
     pub(super) fn request_runtime_wakeup_if_needed(&self, outcome: GenericRouteOutcome) {

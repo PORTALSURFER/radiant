@@ -1,5 +1,5 @@
 //! Bounded widget/ancestor recognition sharing controller capture admission and teardown.
-pub(super) mod drag_drop;
+pub(crate) mod drag_drop;
 mod pointer;
 mod touch;
 mod touch_drag;
@@ -134,8 +134,24 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
     /// threshold is crossed claims the sequence through shared controller
     /// capture admission and teardown; all other pointer consumers are blocked.
     pub fn dispatch_gesture_request(&mut self, request: GestureRequest) -> GestureAdmission {
+        self.dispatch_gesture_request_with_cross_window(
+            request,
+            drag_drop::CrossWindowInputHint::local(),
+            None,
+            None,
+        )
+    }
+
+    pub(in crate::runtime::controller) fn dispatch_gesture_request_with_cross_window(
+        &mut self,
+        request: GestureRequest,
+        hint: drag_drop::CrossWindowInputHint,
+        terminal: Option<&mut Option<drag_drop::CrossWindowTerminalRequest<Message>>>,
+        source_moved: Option<&mut Option<drag_drop::CrossWindowDragKey>>,
+    ) -> GestureAdmission {
         let mut admitted_token = None;
-        let outcome = self.route_gesture_request(request, &mut admitted_token);
+        let outcome =
+            self.route_gesture_request(request, &mut admitted_token, hint, terminal, source_moved);
         let token = if matches!(
             outcome,
             GestureOutcome::Pending
@@ -164,6 +180,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         &mut self,
         request: GestureRequest,
         admitted_token: &mut Option<GestureSequenceToken>,
+        hint: drag_drop::CrossWindowInputHint,
+        mut terminal: Option<&mut Option<drag_drop::CrossWindowTerminalRequest<Message>>>,
+        mut source_moved: Option<&mut Option<drag_drop::CrossWindowDragKey>>,
     ) -> GestureOutcome {
         if !self.lifecycle_accepts_work() {
             return GestureOutcome::Unavailable;
@@ -285,15 +304,15 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         }
         capture.sample = sample;
         capture.accumulated = accumulated;
-        let terminal = sample.phase() == GesturePhase::Ended;
+        let is_terminal = sample.phase() == GesturePhase::Ended;
         let was_active = capture.active;
         if !was_active {
             let winner = capture.recognition_target(accumulated, sample.kind());
             let Some(winner) = winner else {
-                if !terminal {
+                if !is_terminal {
                     self.interaction.gesture = Some(capture);
                 }
-                return if terminal {
+                return if is_terminal {
                     GestureOutcome::Unrecognized
                 } else {
                     GestureOutcome::Pending
@@ -358,11 +377,17 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         };
         if self.is_drag_source(&target) {
             self.interaction.gesture = Some(capture);
-            if !self.deliver_typed_drag(&target, event) {
+            if !self.deliver_typed_drag(
+                &target,
+                event,
+                hint,
+                terminal.as_deref_mut(),
+                source_moved.as_deref_mut(),
+            ) {
                 self.cancel_gesture_capture(GestureCancellation::Retired);
                 return GestureOutcome::Unsupported;
             }
-            if terminal
+            if is_terminal
                 && !was_active
                 && self
                     .interaction
@@ -376,11 +401,14 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                         phase: GesturePhase::Ended,
                         ..event
                     },
+                    hint,
+                    terminal,
+                    source_moved,
                 );
             }
             return outcome;
         }
-        if terminal && was_active {
+        if is_terminal && was_active {
             self.retire_gesture_touch(&capture);
             self.clear_gesture_pointer_capture(&target);
             return if self.deliver_gesture(&target, event) {
@@ -396,7 +424,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         }
         // A reducer can retire this sequence or admit another one. Never end
         // a replacement sequence solely because it selected the same node.
-        if terminal
+        if is_terminal
             && self
                 .interaction
                 .gesture

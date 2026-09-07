@@ -146,6 +146,11 @@ pub use controller::{
     SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
     SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
 };
+pub(crate) use controller::{
+    CrossWindowDragExport, CrossWindowDragKey, CrossWindowForeignInput, CrossWindowForeignRoute,
+    CrossWindowForeignTerminal, CrossWindowInputHint, CrossWindowSourceProof,
+    CrossWindowTerminalMessages, CrossWindowTerminalRequest,
+};
 #[cfg(target_os = "macos")]
 pub(crate) use controller::{
     NormalizedSemanticPublicationFenceSet, VirtualLayoutAutomationComposition,

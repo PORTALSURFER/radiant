@@ -334,7 +334,98 @@ fn exercise_touch() {
         PointerIngressDisposition::Stale
     );
 }
+#[derive(Clone)]
+enum WindowDragMessage {
+    Event(String),
+    OpenReceiver,
+    CloseReceiver,
+}
+
+struct WindowDragState {
+    last_event: String,
+    receiver_open: bool,
+}
+
+fn window_drag_view(state: &WindowDragState, auxiliary: bool) -> View<WindowDragMessage> {
+    use radiant::application::{DragSource, DropTarget};
+    let base = if auxiliary { 100 } else { 200 };
+    column([
+        text("Move the windows apart, then drag Sample onto Track.").height(48.0),
+        text(state.last_event.clone()).height(48.0),
+        button("Open receiver").message(WindowDragMessage::OpenReceiver),
+        button("Sample")
+            .filter_mapped(|_| None::<WindowDragMessage>)
+            .width(180.0)
+            .height(48.0)
+            .id(base + 1)
+            .drag_source(
+                DragSource::new(String::from("sample.wav")).on_event_with_revision((), |event| {
+                    Some(WindowDragMessage::Event(format!(
+                        "Source: {:?}",
+                        event.phase()
+                    )))
+                }),
+            )
+            .id(base + 2),
+        button("Track")
+            .filter_mapped(|_| None::<WindowDragMessage>)
+            .width(180.0)
+            .height(80.0)
+            .id(base + 3)
+            .drop_target(
+                DropTarget::<String, WindowDragMessage>::new()
+                    .feedback(radiant::runtime::DropTargetFeedback::themed())
+                    .on_event_with_revision((), |event| {
+                        Some(WindowDragMessage::Event(format!(
+                            "Target: {:?} ({})",
+                            event.phase(),
+                            event.payload(),
+                        )))
+                    }),
+            )
+            .id(base + 4),
+    ])
+    .spacing(12.0)
+}
+
+// Explicitly opt in to windows; the default example and its tests stay headless.
+#[allow(clippy::arc_with_non_send_sync)]
+fn run_window_drag() -> radiant::Result {
+    app(WindowDragState {
+        last_event: String::from("Ready"),
+        receiver_open: true,
+    })
+    .title("Radiant typed drag source")
+    .size(420, 400)
+    .view(|state| window_drag_view(state, false))
+    .auxiliary_windows(|state| {
+        if !state.receiver_open {
+            return Vec::new();
+        }
+        vec![
+            radiant::runtime::AuxiliaryWindow::utility(
+                "typed-drag-receiver",
+                "Radiant typed drag receiver",
+                420.0,
+                400.0,
+                std::sync::Arc::new(window_drag_view(state, true).into_surface()),
+            )
+            .on_close(WindowDragMessage::CloseReceiver),
+        ]
+    })
+    .update(|state, message| match message {
+        WindowDragMessage::Event(event) => state.last_event = event,
+        WindowDragMessage::OpenReceiver => state.receiver_open = true,
+        WindowDragMessage::CloseReceiver => state.receiver_open = false,
+    })
+    .run()
+}
+
 fn main() {
+    if std::env::args().any(|arg| arg == "--native-cross-window") {
+        run_window_drag().expect("native drag example failed");
+        return;
+    }
     exercise(5.0, GestureOutcome::Accepted(1));
     exercise(2.0, GestureOutcome::AcceptedContainer(10));
     exercise_drag(DeviceKind::Mouse);

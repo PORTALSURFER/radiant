@@ -26,6 +26,20 @@ impl TextEditorWidget {
         input: WidgetInput,
         environment: &ResolvedEnvironment,
     ) -> Option<WidgetOutput> {
+        if let WidgetInput::FocusChanged(focused) = input {
+            // Focus notifications carry no resolved environment and may be
+            // replayed while a captured press is refreshed. They neither use
+            // geometry nor supersede the active capture.
+            self.common.state.focused = focused;
+            if !focused {
+                self.common.state.pressed = false;
+            }
+            return if !focused && self.snapshot.is_composing() {
+                self.cancel_editor_composition()
+            } else {
+                None
+            };
+        }
         if self
             .geometry
             .as_ref()
@@ -34,15 +48,6 @@ impl TextEditorWidget {
             self.geometry = None;
         }
         match input {
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                self.common.state.pressed = false;
-                if !focused && self.snapshot.is_composing() {
-                    self.cancel_editor_composition()
-                } else {
-                    None
-                }
-            }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
@@ -77,7 +82,12 @@ impl TextEditorWidget {
             }
             WidgetInput::Wheel {
                 position, delta, ..
-            } if bounds.contains(position) && delta.x.is_finite() && delta.y.is_finite() => {
+            } if bounds.contains(position)
+                && !self.common.state.disabled
+                && delta.x.is_finite()
+                && delta.y.is_finite() =>
+            {
+                self.current_geometry()?;
                 let previous = self.scroll;
                 self.scroll.x += delta.x;
                 self.scroll.y += delta.y;

@@ -16,7 +16,7 @@ use crate::{
         WheelDelta, WheelSample, Widget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 fn bounds(width: f32, height: f32) -> Rect {
     Rect::from_xy_size(0.0, 0.0, width, height)
@@ -203,6 +203,26 @@ fn geometry_receipts_require_exact_owner_revision_and_viewport_width() {
 }
 
 #[test]
+fn focus_transition_preserves_a_current_nondefault_environment_receipt() {
+    let document = TextEditorDocument::new("abcd").unwrap();
+    let environment = environment_with_text_scale(1.5);
+    let viewport = bounds(80.0, 42.0);
+    let mut widget = editor(&document);
+    install(&mut widget, viewport, &environment);
+
+    Widget::handle_focus_changed_at(&mut widget, viewport, true, Instant::now());
+    let output = input(
+        &mut widget,
+        viewport,
+        &environment,
+        WidgetInput::primary_press(Point::new(74.0, 10.0)),
+    );
+
+    assert!(output.is_some(), "focus must not discard the accepted receipt");
+    assert_eq!(widget.selection().caret, 4);
+}
+
+#[test]
 fn vertical_navigation_preserves_shift_anchor_and_drag_selection_uses_exact_geometry() {
     let document = TextEditorDocument::new("aa\nbb\ncc").unwrap();
     let environment = ResolvedEnvironment::default();
@@ -311,19 +331,19 @@ fn wheel_rejects_a_stale_receipt_after_text_scale_and_wrap_change_at_stable_boun
             wheel(Vector2::new(0.0, 5_000.0)),
             &scaled_environment,
         )
-        .is_some()
+        .is_none()
     );
     assert_eq!(
         widget.scroll_offset().y,
-        5_000.0,
-        "the old wrapped receipt must not clamp a wheel routed under the new environment"
+        0.0,
+        "a stale receipt must not mutate scroll before current geometry is installed"
     );
 
     install(&mut widget, viewport, &scaled_environment);
     assert_eq!(
         widget.scroll_offset().y,
         0.0,
-        "the current unwrapped receipt owns the next scroll clamp"
+        "the current unwrapped receipt owns the scroll clamp"
     );
 }
 

@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "evidence_id": "M-macos-6b25e7dc397707282f0964a548e3fe21c7dacbd6-cross-window-typed-transfer-20260907",
+  "source_commit": "6b25e7dc397707282f0964a548e3fe21c7dacbd6",
+  "generated_at_utc": "2026-09-07T15:27:38.071976+00:00",
+  "lane": "M",
+  "outcome": "NOT_RUN",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical input"
+  },
+  "command_or_harness": "Not run: native/manual acceptance",
+  "assertions": [
+    {
+      "name": "native/manual acceptance",
+      "outcome": "NOT_RUN",
+      "reason": "No qualifying attempt."
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "a26c955f509bd99b870dca8c8c57f68d470688cf1379db610c109e9770b1790b"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "83d3e6ed25fe4412514da702db19ab6c3b0b80512f572e98df7e87d37db150d2"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "5efb881ea9341b2c2791c61538f6618f33b1904fb9ecf288be194d64b31288a1"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "58b072a50429a27d40312471f54186137e3913480ad18ed16cbfc06d788e21c7"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "15a00f322d88a2321d360fefb01d27827fa88be3c6c0f679298314843bc4a9f2"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "7da193191197caaab8528302b3c2788b25eb7973beb3b418b4b598a1175da2be"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "ec06a4b0a0cfa00061c4058deb77d2a24e5023a322dae70efbfcf0bbdb6c6640"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "03744b84f97dcbf926ae46b266daf911b05a0f5a4f848d46ab0e235e867a6d7d"
+    }
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Same-application typed drags preserve source capture and payload identity across primary and auxiliary macOS/Windows windows. Semantic callbacks remain inside the original native input ticket; terminal target/source messages are mapped before either reducer, with visual-only deferral and qualified retirement cleanup. Headless regressions cover cross-window ordering, cancellation, replaced receiver owners, timed cleanup, and redraw retirement wakes. Native window interaction and foreign receiver autoscroll remain outside this evidence.",
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Environment account identifier redacted."
+  ]
+}

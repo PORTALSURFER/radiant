@@ -14,6 +14,7 @@ use crate::{
 use std::any::Any;
 
 mod bridge;
+mod clipboard_lane;
 mod queue;
 mod resource;
 pub use resource::{

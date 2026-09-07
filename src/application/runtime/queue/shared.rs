@@ -1,3 +1,4 @@
+use super::super::clipboard_lane::{ClipboardJob, ClipboardLane};
 use super::super::subscription::{WorkerSubscriptionDelivery, WorkerSubscriptionIdentity};
 use super::super::threading::BusinessThreadPool;
 use super::super::timer::{TimerIdentity, TimerLane, TimerSink, TimerWake, timer_sink};
@@ -88,6 +89,7 @@ pub(in crate::application) struct SharedRuntimeIngress {
     business: BusinessThreadPool,
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
     timers: OnceLock<TimerLane>,
+    clipboard_lane: Mutex<Option<Arc<ClipboardLane>>>,
     timer_identities: Mutex<HashMap<TimerIdentity, TimerIdentity>>,
     next_timer_id: AtomicU64,
     timer_epoch: AtomicU64,
@@ -110,6 +112,7 @@ impl Default for SharedRuntimeIngress {
             business: BusinessThreadPool::new_with_diagnostics(Arc::clone(&diagnostics)),
             diagnostics,
             timers: OnceLock::new(),
+            clipboard_lane: Mutex::new(None),
             timer_identities: Mutex::new(HashMap::new()),
             next_timer_id: AtomicU64::new(1),
             timer_epoch: AtomicU64::new(1),
@@ -120,6 +123,29 @@ impl Default for SharedRuntimeIngress {
 }
 
 impl SharedRuntimeIngress {
+    pub(in crate::application::runtime) fn submit_clipboard_job(
+        &self,
+        job: ClipboardJob,
+    ) -> Result<(), ClipboardJob> {
+        if !self.is_alive() {
+            return Err(job);
+        }
+        let lane = {
+            let mut lane = lock_runtime_state(&self.clipboard_lane);
+            if let Some(lane) = lane.as_ref() {
+                Arc::clone(lane)
+            } else {
+                let Ok(started) = ClipboardLane::start() else {
+                    return Err(job);
+                };
+                let started = Arc::new(started);
+                *lane = Some(Arc::clone(&started));
+                started
+            }
+        };
+        lane.submit(job)
+    }
+
     #[cfg(test)]
     pub(super) fn with_capacity_for_test(capacity: usize) -> Self {
         Self {
@@ -381,6 +407,9 @@ impl SharedRuntimeIngress {
         lock_runtime_state(&self.timer_identities).clear();
         if let Some(timers) = self.timers.get() {
             timers.close();
+        }
+        if let Some(lane) = lock_runtime_state(&self.clipboard_lane).as_ref() {
+            lane.shutdown();
         }
         self.phase
             .store(RuntimeIngressPhase::Stopped as u8, Ordering::Release);

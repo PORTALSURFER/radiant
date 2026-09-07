@@ -1,4 +1,5 @@
 use super::super::AppBridge;
+use crate::application::runtime::clipboard_lane::ClipboardJob;
 use crate::{
     application::{IntoView, UiUpdateContext},
     runtime::{
@@ -30,6 +31,19 @@ where
         let Some(reservation) = self.runtime.shared().reserve_delivery() else {
             return Err(Box::new((request, on_completed)));
         };
+        if is_clipboard_request(&request) {
+            let job = ClipboardJob::new(
+                request,
+                on_completed,
+                reservation,
+                std::sync::Arc::downgrade(self.runtime.shared()),
+            );
+            return self
+                .runtime
+                .shared()
+                .submit_clipboard_job(job)
+                .map_err(|job| Box::new(job.into_fallback()));
+        }
         let runtime = std::sync::Arc::downgrade(self.runtime.shared());
         match self.runtime.spawn_business_task_with_payload(
             "radiant-platform-service",
@@ -53,6 +67,16 @@ where
     }
 }
 
+fn is_clipboard_request(request: &PlatformRequest) -> bool {
+    matches!(
+        request,
+        PlatformRequest::CopyText(_)
+            | PlatformRequest::CopyFilePaths(_)
+            | PlatformRequest::ReadText
+            | PlatformRequest::ReadFilePaths
+    )
+}
+
 fn perform_platform_request(request: PlatformRequest) -> PlatformResult {
     match request {
         PlatformRequest::PickFolder(request) => pick_folder(request),
@@ -61,10 +85,10 @@ fn perform_platform_request(request: PlatformRequest) -> PlatformResult {
         PlatformRequest::OpenPath(path) => open_path(path),
         PlatformRequest::RevealPath(path) => reveal_path(path),
         PlatformRequest::OpenUrl(url) => open_url(url),
-        PlatformRequest::CopyText(text) => copy_text(text),
-        PlatformRequest::CopyFilePaths(paths) => copy_file_paths(paths),
-        PlatformRequest::ReadText => read_text(),
-        PlatformRequest::ReadFilePaths => read_file_paths(),
+        PlatformRequest::CopyText(_)
+        | PlatformRequest::CopyFilePaths(_)
+        | PlatformRequest::ReadText
+        | PlatformRequest::ReadFilePaths => Err(PlatformFailure::InvalidRequest),
         PlatformRequest::Confirm(request) => confirm(request),
         PlatformRequest::Notify(_) => {
             Err(PlatformFailure::Unsupported(PlatformService::Notification))
@@ -184,49 +208,6 @@ fn reveal_path(path: std::path::PathBuf) -> PlatformResult {
 fn open_url(url: String) -> PlatformResult {
     open::that(url).map_err(|err| PlatformFailure::transport(err.to_string()))?;
     Ok(PlatformResponse::Completed)
-}
-
-fn copy_text(text: String) -> PlatformResult {
-    let mut clipboard = arboard::Clipboard::new()
-        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
-    clipboard
-        .set_text(text)
-        .map_err(|err| PlatformFailure::transport(format!("Failed to copy text: {err}")))?;
-    Ok(PlatformResponse::Completed)
-}
-
-fn copy_file_paths(paths: Vec<std::path::PathBuf>) -> PlatformResult {
-    if paths.is_empty() {
-        return Err(PlatformFailure::transport("No file paths to copy"));
-    }
-    let mut clipboard = arboard::Clipboard::new()
-        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
-    clipboard
-        .set()
-        .file_list(&paths)
-        .map_err(|err| PlatformFailure::transport(format!("Failed to copy file paths: {err}")))?;
-    Ok(PlatformResponse::Completed)
-}
-
-fn read_text() -> PlatformResult {
-    let mut clipboard = arboard::Clipboard::new()
-        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
-    clipboard
-        .get_text()
-        .map(PlatformResponse::Text)
-        .map_err(|err| PlatformFailure::transport(format!("Failed to read clipboard text: {err}")))
-}
-
-fn read_file_paths() -> PlatformResult {
-    let mut clipboard = arboard::Clipboard::new()
-        .map_err(|err| PlatformFailure::transport(format!("Failed to open clipboard: {err}")))?;
-    clipboard
-        .get()
-        .file_list()
-        .map(PlatformResponse::FilePaths)
-        .map_err(|err| {
-            PlatformFailure::transport(format!("Failed to read clipboard file paths: {err}"))
-        })
 }
 
 fn confirm(request: crate::runtime::ConfirmDialogRequest) -> PlatformResult {

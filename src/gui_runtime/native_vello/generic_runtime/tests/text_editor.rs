@@ -49,7 +49,11 @@ fn native_editor_pointer_promotes_65th_before_press_and_captured_drag() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(plan_ids.len(), 65, "all editors must enter the current plan");
+    assert_eq!(
+        plan_ids.len(),
+        65,
+        "all editors must enter the current plan"
+    );
     assert!(plan_ids.contains(&id));
     assert_eq!(runner.frame.editor_geometry_receipts().len(), 64);
     assert!(

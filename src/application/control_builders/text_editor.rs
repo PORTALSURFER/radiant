@@ -47,7 +47,8 @@ impl TextEditorBuilder {
         });
         widget.wrap = self.wrap;
         widget.font_size = self.font_size;
-        let node = view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)));
+        let node =
+            view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)));
         match self.id {
             Some(id) => node.id(id),
             None => node,

@@ -218,7 +218,10 @@ fn focus_transition_preserves_a_current_nondefault_environment_receipt() {
         WidgetInput::primary_press(Point::new(74.0, 10.0)),
     );
 
-    assert!(output.is_some(), "focus must not discard the accepted receipt");
+    assert!(
+        output.is_some(),
+        "focus must not discard the accepted receipt"
+    );
     assert_eq!(widget.selection().caret, 4);
 }
 

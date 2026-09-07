@@ -88,12 +88,11 @@ fn offer_host(
                 if state.wrong_owner {
                     view.effect_owner(radiant::application::DeclarativeEffectOwner::new())
                         .key("offer-target")
-                        .into_view()
                 } else {
-                    view.key("offer-target").into_view()
+                    view.key("offer-target")
                 }
             } else {
-                view.into_view()
+                view
             };
             if state.covered {
                 radiant::application::scene(view)
@@ -103,6 +102,7 @@ fn offer_host(
                         )
                         .block_input(),
                     )
+                    .into_view()
                     .into_surface()
             } else {
                 view.into_surface()

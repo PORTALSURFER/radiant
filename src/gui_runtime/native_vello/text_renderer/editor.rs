@@ -173,11 +173,7 @@ fn append_shaped_clusters(
             glyph_cursor += 1;
         }
         let source_cluster_glyphs = &glyphs[glyph_start..glyph_cursor];
-        let glyph_origin = source_cluster_glyphs
-            .iter()
-            .map(|glyph| glyph.x)
-            .min_by(f32::total_cmp)
-            .unwrap_or(0.0);
+        let glyph_origin = geometry.x_start.min(geometry.x_end);
         if !glyph_origin.is_finite() {
             return None;
         }
@@ -400,7 +396,7 @@ mod tests {
             "../../../../tests/fixtures/fonts/primary.ttf"
         )]);
         let shaped =
-            compute_shaped_paragraph(&mut stack, Arc::from("A B"), 20.0, &Default::default())
+            compute_shaped_paragraph(&mut stack, Arc::from("A?A"), 20.0, &Default::default())
                 .expect("fixture font shapes simple Latin text");
         let mut clusters = Vec::new();
         let mut payloads: Vec<NativeEditorClusterPayload> = Vec::new();
@@ -414,11 +410,133 @@ mod tests {
         .expect("shaped text has valid editor clusters");
 
         assert!(clusters.iter().any(|cluster| cluster.safe_break_after));
+        assert!(clusters.iter().any(|cluster| !cluster.safe_break_after));
         for cluster in &clusters {
             assert_eq!(
                 cluster.safe_break_after,
                 shaped.safe_to_break_before(super::Utf8ByteOffset(cluster.bytes.end))
             );
         }
+    }
+
+    #[test]
+    fn rtl_multigrapheme_ligature_payload_uses_logical_geometry_origin() {
+        use super::{
+            BidiDirection, BidiRun, GlyphPlacement, GraphemeBoundary, GraphemeGeometry,
+            LineBreakKind, LineBreakRecord, NativeEditorClusterPayload, ResolvedFontRun,
+            ShapeClusterRange, ShapedBreakBoundary, ShapedParagraph, SnapshotQuality,
+            TextPresentation, TextQuality, Utf8ByteOffset, append_shaped_clusters,
+        };
+        use crate::{
+            application::WritingDirection,
+            gui::text_layout::paragraph::{
+                ParagraphBaseDirection, ParagraphGeometry, ParagraphGeometryInput,
+                ParagraphGeometryKey,
+            },
+        };
+        use std::sync::Arc;
+
+        let source: Arc<str> = Arc::from("אב");
+        let shaped = ShapedParagraph {
+            source: Arc::clone(&source),
+            source_identity: 1,
+            revision: 1,
+            font_size_bits: 16.0_f32.to_bits(),
+            scalar_boundaries: vec![Utf8ByteOffset(0), Utf8ByteOffset(2), Utf8ByteOffset(4)],
+            grapheme_boundaries: vec![Utf8ByteOffset(0), Utf8ByteOffset(2), Utf8ByteOffset(4)],
+            breaks: vec![LineBreakRecord {
+                grapheme: GraphemeBoundary(2),
+                byte: Utf8ByteOffset(4),
+                kind: LineBreakKind::Mandatory,
+            }],
+            break_policy_id: super::super::model::LINE_BREAK_POLICY_ID,
+            resolved_font_runs: vec![ResolvedFontRun {
+                range: 0..4,
+                face_index: Some(0),
+                direction: BidiDirection::Rtl,
+            }],
+            bidi_runs: vec![BidiRun {
+                range: 0..4,
+                level: 1,
+                direction: BidiDirection::Rtl,
+                visual_index: 0,
+            }],
+            glyphs: vec![GlyphPlacement {
+                face_index: 0,
+                glyph_id: 1,
+                cluster: ShapeClusterRange {
+                    start: Utf8ByteOffset(0),
+                    end: Utf8ByteOffset(4),
+                },
+                x: 20.0,
+                y_offset: 0.0,
+                x_offset: 0.0,
+                advance: 20.0,
+                run_index: 0,
+            }],
+            break_safety: vec![
+                ShapedBreakBoundary {
+                    byte: Utf8ByteOffset(2),
+                    safe_to_break_before: true,
+                },
+                ShapedBreakBoundary {
+                    byte: Utf8ByteOffset(4),
+                    safe_to_break_before: false,
+                },
+            ],
+            grapheme_geometry: vec![
+                GraphemeGeometry {
+                    range: ShapeClusterRange {
+                        start: Utf8ByteOffset(0),
+                        end: Utf8ByteOffset(2),
+                    },
+                    grapheme_index: 0,
+                    x_start: 20.0,
+                    x_end: 10.0,
+                    direction: BidiDirection::Rtl,
+                    visual_index: 1,
+                },
+                GraphemeGeometry {
+                    range: ShapeClusterRange {
+                        start: Utf8ByteOffset(2),
+                        end: Utf8ByteOffset(4),
+                    },
+                    grapheme_index: 1,
+                    x_start: 10.0,
+                    x_end: 0.0,
+                    direction: BidiDirection::Rtl,
+                    visual_index: 0,
+                },
+            ],
+            caret_geometry: Vec::new(),
+            logical_to_visual: vec![1, 0],
+            visual_to_logical: vec![1, 0],
+            width: 20.0,
+            quality: TextQuality::default(),
+            quality_kind: SnapshotQuality::Shaped,
+        };
+        let presentation = TextPresentation {
+            locale: None,
+            direction: Some(WritingDirection::Rtl),
+        };
+        let mut clusters = Vec::new();
+        let mut payloads: Vec<NativeEditorClusterPayload> = Vec::new();
+
+        append_shaped_clusters(&shaped, 0, &presentation, &mut clusters, &mut payloads)
+            .expect("synthetic RTL ligature has complete geometry");
+        assert_eq!(payloads[0].glyphs()[0].x, 10.0);
+        assert!(payloads[1].glyphs().is_empty());
+
+        let geometry = ParagraphGeometry::build(ParagraphGeometryInput {
+            key: ParagraphGeometryKey(1),
+            source,
+            clusters,
+            base_direction: ParagraphBaseDirection::Rtl,
+            wrap_width: f32::MAX,
+            line_height: 16.0,
+        })
+        .expect("RTL clusters remain valid paragraph input");
+        assert_eq!(geometry.lines().len(), 1);
+        assert_eq!(geometry.width(), 20.0);
     }
 }

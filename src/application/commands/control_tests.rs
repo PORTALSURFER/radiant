@@ -369,16 +369,19 @@ fn semantic_command_target_cannot_bypass_new_modal_precedence() {
     );
     modal.set(true);
     runtime.refresh();
-    let current = runtime
-        .semantic_action_target(&crate::gui::automation::AutomationNodeId::new("102"))
-        .unwrap();
-    assert!(matches!(
+    assert!(
+        runtime
+            .semantic_action_target(&crate::gui::automation::AutomationNodeId::new("102"))
+            .is_none(),
+        "the modal must prevent issuing a base action target"
+    );
+    assert_eq!(
         runtime.dispatch_semantic_action(
-            &current,
+            &target,
             SemanticAction::Press,
             SemanticActionSource::Accessibility
         ),
-        SemanticActionOutcome::CommandRejected(_)
-    ));
+        SemanticActionOutcome::Stale
+    );
     assert_eq!(calls.get(), 1);
 }

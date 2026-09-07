@@ -3,6 +3,8 @@ use super::{LayerKind, SurfaceLayer, SurfaceLayerChildKind, SurfaceNode};
 use crate::{UiAffinity, layout::NodeId};
 use std::rc::Rc;
 
+type EscapeDismissals<Message> = Rc<Vec<Option<Rc<dyn Fn() -> Message>>>>;
+
 /// A root scene with base content plus typed transient layers.
 pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
@@ -10,8 +12,8 @@ pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) has_animation: bool,
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
-    pub(super) overlay_order: Option<Vec<usize>>,
-    pub(in crate::runtime::surface) escape_dismissals: Vec<Option<Rc<dyn Fn() -> Message>>>,
+    pub(super) overlay_order: Option<Rc<Vec<usize>>>,
+    pub(in crate::runtime::surface) escape_dismissals: Option<EscapeDismissals<Message>>,
     pub(in crate::runtime::surface) has_resource_view_demand: bool,
     pub(in crate::runtime::surface) has_notice_demand: bool,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
@@ -28,7 +30,7 @@ impl<Message> SurfaceScene<Message> {
             });
         let has_resource_view_demand = Self::has_resource_view_demand_in(&base, &layers);
         let has_notice_demand = Self::has_notice_demand_in(&base, &layers);
-        let overlay_order = ordered_nested_overlay_indices(&layers);
+        let overlay_order = ordered_nested_overlay_indices(&layers).map(Rc::new);
         Self {
             has_animation,
             _ui_affinity: UiAffinity::new(),
@@ -36,7 +38,7 @@ impl<Message> SurfaceScene<Message> {
             base: Box::new(base),
             layers,
             overlay_order,
-            escape_dismissals: Vec::new(),
+            escape_dismissals: None,
             has_resource_view_demand,
             has_notice_demand,
             source: None,
@@ -89,7 +91,7 @@ impl<Message> SurfaceScene<Message> {
     }
 
     pub(in crate::runtime) fn ordered_layer_indices(&self) -> OrderedLayerIndices<'_, Message> {
-        match self.overlay_order.as_deref() {
+        match self.overlay_order.as_deref().map(Vec::as_slice) {
             Some(indices) => OrderedLayerIndices::Nested(indices.iter()),
             None => OrderedLayerIndices::Kind {
                 layers: &self.layers,
@@ -227,6 +229,9 @@ fn ordered_nested_overlay_indices<Message>(layers: &[SurfaceLayer<Message>]) -> 
             ),
         };
         parent_indices.push(parent_index);
+    }
+    if parent_indices.iter().all(Option::is_none) {
+        return None;
     }
     let mut ordered = Vec::with_capacity(layers.len());
     while ordered.len() < layers.len() {

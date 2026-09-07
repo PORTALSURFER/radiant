@@ -64,7 +64,7 @@ impl RuntimeBridge<()> for Bridge {
                     .focus_owner(self.owners[index].clone(), self.policy)
             })
             .collect();
-        Arc::new(UiSurface::new(SurfaceNode::scene(900, base, layers)))
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::scene(900, base, layers)))
     }
 }
 
@@ -265,7 +265,7 @@ impl RuntimeBridge<()> for VetoBridge {
         } else {
             vec![]
         };
-        Arc::new(UiSurface::new(SurfaceNode::scene(
+        crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::scene(
             900,
             SurfaceNode::widget(self.widget.clone(), WidgetMessageMapper::typed(|()| ())),
             layers,
@@ -401,7 +401,7 @@ impl RuntimeBridge<usize> for EscapeBridge {
                     .dismiss_on_outside_click(0),
             );
         }
-        Arc::new(root.into_view().into_surface())
+        crate::runtime::test_arc_surface(root.into_view().into_surface())
     }
     fn reduce_message(&mut self, depth: usize) {
         self.closed.push(depth);
@@ -470,4 +470,75 @@ fn native_compatibility_key_route_dismisses_top_overlay() {
         false,
     ));
     assert_eq!(runtime.bridge().closed, vec![1]);
+}
+
+#[test]
+fn recycled_prior_widget_id_cannot_reclaim_retired_bookmark() {
+    let mut runtime = runtime();
+    assert!(runtime.focus_widget(2));
+    runtime.bridge_mut().depth = 1;
+    runtime.refresh();
+    runtime.bridge_mut().base_present = false;
+    runtime.refresh();
+    runtime.bridge_mut().base_present = true;
+    runtime.refresh();
+    runtime.bridge_mut().depth = 0;
+    runtime.refresh();
+    assert_eq!(
+        runtime.focused_widget(),
+        Some(1),
+        "fallback must not restore recycled id 2"
+    );
+}
+
+#[test]
+fn modal_close_retires_composition_before_same_id_reopens() {
+    use crate::widgets::{CompositionRange, CompositionSample};
+    let mut runtime = runtime();
+    runtime.bridge_mut().depth = 1;
+    runtime.refresh();
+    let range = CompositionRange::new(0, 0, 0).unwrap();
+    assert_eq!(
+        runtime.dispatch_composition_sample(CompositionSample::start(range, range).unwrap()),
+        Some(11)
+    );
+    let selected = CompositionRange::new(1, 1, 1).unwrap();
+    assert_eq!(
+        runtime.dispatch_composition_sample(CompositionSample::update("あ", selected).unwrap()),
+        Some(11)
+    );
+    runtime.bridge_mut().depth = 0;
+    runtime.refresh();
+    runtime.bridge_mut().depth = 1;
+    runtime.refresh();
+    assert_eq!(runtime.focused_widget(), Some(11));
+    assert_eq!(
+        runtime.dispatch_composition_sample(CompositionSample::commit("stale")),
+        None
+    );
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(11)
+            .unwrap()
+            .widget()
+            .retains_managed_composition()
+    );
+}
+
+#[test]
+fn modal_close_retires_pointer_capture_before_body_reopens() {
+    let mut runtime = runtime();
+    runtime.bridge_mut().depth = 1;
+    runtime.refresh();
+    let position = runtime.layout().rects[&11].center();
+    runtime.dispatch_event(crate::runtime::Event::primary_press(position));
+    assert_eq!(runtime.pointer_capture(), Some(11));
+    runtime.bridge_mut().depth = 0;
+    runtime.refresh();
+    assert_eq!(runtime.pointer_capture(), None);
+    runtime.bridge_mut().depth = 1;
+    runtime.refresh();
+    runtime.dispatch_event(crate::runtime::Event::primary_release(position));
+    assert_eq!(runtime.pointer_capture(), None);
 }

@@ -40,6 +40,7 @@ impl OverlayFocusRecord {
     pub(crate) const fn policy(&self) -> OverlayFocusPolicy {
         self.policy
     }
+    #[cfg(test)]
     pub(crate) const fn parent(&self) -> Option<usize> {
         self.parent
     }
@@ -91,6 +92,7 @@ impl OverlayFocusProjection {
     pub(crate) const fn is_invalid(&self) -> bool {
         self.invalid
     }
+    #[cfg(test)]
     pub(crate) fn has_authority(&self) -> bool {
         !self.invalid
             && self
@@ -153,12 +155,11 @@ impl OverlayFocusProjection {
             self.faulted = true;
         }
         let current = self.enter_node(node, inherited, layer_kind, false);
-        if let Some(record) = current {
-            if self.members.len() == MAX_SOURCE_NODES
-                || self.members.insert(node.id(), record).is_some()
-            {
-                self.faulted = true;
-            }
+        if let Some(record) = current
+            && (self.members.len() == MAX_SOURCE_NODES
+                || self.members.insert(node.id(), record).is_some())
+        {
+            self.faulted = true;
         }
         match node {
             SurfaceNode::Scene(scene) => {
@@ -316,7 +317,10 @@ impl<Message> SurfaceNode<Message> {
         if let Self::Scene(scene) = &mut self
             && callbacks.len() == scene.layers.len()
         {
-            scene.escape_dismissals = callbacks;
+            scene.escape_dismissals = callbacks
+                .iter()
+                .any(Option::is_some)
+                .then(|| std::rc::Rc::new(callbacks));
         }
         self
     }
@@ -342,7 +346,12 @@ impl<Message> SurfaceNode<Message> {
                             evidence.identity == *identity && evidence.layer_kind == *layer_kind
                         })
                     {
-                        return scene.escape_dismissals.get(index).cloned().flatten();
+                        return scene
+                            .escape_dismissals
+                            .as_ref()?
+                            .get(index)
+                            .cloned()
+                            .flatten();
                     }
                     if let Some(callback) = layer.node.overlay_escape_callback(key) {
                         return Some(callback);

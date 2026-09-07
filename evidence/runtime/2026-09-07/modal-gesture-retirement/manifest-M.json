@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "evidence_id": "M-macos-97440e4daa7c25ae880895aa0ba5ad93dc1d0a32-modal-gesture-retirement-20260907",
+  "source_commit": "97440e4daa7c25ae880895aa0ba5ad93dc1d0a32",
+  "generated_at_utc": "2026-09-07T10:51:01.567305+00:00",
+  "lane": "M",
+  "outcome": "NOT_RUN",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical input"
+  },
+  "command_or_harness": "Not run: native/manual acceptance",
+  "assertions": [
+    {
+      "name": "native/manual acceptance",
+      "outcome": "NOT_RUN",
+      "reason": "No qualifying attempt."
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "0f1f5890ea64d1cdc90ff36a92660cb62d03987e2ca8bcd1a8906286c7bae961"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "3f7c9e166a6463413a9e96c12f758c59fe3a8d5138e63c666cfccaf87f0cf1d7"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "d516054aa936a3827e9b0a7e20099761f6885d6cee1dd2b7b96e7bef23d1f21f"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "85be6b1b68ab6a64d564889835e6f979e2f7bc34f2b6acc595120e5b3835bb85"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "a6905973a054ee404141ecc4bd318666967d2c4a79d06d1e268a9186f41affb0"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "b1cf3d95eb29743d6cd809d89565c860e858337be1212edbd20f6501af1db3ba"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "a83b1d55c0d97dcdd252cc7d5013b3846b788f0889509f7343d393885a4d0715"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "3f08b4828674b3326ccc79ece927e4df5285de22aa0df944d36306ef4938a0cc"
+    }
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Modal publication retires background gesture capture and pending touch contacts through the existing input lifecycle.",
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Environment account identifier redacted."
+  ]
+}

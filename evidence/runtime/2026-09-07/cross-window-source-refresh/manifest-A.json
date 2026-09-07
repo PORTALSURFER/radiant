@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "evidence_id": "A-macos-06674c45846b7abbf67343cfe75f19d9e28c63bf-cross-window-source-refresh-20260907",
+  "source_commit": "06674c45846b7abbf67343cfe75f19d9e28c63bf",
+  "generated_at_utc": "2026-09-07T16:40:18.837432+00:00",
+  "lane": "A",
+  "outcome": "PASS",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical input"
+  },
+  "command_or_harness": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ]
+  ],
+  "assertions": [
+    {
+      "name": "tests",
+      "outcome": "PASS",
+      "passed": 5636,
+      "ignored": 8
+    },
+    {
+      "name": "examples",
+      "outcome": "PASS",
+      "passed": 296,
+      "ignored": 0
+    },
+    {
+      "name": "doctests",
+      "outcome": "PASS",
+      "passed": 20,
+      "ignored": 1
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "058b45bd53f66f243adf066619280ae45d0c0f844fc46954fea31b4ae6f99ffc"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "745d98ab7b33ffdfa437e883422a4fcf0177a1e5e2c6259690b4c0eb9470f7ef"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "790910b245c96623988af108f392b8b5f034295c9b868ab1541323e488c46f67"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "350f8c72f5ee0a1266e6535b03dd353fa1bdce684c6b141891d86096fd9a27cc"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "cc140a20a7fa63c6db7c3506ef688ed3b87da9024e09e2393e8e512397b0047b"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "ef0f4f4be277b675358cb8aa62262bf90dc4728a25a2120bd878fd217e57672a"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "64d5ff228f0a1c53a77d46e57ef3cf798688c1bdc2e6b29280d15dd1048bee55"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "db04314831a71975d921ca39a1939725fe8c2885a806a2daab4d4dfd4b5a5a0c"
+    }
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Receiver reductions refresh and requalify auxiliary sources before further mapping. Missing source projections stop drag capture and new input admission while preserving admitted-ticket completion. Nonconvergent refreshes and stale terminal fallback fail closed. Four new headless regressions pass; this bundle supersedes earlier source validation for PR1904. All native and manual acceptance remains NOT_RUN.",
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Environment account identifier redacted."
+  ]
+}

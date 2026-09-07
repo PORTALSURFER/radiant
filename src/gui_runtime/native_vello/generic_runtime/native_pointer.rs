@@ -1,5 +1,6 @@
 //! Native pointer routing contract for the generic native Vello runner.
 
+use super::cross_window_input::NativeCrossWindowInput;
 use super::gpu_surface_wheel::DeferredWheelRouteEffects;
 use super::input::NativePointerGestureLatch;
 use super::{
@@ -150,11 +151,24 @@ where
         self.route_native_mouse_input_with_timestamp(button, state, timestamp)
     }
 
+    #[cfg_attr(not(test), expect(dead_code, reason = "headless native routing tests"))]
     pub(super) fn route_native_mouse_input_with_timestamp(
         &mut self,
         button: MouseButton,
         state: ElementState,
         timestamp: Option<InputTimestamp>,
+    ) -> NativeMouseInputRoute {
+        self.route_native_mouse_input_with_timestamp_and_cross_window_input(
+            button, state, timestamp, None,
+        )
+    }
+
+    pub(super) fn route_native_mouse_input_with_timestamp_and_cross_window_input(
+        &mut self,
+        button: MouseButton,
+        state: ElementState,
+        timestamp: Option<InputTimestamp>,
+        cross_window: Option<&mut NativeCrossWindowInput<Message>>,
     ) -> NativeMouseInputRoute {
         let kind = match state {
             ElementState::Pressed => NativePointerEventKind::MousePress,
@@ -240,8 +254,14 @@ where
             |gesture| self.pointer_modifiers_for_gesture(gesture.consume_control),
         );
         let started = Instant::now();
-        let outcome =
-            self.route_native_mouse_pointer_ingress(position, button, state, modifiers, timestamp);
+        let outcome = self.route_native_mouse_pointer_ingress(
+            position,
+            button,
+            state,
+            modifiers,
+            timestamp,
+            cross_window,
+        );
         self.commit_accepted_native_text_pointer_caret();
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
@@ -267,6 +287,7 @@ where
         state: ElementState,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
+        cross_window: Option<&mut NativeCrossWindowInput<Message>>,
     ) -> GenericRouteOutcome {
         let Some(native_device) = self.input.last_native_mouse_device else {
             return match state {
@@ -323,7 +344,7 @@ where
                     .contact_token(native_device, u64::MAX);
                 let disposition = token
                     .map(|token| {
-                        self.core.runtime.dispatch_native_pointer_continuation(
+                        self.dispatch_native_pointer_continuation_with_cross_window(
                             crate::gui::pointer_ingress::DeviceKind::Mouse,
                             device,
                             contact,
@@ -336,6 +357,7 @@ where
                             None,
                             timestamp,
                             sequence_range,
+                            cross_window,
                         )
                     })
                     .unwrap_or(PointerIngressDisposition::Stale);

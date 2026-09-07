@@ -289,6 +289,8 @@ mod composited_base;
 mod core;
 mod cpu_frame_fairness;
 mod cpu_frame_observation;
+mod cross_window_hit;
+mod cross_window_input;
 mod device;
 mod event_routing;
 mod external_drag;

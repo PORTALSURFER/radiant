@@ -355,6 +355,7 @@ where
             .drag
             .session
             .as_ref()
+            .or_else(|| self.cross_window_foreign_preview())
             .filter(|session| session.visible)
         else {
             return;

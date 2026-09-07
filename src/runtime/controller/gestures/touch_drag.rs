@@ -9,6 +9,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         &mut self,
         ingress: PointerIngress,
         pointer_token: PointerSequenceToken,
+        cross_window: Option<
+            crate::runtime::controller::gestures::drag_drop::CrossWindowPointerIngress<'_, Message>,
+        >,
     ) -> PointerIngressDisposition {
         if matches!(ingress.phase(), PointerPhase::Started { .. }) {
             return match self.prepare_single_touch_drag(ingress, pointer_token) {
@@ -53,8 +56,16 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             self.cancel_gesture_capture(GestureCancellation::InvalidSample);
             return PointerIngressDisposition::Invalid;
         };
-        let admission =
-            self.dispatch_gesture_request(GestureRequest::new(sample).with_token(token));
+        let admission = if let Some((hint, terminal, source_moved)) = cross_window {
+            self.dispatch_gesture_request_with_cross_window(
+                GestureRequest::new(sample).with_token(token),
+                hint,
+                Some(terminal),
+                Some(source_moved),
+            )
+        } else {
+            self.dispatch_gesture_request(GestureRequest::new(sample).with_token(token))
+        };
         if admission.token().is_none()
             && self
                 .interaction

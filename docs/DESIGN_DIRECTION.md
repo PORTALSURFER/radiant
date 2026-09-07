@@ -4589,10 +4589,14 @@ identity or indices. Typed sources can opt into bounded logical edge autoscroll
 using the existing scroll-container chaining contract. It stops when the pointer
 leaves the content viewport edge or eligible viewports reach their boundaries.
 Owned incoming offers have bounded transport values and a backend-neutral,
-owner-qualified worker decoder ingress. Cross-window transfer, native external
-offer extraction/hover, and outgoing portable representation expansion remain
-delivery work. The complete target below includes those remaining capabilities;
-its illustrative API is not a claim that every method is currently available.
+owner-qualified worker decoder ingress. The macOS and Windows generic native
+hosts now coordinate same-application typed transfers across primary and auxiliary
+windows, with a frozen native screen sample and exact window-incarnation fences.
+The existing source capture remains the only capture. Native external offer
+extraction/hover and outgoing portable representation expansion remain delivery
+work; foreign edge autoscroll and native/manual acceptance remain separate. The
+complete target below includes those remaining capabilities; its illustrative API
+is not a claim that every method is currently available.
 
 Drag and drop is a first-class interaction subsystem, not a collection of
 pointer callbacks. A drag has a typed in-application payload, source identity,
@@ -5200,8 +5204,9 @@ otherwise it remains inert. A second contact replaces pending single-contact
 recognition with a two-contact baseline, or cancels an active typed drag. Held
 contacts cannot restart a cancelled sequence before release. This is normalized
 adapter/controller support; no physical-touch acceptance is implied.
-Local typed drag payloads are delivered. Cross-window payloads and native external adapters
-remain later work.
+Local typed drag payloads and macOS/Windows same-application cross-window
+routing are delivered at the source/controller level. Native external offer
+adapters and manual platform acceptance remain separate work.
 
 Radiant normalizes mouse, trackpad, touch, pen, and native scroll input into
 typed logical-coordinate events with timestamps, modifiers, device kind, and

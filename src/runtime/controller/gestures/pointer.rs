@@ -115,6 +115,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         ingress: PointerIngress,
         index: usize,
         record: PointerSequenceRecord,
+        cross_window: Option<
+            crate::runtime::controller::gestures::drag_drop::CrossWindowPointerIngress<'_, Message>,
+        >,
     ) -> Option<PointerIngressDisposition> {
         let token = record.gesture_token?;
         if !self.pointer_gesture_is_current(record) {
@@ -216,8 +219,16 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             }
             self.interaction.gesture = Some(capture);
         }
-        let admission =
-            self.dispatch_gesture_request(GestureRequest::new(sample).with_token(token));
+        let admission = if let Some((hint, terminal, source_moved)) = cross_window {
+            self.dispatch_gesture_request_with_cross_window(
+                GestureRequest::new(sample).with_token(token),
+                hint,
+                Some(terminal),
+                Some(source_moved),
+            )
+        } else {
+            self.dispatch_gesture_request(GestureRequest::new(sample).with_token(token))
+        };
         if !active && !crossing {
             return None;
         }

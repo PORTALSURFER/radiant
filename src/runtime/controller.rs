@@ -45,6 +45,11 @@ pub use resource_views::ResourceViewInterestStatus;
 mod scratch;
 mod scroll;
 mod semantic_actions;
+pub(crate) use gestures::drag_drop::{
+    CrossWindowDragExport, CrossWindowDragKey, CrossWindowForeignInput, CrossWindowForeignRoute,
+    CrossWindowForeignTerminal, CrossWindowInputHint, CrossWindowSourceProof,
+    CrossWindowTerminalMessages, CrossWindowTerminalRequest,
+};
 pub use gestures::{GestureAdmission, GestureOutcome, GestureRequest, GestureSequenceToken};
 mod semantic_coordinate;
 mod semantic_demand;

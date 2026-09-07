@@ -146,6 +146,11 @@ pub(super) struct AuxiliaryNativeWindow<Message> {
     runner: GenericNativeVelloRunner<AuxiliarySurfaceBridge<Message>, Message>,
     active: bool,
     lifecycle: AuxiliaryNativeWindowLifecycle,
+    // Projection evidence is distinct from native lifecycle ownership. A
+    // child whose key disappeared during a synchronous coordinator refresh
+    // remains cacheable, but cannot admit another native input until a normal
+    // parent projection restores its surface.
+    input_projection_current: bool,
     recovery_rebuild_pending: bool,
     #[cfg(test)]
     retiring_resource_test_state: Option<RetiringResourceTestState>,
@@ -212,6 +217,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             runner,
             active: true,
             lifecycle: AuxiliaryNativeWindowLifecycle::Admitted,
+            input_projection_current: true,
             recovery_rebuild_pending: false,
             #[cfg(test)]
             retiring_resource_test_state: None,
@@ -448,7 +454,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.native_discrete_input_ticket_is_current(
             &pending.ticket,
             adapter_generation,
-            self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+            Self::native_input_ticket_completion_is_current(
+                self.frame_schedule_eligibility(Some(adapter_generation)),
+            ),
         )
     }
 
@@ -469,7 +477,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.native_immediate_transient_ticket_is_current(
             &pending.ticket,
             adapter_generation,
-            self.native_discrete_input_wrapper_is_eligible(adapter_generation),
+            Self::native_input_ticket_completion_is_current(
+                self.frame_schedule_eligibility(Some(adapter_generation)),
+            ),
         )
     }
 
@@ -626,6 +636,24 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn is_retiring(&self) -> bool {
         matches!(self.lifecycle, AuxiliaryNativeWindowLifecycle::Retiring)
+    }
+
+    pub(super) const fn input_projection_current(&self) -> bool {
+        self.input_projection_current
+    }
+
+    fn end_drag_before_projection_invalidation(&mut self) -> Vec<Message> {
+        let outcome = self
+            .runner
+            .core
+            .runtime
+            .execute_command(crate::runtime::Command::end_drag());
+        self.runner.core.route_command_outcome(outcome);
+        self.runner.core.runtime.bridge_mut().take_messages()
+    }
+
+    fn invalidate_input_projection(&mut self) {
+        self.input_projection_current = false;
     }
 
     pub(super) fn native_surface_target_retirement_deadline(&self) -> Option<Instant> {
@@ -1123,12 +1151,31 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         }
     }
 
+    /// New native input requires current projection evidence. A ticket already
+    /// admitted before a synchronous coordinator refresh remains eligible to
+    /// settle its reduced semantic outcome under the normal owner and
+    /// generation fence.
+    fn native_input_ticket_completion_is_current(
+        eligibility: AuxiliaryScheduleEligibility,
+    ) -> bool {
+        eligibility.is_eligible()
+    }
+
+    fn native_input_wrapper_is_eligible(
+        input_projection_current: bool,
+        eligibility: AuxiliaryScheduleEligibility,
+    ) -> bool {
+        input_projection_current && Self::native_input_ticket_completion_is_current(eligibility)
+    }
+
     fn native_discrete_input_wrapper_is_eligible(
         &self,
         adapter_generation: NativeAdapterGeneration,
     ) -> bool {
-        self.frame_schedule_eligibility(Some(adapter_generation))
-            .is_eligible()
+        Self::native_input_wrapper_is_eligible(
+            self.input_projection_current,
+            self.frame_schedule_eligibility(Some(adapter_generation)),
+        )
     }
 
     pub(super) fn observe_frame_schedule(
@@ -1300,6 +1347,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.core.runtime.bridge_mut().command_service = service;
         self.runner.core.runtime.bridge_mut().surface = projection.surface;
         self.runner.core.refresh_surface();
+        self.input_projection_current = true;
         self.runner.rebuild_scene();
         // Updating an already-visible receiver must not steal focus from a
         // source window that still owns a pointer/drag sequence.

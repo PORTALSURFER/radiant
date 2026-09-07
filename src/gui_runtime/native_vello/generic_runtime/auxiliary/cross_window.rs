@@ -15,6 +15,8 @@ use crate::{
 };
 
 struct ForeignDrive {
+    source: NativeDragEndpoint,
+    source_proof: CrossWindowSourceProof,
     key: CrossWindowDragKey,
     location: cross_window_hit::NativeDragLocation,
     position: Point,
@@ -87,6 +89,8 @@ mod tests {
         source: Arc<crate::runtime::UiSurface<Message>>,
         receivers: Vec<(&'static str, Arc<crate::runtime::UiSurface<Message>>)>,
         events: Rc<RefCell<Vec<Message>>>,
+        retire_auxiliary_source_on: Option<DropPhase>,
+        auxiliary_source_live: bool,
     }
 
     impl RuntimeBridge<Message> for Bridge {
@@ -95,8 +99,14 @@ mod tests {
         }
 
         fn update(&mut self, message: Message) -> crate::runtime::Command<Message> {
+            let retire_auxiliary_source = matches!(message, Message::Target("retire-source", phase) if self.retire_auxiliary_source_on == Some(phase));
             self.events.borrow_mut().push(message);
-            crate::runtime::Command::none()
+            if retire_auxiliary_source {
+                self.auxiliary_source_live = false;
+                crate::runtime::Command::RequestProjectionRefresh
+            } else {
+                crate::runtime::Command::none()
+            }
         }
 
         fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
@@ -108,12 +118,18 @@ mod tests {
         fn project_auxiliary_windows(&mut self) -> Vec<crate::runtime::AuxiliaryWindow<Message>> {
             self.receivers
                 .iter()
-                .map(|(key, surface)| {
-                    crate::runtime::AuxiliaryWindow::new(
+                .filter_map(|(key, surface)| {
+                    let surface = if *key == "source" {
+                        self.auxiliary_source_live
+                            .then(|| Arc::clone(&self.source))?
+                    } else {
+                        Arc::clone(surface)
+                    };
+                    Some(crate::runtime::AuxiliaryWindow::new(
                         *key,
                         crate::gui_runtime::NativeRunOptions::default(),
-                        Arc::clone(surface),
-                    )
+                        surface,
+                    ))
                 })
                 .collect()
         }
@@ -259,12 +275,15 @@ mod tests {
             .iter()
             .map(|name| (*name, receiver_surface(name)))
             .collect::<Vec<_>>();
+        let auxiliary_source = Arc::clone(&source);
         let mut parent = GenericNativeVelloRunner::new(
             crate::gui_runtime::NativeRunOptions::default(),
             Bridge {
                 source,
                 receivers,
                 events: Rc::clone(&events),
+                retire_auxiliary_source_on: None,
+                auxiliary_source_live: names.contains(&"source"),
             },
             Vector2::new(100.0, 100.0),
         );
@@ -273,10 +292,15 @@ mod tests {
         let mut ids = Vec::new();
         for (index, name) in names.iter().enumerate() {
             let owner = parent.core.runtime.acquire_auxiliary_effect_owner(name);
+            let surface = if *name == "source" {
+                Arc::clone(&auxiliary_source)
+            } else {
+                receiver_surface(name)
+            };
             let child = crate::runtime::AuxiliaryWindow::new(
                 *name,
                 crate::gui_runtime::NativeRunOptions::default(),
-                receiver_surface(name),
+                surface,
             );
             let mut child = AuxiliaryNativeWindow::new_with_owner(
                 child,
@@ -354,6 +378,281 @@ mod tests {
             ],
             "the re-hit after Left must select fresh, never the stale initial receiver"
         );
+    }
+
+    #[test]
+    fn receiver_mapper_refreshes_auxiliary_source_before_storing_or_mapping_source_move() {
+        on_large_stack(
+            receiver_mapper_refreshes_auxiliary_source_before_storing_or_mapping_source_move_body,
+        );
+    }
+
+    fn receiver_mapper_refreshes_auxiliary_source_before_storing_or_mapping_source_move_body() {
+        for phase in [DropPhase::Entered, DropPhase::Over, DropPhase::Left] {
+            let (mut parent, events, ids) =
+                parent_with_receivers(&["source", "retire-source", "other"]);
+            let source = parent
+                .drag_endpoint(ids[0])
+                .expect("auxiliary source endpoint");
+            let mut refresh = NativeDragRoute::default();
+            assert!(
+                parent.drag_refresh_endpoint_and_drain(&source, &mut refresh),
+                "the fixture projects the auxiliary source through the parent bridge"
+            );
+            let export = activate_source(&mut parent.auxiliary_windows[0].runner.core.runtime);
+            let retiring = parent.drag_endpoint(ids[1]).expect("retiring receiver");
+            let other = parent.drag_endpoint(ids[2]).expect("other receiver");
+
+            if phase != DropPhase::Entered {
+                let initial = sample(
+                    source.clone(),
+                    parent.drag_parent_projection(),
+                    export.key(),
+                );
+                let _ = parent.route_drag_sample_with_test_receiver(initial, |_, _| {
+                    Some((retiring.clone(), Point::new(20.0, 20.0)))
+                });
+            }
+            events.borrow_mut().clear();
+            parent.core.runtime.bridge_mut().retire_auxiliary_source_on = Some(phase);
+            let route = sample(
+                source.clone(),
+                parent.drag_parent_projection(),
+                export.key(),
+            );
+            let next = if phase == DropPhase::Left {
+                other.clone()
+            } else {
+                retiring.clone()
+            };
+            let _ = parent.route_drag_sample_with_test_receiver(route, move |_, _| {
+                Some((next.clone(), Point::new(20.0, 20.0)))
+            });
+
+            let observed = events.borrow();
+            assert!(
+                observed.contains(&Message::Target("retire-source", phase)),
+                "the fixture must exercise its requested receiver mapper"
+            );
+            assert_eq!(
+                observed
+                    .iter()
+                    .filter(|message| {
+                        matches!(*message, Message::Source(DragSourcePhase::Cancelled(_)))
+                    })
+                    .count(),
+                1,
+                "the refreshed auxiliary source drains one retirement callback for {phase:?}"
+            );
+            assert!(
+                !observed.contains(&Message::Source(DragSourcePhase::Moved)),
+                "{phase:?} cannot map SourceMoved from the old source projection"
+            );
+            assert!(
+                phase != DropPhase::Left
+                    || !observed.contains(&Message::Target("other", DropPhase::Entered)),
+                "a Left that retires the source cannot admit the next receiver"
+            );
+            drop(observed);
+            assert!(parent.cross_window_transfers.is_empty());
+
+            let _ = parent.route_drag_cancellations();
+            assert_eq!(
+                events
+                    .borrow()
+                    .iter()
+                    .filter(|message| {
+                        matches!(*message, Message::Source(DragSourcePhase::Cancelled(_)))
+                    })
+                    .count(),
+                1,
+                "the removed source leaves no transfer that can replay its cancellation"
+            );
+        }
+    }
+
+    #[test]
+    fn missing_auxiliary_source_projection_retires_capture_and_rejects_next_sample() {
+        on_large_stack(
+            missing_auxiliary_source_projection_retires_capture_and_rejects_next_sample_body,
+        );
+    }
+
+    fn missing_auxiliary_source_projection_retires_capture_and_rejects_next_sample_body() {
+        let (mut parent, events, ids) = parent_with_receivers(&["source", "receiver"]);
+        let source = parent
+            .drag_endpoint(ids[0])
+            .expect("auxiliary source endpoint");
+        let mut refresh = NativeDragRoute::default();
+        assert!(
+            parent.drag_refresh_endpoint_and_drain(&source, &mut refresh),
+            "the fixture projects the auxiliary source through the parent bridge"
+        );
+        let export = activate_source(&mut parent.auxiliary_windows[0].runner.core.runtime);
+        let receiver = parent.drag_endpoint(ids[1]).expect("receiver endpoint");
+        parent
+            .core
+            .runtime
+            .bridge_mut()
+            .receivers
+            .retain(|(key, _)| *key != "source");
+        events.borrow_mut().clear();
+
+        let mut outcome = NativeDragRoute::default();
+        assert!(
+            !parent.drag_refresh_endpoint_and_drain(&source, &mut outcome),
+            "a source with no current auxiliary projection fails closed"
+        );
+        assert!(!parent.auxiliary_windows[0].input_projection_current());
+        assert!(
+            parent.drag_endpoint(ids[0]).is_none(),
+            "invalid projection evidence rejects the source before native wrapper admission"
+        );
+        assert_eq!(
+            events
+                .borrow()
+                .iter()
+                .filter(|message| {
+                    matches!(*message, Message::Source(DragSourcePhase::Cancelled(_)))
+                })
+                .count(),
+            1,
+            "the still-current owner reduces one source cancellation before it is fenced"
+        );
+
+        let route = sample(source, parent.drag_parent_projection(), export.key());
+        let _ = parent.route_drag_sample_with_test_receiver(route, |_, _| {
+            Some((receiver.clone(), Point::new(20.0, 20.0)))
+        });
+        assert!(parent.cross_window_transfers.is_empty());
+        assert!(
+            !events
+                .borrow()
+                .iter()
+                .any(|message| matches!(*message, Message::Target(_, _))),
+            "a rejected stale source cannot map a receiver callback"
+        );
+    }
+
+    #[test]
+    fn terminal_fallback_does_not_map_detached_source_after_receiver_cleanup_retires_it() {
+        on_large_stack(
+            terminal_fallback_does_not_map_detached_source_after_receiver_cleanup_retires_it_body,
+        );
+    }
+
+    fn terminal_fallback_does_not_map_detached_source_after_receiver_cleanup_retires_it_body() {
+        let (mut parent, events, ids) = parent_with_receivers(&["source", "retire-source"]);
+        let source = parent
+            .drag_endpoint(ids[0])
+            .expect("auxiliary source endpoint");
+        let receiver = parent.drag_endpoint(ids[1]).expect("receiver endpoint");
+        let device = InputDeviceId::from_host(95).expect("test device");
+        let contact = PointerContactId::from_host(96).expect("test contact");
+        let started = PointerIngress::new(
+            DeviceKind::Mouse,
+            device,
+            contact,
+            PointerPhase::Started {
+                button: PointerButton::Primary,
+            },
+            Point::new(20.0, 20.0),
+            PointerButtons::PRIMARY,
+            Default::default(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("checked start");
+        let token = parent.auxiliary_windows[0]
+            .runner
+            .core
+            .runtime
+            .dispatch_pointer_ingress_with_admission(started)
+            .sequence_token()
+            .expect("source pointer token");
+        let moved = PointerIngress::from_runtime(
+            DeviceKind::Mouse,
+            device,
+            contact,
+            PointerPhase::Moved,
+            Point::new(40.0, 20.0),
+            PointerButtons::PRIMARY,
+            Default::default(),
+            None,
+            None,
+            None,
+            None,
+            token,
+        )
+        .expect("checked move");
+        let mut input = NativeCrossWindowInput::new(CrossWindowInputHint::foreign_or_none());
+        parent.auxiliary_windows[0]
+            .runner
+            .dispatch_checked_pointer_ingress(moved, Some(&mut input));
+        let entered = NativeDragSample {
+            source: source.clone(),
+            location: cross_window_hit::test_drag_location(),
+            parent_projection: parent.drag_parent_projection(),
+            input,
+        };
+        parent.route_drag_sample_with_test_receiver(entered, |_, _| {
+            Some((receiver.clone(), Point::new(40.0, 20.0)))
+        });
+        assert!(
+            events
+                .borrow()
+                .contains(&Message::Target("retire-source", DropPhase::Entered))
+        );
+
+        events.borrow_mut().clear();
+        parent.core.runtime.bridge_mut().retire_auxiliary_source_on = Some(DropPhase::Cancelled);
+        let ended = PointerIngress::from_runtime(
+            DeviceKind::Mouse,
+            device,
+            contact,
+            PointerPhase::Ended {
+                button: PointerButton::Primary,
+            },
+            Point::new(40.0, 20.0),
+            PointerButtons::empty(),
+            Default::default(),
+            None,
+            None,
+            None,
+            None,
+            token,
+        )
+        .expect("checked end");
+        let mut input = NativeCrossWindowInput::new(CrossWindowInputHint::foreign_or_none());
+        parent.auxiliary_windows[0]
+            .runner
+            .dispatch_checked_pointer_ingress(ended, Some(&mut input));
+        assert!(
+            input.terminal.is_some(),
+            "release detaches terminal authority"
+        );
+        let ended = NativeDragSample {
+            source,
+            location: cross_window_hit::test_drag_location(),
+            parent_projection: parent.drag_parent_projection(),
+            input,
+        };
+        let _ = parent.route_drag_sample_with_test_receiver(ended, |_, _| None);
+
+        let observed = events.borrow();
+        assert!(observed.contains(&Message::Target("retire-source", DropPhase::Cancelled)));
+        assert!(
+            !observed.iter().any(|message| matches!(
+                *message,
+                Message::Source(DragSourcePhase::Cancelled(_))
+                    | Message::Source(DragSourcePhase::Completed(_))
+                    | Message::Target(_, DropPhase::Dropped)
+            )),
+            "a detached terminal cannot map a stale source cancellation, completion, or drop"
+        );
+        assert!(parent.cross_window_transfers.is_empty());
     }
 
     #[test]
@@ -767,6 +1066,7 @@ impl NativeDragEndpoint {
     fn matches_auxiliary<Message>(&self, window: &AuxiliaryNativeWindow<Message>) -> bool {
         window.active
             && window.is_admitted()
+            && window.input_projection_current()
             && !window.recovery_rebuild_pending
             && window.window_id() == Some(self.window)
             && self
@@ -956,7 +1256,32 @@ where
         })
     }
 
-    fn refresh_drag_endpoint(&mut self, endpoint: &NativeDragEndpoint) -> bool {
+    fn invalidate_missing_drag_source_projection(
+        &mut self,
+        endpoint: &NativeDragEndpoint,
+        outcome: &mut NativeDragRoute,
+    ) {
+        let Some(index) = self
+            .auxiliary_windows
+            .iter()
+            .position(|window| endpoint.matches_auxiliary(window))
+        else {
+            return;
+        };
+        let messages = self.auxiliary_windows[index].end_drag_before_projection_invalidation();
+        // The owner remains current until its terminal mapper has reached the
+        // parent reducer. Only then fence further native admission.
+        if !messages.is_empty() {
+            let _ = self.drag_reduce_messages(endpoint, messages, outcome);
+        }
+        self.auxiliary_windows[index].invalidate_input_projection();
+    }
+
+    fn refresh_drag_endpoint(
+        &mut self,
+        endpoint: &NativeDragEndpoint,
+        outcome: &mut NativeDragRoute,
+    ) -> bool {
         if !self.is_running() {
             return false;
         }
@@ -981,9 +1306,11 @@ where
             .into_iter()
             .filter(|projection| projection.key == key);
         let Some(projection) = projections.next() else {
+            self.invalidate_missing_drag_source_projection(endpoint, outcome);
             return false;
         };
         if projections.next().is_some() {
+            self.invalidate_missing_drag_source_projection(endpoint, outcome);
             return false;
         }
         let service = self.core.runtime.command_service();
@@ -1019,7 +1346,7 @@ where
         endpoint: &NativeDragEndpoint,
         outcome: &mut NativeDragRoute,
     ) -> bool {
-        if !self.refresh_drag_endpoint(endpoint) {
+        if !self.refresh_drag_endpoint(endpoint, outcome) {
             return false;
         }
         outcome.mark_rebuild(endpoint);
@@ -1034,7 +1361,7 @@ where
                 return true;
             }
             if !self.drag_reduce_messages(endpoint, messages, outcome)
-                || !self.refresh_drag_endpoint(endpoint)
+                || !self.refresh_drag_endpoint(endpoint, outcome)
             {
                 return false;
             }
@@ -1344,6 +1671,27 @@ where
         Some(needs_transition)
     }
 
+    /// A receiver mapper reduces through the parent bridge. If it changed the
+    /// parent projection, an auxiliary source still holds the previous bridge
+    /// surface until it is explicitly refreshed. Refresh it before any next
+    /// receiver phase, source mapping, or transfer retention; the proof then
+    /// fences a source removed by that same reducer.
+    fn drag_refresh_source_after_receiver_reduction(
+        &mut self,
+        source: &NativeDragEndpoint,
+        proof: &CrossWindowSourceProof,
+        projection_before: u64,
+        outcome: &mut NativeDragRoute,
+    ) -> bool {
+        if projection_before != self.drag_parent_projection()
+            && source.owner.is_some()
+            && !self.drag_refresh_endpoint_and_drain(source, outcome)
+        {
+            return false;
+        }
+        self.drag_source_proof_is_current(source, proof)
+    }
+
     /// Map at most two ordinary receiver transitions, refreshing only after a
     /// reducer can have changed the parent projection. The final feedback
     /// validation is intentionally silent so an `Over` cannot loop forever.
@@ -1364,10 +1712,35 @@ where
             return false;
         };
         for step in 0..=2 {
+            let projection_before = self.drag_parent_projection();
             let Some(needs_transition) = self.drag_reduce_foreign_route(endpoint, route, outcome)
             else {
                 return false;
             };
+            let projection_after_receiver_reduction = self.drag_parent_projection();
+            if !self.drag_refresh_source_after_receiver_reduction(
+                &drive.source,
+                &drive.source_proof,
+                projection_before,
+                outcome,
+            ) {
+                return false;
+            }
+            if self.drag_parent_projection() != projection_after_receiver_reduction {
+                // Refreshing the source can itself reduce a cancellation. Requalify
+                // the receiver once for that parent projection. A receiver refresh
+                // that changes projection again has no bounded, current pair of
+                // endpoint proofs, so fail closed rather than map another phase.
+                let projection_before_receiver_refresh = self.drag_parent_projection();
+                if !self.drag_refresh_endpoint_and_drain(endpoint, outcome)
+                    || self.drag_parent_projection() != projection_before_receiver_refresh
+                {
+                    return false;
+                }
+            }
+            if !self.drag_source_proof_is_current(&drive.source, &drive.source_proof) {
+                return false;
+            }
             if !receiver_at(self, drive.location).is_some_and(|(current, current_position)| {
                 current.same(endpoint) && current_position == drive.position
             }) {
@@ -1449,6 +1822,25 @@ where
         if let Some(route) = self.drag_cancel_foreign(receiver, key) {
             let _ = self.drag_reduce_foreign_route(receiver, route, outcome);
         }
+    }
+
+    /// A source refresh can reduce its detached cancellation through the
+    /// parent after a receiver mapped a phase. Do not send receiver cleanup to
+    /// the earlier projection when that reduction changed the parent again.
+    fn drag_cancel_receiver_after_source_refresh(
+        &mut self,
+        receiver: &NativeDragEndpoint,
+        key: CrossWindowDragKey,
+        projection_before: u64,
+        outcome: &mut NativeDragRoute,
+    ) {
+        if projection_before != self.drag_parent_projection()
+            && !self.drag_refresh_endpoint_and_drain(receiver, outcome)
+        {
+            self.drag_discard_foreign(receiver, key);
+            return;
+        }
+        self.drag_cancel_receiver(receiver, key, outcome);
     }
 
     fn drag_refresh_receiver_if_needed(
@@ -1654,6 +2046,7 @@ where
                 receiver = None;
             }
             if let Some((receiver_endpoint, _)) = receiver.as_ref() {
+                let projection_before_previous = self.drag_parent_projection();
                 if previous
                     .as_ref()
                     .is_some_and(|transfer| !receiver_endpoint.same(&transfer.receiver))
@@ -1662,16 +2055,16 @@ where
                 {
                     return outcome;
                 }
-                if sample.source.owner.is_some()
-                    && !self.drag_refresh_endpoint_and_drain(&sample.source, &mut outcome)
-                {
-                    return outcome;
-                }
                 // `Left` can synchronously retire the source. No next target
                 // callback is admitted from a terminal request after that
                 // retirement, even though the request itself is already
                 // detached from the old capture.
-                if !self.drag_source_proof_is_current(&sample.source, request.source_proof()) {
+                if !self.drag_refresh_source_after_receiver_reduction(
+                    &sample.source,
+                    request.source_proof(),
+                    projection_before_previous,
+                    &mut outcome,
+                ) {
                     return outcome;
                 }
                 receiver = receiver_at(self, sample.location);
@@ -1685,10 +2078,19 @@ where
                 let prior = previous
                     .as_ref()
                     .map(|transfer| (transfer.receiver.clone(), transfer.parent_projection));
+                let projection_before_receiver = self.drag_parent_projection();
                 if self.drag_refresh_receiver_if_needed(receiver, prior, &mut outcome)
+                    && self.drag_refresh_source_after_receiver_reduction(
+                        &sample.source,
+                        request.source_proof(),
+                        projection_before_receiver,
+                        &mut outcome,
+                    )
                     && self.drag_drive_foreign(
                         receiver,
                         ForeignDrive {
+                            source: sample.source.clone(),
+                            source_proof: request.source_proof().clone(),
                             key,
                             location: sample.location,
                             position: *position,
@@ -1705,13 +2107,40 @@ where
                             outcome.mark_paint(receiver);
                         }
                     } else {
-                        self.drag_cancel_receiver(receiver, key, &mut outcome);
+                        self.drag_cancel_receiver_after_source_refresh(
+                            receiver,
+                            key,
+                            projection_before_receiver,
+                            &mut outcome,
+                        );
                     }
                 } else {
-                    self.drag_cancel_receiver(receiver, key, &mut outcome);
+                    self.drag_cancel_receiver_after_source_refresh(
+                        receiver,
+                        key,
+                        projection_before_receiver,
+                        &mut outcome,
+                    );
                 }
             } else if let Some(previous) = previous.take() {
                 self.drag_cancel_receiver(&previous.receiver, key, &mut outcome);
+            }
+            // A failed drive may have reduced receiver cleanup after its last
+            // source-proof check. Requalify only this fallback path: a taken
+            // terminal has already proved both endpoints and must retain its
+            // premapped target/source completion pair.
+            if terminal.is_none()
+                && !self.drag_refresh_source_after_receiver_reduction(
+                    &sample.source,
+                    request.source_proof(),
+                    sample.parent_projection,
+                    &mut outcome,
+                )
+            {
+                if let Some(receiver) = terminal_receiver.as_ref() {
+                    self.drag_discard_foreign(receiver, key);
+                }
+                return outcome;
             }
             let messages = self.drag_map_terminal(
                 &sample.source,
@@ -1761,6 +2190,7 @@ where
             return outcome;
         }
         let previous = self.drag_remove_transfer(&sample.source, key);
+        let projection_before_previous = self.drag_parent_projection();
         let mut receiver = receiver_at(self, sample.location);
         let mut foreign = receiver
             .as_ref()
@@ -1771,12 +2201,12 @@ where
             } else if !self.drag_clear_previous_receiver(previous, &mut outcome) {
                 return outcome;
             } else {
-                if sample.source.owner.is_some()
-                    && !self.drag_refresh_endpoint_and_drain(&sample.source, &mut outcome)
-                {
-                    return outcome;
-                }
-                if !self.drag_source_proof_is_current(&sample.source, &export.source_proof()) {
+                if !self.drag_refresh_source_after_receiver_reduction(
+                    &sample.source,
+                    &export.source_proof(),
+                    projection_before_previous,
+                    &mut outcome,
+                ) {
                     return outcome;
                 }
                 // `Left` is an application callback: it can move, close, or
@@ -1793,10 +2223,19 @@ where
         }
         if let Some((receiver, position)) = foreign {
             let prior = self.drag_transfer(&sample.source, key);
+            let projection_before_receiver = self.drag_parent_projection();
             if !self.drag_refresh_receiver_if_needed(receiver, prior, &mut outcome)
+                || !self.drag_refresh_source_after_receiver_reduction(
+                    &sample.source,
+                    &export.source_proof(),
+                    projection_before_receiver,
+                    &mut outcome,
+                )
                 || !self.drag_drive_foreign(
                     receiver,
                     ForeignDrive {
+                        source: sample.source.clone(),
+                        source_proof: export.source_proof(),
                         key,
                         location: sample.location,
                         position: *position,
@@ -1806,11 +2245,23 @@ where
                     receiver_at,
                 )
             {
-                self.drag_cancel_receiver(receiver, key, &mut outcome);
+                let _ = self.drag_remove_transfer(&sample.source, key);
+                self.drag_cancel_receiver_after_source_refresh(
+                    receiver,
+                    key,
+                    projection_before_receiver,
+                    &mut outcome,
+                );
                 return outcome;
             }
             if !self.drag_source_proof_is_current(&sample.source, &export.source_proof()) {
-                self.drag_cancel_receiver(receiver, key, &mut outcome);
+                let _ = self.drag_remove_transfer(&sample.source, key);
+                self.drag_cancel_receiver_after_source_refresh(
+                    receiver,
+                    key,
+                    projection_before_receiver,
+                    &mut outcome,
+                );
                 return outcome;
             }
             if !self.drag_store_transfer(

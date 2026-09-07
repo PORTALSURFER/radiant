@@ -4,6 +4,7 @@ use std::time::Instant;
 
 struct ScrollingBridge {
     scrolled: bool,
+    auxiliary_source: bool,
     events: Rc<RefCell<Vec<Message>>>,
 }
 
@@ -67,11 +68,19 @@ impl RuntimeBridge<Message> for ScrollingBridge {
 }
 impl RuntimeWindowHost<Message> for ScrollingBridge {
     fn project_auxiliary_windows(&mut self) -> Vec<crate::runtime::AuxiliaryWindow<Message>> {
-        vec![crate::runtime::AuxiliaryWindow::new(
+        let mut windows = vec![crate::runtime::AuxiliaryWindow::new(
             "receiver",
             Default::default(),
             scrolling_receiver(self.scrolled),
-        )]
+        )];
+        if self.auxiliary_source && !self.scrolled {
+            windows.push(crate::runtime::AuxiliaryWindow::new(
+                "source",
+                Default::default(),
+                scrolling_source(),
+            ));
+        }
+        windows
     }
 }
 
@@ -82,11 +91,16 @@ type Fixture = (
     Instant,
 );
 fn fixture() -> Fixture {
+    fixture_with_auxiliary_source(false)
+}
+
+fn fixture_with_auxiliary_source(auxiliary_source: bool) -> Fixture {
     let events = Rc::new(RefCell::new(Vec::new()));
     let mut parent = GenericNativeVelloRunner::new(
         Default::default(),
         ScrollingBridge {
             scrolled: false,
+            auxiliary_source,
             events: Rc::clone(&events),
         },
         Vector2::new(100.0, 100.0),
@@ -116,8 +130,34 @@ fn fixture() -> Fixture {
         .runtime
         .set_viewport(Vector2::new(100.0, 100.0));
     parent.auxiliary_windows.push(child);
-    let export = activate_source(&mut parent.core.runtime);
-    let source = parent.drag_endpoint(WindowId::from(201_u64)).unwrap();
+    let (export, source_id) = if auxiliary_source {
+        let owner = parent.core.runtime.acquire_auxiliary_effect_owner("source");
+        let mut source = AuxiliaryNativeWindow::new_with_owner(
+            crate::runtime::AuxiliaryWindow::new("source", Default::default(), scrolling_source()),
+            &Default::default(),
+            None,
+            false,
+            false,
+            false,
+            owner,
+        );
+        let source_id = WindowId::from(203_u64);
+        source.runner.window.id = Some(source_id);
+        source
+            .runner
+            .core
+            .runtime
+            .set_viewport(Vector2::new(100.0, 100.0));
+        let export = activate_source(&mut source.runner.core.runtime);
+        parent.auxiliary_windows.push(source);
+        (export, source_id)
+    } else {
+        (
+            activate_source(&mut parent.core.runtime),
+            WindowId::from(201_u64),
+        )
+    };
+    let source = parent.drag_endpoint(source_id).unwrap();
     let receiver = parent.drag_endpoint(WindowId::from(202_u64)).unwrap();
     let route = sample(source, parent.drag_parent_projection(), export.key());
     parent.route_drag_sample_with_test_receiver(route, |_, _| {
@@ -252,5 +292,46 @@ fn deferred_child_tick_waits_for_its_semantic_drain_and_successful_completion() 
             Some((receiver.clone(), Point::new(20.0, 98.0)))
         });
         assert_eq!(events.borrow().first(), Some(&Message::Scrolled));
+    });
+}
+
+#[test]
+fn foreign_scroll_reducer_removing_auxiliary_source_stops_target_reentry_and_rearm() {
+    on_large_stack(|| {
+        let (mut parent, events, receiver, deadline) = fixture_with_auxiliary_source(true);
+        parent.route_drag_autoscroll_with_resolver(&receiver, deadline, &mut |_, _| {
+            Some((receiver.clone(), Point::new(20.0, 98.0)))
+        });
+        let observed = events.borrow();
+        assert_eq!(observed.first(), Some(&Message::Scrolled));
+        assert_eq!(
+            observed
+                .iter()
+                .filter(|event| matches!(event, Message::Source(DragSourcePhase::Cancelled(_))))
+                .count(),
+            1
+        );
+        assert!(!observed.contains(&Message::Source(DragSourcePhase::Moved)));
+        assert!(!observed.contains(&Message::Target("updated", DropPhase::Entered)));
+        assert!(!observed.contains(&Message::Target("updated", DropPhase::Over)));
+        assert!(parent.cross_window_transfers.is_empty());
+        assert!(parent.drag_endpoint(WindowId::from(203_u64)).is_none());
+        assert!(
+            !parent.auxiliary_windows[0]
+                .runner
+                .core
+                .runtime
+                .has_pending_cross_window_autoscroll()
+        );
+        drop(observed);
+        let count = events.borrow().len();
+        parent.route_drag_autoscroll_with_resolver(&receiver, deadline, &mut |_, _| {
+            Some((receiver.clone(), Point::new(20.0, 98.0)))
+        });
+        assert_eq!(
+            events.borrow().len(),
+            count,
+            "a retired transfer cannot replay its tick"
+        );
     });
 }

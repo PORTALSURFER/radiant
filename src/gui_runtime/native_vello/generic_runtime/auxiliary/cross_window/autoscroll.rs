@@ -68,20 +68,6 @@ where
             })
             .collect();
         for (source, key, projection, location, position) in candidates {
-            if projection != self.drag_parent_projection() {
-                if source.owner.is_some()
-                    && !self.drag_refresh_endpoint_and_drain(&source, &mut outcome)
-                {
-                    self.drag_remove_transfer(&source, key);
-                    self.drag_cancel_receiver(receiver, key, &mut outcome);
-                    continue;
-                }
-                if !self.drag_refresh_endpoint_and_drain(receiver, &mut outcome) {
-                    self.drag_remove_transfer(&source, key);
-                    self.drag_discard_foreign(receiver, key);
-                    continue;
-                }
-            }
             let Some(export) = self
                 .drag_source_export(&source)
                 .filter(|export| export.key() == key && export.is_live())
@@ -89,6 +75,54 @@ where
                 self.drag_prune_expired_transfers(None, &mut outcome);
                 continue;
             };
+            if projection != self.drag_parent_projection() {
+                if source.owner.is_some()
+                    && !self.drag_refresh_endpoint_and_drain(&source, &mut outcome)
+                {
+                    self.drag_remove_transfer(&source, key);
+                    self.drag_cancel_receiver_after_source_refresh(
+                        receiver,
+                        key,
+                        projection,
+                        &mut outcome,
+                    );
+                    continue;
+                }
+                let projection_before_receiver_refresh = self.drag_parent_projection();
+                if !self.drag_refresh_endpoint_and_drain(receiver, &mut outcome) {
+                    self.drag_remove_transfer(&source, key);
+                    self.drag_discard_foreign(receiver, key);
+                    continue;
+                }
+                let projection_before_source_refresh = self.drag_parent_projection();
+                if !self.drag_refresh_source_after_receiver_reduction(
+                    &source,
+                    &export.source_proof(),
+                    projection_before_receiver_refresh,
+                    &mut outcome,
+                ) {
+                    self.drag_remove_transfer(&source, key);
+                    self.drag_cancel_receiver_after_source_refresh(
+                        receiver,
+                        key,
+                        projection_before_source_refresh,
+                        &mut outcome,
+                    );
+                    continue;
+                }
+                // A compensating receiver refresh may itself reduce messages.
+                // If it changes the parent again, source evidence is no longer
+                // qualified; stop this tick instead of chasing callback loops.
+                let projection_after_source_refresh = self.drag_parent_projection();
+                if projection_before_source_refresh != projection_after_source_refresh
+                    && (!self.drag_refresh_endpoint_and_drain(receiver, &mut outcome)
+                        || projection_after_source_refresh != self.drag_parent_projection())
+                {
+                    self.drag_remove_transfer(&source, key);
+                    self.drag_discard_foreign(receiver, key);
+                    continue;
+                }
+            }
             if !self.drag_source_proof_is_current(&source, &export.source_proof()) {
                 self.drag_prune_expired_transfers(None, &mut outcome);
                 continue;
@@ -101,6 +135,7 @@ where
                 }
                 continue;
             }
+            let projection_before_scroll = self.drag_parent_projection();
             let Some(attempt) = with_drag_runtime!(
                 self,
                 receiver,
@@ -122,11 +157,34 @@ where
             }
             if !self.drag_reduce_messages(receiver, messages, &mut outcome)
                 || !self.drag_refresh_endpoint_and_drain(receiver, &mut outcome)
-                || (source.owner.is_some()
-                    && !self.drag_refresh_endpoint_and_drain(&source, &mut outcome))
             {
                 self.drag_remove_transfer(&source, key);
-                self.drag_cancel_receiver(receiver, key, &mut outcome);
+                self.drag_discard_foreign(receiver, key);
+                continue;
+            }
+            let projection_before_source_refresh = self.drag_parent_projection();
+            if !self.drag_refresh_source_after_receiver_reduction(
+                &source,
+                &export.source_proof(),
+                projection_before_scroll,
+                &mut outcome,
+            ) {
+                self.drag_remove_transfer(&source, key);
+                self.drag_cancel_receiver_after_source_refresh(
+                    receiver,
+                    key,
+                    projection_before_source_refresh,
+                    &mut outcome,
+                );
+                continue;
+            }
+            let projection_after_source_refresh = self.drag_parent_projection();
+            if projection_before_source_refresh != projection_after_source_refresh
+                && (!self.drag_refresh_endpoint_and_drain(receiver, &mut outcome)
+                    || projection_after_source_refresh != self.drag_parent_projection())
+            {
+                self.drag_remove_transfer(&source, key);
+                self.drag_discard_foreign(receiver, key);
                 continue;
             }
             if !self.drag_source_proof_is_current(&source, &export.source_proof()) {
@@ -139,11 +197,14 @@ where
                 continue;
             }
             outcome.mark_rebuild(receiver);
+            let projection_before_drive = self.drag_parent_projection();
             if !receiver_at(self, location)
                 .is_some_and(|(current, point)| current.same(receiver) && point == position)
                 || !self.drag_drive_foreign(
                     receiver,
                     ForeignDrive {
+                        source: source.clone(),
+                        source_proof: export.source_proof(),
                         key,
                         location,
                         position,
@@ -155,7 +216,12 @@ where
                 || !self.drag_source_proof_is_current(&source, &export.source_proof())
             {
                 self.drag_remove_transfer(&source, key);
-                self.drag_cancel_receiver(receiver, key, &mut outcome);
+                self.drag_cancel_receiver_after_source_refresh(
+                    receiver,
+                    key,
+                    projection_before_drive,
+                    &mut outcome,
+                );
                 continue;
             }
             let _ = with_drag_runtime!(

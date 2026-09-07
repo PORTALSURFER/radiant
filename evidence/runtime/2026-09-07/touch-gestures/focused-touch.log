@@ -1,0 +1,20 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1363-touch-gestures-radiant)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.01s
+     Running tests/runtime_bridge_public_api.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/runtime_bridge_public_api-81d88e687821555d)
+
+running 12 tests
+test gestures::touch::touch_equal_normalized_family_scores_choose_pinch_before_pan ... ok
+test gestures::touch::touch_pinch_wins_normalized_competition_and_keeps_its_family ... ok
+test gestures::touch::touch_pair_does_not_steal_an_active_native_gesture ... ok
+test gestures::touch::touch_first_contact_moves_remain_inert_and_pair_rebases_before_pan ... ok
+test gestures::touch::touch_focus_loss_cancels_before_late_contact_samples ... ok
+test gestures::touch::touch_rotation_preserves_wrapped_direction_and_terminal_position ... ok
+test gestures::touch::touch_third_contact_cancels_once_and_old_tokens_cannot_revive ... ok
+test gestures::touch::touch_terminal_can_cross_threshold_and_emits_one_start_and_end ... ok
+test gestures::touch::touch_policy_change_retires_the_pair ... ok
+test gestures::touch::touch_extra_held_contact_blocks_new_pairs_until_all_contacts_end ... ok
+test gestures::touch::touch_deepest_crossed_target_wins_before_normalized_score ... ok
+test gestures::touch::touch_cancellation_and_source_replacement_have_one_terminal ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 69 filtered out; finished in 0.02s
+

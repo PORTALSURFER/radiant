@@ -8469,7 +8469,8 @@ recognition. After recognition it cancels the drag once; held contacts remain
 inert until all release. Source retirement and cancellation use the existing
 capture teardown, and exact contact tokens prevent replay or replacement reuse.
 Owned incoming offers support the qualified worker ingress described below.
-Native offer extraction/hover and cross-window payloads remain OPT-1363 work.
+Native offer extraction/hover remains OPT-1363 work. Native same-application
+cross-window typed dragging is described below.
 
 
 ### Container gesture regions
@@ -8598,9 +8599,39 @@ application projection or layout. `Command::end_drag()` cancels a typed session
 through shared gesture teardown. This delivery supports checked normalized pan
 and admitted primary mouse sequences within one surface.
 Run `cargo run --example gesture_input` for a headless typed payload drop through
-ordinary source and target declarations. Same-application cross-window transfer
-and owned external-offer import/export
-remain OPT-1363 work.
+ordinary source and target declarations.
+
+The generic native host on macOS and Windows also routes typed payloads between
+its primary and auxiliary windows. The source retains the existing gesture
+capture; receivers hold only a transient typed offer and target receipt. The
+payload stays on the application UI thread and need not implement `Send`.
+The native host freezes the admitted sample's screen location and rechecks the
+actual hit window and receiving coordinates after callbacks. Each auxiliary
+receipt is fenced to its exact window incarnation, including close/reopen.
+Source started, target left/entered/over, and source moved retain their ordering
+across window owners. Terminal target and source messages are mapped before
+either is reduced, and each keeps its own window effect origin.
+
+The existing native input ticket includes all transfer callbacks and semantic
+requalification. A stale ticket cannot transfer a drag. Terminal capture is
+never retained for a later frame; exceeding the input budget defers visual work,
+not semantic drop completion. Source cancellation clears current receiver state
+once. Foreign feedback uses transient paint; pointer-only movement without
+application callbacks does not force application projection.
+The same source opt-in also enables edge scrolling in a foreign receiver. Its
+existing timed clock marks one due tick; the native coordinator rechecks the
+source, receiver incarnation, and last admitted screen location before scrolling.
+It reduces scroll messages and refreshes the receiver before mapping target
+transitions, then rearms only a surviving receipt that moved. A different window's
+timer cannot consume the tick. Leaving, cancellation, release, and a boundary
+stop it. Other native backends retain local typed dragging; this does not add
+native external offer extraction or export.
+
+Run `cargo run --example gesture_input -- --native-cross-window` to explicitly
+open the two-window demonstration. Move the windows apart, drag in either
+direction, and close/reopen the receiver to exercise window ownership. The
+ordinary example invocation and its automated tests remain headless. Native
+manual acceptance is recorded separately from source and controller tests.
 
 
 ### Pointer-to-gesture capture handoff
@@ -8705,6 +8736,12 @@ resolve uniquely to that exact live keyed node. The format factories `files()`,
 `urls()`, `text()`, and `approved_mime(name)` make a data-free acceptance decision;
 MIME approval names one concrete type, without parameters or wildcards.
 
+`SurfaceRuntime::probe_external_offer(position, metadata)` lets an incoming
+native hover adapter inspect current geometry, clipping, modal scope, format,
+and keyed-owner evidence using already available metadata. `Eligible` reserves no
+worker capacity and grants no authority for a later drop; adapters must dispatch
+the owned offer, which reselects and revalidates its target at that time.
+
 The backend-neutral `SurfaceRuntime::dispatch_external_offer(position, offer)`
 admits one owned drop. An `Accepted` outcome means the worker was admitted,
 not that decoding succeeded. The decoder performs semantic validation and any
@@ -8719,8 +8756,8 @@ This ingress currently requires a hit-testable descendant in the receiving
 wrapper. It respects the current layout, clipping, occlusion and modal scope;
 unkeyed, ambiguous and stale owners cannot admit a decoder. Native platform
 extraction and hover feedback for these owned offers are not wired by this
-slice; legacy `NativeFileDrop` remains available. Same-application cross-window
-payload transfer remains separate OPT-1363 work.
+slice; legacy `NativeFileDrop` remains available. Same-application typed
+cross-window transfer uses the separate native coordinator described above.
 
 Run `cargo run --example external_offer` for deterministic worker admission,
 decoding, and a later UI result. The example opens no native window and performs

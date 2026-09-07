@@ -34,11 +34,25 @@ where
         else {
             return;
         };
-        let Some((ticket, outcome)) =
+        let Some((ticket, mut outcome)) =
             self.route_keyboard_event_inner(event_loop, event, adapter_generation, true)
         else {
             return;
         };
+        if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true) {
+            let _ = self.veto_native_discrete_input(ticket);
+            return;
+        }
+        let drag = self.route_drag_cancellations();
+        if !self.native_discrete_input_ticket_is_current(&ticket, adapter_generation, true) {
+            let _ = self.veto_native_discrete_input(ticket);
+            return;
+        }
+        if let Some(outcome) = outcome.as_mut() {
+            outcome.merge(drag.outcome);
+        } else if drag.outcome != GenericRouteOutcome::default() {
+            outcome = Some(drag.outcome);
+        }
         let Some(disposition) =
             discrete_input_completion_disposition(self.complete_native_discrete_input(ticket))
         else {
@@ -52,6 +66,7 @@ where
                 outcome.with_native_input_stage_disposition(disposition),
             );
         }
+        self.apply_drag_route_visuals(&drag, Some(disposition));
     }
 
     pub(super) fn route_keyboard_event_with_adapter(

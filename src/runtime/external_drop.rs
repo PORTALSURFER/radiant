@@ -21,6 +21,21 @@ pub enum ExternalOfferAdmission {
     NoTarget,
 }
 
+/// Side-effect-free qualification of an incoming external offer at one point.
+///
+/// `Eligible` observes only current geometry, clipping, modal scope, accepted
+/// format, and keyed-owner evidence. It reserves no worker capacity and grants
+/// no authority over a later drop; callers must requalify at drop time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExternalOfferProbe {
+    /// A current target accepts the supplied bounded metadata.
+    Eligible,
+    /// A current target rejects the format or owner evidence.
+    Rejected,
+    /// No current, hit-testable target exists at the supplied point.
+    NoTarget,
+}
+
 /// One explicitly approved representation for an external drop target.
 ///
 /// Approval only selects a decoder. Offer contents remain untrusted; semantic

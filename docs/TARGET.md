@@ -22,8 +22,14 @@ drag/drop also recognizes a single admitted touch contact through the same captu
 A second contact replaces pending single-contact recognition with the declared
 two-contact gesture, or cancels an already active drag. Owned incoming offers
 have bounded transport values and owner-qualified worker decoding through a
-backend-neutral drop ingress. Native extraction/hover integration, cross-window
-payloads, and outgoing portable offer expansion remain future target work.
+backend-neutral drop ingress. The macOS and Windows generic native hosts route
+typed payloads across primary and auxiliary windows through the existing source
+capture and owner-qualified receiver receipts. Source opt-in edge scrolling also
+applies to foreign receivers through due markers on their existing timed clocks,
+with source/native hit checks and scroll reduction before target requalification.
+Native extraction/hover integration
+and outgoing portable offer expansion remain future target work; cross-window
+manual acceptance remains a separate evidence lane.
 
 ## Vision
 

@@ -12,13 +12,13 @@ use super::super::runner_state::NativeTargetGeneration;
 use super::super::{NativeLifecycle, native_lifecycle_stage};
 use super::{
     AuxiliaryNativeDiscreteInputRoute, AuxiliaryNativeWindow, AuxiliaryRecoveryOpportunity,
-    AuxiliarySurfaceBridge, AuxiliaryWindowEventResult, FrameScheduleKey, FrameWork,
-    FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, NativeAdapterGeneration,
-    NativeFrameRenderFailure, NativeGenericRunError, NativeResourceMaintenanceTurn,
-    SceneRebuildMode, append_initialized_auxiliary_window, auxiliary_key_is_retiring,
-    auxiliary_key_is_suppressed_for_sync, auxiliary_keys_removed_during_sync,
-    auxiliary_projection_contains_key, auxiliary_redraw_terminal_cause,
-    take_deferred_auxiliary_recovery_failure_cause,
+    AuxiliaryScheduleEligibility, AuxiliarySurfaceBridge, AuxiliaryWindowEventResult,
+    FrameScheduleKey, FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome,
+    NativeAdapterGeneration, NativeFrameRenderFailure, NativeGenericRunError,
+    NativeResourceMaintenanceTurn, SceneRebuildMode, append_initialized_auxiliary_window,
+    auxiliary_key_is_retiring, auxiliary_key_is_suppressed_for_sync,
+    auxiliary_keys_removed_during_sync, auxiliary_projection_contains_key,
+    auxiliary_redraw_terminal_cause, take_deferred_auxiliary_recovery_failure_cause,
 };
 use crate::gui::{input::InputTimestamp, types::Vector2};
 use crate::{
@@ -115,6 +115,24 @@ fn auxiliary_transient_route_with_budget(
             outcome,
             launch_external_drag: false,
         },
+    }
+}
+
+fn auxiliary_touch_transient_route_with_budget(
+    window: &mut AuxiliaryNativeWindow<i32>,
+    phase: winit::event::TouchPhase,
+    budget: FrameStageBudgetBinding,
+) -> super::AuxiliaryNativeImmediateTransientRoute {
+    let super::AuxiliaryNativeImmediateTransientRoute { ticket, .. } =
+        auxiliary_transient_route_with_budget(
+            window,
+            NativeImmediateTransientKind::Touch(phase),
+            GenericRouteOutcome::default(),
+            budget,
+        );
+    super::AuxiliaryNativeImmediateTransientRoute {
+        ticket,
+        kind: super::AuxiliaryNativeImmediateTransientRouteKind::Touch,
     }
 }
 
@@ -579,6 +597,152 @@ fn stale_generation_and_retiring_or_sibling_children_are_not_fallback_targets() 
 }
 
 #[test]
+fn projection_invalidation_blocks_new_admission_but_settles_admitted_input_outcomes() {
+    let eligible = AuxiliaryScheduleEligibility {
+        active: true,
+        admitted: true,
+        local_running: true,
+        live_window: true,
+        recovering: false,
+        closing: false,
+        stopped: false,
+        native_resources_present: true,
+        resource_generation_current: true,
+        mailbox_suspended: false,
+        target_generation_known: true,
+        native_surface_target_unfenced: true,
+    };
+    let completion_eligible =
+        AuxiliaryNativeWindow::<i32>::native_input_ticket_completion_is_current(eligible);
+    assert!(completion_eligible);
+    assert!(AuxiliaryNativeWindow::<i32>::native_input_wrapper_is_eligible(true, eligible));
+
+    let generation = NativeAdapterGeneration::from_test_serial(1);
+    let mut window = auxiliary_window(false);
+    let discrete_evidence = NativeDiscreteInputStageEvidence {
+        key: FrameScheduleKey::Auxiliary(String::from("settings")),
+        kind: NativeDiscreteInputKind::MouseInput,
+        timestamp: InputTimestamp::capture(),
+        window_id: Some(WindowId::dummy()),
+        adapter_generation: generation,
+        active_resource_generation: Some(generation),
+        target_generation: NativeTargetGeneration::from_test_serial(1),
+        native_surface_target_fenced: false,
+        lifecycle: NativeLifecycle::default(),
+        native_window_eligible: true,
+        wrapper_eligible: true,
+    };
+    let discrete_ticket = admit_native_discrete_input_with_budget(
+        &mut window.runner.frame_stage_owner,
+        discrete_evidence.clone(),
+        FrameStageBudgetBinding::not_budgeted(),
+    )
+    .expect("admitted discrete ticket");
+
+    window.invalidate_input_projection();
+    assert!(
+        !AuxiliaryNativeWindow::<i32>::native_input_wrapper_is_eligible(false, eligible),
+        "a projection-invalid child cannot admit a new native input"
+    );
+    let discrete_completion_evidence = NativeDiscreteInputStageEvidence {
+        wrapper_eligible: completion_eligible,
+        ..discrete_evidence
+    };
+    assert!(
+        discrete_ticket.is_current(
+            &window.runner.frame_stage_owner,
+            discrete_completion_evidence
+        ),
+        "the existing ticket must remain current under completion eligibility"
+    );
+
+    let child_outcome = GenericRouteOutcome::default();
+    let discrete = window
+        .resolve_native_discrete_input_route(AuxiliaryNativeDiscreteInputRoute {
+            ticket: discrete_ticket,
+            outcome: Some(child_outcome),
+        })
+        .expect("projection invalidation cannot veto an admitted discrete ticket");
+    let discrete_child = discrete.child_outcome.expect("child outcome survives");
+    let mut parent = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AuxiliarySurfaceBridge::new(
+            crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+            false,
+            false,
+        ),
+        Vector2::new(1280.0, 720.0),
+    );
+    let mut parent_outcome = GenericRouteOutcome::default();
+    parent_outcome.request_exit();
+    assert!(
+        parent
+            .apply_auxiliary_native_discrete_input_resolution(
+                parent_outcome,
+                discrete.disposition,
+                Some(discrete_child),
+            )
+            .exit_requested
+    );
+
+    let transient_evidence = NativeImmediateTransientStageEvidence {
+        key: FrameScheduleKey::Auxiliary(String::from("settings")),
+        kind: NativeImmediateTransientKind::CursorEntered,
+        timestamp: InputTimestamp::capture(),
+        window_id: Some(WindowId::dummy()),
+        adapter_generation: generation,
+        active_resource_generation: Some(generation),
+        target_generation: NativeTargetGeneration::from_test_serial(1),
+        native_surface_target_fenced: false,
+        lifecycle: NativeLifecycle::default(),
+        native_window_eligible: true,
+        wrapper_eligible: true,
+    };
+    let transient_ticket = admit_native_immediate_transient_with_budget(
+        &mut window.runner.frame_stage_owner,
+        transient_evidence.clone(),
+        FrameStageBudgetBinding::not_budgeted(),
+    )
+    .expect("admitted immediate ticket");
+    let transient_completion_evidence = NativeImmediateTransientStageEvidence {
+        wrapper_eligible: completion_eligible,
+        ..transient_evidence
+    };
+    assert!(
+        transient_ticket.is_current(
+            &window.runner.frame_stage_owner,
+            transient_completion_evidence
+        ),
+        "the existing immediate ticket must remain current under completion eligibility"
+    );
+    let transient_outcome = GenericRouteOutcome::default();
+    let transient = window
+        .resolve_native_immediate_transient_route(super::AuxiliaryNativeImmediateTransientRoute {
+            ticket: transient_ticket,
+            kind: super::AuxiliaryNativeImmediateTransientRouteKind::Focused {
+                outcome: transient_outcome,
+                launch_external_drag: false,
+            },
+        })
+        .expect("projection invalidation cannot veto an admitted immediate ticket");
+    let transient_child = match transient.child_route {
+        super::AuxiliaryNativeImmediateTransientResolvedRoute::Outcome(outcome) => outcome,
+        _ => panic!("focused transient retains its child outcome"),
+    };
+    let mut parent_outcome = GenericRouteOutcome::default();
+    parent_outcome.request_exit();
+    assert!(
+        parent
+            .apply_auxiliary_native_discrete_input_resolution(
+                parent_outcome,
+                transient.disposition,
+                Some(transient_child),
+            )
+            .exit_requested
+    );
+}
+
+#[test]
 fn auxiliary_input_ticket_stays_live_through_parent_reduction() {
     let surface = crate::runtime::test_arc_surface(empty::<i32>().into_surface());
     let mut parent = GenericNativeVelloRunner::new(
@@ -793,6 +957,50 @@ fn auxiliary_immediate_transient_settles_after_parent_reduction_once() {
 }
 
 #[test]
+fn auxiliary_touch_transient_settles_after_parent_reduction() {
+    let now = Instant::now();
+    let budget = Duration::from_millis(1);
+    let mut parent = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AuxiliarySurfaceBridge::new(
+            crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+            false,
+            false,
+        ),
+        Vector2::new(1280.0, 720.0),
+    );
+    parent.auxiliary_windows.push(auxiliary_window(false));
+    let pending = auxiliary_touch_transient_route_with_budget(
+        &mut parent.auxiliary_windows[0],
+        winit::event::TouchPhase::Moved,
+        FrameStageBudgetBinding::input_transient_at(budget, now),
+    );
+
+    let reduced_parent = parent.reduce_auxiliary_messages(None, Vec::new());
+    let resolution = parent.auxiliary_windows[0]
+        .resolve_native_immediate_transient_route_at(pending, Some(now + budget))
+        .expect("exact touch transient completion");
+    assert_eq!(
+        resolution.disposition,
+        NativeInputStageDisposition::ContinueNow
+    );
+    assert!(matches!(
+        resolution.child_route,
+        super::AuxiliaryNativeImmediateTransientResolvedRoute::None
+    ));
+    let parent_outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+        reduced_parent,
+        resolution.disposition,
+        None,
+    );
+    assert_eq!(
+        parent_outcome.native_input_stage_disposition(),
+        Some(NativeInputStageDisposition::ContinueNow)
+    );
+    assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
+}
+
+#[test]
 fn auxiliary_immediate_transient_exceeded_matches_parent_and_defers_sibling_sync() {
     let now = Instant::now();
     let budget = Duration::from_millis(1);
@@ -852,6 +1060,53 @@ fn auxiliary_immediate_transient_exceeded_matches_parent_and_defers_sibling_sync
             .immediate_transient_budget_breach_count(),
         1
     );
+}
+
+#[test]
+fn auxiliary_touch_transient_exceeded_defers_lower_priority_work() {
+    let now = Instant::now();
+    let budget = Duration::from_millis(1);
+    let mut parent = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AuxiliarySurfaceBridge::new(
+            crate::runtime::test_arc_surface(empty::<i32>().into_surface()),
+            false,
+            false,
+        ),
+        Vector2::new(1280.0, 720.0),
+    );
+    parent.auxiliary_windows.push(auxiliary_window(false));
+    let pending = auxiliary_touch_transient_route_with_budget(
+        &mut parent.auxiliary_windows[0],
+        winit::event::TouchPhase::Ended,
+        FrameStageBudgetBinding::input_transient_at(budget, now),
+    );
+
+    let resolution = parent.auxiliary_windows[0]
+        .resolve_native_immediate_transient_route_at(
+            pending,
+            Some(now + budget + Duration::from_micros(1)),
+        )
+        .expect("exceeded touch transient completion");
+    assert_eq!(
+        resolution.disposition,
+        NativeInputStageDisposition::DeferLowerPriority
+    );
+    assert!(matches!(
+        resolution.child_route,
+        super::AuxiliaryNativeImmediateTransientResolvedRoute::None
+    ));
+    let parent_outcome = parent.apply_auxiliary_native_discrete_input_resolution(
+        GenericRouteOutcome::default(),
+        resolution.disposition,
+        None,
+    );
+    assert_eq!(
+        parent_outcome.native_input_stage_disposition(),
+        Some(NativeInputStageDisposition::DeferLowerPriority)
+    );
+    assert!(parent.timing.deferred_auxiliary_window_sync);
+    assert!(!parent.auxiliary_windows[0].frame_stage_owner_has_in_flight());
 }
 
 #[test]

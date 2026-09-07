@@ -45,6 +45,11 @@ pub use resource_views::ResourceViewInterestStatus;
 mod scratch;
 mod scroll;
 mod semantic_actions;
+pub(crate) use gestures::drag_drop::{
+    CrossWindowDragExport, CrossWindowDragKey, CrossWindowForeignInput, CrossWindowForeignRoute,
+    CrossWindowForeignTerminal, CrossWindowInputHint, CrossWindowSourceProof,
+    CrossWindowTerminalMessages, CrossWindowTerminalRequest,
+};
 pub use gestures::{GestureAdmission, GestureOutcome, GestureRequest, GestureSequenceToken};
 mod semantic_coordinate;
 mod semantic_demand;
@@ -312,13 +317,16 @@ where
                 earlier_deadline(
                     self.typed_drag_autoscroll_deadline(),
                     earlier_deadline(
-                        self.interaction.wheel.scroll_settlement_deadline,
-                        self.interaction
-                            .wheel
-                            .scroll_activity
-                            .values()
-                            .filter_map(|deadline| *deadline)
-                            .min(),
+                        self.cross_window_foreign_autoscroll_deadline(),
+                        earlier_deadline(
+                            self.interaction.wheel.scroll_settlement_deadline,
+                            self.interaction
+                                .wheel
+                                .scroll_activity
+                                .values()
+                                .filter_map(|deadline| *deadline)
+                                .min(),
+                        ),
                     ),
                 ),
             ),
@@ -374,6 +382,7 @@ where
         changed |= self.advance_declarative_animation(now);
         changed |= self.surface.advance_timed_repaints(now);
         changed |= self.advance_typed_drag_autoscroll(now);
+        changed |= self.advance_cross_window_foreign_autoscroll(now);
         if self
             .interaction
             .wheel

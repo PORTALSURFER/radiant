@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "evidence_id": "A-macos-7d194f86e1738f1a6f2bc79bb21a20e96651943d-external-offer-eligibility-probe-20260907",
+  "source_commit": "7d194f86e1738f1a6f2bc79bb21a20e96651943d",
+  "generated_at_utc": "2026-09-07T17:41:43.165538+00:00",
+  "lane": "A",
+  "outcome": "PASS",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical input"
+  },
+  "command_or_harness": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ]
+  ],
+  "assertions": [
+    {
+      "name": "tests",
+      "outcome": "PASS",
+      "passed": 5638,
+      "ignored": 8
+    },
+    {
+      "name": "examples",
+      "outcome": "PASS",
+      "passed": 296,
+      "ignored": 0
+    },
+    {
+      "name": "doctests",
+      "outcome": "PASS",
+      "passed": 20,
+      "ignored": 1
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "25879062941cad2b58c1b211074a4b28965bae47a6893a15e8eff4aff193ea4b"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "fdf1a26f58285db45b0a291cf312f4d9437dca32161c4460516ebbf0bb81a68a"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "6bf4bb6ca70f4346d931c17cca15d168a80e95aa2257f18e787360119bd56bff"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "f2a1215a6bb4a597b3ddc3e051cd261368b295cdbb7bb28444e930e1869ed115"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "9247a93cd57e5255610d61df401b04d7711da51d9fd8d0996663d9a90a083d5a"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "45f134ca34da7234cc8ff239fc4f534d5b4292566c677c418387f34389123232"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "7b872019070de606c47a9f0b1d14230ac1f489abcb9232385062d21b10aa532f"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "cdeccbd142d174f6248f5f1bf4625d3efb99e3b9bd0a31834e7918afb9ed6de3"
+    }
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "A side-effect-free external-offer eligibility probe shares the existing bounded current-target selector with final drop admission. Full validation is at source7d194f86; new capacity and owner/modal/geometry regressions execute explicitly. Initial fixture compile errors and failed width assumptions were corrected before this run: the target is a child with explicit Start cross alignment and pre/post bounds assertions. This final retry used the same worktree and unchanged production library, with no intervening Cargo worktree switch; the updated integration binary was recompiled from this exact worktree. No native extraction, window interaction or manual acceptance was attempted.",
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Environment account identifier redacted."
+  ]
+}

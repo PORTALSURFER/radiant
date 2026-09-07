@@ -31,7 +31,9 @@ mod environment;
 mod external_drag;
 mod external_drop;
 mod external_offer;
-pub use external_drop::{ExternalDropTarget, ExternalOfferAdmission, ExternalOfferFormat};
+pub use external_drop::{
+    ExternalDropTarget, ExternalOfferAdmission, ExternalOfferFormat, ExternalOfferProbe,
+};
 mod file_drop;
 mod file_open;
 mod gpu_surface;
@@ -145,6 +147,11 @@ pub use controller::{
     SurfaceIdentityOwnership, SurfaceIdentityPath, SurfaceIdentityReplacement,
     SurfaceLayoutStateDiagnostics, SurfaceLayoutStateReplacement, SurfaceRefreshCounters,
     SurfaceRefreshDiagnostics, SurfaceRefreshTimings, SurfaceRuntime,
+};
+pub(crate) use controller::{
+    CrossWindowDragExport, CrossWindowDragKey, CrossWindowForeignInput, CrossWindowForeignRoute,
+    CrossWindowForeignTerminal, CrossWindowInputHint, CrossWindowSourceProof,
+    CrossWindowTerminalMessages, CrossWindowTerminalRequest,
 };
 #[cfg(target_os = "macos")]
 pub(crate) use controller::{

@@ -1,4 +1,4 @@
-use super::super::source::SourceMetadata;
+use super::super::source::{OverlayEvidence, SourceMetadata};
 use super::{LayerKind, SurfaceLayer, SurfaceLayerChildKind, SurfaceNode};
 use crate::{layout::NodeId, UiAffinity};
 use std::rc::Rc;
@@ -10,7 +10,7 @@ pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) has_animation: bool,
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
-    overlay_order: Option<Vec<usize>>,
+    pub(super) overlay_order: Option<Vec<usize>>,
     pub(in crate::runtime::surface) has_resource_view_demand: bool,
     pub(in crate::runtime::surface) has_notice_demand: bool,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
@@ -142,21 +142,26 @@ impl<Message> Iterator for OrderedLayerIndices<'_, Message> {
                 layers,
                 kind,
                 index,
-            } => loop {
-                let current = *index;
-                *index += 1;
-                if current >= layers.len() {
-                    *kind += 1;
-                    *index = 0;
-                    if *kind >= LayerKind::ORDER.len() {
-                        return None;
+            } => {
+                if *kind >= LayerKind::ORDER.len() {
+                    return None;
+                }
+                loop {
+                    let current = *index;
+                    *index += 1;
+                    if current >= layers.len() {
+                        *kind += 1;
+                        *index = 0;
+                        if *kind >= LayerKind::ORDER.len() {
+                            return None;
+                        }
+                        continue;
                     }
-                    continue;
+                    if layers[current].kind == LayerKind::ORDER[*kind] {
+                        return Some(current);
+                    }
                 }
-                if layers[current].kind == LayerKind::ORDER[*kind] {
-                    return Some(current);
-                }
-            },
+            }
         }
     }
 }
@@ -165,15 +170,25 @@ fn ordered_nested_overlay_indices<Message>(layers: &[SurfaceLayer<Message>]) -> 
     if layers.is_empty() || layers.len() > 64 {
         return None;
     }
-    let mut overlays = Vec::with_capacity(layers.len());
+    let mut overlays: Vec<Option<OverlayEvidence>> = Vec::with_capacity(layers.len());
     let mut parents = Vec::with_capacity(layers.len());
+    let mut has_qualified_overlay = false;
     for layer in layers {
-        let metadata = layer.node.source_metadata_handle()?;
+        let Some(metadata) = layer.node.source_metadata_handle() else {
+            overlays.push(None);
+            parents.push(None);
+            continue;
+        };
         let evidence = metadata.topology.overlays.as_slice();
-        let final_evidence = evidence.last()?;
+        let Some(final_evidence) = evidence.last() else {
+            overlays.push(None);
+            parents.push(None);
+            continue;
+        };
         if final_evidence.layer_kind != layer.kind
             || overlays
                 .iter()
+                .flatten()
                 .any(|overlay| overlay.identity == final_evidence.identity)
         {
             return None;
@@ -186,7 +201,8 @@ fn ordered_nested_overlay_indices<Message>(layers: &[SurfaceLayer<Message>]) -> 
                 return None;
             }
         }
-        overlays.push(*final_evidence);
+        has_qualified_overlay = true;
+        overlays.push(Some(*final_evidence));
         parents.push(
             evidence
                 .len()
@@ -195,11 +211,18 @@ fn ordered_nested_overlay_indices<Message>(layers: &[SurfaceLayer<Message>]) -> 
                 .copied(),
         );
     }
+    if !has_qualified_overlay {
+        return None;
+    }
     let mut parent_indices = Vec::with_capacity(layers.len());
     for parent in parents {
         let parent_index = match parent {
             None => None,
-            Some(parent) => Some(overlays.iter().position(|overlay| *overlay == parent)?),
+            Some(parent) => Some(
+                overlays
+                    .iter()
+                    .position(|overlay| matches!(overlay, Some(overlay) if *overlay == parent))?,
+            ),
         };
         parent_indices.push(parent_index);
     }
@@ -244,10 +267,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(
-            scene.ordered_layer_indices().collect::<Vec<_>>(),
-            vec![1, 2, 0]
-        );
+        let mut ordered = scene.ordered_layer_indices();
+        assert_eq!(ordered.by_ref().collect::<Vec<_>>(), vec![1, 2, 0]);
+        assert_eq!(ordered.next(), None);
+        assert_eq!(ordered.next(), None);
     }
 
     #[test]
@@ -339,6 +362,39 @@ mod tests {
         assert_eq!(
             scene.ordered_layer_indices().collect::<Vec<_>>(),
             [parent, child]
+        );
+    }
+
+    #[test]
+    fn raw_roots_keep_kind_order_while_nested_declarative_layers_keep_ancestry_order() {
+        let surface =
+            scene(text::<()>("base").overlays(
+                overlays().modal(
+                    text("modal parent").overlays(overlays().popover(text("popover child"))),
+                ),
+            ))
+            .into_view()
+            .into_surface();
+        let SurfaceNode::Scene(scene) = surface.into_root() else {
+            panic!("declarative scene should lower to a surface scene");
+        };
+        let id = scene.id;
+        let base = *scene.base;
+        let mut layers = scene.layers;
+        layers.push(SurfaceLayer::new(
+            LayerKind::Tooltip,
+            SurfaceNode::container(100, ContainerPolicy::default(), Vec::new()),
+        ));
+        layers.push(SurfaceLayer::new(
+            LayerKind::Floating,
+            SurfaceNode::container(101, ContainerPolicy::default(), Vec::new()),
+        ));
+        let scene = SurfaceScene::new(id, base, layers);
+
+        assert_eq!(
+            scene.ordered_layer_indices().collect::<Vec<_>>(),
+            [3, 1, 0, 2],
+            "the raw floating and tooltip roots keep their LayerKind order while the modal is before its popover child"
         );
     }
 

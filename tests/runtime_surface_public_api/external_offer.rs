@@ -40,6 +40,8 @@ enum OfferMessage {
 
 type DeliveredOffers = Rc<RefCell<Vec<Rc<str>>>>;
 
+const OFFER_TARGET_WIDGET_ID: u64 = 901;
+
 struct OfferState {
     enabled: bool,
     wrong_owner: bool,
@@ -81,6 +83,7 @@ fn offer_host(
         },
         |state| {
             let view = ui::button_message("offer target", OfferMessage::Disable)
+                .id(OFFER_TARGET_WIDGET_ID)
                 .width(state.target_width)
                 .height(100.0);
             let view = if state.enabled {
@@ -94,6 +97,7 @@ fn offer_host(
             } else {
                 view
             };
+            let view = ui::column([view]).align_cross(radiant::layout::CrossAlign::Start);
             if state.covered {
                 radiant::application::scene(view)
                     .layer(
@@ -179,25 +183,58 @@ fn external_offer_probes_are_side_effect_free_and_ignore_worker_capacity() {
 #[test]
 fn external_offer_drop_requalifies_owner_modal_and_geometry_after_probe() {
     let cases = [
-        (OfferMessage::Disable, ExternalOfferAdmission::NoTarget),
-        (OfferMessage::Cover, ExternalOfferAdmission::NoTarget),
-        (OfferMessage::Narrow, ExternalOfferAdmission::NoTarget),
+        (
+            "owner removal",
+            OfferMessage::Disable,
+            ExternalOfferAdmission::NoTarget,
+        ),
+        (
+            "modal coverage",
+            OfferMessage::Cover,
+            ExternalOfferAdmission::NoTarget,
+        ),
+        (
+            "geometry change",
+            OfferMessage::Narrow,
+            ExternalOfferAdmission::NoTarget,
+        ),
     ];
-    for (change, expected) in cases {
+    for (case, change, expected) in cases {
         let (mut host, _) = offer_host(Arc::new(AtomicUsize::new(0)), false);
+        let initial_bounds = host.runtime().layout().rects[&OFFER_TARGET_WIDGET_ID];
+        let position = Point::new(initial_bounds.max.x - 1.0, 10.0);
+        assert!(
+            initial_bounds.contains(position),
+            "initial fixture must place the probe in the target: {initial_bounds:?} vs {position:?}"
+        );
         let probe = text_offer("probe");
         assert_eq!(
             host.runtime()
-                .probe_external_offer(Point::new(10.0, 10.0), probe.metadata()),
-            ExternalOfferProbe::Eligible
+                .probe_external_offer(position, probe.metadata()),
+            ExternalOfferProbe::Eligible,
+            "initial probe should qualify before {case}"
         );
+        let geometry_changed = matches!(&change, OfferMessage::Narrow);
         host.dispatch_message(change)
             .expect("refresh current target evidence");
+        if geometry_changed {
+            let narrowed_bounds = host.runtime().layout().rects[&OFFER_TARGET_WIDGET_ID];
+            assert!(
+                !narrowed_bounds.contains(position),
+                "narrow fixture must move the probed point outside: {narrowed_bounds:?} vs {position:?}"
+            );
+            assert_eq!(
+                host.runtime()
+                    .probe_external_offer(position, probe.metadata()),
+                ExternalOfferProbe::NoTarget,
+                "narrow fixture must requalify the current target geometry"
+            );
+        }
         assert_eq!(
-            host.dispatch_external_offer(Point::new(10.0, 10.0), text_offer("drop"))
+            host.dispatch_external_offer(position, text_offer("drop"))
                 .unwrap(),
             expected,
-            "drop reselects after the probe rather than reusing its authority"
+            "{case}: drop reselects after the probe rather than reusing its authority"
         );
         assert!(host.pending_worker_tasks().is_empty());
     }

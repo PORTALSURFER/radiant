@@ -4588,8 +4588,10 @@ revision evidence in their mappers; the runtime does not derive collection
 identity or indices. Typed sources can opt into bounded logical edge autoscroll
 using the existing scroll-container chaining contract. It stops when the pointer
 leaves the content viewport edge or eligible viewports reach their boundaries.
-Cross-window transfer and owned external offers remain delivery work. The complete
-target below includes those remaining capabilities;
+Owned incoming offers have bounded transport values and a backend-neutral,
+owner-qualified worker decoder ingress. Cross-window transfer, native external
+offer extraction/hover, and outgoing portable representation expansion remain
+delivery work. The complete target below includes those remaining capabilities;
 its illustrative API is not a claim that every method is currently available.
 
 Drag and drop is a first-class interaction subsystem, not a collection of

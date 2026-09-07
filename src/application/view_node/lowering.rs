@@ -265,6 +265,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let offset_settled = node.offset_settled;
         let accepts_native_file_drop = node.accepts_native_file_drop;
         let native_file_drop = node.native_file_drop.clone();
+        let external_drop_target = node.external_drop_target.clone();
         let defaults =
             ViewNodeContainerDefaults::new(node.padding, node.align_main, node.align_cross, style);
         let base_policy = || defaults.base_policy();
@@ -475,6 +476,9 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         };
         if let Some(mapper) = native_file_drop {
             lowered = lowered.with_native_file_drop_mapper(mapper);
+        }
+        if let Some(target) = external_drop_target {
+            lowered = lowered.with_external_drop_target(target);
         }
         if accepts_native_file_drop
             && matches!(

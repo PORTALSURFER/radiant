@@ -118,6 +118,8 @@ pub(super) struct RuntimeContainerTraversal<Message = ()> {
     pub(super) split_pane_ratio_action_capacity_exhausted: bool,
     pub(super) virtual_layout_registrations:
         Vec<crate::runtime::surface::VirtualLayoutRegistration<Message>>,
+    pub(super) external_drop_targets:
+        Vec<crate::runtime::surface::SurfaceExternalDropTargetRecord<Message>>,
     pub(super) layout_targets: Vec<RuntimeLayoutHitTarget<Message>>,
     pub(super) split_pane_separator_projections:
         Vec<super::split_pane_separator::SplitPaneSeparatorProjection>,
@@ -152,6 +154,7 @@ impl<Message> Default for RuntimeContainerTraversal<Message> {
             split_pane_ratio_action_authorities: Vec::new(),
             split_pane_ratio_action_capacity_exhausted: false,
             virtual_layout_registrations: Vec::new(),
+            external_drop_targets: Vec::new(),
             layout_targets: Vec::new(),
             split_pane_separator_projections: Vec::new(),
             layout_hit_region_diagnostics: LayoutHitRegionDiagnostics::default(),

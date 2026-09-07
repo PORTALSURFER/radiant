@@ -78,6 +78,7 @@ where
             traversal.split_pane_ratio_action_candidates;
         self.traversal.containers.virtual_layout_registrations =
             traversal.virtual_layout_registrations;
+        self.traversal.containers.external_drop_targets = traversal.external_drop_targets;
     }
 
     pub(in crate::runtime::controller) fn refresh_visible_traversal_orders(&mut self) {
@@ -157,6 +158,9 @@ where
             ),
             virtual_layout_registrations: std::mem::take(
                 &mut self.traversal.containers.virtual_layout_registrations,
+            ),
+            external_drop_targets: std::mem::take(
+                &mut self.traversal.containers.external_drop_targets,
             ),
         }
     }

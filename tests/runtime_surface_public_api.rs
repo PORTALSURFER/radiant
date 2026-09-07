@@ -275,6 +275,9 @@ mod commands;
 #[path = "runtime_surface_public_api/devtools.rs"]
 mod devtools;
 #[cfg(test)]
+#[path = "runtime_surface_public_api/external_offer.rs"]
+mod external_offer;
+#[cfg(test)]
 #[path = "runtime_surface_public_api/focus_text.rs"]
 mod focus_text;
 #[cfg(test)]

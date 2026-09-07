@@ -19,9 +19,9 @@ mod records;
 mod tests;
 
 pub(in crate::runtime) use records::{
-    SurfaceContainerTraversalRecord, SurfaceLayoutInteractionRecord,
-    SurfaceSplitPaneFocusOrderCandidate, SurfaceSplitPaneRatioActionCandidate,
-    SurfaceWidgetTraversalRecord, WheelHitTarget,
+    SurfaceContainerTraversalRecord, SurfaceExternalDropTargetRecord,
+    SurfaceLayoutInteractionRecord, SurfaceSplitPaneFocusOrderCandidate,
+    SurfaceSplitPaneRatioActionCandidate, SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 
 pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
@@ -53,6 +53,7 @@ pub(in crate::runtime) struct SurfaceTraversalIndex<Message = ()> {
         Vec<SurfaceSplitPaneRatioActionCandidate<Message>>,
     pub(in crate::runtime) virtual_layout_registrations:
         Vec<super::super::VirtualLayoutRegistration<Message>>,
+    pub(in crate::runtime) external_drop_targets: Vec<SurfaceExternalDropTargetRecord<Message>>,
 }
 
 impl<Message> SurfaceTraversalIndex<Message> {
@@ -87,6 +88,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
                 stats.split_pane_focus_order_candidates,
             ),
             virtual_layout_registrations: Vec::with_capacity(stats.max_depth),
+            external_drop_targets: Vec::with_capacity(stats.max_depth),
         }
     }
 
@@ -145,6 +147,7 @@ impl<Message> SurfaceTraversalIndex<Message> {
         self.split_pane_dividers.clear();
         self.split_pane_ratio_action_candidates.clear();
         self.virtual_layout_registrations.clear();
+        self.external_drop_targets.clear();
     }
 
     pub(in crate::runtime) fn clear_for_reuse(&mut self) {
@@ -173,5 +176,6 @@ impl<Message> SurfaceTraversalIndex<Message> {
         self.split_pane_dividers.clear();
         self.split_pane_ratio_action_candidates.clear();
         self.virtual_layout_registrations.clear();
+        self.external_drop_targets.clear();
     }
 }

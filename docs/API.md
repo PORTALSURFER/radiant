@@ -6905,6 +6905,7 @@ manual validation:
 | Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
 | Qualified gesture recognition and capture lifecycle | `gesture_input` |
+| Owned external-offer transport and deferred worker decoding | `external_offer` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
@@ -8435,14 +8436,16 @@ Before recognition, the deepest crossed eligible target wins; equal depths use
 the largest normalized threshold exceedance, then pinch, rotation, and pan.
 Exact pointer tokens fence both contacts. A final Ended sample contributes its
 geometry; cancellation, a third contact, device mismatch, invalid geometry, or
-token loss retires the pair without reviving a held contact. Two-contact recognition applies only to explicit gesture consumers.
+token loss retires the pair without reviving a held contact. Two-contact
+recognition applies only to explicit gesture consumers.
 A single admitted contact can recognize a typed drag source through its declared
 pan threshold, without synthesizing a mouse press or activating its child.
 Before recognition a second contact hands the pending sequence to two-contact
 recognition. After recognition it cancels the drag once; held contacts remain
 inert until all release. Source retirement and cancellation use the existing
 capture teardown, and exact contact tokens prevent replay or replacement reuse.
-Cross-window payloads and owned external offers remain OPT-1363 work.
+Owned incoming offers support the qualified worker ingress described below.
+Native offer extraction/hover and cross-window payloads remain OPT-1363 work.
 
 
 ### Container gesture regions
@@ -8662,3 +8665,39 @@ omit both, including their semantics. Resize and scrolling revalidate focus
 and cancel hidden input ownership. `Layer::dismiss_on_escape(message)` and
 outside dismissal use the same qualified nested ordering. See
 [the complete overlay contract](OVERLAY_FOCUS.md) and `examples/floating_overlay.rs`.
+
+### Owned incoming external offers
+
+`OwnedExternalOffer::try_new(ExternalOfferData)` retains bounded owned files,
+URLs, UTF-8 text, or MIME bytes. Construction performs transport bounds and
+syntax checks only; it does not open files, parse URLs, access the network, or
+decode content. Adapters must bound acquisition itself before constructing an
+offer. The representation remains untrusted after construction.
+
+`ExternalDropTarget::new(owner, format, decode, map)` declares a worker decoder
+and UI-local result mapper. Attach it with `view.external_drop_target(target)`
+and apply `.key(...)` to the resulting wrapper. Its explicit effect owner must
+resolve uniquely to that exact live keyed node. The format factories `files()`,
+`urls()`, `text()`, and `approved_mime(name)` make a data-free acceptance decision;
+MIME approval names one concrete type, without parameters or wildcards.
+
+The backend-neutral `SurfaceRuntime::dispatch_external_offer(position, offer)`
+admits one owned drop. An `Accepted` outcome means the worker was admitted,
+not that decoding succeeded. The decoder performs semantic validation and any
+reading outside the input/frame path. It can return an application-owned
+`Result`; only its `Send` output crosses back to the UI owner. Neither the mapper
+nor the application's message type needs to be `Send`. An owner retirement or
+runtime shutdown suppresses stale completion mapping and reduction. Independent
+drops do not replace one another. Accepted work keeps its captured decoder and
+mapper across ordinary view refreshes.
+
+This ingress currently requires a hit-testable descendant in the receiving
+wrapper. It respects the current layout, clipping, occlusion and modal scope;
+unkeyed, ambiguous and stale owners cannot admit a decoder. Native platform
+extraction and hover feedback for these owned offers are not wired by this
+slice; legacy `NativeFileDrop` remains available. Same-application cross-window
+payload transfer remains separate OPT-1363 work.
+
+Run `cargo run --example external_offer` for deterministic worker admission,
+decoding, and a later UI result. The example opens no native window and performs
+no filesystem or network I/O.

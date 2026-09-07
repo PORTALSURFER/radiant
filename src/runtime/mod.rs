@@ -29,6 +29,9 @@ mod drag;
 mod effect;
 mod environment;
 mod external_drag;
+mod external_drop;
+mod external_offer;
+pub use external_drop::{ExternalDropTarget, ExternalOfferAdmission, ExternalOfferFormat};
 mod file_drop;
 mod file_open;
 mod gpu_surface;
@@ -204,6 +207,12 @@ pub(crate) use external_drag::{
 pub use external_drag::{
     ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload, ExternalDragPreview,
     ExternalDragRequest,
+};
+pub use external_offer::{
+    ExternalOfferData, ExternalOfferKind, ExternalOfferMetadata, ExternalOfferValidationError,
+    MAX_EXTERNAL_OFFER_ITEM_BYTES, MAX_EXTERNAL_OFFER_ITEMS, MAX_EXTERNAL_OFFER_MIME_BYTES,
+    MAX_EXTERNAL_OFFER_MIME_NAME_BYTES, MAX_EXTERNAL_OFFER_TEXT_BYTES,
+    MAX_EXTERNAL_OFFER_TOTAL_BYTES, OwnedExternalOffer,
 };
 pub use file_drop::{NativeFileDrop, NativeFileDropPhase};
 pub use file_open::NativeFileOpen;

@@ -76,6 +76,8 @@ pub struct SurfaceContainer<Message> {
         Option<crate::runtime::ScrollEditMessageMapper<Message>>,
     pub(in crate::runtime::surface) offset_settled:
         Option<Rc<dyn Fn(crate::gui::types::Vector2) -> Message>>,
+    pub(in crate::runtime::surface) external_drop_target:
+        Option<crate::runtime::ExternalDropTarget<Message>>,
     pub(in crate::runtime::surface) children: super::children::SurfaceChildren<Message>,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
     pub(in crate::runtime::surface) command_scope:
@@ -105,6 +107,16 @@ pub(in crate::runtime) struct SurfaceContainerParts<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
+    pub(in crate::runtime) fn external_drop_target(
+        &self,
+    ) -> Option<&crate::runtime::ExternalDropTarget<Message>> {
+        self.external_drop_target.as_ref()
+    }
+
+    pub(in crate::runtime) fn source_metadata_handle(&self) -> Option<Rc<SourceMetadata>> {
+        self.source.clone()
+    }
+
     #[cfg(test)]
     fn demand_set(
         resource: Option<
@@ -168,6 +180,7 @@ impl<Message> SurfaceContainer<Message> {
             scroll_message: None,
             scroll_edit: None,
             offset_settled: None,
+            external_drop_target: None,
             children: parts.children.into(),
             source: None,
             command_scope: None,
@@ -544,6 +557,17 @@ impl<Message> SurfaceNode<Message> {
         if let Self::Container(container) = &mut self {
             container.demands = demands;
             container.refresh_declarative_demand_flags();
+        }
+        self
+    }
+
+    /// Attach a UI-local external-offer target only to a container boundary.
+    pub(crate) fn with_external_drop_target(
+        mut self,
+        target: crate::runtime::ExternalDropTarget<Message>,
+    ) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.external_drop_target = Some(target);
         }
         self
     }

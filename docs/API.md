@@ -6905,6 +6905,7 @@ manual validation:
 | Qualified native rendering workload observations | `rendering_baseline` |
 | Typed pointer admission and capture continuity | `typed_pointer` |
 | Qualified gesture recognition and capture lifecycle | `gesture_input` |
+| Owned external-offer transport and deferred worker decoding | `external_offer` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `custom_layout`, `split_pane_static`, `split_pane_runtime`, `grid_gallery`, `scroll`, `controlled_scroll`, `sizing`, `list`, `virtualized_list` |
 | Logical semantic provider attachment | `logical_provider_attachment` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |

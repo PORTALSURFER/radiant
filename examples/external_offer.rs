@@ -1,6 +1,7 @@
 //! Deterministic owned-offer admission and worker decoding; no native window or I/O.
+use radiant::prelude as ui;
 use radiant::{
-    application::{DeclarativeEffectOwner, app, button},
+    application::DeclarativeEffectOwner,
     gui::types::{Point, Vector2},
     runtime::{
         ExternalDropTarget, ExternalOfferAdmission, ExternalOfferData, ExternalOfferFormat,
@@ -39,9 +40,9 @@ fn exercise() {
         },
         Rc::new, // UI-local message; it never crosses the worker boundary.
     );
-    let bridge = app(())
+    let bridge = ui::app(())
         .view(move |_| {
-            button("Import a number")
+            ui::button("Import a number")
                 .filter_mapped(|_| None::<Rc<Decoded>>)
                 .width(160.0)
                 .height(40.0)

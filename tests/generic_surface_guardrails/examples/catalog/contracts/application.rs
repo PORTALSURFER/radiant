@@ -2,6 +2,17 @@ use super::ExampleContract;
 
 pub(super) const CONTRACTS: &[ExampleContract] = &[
     (
+        "external_offer",
+        &[
+            "ExternalDropTarget::new",
+            "ExternalOfferFormat::text",
+            "OwnedExternalOffer::try_new",
+            "dispatch_external_offer",
+            "complete_worker",
+            "owned_offer_decodes_before_ui_mapping",
+        ],
+    ),
+    (
         "localization_foundation",
         &[
             "use radiant::prelude::*;",

@@ -369,6 +369,20 @@ fn composition_normalizes_scalar_preedit_selection_and_commit_grapheme_seams() {
         )
         .is_some()
     );
+    let raw_preedit_selection = TextEditorSelection::caret(1);
+    let direct_update = widget
+        .snapshot
+        .edit(
+            TextEditorDelta::Composition(TextEditorCompositionDelta::Update {
+                text: Arc::from("\u{301}"),
+            }),
+            raw_preedit_selection,
+        )
+        .expect("document transition normalizes the scalar preedit caret");
+    assert_eq!(
+        direct_update.selection(),
+        TextEditorSelection::caret("a\u{301}".len())
+    );
     assert!(
         Widget::handle_composition_sample(
             &mut widget,

@@ -8,8 +8,6 @@ use tracing::info;
 use winit::{keyboard::ModifiersState, window::WindowId};
 
 mod platform;
-#[cfg(any(target_os = "windows", test))]
-mod text_encoding;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum ExternalDragLaunchDisposition {

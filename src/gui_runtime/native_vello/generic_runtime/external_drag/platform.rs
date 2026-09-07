@@ -1,5 +1,9 @@
 //! Platform selection for native external drag launching.
 
+#[cfg(any(target_os = "windows", test))]
+#[path = "text_encoding.rs"]
+mod text_encoding;
+
 use super::ExternalDragLaunchDisposition;
 use crate::gui_runtime::native_vello::RuntimeUserEvent;
 use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};

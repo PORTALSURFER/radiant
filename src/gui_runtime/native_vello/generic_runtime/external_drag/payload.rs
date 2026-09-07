@@ -1,4 +1,4 @@
-use crate::gui_runtime::native_vello::generic_runtime::external_drag::text_encoding::encode_unicode_text;
+use crate::gui_runtime::native_vello::generic_runtime::external_drag::platform::text_encoding::encode_unicode_text;
 use crate::runtime::ExternalDragEffect;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};

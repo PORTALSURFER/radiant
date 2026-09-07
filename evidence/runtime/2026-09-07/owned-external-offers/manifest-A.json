@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "evidence_id": "A-macos-40bceaccd8c7c8f3371978f939495c25045bb050-owned-external-offers-20260907",
+  "source_commit": "40bceaccd8c7c8f3371978f939495c25045bb050",
+  "generated_at_utc": "2026-09-07T11:54:57.193205+00:00",
+  "lane": "A",
+  "outcome": "PASS",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical input"
+  },
+  "command_or_harness": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ]
+  ],
+  "assertions": [
+    {
+      "name": "tests",
+      "outcome": "PASS",
+      "passed": 5608,
+      "ignored": 8
+    },
+    {
+      "name": "examples",
+      "outcome": "PASS",
+      "passed": 296,
+      "ignored": 0
+    },
+    {
+      "name": "doctests",
+      "outcome": "PASS",
+      "passed": 20,
+      "ignored": 1
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "d9e8e7857e384f394ab0d71dacd3969d4417646d66c4a7c8958fbea78a412337"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "a60a4fbf4e85fcfceb8880eb7bda5a394b0d54bcb892b43be8f22bedb1fa89b2"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "ccf74d6c06c0f3cde2ff26ec25ef251a7f21847fbe6ca4ce4d86d930ab6343e9"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "0f43757e33504695890170cc1b0d322df677306f31b15482e4d2b3ec4a68d2db"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "4e8b64f1d97d1583e555b7e45c27c0f2c7aca602ebc223ce539d22bcced7f790"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "1f740bc25b3f0e89822bcd69bd3ff342d6f8637632aaf3bf07a2dcd2d7a375ce"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "db22f602f5efe0a7b5c22f95c1648b2fede905b6d063d9f5dcf9b3f454f8a543"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "5821903bd2e290040b7b1a13853bee88f25ee908fa5c0cc1dcde20aad66814d5"
+    }
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Bounded owned offer representations and keyed receiving views admit independent decoding on the existing worker lane. Current attachment, exact keyed owner, modal/occlusion and actual viewport clipping fence admission; compatible refresh retains accepted decoder snapshots, while retired owners suppress late mapping. Eleven focused public regressions and the headless non-Send-message example are included in full validation. Native offer extraction/hover, outgoing portable expansion and cross-window typed transfer remain outside this slice.",
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Environment account identifier redacted."
+  ]
+}

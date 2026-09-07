@@ -13,7 +13,7 @@ use crate::{
     runtime::ResolvedEnvironment,
     widgets::{
         CompositionRange, CompositionSample, KeyboardModifiers, TextEditCommand, Widget,
-        WidgetInput, WidgetKey, WidgetSizing,
+        PointerModifiers, WheelDelta, WheelSample, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -99,6 +99,24 @@ fn input(
     event: WidgetInput,
 ) -> Option<crate::widgets::WidgetOutput> {
     Widget::handle_input_with_environment(widget, bounds, event, environment)
+}
+
+fn environment_with_text_scale(scale: f32) -> ResolvedEnvironment {
+    let application = crate::application::ApplicationEnvironment::default().with_text_scale(
+        crate::application::TextScale::new(scale).expect("valid test text scale"),
+    );
+    ResolvedEnvironment::from_snapshots(
+        crate::runtime::WindowEnvironment::default(),
+        Arc::new(application),
+    )
+}
+
+fn wheel(delta: Vector2) -> WheelSample {
+    WheelSample::discrete(
+        WheelDelta::pixels(delta).expect("finite test wheel delta"),
+        PointerModifiers::default(),
+    )
+    .expect("valid test wheel sample")
 }
 
 #[test]
@@ -274,6 +292,58 @@ fn reflowed_geometry_reveals_offscreen_selection_and_clamps_scroll() {
     let wider = bounds(160.0, 28.0);
     install(&mut widget, wider, &environment);
     assert!(widget.scroll_offset().x >= 0.0 && widget.scroll_offset().y >= 0.0);
+}
+
+#[test]
+fn wheel_rejects_a_stale_receipt_after_text_scale_and_wrap_change_at_stable_bounds() {
+    let document = TextEditorDocument::new("a".repeat(200)).unwrap();
+    let initial_environment = ResolvedEnvironment::default();
+    let scaled_environment = environment_with_text_scale(1.5);
+    let viewport = bounds(80.0, 48.0);
+    let mut widget = editor(&document);
+    install(&mut widget, viewport, &initial_environment);
+
+    widget.wrap = false;
+    assert!(Widget::handle_wheel_sample_with_environment(
+        &mut widget,
+        viewport,
+        Point::new(20.0, 20.0),
+        wheel(Vector2::new(0.0, 5_000.0)),
+        &scaled_environment,
+    )
+    .is_some());
+    assert_eq!(
+        widget.scroll_offset().y,
+        5_000.0,
+        "the old wrapped receipt must not clamp a wheel routed under the new environment"
+    );
+
+    install(&mut widget, viewport, &scaled_environment);
+    assert_eq!(
+        widget.scroll_offset().y,
+        0.0,
+        "the current unwrapped receipt owns the next scroll clamp"
+    );
+}
+
+#[test]
+fn wheel_scrolls_with_a_current_nondefault_environment_receipt() {
+    let document = TextEditorDocument::new("a".repeat(200)).unwrap();
+    let environment = environment_with_text_scale(1.5);
+    let viewport = bounds(80.0, 48.0);
+    let mut widget = editor(&document);
+    install(&mut widget, viewport, &environment);
+
+    assert!(Widget::handle_wheel_sample_with_environment(
+        &mut widget,
+        viewport,
+        Point::new(20.0, 20.0),
+        wheel(Vector2::new(0.0, 5_000.0)),
+        &environment,
+    )
+    .is_some());
+    assert!(widget.scroll_offset().y > 0.0);
+    assert!(widget.scroll_offset().y < 5_000.0);
 }
 
 #[test]

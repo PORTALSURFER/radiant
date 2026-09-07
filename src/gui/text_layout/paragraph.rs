@@ -426,9 +426,8 @@ fn validate_input(input: &ParagraphGeometryInput) -> Result<(), ParagraphGeometr
             return Err(ParagraphGeometryError::InvalidCluster);
         }
         let expected: Vec<usize> = graphemes
-            .iter()
+            .range(cluster.bytes.start..=cluster.bytes.end)
             .copied()
-            .filter(|offset| *offset >= cluster.bytes.start && *offset <= cluster.bytes.end)
             .collect();
         let actual: Vec<usize> = cluster
             .carets

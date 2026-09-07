@@ -256,6 +256,19 @@ pub trait Widget: WidgetClone + Any {
         self.handle_input(bounds, input)
     }
 
+    /// Install an exact shared text-editor geometry receipt for the current layout.
+    ///
+    /// Widgets that do not implement multi-line editing retain the legacy behavior
+    /// and reject the receipt without observing renderer-specific state.
+    fn install_text_editor_geometry(
+        &mut self,
+        _receipt: crate::gui::text_layout::editor::TextEditorGeometryReceipt,
+        _bounds: Rect,
+        _environment: &ResolvedEnvironment,
+    ) -> bool {
+        false
+    }
+
     /// Route a focus transition with the runtime's current monotonic clock.
     ///
     /// The default preserves the existing [`WidgetInput::FocusChanged`] path.
@@ -285,6 +298,18 @@ pub trait Widget: WidgetClone + Any {
         sample
             .to_widget_input(position)
             .and_then(|input| self.handle_input(bounds, input))
+    }
+
+    /// Route an exact wheel sample with the current resolved environment.
+    /// Existing widgets retain their original wheel hook through this default.
+    fn handle_wheel_sample_with_environment(
+        &mut self,
+        bounds: Rect,
+        position: Point,
+        sample: WheelSample,
+        _environment: &ResolvedEnvironment,
+    ) -> Option<WidgetOutput> {
+        self.handle_wheel_sample(bounds, position, sample)
     }
 
     /// Report whether this widget still owns an admitted explicit wheel

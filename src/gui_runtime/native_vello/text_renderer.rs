@@ -13,6 +13,9 @@ use std::{
 use vello::{Glyph, Scene, peniko::Fill};
 
 mod cache;
+mod editor;
+mod editor_cache;
+mod editor_paint;
 mod encoding;
 mod font;
 mod layout;
@@ -21,13 +24,15 @@ mod renderability;
 
 pub(in crate::gui_runtime::native_vello) use cache::TextLayoutProfileCounters;
 use cache::{TextLayoutCache, VIEW_CACHE_BYTE_BUDGET, VIEW_CACHE_ENTRY_BUDGET};
+pub(in crate::gui_runtime::native_vello) use editor::NativeEditorParagraph;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 use font::NativeFontStack;
 pub(in crate::gui_runtime::native_vello) use model::{
     BidiDirection, BidiRun, CaretAffinity, CaretStopGeometry, GlyphPlacement, GraphemeBoundary,
     GraphemeGeometry, LineBreakKind, LineBreakPolicyId, LineBreakRecord, ParagraphSnapshot,
-    ResolvedFontRun, ScalarBoundary, SceneTextRun, ShapeClusterRange, ShapedParagraph,
-    SnapshotQuality, TextLayout, TextLayoutKey, TextQuality, TextViewKey, Utf8ByteOffset,
+    ResolvedFontRun, ScalarBoundary, SceneTextRun, ShapeClusterRange, ShapedBreakBoundary,
+    ShapedParagraph, SnapshotQuality, TextLayout, TextLayoutKey, TextQuality, TextViewKey,
+    Utf8ByteOffset,
 };
 #[cfg(test)]
 pub(in crate::gui_runtime::native_vello) use model::{GlyphLayout, TextCursorStop};
@@ -408,6 +413,7 @@ impl RetainedTextInputSnapshotSidecar {
 
 pub(crate) struct NativeTextRenderer {
     font_stack: NativeFontStack,
+    editor_retention: editor_cache::EditorRetention,
     layout_cache: TextLayoutCache,
     native_caret_affinities: HashMap<crate::widgets::WidgetId, CaretAffinity>,
     pub(crate) retained_text_input_snapshot: RetainedTextInputSnapshotSidecar,
@@ -428,6 +434,7 @@ impl NativeTextRenderer {
         }
         Self {
             font_stack,
+            editor_retention: editor_cache::EditorRetention::default(),
             layout_cache: TextLayoutCache::new(),
             native_caret_affinities: HashMap::new(),
             retained_text_input_snapshot: RetainedTextInputSnapshotSidecar::default(),
@@ -531,6 +538,7 @@ impl NativeTextRenderer {
 
     pub(crate) fn invalidate_text_input_snapshots(&mut self) {
         self.retained_text_input_snapshot.invalidate();
+        self.editor_retention.invalidate();
     }
 
     /// Retain one private text-input snapshot for the current frame/plan seam.

@@ -100,6 +100,10 @@ where
                                             true,
                                             core.runtime.context().application_environment(),
                                         );
+                                        for receipt in self.frame.editor_geometry_receipts() {
+                                            let _ =
+                                                core.runtime.install_text_editor_geometry(receipt);
+                                        }
                                     }
                                     core.record_test_prepared_surface_refresh_phase("published");
                                 }
@@ -161,6 +165,9 @@ where
                 matches!(paint_plan_decision, super::PaintPlanCacheDecision::Rebuilt),
                 self.core.runtime.context().application_environment(),
             );
+            for receipt in self.frame.editor_geometry_receipts() {
+                let _ = self.core.runtime.install_text_editor_geometry(receipt);
+            }
         }
         self.publish_native_ime_cursor_area();
 

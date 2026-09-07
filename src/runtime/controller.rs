@@ -50,6 +50,7 @@ mod split_pane_ratio_action;
 mod split_pane_semantics;
 mod split_pane_separator;
 mod state;
+mod text_editor_geometry;
 mod timers;
 mod traversal_state;
 mod virtual_layout;

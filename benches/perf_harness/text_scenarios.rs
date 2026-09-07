@@ -213,3 +213,59 @@ fn word_selection_carets(value: &str, count: usize) -> Vec<usize> {
 fn is_word_selection_caret(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_'
 }
+
+/// Full-capacity renderer-neutral editor reflow; shaping is deliberately excluded.
+pub(super) fn text_editor_reflow_64k() -> impl FnMut() -> ScenarioCounters {
+    use radiant::{
+        application::TextEditorDocument,
+        gui::text_layout::paragraph::{
+            CaretAffinity, ClusterCaretOffset, ParagraphBaseDirection, ParagraphCaret,
+            ParagraphGeometry, ParagraphGeometryInput, ParagraphGeometryKey, ShapedLogicalCluster,
+        },
+    };
+    use std::sync::Arc;
+    let source: Arc<str> = Arc::from("a ".repeat(32_768));
+    let document = TextEditorDocument::new(source.as_ref()).expect("exact grapheme capacity");
+    assert!(TextEditorDocument::new(format!("{source}a")).is_err());
+    let clusters = (0..source.len())
+        .map(|index| ShapedLogicalCluster {
+            bytes: index..index + 1,
+            advance: 8.0,
+            bidi_level: 0,
+            safe_break_after: true,
+            carets: vec![
+                ClusterCaretOffset {
+                    byte_offset: 0,
+                    x: 0.0,
+                },
+                ClusterCaretOffset {
+                    byte_offset: 1,
+                    x: 8.0,
+                },
+            ],
+        })
+        .collect::<Vec<_>>();
+    let mut narrow = false;
+    move || {
+        narrow = !narrow;
+        let geometry = ParagraphGeometry::build(ParagraphGeometryInput {
+            key: ParagraphGeometryKey(1),
+            source: source.clone(),
+            clusters: clusters.clone(),
+            base_direction: ParagraphBaseDirection::Ltr,
+            wrap_width: if narrow { 320.0 } else { 640.0 },
+            line_height: 20.0,
+        })
+        .expect("bounded ASCII geometry");
+        let caret = geometry
+            .caret(ParagraphCaret {
+                byte: source.len(),
+                affinity: CaretAffinity::Upstream,
+            })
+            .expect("end of document caret survives reflow");
+        assert!(caret.y.is_finite());
+        assert!(geometry.lines().len() > 800);
+        black_box((&document, caret, geometry.estimated_bytes()));
+        ScenarioCounters::default().with_allocation_sensitive_work_count(source.len() as u64)
+    }
+}

@@ -119,6 +119,13 @@ pub(in crate::gui_runtime::native_vello) struct BidiRun {
     pub(in crate::gui_runtime::native_vello) visual_index: usize,
 }
 
+/// Rustybuzz's exact evidence for breaking immediately before one source cluster.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct ShapedBreakBoundary {
+    pub(in crate::gui_runtime::native_vello) byte: Utf8ByteOffset,
+    pub(in crate::gui_runtime::native_vello) safe_to_break_before: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GlyphPlacement {
     pub(in crate::gui_runtime::native_vello) face_index: usize,
@@ -178,6 +185,7 @@ pub(in crate::gui_runtime::native_vello) struct ShapedParagraph {
     pub(in crate::gui_runtime::native_vello) resolved_font_runs: Vec<ResolvedFontRun>,
     pub(in crate::gui_runtime::native_vello) bidi_runs: Vec<BidiRun>,
     pub(in crate::gui_runtime::native_vello) glyphs: Vec<GlyphPlacement>,
+    pub(in crate::gui_runtime::native_vello) break_safety: Vec<ShapedBreakBoundary>,
     pub(in crate::gui_runtime::native_vello) grapheme_geometry: Vec<GraphemeGeometry>,
     pub(in crate::gui_runtime::native_vello) caret_geometry: Vec<CaretStopGeometry>,
     pub(in crate::gui_runtime::native_vello) logical_to_visual: Vec<usize>,
@@ -188,6 +196,18 @@ pub(in crate::gui_runtime::native_vello) struct ShapedParagraph {
 }
 
 impl ShapedParagraph {
+    /// Returns true only when Rustybuzz retained proof that splitting at this
+    /// source boundary preserves the shaped result.
+    pub(in crate::gui_runtime::native_vello) fn safe_to_break_before(
+        &self,
+        byte: Utf8ByteOffset,
+    ) -> bool {
+        self.break_safety
+            .binary_search_by_key(&byte, |boundary| boundary.byte)
+            .ok()
+            .is_some_and(|index| self.break_safety[index].safe_to_break_before)
+    }
+
     pub(in crate::gui_runtime::native_vello) fn estimated_bytes(&self) -> usize {
         self.source.len()
             + self.scalar_boundaries.len() * std::mem::size_of::<Utf8ByteOffset>()
@@ -196,6 +216,7 @@ impl ShapedParagraph {
             + self.resolved_font_runs.len() * std::mem::size_of::<ResolvedFontRun>()
             + self.bidi_runs.len() * std::mem::size_of::<BidiRun>()
             + self.glyphs.len() * std::mem::size_of::<GlyphPlacement>()
+            + self.break_safety.len() * std::mem::size_of::<ShapedBreakBoundary>()
             + self.grapheme_geometry.len() * std::mem::size_of::<GraphemeGeometry>()
             + self.caret_geometry.len() * std::mem::size_of::<CaretStopGeometry>()
             + self.logical_to_visual.len() * std::mem::size_of::<usize>()
@@ -317,6 +338,7 @@ impl ParagraphSnapshot {
             resolved_font_runs: Vec::new(),
             bidi_runs: Vec::new(),
             glyphs: Vec::new(),
+            break_safety: Vec::new(),
             grapheme_geometry: Vec::new(),
             caret_geometry: vec![CaretStopGeometry {
                 byte: terminal,

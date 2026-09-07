@@ -3863,6 +3863,11 @@ where
             .request_if(outcome.runtime_work_remaining);
     }
 
+    pub(super) fn install_editor_geometry_from_frame(&mut self) {
+        for receipt in self.frame.editor_geometry_receipts() {
+            let _ = self.core.runtime.install_text_editor_geometry(receipt);
+        }
+    }
     pub(super) fn rebuild_scene(&mut self) {
         self.rebuild_scene_with_refresh_evidence(false);
     }
@@ -3881,6 +3886,7 @@ where
             matches!(paint_plan_decision, PaintPlanCacheDecision::Rebuilt),
             self.core.runtime.context().application_environment(),
         );
+        self.install_editor_geometry_from_frame();
         self.publish_native_ime_cursor_area();
         self.admit_scene_from_current_plan(paint_plan_decision, freshly_refreshed, false);
     }
@@ -4333,7 +4339,32 @@ where
     }
 
     pub(super) fn publish_native_ime_cursor_area(&mut self) {
-        let candidate = self.frame.native_ime_cursor_area();
+        let editor_request = self
+            .frame
+            .last_paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| {
+                if let crate::runtime::PaintPrimitive::TextEditor(input) = primitive {
+                    input.focused.then(|| input.request.clone())
+                } else {
+                    None
+                }
+            });
+        let current = editor_request.is_none_or(|request| {
+            self.core.runtime.focused_widget() == Some(request.widget_id)
+                && self
+                    .frame
+                    .editor_geometry_receipts()
+                    .into_iter()
+                    .find(|receipt| receipt.request() == &request)
+                    .is_some_and(|receipt| self.core.runtime.install_text_editor_geometry(receipt))
+        });
+        let candidate = if current {
+            self.frame.native_ime_cursor_area()
+        } else {
+            None
+        };
         let Some(window) = self.window.window.as_ref().cloned() else {
             self.window.ime_cursor_area_cache.invalidate();
             return;

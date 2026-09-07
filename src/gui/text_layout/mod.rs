@@ -1,7 +1,9 @@
 //! Generic retained helpers for simple text-line placement.
 
 mod cache;
+pub mod editor;
 mod insets;
+pub mod paragraph;
 mod placement;
 mod width;
 

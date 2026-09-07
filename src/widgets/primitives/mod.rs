@@ -22,6 +22,7 @@ mod selectable;
 mod slider;
 mod support;
 mod text;
+mod text_editor;
 mod text_input;
 mod toggle;
 
@@ -75,3 +76,9 @@ pub use text_input::{
     TextInputWidgetParts,
 };
 pub use toggle::{ToggleProps, ToggleState, ToggleWidget, ToggleWidgetParts};
+
+pub use text_editor::{
+    MAX_TEXT_EDITOR_BYTES, MAX_TEXT_EDITOR_GRAPHEMES, TextEditorCompositionDelta, TextEditorDelta,
+    TextEditorDocument, TextEditorEdit, TextEditorError, TextEditorRevision, TextEditorSelection,
+    TextEditorSnapshot, TextEditorWidget, TextEditorWidgetParts,
+};

@@ -107,16 +107,27 @@ pub(super) fn focused_text_input_caret_area_from_snapshot(
     fence: NativeTextInputSnapshotFence,
 ) -> Option<Rect> {
     let mut focused_input = None;
+    let mut focused_editor = None;
     for primitive in &plan.primitives {
-        let PaintPrimitive::TextInput(input) = primitive else {
-            continue;
-        };
-        if !input.focused {
-            continue;
+        match primitive {
+            PaintPrimitive::TextInput(input)
+                if input.focused && focused_input.replace(input).is_some() =>
+            {
+                return None;
+            }
+            PaintPrimitive::TextEditor(input)
+                if input.focused && focused_editor.replace(input).is_some() =>
+            {
+                return None;
+            }
+            _ => {}
         }
-        if focused_input.replace(input).is_some() {
+    }
+    if let Some(editor) = focused_editor {
+        if focused_input.is_some() {
             return None;
         }
+        return text_renderer.editor_caret_for_plan(editor, fence);
     }
     let input = focused_input?;
     let snapshot = text_renderer.text_input_snapshot_for_input_aligned(
@@ -150,6 +161,7 @@ pub(in crate::gui_runtime::native_vello) fn seed_text_input_snapshots_for_plan(
         };
         text_input::seed_text_input_snapshot(text_renderer, input, fence);
     }
+    text_renderer.seed_editor_plan(plan, fence);
 }
 
 pub(super) fn text_input_pointer_target_from_snapshot(
@@ -303,6 +315,12 @@ where
                 });
                 encode_text_input(scene, text_renderer, input, animation_time, snapshot);
                 stats.record_text_runs(1);
+            }
+            PaintPrimitive::TextEditor(input) => {
+                stats.text_input_count = stats.text_input_count.saturating_add(1);
+                if text_renderer.encode_editor(scene, input) {
+                    stats.record_text_runs(1);
+                }
             }
             PaintPrimitive::Image(draw) => {
                 stats.image_count = stats.image_count.saturating_add(1);

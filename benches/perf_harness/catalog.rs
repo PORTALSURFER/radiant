@@ -175,6 +175,7 @@ macro_rules! perf_scenario_catalog {
             ("resource_slot_stale_completions_1k", "resource_lifecycle", "resource_lifecycle", NO_COUNTERS, RUNTIME_ITERATIONS, resource_scenarios::resource_slot_stale_completions_1k),
             ("text_line_cache_1k", "text", "text_layout", TEXT_CACHE_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_line_cache_1k),
             ("text_word_selection_1k", "text", "text_layout", TEXT_EDIT_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_word_selection_1k),
+            ("text_editor_reflow_64k", "text", "text_layout", TEXT_EDIT_COUNTERS, 20, text_scenarios::text_editor_reflow_64k),
             ("text_word_deletion_1k", "text", "text_layout", TEXT_EDIT_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_word_deletion_1k),
             ("gpu_signal_summary", "gpu_data", "retained_gpu_surfaces", GPU_DATA_COUNTERS, GPU_ITERATIONS, || bench_gpu_signal_summary),
             ("gpu_surface_projection", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_projection),

@@ -2,8 +2,8 @@ use super::PaintSvg;
 use super::{
     PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
     PaintFillRect, PaintFillRectBatch, PaintGpuSurface, PaintImage, PaintOverlayPanel,
-    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch, PaintTextInput,
-    PaintTextRun,
+    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch,
+    PaintTextEditor, PaintTextInput, PaintTextRun,
 };
 use crate::{
     gui::types::{Rgba8, Vector2},
@@ -58,6 +58,8 @@ pub enum PaintPrimitive {
     OverlayPanel(PaintOverlayPanel),
     /// Paint a single-line text input value, selection, and caret.
     TextInput(PaintTextInput),
+    /// Paint a multi-line editor from an exact shared-geometry declaration.
+    TextEditor(Box<PaintTextEditor>),
     /// Paint an RGBA image stretched into one destination rectangle.
     Image(PaintImage),
     /// Paint a retained generic GPU surface using native GPU resources when available.

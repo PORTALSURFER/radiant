@@ -57,6 +57,14 @@ and explicit runtime objects are part of the same API surface:
   projection, explicit runtime commands, sizing, layout, styling, input, invalidation, and
   backend integration.
 
+### Multiline text editing
+
+[`text_editor(snapshot)`](TEXT_EDITOR.md) is the controlled multiline editor.
+The application owns `TextEditorDocument`, applies exact `TextEditorEdit`
+deltas, and reprojects; hosts install exact shaped geometry receipts before
+editor input. See the dedicated guide for document bounds, composition, and
+receipt validity.
+
 Radiant's cleanup target is message-first, non-blocking application code: views
 emit explicit messages, update handlers own durable state changes, and any
 business work must be scheduled through Radiant. Reducer-style aliases remain

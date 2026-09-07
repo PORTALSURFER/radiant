@@ -742,14 +742,17 @@ where
         position: Point,
         sample: WheelSample,
     ) -> Option<(WidgetDispatchResult<Message>, bool)> {
+        let environment = self.surface.resolved_environment().clone();
         if let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) {
             self.surface
                 .find_widget_mut_at_path(widget_id, child_path)
-                .map(|widget| widget.dispatch_wheel_sample(widget_id, bounds, position, sample))
+                .map(|widget| {
+                    widget.dispatch_wheel_sample(widget_id, bounds, position, sample, &environment)
+                })
         } else {
-            self.surface
-                .find_widget_mut(widget_id)
-                .map(|widget| widget.dispatch_wheel_sample(widget_id, bounds, position, sample))
+            self.surface.find_widget_mut(widget_id).map(|widget| {
+                widget.dispatch_wheel_sample(widget_id, bounds, position, sample, &environment)
+            })
         }
     }
 

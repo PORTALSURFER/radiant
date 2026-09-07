@@ -462,6 +462,7 @@ where
                 diagnostic,
             );
         };
+        self.stage_native_editor_geometry(position, None);
         let sequence_range = self.input.input_sequence_allocator.allocate();
         let exact_sample = phase.map(|phase| {
             native_wheel_sample(
@@ -636,10 +637,53 @@ where
         pointer_modifiers_for_native_gesture(self.input.modifiers, consume_control)
     }
 
+    fn stage_native_editor_geometry(
+        &mut self,
+        position: Point,
+        captured_widget_id: Option<crate::widgets::WidgetId>,
+    ) {
+        if let Some(fence) = self.frame.current_text_input_snapshot_fence {
+            let request =
+                self.frame
+                    .last_paint_plan
+                    .primitives
+                    .iter()
+                    .rev()
+                    .find_map(|primitive| {
+                        let crate::runtime::PaintPrimitive::TextEditor(input) = primitive else {
+                            return None;
+                        };
+                        let hit = captured_widget_id.map_or_else(
+                            || {
+                                self.core
+                                    .runtime
+                                    .layout()
+                                    .rects
+                                    .get(&input.request.widget_id)
+                                    .is_some_and(|bounds| bounds.contains(position))
+                            },
+                            |id| input.request.widget_id == id,
+                        );
+                        hit.then(|| input.request.clone())
+                    });
+            if let Some(request) = request
+                && let Some(receipt) = self.frame.text_renderer.admit_editor_plan_request(
+                    &self.frame.last_paint_plan,
+                    &request,
+                    fence,
+                    true,
+                )
+            {
+                self.core.runtime.install_text_editor_geometry(receipt);
+            }
+        }
+    }
+
     pub(super) fn stage_native_text_pointer_caret(&mut self, position: Point) {
         self.core.runtime.clear_native_text_pointer_caret();
         self.frame.text_renderer.reset_native_caret_affinities();
         let captured_widget_id = self.core.runtime.pointer_capture();
+        self.stage_native_editor_geometry(position, captured_widget_id);
         if let Some((widget_id, source, caret, affinity)) = self
             .frame
             .native_text_pointer_target(position, captured_widget_id)

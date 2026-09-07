@@ -1,0 +1,4 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1404-multiline-editor-radiant)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.14s
+     Running `/Users/portalsurfer/.codex/radiant-validation/target/debug/examples/text_editor`
+{"text":"loopkick!\ndrum","applied_edits":12}

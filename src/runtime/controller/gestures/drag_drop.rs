@@ -433,6 +433,9 @@ where
             if !record.gesture_qualified {
                 return None;
             }
+            if !self.overlay_focus_allows(record.id) {
+                continue;
+            }
             let Some(bounds) = self.layout.rects.get(&record.id) else {
                 continue;
             };

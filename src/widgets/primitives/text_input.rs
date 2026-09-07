@@ -1,5 +1,7 @@
 //! Reusable single-line text-input primitive.
 
+use std::fmt;
+
 use crate::gui::types::{Point, Rect};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, ResolvedEnvironment};
@@ -53,7 +55,7 @@ fn scalar_index(text: &str, byte: usize) -> Option<usize> {
 }
 
 /// Public single-line text-input primitive.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TextInputWidget {
     /// Shared widget contract.
     pub common: WidgetCommon,
@@ -71,6 +73,27 @@ pub struct TextInputWidget {
     text_edit_authority: std::rc::Rc<crate::widgets::TextEditAuthorityOwner>,
     privacy: crate::widgets::TextPrivacy,
     privacy_mapping: Option<std::rc::Rc<crate::widgets::interaction::SecretTextMapping>>,
+}
+
+impl fmt::Debug for TextInputWidget {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TextInputWidget")
+            .field("common", &self.common)
+            .field("props", &self.props)
+            .field("state", &self.state)
+            .field("align", &self.align)
+            .field("composition", &self.composition)
+            .field("native_pointer_caret", &self.native_pointer_caret)
+            .field(
+                "native_pointer_caret_acceptance",
+                &self.native_pointer_caret_acceptance,
+            )
+            .field("native_caret_affinity", &self.native_caret_affinity)
+            .field("privacy", &self.privacy)
+            .field("privacy_mapping", &self.privacy_mapping)
+            .finish_non_exhaustive()
+    }
 }
 
 impl PartialEq for TextInputWidget {
@@ -267,7 +290,7 @@ impl TextInputWidget {
         let display_caret = editing_ops::caret_for_pointer_x_with_environment(
             bounds,
             position.x,
-            &display,
+            display,
             self.declared_text_metrics(),
             self.align,
             environment,
@@ -310,13 +333,13 @@ impl TextInputWidget {
         }
     }
 
-    fn display_text(&self) -> std::sync::Arc<str> {
+    fn display_text(&self) -> &str {
         match self.privacy {
-            crate::widgets::TextPrivacy::Public => std::sync::Arc::from(self.state.value.as_str()),
-            crate::widgets::TextPrivacy::Secret(_) => self.privacy_mapping.as_ref().map_or_else(
-                || std::sync::Arc::from(""),
-                |mapping| std::sync::Arc::from(mapping.masked()),
-            ),
+            crate::widgets::TextPrivacy::Public => &self.state.value,
+            crate::widgets::TextPrivacy::Secret(_) => self
+                .privacy_mapping
+                .as_ref()
+                .map_or("", |mapping| mapping.masked()),
         }
     }
 
@@ -326,10 +349,7 @@ impl TextInputWidget {
         }
         let source_byte = scalar_byte(&self.state.value, source_scalar)?;
         let mapping = self.privacy_mapping.as_ref()?;
-        let display_byte = (0..=source_scalar)
-            .rev()
-            .filter_map(|scalar| scalar_byte(&self.state.value, scalar))
-            .find_map(|byte| mapping.source_to_display_byte(byte))?;
+        let display_byte = mapping.source_to_display_byte_at_or_before(source_byte)?;
         Some(self.display_text()[..display_byte].chars().count())
     }
 
@@ -338,7 +358,7 @@ impl TextInputWidget {
             return (display_scalar <= self.state.char_len()).then_some(display_scalar);
         }
         let display = self.display_text();
-        let display_byte = scalar_byte(&display, display_scalar)?;
+        let display_byte = scalar_byte(display, display_scalar)?;
         let source_byte = self
             .privacy_mapping
             .as_ref()?

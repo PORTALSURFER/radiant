@@ -88,13 +88,31 @@ struct ActiveNumericEdit<T, C> {
     start_selection_anchor: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct NumericInputComposition {
     original_value: String,
     replacement_range: CompositionRange,
     original_selection: CompositionRange,
     preedit: String,
     preedit_selection: CompositionSelectionState,
+}
+
+impl fmt::Debug for NumericInputComposition {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NumericInputComposition")
+            .field("original_value_bytes", &self.original_value.len())
+            .field(
+                "original_value_scalars",
+                &self.original_value.chars().count(),
+            )
+            .field("replacement_range", &self.replacement_range)
+            .field("original_selection", &self.original_selection)
+            .field("preedit_bytes", &self.preedit.len())
+            .field("preedit_scalars", &self.preedit.chars().count())
+            .field("preedit_selection", &self.preedit_selection)
+            .finish()
+    }
 }
 
 fn byte_index_for_char(value: &str, char_index: usize) -> usize {
@@ -214,7 +232,14 @@ where
             .field("value", &self.value)
             .field(
                 "active",
-                &self.active.as_ref().map(|active| active.session.draft()),
+                &self.active.as_ref().map(|active| {
+                    (
+                        active.session.draft().len(),
+                        active.session.draft().chars().count(),
+                        active.start_text.len(),
+                        active.start_text.chars().count(),
+                    )
+                }),
             )
             .field("composition", &self.composition)
             .field(
@@ -1285,8 +1310,11 @@ where
                 display_selection.start(),
             );
         } else {
-            let end = display.chars().count();
-            self.set_embedded_text_state(display, end, end);
+            self.set_embedded_text_state(
+                display,
+                self.text_input.state.caret,
+                self.text_input.state.selection_anchor,
+            );
         }
         self.composition = Some(composition);
         self.text_input.invalidate_text_edit_authority();

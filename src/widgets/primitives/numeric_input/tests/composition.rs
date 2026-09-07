@@ -110,6 +110,33 @@ fn numeric_composition_lifecycle_revokes_embedded_text_authority() {
 }
 
 #[test]
+fn numeric_debug_redacts_active_composition_text() {
+    let preedit = "numeric-preedit-secret";
+    let placeholder = "numeric-placeholder-secret";
+    let suffix = "numeric-suffix-secret";
+    let mut input = super::u32_input();
+    input.text_input.props.placeholder = Some(placeholder.into());
+    input.text_input.props.completion_suffix = Some(suffix.into());
+    super::focus(&mut input);
+    assert_eq!(dispatch(&mut input, start((0, 1), 1)), None);
+    assert_eq!(
+        dispatch(&mut input, update(preedit, (0, preedit.chars().count()))),
+        None
+    );
+
+    let debug = format!("{input:?}");
+    for sentinel in [preedit, placeholder, suffix] {
+        assert!(!debug.contains(sentinel), "Debug leaked {sentinel:?}");
+    }
+    assert!(debug.contains("NumericInputComposition"));
+    assert!(debug.contains("TextInputWidget"));
+    assert!(debug.contains("value: 7"));
+    assert!(!debug.contains("original_value: \"7\""));
+    assert_eq!(input.text_input.state.value, preedit);
+    assert_eq!(input.value, 7);
+}
+
+#[test]
 fn numeric_composition_keeps_hidden_native_selection_absent() {
     let mut input = super::u32_input();
     super::focus(&mut input);

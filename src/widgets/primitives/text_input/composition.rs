@@ -6,13 +6,31 @@ use crate::widgets::contract::Widget;
 use crate::widgets::interaction::{CompositionRange, CompositionSample, CompositionSelectionState};
 
 /// Widget-local composition state captured at `Start`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct TextInputComposition {
     original_value: String,
     replacement_range: CompositionRange,
     original_selection: CompositionRange,
     preedit: String,
     preedit_selection: CompositionSelectionState,
+}
+
+impl std::fmt::Debug for TextInputComposition {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TextInputComposition")
+            .field("original_value_bytes", &self.original_value.len())
+            .field(
+                "original_value_scalars",
+                &self.original_value.chars().count(),
+            )
+            .field("replacement_range", &self.replacement_range)
+            .field("original_selection", &self.original_selection)
+            .field("preedit_bytes", &self.preedit.len())
+            .field("preedit_scalars", &self.preedit.chars().count())
+            .field("preedit_selection", &self.preedit_selection)
+            .finish()
+    }
 }
 
 pub(super) fn handle_sample(

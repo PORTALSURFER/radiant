@@ -10,7 +10,7 @@ mod selection;
 mod word_boundary;
 
 /// Immutable public properties for a reusable single-line text input.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TextInputProps {
     /// Optional placeholder shown when the current value is empty.
     pub placeholder: Option<PaintText>,
@@ -24,6 +24,23 @@ pub struct TextInputProps {
     pub chrome: TextInputChrome,
     /// Optional host-authority evidence for controlled value reprojection.
     pub revision: Option<TextInputRevision>,
+}
+
+impl fmt::Debug for TextInputProps {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TextInputProps")
+            .field("placeholder_present", &self.placeholder.is_some())
+            .field(
+                "completion_suffix_present",
+                &self.completion_suffix.is_some(),
+            )
+            .field("submit_on_enter", &self.submit_on_enter)
+            .field("character_limit", &self.character_limit)
+            .field("chrome", &self.chrome)
+            .field("revision", &self.revision)
+            .finish()
+    }
 }
 
 /// Visual chrome treatment for a reusable single-line text input.

@@ -4,7 +4,8 @@ use crate::runtime::{PaintPrimitive, TextClipboardOperation};
 use crate::runtime::{ResolvedEnvironment, WindowEnvironment};
 use crate::theme::ThemeTokens;
 use crate::widgets::interaction::{
-    PointerButton, TextEditCommand, TextInputMessage, TextInputRevision, WidgetInput, WidgetKey,
+    CompositionRange, CompositionSample, PointerButton, TextEditCommand, TextInputMessage,
+    TextInputRevision, WidgetInput, WidgetKey,
 };
 use crate::widgets::{
     SemanticAction, TextAlign, TextPrivacy, TextSecretPolicy, Widget, WidgetSemantics,
@@ -192,6 +193,46 @@ fn text_clipboard_receipts_require_current_exact_state_policy_and_owner() {
     let copy_allowed =
         secret.with_privacy(TextPrivacy::Secret(TextSecretPolicy::new().allow_copy()));
     assert!(Widget::text_clipboard_receipt(&copy_allowed, TextClipboardOperation::Copy).is_some());
+}
+
+#[test]
+fn text_input_debug_redacts_active_secret_composition_and_adornments() {
+    let original = "original-secret";
+    let placeholder = "placeholder-secret";
+    let suffix = "suffix-secret";
+    let preedit = "preedit-secret";
+    let mut input =
+        TextInputWidget::new(7, original, WidgetSizing::fixed(Vector2::new(160.0, 28.0)))
+            .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    input.props.placeholder = Some(placeholder.into());
+    input.props.completion_suffix = Some(suffix.into());
+    input.common.state.focused = true;
+    let range = CompositionRange::new(0, input.state.char_len(), input.state.char_len())
+        .expect("full composition range is valid");
+    assert!(
+        Widget::handle_composition_sample(
+            &mut input,
+            CompositionSample::start(range, range).expect("composition start is valid"),
+        )
+        .is_none()
+    );
+    assert!(
+        Widget::handle_composition_sample(
+            &mut input,
+            CompositionSample::update(
+                preedit,
+                CompositionRange::new(0, preedit.chars().count(), preedit.chars().count())
+                    .expect("preedit range is valid"),
+            )
+            .expect("composition update is valid"),
+        )
+        .is_none()
+    );
+    let debug = format!("{input:?}");
+    for sentinel in [original, placeholder, suffix, preedit] {
+        assert!(!debug.contains(sentinel), "Debug leaked {sentinel:?}");
+    }
+    assert!(debug.contains("TextInputComposition"));
 }
 
 #[test]

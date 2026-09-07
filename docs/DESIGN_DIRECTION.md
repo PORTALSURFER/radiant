@@ -5181,9 +5181,11 @@ set. Opaque tokens fence continuations; recognition shares controller capture
 admission and teardown, with exact policy retention and terminal cancellation on
 replacement. Native normalized pinch/rotation use this boundary; native desktop
 trackpad pan remains explicitly unsupported. Primary mouse pan uses qualified
-pointer capture transfer; touch-derived
-multi-contact recognition, typed drag payloads, cross-window payloads and external
-offers remain later work.
+pointer capture transfer. Two admitted same-device touch contacts also derive
+pan, pinch, and rotation through that shared arena: the first contact is inert,
+the second establishes the baseline, and no physical-touch path is implied.
+Local typed drag payloads are delivered. Cross-window payloads, external offers,
+and touch-started typed drag remain later work.
 
 Radiant normalizes mouse, trackpad, touch, pen, and native scroll input into
 typed logical-coordinate events with timestamps, modifiers, device kind, and
@@ -6882,5 +6884,5 @@ there is one active owner and no competing container pointer state machine.
 Root capability revisions and the optional gesture facet are classified together,
 while container layout policy and source path remain separate capture evidence.
 Conservative callback evidence retires at reprojection. Empty-background regions,
-custom measure/place gesture consumers, touch-derived gestures and typed drag/drop
-are not yet claimed by this normalized-sample slice.
+custom measure/place gesture consumers and typed drag/drop are not yet claimed by
+this normalized-sample slice.

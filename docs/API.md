@@ -8428,8 +8428,15 @@ desktop pan remains an unsupported transport, while normalized public pan reques
 are executable. The historical `dispatch_gesture_ingress` observation-only entry
 retains its unsupported-consumer result; executable callers use the token-bearing
 request API. Widget/ancestor competition is supported as described below.
-Touch-derived multi-contact recognition, cross-window payloads and owned external
-offers remain OPT-1363 work.
+Two admitted same-device touch contacts derive pan, pinch and rotation through
+this same arena. The first contact is inert; the second rebases both contacts.
+Before recognition, the deepest crossed eligible target wins; equal depths use
+the largest normalized threshold exceedance, then pinch, rotation, and pan.
+Exact pointer tokens fence both contacts. A final Ended sample contributes its
+geometry; cancellation, a third contact, device mismatch, invalid geometry, or
+token loss retires the pair without reviving a held contact. This applies only
+to explicit gesture consumers; touch does not start typed drag sources.
+Cross-window payloads and owned external offers remain OPT-1363 work.
 
 
 ### Container gesture regions
@@ -8466,7 +8473,9 @@ This boundary currently requires a hit-testable descendant at the anchor;
 empty region backgrounds do not acquire gesture authority. It consumes checked
 normalized pan/pinch/rotation samples. Qualified primary mouse sequences also
 participate through the shared pointer-to-pan handoff described below.
-Touch-derived multi-contact recognition remains separate delivery work.
+Touch-derived two-contact recognition uses the same bounded candidate set and
+capture lifetime as normalized gesture requests; it does not introduce another
+pointer capture owner.
 The headless `gesture_input` example exercises child and ancestor priority.
 
 Native gesture samples flush earlier coalesced wheel routes in semantic order,
@@ -8523,9 +8532,9 @@ The opaque event token is observational and does not itself authorize actions.
 Preview movement without application messages requests overlay repaint without
 application projection or layout. `Command::end_drag()` cancels a typed session
 through shared gesture teardown. This delivery supports checked normalized pan
-and admitted primary mouse sequences within one surface. Multi-contact
-arbitration, target styling/autoscroll, same-application
-cross-window transfer and owned external-offer import/export remain OPT-1363 work.
+and admitted primary mouse sequences within one surface. Target styling/autoscroll,
+same-application cross-window transfer and owned external-offer import/export remain
+OPT-1363 work.
 Run `cargo run --example gesture_input` for a headless typed payload drop through
 ordinary source and target declarations.
 

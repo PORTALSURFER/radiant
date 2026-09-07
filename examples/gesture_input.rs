@@ -224,10 +224,118 @@ fn exercise_drag() {
         Some(DragMessage::Source(DragSourcePhase::Completed(_)))
     ));
 }
+fn exercise_touch() {
+    let mut runtime = SurfaceRuntime::new(
+        app(())
+            .view(|_: &()| {
+                custom_widget_mapped(
+                    Pad {
+                        common: WidgetCommon::fixed(1, 120.0, 40.0),
+                    },
+                    |event: GestureEvent| event,
+                )
+                .id(1)
+            })
+            .update(|_, _: GestureEvent| {})
+            .into_bridge(),
+        Vector2::new(200.0, 80.0),
+    );
+    let device = InputDeviceId::from_host(2).unwrap();
+    let contacts = [
+        PointerContactId::from_host(1).unwrap(),
+        PointerContactId::from_host(2).unwrap(),
+    ];
+    let start = |contact, x| {
+        PointerIngress::new(
+            DeviceKind::Touch,
+            device,
+            contact,
+            PointerPhase::Started {
+                button: radiant::widgets::PointerButton::Primary,
+            },
+            Point::new(x, 15.0),
+            PointerButtons::PRIMARY,
+            Default::default(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    let first = runtime
+        .dispatch_pointer_ingress_with_admission(start(contacts[0], 10.0))
+        .sequence_token()
+        .unwrap();
+    let second = runtime
+        .dispatch_pointer_ingress_with_admission(start(contacts[1], 30.0))
+        .sequence_token()
+        .unwrap();
+    let moved = PointerIngress::from_runtime(
+        DeviceKind::Touch,
+        device,
+        contacts[1],
+        PointerPhase::Moved,
+        Point::new(40.0, 15.0),
+        PointerButtons::PRIMARY,
+        Default::default(),
+        None,
+        None,
+        None,
+        None,
+        second,
+    )
+    .unwrap();
+    assert_eq!(
+        runtime.dispatch_pointer_ingress(moved),
+        PointerIngressDisposition::RoutedGesture(1)
+    );
+    let ended = PointerIngress::from_runtime(
+        DeviceKind::Touch,
+        device,
+        contacts[1],
+        PointerPhase::Ended {
+            button: radiant::widgets::PointerButton::Primary,
+        },
+        Point::new(40.0, 15.0),
+        PointerButtons::empty(),
+        Default::default(),
+        None,
+        None,
+        None,
+        None,
+        second,
+    )
+    .unwrap();
+    assert_eq!(
+        runtime.dispatch_pointer_ingress(ended),
+        PointerIngressDisposition::RoutedGesture(1)
+    );
+    let stale = PointerIngress::from_runtime(
+        DeviceKind::Touch,
+        device,
+        contacts[0],
+        PointerPhase::Moved,
+        Point::new(10.0, 15.0),
+        PointerButtons::PRIMARY,
+        Default::default(),
+        None,
+        None,
+        None,
+        None,
+        first,
+    )
+    .unwrap();
+    assert_eq!(
+        runtime.dispatch_pointer_ingress(stale),
+        PointerIngressDisposition::Stale
+    );
+}
 fn main() {
     exercise(5.0, GestureOutcome::Accepted(1));
     exercise(2.0, GestureOutcome::AcceptedContainer(10));
     exercise_drag();
+    exercise_touch();
     println!(
         "Recognized child and ancestor gestures, dropped a typed payload and rejected stale continuations."
     );
@@ -242,5 +350,9 @@ mod tests {
     #[test]
     fn public_typed_drag_example_completes_through_update() {
         super::exercise_drag();
+    }
+    #[test]
+    fn public_touch_example_uses_admitted_tokens() {
+        super::exercise_touch();
     }
 }

@@ -21,6 +21,7 @@ impl<Message> SurfaceNode<Message> {
                     .map(|layer| layer.with_native_file_drop_event_mapper(mapper.clone()))
                     .collect();
                 scene.refresh_resource_view_demand();
+                scene.refresh_notice_demand();
                 Self::Scene(scene)
             }
             Self::Container(mut container) => {
@@ -68,6 +69,7 @@ impl<Message> SurfaceNode<Message> {
                     .map(|layer| layer.with_native_file_drop_mapper(Rc::clone(&mapper)))
                     .collect();
                 scene.refresh_resource_view_demand();
+                scene.refresh_notice_demand();
                 Self::Scene(scene)
             }
             Self::Container(mut container) => {
@@ -110,6 +112,7 @@ impl<Message> SurfaceNode<Message> {
                     .map(SurfaceLayer::accepting_native_file_drop)
                     .collect();
                 scene.refresh_resource_view_demand();
+                scene.refresh_notice_demand();
                 Self::Scene(scene)
             }
             Self::Container(mut container) => {

@@ -8603,3 +8603,5 @@ selection whose projected endpoints collapse return `InvalidPresentation`.
 See `examples/precise_signal_window.rs` for a 64-bucket fixture at frame 2^40,
 local pointer hit testing, anchored zoom, and content construction. Legacy
 `waveform_view` remains an example of the original signal content API.
+
+Feedback builders and application-owned notice queues are described in [Feedback and notifications](FEEDBACK_NOTIFICATIONS.md).

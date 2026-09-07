@@ -16,9 +16,10 @@ mod view_node;
 pub(in crate::application) use view_node::ViewNodeKind;
 #[allow(unused_imports)]
 pub(crate) use view_node::{
-    DeclarativeIdentityOrigin, DeclarativeOverlaySource, DeclarativeSourceContext,
-    SourceIdentitySeed, VirtualLayoutViewAdmissionError, VirtualLayoutViewBatch,
-    lower_virtual_layout_batch, lower_virtual_layout_item, lower_virtual_layout_shell,
+    DeclarativeDemands, DeclarativeIdentityOrigin, DeclarativeOverlaySource,
+    DeclarativeSourceContext, SourceIdentitySeed, VirtualLayoutViewAdmissionError,
+    VirtualLayoutViewBatch, lower_virtual_layout_batch, lower_virtual_layout_item,
+    lower_virtual_layout_shell,
 };
 
 /// Application view node type used by builder functions.
@@ -40,11 +41,13 @@ pub(crate) use commands::{CommandScopeAttachment, MAX_PRESENTATIONS, ResolvedCom
 mod builders;
 mod details_list;
 mod environment;
+mod feedback;
 mod form_row;
 mod labeled_control;
 mod launch;
 mod localization;
 mod menu;
+pub(crate) mod notifications;
 mod option_list;
 mod panel_section;
 mod presentation;

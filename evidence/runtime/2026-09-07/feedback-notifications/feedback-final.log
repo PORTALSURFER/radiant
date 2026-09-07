@@ -1,0 +1,19 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1392-feedback-notifications-radiant)
+warning: linker stderr: ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table, performance of exception handling might be affected
+  |
+  = note: `#[warn(linker_messages)]` on by default
+  = note: the `linker_messages` lint ignores `-D warnings`
+
+warning: `radiant` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 30s
+     Running unittests src/lib.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/radiant-aac666dda0f02901)
+
+running 5 tests
+test application::feedback::tests::spinner_and_skeleton_declare_shared_runtime_feedback ... ok
+test application::feedback::tests::feedback_text_is_unicode_safe_and_bounded ... ok
+test application::feedback::tests::skeleton_paint_uses_the_runtime_phase_for_its_highlight ... ok
+test application::feedback::tests::spinner_paint_uses_runtime_samples_and_reduced_motion_static_fallback ... ok
+test application::feedback::tests::static_status_and_error_presentations_paint_readable_labels_and_retry ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 4334 filtered out; finished in 0.01s
+

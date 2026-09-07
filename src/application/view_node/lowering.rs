@@ -249,7 +249,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let focus_scope = node.focus_scope;
         let layout_interaction = node.layout_interaction.clone();
         let animation = node.animation.clone();
-        let resource_demand = node.resource_demand.clone();
+        let demands = node.demands.clone();
         let style = node.style;
         let hoverable = node.hoverable;
         let split_pane_runtime = node.split_pane_runtime;
@@ -544,10 +544,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
             Some(animation) => lowered.with_animation(animation),
             None => lowered,
         };
-        let lowered = match resource_demand {
-            Some(demand) => lowered.with_resource_view_demand(Some(demand)),
-            None => lowered,
-        };
+        let lowered = lowered.with_declarative_demands(demands);
         if let Some(context) = self.application_context.as_deref_mut() {
             context.record(&self.path, self.incoming_slot, &lowered);
             if let Some(snapshot) = node.component_snapshot {

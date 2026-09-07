@@ -284,7 +284,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
         delivery: PlatformResultDelivery,
     ) -> Option<MappedPlatformMessage<Message>> {
         match self.map_delivery_target(delivery)? {
-            MappedPlatformCompletion::Application(mapped) => Some(mapped),
+            MappedPlatformCompletion::Application(mapped) => Some(*mapped),
             MappedPlatformCompletion::Editor(_) => None,
         }
     }
@@ -333,11 +333,11 @@ impl<Message> PlatformCompletionRegistry<Message> {
                 });
                 match mapper.target {
                     PlatformCompletionTarget::Application(completion) => Some(
-                        MappedPlatformCompletion::Application(MappedPlatformMessage {
+                        MappedPlatformCompletion::Application(Box::new(MappedPlatformMessage {
                             message: completion(result),
                             origin: mapper.origin,
                             fence,
-                        }),
+                        })),
                     ),
                     PlatformCompletionTarget::Editor { receipt, timestamp } => Some(
                         MappedPlatformCompletion::Editor(Box::new(MappedTextClipboard {
@@ -406,7 +406,7 @@ struct RegisteredPlatformCompletion<Message> {
 }
 
 pub(super) enum MappedPlatformCompletion<Message> {
-    Application(MappedPlatformMessage<Message>),
+    Application(Box<MappedPlatformMessage<Message>>),
     Editor(Box<MappedTextClipboard>),
 }
 

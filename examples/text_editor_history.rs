@@ -9,7 +9,9 @@ use radiant::{
     application::{IntoView, TextEditorDocument, TextEditorEdit, text_editor},
     runtime::{RuntimeBridge, SurfaceRuntime, UiSurface},
     widgets::interaction::{EditPhase, TextEditGroupEvent, TextEditKind},
-    widgets::{CompositionRange, CompositionSample, TextEditCommand, WidgetInput},
+    widgets::{
+        CompositionRange, CompositionSample, TextEditCommand, TextEditorWidget, WidgetInput,
+    },
 };
 use std::sync::Arc;
 
@@ -132,6 +134,20 @@ fn input(runtime: &mut SurfaceRuntime<HistoryApp, Message>, command: TextEditCom
     );
 }
 
+fn assert_controlled_projection(runtime: &SurfaceRuntime<HistoryApp, Message>) {
+    let editor = runtime
+        .surface()
+        .find_widget(EDITOR_ID)
+        .and_then(|widget| {
+            widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<TextEditorWidget>()
+        })
+        .expect("projected text editor");
+    assert_eq!(editor.text(), runtime.bridge().document.text());
+}
+
 fn run_fixture() -> (String, usize, usize) {
     let mut runtime = SurfaceRuntime::new(HistoryApp::new(), Default::default());
     assert!(runtime.focus_widget(EDITOR_ID));
@@ -193,14 +209,26 @@ fn run_fixture() -> (String, usize, usize) {
     assert_eq!(runtime.bridge().undo.len(), 3);
 
     runtime.bridge_mut().undo();
+    runtime.refresh();
     assert_eq!(runtime.bridge().document.text(), "abc!");
+    assert_controlled_projection(&runtime);
     runtime.bridge_mut().undo();
+    runtime.refresh();
     assert_eq!(runtime.bridge().document.text(), "abc");
+    assert_controlled_projection(&runtime);
     runtime.bridge_mut().undo();
+    runtime.refresh();
     assert_eq!(runtime.bridge().document.text(), "");
+    assert_controlled_projection(&runtime);
     runtime.bridge_mut().redo();
+    runtime.refresh();
+    assert_controlled_projection(&runtime);
     runtime.bridge_mut().redo();
+    runtime.refresh();
+    assert_controlled_projection(&runtime);
     runtime.bridge_mut().redo();
+    runtime.refresh();
+    assert_controlled_projection(&runtime);
     (
         runtime.bridge().document.text().to_owned(),
         runtime.bridge().undo.len(),

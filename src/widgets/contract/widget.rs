@@ -600,6 +600,32 @@ pub trait Widget: WidgetClone + Any {
         None
     }
 
+    /// Return whether this focused control owns Cmd/Ctrl clipboard shortcuts.
+    ///
+    /// Ownership is deliberately separate from whether a specific copy, cut, or
+    /// paste request is admissible. Read-only and secret text controls can deny
+    /// an operation while still preventing that shortcut from falling through to
+    /// an application command. Custom widgets opt in explicitly.
+    fn owns_text_clipboard_shortcut(&self) -> bool {
+        false
+    }
+
+    /// Capture exact authority for a deferred clipboard operation.
+    fn text_clipboard_receipt(
+        &self,
+        _operation: crate::runtime::TextClipboardOperation,
+    ) -> Option<crate::runtime::TextClipboardReceipt> {
+        None
+    }
+
+    /// Revalidate clipboard authority immediately before applying a result.
+    fn accepts_text_clipboard_receipt(
+        &self,
+        _receipt: &crate::runtime::TextClipboardReceipt,
+    ) -> bool {
+        false
+    }
+
     /// Return the embedded text-input lane used for native caret delegation.
     #[doc(hidden)]
     fn native_text_input_delegate_mut(&mut self) -> Option<&mut crate::widgets::TextInputWidget> {

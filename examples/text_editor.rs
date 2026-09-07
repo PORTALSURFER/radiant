@@ -5,7 +5,7 @@
 //! to make the runtime interaction trace reproducible in tests and examples.
 
 use radiant::{
-    application::{IntoView, TextEditorDocument, TextEditorEdit, WritingDirection, text_editor},
+    application::{IntoView, TextEditorDocument, TextEditorEdit, text_editor},
     gui::{
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
@@ -16,7 +16,7 @@ use radiant::{
                 ParagraphGeometryInput, ParagraphGeometryKey, ShapedLogicalCluster,
             },
         },
-        types::{Point, Rect, Vector2},
+        types::{Point, Vector2},
     },
     runtime::{Event, RuntimeBridge, SurfaceRuntime, UiSurface},
     widgets::{
@@ -50,14 +50,13 @@ impl EditorApp {
 
 impl RuntimeBridge<Message> for EditorApp {
     fn project_surface(&mut self) -> Arc<UiSurface<Message>> {
-        Arc::new(
-            text_editor(self.document.snapshot())
-                .id(EDITOR_ID)
-                .wrap(true)
-                .font_size(14.0)
-                .message(Message::Edit)
-                .into_surface(),
-        )
+        text_editor(self.document.snapshot())
+            .id(EDITOR_ID)
+            .wrap(true)
+            .font_size(14.0)
+            .message(Message::Edit)
+            .into_surface()
+            .into()
     }
 
     fn reduce_message(&mut self, message: Message) {
@@ -208,6 +207,7 @@ fn fixture_geometry(request: &TextEditorLayoutRequest) -> Arc<ParagraphGeometry>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use radiant::{application::WritingDirection, gui::types::Rect};
 
     #[test]
     fn controlled_editor_trace_applies_commits_and_reflows_headlessly() {

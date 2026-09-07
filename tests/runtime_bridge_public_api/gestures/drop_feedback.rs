@@ -181,7 +181,7 @@ fn geometry_reprojection_insertion_bridge(
                 .id(1)
                 .drag_source(DragSource::new(String::from("payload")))
                 .id(10);
-            let width = if narrow.get() { 20.0 } else { 100.0 };
+            let width = if narrow.get() { 40.0 } else { 100.0 };
             let target = button("Target")
                 .filter_mapped(|_| None::<()>)
                 .width(width)
@@ -205,10 +205,7 @@ fn geometry_reprojection_insertion_bridge(
 
 #[test]
 fn insertion_context_uses_both_axes_midpoint_after_and_final_drop_input() {
-    for (axis, after) in [
-        (DropInsertionAxis::Horizontal, 150.0),
-        (DropInsertionAxis::Vertical, 20.0),
-    ] {
+    for axis in [DropInsertionAxis::Horizontal, DropInsertionAxis::Vertical] {
         let insertions = Rc::new(RefCell::new(Vec::new()));
         let callbacks = Rc::new(Cell::new(0));
         let mut runtime = SurfaceRuntime::new(
@@ -216,31 +213,27 @@ fn insertion_context_uses_both_axes_midpoint_after_and_final_drop_input() {
             Vector2::new(240.0, 80.0),
         );
         let token = start(&mut runtime);
-        if axis == DropInsertionAxis::Vertical {
-            // The initial target entry at y=0 is Before; a later y=20 is the midpoint.
-            runtime.dispatch_gesture_request(
-                GestureRequest::new(sample(
-                    GestureKind::Pan,
-                    GesturePhase::Changed,
-                    Vector2::new(110.0, after),
-                ))
+        // Gesture samples carry incremental movement from the initial (20, 15)
+        // anchor; start() already moved the pointer to (130, 15).
+        let midpoint = runtime.layout().rects[&20].center();
+        let to_midpoint = match axis {
+            DropInsertionAxis::Horizontal => Vector2::new(midpoint.x - 130.0, 0.0),
+            DropInsertionAxis::Vertical => Vector2::new(0.0, midpoint.y - 15.0),
+        };
+        runtime.dispatch_gesture_request(
+            GestureRequest::new(sample(GestureKind::Pan, GesturePhase::Changed, to_midpoint))
                 .with_token(token),
-            );
-        } else {
-            send(&mut runtime, token, GesturePhase::Changed, after);
-        }
-        if axis == DropInsertionAxis::Vertical {
-            runtime.dispatch_gesture_request(
-                GestureRequest::new(sample(
-                    GestureKind::Pan,
-                    GesturePhase::Ended,
-                    Vector2::new(110.0, after),
-                ))
+        );
+        // The terminal sample moves back across the midpoint. Dropped must use
+        // that final Before snapshot, not the preceding Over/After snapshot.
+        let final_delta = match axis {
+            DropInsertionAxis::Horizontal => Vector2::new(-1.0, 0.0),
+            DropInsertionAxis::Vertical => Vector2::new(0.0, -1.0),
+        };
+        runtime.dispatch_gesture_request(
+            GestureRequest::new(sample(GestureKind::Pan, GesturePhase::Ended, final_delta))
                 .with_token(token),
-            );
-        } else {
-            send(&mut runtime, token, GesturePhase::Ended, after);
-        }
+        );
         let entries = insertions.borrow();
         assert!(entries.iter().any(|(_, insertion)| {
             insertion.is_some_and(|insertion| {
@@ -253,7 +246,7 @@ fn insertion_context_uses_both_axes_midpoint_after_and_final_drop_input() {
             })
         }));
         assert!(
-            matches!(entries.last(), Some((DropPhase::Dropped, Some(insertion))) if insertion.axis() == axis && insertion.side() == DropInsertionSide::After)
+            matches!(entries.last(), Some((DropPhase::Dropped, Some(insertion))) if insertion.axis() == axis && insertion.side() == DropInsertionSide::Before)
         );
     }
 }
@@ -301,8 +294,8 @@ fn compatible_target_callback_requalifies_insertion_against_new_geometry() {
             _ => None,
         })
         .expect("requalified insertion marker");
-    assert_eq!(marker.min.x, 118.0);
-    assert_eq!(marker.max.x, 120.0);
+    assert_eq!(marker.min.x, 138.0);
+    assert_eq!(marker.max.x, 140.0);
 }
 
 #[test]

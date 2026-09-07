@@ -746,7 +746,10 @@ fn combine_cancellation_probes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::PlatformResponse;
+    use crate::runtime::{
+        PlatformResponse, RuntimeBridge, RuntimeHostCapabilities, RuntimePlatformResultHost,
+        RuntimePlatformResultSink, SurfaceNode, UiSurface,
+    };
     use crate::{
         application::{IntoView, column, text},
         gui::types::Vector2,
@@ -757,6 +760,96 @@ mod tests {
         rc::Rc,
         sync::{Arc, Mutex},
     };
+
+    #[derive(Default)]
+    struct TextClipboardBridge {
+        sinks: Vec<RuntimePlatformResultSink>,
+    }
+
+    impl RuntimeBridge<()> for TextClipboardBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            let editor = crate::widgets::TextEditorWidget::uncontrolled(
+                41,
+                "old",
+                crate::widgets::WidgetSizing::fixed(Vector2::new(120.0, 48.0)),
+            )
+            .expect("bounded editor");
+            crate::runtime::test_arc_surface(UiSurface::new(SurfaceNode::static_widget(editor)))
+        }
+
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+            RuntimeHostCapabilities::new().with_platform_results()
+        }
+    }
+
+    impl RuntimePlatformResultHost for TextClipboardBridge {
+        fn request_platform_result(
+            &mut self,
+            _request: PlatformRequest,
+            sink: RuntimePlatformResultSink,
+        ) -> Result<(), crate::runtime::PlatformResultServiceFallback> {
+            self.sinks.push(sink);
+            Ok(())
+        }
+    }
+
+    fn editor_text(runtime: &SurfaceRuntime<TextClipboardBridge, ()>) -> String {
+        runtime
+            .surface_widget(41)
+            .and_then(|widget| {
+                widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<crate::widgets::TextEditorWidget>()
+            })
+            .expect("editor")
+            .text()
+            .to_owned()
+    }
+
+    #[test]
+    fn focused_clipboard_paste_is_deferred_and_applies_only_after_success() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None,)
+        );
+        let sink = runtime.bridge_mut().sinks.pop().expect("paste sink");
+        sink.send(Ok(PlatformResponse::Text("new".into())));
+        assert_eq!(editor_text(&runtime), "old");
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "newold");
+    }
+
+    #[test]
+    fn failed_clipboard_cut_never_deletes_the_selection() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .dispatch_focused_input(crate::widgets::WidgetInput::text_edit(
+                    crate::widgets::TextEditCommand::SelectAll,
+                ))
+                .is_some()
+        );
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Cut, None,)
+        );
+        runtime
+            .bridge_mut()
+            .sinks
+            .pop()
+            .expect("cut sink")
+            .send(Err(crate::runtime::PlatformFailure::Unavailable(
+                crate::runtime::PlatformService::Clipboard,
+            )));
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "old");
+    }
 
     fn declarative_origins() -> (EffectOrigin, EffectOrigin, EffectOrigin) {
         let phase = Rc::new(Cell::new(0_u8));

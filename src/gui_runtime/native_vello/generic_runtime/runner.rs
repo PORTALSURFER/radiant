@@ -155,6 +155,8 @@ where
     // visual-only accumulator is published at the completed stage boundary.
     pending_timed_drag_visuals: super::auxiliary::NativeDragRoute,
     timed_frame_semantic_reduced_since_event: bool,
+    foreign_autoscroll_awaiting_deadline_completion: bool,
+    foreign_autoscroll_completed_since_event: bool,
     native_lifecycle: NativeLifecycle,
     auxiliary_owner: bool,
     terminal_cause: Option<NativeGenericRunError>,
@@ -404,6 +406,8 @@ where
             cross_window_transfers: Vec::new(),
             pending_timed_drag_visuals: super::auxiliary::NativeDragRoute::default(),
             timed_frame_semantic_reduced_since_event: false,
+            foreign_autoscroll_awaiting_deadline_completion: false,
+            foreign_autoscroll_completed_since_event: false,
             native_lifecycle: NativeLifecycle::default(),
             auxiliary_owner,
             terminal_cause: None,
@@ -3760,13 +3764,21 @@ where
     /// already reduced runtime messages. Visual requests remain retained until
     /// the exact Deadline completion reaches its caller.
     pub(super) fn collect_timed_drag_cancellations(&mut self, outcome: &mut GenericRouteOutcome) {
-        if !outcome.routed {
+        let pending_autoscroll = self.core.runtime.has_pending_cross_window_autoscroll();
+        if !outcome.routed && !pending_autoscroll {
             return;
         }
         if self.auxiliary_owner {
             self.timed_frame_semantic_reduced_since_event = true;
+            self.foreign_autoscroll_awaiting_deadline_completion |= pending_autoscroll;
         }
-        let drag = self.route_drag_cancellations();
+        let mut drag = self.route_drag_cancellations();
+        if !self.auxiliary_owner && pending_autoscroll {
+            let timed =
+                self.route_drag_autoscroll_for_owner(None, self.timing.last_timed_frame_drain);
+            drag.outcome.merge(timed.outcome);
+            drag.merge_visuals_from(&timed);
+        }
         outcome.merge(drag.outcome);
         if !drag.visual_work.is_empty() {
             self.pending_timed_drag_visuals.merge_visuals_from(&drag);
@@ -3777,11 +3789,23 @@ where
     /// completion has already consumed its semantic drain, so its visual
     /// candidate is discarded rather than replayed under another stage.
     pub(super) fn finish_timed_drag_visuals(&mut self, deadline_completed: bool) {
+        if std::mem::take(&mut self.foreign_autoscroll_awaiting_deadline_completion) {
+            if deadline_completed {
+                self.foreign_autoscroll_completed_since_event = true;
+            } else {
+                self.foreign_autoscroll_completed_since_event = false;
+                self.core.runtime.discard_pending_cross_window_autoscroll();
+            }
+        }
         let visuals = std::mem::take(&mut self.pending_timed_drag_visuals);
         if !deadline_completed {
             return;
         }
         self.apply_drag_route_visuals(&visuals, Some(NativeInputStageDisposition::ContinueNow));
+    }
+
+    pub(super) fn take_foreign_autoscroll_completed_since_event(&mut self) -> bool {
+        std::mem::take(&mut self.foreign_autoscroll_completed_since_event)
     }
 
     pub(super) fn take_timed_frame_semantic_reduced_since_event(&mut self) -> bool {

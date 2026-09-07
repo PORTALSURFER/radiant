@@ -1,6 +1,6 @@
 //! Winit application lifecycle for the generic native Vello runner.
 
-use super::auxiliary::AuxiliaryNativeWindow;
+use super::auxiliary::{AuxiliaryMessageOrigin, AuxiliaryNativeWindow};
 use super::cross_window_input::NativeCrossWindowInput;
 use super::frame_scheduler_policy::NativeInputStageDisposition;
 use super::lifecycle_pointer::finalize_native_immediate_transient_route;
@@ -444,6 +444,7 @@ where
                 native_discrete_input_route: pending_native_discrete_input_route,
                 native_immediate_transient_route: pending_native_immediate_transient_route,
                 timed_frame_semantic_reduced,
+                foreign_autoscroll_completed,
             } = route_result;
             let mut pending_native_discrete_input_route = pending_native_discrete_input_route;
             let mut pending_native_immediate_transient_route =
@@ -532,7 +533,13 @@ where
                     pending_native_immediate_transient_route.take(),
                 );
                 if let Some(drag) = self.dispatch_auxiliary_messages_with_unticketed_cancellations(
-                    event_loop, None, messages, true,
+                    event_loop,
+                    AuxiliaryMessageOrigin {
+                        owner: None,
+                        completed_timed_frame: false,
+                    },
+                    messages,
+                    true,
                 ) {
                     self.apply_drag_route_visuals(
                         &drag,
@@ -550,7 +557,10 @@ where
                     if let Some((completion, drag)) = self
                         .dispatch_auxiliary_messages_with_cross_window_collector(
                             event_loop,
-                            message_origin,
+                            AuxiliaryMessageOrigin {
+                                owner: message_origin,
+                                completed_timed_frame: foreign_autoscroll_completed,
+                            },
                             messages,
                             pending_native_discrete_input_route.map(|route| (index, route)),
                             pending_native_immediate_transient_route.map(|route| (index, route)),
@@ -563,7 +573,10 @@ where
                     if let Some(drag) = self
                         .dispatch_auxiliary_messages_with_unticketed_cancellations(
                             event_loop,
-                            message_origin,
+                            AuxiliaryMessageOrigin {
+                                owner: message_origin,
+                                completed_timed_frame: foreign_autoscroll_completed,
+                            },
                             messages,
                             true,
                         )
@@ -1654,6 +1667,7 @@ where
                                 native_discrete_input_route,
                                 native_immediate_transient_route,
                                 timed_frame_semantic_reduced,
+                                foreign_autoscroll_completed,
                             } = result;
                             debug_assert!(close_admission.is_none());
                             debug_assert!(native_discrete_input_route.is_none());
@@ -1715,7 +1729,10 @@ where
                                 && let Some(drag) = self
                                     .dispatch_auxiliary_messages_with_unticketed_cancellations(
                                         event_loop,
-                                        message_origin,
+                                        AuxiliaryMessageOrigin {
+                                            owner: message_origin,
+                                            completed_timed_frame: foreign_autoscroll_completed,
+                                        },
                                         messages,
                                         false,
                                     )

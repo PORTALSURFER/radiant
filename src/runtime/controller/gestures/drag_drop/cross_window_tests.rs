@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
     application::{DragSource, DropTarget, button},
+    gui::drag_drop::DragAutoscrollPolicy,
     gui::pointer_ingress::{GestureIngress, GestureKind, GesturePhase, GestureUnit, InputDeviceId},
     layout::Vector2,
     runtime::{GestureRequest, RuntimeBridge, SurfaceRuntime},
@@ -47,14 +48,165 @@ where
 }
 
 fn foreign_input(export: &CrossWindowDragExport) -> CrossWindowForeignInput {
+    foreign_input_at(export, Point::new(20.0, 20.0))
+}
+
+fn foreign_input_at(export: &CrossWindowDragExport, position: Point) -> CrossWindowForeignInput {
     CrossWindowForeignInput::new(
         export.key(),
         export.offer(),
         export.source(),
         export.lease(),
-        Point::new(20.0, 20.0),
+        position,
         Default::default(),
+        export.autoscroll_policy(),
+        export.metadata(),
     )
+}
+
+#[test]
+fn foreign_autoscroll_deadline_marks_due_without_target_callbacks_and_stops_at_boundary() {
+    let source_bridge = crate::app(())
+        .view(|_| {
+            button("source")
+                .filter_mapped(|_| None::<DropPhase>)
+                .width(100.0)
+                .height(100.0)
+                .id(1)
+                .drag_source(DragSource::new(7_u8).autoscroll(DragAutoscrollPolicy::default()))
+                .id(10)
+        })
+        .update(|_, _: DropPhase| {})
+        .into_bridge();
+    let mut source = SurfaceRuntime::new(source_bridge, Vector2::new(100.0, 100.0));
+    let export = activate_source(&mut source);
+
+    let callbacks = Rc::new(RefCell::new(Vec::new()));
+    let observed = Rc::clone(&callbacks);
+    let receiver_bridge = crate::app(())
+        .view(move |_| {
+            let observed = Rc::clone(&observed);
+            crate::application::scroll(
+                button("target")
+                    .filter_mapped(|_| None::<DropPhase>)
+                    .width(100.0)
+                    .height(240.0)
+                    .id(2)
+                    .drop_target(DropTarget::<u8, DropPhase>::new().on_event_with_revision(
+                        (),
+                        move |event| {
+                            observed.borrow_mut().push(event.phase());
+                            Some(event.phase())
+                        },
+                    ))
+                    .id(20),
+            )
+            .width(100.0)
+            .height(100.0)
+            .id(30)
+        })
+        .update(|_, _: DropPhase| {})
+        .into_bridge();
+    let mut receiver = SurfaceRuntime::new(receiver_bridge, Vector2::new(100.0, 100.0));
+    let origin = std::time::Instant::now();
+    receiver.set_timed_repaint_clock(Some(origin));
+    assert_eq!(
+        receiver
+            .route_cross_window_foreign(foreign_input_at(&export, Point::new(50.0, 99.0)))
+            .into_messages(),
+        vec![DropPhase::Entered]
+    );
+    let deadline = receiver
+        .cross_window_foreign_autoscroll_deadline()
+        .expect("edge receipt arms a receiver-local deadline");
+    assert!(receiver.advance_timed_repaints(deadline));
+    assert!(receiver.has_pending_cross_window_autoscroll());
+    assert_eq!(
+        callbacks.borrow().as_slice(),
+        &[DropPhase::Entered],
+        "timer advancement only marks work for its admitted native collector"
+    );
+
+    let attempt = receiver.take_pending_cross_window_autoscroll(export.key(), deadline);
+    assert!(attempt.accepted && attempt.moved);
+    assert!(receiver.rearm_cross_window_autoscroll(export.key(), deadline));
+    for _ in 0..32 {
+        let Some(deadline) = receiver.cross_window_foreign_autoscroll_deadline() else {
+            break;
+        };
+        receiver.advance_timed_repaints(deadline);
+        let attempt = receiver.take_pending_cross_window_autoscroll(export.key(), deadline);
+        if !attempt.moved {
+            assert!(!receiver.rearm_cross_window_autoscroll(export.key(), deadline));
+            break;
+        }
+        receiver.rearm_cross_window_autoscroll(export.key(), deadline);
+    }
+    assert_eq!(receiver.layout_state.scroll_offset(30).y, 140.0);
+    assert_eq!(receiver.cross_window_foreign_autoscroll_deadline(), None);
+    assert_eq!(callbacks.borrow().as_slice(), &[DropPhase::Entered]);
+}
+
+#[test]
+fn foreign_autoscroll_scroll_callback_retires_source_before_ancestor_chaining() {
+    let source_bridge = crate::app(())
+        .view(|_| {
+            button("source")
+                .filter_mapped(|_| None::<DropPhase>)
+                .width(100.0)
+                .height(100.0)
+                .id(1)
+                .drag_source(DragSource::new(7_u8).autoscroll(DragAutoscrollPolicy::default()))
+                .id(10)
+        })
+        .update(|_, _: DropPhase| {})
+        .into_bridge();
+    let source = Rc::new(RefCell::new(Some(SurfaceRuntime::new(
+        source_bridge,
+        Vector2::new(100.0, 100.0),
+    ))));
+    let export = {
+        let mut source = source.borrow_mut();
+        activate_source(source.as_mut().unwrap())
+    };
+
+    let retire_source = Rc::clone(&source);
+    let receiver_bridge = crate::app(())
+        .view(|_| {
+            crate::application::scroll(
+                button("target")
+                    .filter_mapped(|_| None::<crate::runtime::ScrollUpdate>)
+                    .width(100.0)
+                    .height(240.0)
+                    .id(2)
+                    .drop_target(DropTarget::<u8, crate::runtime::ScrollUpdate>::new())
+                    .id(20),
+            )
+            .width(100.0)
+            .height(100.0)
+            .id(30)
+            .on_scroll_update(|update| update)
+        })
+        .update(move |_, _: crate::runtime::ScrollUpdate| {
+            retire_source.borrow_mut().take();
+        })
+        .into_bridge();
+    let mut receiver = SurfaceRuntime::new(receiver_bridge, Vector2::new(100.0, 100.0));
+    let origin = std::time::Instant::now();
+    receiver.set_timed_repaint_clock(Some(origin));
+    let _ = receiver.route_cross_window_foreign(foreign_input_at(&export, Point::new(50.0, 99.0)));
+    let deadline = receiver.cross_window_foreign_autoscroll_deadline().unwrap();
+    assert!(receiver.advance_timed_repaints(deadline));
+
+    let attempt = receiver.take_pending_cross_window_autoscroll(export.key(), deadline);
+    assert!(attempt.moved);
+    assert!(
+        !export.is_live(),
+        "the scroll callback retired the source while the guarded route was live"
+    );
+    assert!(!receiver.has_pending_cross_window_autoscroll());
+    assert!(!receiver.rearm_cross_window_autoscroll(export.key(), deadline));
+    assert_eq!(receiver.cross_window_foreign_autoscroll_deadline(), None);
 }
 
 #[test]

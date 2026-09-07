@@ -93,6 +93,8 @@ pub(crate) struct CrossWindowDragExport {
     source: WidgetId,
     modifiers: crate::widgets::PointerModifiers,
     position: Point,
+    autoscroll: Option<DragAutoscrollPolicy>,
+    metadata: ScrollUpdateMetadata,
     lease: Weak<CrossWindowDragLease>,
     proof: CrossWindowSourceProof,
 }
@@ -118,6 +120,16 @@ impl CrossWindowDragExport {
     /// Logical source-surface position captured by the admitted sample.
     pub(crate) const fn position(&self) -> Point {
         self.position
+    }
+
+    /// Source-selected policy copied as data only to an admitted receiver.
+    pub(crate) const fn autoscroll_policy(&self) -> Option<DragAutoscrollPolicy> {
+        self.autoscroll
+    }
+
+    /// Observational metadata from the same source sample as this export.
+    pub(crate) const fn metadata(&self) -> ScrollUpdateMetadata {
+        self.metadata
     }
 
     pub(crate) fn lease(&self) -> Weak<CrossWindowDragLease> {
@@ -153,9 +165,15 @@ pub(crate) struct CrossWindowForeignInput {
     lease: Weak<CrossWindowDragLease>,
     position: Point,
     modifiers: crate::widgets::PointerModifiers,
+    autoscroll: Option<DragAutoscrollPolicy>,
+    metadata: ScrollUpdateMetadata,
 }
 
 impl CrossWindowForeignInput {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "The stack-scoped handoff names its typed offer, source lifetime, and admitted input provenance explicitly."
+    )]
     pub(crate) fn new(
         key: CrossWindowDragKey,
         offer: DragOffer,
@@ -163,6 +181,8 @@ impl CrossWindowForeignInput {
         lease: Weak<CrossWindowDragLease>,
         position: Point,
         modifiers: crate::widgets::PointerModifiers,
+        autoscroll: Option<DragAutoscrollPolicy>,
+        metadata: ScrollUpdateMetadata,
     ) -> Self {
         Self {
             key,
@@ -171,6 +191,8 @@ impl CrossWindowForeignInput {
             lease,
             position,
             modifiers,
+            autoscroll,
+            metadata,
         }
     }
 }
@@ -183,8 +205,22 @@ pub(in crate::runtime::controller) struct CrossWindowForeignDrag<Message> {
     lease: Weak<CrossWindowDragLease>,
     position: Point,
     modifiers: crate::widgets::PointerModifiers,
+    autoscroll: Option<DragAutoscrollPolicy>,
+    metadata: ScrollUpdateMetadata,
+    autoscroll_deadline: Option<Instant>,
+    autoscroll_last_tick: Option<Instant>,
+    autoscroll_due: bool,
     target: Option<DropBinding<Message>>,
     preview: DragSession,
+}
+
+/// Result of one receiver-owned foreign autoscroll attempt. The native
+/// coordinator uses this only to decide whether to requalify and rearm after
+/// it has reduced the receiver's ordinary scroll messages.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct CrossWindowAutoscrollAttempt {
+    pub(crate) accepted: bool,
+    pub(crate) moved: bool,
 }
 
 /// Messages mapped by a receiver-local foreign update.  The host, not this
@@ -246,6 +282,14 @@ impl<Message> CrossWindowTerminalRequest<Message> {
     /// Logical source-surface position captured by the terminal sample.
     pub(crate) const fn position(&self) -> Point {
         self.session.position
+    }
+
+    pub(crate) const fn autoscroll_policy(&self) -> Option<DragAutoscrollPolicy> {
+        self.session.autoscroll
+    }
+
+    pub(crate) const fn metadata(&self) -> ScrollUpdateMetadata {
+        self.session.metadata
     }
 
     pub(crate) fn lease(&self) -> Weak<CrossWindowDragLease> {
@@ -548,18 +592,19 @@ where
 
     fn autoscroll_delta(
         &self,
-        session: &TypedDragSession<Message>,
+        policy: Option<DragAutoscrollPolicy>,
+        position: Point,
         elapsed: Duration,
     ) -> Option<Vector2> {
-        let policy = session.autoscroll?;
-        let node_id = self.scroll_container_at(session.position)?;
+        let policy = policy?;
+        let node_id = self.scroll_container_at(position)?;
         let viewport = self
             .layout
             .viewport_bounds
             .get(&node_id)
             .or_else(|| self.layout.rects.get(&node_id))
             .copied()?;
-        if !viewport.has_finite_positive_area() || !viewport.contains(session.position) {
+        if !viewport.has_finite_positive_area() || !viewport.contains(position) {
             return None;
         }
         let horizontal_zone = policy.edge_zone().min(viewport.width() * 0.5);
@@ -575,19 +620,11 @@ where
         };
         let seconds = elapsed.as_secs_f32();
         let delta = Vector2::new(
-            strength(
-                horizontal_zone,
-                viewport.min.x,
-                viewport.max.x,
-                session.position.x,
-            ) * policy.max_speed()
+            strength(horizontal_zone, viewport.min.x, viewport.max.x, position.x)
+                * policy.max_speed()
                 * seconds,
-            strength(
-                vertical_zone,
-                viewport.min.y,
-                viewport.max.y,
-                session.position.y,
-            ) * policy.max_speed()
+            strength(vertical_zone, viewport.min.y, viewport.max.y, position.y)
+                * policy.max_speed()
                 * seconds,
         );
         (delta.x.abs() > f32::EPSILON || delta.y.abs() > f32::EPSILON).then_some(delta)
@@ -600,7 +637,9 @@ where
             .typed
             .as_ref()
             .filter(|session| session.token == token && !session.local_target_suppressed)
-            .and_then(|session| self.autoscroll_delta(session, DRAG_AUTOSCROLL_TICK));
+            .and_then(|session| {
+                self.autoscroll_delta(session.autoscroll, session.position, DRAG_AUTOSCROLL_TICK)
+            });
         let Some(session) = self
             .interaction
             .drag
@@ -652,12 +691,9 @@ where
         let elapsed = now
             .saturating_duration_since(last_tick)
             .min(DRAG_AUTOSCROLL_MAX_ELAPSED);
-        let delta = self
-            .interaction
-            .drag
-            .typed
-            .as_ref()
-            .and_then(|session| self.autoscroll_delta(session, elapsed));
+        let delta = self.interaction.drag.typed.as_ref().and_then(|session| {
+            self.autoscroll_delta(session.autoscroll, session.position, elapsed)
+        });
         let Some(delta) = delta else {
             self.update_typed_drag_autoscroll(token, now);
             return false;
@@ -696,7 +732,9 @@ where
                 timestamp: metadata.timestamp,
                 sequence_range: metadata.sequence_range,
             },
-            Some(token),
+            Some(crate::runtime::controller::scroll::ScrollRouteGuard::Typed(
+                token,
+            )),
         );
         let moved = attempt.moved;
         if moved && self.typed_drag_live(token) {
@@ -706,6 +744,231 @@ where
             }
         }
         moved || attempt.accepted && !self.typed_drag_live(token)
+    }
+
+    pub(in crate::runtime::controller) fn scroll_route_guard_is_current(
+        &self,
+        guard: crate::runtime::controller::scroll::ScrollRouteGuard,
+    ) -> bool {
+        match guard {
+            crate::runtime::controller::scroll::ScrollRouteGuard::Typed(token) => {
+                self.typed_drag_live(token)
+            }
+            crate::runtime::controller::scroll::ScrollRouteGuard::Foreign(key) => {
+                self.cross_window_foreign_is_live(key)
+            }
+        }
+    }
+
+    fn cross_window_foreign_is_live(&self, key: CrossWindowDragKey) -> bool {
+        self.lifecycle_accepts_work()
+            && self
+                .interaction
+                .drag
+                .cross_window_foreign
+                .as_ref()
+                .is_some_and(|foreign| foreign.key == key && foreign.lease.upgrade().is_some())
+    }
+
+    fn update_cross_window_foreign_autoscroll(&mut self, key: CrossWindowDragKey, now: Instant) {
+        let armed = self
+            .interaction
+            .drag
+            .cross_window_foreign
+            .as_ref()
+            .filter(|foreign| foreign.key == key && foreign.lease.upgrade().is_some())
+            .and_then(|foreign| {
+                self.autoscroll_delta(foreign.autoscroll, foreign.position, DRAG_AUTOSCROLL_TICK)
+            });
+        let Some(foreign) = self
+            .interaction
+            .drag
+            .cross_window_foreign
+            .as_mut()
+            .filter(|foreign| foreign.key == key)
+        else {
+            return;
+        };
+        if armed.is_some() && !foreign.autoscroll_due {
+            if foreign.autoscroll_deadline.is_none() {
+                foreign.autoscroll_last_tick = Some(now);
+                foreign.autoscroll_deadline = now.checked_add(DRAG_AUTOSCROLL_TICK);
+            }
+        } else if armed.is_none() {
+            foreign.autoscroll_deadline = None;
+            foreign.autoscroll_last_tick = None;
+            foreign.autoscroll_due = false;
+        }
+    }
+
+    pub(crate) fn cross_window_foreign_autoscroll_deadline(&self) -> Option<Instant> {
+        self.interaction
+            .drag
+            .cross_window_foreign
+            .as_ref()
+            .filter(|foreign| foreign.lease.upgrade().is_some())
+            .and_then(|foreign| foreign.autoscroll_deadline)
+    }
+
+    /// Timer advancement does not scroll or map callbacks. The native owner
+    /// later consumes this marker while reducing its already-admitted semantic
+    /// route for the exact receiving window.
+    pub(in crate::runtime::controller) fn advance_cross_window_foreign_autoscroll(
+        &mut self,
+        now: Instant,
+    ) -> bool {
+        let Some(foreign) = self.interaction.drag.cross_window_foreign.as_mut() else {
+            return false;
+        };
+        if foreign.lease.upgrade().is_none() {
+            foreign.autoscroll_deadline = None;
+            foreign.autoscroll_last_tick = None;
+            foreign.autoscroll_due = false;
+            return false;
+        }
+        if foreign.autoscroll_due
+            || !foreign
+                .autoscroll_deadline
+                .is_some_and(|deadline| now >= deadline)
+        {
+            return false;
+        }
+        foreign.autoscroll_deadline = None;
+        foreign.autoscroll_due = true;
+        true
+    }
+
+    pub(crate) fn has_pending_cross_window_autoscroll(&self) -> bool {
+        self.interaction
+            .drag
+            .cross_window_foreign
+            .as_ref()
+            .is_some_and(|foreign| {
+                foreign.autoscroll_due
+                    && foreign.lease.upgrade().is_some()
+                    && self.lifecycle_accepts_work()
+            })
+    }
+
+    /// A failed native Deadline must not replay its pending scroll on a later
+    /// event. Keep the foreign receipt, but require a new input to rearm it.
+    pub(crate) fn discard_pending_cross_window_autoscroll(&mut self) {
+        if let Some(foreign) = self.interaction.drag.cross_window_foreign.as_mut()
+            && foreign.autoscroll_due
+        {
+            foreign.autoscroll_due = false;
+            foreign.autoscroll_deadline = None;
+            foreign.autoscroll_last_tick = None;
+        }
+    }
+
+    /// Consume one due marker under the receiver's existing native semantic
+    /// route. This performs no target mapping; callers requalify and rearm
+    /// only after they have reduced resulting scroll messages.
+    pub(crate) fn take_pending_cross_window_autoscroll(
+        &mut self,
+        key: CrossWindowDragKey,
+        now: Instant,
+    ) -> CrossWindowAutoscrollAttempt {
+        if !self.cross_window_foreign_is_live(key) {
+            return CrossWindowAutoscrollAttempt::default();
+        }
+        let Some((policy, point, metadata, last_tick)) = self
+            .interaction
+            .drag
+            .cross_window_foreign
+            .as_mut()
+            .filter(|foreign| foreign.key == key && foreign.autoscroll_due)
+            .map(|foreign| {
+                foreign.autoscroll_due = false;
+                foreign.autoscroll_deadline = None;
+                let last_tick = foreign.autoscroll_last_tick.take().unwrap_or(now);
+                (
+                    foreign.autoscroll,
+                    foreign.position,
+                    foreign.metadata,
+                    last_tick,
+                )
+            })
+        else {
+            return CrossWindowAutoscrollAttempt::default();
+        };
+        let elapsed = now
+            .saturating_duration_since(last_tick)
+            .min(DRAG_AUTOSCROLL_MAX_ELAPSED);
+        let Some(delta) = self.autoscroll_delta(policy, point, elapsed) else {
+            return CrossWindowAutoscrollAttempt::default();
+        };
+        let attempt = self.scroll_at_with_refresh_and_metadata_guarded(
+            point,
+            delta,
+            metadata,
+            true,
+            crate::widgets::InteractionProvenance::Pointer {
+                modifiers: metadata.modifiers,
+                timestamp: metadata.timestamp,
+                sequence_range: metadata.sequence_range,
+            },
+            Some(crate::runtime::controller::scroll::ScrollRouteGuard::Foreign(key)),
+        );
+        if attempt.moved
+            && self.cross_window_foreign_is_live(key)
+            && let Some(foreign) = self
+                .interaction
+                .drag
+                .cross_window_foreign
+                .as_mut()
+                .filter(|foreign| foreign.key == key)
+        {
+            foreign.autoscroll_last_tick = Some(now);
+        }
+        CrossWindowAutoscrollAttempt {
+            accepted: attempt.accepted,
+            moved: attempt.moved,
+        }
+    }
+
+    /// Rearm only an attempt that actually moved and whose receiver receipt
+    /// survived the coordinator's refresh and callback reduction. Boundary
+    /// attempts therefore stop instead of waking indefinitely.
+    pub(crate) fn rearm_cross_window_autoscroll(
+        &mut self,
+        key: CrossWindowDragKey,
+        now: Instant,
+    ) -> bool {
+        let armed = self
+            .interaction
+            .drag
+            .cross_window_foreign
+            .as_ref()
+            .filter(|foreign| {
+                foreign.key == key
+                    && foreign.lease.upgrade().is_some()
+                    && foreign.autoscroll_last_tick.is_some()
+                    && !foreign.autoscroll_due
+            })
+            .and_then(|foreign| {
+                self.autoscroll_delta(foreign.autoscroll, foreign.position, DRAG_AUTOSCROLL_TICK)
+            })
+            .is_some();
+        if !armed {
+            return false;
+        }
+        let Some(foreign) = self
+            .interaction
+            .drag
+            .cross_window_foreign
+            .as_mut()
+            .filter(|foreign| {
+                foreign.key == key
+                    && foreign.autoscroll_last_tick.is_some()
+                    && !foreign.autoscroll_due
+            })
+        else {
+            return false;
+        };
+        foreign.autoscroll_deadline = now.checked_add(DRAG_AUTOSCROLL_TICK);
+        foreign.autoscroll_deadline.is_some()
     }
     fn drop_binding_matches(
         &self,
@@ -963,6 +1226,8 @@ where
             source: session.source.id,
             modifiers: session.modifiers,
             position: session.position,
+            autoscroll: session.autoscroll,
+            metadata: session.metadata,
             lease: Rc::downgrade(&session.cross_window_lease),
             proof: CrossWindowSourceProof {
                 key: CrossWindowDragKey(session.token),
@@ -1182,6 +1447,9 @@ where
             foreign.lease = input.lease;
             foreign.position = input.position;
             foreign.modifiers = input.modifiers;
+            foreign.autoscroll = input.autoscroll;
+            foreign.metadata = input.metadata;
+            foreign.autoscroll_due = false;
             foreign.preview.pointer = input.position;
             foreign.preview.visible = true;
         } else {
@@ -1194,6 +1462,11 @@ where
                 lease: input.lease,
                 position: input.position,
                 modifiers: input.modifiers,
+                autoscroll: input.autoscroll,
+                metadata: input.metadata,
+                autoscroll_deadline: None,
+                autoscroll_last_tick: None,
+                autoscroll_due: false,
                 target: None,
                 preview: DragSession::new(DragRequest::new(preview, input.position)),
             });
@@ -1202,6 +1475,7 @@ where
         route.messages.extend(refreshed.messages);
         route.repaint |= refreshed.repaint;
         route.needs_transition |= refreshed.needs_transition;
+        self.update_cross_window_foreign_autoscroll(input.key, self.timed_repaint_now());
         route
     }
 
@@ -1474,6 +1748,8 @@ where
             lease: foreign.lease.clone(),
             position: foreign.position,
             modifiers: foreign.modifiers,
+            autoscroll: foreign.autoscroll,
+            metadata: foreign.metadata,
         };
         let current = self.current_drop_target_for(Self::foreign_input(&foreign));
         let accepted =

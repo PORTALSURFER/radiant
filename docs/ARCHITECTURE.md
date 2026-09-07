@@ -1747,7 +1747,8 @@ Current target-specific seams are intentionally narrow:
 - `src/gui_runtime/native_vello/generic_runtime/auxiliary/cross_window.rs`
   coordinates application-local typed drags. It retains at most 64 source-key
   and receiver-window bindings, while the controller keeps the sole source
-  capture. `cross_window_hit.rs` captures a native screen sample and rechecks
+  capture. `src/gui_runtime/native_vello/generic_runtime/cross_window_hit.rs`
+  captures a native screen sample and rechecks
   actual hit-window coordinates on macOS and Windows. `cross_window_input.rs`
   carries only stack-local input evidence, deferred source-message identity,
   and detached terminal authority. Receiver semantic refresh follows the same
@@ -1757,6 +1758,14 @@ Current target-specific seams are intentionally narrow:
   reduce one phase at a time under their receiver owner; terminal target/source
   snapshots map before either reduction. Auxiliary touch shares the pending
   ImmediateTransient ticket path so parent reduction precedes exact completion.
+  `src/gui_runtime/native_vello/generic_runtime/auxiliary/cross_window/autoscroll.rs`
+  consumes a receiver's due-only timer marker after its timed semantic drain.
+  It rechecks the stored native sample and source proof before the existing
+  guarded scroll path, reduces auxiliary scroll outboxes before projection and
+  target phases, and retains visual dirtiness until stage completion. The
+  controller stores policy/deadline state in the existing foreign receipt;
+  typed and foreign scroll guards share callback-lifetime checks. No second
+  capture, native input replay, or timer queue is introduced.
 - `src/gui_runtime/native_vello/generic_runtime/activation/platform.rs` and
   `src/gui_runtime/native_vello/generic_runtime/activation/reopen.rs` own
   macOS activation and application-reopen integration. The activation policy

@@ -10,7 +10,7 @@ mod payload;
 mod preview;
 
 use crate::runtime::{ExternalDragOutcome, ExternalDragPayload, ExternalDragRequest};
-use data_object::FileDropDataObject;
+use data_object::ExternalDragDataObject;
 use drop_source::SimpleDropSource;
 use payload::{external_drag_effect, normalize_path};
 use preview::DragImage;
@@ -40,16 +40,21 @@ impl Drop for ComApartment {
 pub(super) fn start_external_drag(
     request: &ExternalDragRequest,
 ) -> Result<ExternalDragOutcome, String> {
-    let ExternalDragPayload::Files(paths) = &request.payload;
-    if paths.is_empty() {
-        return Err(String::from("No files to drag"));
-    }
+    request.validate_for_native_launch()?;
     let _com = ComApartment::new()?;
-    let absolute = paths
-        .iter()
-        .map(|path| normalize_path(path.as_path()))
-        .collect::<Vec<_>>();
-    let data_object_impl = FileDropDataObject::new(absolute)?;
+    let data_object_impl = match &request.payload {
+        ExternalDragPayload::Files(paths) => {
+            if paths.is_empty() {
+                return Err(String::from("No files to drag"));
+            }
+            let absolute = paths
+                .iter()
+                .map(|path| normalize_path(path.as_path()))
+                .collect::<Vec<_>>();
+            ExternalDragDataObject::files(absolute)?
+        }
+        ExternalDragPayload::Text(text) => ExternalDragDataObject::text(text.clone())?,
+    };
     let data_object: IDataObject = data_object_impl.into();
     let drop_source: IDropSource = SimpleDropSource.into();
     let drag_image = match DragImage::new(&request.preview.label) {

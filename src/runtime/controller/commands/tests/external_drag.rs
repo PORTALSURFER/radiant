@@ -28,6 +28,30 @@ fn external_drag_command_arms_and_clears_native_session() {
 }
 
 #[test]
+fn text_external_drag_command_keeps_the_same_identity_fenced_lifecycle() {
+    let bridge = QueuedCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    let request = ExternalDragRequest::text("plain text", "text");
+
+    runtime.execute_command(Command::begin_external_drag(request.clone(), |result| {
+        usize::from(result.is_ok_and(ExternalDragOutcome::accepted))
+    }));
+    let launch = runtime
+        .take_external_drag_launch()
+        .expect("text external drag launch");
+    assert_eq!(launch.request, request);
+
+    runtime.dispatch_external_drag_launch_result(
+        launch.identity,
+        Ok(ExternalDragOutcome {
+            effect: ExternalDragEffect::Copy,
+        }),
+    );
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
+    assert_eq!(runtime.bridge().dispatched, vec![1]);
+}
+
+#[test]
 fn external_drag_completion_dispatches_host_message() {
     let bridge = QueuedCommandBridge::default();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));

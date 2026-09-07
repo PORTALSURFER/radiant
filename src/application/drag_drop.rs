@@ -159,6 +159,7 @@ impl<T: Eq + 'static, Message: 'static> LayoutDragSource<Message> for DragSource
 pub struct DropTarget<T, Message> {
     operations: DragOperations,
     feedback: Option<DropTargetFeedback>,
+    insertion_axis: Option<DropInsertionAxis>,
     negotiate: Option<TargetNegotiator<T>>,
     policy_revision: LayoutInteractionRevision,
     map: Option<TargetMapper<T, Message>>,
@@ -169,6 +170,7 @@ struct TargetRevision {
     payload: TypeId,
     operations: DragOperations,
     feedback: Option<DropTargetFeedback>,
+    insertion_axis: Option<DropInsertionAxis>,
     policy: LayoutInteractionRevision,
     map: LayoutInteractionRevision,
 }
@@ -178,6 +180,7 @@ impl<T: 'static, Message: 'static> DropTarget<T, Message> {
         Self {
             operations: DragOperations::all(),
             feedback: None,
+            insertion_axis: None,
             negotiate: None,
             map: None,
             policy_revision: LayoutInteractionRevision::exact(()),
@@ -188,6 +191,11 @@ impl<T: 'static, Message: 'static> DropTarget<T, Message> {
     /// No application update is required for pointer-only feedback changes.
     pub fn feedback(mut self, feedback: DropTargetFeedback) -> Self {
         self.feedback = Some(feedback);
+        self
+    }
+    /// Derive before/after context and a retained edge marker from this target's bounds.
+    pub fn insertion_axis(mut self, axis: DropInsertionAxis) -> Self {
+        self.insertion_axis = Some(axis);
         self
     }
     /// Restrict the target's allowed operations.
@@ -239,6 +247,9 @@ impl<T: 'static, Message: 'static> LayoutDropTarget<Message> for DropTarget<T, M
     fn feedback(&self) -> Option<DropTargetFeedback> {
         self.feedback
     }
+    fn insertion_axis(&self) -> Option<DropInsertionAxis> {
+        self.insertion_axis
+    }
     fn revision(&self) -> LayoutInteractionRevision {
         if !self.map_revision.is_exact() || !self.policy_revision.is_exact() {
             return LayoutInteractionRevision::conservative();
@@ -247,6 +258,7 @@ impl<T: 'static, Message: 'static> LayoutDropTarget<Message> for DropTarget<T, M
             payload: TypeId::of::<T>(),
             operations: self.operations,
             feedback: self.feedback,
+            insertion_axis: self.insertion_axis,
             policy: self.policy_revision.clone(),
             map: self.map_revision.clone(),
         })

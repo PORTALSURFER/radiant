@@ -129,7 +129,7 @@ enum DragMessage {
 fn exercise_drag() {
     use radiant::{
         application::{DragSource, DropTarget},
-        runtime::{DragSourcePhase, DropPhase},
+        runtime::{DragSourcePhase, DropInsertionAxis, DropPhase},
     };
     let events = Rc::new(RefCell::new(Vec::new()));
     let observed = events.clone();
@@ -158,6 +158,7 @@ fn exercise_drag() {
                         .drop_target(
                             DropTarget::<String, DragMessage>::new()
                                 .feedback(radiant::runtime::DropTargetFeedback::themed())
+                                .insertion_axis(DropInsertionAxis::Horizontal)
                                 .on_event_with_revision((), |event| {
                                     assert_eq!(event.payload(), "sample.wav");
                                     Some(DragMessage::Target(event.phase()))

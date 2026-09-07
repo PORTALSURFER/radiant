@@ -263,6 +263,7 @@ pub struct DragEventContext {
     pub(crate) target: Option<u64>,
     pub(crate) position: Point,
     pub(crate) modifiers: crate::widgets::PointerModifiers,
+    pub(crate) insertion: Option<DropInsertion>,
 }
 impl DragEventContext {
     /// Read the originating session identity; this alone grants no action authority.
@@ -284,6 +285,45 @@ impl DragEventContext {
     /// Read the checked logical pointer position in the receiving surface.
     pub const fn position(self) -> Point {
         self.position
+    }
+    /// Read the runtime-qualified insertion side for this target, when configured.
+    pub const fn insertion(self) -> Option<DropInsertion> {
+        self.insertion
+    }
+}
+/// Axis used to derive an insertion side from a drop target's full rectangle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DropInsertionAxis {
+    /// Compare the pointer with the target's horizontal midpoint.
+    Horizontal,
+    /// Compare the pointer with the target's vertical midpoint.
+    Vertical,
+}
+/// Qualified side of a target-relative insertion point.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DropInsertionSide {
+    /// The pointer is in the leading half of the configured axis.
+    Before,
+    /// The pointer is in the trailing half of the configured axis.
+    After,
+}
+/// Runtime-derived insertion feedback for one configured drop target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DropInsertion {
+    axis: DropInsertionAxis,
+    side: DropInsertionSide,
+}
+impl DropInsertion {
+    pub(crate) const fn new(axis: DropInsertionAxis, side: DropInsertionSide) -> Self {
+        Self { axis, side }
+    }
+    /// Read the configured target axis.
+    pub const fn axis(self) -> DropInsertionAxis {
+        self.axis
+    }
+    /// Read the qualified side of the target.
+    pub const fn side(self) -> DropInsertionSide {
+        self.side
     }
 }
 /// Explicit target negotiation result. Pending and rejected offers cannot be dropped.

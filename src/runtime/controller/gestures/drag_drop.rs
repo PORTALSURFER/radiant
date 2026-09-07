@@ -38,28 +38,34 @@ struct DropBinding<Message> {
     decision: DropDecision,
     feedback: Option<DropTargetFeedback>,
     feedback_layout: Option<crate::gui::layout_core::LayoutInputEvidence>,
+    insertion: Option<DropInsertion>,
 }
 impl<Message> TypedDragSession<Message> {
-    fn context(&self, target: Option<WidgetId>) -> DragEventContext {
+    fn context(
+        &self,
+        target: Option<WidgetId>,
+        insertion: Option<DropInsertion>,
+    ) -> DragEventContext {
         DragEventContext {
             token: DragSessionToken::new(self.token.0),
             source: self.source.id,
             target,
             position: self.position,
             modifiers: self.modifiers,
+            insertion,
         }
     }
     fn source_message(&self, phase: DragSourcePhase) -> Option<Message> {
         self.handler.capabilities_v2().drag_source()?.dispatch(
             &self.offer,
-            self.context(self.target.as_ref().map(|target| target.id)),
+            self.context(self.target.as_ref().map(|target| target.id), None),
             phase,
         )
     }
     fn target_message(&self, target: &DropBinding<Message>, phase: DropPhase) -> Option<Message> {
         target.handler.capabilities_v2().drop_target()?.dispatch(
             &self.offer,
-            self.context(Some(target.id)),
+            self.context(Some(target.id), target.insertion),
             phase,
             target.decision,
         )
@@ -466,9 +472,25 @@ where
             .into_iter()
             .max_by(|(left, _), (right, _)| left.path.as_slice().cmp(right.path.as_slice()))?;
         let facets = record.interaction.capabilities_v2();
+        let target = facets.drop_target()?;
+        let bounds = self.layout.rects.get(&record.id)?;
+        let insertion = target.insertion_axis().map(|axis| {
+            let side = match axis {
+                DropInsertionAxis::Horizontal if position.x < bounds.center().x => {
+                    DropInsertionSide::Before
+                }
+                DropInsertionAxis::Vertical if position.y < bounds.center().y => {
+                    DropInsertionSide::Before
+                }
+                _ => DropInsertionSide::After,
+            };
+            DropInsertion::new(axis, side)
+        });
+        // Insertion is part of the input snapshot used by negotiation and every
+        // lifecycle event. Equality at the midpoint deliberately chooses After.
         let decision = facets
             .drop_target()?
-            .negotiate(&session.offer, session.context(Some(record.id)));
+            .negotiate(&session.offer, session.context(Some(record.id), insertion));
         let decision = match decision {
             DropDecision::Accepted(operation)
                 if !session.offer.operations().contains(operation) =>
@@ -489,6 +511,7 @@ where
             decision,
             feedback: facets.drop_target()?.feedback(),
             feedback_layout: self.runtime_layout_input_evidence(self.mounted_layout_source_present),
+            insertion,
         })
     }
     fn refresh_drop_target(&mut self, token: GestureSequenceToken) {
@@ -558,8 +581,7 @@ where
         }
         let candidate = self.interaction.drag.typed.as_ref().and_then(|session| {
             let target = session.target.as_ref()?;
-            if target.feedback.is_none()
-                || target.generation == self.refresh_counters().runtime_projection
+            if target.generation == self.refresh_counters().runtime_projection
                 || !self.drop_binding_matches(target, &self.surface, false)
             {
                 return None;
@@ -647,14 +669,61 @@ where
                 rect: clip,
             },
         ));
-        primitives.push(crate::runtime::PaintPrimitive::StrokeRect(
-            crate::runtime::PaintStrokeRect {
+        let marker = target
+            .insertion
+            .map(|insertion| match (insertion.axis(), insertion.side()) {
+                (DropInsertionAxis::Horizontal, DropInsertionSide::Before) => {
+                    crate::gui::types::Rect::from_min_max(
+                        bounds.min,
+                        crate::gui::types::Point::new(
+                            (bounds.min.x + 2.0).min(bounds.max.x),
+                            bounds.max.y,
+                        ),
+                    )
+                }
+                (DropInsertionAxis::Horizontal, DropInsertionSide::After) => {
+                    crate::gui::types::Rect::from_min_max(
+                        crate::gui::types::Point::new(
+                            (bounds.max.x - 2.0).max(bounds.min.x),
+                            bounds.min.y,
+                        ),
+                        bounds.max,
+                    )
+                }
+                (DropInsertionAxis::Vertical, DropInsertionSide::Before) => {
+                    crate::gui::types::Rect::from_min_max(
+                        bounds.min,
+                        crate::gui::types::Point::new(
+                            bounds.max.x,
+                            (bounds.min.y + 2.0).min(bounds.max.y),
+                        ),
+                    )
+                }
+                (DropInsertionAxis::Vertical, DropInsertionSide::After) => {
+                    crate::gui::types::Rect::from_min_max(
+                        crate::gui::types::Point::new(
+                            bounds.min.x,
+                            (bounds.max.y - 2.0).max(bounds.min.y),
+                        ),
+                        bounds.max,
+                    )
+                }
+            });
+        let primitive = if let Some(marker) = marker {
+            crate::runtime::PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+                widget_id: target.id,
+                rect: marker,
+                color: tokens.emphasis,
+            })
+        } else {
+            crate::runtime::PaintPrimitive::StrokeRect(crate::runtime::PaintStrokeRect {
                 widget_id: target.id,
                 rect: bounds,
                 color: tokens.emphasis,
                 width: 2.0,
-            },
-        ));
+            })
+        };
+        primitives.push(primitive);
         primitives.push(crate::runtime::PaintPrimitive::ClipEnd(
             crate::runtime::PaintClipEnd { node_id: target.id },
         ));
@@ -692,7 +761,12 @@ where
                 _ => None,
             });
         let mut messages = Vec::with_capacity(2);
-        if let Some(target) = &session.target {
+        let terminal_target = accepted
+            .is_some()
+            .then_some(current_target.as_ref())
+            .flatten()
+            .or(session.target.as_ref());
+        if let Some(target) = terminal_target {
             let phase = if accepted.is_some() {
                 DropPhase::Dropped
             } else {

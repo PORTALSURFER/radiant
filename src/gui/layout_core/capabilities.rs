@@ -889,6 +889,13 @@ pub trait LayoutDropTarget<Message> {
     fn feedback(&self) -> Option<crate::gui::drag_drop::DropTargetFeedback> {
         None
     }
+    /// Optional axis for runtime-owned before/after insertion feedback.
+    ///
+    /// Custom targets must include this declaration and every stable target key
+    /// or revision used by their mapper in exact revision evidence.
+    fn insertion_axis(&self) -> Option<crate::gui::drag_drop::DropInsertionAxis> {
+        None
+    }
     /// Exact acceptance and callback revision evidence.
     fn revision(&self) -> LayoutInteractionRevision {
         LayoutInteractionRevision::conservative()

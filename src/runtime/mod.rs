@@ -69,7 +69,8 @@ pub use crate::gui::automation::{
 pub use crate::gui::drag_drop::{
     DragAutoscrollPolicy, DragCancelReason, DragDescriptorError, DragEventContext, DragOffer,
     DragOperation, DragOperations, DragPreviewInfo, DragSessionToken, DragSourceEvent,
-    DragSourcePhase, DropDecision, DropEvent, DropPhase, DropTargetFeedback,
+    DragSourcePhase, DropDecision, DropEvent, DropInsertion, DropInsertionAxis, DropInsertionSide,
+    DropPhase, DropTargetFeedback,
 };
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, EmbeddedVelloError, EmbeddedVelloRenderer,

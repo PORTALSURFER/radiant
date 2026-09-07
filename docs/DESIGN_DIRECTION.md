@@ -4578,8 +4578,9 @@ Current delivery includes ordinary-view typed source/target declarations,
 checked operation negotiation, target lifecycle messages and transient preview
 routing through the existing pan capture. Qualified primary mouse initiation
 cancels and rechecks the original child before transferring that capture.
-Two-contact gesture arbitration is delivered; touch-started typed drag remains
-unsupported. Opt-in target outlines show accepted, pending, and rejected
+Single-touch typed drag uses the same pan threshold without synthetic child
+pointer events. A second contact replaces pending recognition with declared
+two-contact arbitration, or cancels an already active drag. Opt-in target outlines show accepted, pending, and rejected
 negotiation states. Per-target before/after insertion feedback uses an explicitly
 configured axis and the qualified full target rectangle to retain a clipped
 interior edge marker. Applications own stable collection keys, ordering, and
@@ -5193,10 +5194,14 @@ admission and teardown, with exact policy retention and terminal cancellation on
 replacement. Native normalized pinch/rotation use this boundary; native desktop
 trackpad pan remains explicitly unsupported. Primary mouse pan uses qualified
 pointer capture transfer. Two admitted same-device touch contacts also derive
-pan, pinch, and rotation through that shared arena: the first contact is inert,
-the second establishes the baseline, and no physical-touch path is implied.
-Local typed drag payloads are delivered. Cross-window payloads, external offers,
-and touch-started typed drag remain later work.
+pan, pinch, and rotation through that shared arena. A single admitted touch
+contact recognizes explicitly declared typed drag sources at their pan threshold;
+otherwise it remains inert. A second contact replaces pending single-contact
+recognition with a two-contact baseline, or cancels an active typed drag. Held
+contacts cannot restart a cancelled sequence before release. This is normalized
+adapter/controller support; no physical-touch acceptance is implied.
+Local typed drag payloads are delivered. Cross-window payloads and native external adapters
+remain later work.
 
 Radiant normalizes mouse, trackpad, touch, pen, and native scroll input into
 typed logical-coordinate events with timestamps, modifiers, device kind, and

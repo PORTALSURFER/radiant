@@ -50,7 +50,11 @@ fn bridge(events: Rc<RefCell<Vec<Message>>>) -> impl radiant::runtime::RuntimeBr
         .update(move |_, event| events.borrow_mut().push(event))
         .into_bridge()
 }
-fn mouse(phase: PointerPhase, x: f32, token: Option<PointerSequenceToken>) -> PointerIngress {
+pub(super) fn mouse(
+    phase: PointerPhase,
+    x: f32,
+    token: Option<PointerSequenceToken>,
+) -> PointerIngress {
     let device = InputDeviceId::from_host(1).unwrap();
     let contact = PointerContactId::from_host(1).unwrap();
     let position = radiant::layout::Point::new(x, 15.0);

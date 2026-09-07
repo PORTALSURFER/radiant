@@ -61,6 +61,16 @@ impl TouchPairState {
         self.contacts.iter().all(Option::is_none)
     }
 
+    pub(in crate::runtime::controller) fn contains_token(
+        &self,
+        token: PointerSequenceToken,
+    ) -> bool {
+        self.contacts
+            .iter()
+            .flatten()
+            .any(|contact| contact.token == token)
+    }
+
     /// Observe only samples whose pointer sequence has already been admitted.
     pub(in crate::runtime::controller) fn observe(
         &mut self,

@@ -54,10 +54,20 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 position: ingress.logical_position(),
             });
         match update {
-            TouchPairUpdate::FirstContact | TouchPairUpdate::Ignored => {
-                PointerIngressDisposition::AdmittedUnsupportedConsumer
-            }
+            TouchPairUpdate::FirstContact => self.route_single_touch_drag(ingress, token),
+            TouchPairUpdate::Ignored => PointerIngressDisposition::AdmittedUnsupportedConsumer,
             TouchPairUpdate::PairEstablished(geometry) => {
+                if let Some(capture) = self.interaction.gesture.as_ref()
+                    && capture.single_touch.is_some()
+                {
+                    if capture.active {
+                        self.cancel_gesture_capture(GestureCancellation::Source);
+                        return PointerIngressDisposition::Blocked;
+                    }
+                    // No source event was emitted below threshold. Preserve the
+                    // admitted pair while replacing its pending recognizer.
+                    self.interaction.gesture = None;
+                }
                 let Some(tokens) = self.interaction.pointer.ingress.touch_pair.tokens() else {
                     return PointerIngressDisposition::Invalid;
                 };
@@ -86,7 +96,18 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                         .as_ref()
                         .is_some_and(|touch| Some(touch.tokens) == prior_tokens)
                 });
-                if owns_pair {
+                let owns_single = self
+                    .interaction
+                    .gesture
+                    .as_ref()
+                    .is_some_and(|capture| capture.single_touch.is_some());
+                if owns_single
+                    && reason == TouchPairReset::Terminal
+                    && ingress.phase() != PointerPhase::Cancelled
+                {
+                    return self.route_single_touch_drag(ingress, token);
+                }
+                if owns_pair || owns_single {
                     self.cancel_gesture_capture(if reason == TouchPairReset::InvalidSample {
                         GestureCancellation::InvalidSample
                     } else {
@@ -171,6 +192,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             .map_err(|_| GestureOutcome::Unavailable)?;
         Ok(GestureCapture {
             pointer_sequence: None,
+            single_touch: None,
             target,
             candidates,
             hit_widget: widget,
@@ -300,6 +322,17 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
     }
 
     pub(super) fn retire_gesture_touch(&mut self, capture: &GestureCapture) {
+        if capture.single_touch.is_some_and(|token| {
+            self.interaction
+                .pointer
+                .ingress
+                .touch_pair
+                .contains_token(token)
+        }) {
+            // Retain transport tombstones until up; held contacts cannot form a
+            // replacement gesture after cancellation or source retirement.
+            self.interaction.pointer.ingress.touch_pair.clear();
+        }
         if let Some(touch) = &capture.touch {
             self.retire_touch_pointer_sequences(touch.tokens);
         }
@@ -384,7 +417,7 @@ fn touch_sample(
     )
     .ok()
 }
-fn touch_disposition(outcome: &GestureOutcome) -> PointerIngressDisposition {
+pub(super) fn touch_disposition(outcome: &GestureOutcome) -> PointerIngressDisposition {
     match outcome {
         GestureOutcome::Accepted(id) | GestureOutcome::AcceptedContainer(id) => {
             PointerIngressDisposition::RoutedGesture(*id)

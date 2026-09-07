@@ -35,7 +35,7 @@ fn fixture() -> Fixture<impl RuntimeBridge<GestureEvent>> {
         threshold,
     }
 }
-fn touch(
+pub(super) fn touch(
     contact: u64,
     phase: PointerPhase,
     x: f32,

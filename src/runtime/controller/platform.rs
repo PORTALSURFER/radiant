@@ -339,15 +339,15 @@ impl<Message> PlatformCompletionRegistry<Message> {
                             fence,
                         }),
                     ),
-                    PlatformCompletionTarget::Editor { receipt, timestamp } => {
-                        Some(MappedPlatformCompletion::Editor(MappedTextClipboard {
+                    PlatformCompletionTarget::Editor { receipt, timestamp } => Some(
+                        MappedPlatformCompletion::Editor(Box::new(MappedTextClipboard {
                             receipt,
                             timestamp,
                             result,
                             origin: mapper.origin,
                             fence,
-                        }))
-                    }
+                        })),
+                    ),
                 }
             }
             PlatformResultDelivery::Discarded { identity } => {
@@ -407,7 +407,7 @@ struct RegisteredPlatformCompletion<Message> {
 
 pub(super) enum MappedPlatformCompletion<Message> {
     Application(MappedPlatformMessage<Message>),
-    Editor(MappedTextClipboard),
+    Editor(Box<MappedTextClipboard>),
 }
 
 pub(super) struct MappedTextClipboard {

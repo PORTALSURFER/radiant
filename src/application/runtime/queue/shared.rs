@@ -126,9 +126,9 @@ impl SharedRuntimeIngress {
     pub(in crate::application::runtime) fn submit_clipboard_job(
         &self,
         job: ClipboardJob,
-    ) -> Result<(), ClipboardJob> {
+    ) -> Result<(), Box<ClipboardJob>> {
         if !self.is_alive() {
-            return Err(job);
+            return Err(Box::new(job));
         }
         let lane = {
             let mut lane = lock_runtime_state(&self.clipboard_lane);
@@ -136,7 +136,7 @@ impl SharedRuntimeIngress {
                 Arc::clone(lane)
             } else {
                 let Ok(started) = ClipboardLane::start() else {
-                    return Err(job);
+                    return Err(Box::new(job));
                 };
                 let started = Arc::new(started);
                 *lane = Some(Arc::clone(&started));

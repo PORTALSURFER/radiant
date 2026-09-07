@@ -32,15 +32,15 @@ impl ClipboardLane {
         Ok(Self { sender, accepting })
     }
 
-    pub(super) fn submit(&self, job: ClipboardJob) -> Result<(), ClipboardJob> {
+    pub(super) fn submit(&self, job: ClipboardJob) -> Result<(), Box<ClipboardJob>> {
         if !self.accepting.load(Ordering::Acquire) {
-            return Err(job);
+            return Err(Box::new(job));
         }
         match self.sender.try_send(LaneMessage::Job(job)) {
             Err(
                 TrySendError::Full(LaneMessage::Job(job))
                 | TrySendError::Disconnected(LaneMessage::Job(job)),
-            ) => Err(job),
+            ) => Err(Box::new(job)),
             // Only Job is submitted here. A shutdown message has no request
             // payload to recover and cannot originate from this send.
             _ => Ok(()),

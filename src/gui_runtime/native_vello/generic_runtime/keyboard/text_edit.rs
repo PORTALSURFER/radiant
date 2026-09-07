@@ -62,28 +62,40 @@ where
                 outcome.routed
             }
             KeyCode::C => {
+                let owns_shortcut = self.core.has_focused_text_input();
                 let routed = self
                     .core
                     .runtime
                     .begin_focused_text_clipboard(TextClipboardOperation::Copy, timestamp);
                 route_outcome.merge(self.core.route_outcome(routed));
-                routed
+                if owns_shortcut {
+                    route_outcome.routed = true;
+                }
+                owns_shortcut
             }
             KeyCode::X => {
+                let owns_shortcut = self.core.has_focused_text_input();
                 let routed = self
                     .core
                     .runtime
                     .begin_focused_text_clipboard(TextClipboardOperation::Cut, timestamp);
                 route_outcome.merge(self.core.route_outcome(routed));
-                routed
+                if owns_shortcut {
+                    route_outcome.routed = true;
+                }
+                owns_shortcut
             }
             KeyCode::V => {
+                let owns_shortcut = self.core.has_focused_text_input();
                 let routed = self
                     .core
                     .runtime
                     .begin_focused_text_clipboard(TextClipboardOperation::Paste, timestamp);
                 route_outcome.merge(self.core.route_outcome(routed));
-                routed
+                if owns_shortcut {
+                    route_outcome.routed = true;
+                }
+                owns_shortcut
             }
             KeyCode::Backspace => {
                 let outcome = self

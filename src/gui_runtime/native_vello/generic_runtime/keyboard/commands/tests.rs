@@ -342,5 +342,8 @@ fn layout_remapped_editing_shortcuts_stay_with_the_text_owner() {
         KeyCode::KeyY,
         false,
     );
-    assert_eq!(*observed.borrow(), [1001, 1000]);
+    // The unavailable deferred clipboard service cannot delete the selection,
+    // but Cmd/Ctrl-X remains owned by the focused text control and never invokes
+    // the layout-remapped application command.
+    assert_eq!(*observed.borrow(), [1001]);
 }

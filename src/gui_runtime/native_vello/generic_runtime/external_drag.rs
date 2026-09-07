@@ -65,11 +65,12 @@ where
         self.input.effective_pointer_gesture = None;
         self.core.runtime.cancel_pointer_capture();
         let preview_cleared = self.core.runtime.take_drag_preview_for_external_drag();
-        let path_count = match &launch.request.payload {
+        let item_count = match &launch.request.payload {
             ExternalDragPayload::Files(paths) => paths.len(),
+            ExternalDragPayload::Text(_) => 1,
         };
         info!(
-            path_count,
+            item_count,
             preview = %launch.request.preview.label,
             "radiant generic native vello: launching external drag"
         );

@@ -1,5 +1,9 @@
 //! Platform selection for native external drag launching.
 
+#[cfg(any(target_os = "windows", test))]
+#[path = "text_encoding.rs"]
+mod text_encoding;
+
 use super::ExternalDragLaunchDisposition;
 use crate::gui_runtime::native_vello::RuntimeUserEvent;
 use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};
@@ -79,6 +83,7 @@ pub(super) fn start_external_drag(
     request: &ExternalDragRequest,
     _context: ExternalDragLaunchContext,
 ) -> Result<ExternalDragLaunchDisposition, String> {
+    request.validate_for_native_launch()?;
     windows::start_external_drag(request).map(ExternalDragLaunchDisposition::Completed)
 }
 
@@ -87,15 +92,58 @@ pub(super) fn start_external_drag(
     request: &ExternalDragRequest,
     context: ExternalDragLaunchContext,
 ) -> Result<ExternalDragLaunchDisposition, String> {
+    request.validate_for_native_launch()?;
     macos::start_external_drag(request, context)
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub(super) fn start_external_drag(
-    _request: &ExternalDragRequest,
+    request: &ExternalDragRequest,
     _context: ExternalDragLaunchContext,
 ) -> Result<ExternalDragLaunchDisposition, String> {
+    request.validate_for_native_launch()?;
     Err(String::from(
         "External drag-out is only supported on Windows and macOS in this backend",
     ))
+}
+
+#[cfg(all(test, not(any(target_os = "windows", target_os = "macos"))))]
+mod tests {
+    use super::*;
+    use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};
+
+    #[test]
+    fn supported_text_still_reports_unsupported_on_other_targets() {
+        let error = start_external_drag(
+            &ExternalDragRequest::text("text", "text"),
+            ExternalDragLaunchContext::new(None, None, ExternalDragIdentity { id: 1, epoch: 1 }),
+        )
+        .expect_err("non-native platforms should reject a valid text drag explicitly");
+
+        assert!(error.contains("only supported on Windows and macOS"));
+    }
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    #[test]
+    fn invalid_text_is_rejected_before_any_native_launch() {
+        for text in [
+            String::from("before\0after"),
+            "x".repeat(crate::runtime::MAX_EXTERNAL_OFFER_TEXT_BYTES + 1),
+        ] {
+            let error = start_external_drag(
+                &ExternalDragRequest::text(text, "invalid"),
+                ExternalDragLaunchContext::new(
+                    None,
+                    None,
+                    ExternalDragIdentity { id: 1, epoch: 1 },
+                ),
+            )
+            .expect_err("invalid text must fail before native context access");
+            assert!(error.contains("External drag text"));
+        }
+    }
 }

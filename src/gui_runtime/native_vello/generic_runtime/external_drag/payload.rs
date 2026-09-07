@@ -1,3 +1,4 @@
+use crate::gui_runtime::native_vello::generic_runtime::external_drag::platform::text_encoding::encode_unicode_text;
 use crate::runtime::ExternalDragEffect;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
@@ -11,7 +12,7 @@ use windows::Win32::System::Memory::{
     GMEM_MOVEABLE, GMEM_ZEROINIT, GlobalAlloc, GlobalLock, GlobalUnlock,
 };
 use windows::Win32::System::Ole::{
-    CF_HDROP, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE,
+    CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE,
 };
 use windows::core::w;
 
@@ -23,6 +24,16 @@ use dropfiles::build_dropfiles_payload;
 pub(super) fn build_file_format() -> FORMATETC {
     FORMATETC {
         cfFormat: CF_HDROP.0,
+        ptd: std::ptr::null_mut(),
+        dwAspect: DVASPECT_CONTENT.0,
+        lindex: -1,
+        tymed: TYMED_HGLOBAL.0 as u32,
+    }
+}
+
+pub(super) fn build_text_format() -> FORMATETC {
+    FORMATETC {
+        cfFormat: CF_UNICODETEXT.0,
         ptd: std::ptr::null_mut(),
         dwAspect: DVASPECT_CONTENT.0,
         lindex: -1,
@@ -76,6 +87,22 @@ pub(super) fn drop_effect_medium(effect: DROPEFFECT) -> windows::core::Result<ST
 
 pub(super) fn create_hglobal_for_paths(paths: &[PathBuf]) -> Result<HGLOBAL, std::io::Error> {
     let payload = build_dropfiles_payload(paths);
+    let handle = unsafe { GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, payload.len()) }
+        .map_err(last_error_from_win32)?;
+    let ptr = unsafe { GlobalLock(handle) };
+    if ptr.is_null() {
+        free_hglobal(handle);
+        return Err(std::io::Error::last_os_error());
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(payload.as_ptr(), ptr.cast::<u8>(), payload.len());
+        let _ = GlobalUnlock(handle);
+    }
+    Ok(handle)
+}
+
+pub(super) fn create_hglobal_for_text(text: &str) -> Result<HGLOBAL, std::io::Error> {
+    let payload = encode_unicode_text(text);
     let handle = unsafe { GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, payload.len()) }
         .map_err(last_error_from_win32)?;
     let ptr = unsafe { GlobalLock(handle) };

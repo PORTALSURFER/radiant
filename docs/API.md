@@ -3759,17 +3759,21 @@ preview, a native external-drag payload, both, or neither. Use
 known to exist and should be started together. Explicit runtime bridges can use
 the corresponding `Command` constructors, but normal application handlers should
 stay on the typed `UiUpdateContext` surface.
-External file drags use `ExternalDragRequest::files(...)` from
-`radiant::runtime`; the generic native Vello backend supports Windows OLE and
-macOS AppKit file receivers, while unsupported targets deliver an explicit
-unsupported error through the same completion callback. The completion mapper
-is UI-owned and one-shot. On Windows the native drag call supplies its terminal
-effect before Radiant defers the mapper to the next controller drain. On macOS
-the native launch only admits an `NSDraggingSession`; AppKit later calls the
-dragging-source terminal callback when the target copies or rejects the files,
-and Radiant then posts the result back to the originating window before the
-next UI drain invokes the mapper. `ExternalDragOutcome::accepted()` is true
-for any non-`None` terminal effect. Late, duplicate, replaced, and
+External drags use `ExternalDragRequest::files(...)` for filesystem paths or
+`ExternalDragRequest::text(...)` for plain text from `radiant::runtime`. The
+generic native Vello backend offers files and text through Windows OLE and
+macOS AppKit; unsupported targets deliver an explicit unsupported error through
+the same completion callback. Text is bounded to
+`MAX_EXTERNAL_OFFER_TEXT_BYTES`, may be empty, and cannot contain an embedded
+NUL byte; validation happens when the native drag launches, including for a
+request constructed directly with `ExternalDragPayload::Text`. The completion
+mapper is UI-owned and one-shot. On Windows the native drag call supplies its
+terminal effect before Radiant defers the mapper to the next controller drain.
+On macOS the native launch only admits an `NSDraggingSession`; AppKit later
+calls the dragging-source terminal callback when the target copies or rejects
+the payload, and Radiant then posts the result back to the originating window
+before the next UI drain invokes the mapper. `ExternalDragOutcome::accepted()`
+is true for any non-`None` terminal effect. Late, duplicate, replaced, and
 post-shutdown results are ignored.
 Dense custom row painters can use `push_dense_row_chrome(...)` with
 `DenseRowChromeParts`, `DenseRowMarkerStyle`, and `DenseRowOutlineStyle` when

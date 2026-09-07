@@ -1,13 +1,13 @@
 use std::path::{Path, PathBuf};
 
 use super::bridge::{
-    Id, NSPoint, NSRect, NSSize, class, msg_id, msg_id_id, msg_id_usize, msg_void_id,
-    msg_void_rect_id, ns_string, selector,
+    Id, NSPoint, NSRect, NSSize, YES, class, msg_bool_id_id, msg_id, msg_id_id, msg_id_usize,
+    msg_void_id, msg_void_rect_id, ns_string, selector,
 };
 
 const DRAG_ICON_SIZE: f64 = 48.0;
 
-pub(super) unsafe fn dragging_items(paths: &[PathBuf]) -> Result<Id, String> {
+pub(super) unsafe fn file_dragging_items(paths: &[PathBuf]) -> Result<Id, String> {
     let items = unsafe { mutable_array(paths.len())? };
     let contents = unsafe { drag_preview_contents(paths)? };
     for path in paths {
@@ -22,6 +22,41 @@ pub(super) unsafe fn dragging_items(paths: &[PathBuf]) -> Result<Id, String> {
             );
             msg_void_id(items, selector(c"addObject:"), item);
         }
+    }
+    Ok(items)
+}
+
+/// Builds one standard UTF-8 text pasteboard writer for a native drag session.
+pub(super) unsafe fn text_dragging_items(text: &str) -> Result<Id, String> {
+    let items = unsafe { mutable_array(1)? };
+    let pasteboard_item = unsafe { new_pasteboard_item()? };
+    let text = unsafe { ns_string(text)? };
+    // NSPasteboardTypeString's raw type is the standard public UTI. Keeping it
+    // here avoids treating arbitrary MIME syntax as a macOS pasteboard type.
+    let text_type = unsafe { ns_string("public.utf8-plain-text")? };
+    if unsafe {
+        msg_bool_id_id(
+            pasteboard_item,
+            selector(c"setString:forType:"),
+            text,
+            text_type,
+        )
+    } != YES
+    {
+        return Err(String::from(
+            "NSPasteboardItem failed to set text drag data",
+        ));
+    }
+    let item = unsafe { dragging_item(pasteboard_item)? };
+    let contents = unsafe { file_type_icon_for_type("public.utf8-plain-text")? };
+    unsafe {
+        msg_void_rect_id(
+            item,
+            selector(c"setDraggingFrame:contents:"),
+            dragging_frame(),
+            contents,
+        );
+        msg_void_id(items, selector(c"addObject:"), item);
     }
     Ok(items)
 }
@@ -76,6 +111,22 @@ unsafe fn file_url_for_path(path: &Path) -> Result<Id, String> {
     }
 }
 
+unsafe fn new_pasteboard_item() -> Result<Id, String> {
+    let allocated = unsafe {
+        let class = class(c"NSPasteboardItem")?;
+        msg_id(class, selector(c"alloc"))
+    };
+    if allocated.is_null() {
+        return Err(String::from("Failed to allocate NSPasteboardItem"));
+    }
+    let item = unsafe { msg_id(allocated, selector(c"init")) };
+    if item.is_null() {
+        Err(String::from("Failed to create NSPasteboardItem"))
+    } else {
+        Ok(unsafe { msg_id(item, selector(c"autorelease")) })
+    }
+}
+
 unsafe fn dragging_item(url: Id) -> Result<Id, String> {
     let allocated = unsafe {
         let class = class(c"NSDraggingItem")?;
@@ -116,6 +167,10 @@ unsafe fn file_type_icon_for_path(path: &Path) -> Result<Id, String> {
         .and_then(|extension| extension.to_str())
         .filter(|extension| !extension.is_empty())
         .unwrap_or("public.data");
+    unsafe { file_type_icon_for_type(file_type) }
+}
+
+unsafe fn file_type_icon_for_type(file_type: &str) -> Result<Id, String> {
     let ns_file_type = unsafe { ns_string(file_type)? };
     let workspace = unsafe {
         let class = class(c"NSWorkspace")?;

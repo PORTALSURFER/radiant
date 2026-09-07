@@ -246,6 +246,17 @@ pub(super) unsafe fn msg_id_id(receiver: Id, selector: Sel, arg: Id) -> Id {
     unsafe { msg(receiver, selector, arg) }
 }
 
+pub(super) unsafe fn msg_bool_id_id(
+    receiver: Id,
+    selector: Sel,
+    first: Id,
+    second: Id,
+) -> ObjcBool {
+    let msg: unsafe extern "C" fn(Id, Sel, Id, Id) -> ObjcBool =
+        unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+    unsafe { msg(receiver, selector, first, second) }
+}
+
 unsafe fn msg_id_id_id_id(receiver: Id, selector: Sel, first: Id, second: Id, third: Id) -> Id {
     let msg: unsafe extern "C" fn(Id, Sel, Id, Id, Id) -> Id =
         unsafe { std::mem::transmute(objc_msgSend as *const ()) };

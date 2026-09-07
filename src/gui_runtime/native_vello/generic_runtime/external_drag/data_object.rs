@@ -1,6 +1,6 @@
 use super::payload::{
-    build_drop_effect_format, build_file_format, create_hglobal_for_paths, drop_effect_formats,
-    drop_effect_medium,
+    build_drop_effect_format, build_file_format, build_text_format, create_hglobal_for_paths,
+    create_hglobal_for_text, drop_effect_formats, drop_effect_medium,
 };
 #[path = "data_object/formats.rs"]
 mod formats;
@@ -23,23 +23,37 @@ use windows::core::{BOOL, HRESULT, Ref, implement};
 
 #[implement(IDataObject)]
 #[derive(Clone)]
-pub(super) struct FileDropDataObject {
-    paths: Vec<PathBuf>,
+pub(super) struct ExternalDragDataObject {
+    payload: ExternalDragData,
     format: FORMATETC,
     preferred_drop_effect: u16,
     performed_drop_effect: u16,
     performed_effect: Cell<DROPEFFECT>,
 }
 
-impl FileDropDataObject {
-    pub(super) fn new(paths: Vec<PathBuf>) -> Result<Self, String> {
+#[derive(Clone)]
+enum ExternalDragData {
+    Files(Vec<PathBuf>),
+    Text(String),
+}
+
+impl ExternalDragDataObject {
+    pub(super) fn files(paths: Vec<PathBuf>) -> Result<Self, String> {
         if paths.is_empty() {
             return Err(String::from("No files to drag"));
         }
+        Self::new(ExternalDragData::Files(paths), build_file_format())
+    }
+
+    pub(super) fn text(text: String) -> Result<Self, String> {
+        Self::new(ExternalDragData::Text(text), build_text_format())
+    }
+
+    fn new(payload: ExternalDragData, format: FORMATETC) -> Result<Self, String> {
         let (preferred_drop_effect, performed_drop_effect) = drop_effect_formats()?;
         Ok(Self {
-            paths,
-            format: build_file_format(),
+            payload,
+            format,
             preferred_drop_effect,
             performed_drop_effect,
             performed_effect: Cell::new(DROPEFFECT_NONE),
@@ -47,7 +61,12 @@ impl FileDropDataObject {
     }
 
     fn matches_format(&self, fmt: &FORMATETC) -> bool {
-        data_object_format_matches(fmt, self.preferred_drop_effect, self.performed_drop_effect)
+        data_object_format_matches(
+            fmt,
+            self.format.cfFormat,
+            self.preferred_drop_effect,
+            self.performed_drop_effect,
+        )
     }
 
     fn fill_medium(&self, fmt: &FORMATETC) -> windows::core::Result<STGMEDIUM> {
@@ -57,8 +76,11 @@ impl FileDropDataObject {
         if fmt.cfFormat == self.performed_drop_effect {
             return drop_effect_medium(self.performed_effect.get());
         }
-        let hglobal = create_hglobal_for_paths(&self.paths)
-            .map_err(|_| windows::core::Error::from_thread())?;
+        let hglobal = match &self.payload {
+            ExternalDragData::Files(paths) => create_hglobal_for_paths(paths),
+            ExternalDragData::Text(text) => create_hglobal_for_text(text),
+        }
+        .map_err(|_| windows::core::Error::from_thread())?;
         Ok(STGMEDIUM {
             tymed: TYMED_HGLOBAL.0 as u32,
             u: STGMEDIUM_0 { hGlobal: hglobal },
@@ -84,7 +106,7 @@ where
 }
 
 #[allow(non_snake_case)]
-impl windows::Win32::System::Com::IDataObject_Impl for FileDropDataObject_Impl {
+impl windows::Win32::System::Com::IDataObject_Impl for ExternalDragDataObject_Impl {
     fn GetData(&self, formatetcin: *const FORMATETC) -> windows::core::Result<STGMEDIUM> {
         if formatetcin.is_null() {
             return Err(windows::core::Error::from(E_INVALIDARG));

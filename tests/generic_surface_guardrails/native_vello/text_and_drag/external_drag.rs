@@ -53,13 +53,13 @@ fn native_external_drag_data_object_helpers_stay_focused() {
             && data_object.contains("mod medium;")
             && data_object.contains("data_object_format_matches")
             && data_object.contains("drop_effect_from_medium")
-            && !data_object.contains("fn is_file_drop_format")
+            && !data_object.contains("fn is_payload_format")
             && !data_object.contains("GlobalLock"),
         "external drag IDataObject implementation should delegate format matching and HGLOBAL effect decoding"
     );
     assert!(
         formats.contains("fn data_object_format_matches")
-            && formats.contains("fn is_file_drop_format")
+            && formats.contains("fn is_payload_format")
             && formats.contains("fn is_drop_effect_format")
             && formats.contains("fn uses_hglobal_storage")
             && medium.contains("fn drop_effect_from_medium")

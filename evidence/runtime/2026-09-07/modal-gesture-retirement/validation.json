@@ -1,0 +1,104 @@
+[
+  {
+    "name": "tests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ],
+    "exit_code": 0,
+    "seconds": 71.14,
+    "log": "tests.log"
+  },
+  {
+    "name": "examples",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ],
+    "exit_code": 0,
+    "seconds": 47.76,
+    "log": "examples.log"
+  },
+  {
+    "name": "clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "seconds": 22.88,
+    "log": "clippy.log"
+  },
+  {
+    "name": "docs",
+    "command": [
+      "cargo",
+      "doc",
+      "--locked",
+      "--no-deps"
+    ],
+    "exit_code": 0,
+    "seconds": 10.17,
+    "log": "docs.log"
+  },
+  {
+    "name": "doctests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--doc"
+    ],
+    "exit_code": 0,
+    "seconds": 5.09,
+    "log": "doctests.log"
+  },
+  {
+    "name": "no-default",
+    "command": [
+      "cargo",
+      "check",
+      "--locked",
+      "--no-default-features",
+      "--lib"
+    ],
+    "exit_code": 0,
+    "seconds": 7.44,
+    "log": "no-default.log"
+  },
+  {
+    "name": "format",
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 2.45,
+    "log": "format.log"
+  },
+  {
+    "name": "diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.02,
+    "log": "diff.log"
+  }
+]

@@ -315,7 +315,6 @@ fn layout_remapped_editing_shortcuts_stay_with_the_text_owner() {
     .default_binding(CommandShortcut::new(CommandKey::Character("x".into())).primary())])
     .unwrap();
     let mut runner = runner_with_registry(registry, Rc::clone(&observed));
-    runner.input.clipboard = None;
     assert!(runner.core.runtime.focus_widget(11));
     press(
         &mut runner,

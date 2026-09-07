@@ -1,12 +1,14 @@
 use crate::application::LatestTaskTransaction;
 use crate::runtime::command::EffectLifecycle;
 use crate::runtime::{
-    PlatformCompletion, PlatformCompletionIdentity, PlatformRequest, PlatformResultDelivery,
+    PlatformCompletion, PlatformCompletionIdentity, PlatformRequest, PlatformResult,
+    PlatformResultDelivery, TextClipboardReceipt,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 
 use super::SurfaceRuntime;
+use super::commands::CommandOutcome;
 use super::owner::{AuxiliaryWindowOwner, EffectOrigin, LifecycleDescriptor, RuntimeOwner};
 use crate::runtime::RuntimeBridge;
 
@@ -31,6 +33,14 @@ enum PlatformResultValidation {
     Qualified(PlatformRequest),
 }
 
+enum PlatformCompletionTarget<Message> {
+    Application(PlatformCompletion<Message>),
+    Editor {
+        receipt: TextClipboardReceipt,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    },
+}
+
 impl<Message> Default for PlatformCompletionRegistry<Message> {
     fn default() -> Self {
         Self::new(RuntimeOwner::new())
@@ -53,7 +63,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
         origin: &EffectOrigin,
     ) -> PlatformCompletionIdentity {
         self.register_inner(
-            completion,
+            PlatformCompletionTarget::Application(completion),
             PlatformResultValidation::Legacy,
             origin,
             None,
@@ -68,11 +78,27 @@ impl<Message> PlatformCompletionRegistry<Message> {
         origin: &EffectOrigin,
     ) -> PlatformCompletionIdentity {
         self.register_inner(
-            completion,
+            PlatformCompletionTarget::Application(completion),
             PlatformResultValidation::Legacy,
             origin,
             None,
             None,
+        )
+    }
+
+    pub(super) fn register_text_clipboard(
+        &mut self,
+        receipt: TextClipboardReceipt,
+        origin: &EffectOrigin,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> PlatformCompletionIdentity {
+        let request = receipt.request();
+        self.register_inner(
+            PlatformCompletionTarget::Editor { receipt, timestamp },
+            PlatformResultValidation::Qualified(request),
+            origin,
+            None,
+            Some(PlatformRegistrationState::Accepted),
         )
     }
 
@@ -99,7 +125,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
             Some(transaction.newer_replacement_probe()),
         );
         self.register_inner(
-            completion,
+            PlatformCompletionTarget::Application(completion),
             PlatformResultValidation::Qualified(request.clone()),
             origin,
             Some(RegisteredPlatformEffect {
@@ -126,7 +152,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
 
     fn register_inner(
         &mut self,
-        completion: PlatformCompletion<Message>,
+        target: PlatformCompletionTarget<Message>,
         validation: PlatformResultValidation,
         origin: &EffectOrigin,
         effect: Option<RegisteredPlatformEffect>,
@@ -162,7 +188,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
         self.entries.insert(
             identity,
             RegisteredPlatformCompletion {
-                completion,
+                target,
                 validation,
                 origin: origin.clone(),
                 lifecycle,
@@ -256,6 +282,16 @@ impl<Message> PlatformCompletionRegistry<Message> {
         &mut self,
         delivery: PlatformResultDelivery,
     ) -> Option<MappedPlatformMessage<Message>> {
+        match self.map_delivery_target(delivery)? {
+            MappedPlatformCompletion::Application(mapped) => Some(mapped),
+            MappedPlatformCompletion::Editor(_) => None,
+        }
+    }
+
+    pub(super) fn map_delivery_target(
+        &mut self,
+        delivery: PlatformResultDelivery,
+    ) -> Option<MappedPlatformCompletion<Message>> {
         match delivery {
             PlatformResultDelivery::Completed { identity, result } => {
                 let mapper = self.entries.get(&identity)?;
@@ -294,11 +330,24 @@ impl<Message> PlatformCompletionRegistry<Message> {
                     lifecycle: mapper.lifecycle.clone(),
                     origin: mapper.origin.clone(),
                 });
-                Some(MappedPlatformMessage {
-                    message: (mapper.completion)(result),
-                    origin: mapper.origin,
-                    fence,
-                })
+                match mapper.target {
+                    PlatformCompletionTarget::Application(completion) => Some(
+                        MappedPlatformCompletion::Application(MappedPlatformMessage {
+                            message: completion(result),
+                            origin: mapper.origin,
+                            fence,
+                        }),
+                    ),
+                    PlatformCompletionTarget::Editor { receipt, timestamp } => {
+                        Some(MappedPlatformCompletion::Editor(MappedTextClipboard {
+                            receipt,
+                            timestamp,
+                            result,
+                            origin: mapper.origin,
+                            fence,
+                        }))
+                    }
+                }
             }
             PlatformResultDelivery::Discarded { identity } => {
                 self.entries.remove(&identity);
@@ -311,7 +360,12 @@ impl<Message> PlatformCompletionRegistry<Message> {
         &mut self,
         identity: PlatformCompletionIdentity,
     ) -> Option<PlatformCompletion<Message>> {
-        self.entries.remove(&identity).map(|entry| entry.completion)
+        self.entries
+            .remove(&identity)
+            .and_then(|entry| match entry.target {
+                PlatformCompletionTarget::Application(completion) => Some(completion),
+                PlatformCompletionTarget::Editor { .. } => None,
+            })
     }
 
     pub(super) fn retire_origin(&mut self, origin: &EffectOrigin) {
@@ -339,7 +393,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
 }
 
 struct RegisteredPlatformCompletion<Message> {
-    completion: PlatformCompletion<Message>,
+    target: PlatformCompletionTarget<Message>,
     validation: PlatformResultValidation,
     lifecycle: LifecycleDescriptor,
     rejection_lifecycle: LifecycleDescriptor,
@@ -348,6 +402,29 @@ struct RegisteredPlatformCompletion<Message> {
     generation: u64,
     state: PlatformRegistrationState,
     origin: EffectOrigin,
+}
+
+pub(super) enum MappedPlatformCompletion<Message> {
+    Application(MappedPlatformMessage<Message>),
+    Editor(MappedTextClipboard),
+}
+
+pub(super) struct MappedTextClipboard {
+    receipt: TextClipboardReceipt,
+    timestamp: Option<crate::gui::input::InputTimestamp>,
+    result: PlatformResult,
+    origin: EffectOrigin,
+    fence: Option<PlatformMappingFence>,
+}
+
+impl MappedTextClipboard {
+    fn is_current(&self, owner: &RuntimeOwner) -> bool {
+        self.origin.is_live()
+            && self
+                .fence
+                .as_ref()
+                .is_none_or(|fence| fence.is_current(owner))
+    }
 }
 
 struct RegisteredPlatformEffect {
@@ -403,6 +480,113 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Begin one deferred native clipboard operation for the exact focused text widget.
+    /// Host completion is always committed to the platform ingress for a later drain turn.
+    pub fn begin_focused_text_clipboard(
+        &mut self,
+        operation: crate::runtime::TextClipboardOperation,
+        timestamp: Option<crate::gui::input::InputTimestamp>,
+    ) -> bool {
+        if !self.lifecycle_accepts_work() {
+            return false;
+        }
+        let Some(widget_id) = self.interaction.focus.focused_widget() else {
+            return false;
+        };
+        if !self.is_authoritative_focus_target(widget_id) {
+            return false;
+        }
+        let Some(receipt) = self
+            .surface_widget(widget_id)
+            .and_then(|widget| widget.widget_object().text_clipboard_receipt(operation))
+        else {
+            return false;
+        };
+        if receipt.widget != widget_id {
+            return false;
+        }
+        let request = receipt.request();
+        if request.validate().is_err() {
+            return false;
+        }
+        let Some(capability) = self.host_capabilities.platform_result.as_ref() else {
+            return false;
+        };
+        let origin = EffectOrigin::Application;
+        let cancellation = receipt.cancellation_probe();
+        let identity = self
+            .platform_registry
+            .register_text_clipboard(receipt, &origin, timestamp);
+        let Some(reservation) = PlatformResultIngress::reserve(&self.platform_results) else {
+            let _ = self.platform_registry.remove(identity);
+            return false;
+        };
+        let sink = crate::runtime::RuntimePlatformResultSink::new(identity, move |delivery| {
+            let _ = reservation.commit(delivery);
+        })
+        .with_cancellation(cancellation);
+        if let Err(fallback) = (capability.request_platform_result)(&mut self.bridge, request, sink)
+        {
+            let (request, sink) = *fallback;
+            sink.send(Err(crate::runtime::PlatformFailure::Unavailable(
+                request.service(),
+            )));
+        }
+        true
+    }
+
+    pub(super) fn dispatch_mapped_platform_completion(
+        &mut self,
+        mapped: MappedPlatformCompletion<Message>,
+        outcome: &mut CommandOutcome,
+    ) {
+        match mapped {
+            MappedPlatformCompletion::Application(mapped) => {
+                if !mapped.is_current(&self.effect_owner)
+                    || !self.lifecycle_accepts_work()
+                    || !self.effect_origin_is_active(&mapped.origin)
+                {
+                    return;
+                }
+                self.dispatch_message_inner_with_origin(mapped.message, outcome, mapped.origin);
+            }
+            MappedPlatformCompletion::Editor(mapped) => {
+                if !mapped.is_current(&self.effect_owner)
+                    || !self.lifecycle_accepts_work()
+                    || !self.effect_origin_is_active(&mapped.origin)
+                    || self.interaction.focus.focused_widget() != Some(mapped.receipt.widget)
+                    || !self.is_authoritative_focus_target(mapped.receipt.widget)
+                    || !self
+                        .surface_widget(mapped.receipt.widget)
+                        .is_some_and(|widget| {
+                            widget
+                                .widget_object()
+                                .accepts_text_clipboard_receipt(&mapped.receipt)
+                        })
+                {
+                    return;
+                }
+                use crate::widgets::{TextEditCommand, WidgetInput};
+                let command = match (mapped.receipt.operation, mapped.result) {
+                    (crate::runtime::TextClipboardOperation::Copy, Ok(_)) => return,
+                    (
+                        crate::runtime::TextClipboardOperation::Cut,
+                        Ok(crate::runtime::PlatformResponse::Completed),
+                    ) => TextEditCommand::CutSelection,
+                    (
+                        crate::runtime::TextClipboardOperation::Paste,
+                        Ok(crate::runtime::PlatformResponse::Text(text)),
+                    ) => TextEditCommand::InsertText(text),
+                    _ => return,
+                };
+                let _ = self.dispatch_input(
+                    mapped.receipt.widget,
+                    WidgetInput::text_edit_with_timestamp(command, mapped.timestamp),
+                );
+            }
+        }
+    }
+
     pub(super) fn shutdown_platform_services(&mut self) {
         {
             let mut ingress = self

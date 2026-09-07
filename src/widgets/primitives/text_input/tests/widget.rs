@@ -8,7 +8,8 @@ use crate::widgets::interaction::{
     TextInputRevision, WidgetInput, WidgetKey,
 };
 use crate::widgets::{
-    SemanticAction, TextAlign, TextPrivacy, TextSecretPolicy, Widget, WidgetSemantics,
+    SemanticAction, TextAlign, TextEditBoundary, TextEditKind, TextInputEditEvent, TextPrivacy,
+    TextSecretPolicy, Widget, WidgetSemantics,
 };
 use std::sync::Arc;
 
@@ -233,6 +234,84 @@ fn text_input_debug_redacts_active_secret_composition_and_adornments() {
         assert!(!debug.contains(sentinel), "Debug leaked {sentinel:?}");
     }
     assert!(debug.contains("TextInputComposition"));
+}
+
+#[test]
+fn text_input_grouping_is_opt_in_and_keeps_legacy_messages() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(160.0, 28.0));
+    let mut legacy = TextInputWidget::new(7, "", WidgetSizing::fixed(bounds.size()));
+    legacy.common.state.focused = true;
+    assert_eq!(
+        legacy.handle_input(bounds, WidgetInput::character('a')),
+        Some(TextInputMessage::Changed { value: "a".into() })
+    );
+
+    let mut grouped =
+        TextInputWidget::new(7, "", WidgetSizing::fixed(bounds.size())).with_edit_events();
+    grouped.common.state.focused = true;
+    let first = Widget::handle_input(&mut grouped, bounds, WidgetInput::character('a'))
+        .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+        .expect("grouped typing emits an event");
+    assert_eq!(
+        first.legacy_message,
+        Some(TextInputMessage::Changed { value: "a".into() })
+    );
+    assert_eq!(
+        first.grouping.current.map(|event| event.kind),
+        Some(TextEditKind::Typing)
+    );
+    assert_eq!(
+        first.grouping.current.map(|event| event.phase),
+        Some(crate::widgets::EditPhase::Begin)
+    );
+    let second = Widget::handle_input(&mut grouped, bounds, WidgetInput::character('b'))
+        .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+        .expect("continued typing emits an event");
+    assert_eq!(
+        second.grouping.current.map(|event| event.phase),
+        Some(crate::widgets::EditPhase::Update)
+    );
+    assert_eq!(
+        first.grouping.current.map(|event| event.transaction),
+        second.grouping.current.map(|event| event.transaction)
+    );
+}
+
+#[test]
+fn grouped_composition_cancel_and_compatible_reprojection_preserve_boundaries() {
+    let sizing = WidgetSizing::fixed(Vector2::new(160.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "draft", sizing).with_edit_events();
+    previous.common.state.focused = true;
+    let range = CompositionRange::new(0, 5, 5).expect("composition range is valid");
+    let started = Widget::handle_composition_sample(
+        &mut previous,
+        CompositionSample::start(range, range).expect("composition start is valid"),
+    )
+    .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+    .expect("composition start emits a grouping event");
+    assert_eq!(started.legacy_message, None);
+    assert_eq!(
+        started.grouping.current.map(|event| event.kind),
+        Some(TextEditKind::Composition)
+    );
+
+    let mut successor = TextInputWidget::new(7, "draft", sizing).with_edit_events();
+    successor.common.state.focused = true;
+    successor.synchronize_from_previous(&previous);
+    let canceled = Widget::handle_composition_sample(&mut successor, CompositionSample::cancel())
+        .and_then(|output| output.typed_cloned::<TextInputEditEvent>())
+        .expect("composition cancel emits a boundary event");
+    assert_eq!(canceled.legacy_message, None);
+    assert_eq!(
+        canceled
+            .grouping
+            .current
+            .map(|event| (event.phase, event.boundary)),
+        Some((
+            crate::widgets::EditPhase::Cancel,
+            Some(TextEditBoundary::Composition)
+        ))
+    );
 }
 
 #[test]

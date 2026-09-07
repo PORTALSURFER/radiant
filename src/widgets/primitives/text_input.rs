@@ -14,8 +14,9 @@ use crate::widgets::contract::{
     WidgetPointerMotion, WidgetPointerMotionRevision, WidgetSemantics, WidgetSizing,
 };
 use crate::widgets::interaction::{
-    CompositionRange, CompositionSample, CompositionStartContext, TextInputMessage, WidgetInput,
-    WidgetKey, WidgetOutput,
+    CompositionRange, CompositionSample, CompositionStartContext, TextEditBoundary,
+    TextEditGrouping, TextEditGroups, TextEditKind, TextInputEditEvent, TextInputMessage,
+    WidgetInput, WidgetKey, WidgetOutput,
 };
 use crate::widgets::{DeclaredTextMetrics, TextScaleParticipation};
 
@@ -73,6 +74,8 @@ pub struct TextInputWidget {
     text_edit_authority: std::rc::Rc<crate::widgets::TextEditAuthorityOwner>,
     privacy: crate::widgets::TextPrivacy,
     privacy_mapping: Option<std::rc::Rc<crate::widgets::interaction::SecretTextMapping>>,
+    emit_edit_events: bool,
+    text_edit_groups: TextEditGroups,
 }
 
 impl fmt::Debug for TextInputWidget {
@@ -92,6 +95,8 @@ impl fmt::Debug for TextInputWidget {
             .field("native_caret_affinity", &self.native_caret_affinity)
             .field("privacy", &self.privacy)
             .field("privacy_mapping", &self.privacy_mapping)
+            .field("emit_edit_events", &self.emit_edit_events)
+            .field("text_edit_group_active", &self.text_edit_groups.is_active())
             .finish_non_exhaustive()
     }
 }
@@ -107,6 +112,7 @@ impl PartialEq for TextInputWidget {
             && self.native_pointer_caret_acceptance == other.native_pointer_caret_acceptance
             && self.native_caret_affinity == other.native_caret_affinity
             && self.privacy == other.privacy
+            && self.emit_edit_events == other.emit_edit_events
     }
 }
 
@@ -145,6 +151,8 @@ impl TextInputWidget {
             text_edit_authority: std::rc::Rc::new(crate::widgets::TextEditAuthorityOwner::new()),
             privacy: crate::widgets::TextPrivacy::Public,
             privacy_mapping: None,
+            emit_edit_events: false,
+            text_edit_groups: TextEditGroups::default(),
         }
     }
 
@@ -170,6 +178,11 @@ impl TextInputWidget {
             self.refresh_text_privacy_mapping();
             self.invalidate_text_edit_authority();
         }
+        self
+    }
+
+    pub(crate) fn with_edit_events(mut self) -> Self {
+        self.emit_edit_events = true;
         self
     }
 
@@ -394,6 +407,94 @@ impl TextInputWidget {
         input::handle_text_input_with_environment(self, bounds, input, environment)
     }
 
+    fn grouped_input_event(
+        &mut self,
+        input: &WidgetInput,
+        legacy_message: Option<TextInputMessage>,
+        before_selection: (usize, usize),
+        before_composing: bool,
+        authority: Option<crate::widgets::TextEditAuthority>,
+    ) -> Option<TextInputEditEvent> {
+        let changed = authority.is_some_and(|authority| authority.is_cancelled())
+            || before_selection != (self.state.caret, self.state.selection_anchor)
+            || before_composing != self.composition.is_some();
+        let grouping = match input {
+            WidgetInput::FocusChanged(false) if before_composing && self.composition.is_none() => {
+                self.text_edit_groups.finish_composition(true)
+            }
+            WidgetInput::FocusChanged(false) => {
+                self.text_edit_groups.boundary(TextEditBoundary::FocusLost)
+            }
+            WidgetInput::Character { character, .. } if !character.is_control() && changed => {
+                self.text_edit_groups.edit(TextEditKind::Typing)
+            }
+            WidgetInput::KeyPress { key, .. } if changed => match key {
+                WidgetKey::Backspace => self.text_edit_groups.edit(TextEditKind::BackwardDelete),
+                WidgetKey::Delete => self.text_edit_groups.edit(TextEditKind::ForwardDelete),
+                _ => self.text_edit_groups.boundary(TextEditBoundary::Selection),
+            },
+            WidgetInput::TextEdit { command, .. } if changed => match command {
+                crate::widgets::TextEditCommand::InsertText(_) => {
+                    self.text_edit_groups.edit(TextEditKind::Typing)
+                }
+                crate::widgets::TextEditCommand::PasteText(_)
+                | crate::widgets::TextEditCommand::CutSelection => {
+                    self.text_edit_groups.edit(TextEditKind::Clipboard)
+                }
+                crate::widgets::TextEditCommand::Backspace
+                | crate::widgets::TextEditCommand::DeleteWordLeft => {
+                    self.text_edit_groups.edit(TextEditKind::BackwardDelete)
+                }
+                crate::widgets::TextEditCommand::Delete
+                | crate::widgets::TextEditCommand::DeleteWordRight => {
+                    self.text_edit_groups.edit(TextEditKind::ForwardDelete)
+                }
+                _ => self.text_edit_groups.boundary(TextEditBoundary::Selection),
+            },
+            _ => TextEditGrouping::default(),
+        };
+        (legacy_message.is_some() || grouping != TextEditGrouping::default()).then(|| {
+            TextInputEditEvent {
+                legacy_message,
+                grouping,
+                caret: self.state.caret,
+                selection_anchor: self.state.selection_anchor,
+                composing: self.composition.is_some(),
+            }
+        })
+    }
+
+    fn grouped_composition_event(
+        &mut self,
+        sample: &CompositionSample,
+        legacy_message: Option<TextInputMessage>,
+        before_composing: bool,
+    ) -> Option<TextInputEditEvent> {
+        let grouping = match sample {
+            CompositionSample::Start { .. } | CompositionSample::Update { .. }
+                if self.composition.is_some() =>
+            {
+                self.text_edit_groups.edit(TextEditKind::Composition)
+            }
+            CompositionSample::Commit { .. } if before_composing && self.composition.is_none() => {
+                self.text_edit_groups.finish_composition(false)
+            }
+            CompositionSample::Cancel { .. } if before_composing && self.composition.is_none() => {
+                self.text_edit_groups.finish_composition(true)
+            }
+            _ => TextEditGrouping::default(),
+        };
+        (legacy_message.is_some() || grouping != TextEditGrouping::default()).then(|| {
+            TextInputEditEvent {
+                legacy_message,
+                grouping,
+                caret: self.state.caret,
+                selection_anchor: self.state.selection_anchor,
+                composing: self.composition.is_some(),
+            }
+        })
+    }
+
     fn can_preserve_text_edit_authority_with(&self, successor: Option<&dyn Widget>) -> bool {
         let Some(successor) = successor.and_then(|widget| widget.as_any().downcast_ref::<Self>())
         else {
@@ -405,6 +506,7 @@ impl TextInputWidget {
             || self.props.character_limit != successor.props.character_limit
             || self.props.submit_on_enter != successor.props.submit_on_enter
             || self.privacy != successor.privacy
+            || self.emit_edit_events != successor.emit_edit_events
         {
             return false;
         }
@@ -502,13 +604,27 @@ impl crate::widgets::WidgetSemanticActions for TextInputWidget {
         self.native_pointer_caret_acceptance = None;
         self.native_caret_affinity = NativeCaretAffinity::Downstream;
         self.invalidate_text_edit_authority();
-        WidgetSemanticActionResult::Accepted(Some(WidgetOutput::typed(TextInputMessage::Changed {
-            value,
-        })))
+        let legacy_message = TextInputMessage::Changed { value };
+        let output = if self.emit_edit_events {
+            WidgetOutput::typed(TextInputEditEvent {
+                legacy_message: Some(legacy_message),
+                grouping: self.text_edit_groups.edit(TextEditKind::Replacement),
+                caret: self.state.caret,
+                selection_anchor: self.state.selection_anchor,
+                composing: false,
+            })
+        } else {
+            WidgetOutput::typed(legacy_message)
+        };
+        WidgetSemanticActionResult::Accepted(Some(output))
     }
 }
 
 impl Widget for TextInputWidget {
+    fn owns_text_clipboard_shortcut(&self) -> bool {
+        true
+    }
+
     fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
         match key {
             WidgetKey::Home | WidgetKey::End => FocusedKeyDisposition::Consumed,
@@ -548,7 +664,21 @@ impl Widget for TextInputWidget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        TextInputWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+        if !self.emit_edit_events {
+            return TextInputWidget::handle_input(self, bounds, input).map(WidgetOutput::typed);
+        }
+        let before_selection = (self.state.caret, self.state.selection_anchor);
+        let before_composing = self.composition.is_some();
+        let authority = self.capture_text_edit_authority();
+        let legacy_message = TextInputWidget::handle_input(self, bounds, input.clone());
+        self.grouped_input_event(
+            &input,
+            legacy_message,
+            before_selection,
+            before_composing,
+            authority,
+        )
+        .map(WidgetOutput::typed)
     }
 
     fn handle_input_with_environment(
@@ -557,8 +687,23 @@ impl Widget for TextInputWidget {
         input: WidgetInput,
         environment: &ResolvedEnvironment,
     ) -> Option<WidgetOutput> {
-        self.handle_input_with_authority(bounds, input, environment)
-            .map(WidgetOutput::typed)
+        if !self.emit_edit_events {
+            return self
+                .handle_input_with_authority(bounds, input, environment)
+                .map(WidgetOutput::typed);
+        }
+        let before_selection = (self.state.caret, self.state.selection_anchor);
+        let before_composing = self.composition.is_some();
+        let authority = self.capture_text_edit_authority();
+        let legacy_message = self.handle_input_with_authority(bounds, input.clone(), environment);
+        self.grouped_input_event(
+            &input,
+            legacy_message,
+            before_selection,
+            before_composing,
+            authority,
+        )
+        .map(WidgetOutput::typed)
     }
 
     fn accepts_composition_input(&self) -> bool {
@@ -573,7 +718,13 @@ impl Widget for TextInputWidget {
     }
 
     fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
-        composition::handle_sample(self, sample).map(WidgetOutput::typed)
+        if !self.emit_edit_events {
+            return composition::handle_sample(self, sample).map(WidgetOutput::typed);
+        }
+        let before_composing = self.composition.is_some();
+        let legacy_message = composition::handle_sample(self, sample.clone());
+        self.grouped_composition_event(&sample, legacy_message, before_composing)
+            .map(WidgetOutput::typed)
     }
 
     fn handle_hidden_composition_update(
@@ -581,7 +732,25 @@ impl Widget for TextInputWidget {
         preedit: String,
         _timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<WidgetOutput> {
-        composition::handle_hidden_update(self, preedit).map(WidgetOutput::typed)
+        if !self.emit_edit_events {
+            return composition::handle_hidden_update(self, preedit).map(WidgetOutput::typed);
+        }
+        let before_composing = self.composition.is_some();
+        let legacy_message = composition::handle_hidden_update(self, preedit);
+        let grouping = if self.composition.is_some() {
+            self.text_edit_groups.edit(TextEditKind::Composition)
+        } else {
+            TextEditGrouping::default()
+        };
+        (legacy_message.is_some() || grouping != TextEditGrouping::default())
+            .then(|| TextInputEditEvent {
+                legacy_message,
+                grouping,
+                caret: self.state.caret,
+                selection_anchor: self.state.selection_anchor,
+                composing: self.composition.is_some() || before_composing,
+            })
+            .map(WidgetOutput::typed)
     }
 
     fn retains_managed_composition(&self) -> bool {
@@ -601,7 +770,8 @@ impl Widget for TextInputWidget {
             || self.common.state.read_only != previous_widget.common.state.read_only
             || self.props.character_limit != previous_widget.props.character_limit
             || self.props.submit_on_enter != previous_widget.props.submit_on_enter
-            || self.privacy != previous_widget.privacy;
+            || self.privacy != previous_widget.privacy
+            || self.emit_edit_events != previous_widget.emit_edit_events;
         let preserved = match (previous_widget.props.revision, self.props.revision) {
             (Some(previous_revision), Some(current_revision))
                 if current_revision <= previous_revision =>
@@ -621,15 +791,18 @@ impl Widget for TextInputWidget {
         if preserved && !policy_changed {
             self.preserve_text_edit_authority_from(previous_widget);
             self.privacy_mapping = previous_widget.privacy_mapping.clone();
+            self.text_edit_groups = previous_widget.text_edit_groups.clone();
         } else {
             previous_widget.invalidate_text_edit_authority();
             self.refresh_text_privacy_mapping();
+            self.text_edit_groups = TextEditGroups::default();
         }
     }
 
     fn prepare_replacement(&mut self, successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
         if !self.can_preserve_text_edit_authority_with(successor) {
             self.invalidate_text_edit_authority();
+            self.text_edit_groups = TextEditGroups::default();
         }
         if self.composition.is_some() && !self.can_preserve_composition_with(successor) {
             self.cancel_composition();

@@ -7,8 +7,8 @@ use crate::{
     },
     runtime::WidgetMessageMapper,
     widgets::{
-        TextInputChrome, TextInputMessage, TextInputRevision, TextInputWidget, TextPrivacy,
-        WidgetId, WidgetProminence, WidgetStyle, stable_widget_id,
+        TextInputChrome, TextInputEditEvent, TextInputMessage, TextInputRevision, TextInputWidget,
+        TextPrivacy, WidgetId, WidgetProminence, WidgetStyle, stable_widget_id,
     },
 };
 
@@ -140,6 +140,21 @@ impl TextInputBuilder {
         let mut node = view_node_from_widget(MappedWidget::new(
             input,
             WidgetMessageMapper::text_input(map),
+        ));
+        node.style = style;
+        node
+    }
+
+    /// Emit opt-in transient edit grouping events while preserving legacy text
+    /// messages inside each event when applicable.
+    pub fn edit_message<Message: 'static>(
+        self,
+        map: impl Fn(TextInputEditEvent) -> Message + 'static,
+    ) -> ViewNode<Message> {
+        let (input, style) = self.into_widget_and_style();
+        let mut node = view_node_from_widget(MappedWidget::new(
+            input.with_edit_events(),
+            WidgetMessageMapper::typed(map),
         ));
         node.style = style;
         node

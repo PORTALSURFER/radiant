@@ -512,8 +512,13 @@ where
         let Some(capability) = self.host_capabilities.platform_result.as_ref() else {
             return false;
         };
+        // Native focused input belongs to this surface runtime. Its owner closes on
+        // runtime shutdown, so an already queued clipboard lane call observes that
+        // terminal fence before touching the OS.
         let origin = EffectOrigin::Application;
-        let cancellation = receipt.cancellation_probe();
+        let receipt_cancellation = receipt.cancellation_probe();
+        let runtime_owner = self.effect_owner.clone();
+        let cancellation = Arc::new(move || receipt_cancellation() || !runtime_owner.is_open());
         let identity = self
             .platform_registry
             .register_text_clipboard(receipt, &origin, timestamp);

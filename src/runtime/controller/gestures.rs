@@ -2,6 +2,7 @@
 pub(super) mod drag_drop;
 mod pointer;
 mod touch;
+mod touch_drag;
 use super::{SurfaceRuntime, interaction_state::RuntimeManagedCompositionState};
 use crate::{
     gui::pointer_ingress::{
@@ -113,6 +114,7 @@ impl GestureTarget {
 
 pub(super) struct GestureCapture {
     pointer_sequence: Option<PointerSequenceToken>,
+    single_touch: Option<PointerSequenceToken>,
     target: GestureTarget,
     // Pending candidates are ordered deepest first. They never own capture.
     candidates: Vec<GestureTarget>,
@@ -215,6 +217,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             };
             GestureCapture {
                 pointer_sequence: None,
+                single_touch: None,
                 target,
                 candidates,
                 hit_widget: widget,
@@ -424,6 +427,16 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         kind: GestureKind,
         anchor: Point,
     ) -> Result<Vec<GestureTarget>, GestureOutcome> {
+        self.gesture_candidates_filtered(widget, path, kind, anchor, false)
+    }
+    fn gesture_candidates_filtered(
+        &mut self,
+        widget: WidgetId,
+        path: &crate::runtime::surface::WidgetPath,
+        kind: GestureKind,
+        anchor: Point,
+        drag_sources_only: bool,
+    ) -> Result<Vec<GestureTarget>, GestureOutcome> {
         if self
             .traversal
             .widgets
@@ -433,7 +446,8 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             return Err(GestureOutcome::Unsupported);
         }
         let mut candidates = Vec::new();
-        if let Some(current) = self.surface_widget(widget)
+        if !drag_sources_only
+            && let Some(current) = self.surface_widget(widget)
             && let Some((policy, revision)) = current.gesture_policy()
             && policy.threshold(kind).is_some()
         {
@@ -461,6 +475,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 continue;
             }
             let facets = record.interaction.capabilities_v2();
+            if drag_sources_only && facets.drag_source().is_none() {
+                continue;
+            }
             let Some(gestures) = facets.gestures() else {
                 continue;
             };
@@ -644,6 +661,18 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 )
         };
         self.lifecycle_accepts_work()
+            && capture.single_touch.is_none_or(|token| {
+                self.interaction
+                    .pointer
+                    .ingress
+                    .records
+                    .iter()
+                    .flatten()
+                    .any(|record| {
+                        record.token == token
+                            && record.kind == crate::gui::pointer_ingress::DeviceKind::Touch
+                    })
+            })
             && capture.touch.as_ref().is_none_or(|touch| {
                 touch.tokens.iter().all(|token| {
                     self.interaction
@@ -895,7 +924,11 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         self.interaction
             .gesture
             .as_ref()
-            .filter(|capture| capture.touch.is_none() && capture.pointer_sequence.is_none())
+            .filter(|capture| {
+                capture.single_touch.is_none()
+                    && capture.touch.is_none()
+                    && capture.pointer_sequence.is_none()
+            })
             .map(|capture| capture.sample.device())
     }
     pub(crate) fn reject_native_gesture_continuation(
@@ -906,7 +939,8 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
     ) {
         if phase != GesturePhase::Started
             && self.interaction.gesture.as_ref().is_some_and(|capture| {
-                capture.touch.is_none()
+                capture.single_touch.is_none()
+                    && capture.touch.is_none()
                     && capture.pointer_sequence.is_none()
                     && capture.sample.device() == device
                     && capture.sample.kind() == kind
@@ -925,7 +959,8 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             .gesture
             .as_ref()
             .filter(|capture| {
-                capture.touch.is_none()
+                capture.single_touch.is_none()
+                    && capture.touch.is_none()
                     && capture.pointer_sequence.is_none()
                     && capture.sample.kind() == sample.kind()
                     && capture.sample.device() == sample.device()

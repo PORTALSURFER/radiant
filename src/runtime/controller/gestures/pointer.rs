@@ -61,6 +61,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             active: false,
             touch: None,
             pointer_sequence: None,
+            single_touch: None,
         })
     }
     pub(in crate::runtime::controller) fn install_pointer_gesture(

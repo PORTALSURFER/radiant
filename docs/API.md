@@ -8429,13 +8429,19 @@ are executable. The historical `dispatch_gesture_ingress` observation-only entry
 retains its unsupported-consumer result; executable callers use the token-bearing
 request API. Widget/ancestor competition is supported as described below.
 Two admitted same-device touch contacts derive pan, pinch and rotation through
-this same arena. The first contact is inert; the second rebases both contacts.
+this same arena. Outside typed drag sources the first contact is inert; the
+second rebases both contacts.
 Before recognition, the deepest crossed eligible target wins; equal depths use
 the largest normalized threshold exceedance, then pinch, rotation, and pan.
 Exact pointer tokens fence both contacts. A final Ended sample contributes its
 geometry; cancellation, a third contact, device mismatch, invalid geometry, or
-token loss retires the pair without reviving a held contact. This applies only
-to explicit gesture consumers; touch does not start typed drag sources.
+token loss retires the pair without reviving a held contact. Two-contact recognition applies only to explicit gesture consumers.
+A single admitted contact can recognize a typed drag source through its declared
+pan threshold, without synthesizing a mouse press or activating its child.
+Before recognition a second contact hands the pending sequence to two-contact
+recognition. After recognition it cancels the drag once; held contacts remain
+inert until all release. Source retirement and cancellation use the existing
+capture teardown, and exact contact tokens prevent replay or replacement reuse.
 Cross-window payloads and owned external offers remain OPT-1363 work.
 
 

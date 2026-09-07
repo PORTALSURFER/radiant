@@ -126,7 +126,7 @@ enum DragMessage {
     Source(radiant::runtime::DragSourcePhase),
     Target(radiant::runtime::DropPhase),
 }
-fn exercise_drag() {
+fn exercise_drag(kind: DeviceKind) {
     use radiant::{
         application::{DragSource, DropTarget},
         runtime::{DragSourcePhase, DropInsertionAxis, DropPhase},
@@ -177,7 +177,7 @@ fn exercise_drag() {
     let contact = PointerContactId::from_host(1).unwrap();
     let button = radiant::widgets::PointerButton::Primary;
     let started = PointerIngress::new(
-        DeviceKind::Mouse,
+        kind,
         device,
         contact,
         PointerPhase::Started { button },
@@ -196,7 +196,7 @@ fn exercise_drag() {
         .unwrap();
     for phase in [PointerPhase::Moved, PointerPhase::Ended { button }] {
         let pointer = PointerIngress::from_runtime(
-            DeviceKind::Mouse,
+            kind,
             device,
             contact,
             phase,
@@ -337,7 +337,8 @@ fn exercise_touch() {
 fn main() {
     exercise(5.0, GestureOutcome::Accepted(1));
     exercise(2.0, GestureOutcome::AcceptedContainer(10));
-    exercise_drag();
+    exercise_drag(DeviceKind::Mouse);
+    exercise_drag(DeviceKind::Touch);
     exercise_touch();
     println!(
         "Recognized child and ancestor gestures, dropped a typed payload and rejected stale continuations."
@@ -352,7 +353,8 @@ mod tests {
     }
     #[test]
     fn public_typed_drag_example_completes_through_update() {
-        super::exercise_drag();
+        super::exercise_drag(super::DeviceKind::Mouse);
+        super::exercise_drag(super::DeviceKind::Touch);
     }
     #[test]
     fn public_touch_example_uses_admitted_tokens() {

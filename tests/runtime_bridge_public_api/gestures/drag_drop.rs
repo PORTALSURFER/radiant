@@ -566,3 +566,387 @@ fn modal_drag_cannot_negotiate_with_background_drop_target() {
         }
     }
 }
+
+#[test]
+fn single_touch_drag_preserves_typed_payload_and_terminal_threshold() {
+    use radiant::gui::pointer_ingress::PointerPhase;
+    use radiant::widgets::PointerButton;
+    for mode in 0..3 {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            drag_bridge(
+                events.clone(),
+                Rc::new(Cell::new(0)),
+                Rc::new(Cell::new(0)),
+                Rc::new(Cell::new(DropDecision::Accepted(DragOperation::Move))),
+                false,
+                false,
+            ),
+            Vector2::new(240.0, 80.0),
+        );
+        let token = runtime
+            .dispatch_pointer_ingress_with_admission(super::touch::touch(
+                1,
+                PointerPhase::Started {
+                    button: PointerButton::Primary,
+                },
+                20.0,
+                20.0,
+                None,
+            ))
+            .sequence_token()
+            .unwrap();
+        assert!(events.borrow().is_empty());
+        if mode == 0 {
+            runtime.dispatch_pointer_ingress(super::touch::touch(
+                1,
+                PointerPhase::Moved,
+                140.0,
+                20.0,
+                Some(token),
+            ));
+        }
+        let end = super::touch::touch(
+            1,
+            PointerPhase::Ended {
+                button: PointerButton::Primary,
+            },
+            if mode == 2 { 21.0 } else { 140.0 },
+            20.0,
+            Some(token),
+        );
+        runtime.dispatch_pointer_ingress(end);
+        if mode == 2 {
+            assert!(events.borrow().is_empty(), "{:?}", events.borrow());
+        } else {
+            assert_eq!(
+                events
+                    .borrow()
+                    .iter()
+                    .filter(|event| matches!(
+                        event,
+                        Event::Source(DragSourcePhase::Completed(DragOperation::Move))
+                    ))
+                    .count(),
+                1,
+                "{:?}",
+                events.borrow()
+            );
+            assert_eq!(
+                events
+                    .borrow()
+                    .iter()
+                    .filter(|event| matches!(event, Event::Target(DropPhase::Dropped, _)))
+                    .count(),
+                1
+            );
+        }
+        let count = events.borrow().len();
+        runtime.dispatch_pointer_ingress(end);
+        assert_eq!(events.borrow().len(), count);
+    }
+}
+
+#[test]
+fn second_contact_cancels_active_typed_drag_and_held_contacts_stay_inert() {
+    use radiant::gui::pointer_ingress::PointerPhase;
+    use radiant::widgets::PointerButton;
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let mut runtime = SurfaceRuntime::new(
+        drag_bridge(
+            events.clone(),
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(0)),
+            Rc::new(Cell::new(DropDecision::Accepted(DragOperation::Move))),
+            false,
+            false,
+        ),
+        Vector2::new(240.0, 80.0),
+    );
+    let start = PointerPhase::Started {
+        button: PointerButton::Primary,
+    };
+    let end = PointerPhase::Ended {
+        button: PointerButton::Primary,
+    };
+    let one = runtime
+        .dispatch_pointer_ingress_with_admission(super::touch::touch(1, start, 20.0, 20.0, None))
+        .sequence_token()
+        .unwrap();
+    runtime.dispatch_pointer_ingress(super::touch::touch(
+        1,
+        PointerPhase::Moved,
+        140.0,
+        20.0,
+        Some(one),
+    ));
+    let two = runtime
+        .dispatch_pointer_ingress_with_admission(super::touch::touch(2, start, 40.0, 20.0, None))
+        .sequence_token()
+        .unwrap();
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .filter(|event| matches!(event, Event::Source(DragSourcePhase::Cancelled(_))))
+            .count(),
+        1,
+        "{:?}",
+        events.borrow()
+    );
+    let count = events.borrow().len();
+    runtime.dispatch_pointer_ingress(super::touch::touch(1, end, 140.0, 20.0, Some(one)));
+    let three = runtime
+        .dispatch_pointer_ingress_with_admission(super::touch::touch(3, start, 20.0, 20.0, None))
+        .sequence_token()
+        .unwrap();
+    runtime.dispatch_pointer_ingress(super::touch::touch(
+        3,
+        PointerPhase::Moved,
+        140.0,
+        20.0,
+        Some(three),
+    ));
+    runtime.dispatch_pointer_ingress(super::touch::touch(2, end, 40.0, 20.0, Some(two)));
+    runtime.dispatch_pointer_ingress(super::touch::touch(3, end, 140.0, 20.0, Some(three)));
+    assert_eq!(events.borrow().len(), count);
+    let fresh = runtime
+        .dispatch_pointer_ingress_with_admission(super::touch::touch(4, start, 20.0, 20.0, None))
+        .sequence_token()
+        .unwrap();
+    runtime.dispatch_pointer_ingress(super::touch::touch(4, end, 140.0, 20.0, Some(fresh)));
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .filter(|event| matches!(event, Event::Source(DragSourcePhase::Completed(_))))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn pending_single_touch_yields_to_declared_two_contact_gesture() {
+    use radiant::gui::pointer_ingress::PointerPhase;
+    use radiant::widgets::PointerButton;
+    #[derive(Debug, PartialEq)]
+    enum InputEvent {
+        Drag(DragSourcePhase),
+        Gesture(GesturePhase),
+    }
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let observed = events.clone();
+    let mut runtime = SurfaceRuntime::new(
+        radiant::app(())
+            .view(|_| {
+                button("Source")
+                    .filter_mapped(|_| None::<InputEvent>)
+                    .width(180.0)
+                    .height(40.0)
+                    .id(1)
+                    .drag_source(
+                        DragSource::new(Rc::new(String::from("payload")))
+                            .on_event_with_revision((), |event| {
+                                Some(InputEvent::Drag(event.phase()))
+                            }),
+                    )
+                    .id(10)
+                    .on_gesture_with_revision(
+                        GesturePolicy::none()
+                            .recognize(GestureKind::Pinch, 0.1)
+                            .unwrap(),
+                        (),
+                        |event| Some(InputEvent::Gesture(event.phase())),
+                    )
+                    .id(30)
+            })
+            .update(move |_, event| observed.borrow_mut().push(event))
+            .into_bridge(),
+        Vector2::new(240.0, 80.0),
+    );
+    let start = PointerPhase::Started {
+        button: PointerButton::Primary,
+    };
+    let end = PointerPhase::Ended {
+        button: PointerButton::Primary,
+    };
+    let one = runtime
+        .dispatch_pointer_ingress_with_admission(super::touch::touch(1, start, 20.0, 20.0, None))
+        .sequence_token()
+        .unwrap();
+    let two = runtime
+        .dispatch_pointer_ingress_with_admission(super::touch::touch(2, start, 60.0, 20.0, None))
+        .sequence_token()
+        .unwrap();
+    runtime.dispatch_pointer_ingress(super::touch::touch(
+        2,
+        PointerPhase::Moved,
+        100.0,
+        20.0,
+        Some(two),
+    ));
+    runtime.dispatch_pointer_ingress(super::touch::touch(2, end, 100.0, 20.0, Some(two)));
+    runtime.dispatch_pointer_ingress(super::touch::touch(1, end, 20.0, 20.0, Some(one)));
+    assert_eq!(
+        *events.borrow(),
+        vec![
+            InputEvent::Gesture(GesturePhase::Started),
+            InputEvent::Gesture(GesturePhase::Ended)
+        ]
+    );
+}
+
+#[test]
+fn retired_single_touch_cannot_restart_before_physical_release() {
+    use radiant::gui::pointer_ingress::PointerPhase;
+    use radiant::widgets::PointerButton;
+    for active in [false, true] {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let revision = Rc::new(Cell::new(0));
+        let mut runtime = SurfaceRuntime::new(
+            drag_bridge(
+                events.clone(),
+                revision.clone(),
+                Rc::new(Cell::new(0)),
+                Rc::new(Cell::new(DropDecision::Accepted(DragOperation::Move))),
+                false,
+                false,
+            ),
+            Vector2::new(240.0, 80.0),
+        );
+        let start = PointerPhase::Started {
+            button: PointerButton::Primary,
+        };
+        let end = PointerPhase::Ended {
+            button: PointerButton::Primary,
+        };
+        let token = runtime
+            .dispatch_pointer_ingress_with_admission(super::touch::touch(
+                1, start, 20.0, 20.0, None,
+            ))
+            .sequence_token()
+            .unwrap();
+        if active {
+            runtime.dispatch_pointer_ingress(super::touch::touch(
+                1,
+                PointerPhase::Moved,
+                140.0,
+                20.0,
+                Some(token),
+            ));
+        }
+        revision.set(1);
+        runtime.refresh();
+        assert_eq!(
+            events
+                .borrow()
+                .iter()
+                .filter(|event| matches!(
+                    event,
+                    Event::Source(DragSourcePhase::Cancelled(DragCancelReason::SourceRetired))
+                ))
+                .count(),
+            usize::from(active)
+        );
+        let count = events.borrow().len();
+        runtime.dispatch_pointer_ingress(super::touch::touch(
+            1,
+            PointerPhase::Moved,
+            160.0,
+            20.0,
+            Some(token),
+        ));
+        runtime.dispatch_pointer_ingress(super::touch::touch(1, end, 160.0, 20.0, Some(token)));
+        assert_eq!(events.borrow().len(), count);
+        let fresh = runtime
+            .dispatch_pointer_ingress_with_admission(super::touch::touch(
+                1, start, 20.0, 20.0, None,
+            ))
+            .sequence_token()
+            .unwrap();
+        runtime.dispatch_pointer_ingress(super::touch::touch(1, end, 140.0, 20.0, Some(fresh)));
+        assert_eq!(
+            events
+                .borrow()
+                .iter()
+                .filter(|event| matches!(event, Event::Source(DragSourcePhase::Completed(_))))
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn touch_drag_does_not_steal_mouse_capture_or_revive_after_callback_retirement() {
+    use radiant::gui::pointer_ingress::PointerPhase;
+    use radiant::widgets::PointerButton;
+    for mouse_incumbent in [false, true] {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            drag_bridge(
+                events.clone(),
+                Rc::new(Cell::new(0)),
+                Rc::new(Cell::new(0)),
+                Rc::new(Cell::new(DropDecision::Accepted(DragOperation::Move))),
+                !mouse_incumbent,
+                false,
+            ),
+            Vector2::new(240.0, 80.0),
+        );
+        let start = PointerPhase::Started {
+            button: PointerButton::Primary,
+        };
+        let end = PointerPhase::Ended {
+            button: PointerButton::Primary,
+        };
+        let mouse = mouse_incumbent.then(|| {
+            runtime
+                .dispatch_pointer_ingress_with_admission(super::pointer_drag::mouse(
+                    start, 20.0, None,
+                ))
+                .sequence_token()
+                .unwrap()
+        });
+        let finger = runtime
+            .dispatch_pointer_ingress_with_admission(super::touch::touch(
+                1, start, 20.0, 20.0, None,
+            ))
+            .sequence_token()
+            .unwrap();
+        runtime.dispatch_pointer_ingress(super::touch::touch(
+            1,
+            PointerPhase::Moved,
+            140.0,
+            20.0,
+            Some(finger),
+        ));
+        runtime.dispatch_pointer_ingress(super::touch::touch(1, end, 140.0, 20.0, Some(finger)));
+        if let Some(mouse) = mouse {
+            assert!(events.borrow().is_empty());
+            runtime.dispatch_pointer_ingress(super::pointer_drag::mouse(end, 140.0, Some(mouse)));
+            assert_eq!(
+                events
+                    .borrow()
+                    .iter()
+                    .filter(|event| matches!(event, Event::Source(DragSourcePhase::Completed(_))))
+                    .count(),
+                1
+            );
+        } else {
+            assert_eq!(
+                events
+                    .borrow()
+                    .iter()
+                    .filter(|event| matches!(event, Event::Source(DragSourcePhase::Cancelled(_))))
+                    .count(),
+                1,
+                "{:?}",
+                events.borrow()
+            );
+            assert!(!events.borrow().iter().any(|event| matches!(
+                event,
+                Event::Target(DropPhase::Dropped, _) | Event::Source(DragSourcePhase::Completed(_))
+            )));
+        }
+    }
+}

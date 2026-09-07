@@ -301,7 +301,7 @@ where
         candidate.is_current(self)
     }
 
-    fn runtime_layout_input_evidence(
+    pub(in crate::runtime::controller) fn runtime_layout_input_evidence(
         &self,
         mounted_source_present: bool,
     ) -> Option<LayoutInputEvidence> {

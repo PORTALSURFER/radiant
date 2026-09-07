@@ -8529,10 +8529,24 @@ and delivering target drop/cancellation followed by source completion/cancellati
 A terminal reducer cannot redirect the second receipt into a replacement view.
 The opaque event token is observational and does not itself authorize actions.
 
+`DropTarget::feedback(DropTargetFeedback::themed())` opts into a transient outline
+for the current accepted, pending, or rejected decision. Import
+`DropTargetFeedback` from `radiant::runtime`; its three `WidgetStyle` fields can
+be customized and resolve against the current theme. The default target paints
+no feedback. The runtime clips the outline to the target's ancestors and viewport
+and paints it before the drag preview, without application projection on
+pointer-only movement. Paint never calls negotiation or event mappers. Exact
+source and layout evidence fence the snapshot; unrelated projection or geometry
+changes hide it until input requalifies the target. Compatible projection from a
+target event is requalified during that input transaction. Leaving, cancellation,
+and completion clear feedback through the existing drag lifecycle. Insertion
+markers and autoscroll remain separate delivery work.
+
+
 Preview movement without application messages requests overlay repaint without
 application projection or layout. `Command::end_drag()` cancels a typed session
 through shared gesture teardown. This delivery supports checked normalized pan
-and admitted primary mouse sequences within one surface. Target styling/autoscroll,
+and admitted primary mouse sequences within one surface. Insertion-position feedback and autoscroll,
 same-application cross-window transfer and owned external-offer import/export remain
 OPT-1363 work.
 Run `cargo run --example gesture_input` for a headless typed payload drop through

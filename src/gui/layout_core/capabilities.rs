@@ -880,6 +880,10 @@ pub trait LayoutDragSource<Message> {
 }
 /// Read-only acceptance and ordinary-message mapping for a typed drop target.
 pub trait LayoutDropTarget<Message> {
+    /// Optional runtime-owned target outline. Include this value in exact revision evidence.
+    fn feedback(&self) -> Option<crate::gui::drag_drop::DropTargetFeedback> {
+        None
+    }
     /// Exact acceptance and callback revision evidence.
     fn revision(&self) -> LayoutInteractionRevision {
         LayoutInteractionRevision::conservative()

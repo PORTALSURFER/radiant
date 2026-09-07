@@ -16,6 +16,7 @@ mod numeric_step_modifiers;
 mod output;
 mod provenance;
 mod text_input_revision;
+mod text_privacy;
 mod value;
 
 pub use activation::{ActivationInputPolicy, ActivationInputResult, handle_activation_input};
@@ -58,4 +59,5 @@ pub use numeric_step_modifiers::{KeyboardModifier, NumericStepModifiers};
 pub use output::{CustomWidgetOutput, WidgetOutput};
 pub use provenance::{InteractionProvenance, InteractionSource};
 pub use text_input_revision::TextInputRevision;
+pub use text_privacy::{TextEditAuthority, TextEditAuthorityOwner, TextPrivacy, TextSecretPolicy};
 pub use value::{ValueMapping, ValueMappingError, ValueMappingKind};

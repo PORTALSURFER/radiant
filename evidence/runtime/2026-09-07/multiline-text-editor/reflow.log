@@ -1,0 +1,4 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1404-multiline-editor-radiant)
+    Finished `bench` profile [optimized] target(s) in 32.51s
+     Running benches/perf_harness.rs (/Users/portalsurfer/.codex/radiant-validation/target/release/deps/perf_harness-79dcf138625b09cc)
+{"type":"radiant_perf","scenario":"text_editor_reflow_64k","category":"text","group":"text_layout","iterations":20,"total_us":325855,"avg_us":16292.750,"p50_us":16228.328,"p95_us":16425.115,"p99_us":16425.115,"allocation_sensitive_work_count":1310720}

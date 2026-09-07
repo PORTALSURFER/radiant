@@ -666,15 +666,15 @@ where
                         );
                         hit.then(|| input.request.clone())
                     });
-            if let Some(request) = request {
-                if let Some(receipt) = self.frame.text_renderer.admit_editor_plan_request(
+            if let Some(request) = request
+                && let Some(receipt) = self.frame.text_renderer.admit_editor_plan_request(
                     &self.frame.last_paint_plan,
                     &request,
                     fence,
                     true,
-                ) {
-                    self.core.runtime.install_text_editor_geometry(receipt);
-                }
+                )
+            {
+                self.core.runtime.install_text_editor_geometry(receipt);
             }
         }
     }

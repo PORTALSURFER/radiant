@@ -96,16 +96,18 @@ impl NativeTextRenderer {
             }
         }
         flush(scene, face_index, &mut segment);
-        if input.focused && !input.hide_adornments && input.selection.range().is_empty() {
-            if let Some(rect) = editor_caret_rect(input, &paragraph) {
-                scene.fill(
-                    Fill::NonZero,
-                    Affine::IDENTITY,
-                    color_from_rgba(input.caret_color),
-                    None,
-                    &to_kurbo_rect(rect),
-                );
-            }
+        if input.focused
+            && !input.hide_adornments
+            && input.selection.range().is_empty()
+            && let Some(rect) = editor_caret_rect(input, &paragraph)
+        {
+            scene.fill(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                color_from_rgba(input.caret_color),
+                None,
+                &to_kurbo_rect(rect),
+            );
         }
         scene.pop_layer();
         true

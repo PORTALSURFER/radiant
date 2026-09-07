@@ -110,15 +110,15 @@ pub(super) fn focused_text_input_caret_area_from_snapshot(
     let mut focused_editor = None;
     for primitive in &plan.primitives {
         match primitive {
-            PaintPrimitive::TextInput(input) if input.focused => {
-                if focused_input.replace(input).is_some() {
-                    return None;
-                }
+            PaintPrimitive::TextInput(input)
+                if input.focused && focused_input.replace(input).is_some() =>
+            {
+                return None;
             }
-            PaintPrimitive::TextEditor(input) if input.focused => {
-                if focused_editor.replace(input).is_some() {
-                    return None;
-                }
+            PaintPrimitive::TextEditor(input)
+                if input.focused && focused_editor.replace(input).is_some() =>
+            {
+                return None;
             }
             _ => {}
         }

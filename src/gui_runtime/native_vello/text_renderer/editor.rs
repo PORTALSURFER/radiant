@@ -159,7 +159,7 @@ fn append_shaped_clusters(
         if !advance.is_finite() {
             return None;
         }
-        while glyphs
+        if glyphs
             .get(glyph_cursor)
             .is_some_and(|glyph| glyph.cluster.start < geometry.range.start)
         {

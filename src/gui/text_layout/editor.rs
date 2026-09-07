@@ -119,22 +119,22 @@ pub fn resolve_editor_scroll(
     } else {
         0.0
     };
-    if reveal {
-        if let Some(point) = geometry.caret(super::paragraph::ParagraphCaret {
+    if reveal
+        && let Some(point) = geometry.caret(super::paragraph::ParagraphCaret {
             byte: selection.caret,
             affinity: selection.affinity,
-        }) {
-            scroll.x = scroll
-                .x
-                .min(point.x)
-                .max(point.x - request.rect.width() + 1.0)
-                .clamp(0.0, maximum_x);
-            scroll.y = scroll
-                .y
-                .min(point.y)
-                .max(point.y + request.line_height - request.rect.height())
-                .clamp(0.0, maximum_y);
-        }
+        })
+    {
+        scroll.x = scroll
+            .x
+            .min(point.x)
+            .max(point.x - request.rect.width() + 1.0)
+            .clamp(0.0, maximum_x);
+        scroll.y = scroll
+            .y
+            .min(point.y)
+            .max(point.y + request.line_height - request.rect.height())
+            .clamp(0.0, maximum_y);
     }
     scroll
 }

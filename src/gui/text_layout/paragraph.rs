@@ -591,13 +591,16 @@ fn apply_l1(text: &str, classes: &[BidiClass], levels: &mut [Level], base: Level
     }
 }
 
+// UTF-8 source range and corresponding logical cluster range.
+type WrappedLine = (Range<usize>, Range<usize>);
+
 fn wrap_line(
     range: Range<usize>,
     clusters: Range<usize>,
     source: &[ShapedLogicalCluster],
     breaks: &BTreeSet<usize>,
     width: f32,
-) -> Result<Vec<(Range<usize>, Range<usize>)>, ParagraphGeometryError> {
+) -> Result<Vec<WrappedLine>, ParagraphGeometryError> {
     if clusters.is_empty() {
         return Ok(vec![(
             range.start..range.start,
@@ -659,6 +662,12 @@ fn wrap_line(
     Ok(result)
 }
 
+type VisualLineGeometry = (
+    Vec<ParagraphClusterPlacement>,
+    Vec<(ParagraphCaret, Point)>,
+    f32,
+);
+
 fn visual_line(
     source: &str,
     bytes: Range<usize>,
@@ -667,14 +676,7 @@ fn visual_line(
     bidi: &ParagraphBidi,
     y: f32,
     line_height: f32,
-) -> Result<
-    (
-        Vec<ParagraphClusterPlacement>,
-        Vec<(ParagraphCaret, Point)>,
-        f32,
-    ),
-    ParagraphGeometryError,
-> {
+) -> Result<VisualLineGeometry, ParagraphGeometryError> {
     if clusters.is_empty() {
         let caret = (
             ParagraphCaret {
@@ -803,13 +805,13 @@ mod tests {
     fn geometry(text: &str, width: f32) -> ParagraphGeometry {
         let clusters = text
             .char_indices()
-            .filter_map(|(start, ch)| {
-                (!matches!(
+            .filter(|(_, ch)| {
+                !matches!(
                     ch,
                     '\u{b}' | '\u{c}' | '\r' | '\n' | '\u{85}' | '\u{2028}' | '\u{2029}'
-                ))
-                .then(|| cluster(text, start..start + ch.len_utf8(), 10.0, ch == ' '))
+                )
             })
+            .map(|(start, ch)| cluster(text, start..start + ch.len_utf8(), 10.0, ch == ' '))
             .collect();
         ParagraphGeometry::build(ParagraphGeometryInput {
             key: ParagraphGeometryKey(1),

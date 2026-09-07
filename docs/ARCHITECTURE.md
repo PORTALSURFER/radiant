@@ -1747,7 +1747,8 @@ Current target-specific seams are intentionally narrow:
 - `src/gui_runtime/native_vello/generic_runtime/auxiliary/cross_window.rs`
   coordinates application-local typed drags. It retains at most 64 source-key
   and receiver-window bindings, while the controller keeps the sole source
-  capture. `cross_window_hit.rs` captures a native screen sample and rechecks
+  capture. `src/gui_runtime/native_vello/generic_runtime/cross_window_hit.rs`
+  captures a native screen sample and rechecks
   actual hit-window coordinates on macOS and Windows. `cross_window_input.rs`
   carries only stack-local input evidence, deferred source-message identity,
   and detached terminal authority. Receiver semantic refresh follows the same

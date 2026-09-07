@@ -7,9 +7,9 @@ use crate::widgets::interaction::{
     CompositionRange, CompositionSample, PointerButton, TextEditCommand, TextInputMessage,
     TextInputRevision, WidgetInput, WidgetKey,
 };
+use crate::widgets::interaction::{TextEditBoundary, TextEditKind, TextInputEditEvent};
 use crate::widgets::{
-    SemanticAction, TextAlign, TextEditBoundary, TextEditKind, TextInputEditEvent, TextPrivacy,
-    TextSecretPolicy, Widget, WidgetSemantics,
+    SemanticAction, TextAlign, TextPrivacy, TextSecretPolicy, Widget, WidgetSemantics,
 };
 use std::sync::Arc;
 
@@ -239,15 +239,29 @@ fn text_input_debug_redacts_active_secret_composition_and_adornments() {
 #[test]
 fn text_input_grouping_is_opt_in_and_keeps_legacy_messages() {
     let bounds = Rect::from_min_size(Point::default(), Vector2::new(160.0, 28.0));
-    let mut legacy = TextInputWidget::new(7, "", WidgetSizing::fixed(bounds.size()));
+    let mut legacy = TextInputWidget::new(
+        7,
+        "",
+        WidgetSizing::fixed(crate::gui::types::Vector2::new(
+            bounds.width(),
+            bounds.height(),
+        )),
+    );
     legacy.common.state.focused = true;
     assert_eq!(
         legacy.handle_input(bounds, WidgetInput::character('a')),
         Some(TextInputMessage::Changed { value: "a".into() })
     );
 
-    let mut grouped =
-        TextInputWidget::new(7, "", WidgetSizing::fixed(bounds.size())).with_edit_events();
+    let mut grouped = TextInputWidget::new(
+        7,
+        "",
+        WidgetSizing::fixed(crate::gui::types::Vector2::new(
+            bounds.width(),
+            bounds.height(),
+        )),
+    )
+    .with_edit_events();
     grouped.common.state.focused = true;
     let first = Widget::handle_input(&mut grouped, bounds, WidgetInput::character('a'))
         .and_then(|output| output.typed_cloned::<TextInputEditEvent>())

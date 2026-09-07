@@ -278,6 +278,7 @@ impl<Message> PlatformCompletionRegistry<Message> {
         entry.effect_identity = None;
     }
 
+    #[cfg(test)]
     pub(super) fn map_delivery(
         &mut self,
         delivery: PlatformResultDelivery,

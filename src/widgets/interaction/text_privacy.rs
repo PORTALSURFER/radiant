@@ -257,9 +257,11 @@ impl SecretTextMapping {
             SecretTextUnit::Scalar => source
                 .char_indices()
                 .map(|(start, character)| (start, start + character.len_utf8()))
+                .take(MAX_SECRET_TEXT_UNITS + 1)
                 .collect(),
             SecretTextUnit::ExtendedGrapheme => UnicodeSegmentation::grapheme_indices(source, true)
                 .map(|(start, grapheme)| (start, start + grapheme.len()))
+                .take(MAX_SECRET_TEXT_UNITS + 1)
                 .collect(),
         };
         if ranges.len() > MAX_SECRET_TEXT_UNITS {

@@ -3,6 +3,7 @@ use crate::gui_runtime::{
     NativeRunOptions,
     native_vello::generic_runtime::{GenericNativeVelloRunner, key_code_from_winit},
 };
+use crate::widgets::{TextPrivacy, TextSecretPolicy};
 use crate::{application::*, gui::focus::FocusSurface, runtime::RuntimeBridge};
 use std::{cell::RefCell, rc::Rc};
 use winit::keyboard::{KeyCode, NamedKey};

@@ -1,3 +1,4 @@
+use crate::widgets::interaction::TextInputEditEvent;
 use std::rc::Rc;
 
 use crate::{
@@ -7,8 +8,8 @@ use crate::{
     },
     runtime::WidgetMessageMapper,
     widgets::{
-        TextInputChrome, TextInputEditEvent, TextInputMessage, TextInputRevision, TextInputWidget,
-        TextPrivacy, WidgetId, WidgetProminence, WidgetStyle, stable_widget_id,
+        TextInputChrome, TextInputMessage, TextInputRevision, TextInputWidget, TextPrivacy,
+        WidgetId, WidgetProminence, WidgetStyle, stable_widget_id,
     },
 };
 

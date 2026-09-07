@@ -73,6 +73,7 @@ impl TextInputWidget {
             preedit_selection: CompositionSelectionState::Unreported,
         });
         set_state_selection(&mut self.state, selection);
+        self.invalidate_text_edit_authority();
         None
     }
 
@@ -110,6 +111,7 @@ impl TextInputWidget {
             set_state_selection(&mut self.state, display_selection);
         }
         self.composition = Some(composition);
+        self.invalidate_text_edit_authority();
         None
     }
 
@@ -124,6 +126,7 @@ impl TextInputWidget {
         committed_state.insert_text(&text, self.props.character_limit);
         let value = committed_state.value.clone();
         self.state = committed_state;
+        self.invalidate_text_edit_authority();
         Some(TextInputMessage::Changed { value })
     }
 
@@ -137,6 +140,7 @@ impl TextInputWidget {
     fn restore_composition(&mut self, composition: TextInputComposition) {
         self.state.value = composition.original_value;
         set_state_selection(&mut self.state, composition.original_selection);
+        self.invalidate_text_edit_authority();
     }
 
     pub(super) fn composition_hides_native_adornments(&self) -> bool {

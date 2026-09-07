@@ -232,14 +232,7 @@ impl TextInputWidget {
         input: WidgetInput,
         environment: &ResolvedEnvironment,
     ) -> Option<TextInputMessage> {
-        let focus_lost = matches!(&input, WidgetInput::FocusChanged(false));
-        let state = self.state.clone();
-        let composition = self.composition.clone();
-        let output = input::handle_text_input_with_environment(self, bounds, input, environment);
-        if focus_lost || self.state != state || self.composition != composition {
-            self.invalidate_text_edit_authority();
-        }
-        output
+        input::handle_text_input_with_environment(self, bounds, input, environment)
     }
 
     fn can_preserve_text_edit_authority_with(&self, successor: Option<&dyn Widget>) -> bool {
@@ -250,6 +243,8 @@ impl TextInputWidget {
         if self.common.id != successor.common.id
             || self.common.state.disabled != successor.common.state.disabled
             || self.common.state.read_only != successor.common.state.read_only
+            || self.props.character_limit != successor.props.character_limit
+            || self.props.submit_on_enter != successor.props.submit_on_enter
         {
             return false;
         }
@@ -394,13 +389,7 @@ impl Widget for TextInputWidget {
     }
 
     fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
-        let state = self.state.clone();
-        let composition = self.composition.clone();
-        let output = composition::handle_sample(self, sample);
-        if self.state != state || self.composition != composition {
-            self.invalidate_text_edit_authority();
-        }
-        output.map(WidgetOutput::typed)
+        composition::handle_sample(self, sample).map(WidgetOutput::typed)
     }
 
     fn handle_hidden_composition_update(
@@ -408,13 +397,7 @@ impl Widget for TextInputWidget {
         preedit: String,
         _timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<WidgetOutput> {
-        let state = self.state.clone();
-        let composition = self.composition.clone();
-        let output = composition::handle_hidden_update(self, preedit);
-        if self.state != state || self.composition != composition {
-            self.invalidate_text_edit_authority();
-        }
-        output.map(WidgetOutput::typed)
+        composition::handle_hidden_update(self, preedit).map(WidgetOutput::typed)
     }
 
     fn retains_managed_composition(&self) -> bool {
@@ -431,7 +414,9 @@ impl Widget for TextInputWidget {
         }
 
         let policy_changed = self.common.state.disabled != previous_widget.common.state.disabled
-            || self.common.state.read_only != previous_widget.common.state.read_only;
+            || self.common.state.read_only != previous_widget.common.state.read_only
+            || self.props.character_limit != previous_widget.props.character_limit
+            || self.props.submit_on_enter != previous_widget.props.submit_on_enter;
         let preserved = match (previous_widget.props.revision, self.props.revision) {
             (Some(previous_revision), Some(current_revision))
                 if current_revision <= previous_revision =>

@@ -123,11 +123,6 @@ fn composition_display_value(
     value
 }
 
-fn set_composition_selection(state: &mut TextInputState, selection: CompositionRange) {
-    state.selection_anchor = selection.start();
-    state.caret = selection.end();
-}
-
 fn composition_display_selection(
     replacement_range: CompositionRange,
     selection: CompositionRange,
@@ -287,8 +282,43 @@ where
     }
 
     pub(crate) fn set_selection(&mut self, anchor: usize, caret: usize) {
-        self.text_input.state.selection_anchor = anchor;
+        let changed = self.text_input.state.caret != caret
+            || self.text_input.state.selection_anchor != anchor;
         self.text_input.state.caret = caret;
+        self.text_input.state.selection_anchor = anchor;
+        if changed {
+            self.text_input.invalidate_text_edit_authority();
+        }
+    }
+
+    fn set_embedded_text_state(&mut self, value: String, caret: usize, selection_anchor: usize) {
+        let changed = self.text_input.state.value != value
+            || self.text_input.state.caret != caret
+            || self.text_input.state.selection_anchor != selection_anchor;
+        self.text_input.state.value = value;
+        self.text_input.state.caret = caret;
+        self.text_input.state.selection_anchor = selection_anchor;
+        if changed {
+            self.text_input.invalidate_text_edit_authority();
+        }
+    }
+
+    fn set_embedded_text_to_end(&mut self, value: String) {
+        let end = value.chars().count();
+        self.set_embedded_text_state(value, end, end);
+    }
+
+    fn preserves_embedded_text_editing_policy_with(&self, successor: &Self) -> bool {
+        self.text_input.props.character_limit == successor.text_input.props.character_limit
+            && self.text_input.props.submit_on_enter == successor.text_input.props.submit_on_enter
+            && match (
+                self.text_input.props.revision,
+                successor.text_input.props.revision,
+            ) {
+                (Some(previous), Some(current)) => current <= previous,
+                (None, None) => true,
+                (Some(_), None) | (None, Some(_)) => false,
+            }
     }
 
     pub(crate) fn select_all(&mut self) {
@@ -489,10 +519,7 @@ where
         };
 
         self.value = candidate;
-        self.text_input.state.value = draft;
-        let end = self.text_input.state.char_len();
-        self.text_input.state.caret = end;
-        self.text_input.state.selection_anchor = end;
+        self.set_embedded_text_to_end(draft);
         self.interaction_gate.release(owner);
         Some(NumericAccessibilityOutcome::Edit(edit))
     }
@@ -524,9 +551,11 @@ where
     fn restore_pointer_start(&mut self, state: &PointerScrubState<T>) {
         debug_assert!(state.press_position.is_finite());
         self.value = state.start_value.clone();
-        self.text_input.state.value = state.start_text.clone();
-        self.text_input.state.caret = state.start_caret;
-        self.text_input.state.selection_anchor = state.start_selection_anchor;
+        self.set_embedded_text_state(
+            state.start_text.clone(),
+            state.start_caret,
+            state.start_selection_anchor,
+        );
         self.text_input.common.state.pressed = false;
     }
 
@@ -706,10 +735,7 @@ where
         state.anchor_position = position;
         state.anchor_value = candidate.clone();
         self.value = candidate;
-        self.text_input.state.value = draft;
-        let end = self.text_input.state.char_len();
-        self.text_input.state.caret = end;
-        self.text_input.state.selection_anchor = end;
+        self.set_embedded_text_to_end(draft);
         self.pointer = Some(state);
         Some(self.encode_output(edit))
     }
@@ -768,9 +794,11 @@ where
 
     fn restore_wheel_start(&mut self, state: &WheelSequenceState<T>) {
         self.value = state.start_value.clone();
-        self.text_input.state.value = state.start_text.clone();
-        self.text_input.state.caret = state.start_caret;
-        self.text_input.state.selection_anchor = state.start_selection_anchor;
+        self.set_embedded_text_state(
+            state.start_text.clone(),
+            state.start_caret,
+            state.start_selection_anchor,
+        );
     }
 
     fn wheel_failure_rollback(
@@ -846,10 +874,7 @@ where
             return None;
         };
         self.value = candidate;
-        self.text_input.state.value = draft;
-        let end = self.text_input.state.char_len();
-        self.text_input.state.caret = end;
-        self.text_input.state.selection_anchor = end;
+        self.set_embedded_text_to_end(draft);
         self.wheel = Some(state);
         Some(self.encode_output(edit))
     }
@@ -950,10 +975,7 @@ where
             return None;
         };
         self.value = candidate;
-        self.text_input.state.value = draft;
-        let end = self.text_input.state.char_len();
-        self.text_input.state.caret = end;
-        self.text_input.state.selection_anchor = end;
+        self.set_embedded_text_to_end(draft);
         self.release_wheel_sequence();
         Some(self.encode_output(edit))
     }
@@ -1176,9 +1198,11 @@ where
             }
         };
         self.value = cancel.value.clone();
-        self.text_input.state.value = active.start_text;
-        self.text_input.state.caret = active.start_caret;
-        self.text_input.state.selection_anchor = active.start_selection_anchor;
+        self.set_embedded_text_state(
+            active.start_text,
+            active.start_caret,
+            active.start_selection_anchor,
+        );
         let batch = Self::terminal_batch(begin, cancel);
         if batch.is_some() {
             self.interaction_gate.release(owner);
@@ -1213,7 +1237,7 @@ where
         }
 
         let original_value = self.text_input.state.value.clone();
-        set_composition_selection(&mut self.text_input.state, selection);
+        self.set_selection(selection.start(), selection.end());
         self.begin_text_edit_session(timestamp);
         self.composition = Some(NumericInputComposition {
             original_value,
@@ -1222,6 +1246,7 @@ where
             preedit: String::new(),
             preedit_selection: CompositionSelectionState::Unreported,
         });
+        self.text_input.invalidate_text_edit_authority();
     }
 
     fn update_composition(&mut self, preedit: String, selection: CompositionSelectionState) {
@@ -1247,15 +1272,23 @@ where
 
         composition.preedit = preedit;
         composition.preedit_selection = selection;
-        self.text_input.state.value = composition_display_value(
+        let display = composition_display_value(
             &composition.original_value,
             composition.replacement_range,
             &composition.preedit,
         );
         if let Some(display_selection) = display_selection {
-            set_composition_selection(&mut self.text_input.state, display_selection);
+            self.set_embedded_text_state(
+                display,
+                display_selection.end(),
+                display_selection.start(),
+            );
+        } else {
+            let end = display.chars().count();
+            self.set_embedded_text_state(display, end, end);
         }
         self.composition = Some(composition);
+        self.text_input.invalidate_text_edit_authority();
     }
 
     fn commit_composition(
@@ -1264,6 +1297,7 @@ where
         timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<NumericInputEditBatch<T>> {
         let composition = self.composition.take()?;
+        self.text_input.invalidate_text_edit_authority();
         let mut committed_state = TextInputState::from_value(composition_display_value(
             &composition.original_value,
             composition.replacement_range,
@@ -1271,7 +1305,11 @@ where
         ));
         committed_state.set_caret(composition.replacement_range.start(), false);
         committed_state.insert_text(&text, self.text_input.props.character_limit);
-        self.text_input.state = committed_state;
+        self.set_embedded_text_state(
+            committed_state.value,
+            committed_state.caret,
+            committed_state.selection_anchor,
+        );
         self.update_active_draft();
 
         let batch =
@@ -1293,6 +1331,7 @@ where
         timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<NumericInputEditBatch<T>> {
         self.composition.take()?;
+        self.text_input.invalidate_text_edit_authority();
         let batch =
             self.cancel_active_for_owner(timestamp, NumericInteractionOwner::ImeComposition);
         if batch.is_none() {
@@ -1434,10 +1473,7 @@ where
         let output = self.encode_output(edit);
 
         self.value = candidate;
-        self.text_input.state.value = draft;
-        let end = self.text_input.state.char_len();
-        self.text_input.state.caret = end;
-        self.text_input.state.selection_anchor = end;
+        self.set_embedded_text_to_end(draft);
         self.keyboard = Some(keyboard);
         Some(output)
     }
@@ -1511,10 +1547,7 @@ where
         let output = self.encode_output(edit);
 
         self.value = candidate;
-        self.text_input.state.value = draft;
-        let end = self.text_input.state.char_len();
-        self.text_input.state.caret = end;
-        self.text_input.state.selection_anchor = end;
+        self.set_embedded_text_to_end(draft);
         Some(output)
     }
 
@@ -1534,9 +1567,7 @@ where
             }
         };
         self.value = cancel.value.clone();
-        self.text_input.state.value = start_text;
-        self.text_input.state.caret = start_caret;
-        self.text_input.state.selection_anchor = start_selection_anchor;
+        self.set_embedded_text_state(start_text, start_caret, start_selection_anchor);
         self.interaction_gate
             .release(NumericInteractionOwner::KeyboardAdjustment);
         let edit = NumericInputEditBatch::from_events(&[cancel])?;
@@ -1560,9 +1591,7 @@ where
             }
         };
         self.value = cancel.value.clone();
-        self.text_input.state.value = start_text;
-        self.text_input.state.caret = start_caret;
-        self.text_input.state.selection_anchor = start_selection_anchor;
+        self.set_embedded_text_state(start_text, start_caret, start_selection_anchor);
         self.interaction_gate
             .release(NumericInteractionOwner::KeyboardAdjustment);
         failure
@@ -2047,6 +2076,7 @@ where
             || self.step_modifiers != previous.step_modifiers
             || self.scrub_policy != previous.scrub_policy
             || self.wheel_policy != previous.wheel_policy
+            || !self.preserves_embedded_text_editing_policy_with(previous)
             || self.text_input.common.state.disabled
             || previous.text_input.common.state.disabled
             || self.text_input.common.state.read_only
@@ -2117,6 +2147,7 @@ where
                     && self.step_modifiers == successor.step_modifiers
                     && self.scrub_policy == successor.scrub_policy
                     && self.wheel_policy == successor.wheel_policy
+                    && self.preserves_embedded_text_editing_policy_with(successor)
                     && !self.text_input.common.state.disabled
                     && !self.text_input.common.state.read_only
                     && !successor.text_input.common.state.disabled

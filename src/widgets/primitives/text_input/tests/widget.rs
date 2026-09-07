@@ -56,6 +56,35 @@ fn compatible_reprojection_shares_text_edit_authority_and_newer_revision_cancels
 }
 
 #[test]
+fn editing_policy_reprojection_revokes_text_edit_authority() {
+    let sizing = WidgetSizing::fixed(Vector2::new(100.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "draft", sizing);
+    previous.props.character_limit = Some(5);
+    let authority = previous
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let mut compatible = TextInputWidget::new(7, "draft", sizing);
+    compatible.props.character_limit = Some(5);
+    compatible.synchronize_from_previous(&previous);
+    assert!(compatible.is_current_text_edit_authority(&authority));
+
+    let mut limited = TextInputWidget::new(7, "draft", sizing);
+    limited.props.character_limit = Some(3);
+    limited.synchronize_from_previous(&previous);
+    assert!(!previous.is_current_text_edit_authority(&authority));
+
+    let submit_previous = TextInputWidget::new(7, "draft", sizing);
+    let submit_authority = submit_previous
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+    let mut submit_changed = TextInputWidget::new(7, "draft", sizing);
+    submit_changed.props.submit_on_enter = false;
+    submit_changed.synchronize_from_previous(&submit_previous);
+    assert!(!submit_previous.is_current_text_edit_authority(&submit_authority));
+}
+
+#[test]
 fn generic_pointer_caret_uses_resolved_alignment_and_environment_scale() {
     #[derive(Clone, Copy)]
     enum Placement {

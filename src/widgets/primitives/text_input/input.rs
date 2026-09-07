@@ -99,6 +99,7 @@ pub(super) fn handle_text_input_with_environment(
             text_input.common.state.focused = focused;
             if !focused {
                 text_input.cancel_composition();
+                text_input.invalidate_text_edit_authority();
             }
             None
         }

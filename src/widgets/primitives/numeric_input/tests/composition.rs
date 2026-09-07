@@ -71,6 +71,45 @@ fn numeric_composition_keeps_preedit_local_and_does_not_parse_or_publish() {
 }
 
 #[test]
+fn numeric_composition_lifecycle_revokes_embedded_text_authority() {
+    let mut input = super::u32_input();
+    super::focus(&mut input);
+
+    let before_start = input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
+    assert_eq!(dispatch(&mut input, start((0, 1), 1)), None);
+    assert!(
+        !input
+            .text_input
+            .is_current_text_edit_authority(&before_start)
+    );
+
+    let before_update = input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
+    assert_eq!(dispatch(&mut input, update("8", (1, 1))), None);
+    assert!(
+        !input
+            .text_input
+            .is_current_text_edit_authority(&before_update)
+    );
+
+    let before_commit = input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
+    assert!(dispatch(&mut input, CompositionSample::commit("8")).is_some());
+    assert!(
+        !input
+            .text_input
+            .is_current_text_edit_authority(&before_commit)
+    );
+}
+
+#[test]
 fn numeric_composition_keeps_hidden_native_selection_absent() {
     let mut input = super::u32_input();
     super::focus(&mut input);
@@ -83,8 +122,13 @@ fn numeric_composition_keeps_hidden_native_selection_absent() {
             .map(|composition| composition.preedit_selection),
         Some(CompositionSelectionState::Unreported)
     );
+    let authority = input
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
     assert_eq!(dispatch_hidden(&mut input, "12"), None);
     assert_eq!(input.text_input.state.value, "12");
+    assert!(!input.text_input.is_current_text_edit_authority(&authority));
     assert_eq!(
         input
             .composition

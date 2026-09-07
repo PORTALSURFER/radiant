@@ -148,8 +148,10 @@ fn push_text_input_widget_paint_resolved(
         widget_id: input.common.id,
         rect,
         placeholder: input.props.placeholder.clone(),
-        completion_suffix: input.props.completion_suffix.clone(),
-        state: input.state.clone(),
+        completion_suffix: matches!(input.privacy(), crate::widgets::TextPrivacy::Public)
+            .then(|| input.props.completion_suffix.clone())
+            .flatten(),
+        state: input.display_state(),
         font_size,
         align: input.align.resolve(environment.writing_direction()),
         baseline: optical_centered_baseline(rect, font_size),

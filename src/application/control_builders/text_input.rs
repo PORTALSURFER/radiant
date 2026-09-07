@@ -7,8 +7,8 @@ use crate::{
     },
     runtime::WidgetMessageMapper,
     widgets::{
-        TextInputChrome, TextInputMessage, TextInputRevision, TextInputWidget, WidgetId,
-        WidgetProminence, WidgetStyle, stable_widget_id,
+        TextInputChrome, TextInputMessage, TextInputRevision, TextInputWidget, TextPrivacy,
+        WidgetId, WidgetProminence, WidgetStyle, stable_widget_id,
     },
 };
 
@@ -26,6 +26,7 @@ pub struct TextInputBuilder {
     selection: Option<(usize, usize)>,
     chrome: TextInputChrome,
     revision: Option<TextInputRevision>,
+    privacy: TextPrivacy,
 }
 
 impl TextInputBuilder {
@@ -71,6 +72,12 @@ impl TextInputBuilder {
     /// existing value-equality synchronization behavior.
     pub fn revision(mut self, revision: TextInputRevision) -> Self {
         self.revision = Some(revision);
+        self
+    }
+
+    /// Mask secret text and set explicit clipboard/automation permissions.
+    pub fn privacy(mut self, privacy: TextPrivacy) -> Self {
+        self.privacy = privacy;
         self
     }
 
@@ -147,12 +154,14 @@ impl TextInputBuilder {
             selection,
             chrome,
             revision,
+            privacy,
         } = self;
         let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
         input.props.placeholder = placeholder.map(TextContent::into_paint_text);
         input.props.completion_suffix = completion_suffix.map(TextContent::into_paint_text);
         input.props.chrome = chrome;
         input.props.revision = revision;
+        input = input.with_privacy(privacy);
         if let Some((anchor, caret)) = selection {
             input.state.selection_anchor = anchor;
             input.state.caret = caret;
@@ -311,6 +320,7 @@ pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
         selection: None,
         chrome: TextInputChrome::Full,
         revision: None,
+        privacy: TextPrivacy::Public,
     }
 }
 

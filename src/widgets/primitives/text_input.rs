@@ -1,6 +1,6 @@
 //! Reusable single-line text-input primitive.
 
-use crate::gui::types::Rect;
+use crate::gui::types::{Point, Rect};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, ResolvedEnvironment};
 use crate::theme::ThemeTokens;
@@ -38,6 +38,20 @@ pub(crate) enum NativeCaretAffinity {
     Downstream,
 }
 
+fn scalar_byte(text: &str, scalar: usize) -> Option<usize> {
+    text.char_indices()
+        .map(|(byte, _)| byte)
+        .chain(std::iter::once(text.len()))
+        .nth(scalar)
+}
+
+fn scalar_index(text: &str, byte: usize) -> Option<usize> {
+    text.char_indices()
+        .map(|(candidate, _)| candidate)
+        .chain(std::iter::once(text.len()))
+        .position(|candidate| candidate == byte)
+}
+
 /// Public single-line text-input primitive.
 #[derive(Clone, Debug)]
 pub struct TextInputWidget {
@@ -55,6 +69,8 @@ pub struct TextInputWidget {
     native_pointer_caret_acceptance: Option<NativeCaretAffinity>,
     native_caret_affinity: NativeCaretAffinity,
     text_edit_authority: std::rc::Rc<crate::widgets::TextEditAuthorityOwner>,
+    privacy: crate::widgets::TextPrivacy,
+    privacy_mapping: Option<std::rc::Rc<crate::widgets::interaction::SecretTextMapping>>,
 }
 
 impl PartialEq for TextInputWidget {
@@ -67,6 +83,7 @@ impl PartialEq for TextInputWidget {
             && self.native_pointer_caret == other.native_pointer_caret
             && self.native_pointer_caret_acceptance == other.native_pointer_caret_acceptance
             && self.native_caret_affinity == other.native_caret_affinity
+            && self.privacy == other.privacy
     }
 }
 
@@ -103,6 +120,8 @@ impl TextInputWidget {
             native_pointer_caret_acceptance: None,
             native_caret_affinity: NativeCaretAffinity::Downstream,
             text_edit_authority: std::rc::Rc::new(crate::widgets::TextEditAuthorityOwner::new()),
+            privacy: crate::widgets::TextPrivacy::Public,
+            privacy_mapping: None,
         }
     }
 
@@ -119,6 +138,21 @@ impl TextInputWidget {
     pub fn with_align(mut self, align: TextAlign) -> Self {
         self.align = align;
         self
+    }
+
+    /// Mask secret text and set explicit clipboard/automation permissions.
+    pub fn with_privacy(mut self, privacy: crate::widgets::TextPrivacy) -> Self {
+        if self.privacy != privacy {
+            self.privacy = privacy;
+            self.refresh_text_privacy_mapping();
+            self.invalidate_text_edit_authority();
+        }
+        self
+    }
+
+    /// Current text privacy policy.
+    pub const fn privacy(&self) -> crate::widgets::TextPrivacy {
+        self.privacy
     }
 
     pub(crate) fn declared_text_metrics(&self) -> DeclaredTextMetrics {
@@ -207,6 +241,111 @@ impl TextInputWidget {
         self.native_caret_affinity = NativeCaretAffinity::Downstream;
     }
 
+    pub(crate) fn native_pointer_source_matches(&self, source: &str) -> bool {
+        self.display_text() == source
+    }
+
+    pub(crate) fn set_native_pointer_display_caret(
+        &mut self,
+        display_caret: usize,
+        affinity: NativeCaretAffinity,
+    ) -> bool {
+        let Some(caret) = self.source_scalar_for_display_scalar(display_caret) else {
+            return false;
+        };
+        self.set_native_pointer_caret(caret, affinity);
+        true
+    }
+
+    pub(super) fn pointer_caret_for_position(
+        &self,
+        bounds: Rect,
+        position: Point,
+        environment: &ResolvedEnvironment,
+    ) -> usize {
+        let display = self.display_text();
+        let display_caret = editing_ops::caret_for_pointer_x_with_environment(
+            bounds,
+            position.x,
+            &display,
+            self.declared_text_metrics(),
+            self.align,
+            environment,
+        );
+        self.source_scalar_for_display_scalar(display_caret)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn refresh_text_privacy_mapping(&mut self) {
+        self.privacy_mapping = match self.privacy {
+            crate::widgets::TextPrivacy::Public => None,
+            crate::widgets::TextPrivacy::Secret(_) => {
+                crate::widgets::interaction::SecretTextMapping::new(
+                    &self.state.value,
+                    crate::widgets::interaction::SecretTextUnit::ExtendedGrapheme,
+                )
+                .ok()
+                .map(std::rc::Rc::new)
+            }
+        };
+    }
+
+    pub(crate) fn display_state(&self) -> TextInputState {
+        match self.privacy {
+            crate::widgets::TextPrivacy::Public => self.state.clone(),
+            crate::widgets::TextPrivacy::Secret(_) => {
+                let Some(mapping) = &self.privacy_mapping else {
+                    return TextInputState::from_value(String::new());
+                };
+                TextInputState {
+                    value: mapping.masked().to_owned(),
+                    caret: self
+                        .source_scalar_to_display_scalar(self.state.caret)
+                        .unwrap_or_default(),
+                    selection_anchor: self
+                        .source_scalar_to_display_scalar(self.state.selection_anchor)
+                        .unwrap_or_default(),
+                }
+            }
+        }
+    }
+
+    fn display_text(&self) -> std::sync::Arc<str> {
+        match self.privacy {
+            crate::widgets::TextPrivacy::Public => std::sync::Arc::from(self.state.value.as_str()),
+            crate::widgets::TextPrivacy::Secret(_) => self.privacy_mapping.as_ref().map_or_else(
+                || std::sync::Arc::from(""),
+                |mapping| std::sync::Arc::from(mapping.masked()),
+            ),
+        }
+    }
+
+    fn source_scalar_to_display_scalar(&self, source_scalar: usize) -> Option<usize> {
+        if matches!(self.privacy, crate::widgets::TextPrivacy::Public) {
+            return (source_scalar <= self.state.char_len()).then_some(source_scalar);
+        }
+        let source_byte = scalar_byte(&self.state.value, source_scalar)?;
+        let mapping = self.privacy_mapping.as_ref()?;
+        let display_byte = (0..=source_scalar)
+            .rev()
+            .filter_map(|scalar| scalar_byte(&self.state.value, scalar))
+            .find_map(|byte| mapping.source_to_display_byte(byte))?;
+        Some(self.display_text()[..display_byte].chars().count())
+    }
+
+    fn source_scalar_for_display_scalar(&self, display_scalar: usize) -> Option<usize> {
+        if matches!(self.privacy, crate::widgets::TextPrivacy::Public) {
+            return (display_scalar <= self.state.char_len()).then_some(display_scalar);
+        }
+        let display = self.display_text();
+        let display_byte = scalar_byte(&display, display_scalar)?;
+        let source_byte = self
+            .privacy_mapping
+            .as_ref()?
+            .display_to_source_byte(display_byte)?;
+        scalar_index(&self.state.value, source_byte)
+    }
+
     pub(crate) fn capture_text_edit_authority(&self) -> Option<crate::widgets::TextEditAuthority> {
         self.text_edit_authority.authority()
     }
@@ -245,6 +384,7 @@ impl TextInputWidget {
             || self.common.state.read_only != successor.common.state.read_only
             || self.props.character_limit != successor.props.character_limit
             || self.props.submit_on_enter != successor.props.submit_on_enter
+            || self.privacy != successor.privacy
         {
             return false;
         }
@@ -257,6 +397,22 @@ impl TextInputWidget {
 }
 
 impl WidgetSemantics for TextInputWidget {
+    fn automation_metadata(&self) -> std::collections::BTreeMap<String, String> {
+        match self.privacy {
+            crate::widgets::TextPrivacy::Public => Default::default(),
+            crate::widgets::TextPrivacy::Secret(policy) => std::collections::BTreeMap::from([
+                ("text.privacy".into(), "secret".into()),
+                (
+                    "text.copy_allowed".into(),
+                    policy.copy_allowed().to_string(),
+                ),
+                (
+                    "text.automation_allowed".into(),
+                    policy.automation_allowed().to_string(),
+                ),
+            ]),
+        }
+    }
     fn automation_role(&self) -> crate::gui::automation::AutomationRole {
         crate::gui::automation::AutomationRole::TextInput
     }
@@ -269,7 +425,13 @@ impl WidgetSemantics for TextInputWidget {
     }
 
     fn automation_value_text(&self) -> Option<String> {
-        Some(self.state.value.clone())
+        match self.privacy {
+            crate::widgets::TextPrivacy::Public => Some(self.state.value.clone()),
+            crate::widgets::TextPrivacy::Secret(policy) if policy.automation_allowed() => {
+                Some(self.state.value.clone())
+            }
+            crate::widgets::TextPrivacy::Secret(_) => None,
+        }
     }
 }
 
@@ -288,7 +450,8 @@ impl crate::widgets::WidgetSemanticActions for TextInputWidget {
         crate::widgets::WidgetSemanticActionRevision::exact(self.props.character_limit)
     }
     fn supports(&self, action: &crate::widgets::SemanticAction) -> bool {
-        matches!(action, crate::widgets::SemanticAction::SetText(value) if value.len() <= 65_536)
+        !matches!(self.privacy, crate::widgets::TextPrivacy::Secret(policy) if !policy.automation_allowed())
+            && matches!(action, crate::widgets::SemanticAction::SetText(value) if value.len() <= 65_536)
     }
     fn dispatch(
         &mut self,
@@ -314,6 +477,7 @@ impl crate::widgets::WidgetSemanticActions for TextInputWidget {
             return WidgetSemanticActionResult::Accepted(None);
         }
         self.state = TextInputState::from_value(value.clone());
+        self.refresh_text_privacy_mapping();
         self.native_pointer_caret = None;
         self.native_pointer_caret_acceptance = None;
         self.native_caret_affinity = NativeCaretAffinity::Downstream;
@@ -416,7 +580,8 @@ impl Widget for TextInputWidget {
         let policy_changed = self.common.state.disabled != previous_widget.common.state.disabled
             || self.common.state.read_only != previous_widget.common.state.read_only
             || self.props.character_limit != previous_widget.props.character_limit
-            || self.props.submit_on_enter != previous_widget.props.submit_on_enter;
+            || self.props.submit_on_enter != previous_widget.props.submit_on_enter
+            || self.privacy != previous_widget.privacy;
         let preserved = match (previous_widget.props.revision, self.props.revision) {
             (Some(previous_revision), Some(current_revision))
                 if current_revision <= previous_revision =>
@@ -435,8 +600,10 @@ impl Widget for TextInputWidget {
         };
         if preserved && !policy_changed {
             self.preserve_text_edit_authority_from(previous_widget);
+            self.privacy_mapping = previous_widget.privacy_mapping.clone();
         } else {
             previous_widget.invalidate_text_edit_authority();
+            self.refresh_text_privacy_mapping();
         }
     }
 
@@ -469,7 +636,59 @@ impl Widget for TextInputWidget {
     }
 
     fn selected_text_slice(&self) -> Option<&str> {
-        self.selected_text_slice()
+        (!matches!(self.privacy, crate::widgets::TextPrivacy::Secret(policy) if !policy.copy_allowed()))
+            .then(|| self.selected_text_slice())
+            .flatten()
+    }
+
+    fn text_clipboard_receipt(
+        &self,
+        operation: crate::runtime::TextClipboardOperation,
+    ) -> Option<crate::runtime::TextClipboardReceipt> {
+        if !self.common.state.focused
+            || self.common.state.disabled
+            || self.composition.is_some()
+            || (operation != crate::runtime::TextClipboardOperation::Copy
+                && self.common.state.read_only)
+            || self.state.value.len() > 1024 * 1024
+        {
+            return None;
+        }
+        let selected = self.selected_text_slice();
+        if matches!(
+            operation,
+            crate::runtime::TextClipboardOperation::Copy
+                | crate::runtime::TextClipboardOperation::Cut
+        ) && selected.is_none_or(|text| text.len() > 16 * 1024)
+        {
+            return None;
+        }
+        crate::runtime::TextClipboardReceipt::new(
+            self.common.id,
+            operation,
+            self.privacy,
+            self.capture_text_edit_authority()?,
+            crate::runtime::TextClipboardSnapshot::SingleLine(self.state.clone()),
+            selected,
+        )
+    }
+
+    fn accepts_text_clipboard_receipt(
+        &self,
+        receipt: &crate::runtime::TextClipboardReceipt,
+    ) -> bool {
+        let crate::runtime::TextClipboardSnapshot::SingleLine(snapshot) = &receipt.snapshot else {
+            return false;
+        };
+        self.common.id == receipt.widget
+            && self.common.state.focused
+            && !self.common.state.disabled
+            && (receipt.operation == crate::runtime::TextClipboardOperation::Copy
+                || !self.common.state.read_only)
+            && self.composition.is_none()
+            && self.privacy == receipt.privacy
+            && self.state == *snapshot
+            && self.is_current_text_edit_authority(&receipt.authority)
     }
 
     fn native_text_input_delegate_mut(&mut self) -> Option<&mut TextInputWidget> {

@@ -29,6 +29,9 @@ impl TextInputWidget {
             _ => {
                 let result = self.state.apply_key(key);
                 if result.value_changed || result.selection_changed {
+                    if result.value_changed {
+                        self.refresh_text_privacy_mapping();
+                    }
                     self.invalidate_text_edit_authority();
                 }
                 result.value_changed.then(|| TextInputMessage::Changed {
@@ -46,6 +49,9 @@ impl TextInputWidget {
             .state
             .apply_edit_command(command, self.props.character_limit);
         if result.value_changed || result.selection_changed {
+            if result.value_changed {
+                self.refresh_text_privacy_mapping();
+            }
             self.invalidate_text_edit_authority();
         }
         result.value_changed.then(|| TextInputMessage::Changed {
@@ -56,6 +62,9 @@ impl TextInputWidget {
     pub(super) fn insert_text(&mut self, text: &str) -> Option<TextInputMessage> {
         let result = self.state.insert_text(text, self.props.character_limit);
         if result.value_changed || result.selection_changed {
+            if result.value_changed {
+                self.refresh_text_privacy_mapping();
+            }
             self.invalidate_text_edit_authority();
         }
         result.value_changed.then(|| TextInputMessage::Changed {

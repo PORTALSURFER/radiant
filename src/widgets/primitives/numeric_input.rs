@@ -299,6 +299,7 @@ where
         self.text_input.state.caret = caret;
         self.text_input.state.selection_anchor = selection_anchor;
         if changed {
+            self.text_input.refresh_text_privacy_mapping();
             self.text_input.invalidate_text_edit_authority();
         }
     }
@@ -1606,6 +1607,7 @@ where
             WidgetInput::TextEdit { command, .. } => matches!(
                 command,
                 crate::widgets::TextEditCommand::InsertText(_)
+                    | crate::widgets::TextEditCommand::PasteText(_)
                     | crate::widgets::TextEditCommand::Backspace
                     | crate::widgets::TextEditCommand::Delete
                     | crate::widgets::TextEditCommand::DeleteWordLeft
@@ -2291,6 +2293,23 @@ where
 
     fn selected_text_slice(&self) -> Option<&str> {
         self.text_input.selected_text_slice()
+    }
+
+    fn text_clipboard_receipt(
+        &self,
+        operation: crate::runtime::TextClipboardOperation,
+    ) -> Option<crate::runtime::TextClipboardReceipt> {
+        let mut receipt = self.text_input.text_clipboard_receipt(operation)?;
+        receipt.widget = self.text_input.common.id;
+        Some(receipt)
+    }
+
+    fn accepts_text_clipboard_receipt(
+        &self,
+        receipt: &crate::runtime::TextClipboardReceipt,
+    ) -> bool {
+        receipt.widget == self.text_input.common.id
+            && self.text_input.accepts_text_clipboard_receipt(receipt)
     }
 
     fn selected_text(&self) -> Option<String> {

@@ -18,14 +18,7 @@ pub(super) fn handle_text_input_with_environment(
                 let (caret, affinity) =
                     text_input.take_native_pointer_caret().unwrap_or_else(|| {
                         (
-                            super::editing_ops::caret_for_pointer_x_with_environment(
-                                bounds,
-                                position.x,
-                                text_input.state.value.as_str(),
-                                text_input.declared_text_metrics(),
-                                text_input.align,
-                                environment,
-                            ),
+                            text_input.pointer_caret_for_position(bounds, position, environment),
                             super::NativeCaretAffinity::Downstream,
                         )
                     });
@@ -46,14 +39,7 @@ pub(super) fn handle_text_input_with_environment(
             text_input.common.state.pressed = true;
             let (caret, affinity) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
                 (
-                    super::editing_ops::caret_for_pointer_x_with_environment(
-                        bounds,
-                        position.x,
-                        text_input.state.value.as_str(),
-                        text_input.declared_text_metrics(),
-                        text_input.align,
-                        environment,
-                    ),
+                    text_input.pointer_caret_for_position(bounds, position, environment),
                     super::NativeCaretAffinity::Downstream,
                 )
             });
@@ -71,14 +57,7 @@ pub(super) fn handle_text_input_with_environment(
             text_input.common.state.pressed = false;
             let (caret, affinity) = text_input.take_native_pointer_caret().unwrap_or_else(|| {
                 (
-                    super::editing_ops::caret_for_pointer_x_with_environment(
-                        bounds,
-                        position.x,
-                        text_input.state.value.as_str(),
-                        text_input.declared_text_metrics(),
-                        text_input.align,
-                        environment,
-                    ),
+                    text_input.pointer_caret_for_position(bounds, position, environment),
                     super::NativeCaretAffinity::Downstream,
                 )
             });

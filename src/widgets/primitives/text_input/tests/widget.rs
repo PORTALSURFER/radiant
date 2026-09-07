@@ -1,12 +1,14 @@
 use crate::application::{ApplicationEnvironment, LocaleId, TextScale, WritingDirection};
 use crate::gui::types::{Point, Rect, Vector2};
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, TextClipboardOperation};
 use crate::runtime::{ResolvedEnvironment, WindowEnvironment};
 use crate::theme::ThemeTokens;
 use crate::widgets::interaction::{
     PointerButton, TextEditCommand, TextInputMessage, TextInputRevision, WidgetInput, WidgetKey,
 };
-use crate::widgets::{TextAlign, Widget};
+use crate::widgets::{
+    SemanticAction, TextAlign, TextPrivacy, TextSecretPolicy, Widget, WidgetSemantics,
+};
 use std::sync::Arc;
 
 use super::super::NativeCaretAffinity;
@@ -82,6 +84,114 @@ fn editing_policy_reprojection_revokes_text_edit_authority() {
     submit_changed.props.submit_on_enter = false;
     submit_changed.synchronize_from_previous(&submit_previous);
     assert!(!submit_previous.is_current_text_edit_authority(&submit_authority));
+}
+
+#[test]
+fn secret_text_input_masks_paint_and_restricts_semantics() {
+    let secret = "secret-e\u{301}👩‍❤️‍💋‍👩";
+    let mut input = TextInputWidget::new(7, secret, WidgetSizing::fixed(Vector2::new(160.0, 28.0)))
+        .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    input.props.completion_suffix = Some("private suffix".into());
+    input.state.selection_anchor = 0;
+    input.state.caret = input.state.char_len();
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(160.0, 28.0));
+    let mut primitives = Vec::new();
+    input.append_paint(
+        &mut primitives,
+        bounds,
+        &crate::layout::LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    let paint = primitives
+        .into_iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(paint) => Some(paint),
+            _ => None,
+        });
+    let paint = paint.expect("text input paint is present");
+    assert_eq!(paint.state.value, "•••••••••");
+    assert_eq!(paint.completion_suffix, None);
+    assert!(!format!("{paint:?}").contains(secret));
+    assert_eq!(input.automation_value_text(), None);
+    assert_eq!(
+        input.automation_metadata().get("text.privacy"),
+        Some(&"secret".to_owned())
+    );
+    assert!(!crate::widgets::WidgetSemanticActions::supports(
+        &input,
+        &SemanticAction::SetText("updated".into())
+    ));
+
+    let exposed = input.with_privacy(TextPrivacy::Secret(
+        TextSecretPolicy::new().allow_automation(),
+    ));
+    assert_eq!(exposed.automation_value_text().as_deref(), Some(secret));
+}
+
+#[test]
+fn secret_text_input_maps_combining_and_zwj_pointer_boundaries() {
+    let text = "e\u{301}👩‍❤️‍💋‍👩";
+    let mut input = TextInputWidget::new(7, text, WidgetSizing::fixed(Vector2::new(160.0, 28.0)))
+        .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    input.state.caret = 1;
+    input.state.selection_anchor = 1;
+    assert_eq!(input.display_state().caret, 0);
+    assert!(input.set_native_pointer_display_caret(1, NativeCaretAffinity::Downstream));
+    assert_eq!(
+        input.take_native_pointer_caret().map(|(caret, _)| caret),
+        Some(2)
+    );
+    assert!(input.set_native_pointer_display_caret(2, NativeCaretAffinity::Downstream));
+    assert_eq!(
+        input.take_native_pointer_caret().map(|(caret, _)| caret),
+        Some(text.chars().count())
+    );
+}
+
+#[test]
+fn text_clipboard_receipts_require_current_exact_state_policy_and_owner() {
+    let sizing = WidgetSizing::fixed(Vector2::new(160.0, 28.0));
+    let mut input = TextInputWidget::new(7, "secret", sizing);
+    input.common.state.focused = true;
+    input.state.selection_anchor = 0;
+    input.state.caret = input.state.char_len();
+    let receipt = Widget::text_clipboard_receipt(&input, TextClipboardOperation::Copy)
+        .expect("public selected text is copyable");
+    assert!(Widget::accepts_text_clipboard_receipt(&input, &receipt));
+
+    input.state.caret = 1;
+    assert!(!Widget::accepts_text_clipboard_receipt(&input, &receipt));
+
+    input.state.caret = input.state.char_len();
+
+    let mut foreign = TextInputWidget::new(7, "secret", sizing);
+    foreign.common.state.focused = true;
+    foreign.state.selection_anchor = 0;
+    foreign.state.caret = foreign.state.char_len();
+    let foreign_receipt = Widget::text_clipboard_receipt(&foreign, TextClipboardOperation::Copy)
+        .expect("foreign public selected text is copyable");
+    assert!(!Widget::accepts_text_clipboard_receipt(
+        &input,
+        &foreign_receipt
+    ));
+
+    let receipt = Widget::text_clipboard_receipt(&input, TextClipboardOperation::Copy)
+        .expect("current selected text is copyable");
+    let mut limited = TextInputWidget::new(7, "secret", sizing);
+    limited.props.character_limit = Some(3);
+    limited.synchronize_from_previous(&input);
+    assert!(!Widget::accepts_text_clipboard_receipt(&input, &receipt));
+
+    let mut secret = TextInputWidget::new(7, "secret", sizing)
+        .with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    secret.common.state.focused = true;
+    secret.state.selection_anchor = 0;
+    secret.state.caret = secret.state.char_len();
+    assert!(Widget::text_clipboard_receipt(&secret, TextClipboardOperation::Copy).is_none());
+
+    let copy_allowed =
+        secret.with_privacy(TextPrivacy::Secret(TextSecretPolicy::new().allow_copy()));
+    assert!(Widget::text_clipboard_receipt(&copy_allowed, TextClipboardOperation::Copy).is_some());
 }
 
 #[test]

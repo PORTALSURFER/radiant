@@ -26,10 +26,10 @@ fn text_input_state_debug_redacts_value_but_keeps_structural_state() {
 // - double-click word selection through widget tests
 // - focused runtime keyboard routing through native runtime tests
 //
-// Explicitly not covered because Radiant does not yet expose the feature:
+// Covered by dedicated editor, widget, geometry, and adapter tests:
 // - multiline Up/Down layout-aware navigation
-// - undo/redo grouping
-// - password masking mode
+// - transient grouping and application-owned undo/redo
+// - secret masking and automation policy
 // - platform IME composition and bidirectional shaping behavior
 
 #[test]

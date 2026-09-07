@@ -36,8 +36,10 @@ mod tests {
     fn unicode_text_uses_crlf_utf16_and_one_terminator() {
         let encoded = encode_unicode_text("one\ntwo\rthree\r\nfour😀");
         let code_units = encoded
-            .chunks_exact(2)
-            .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|bytes| u16::from_le_bytes(*bytes))
             .collect::<Vec<_>>();
 
         assert_eq!(

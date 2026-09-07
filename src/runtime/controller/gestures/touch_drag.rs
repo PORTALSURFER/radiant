@@ -73,9 +73,6 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         ingress: PointerIngress,
         pointer_token: PointerSequenceToken,
     ) -> Result<GestureCapture, GestureOutcome> {
-        if self.interaction.gesture.is_some() || self.gesture_has_incumbent() {
-            return Err(GestureOutcome::Blocked);
-        }
         let anchor = ingress.logical_position();
         if self.layout_target_at(anchor).is_some() || self.scroll_affordance_at(anchor).is_some() {
             return Err(GestureOutcome::Unsupported);
@@ -87,12 +84,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             .surface_widget(hit_widget)
             .ok_or(GestureOutcome::Unsupported)?;
         let common = current.widget_object().common();
-        if common.state.disabled
+        let blocked = common.state.disabled
             || common.state.read_only
-            || self.accessibility_incumbent_owner(hit_widget).is_some()
-        {
-            return Err(GestureOutcome::Blocked);
-        }
+            || self.accessibility_incumbent_owner(hit_widget).is_some();
         let hit_path = self
             .traversal
             .widgets
@@ -112,6 +106,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             .first()
             .cloned()
             .ok_or(GestureOutcome::Unsupported)?;
+        if blocked || self.interaction.gesture.is_some() || self.gesture_has_incumbent() {
+            return Err(GestureOutcome::Blocked);
+        }
         let token = GestureSequenceToken(
             self.interaction
                 .pointer

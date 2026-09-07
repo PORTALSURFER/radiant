@@ -4578,8 +4578,9 @@ Current delivery includes ordinary-view typed source/target declarations,
 checked operation negotiation, target lifecycle messages and transient preview
 routing through the existing pan capture. Qualified primary mouse initiation
 cancels and rechecks the original child before transferring that capture.
-Two-contact gesture arbitration is delivered; touch-started typed drag remains
-unsupported. Opt-in target outlines show accepted, pending, and rejected
+Single-touch typed drag uses the same pan threshold without synthetic child
+pointer events. A second contact replaces pending recognition with declared
+two-contact arbitration, or cancels an already active drag. Opt-in target outlines show accepted, pending, and rejected
 negotiation states. Per-target before/after insertion feedback uses an explicitly
 configured axis and the qualified full target rectangle to retain a clipped
 interior edge marker. Applications own stable collection keys, ordering, and

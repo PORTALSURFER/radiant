@@ -2,8 +2,20 @@ use super::*;
 use radiant::runtime::{
     Command, DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,
     DeclarativeOwnedCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridgeParts,
-    SurfaceRuntime, declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
+    ExternalDragPayload, ExternalDragRequest, SurfaceRuntime, declarative_command_runtime_bridge,
+    declarative_owned_command_runtime_bridge,
 };
+
+#[test]
+fn external_url_drag_request_is_available_from_the_public_runtime_api() {
+    let request = ExternalDragRequest::url("https://example.test/drag", "Example");
+
+    assert_eq!(request.preview.label, "Example");
+    assert_eq!(
+        request.payload,
+        ExternalDragPayload::Url(String::from("https://example.test/drag"))
+    );
+}
 
 #[test]
 fn declarative_command_bridge_supports_command_update_flow() {

@@ -54,6 +54,7 @@ pub(super) fn start_external_drag(
             ExternalDragDataObject::files(absolute)?
         }
         ExternalDragPayload::Text(text) => ExternalDragDataObject::text(text.clone())?,
+        ExternalDragPayload::Url(url) => ExternalDragDataObject::url(url.clone())?,
     };
     let data_object: IDataObject = data_object_impl.into();
     let drop_source: IDropSource = SimpleDropSource.into();

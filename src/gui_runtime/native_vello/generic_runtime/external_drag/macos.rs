@@ -46,6 +46,7 @@ pub(super) fn start_external_drag(
         ExternalDragPayload::Text(text) => {
             (unsafe { payload::text_dragging_items(text)? }, 1, "text")
         }
+        ExternalDragPayload::Url(url) => (unsafe { payload::url_dragging_items(url)? }, 1, "URL"),
     };
     let items_elapsed = items_started_at.elapsed();
     let mut source = unsafe { source::dragging_source(event_proxy, window_id, context.identity)? };

@@ -1,0 +1,120 @@
+[
+  {
+    "name": "clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "seconds": 23.41,
+    "log": "clippy.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  },
+  {
+    "name": "format",
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 2.75,
+    "log": "format.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  },
+  {
+    "name": "diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.01,
+    "log": "diff.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  },
+  {
+    "name": "tests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ],
+    "exit_code": 0,
+    "seconds": 264.17,
+    "log": "tests.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  },
+  {
+    "name": "examples",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ],
+    "exit_code": 0,
+    "seconds": 49.79,
+    "log": "examples.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  },
+  {
+    "name": "docs",
+    "command": [
+      "cargo",
+      "doc",
+      "--locked",
+      "--no-deps"
+    ],
+    "exit_code": 0,
+    "seconds": 11.2,
+    "log": "docs.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  },
+  {
+    "name": "doctests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--doc"
+    ],
+    "exit_code": 0,
+    "seconds": 4.74,
+    "log": "doctests.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  },
+  {
+    "name": "no-default",
+    "command": [
+      "cargo",
+      "check",
+      "--locked",
+      "--no-default-features",
+      "--lib"
+    ],
+    "exit_code": 0,
+    "seconds": 8.16,
+    "log": "no-default.log",
+    "source_commit": "faabad6bc8820361fdc57f761fb0fb47c5cb4b16",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-url-drag-radiant"
+  }
+]

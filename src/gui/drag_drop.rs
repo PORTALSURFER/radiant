@@ -225,28 +225,6 @@ impl DragOffer {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn drag_autoscroll_policy_is_checked_and_has_a_theme_free_default() {
-        assert_eq!(DragAutoscrollPolicy::default().edge_zone(), 32.0);
-        assert_eq!(DragAutoscrollPolicy::default().max_speed(), 800.0);
-        for (zone, speed) in [
-            (0.0, 1.0),
-            (1.0, 0.0),
-            (f32::NAN, 1.0),
-            (1.0, f32::INFINITY),
-        ] {
-            assert_eq!(
-                DragAutoscrollPolicy::new(zone, speed),
-                Err(DragDescriptorError::InvalidAutoscrollPolicy)
-            );
-        }
-    }
-}
-
 /// Opaque identity of a drag admitted through an exact gesture sequence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DragSessionToken(PointerSequenceToken);
@@ -465,5 +443,27 @@ impl<T> DropEvent<T> {
     /// Read the checked operation negotiation result for this event.
     pub const fn decision(&self) -> DropDecision {
         self.decision
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drag_autoscroll_policy_is_checked_and_has_a_theme_free_default() {
+        assert_eq!(DragAutoscrollPolicy::default().edge_zone(), 32.0);
+        assert_eq!(DragAutoscrollPolicy::default().max_speed(), 800.0);
+        for (zone, speed) in [
+            (0.0, 1.0),
+            (1.0, 0.0),
+            (f32::NAN, 1.0),
+            (1.0, f32::INFINITY),
+        ] {
+            assert_eq!(
+                DragAutoscrollPolicy::new(zone, speed),
+                Err(DragDescriptorError::InvalidAutoscrollPolicy)
+            );
+        }
     }
 }

@@ -181,7 +181,7 @@ fn geometry_reprojection_insertion_bridge(
                 .id(1)
                 .drag_source(DragSource::new(String::from("payload")))
                 .id(10);
-            let width = narrow.get().then_some(20.0).unwrap_or(100.0);
+            let width = if narrow.get() { 20.0 } else { 100.0 };
             let target = button("Target")
                 .filter_mapped(|_| None::<()>)
                 .width(width)

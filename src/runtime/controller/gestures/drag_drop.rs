@@ -1036,6 +1036,59 @@ mod autoscroll_tests {
     }
 
     #[test]
+    fn modal_publication_retires_an_armed_autoscroll_timer() {
+        use crate::application::{IntoView, Layer, scene};
+        let bridge = crate::app(false)
+            .view(|open: &bool| {
+                let base = scroll(
+                    button("source")
+                        .filter_mapped(|_| None::<()>)
+                        .width(100.0)
+                        .height(240.0)
+                        .id(1)
+                        .drag_source(
+                            DragSource::new(1_u8).autoscroll(DragAutoscrollPolicy::default()),
+                        )
+                        .id(10),
+                )
+                .id(20);
+                let mut root = scene(base);
+                if *open {
+                    root = root.layer(Layer::modal(
+                        button("modal").filter_mapped(|_| None::<()>).id(2),
+                    ));
+                }
+                root.into_view()
+            })
+            .update(|open, ()| *open = true)
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+        runtime.set_timed_repaint_clock(Some(Instant::now()));
+        let token = runtime
+            .dispatch_gesture_request(GestureRequest::new(pan(GesturePhase::Started, 0.0)))
+            .token()
+            .unwrap();
+        runtime.dispatch_gesture_request(
+            GestureRequest::new(pan(GesturePhase::Changed, 10.0)).with_token(token),
+        );
+        let deadline = runtime.typed_drag_autoscroll_deadline().unwrap();
+        runtime.dispatch_message(());
+        assert!(!runtime.drag_session_active());
+        assert_eq!(runtime.typed_drag_autoscroll_deadline(), None);
+        let offset = runtime.layout_state.scroll_offset(20);
+        assert!(!runtime.advance_typed_drag_autoscroll(deadline));
+        assert_eq!(runtime.layout_state.scroll_offset(20), offset);
+        assert_eq!(
+            runtime
+                .dispatch_gesture_request(
+                    GestureRequest::new(pan(GesturePhase::Changed, 1.0)).with_token(token),
+                )
+                .outcome(),
+            &crate::runtime::GestureOutcome::Stale
+        );
+    }
+
+    #[test]
     fn nested_autoscroll_refresh_reselects_ancestors_and_source_removal_retires_timer() {
         use crate::application::{column, spacer};
         use crate::gui::input::{InputSequence, InputSequenceRange, InputTimestamp};

@@ -37,6 +37,8 @@ pub enum TextEditCommand {
     SelectAll,
     /// Insert or paste a text payload at the current selection.
     InsertText(String),
+    /// Apply an admitted clipboard paste as one atomic history boundary.
+    PasteText(String),
     /// Delete the selected range or previous character.
     Backspace,
     /// Delete the selected range or next character.
@@ -79,6 +81,10 @@ impl fmt::Debug for TextEditCommand {
             Self::SelectAll => formatter.write_str("SelectAll"),
             Self::InsertText(text) => formatter
                 .debug_struct("InsertText")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::PasteText(text) => formatter
+                .debug_struct("PasteText")
                 .field("text_bytes", &text.len())
                 .finish(),
             Self::Backspace => formatter.write_str("Backspace"),

@@ -1974,6 +1974,10 @@ where
     C: NumericCodec<T> + 'static,
     A: NumericAdjustment<T> + 'static,
 {
+    fn owns_text_clipboard_shortcut(&self) -> bool {
+        true
+    }
+
     fn focused_key_disposition(&self, key: WidgetKey) -> FocusedKeyDisposition {
         match key {
             WidgetKey::Home | WidgetKey::End => FocusedKeyDisposition::Consumed,

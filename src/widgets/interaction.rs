@@ -63,3 +63,9 @@ pub use text_input_event::TextInputEditEvent;
 pub use text_input_revision::TextInputRevision;
 pub use text_privacy::{TextEditAuthority, TextEditAuthorityOwner, TextPrivacy, TextSecretPolicy};
 pub use value::{ValueMapping, ValueMappingError, ValueMappingKind};
+
+pub(crate) use text_privacy::{SecretTextMapping, SecretTextUnit};
+
+mod text_grouping;
+pub(crate) use text_grouping::TextEditGroups;
+pub use text_grouping::{TextEditBoundary, TextEditGroupEvent, TextEditGrouping, TextEditKind};

@@ -2,9 +2,8 @@
 use crate::gui::text_layout::paragraph::CaretAffinity;
 use std::{
     ops::Range,
-    rc::{Rc, Weak},
     sync::{
-        Arc,
+        Arc, Weak,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -205,7 +204,8 @@ impl std::fmt::Debug for CompositionState {
 /// Exact-owner edit delivered through the application's ordinary message path.
 #[derive(Clone)]
 pub struct TextEditorEdit {
-    owner: Weak<()>,
+    grouping: crate::widgets::interaction::TextEditGrouping,
+    owner: Weak<AtomicU64>,
     source_id: u64,
     expected: TextEditorRevision,
     next: TextEditorRevision,
@@ -213,6 +213,13 @@ pub struct TextEditorEdit {
     selection: TextEditorSelection,
 }
 impl TextEditorEdit {
+    /// Transient grouping metadata for application-owned undo history.
+    pub const fn grouping(&self) -> crate::widgets::interaction::TextEditGrouping {
+        self.grouping
+    }
+    pub(crate) fn set_grouping(&mut self, grouping: crate::widgets::interaction::TextEditGrouping) {
+        self.grouping = grouping;
+    }
     /// Revision against which this delta was produced.
     pub const fn expected_revision(&self) -> TextEditorRevision {
         self.expected
@@ -247,7 +254,7 @@ impl std::fmt::Debug for TextEditorEdit {
 /// Immutable content snapshot. Retaining it does not retain its document owner.
 #[derive(Clone)]
 pub struct TextEditorSnapshot {
-    owner: Weak<()>,
+    owner: Weak<AtomicU64>,
     pub(crate) source_id: u64,
     revision: TextEditorRevision,
     text: Arc<str>,
@@ -292,6 +299,20 @@ impl TextEditorSnapshot {
             .as_ref()
             .map(|value| value.original_selection)
     }
+    pub(crate) fn document_is_current(&self) -> bool {
+        self.owner
+            .upgrade()
+            .is_some_and(|owner| owner.load(Ordering::Acquire) == self.revision.value())
+    }
+    pub(crate) fn document_cancellation_probe(&self) -> Arc<dyn Fn() -> bool + Send + Sync> {
+        let owner = self.owner.clone();
+        let revision = self.revision.value();
+        Arc::new(move || {
+            owner
+                .upgrade()
+                .is_none_or(|owner| owner.load(Ordering::Acquire) != revision)
+        })
+    }
     pub(crate) fn same_owner(&self, other: &Self) -> bool {
         self.source_id == other.source_id && Weak::ptr_eq(&self.owner, &other.owner)
     }
@@ -316,6 +337,7 @@ impl TextEditorSnapshot {
         let selection = result.selection;
         validate_selection(&result.display_text(), selection)?;
         Ok(TextEditorEdit {
+            grouping: Default::default(),
             owner: self.owner.clone(),
             source_id: self.source_id,
             expected: self.revision,
@@ -415,7 +437,7 @@ impl TextEditorSnapshot {
 }
 /// Application-owned bounded document. The framework does not own product history or persistence.
 pub struct TextEditorDocument {
-    owner: Rc<()>,
+    owner: Arc<AtomicU64>,
     source_id: u64,
     revision: TextEditorRevision,
     text: Arc<str>,
@@ -443,10 +465,11 @@ impl TextEditorDocument {
         let source_id = NEXT_OWNER
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| v.checked_add(1))
             .map_err(|_| TextEditorError::Exhausted)?;
+        let revision = next_revision()?;
         Ok(Self {
-            owner: Rc::new(()),
+            owner: Arc::new(AtomicU64::new(revision.value())),
             source_id,
-            revision: next_revision()?,
+            revision,
             text,
             selection: TextEditorSelection::default(),
             composition: None,
@@ -463,7 +486,7 @@ impl TextEditorDocument {
     /// Create an immutable input for a controlled editor.
     pub fn snapshot(&self) -> TextEditorSnapshot {
         TextEditorSnapshot {
-            owner: Rc::downgrade(&self.owner),
+            owner: Arc::downgrade(&self.owner),
             source_id: self.source_id,
             revision: self.revision,
             text: self.text.clone(),
@@ -478,6 +501,7 @@ impl TextEditorDocument {
         self.revision = next.revision;
         self.selection = next.selection;
         self.composition = next.composition;
+        self.owner.store(self.revision.value(), Ordering::Release);
         Ok(self.revision)
     }
     /// Publish a newer external authority, including an explicit same-value reset.
@@ -492,6 +516,7 @@ impl TextEditorDocument {
         self.revision = next;
         self.selection = TextEditorSelection::default();
         self.composition = None;
+        self.owner.store(self.revision.value(), Ordering::Release);
         Ok(self.revision)
     }
 }

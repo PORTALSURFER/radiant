@@ -581,7 +581,7 @@ where
                     (
                         crate::runtime::TextClipboardOperation::Paste,
                         Ok(crate::runtime::PlatformResponse::Text(text)),
-                    ) => TextEditCommand::InsertText(text),
+                    ) => TextEditCommand::PasteText(text),
                     _ => return,
                 };
                 let _ = self.dispatch_input(

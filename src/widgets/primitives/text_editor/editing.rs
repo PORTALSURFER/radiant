@@ -48,7 +48,7 @@ impl TextEditorWidget {
             caret: caret.byte,
             affinity: caret.affinity,
         };
-        if old == next {
+        if old == next && !self.groups.is_active() {
             return None;
         }
         self.emit(TextEditorDelta::Selection, next)
@@ -67,6 +67,18 @@ impl TextEditorWidget {
         &mut self,
         range: Range<usize>,
         text: Arc<str>,
+    ) -> Option<WidgetOutput> {
+        self.replace_range_grouped(
+            range,
+            text,
+            crate::widgets::interaction::TextEditKind::Typing,
+        )
+    }
+    fn replace_range_grouped(
+        &mut self,
+        range: Range<usize>,
+        text: Arc<str>,
+        kind: crate::widgets::interaction::TextEditKind,
     ) -> Option<WidgetOutput> {
         if self.snapshot.is_composing() || range.end > self.text().len() || range.start > range.end
         {
@@ -102,19 +114,23 @@ impl TextEditorWidget {
             TextEditorDelta::Replace { range, text }
         };
         self.preferred_x = None;
-        self.emit(delta, TextEditorSelection::caret(caret))
+        self.emit_grouped(delta, TextEditorSelection::caret(caret), Some(kind), None)
     }
     pub(super) fn edit_command(&mut self, command: TextEditCommand) -> Option<WidgetOutput> {
         if self.snapshot.is_composing() {
             return None;
         }
+        use crate::widgets::interaction::TextEditKind;
         let selected = self.selection();
         let range = selected.range();
         let at = selected.caret;
         match command {
             TextEditCommand::InsertText(text) => self.replace_range(range, text.into()),
+            TextEditCommand::PasteText(text) => {
+                self.replace_range_grouped(range, text.into(), TextEditKind::Clipboard)
+            }
             TextEditCommand::CutSelection if !range.is_empty() => {
-                self.replace_range(range, Arc::from(""))
+                self.replace_range_grouped(range, Arc::from(""), TextEditKind::Clipboard)
             }
             TextEditCommand::Backspace => {
                 let range = if range.is_empty() {
@@ -123,7 +139,13 @@ impl TextEditorWidget {
                     range
                 };
                 (!range.is_empty())
-                    .then(|| self.replace_range(range, Arc::from("")))
+                    .then(|| {
+                        self.replace_range_grouped(
+                            range,
+                            Arc::from(""),
+                            TextEditKind::BackwardDelete,
+                        )
+                    })
                     .flatten()
             }
             TextEditCommand::Delete => {
@@ -133,7 +155,13 @@ impl TextEditorWidget {
                     range
                 };
                 (!range.is_empty())
-                    .then(|| self.replace_range(range, Arc::from("")))
+                    .then(|| {
+                        self.replace_range_grouped(
+                            range,
+                            Arc::from(""),
+                            TextEditKind::ForwardDelete,
+                        )
+                    })
                     .flatten()
             }
             TextEditCommand::DeleteWordLeft => {
@@ -142,7 +170,7 @@ impl TextEditorWidget {
                 } else {
                     range
                 };
-                self.replace_range(range, Arc::from(""))
+                self.replace_range_grouped(range, Arc::from(""), TextEditKind::BackwardDelete)
             }
             TextEditCommand::DeleteWordRight => {
                 let range = if range.is_empty() {
@@ -150,7 +178,7 @@ impl TextEditorWidget {
                 } else {
                     range
                 };
-                self.replace_range(range, Arc::from(""))
+                self.replace_range_grouped(range, Arc::from(""), TextEditKind::ForwardDelete)
             }
             TextEditCommand::MoveLeft { extend_selection } => self.move_logical(
                 if !extend_selection && !range.is_empty() {
@@ -193,7 +221,7 @@ impl TextEditorWidget {
     }
     pub(super) fn move_vertical(&mut self, lines: f32, extend: bool) -> Option<WidgetOutput> {
         let receipt = self.current_geometry()?;
-        let selection = self.selection();
+        let selection = self.display_selection()?;
         let point = receipt.geometry().caret(ParagraphCaret {
             byte: selection.caret,
             affinity: selection.affinity,
@@ -204,11 +232,11 @@ impl TextEditorWidget {
             point.y + lines * receipt.request().line_height + receipt.request().line_height * 0.5,
         ));
         self.preferred_x = Some(preferred);
-        self.move_caret(caret, extend)
+        self.move_caret(self.source_caret(caret)?, extend)
     }
     pub(super) fn move_line_end(&mut self, end: bool, extend: bool) -> Option<WidgetOutput> {
         let receipt = self.current_geometry()?;
-        let selection = self.selection();
+        let selection = self.display_selection()?;
         let point = receipt.geometry().caret(ParagraphCaret {
             byte: selection.caret,
             affinity: selection.affinity,
@@ -228,7 +256,7 @@ impl TextEditorWidget {
             },
         };
         self.preferred_x = None;
-        self.move_caret(caret, extend)
+        self.move_caret(self.source_caret(caret)?, extend)
     }
     pub(super) fn move_paragraph(&mut self, forward: bool, extend: bool) -> Option<WidgetOutput> {
         let at = self.selection().caret;

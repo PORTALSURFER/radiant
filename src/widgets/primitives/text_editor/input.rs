@@ -32,10 +32,18 @@ impl TextEditorWidget {
             // geometry nor supersede the active capture.
             self.common.state.focused = focused;
             if !focused {
+                let _ = self.clipboard_authority.advance();
                 self.common.state.pressed = false;
             }
             return if !focused && self.snapshot.is_composing() {
                 self.cancel_editor_composition()
+            } else if !focused && self.groups.is_active() {
+                self.emit_grouped(
+                    TextEditorDelta::Selection,
+                    self.selection(),
+                    None,
+                    Some(crate::widgets::interaction::TextEditBoundary::FocusLost),
+                )
             } else {
                 None
             };
@@ -195,7 +203,7 @@ impl TextEditorWidget {
             return None;
         }
         let receipt = self.current_geometry()?;
-        Some(receipt.geometry().hit_test(Point::new(
+        self.source_caret(receipt.geometry().hit_test(Point::new(
             position.x - receipt.request().rect.min.x + self.scroll.x,
             position.y - receipt.request().rect.min.y + self.scroll.y,
         )))

@@ -37,7 +37,7 @@ impl TextEditorWidget {
         primitives.push(PaintPrimitive::TextEditor(Box::new(PaintTextEditor {
             reveal_caret: self.reveal_pending,
             request: self.layout_request(bounds, environment),
-            selection: self.selection(),
+            selection: self.display_selection().unwrap_or_default(),
             scroll: self.scroll,
             color: tokens.foreground,
             selection_color: crate::runtime::blend_color(theme.bg_primary, tokens.emphasis, 0.34),

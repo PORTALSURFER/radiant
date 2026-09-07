@@ -525,3 +525,118 @@ fn composition_trace_commits_cancels_on_focus_loss_and_uncontrolled_state_surviv
     Widget::synchronize_from_previous(&mut reprojection, &uncontrolled);
     assert_eq!(reprojection.text(), "!own");
 }
+
+#[test]
+fn secret_editor_masks_graphemes_and_maps_geometry_back_to_source() {
+    use crate::widgets::{TextPrivacy, TextSecretPolicy, WidgetSemantics};
+    let secret = "e\u{301}👩‍💻\r\nZ";
+    let document = TextEditorDocument::new(secret).unwrap();
+    let mut widget = editor(&document).with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    widget.common.state.focused = true;
+    let bounds = bounds(180.0, 80.0);
+    let environment = ResolvedEnvironment::default();
+    let request = widget.layout_request(bounds, &environment);
+    assert_eq!(request.text.as_ref(), "••\n•");
+    assert!(!format!("{request:?}").contains(secret));
+    assert_eq!(widget.automation_value_text(), None);
+    assert_eq!(
+        widget
+            .automation_metadata()
+            .get("text.privacy")
+            .map(String::as_str),
+        Some("secret")
+    );
+    install(&mut widget, bounds, &environment);
+    let caret = widget
+        .source_caret(
+            widget
+                .current_geometry()
+                .unwrap()
+                .geometry()
+                .hit_test(Point::new(10.0, 2.0)),
+        )
+        .unwrap();
+    assert_eq!(caret.byte, "e\u{301}".len());
+    let _ = widget.move_logical(secret.len(), false).unwrap();
+    install(&mut widget, bounds, &environment);
+    let display = widget.display_selection().unwrap();
+    assert_eq!(display.caret, "••\n•".len());
+    let mut paint = Vec::new();
+    widget.paint_editor(
+        &mut paint,
+        bounds,
+        &crate::theme::ThemeTokens::default(),
+        &environment,
+    );
+    assert!(!format!("{paint:?}").contains(secret));
+}
+
+#[test]
+fn document_replacement_and_loss_revoke_clipboard_without_reprojection() {
+    use crate::runtime::TextClipboardOperation;
+    let mut document = TextEditorDocument::new("old").unwrap();
+    let mut widget = editor(&document);
+    widget.common.state.focused = true;
+    let receipt = widget
+        .text_clipboard_receipt(TextClipboardOperation::Paste)
+        .unwrap();
+    let cancellation = receipt.cancellation_probe();
+    assert!(!cancellation());
+    assert!(widget.accepts_text_clipboard_receipt(&receipt));
+    document.set_text("new").unwrap();
+    assert!(cancellation());
+    assert!(!widget.accepts_text_clipboard_receipt(&receipt));
+    let mut widget = editor(&document);
+    widget.common.state.focused = true;
+    let receipt = widget
+        .text_clipboard_receipt(TextClipboardOperation::Paste)
+        .unwrap();
+    drop(document);
+    assert!((receipt.cancellation_probe())());
+    assert!(!widget.accepts_text_clipboard_receipt(&receipt));
+}
+
+#[test]
+fn secret_copy_and_automation_require_separate_explicit_permissions() {
+    use crate::{
+        runtime::{PlatformRequest, TextClipboardOperation},
+        widgets::{TextPrivacy, TextSecretPolicy, WidgetSemantics},
+    };
+    let secret = "clipboard-secret-sentinel";
+    let mut document = TextEditorDocument::new(secret).unwrap();
+    let edit = document
+        .snapshot()
+        .edit(
+            TextEditorDelta::Selection,
+            TextEditorSelection {
+                anchor: 0,
+                caret: secret.len(),
+                affinity: crate::gui::text_layout::paragraph::CaretAffinity::Downstream,
+            },
+        )
+        .unwrap();
+    document.apply(&edit).unwrap();
+    let mut hidden = editor(&document).with_privacy(TextPrivacy::Secret(TextSecretPolicy::new()));
+    hidden.common.state.focused = true;
+    assert!(
+        hidden
+            .text_clipboard_receipt(TextClipboardOperation::Copy)
+            .is_none()
+    );
+    assert!(hidden.selected_text_slice().is_none());
+    assert_eq!(hidden.automation_value_text(), None);
+    let mut copy =
+        editor(&document).with_privacy(TextPrivacy::Secret(TextSecretPolicy::new().allow_copy()));
+    copy.common.state.focused = true;
+    let receipt = copy
+        .text_clipboard_receipt(TextClipboardOperation::Copy)
+        .unwrap();
+    assert!(!format!("{receipt:?}").contains(secret));
+    assert!(matches!(receipt.request(), PlatformRequest::CopyText(text) if text == secret));
+    assert_eq!(copy.automation_value_text(), None);
+    let exposed = editor(&document).with_privacy(TextPrivacy::Secret(
+        TextSecretPolicy::new().allow_automation(),
+    ));
+    assert_eq!(exposed.automation_value_text().as_deref(), Some(secret));
+    assert!(exposed.selected_text_slice().is_none());
+}

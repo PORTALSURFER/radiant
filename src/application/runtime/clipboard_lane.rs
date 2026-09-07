@@ -37,15 +37,13 @@ impl ClipboardLane {
             return Err(job);
         }
         match self.sender.try_send(LaneMessage::Job(job)) {
-            Ok(()) => Ok(()),
             Err(
                 TrySendError::Full(LaneMessage::Job(job))
                 | TrySendError::Disconnected(LaneMessage::Job(job)),
             ) => Err(job),
-            Err(
-                TrySendError::Full(LaneMessage::Shutdown)
-                | TrySendError::Disconnected(LaneMessage::Shutdown),
-            ) => unreachable!("shutdown is internal"),
+            // Only Job is submitted here. A shutdown message has no request
+            // payload to recover and cannot originate from this send.
+            _ => Ok(()),
         }
     }
 
@@ -161,6 +159,9 @@ impl ClipboardBackend for ArboardClipboardBackend {
         request: &PlatformRequest,
         is_active: &dyn Fn() -> bool,
     ) -> Option<PlatformResult> {
+        if !is_active() {
+            return None;
+        }
         match request {
             PlatformRequest::CopyText(text) => {
                 let clipboard = match self.clipboard() {
@@ -257,6 +258,23 @@ mod tests {
     use super::*;
     use crate::runtime::PlatformCompletionIdentity;
     use std::sync::{Mutex, mpsc::sync_channel};
+
+    #[test]
+    fn revoked_request_does_not_initialize_native_backend() {
+        let mut backend = ArboardClipboardBackend { clipboard: None };
+        assert!(
+            backend
+                .perform(&PlatformRequest::ReadText, &|| false)
+                .is_none()
+        );
+        assert!(backend.clipboard.is_none());
+        assert!(
+            backend
+                .perform(&PlatformRequest::CopyText("private".into()), &|| false)
+                .is_none()
+        );
+        assert!(backend.clipboard.is_none());
+    }
 
     #[derive(Default)]
     struct FakeClipboard {

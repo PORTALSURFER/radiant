@@ -22,9 +22,10 @@ where
         on_completed: RuntimePlatformResultSink,
     ) -> Result<(), PlatformResultServiceFallback> {
         if !self.runtime.is_alive()
-            || !self
-                .runtime
-                .can_spawn_business_tasks(TaskPriority::Interactive)
+            || (!is_clipboard_request(&request)
+                && !self
+                    .runtime
+                    .can_spawn_business_tasks(TaskPriority::Interactive))
         {
             return Err(Box::new((request, on_completed)));
         }

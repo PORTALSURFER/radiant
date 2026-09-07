@@ -213,6 +213,7 @@ const MASK: char = '•';
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SecretTextUnit {
     /// Mask each Unicode scalar value. A CRLF sequence is two scalar units.
+    #[cfg(test)]
     Scalar,
     /// Mask each extended grapheme cluster. A CRLF sequence is one unit.
     ExtendedGrapheme,
@@ -252,6 +253,7 @@ impl SecretTextMapping {
         }
 
         let ranges: Vec<(usize, usize)> = match unit {
+            #[cfg(test)]
             SecretTextUnit::Scalar => source
                 .char_indices()
                 .map(|(start, character)| (start, start + character.len_utf8()))
@@ -293,6 +295,10 @@ impl SecretTextMapping {
         &self.masked
     }
 
+    pub(crate) fn masked_arc(&self) -> Arc<str> {
+        Arc::clone(&self.masked)
+    }
+
     /// Map an exact source byte boundary to its display byte boundary.
     pub(crate) fn source_to_display_byte(&self, source_offset: usize) -> Option<usize> {
         exact_boundary(
@@ -300,6 +306,20 @@ impl SecretTextMapping {
             &self.display_boundaries,
             source_offset,
         )
+    }
+
+    pub(crate) fn source_to_display_byte_at_or_before(
+        &self,
+        source_offset: usize,
+    ) -> Option<usize> {
+        if source_offset > *self.source_boundaries.last()? {
+            return None;
+        }
+        let index = self
+            .source_boundaries
+            .partition_point(|boundary| *boundary <= source_offset)
+            .checked_sub(1)?;
+        self.display_boundaries.get(index).copied()
     }
 
     /// Map an exact display byte boundary to its source byte boundary.

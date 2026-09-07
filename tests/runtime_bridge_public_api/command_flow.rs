@@ -18,6 +18,20 @@ fn external_url_drag_request_is_available_from_the_public_runtime_api() {
 }
 
 #[test]
+fn external_mime_drag_request_is_available_from_the_public_runtime_api() {
+    let request = ExternalDragRequest::mime("application/x-radiant", [0, 1, 255], "Preset");
+
+    assert_eq!(request.preview.label, "Preset");
+    assert_eq!(
+        request.payload,
+        ExternalDragPayload::Mime {
+            name: String::from("application/x-radiant"),
+            bytes: vec![0, 1, 255],
+        }
+    );
+}
+
+#[test]
 fn declarative_command_bridge_supports_command_update_flow() {
     let bridge = declarative_command_runtime_bridge(
         DemoState::default(),

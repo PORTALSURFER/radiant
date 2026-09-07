@@ -44,6 +44,18 @@ unsafe extern "C" {}
 #[link(name = "Foundation", kind = "framework")]
 unsafe extern "C" {}
 
+#[link(name = "CoreServices", kind = "framework")]
+unsafe extern "C" {
+    static kUTTagClassMIMEType: Id;
+    static kUTTypeData: Id;
+    fn UTTypeCreatePreferredIdentifierForTag(tag_class: Id, tag: Id, conforming_to: Id) -> Id;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    fn CFRelease(value: Id);
+}
+
 #[link(name = "objc")]
 unsafe extern "C" {
     pub(super) fn objc_allocateClassPair(
@@ -218,6 +230,70 @@ pub(super) unsafe fn ns_string(value: &str) -> Result<Id, String> {
     }
 }
 
+/// A retained Core Foundation value returned under the Create rule.
+pub(super) struct RetainedCoreFoundationId {
+    value: Id,
+}
+
+impl RetainedCoreFoundationId {
+    pub(super) const fn as_id(&self) -> Id {
+        self.value
+    }
+}
+
+impl Drop for RetainedCoreFoundationId {
+    fn drop(&mut self) {
+        unsafe { CFRelease(self.value) };
+    }
+}
+
+/// Resolve a syntactically validated MIME tag to an AppKit pasteboard UTI.
+pub(super) unsafe fn preferred_identifier_for_mime_type(
+    mime_type: Id,
+) -> Result<RetainedCoreFoundationId, String> {
+    let value = unsafe {
+        UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, mime_type, kUTTypeData)
+    };
+    if value.is_null() {
+        Err(String::from(
+            "UTTypeCreatePreferredIdentifierForTag returned nil for external drag MIME type",
+        ))
+    } else {
+        Ok(RetainedCoreFoundationId { value })
+    }
+}
+
+/// Copy exact bytes into one autoreleased `NSData` instance.
+pub(super) unsafe fn ns_data(bytes: &[u8]) -> Result<Id, String> {
+    let allocated = unsafe {
+        let class = class(c"NSData")?;
+        msg_id(class, selector(c"alloc"))
+    };
+    if allocated.is_null() {
+        return Err(String::from("Failed to allocate NSData"));
+    }
+    let pointer: *const c_void = if bytes.is_empty() {
+        std::ptr::null()
+    } else {
+        bytes.as_ptr().cast()
+    };
+    let data = unsafe {
+        msg_id_ptr_usize(
+            allocated,
+            selector(c"initWithBytes:length:"),
+            pointer,
+            bytes.len(),
+        )
+    };
+    if data.is_null() {
+        Err(String::from(
+            "Failed to create NSData for external drag MIME bytes",
+        ))
+    } else {
+        Ok(unsafe { msg_id(data, selector(c"autorelease")) })
+    }
+}
+
 pub(super) unsafe fn class(name: &'static CStr) -> Result<Id, String> {
     let class = unsafe { objc_getClass(name.as_ptr()) };
     if class.is_null() {
@@ -326,6 +402,17 @@ unsafe fn msg_id_ptr_usize_usize(
     let msg: unsafe extern "C" fn(Id, Sel, *const c_void, usize, usize) -> Id =
         unsafe { std::mem::transmute(objc_msgSend as *const ()) };
     unsafe { msg(receiver, selector, bytes, length, encoding) }
+}
+
+pub(super) unsafe fn msg_id_ptr_usize(
+    receiver: Id,
+    selector: Sel,
+    bytes: *const c_void,
+    length: usize,
+) -> Id {
+    let msg: unsafe extern "C" fn(Id, Sel, *const c_void, usize) -> Id =
+        unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+    unsafe { msg(receiver, selector, bytes, length) }
 }
 
 pub(super) unsafe fn msg_void(receiver: Id, selector: Sel) {

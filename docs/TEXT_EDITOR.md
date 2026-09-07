@@ -68,3 +68,10 @@ measures renderer-neutral reflow at the 65,536-grapheme document limit, alternat
 320- and 640-unit wrap widths and resolving the final caret. It includes geometry
 input cloning and construction. It excludes native shaping, GPU encoding, and
 platform IME latency; those require separate host evidence.
+
+## Clipboard, secret mode, and history grouping
+
+See [text editing privacy and grouping](TEXT_EDITING_PRIVACY.md) for deferred
+clipboard admission, secret masking, and `TextEditorEdit::grouping()`.
+The [history example](../examples/text_editor_history.rs) keeps undo/redo values
+in application state and restores them through fresh document revisions.

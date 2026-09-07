@@ -63,7 +63,7 @@ and explicit runtime objects are part of the same API surface:
 The application owns `TextEditorDocument`, applies exact `TextEditorEdit`
 deltas, and reprojects; hosts install exact shaped geometry receipts before
 editor input. See the dedicated guide for document bounds, composition, and
-receipt validity.
+receipt validity. [Clipboard, secret presentation, and transient edit grouping](TEXT_EDITING_PRIVACY.md) share the same editor authority; durable undo/redo belongs to the application.
 
 Radiant's cleanup target is message-first, non-blocking application code: views
 emit explicit messages, update handlers own durable state changes, and any
@@ -529,10 +529,10 @@ single-line value needs explicit authority evidence across reprojection; import
 `TextInputRevision` from `radiant::widgets` because it is intentionally not in
 the common prelude. A strictly newer revision applies the projected value and
 selection, while an equal or older revision preserves retained editing state.
-This is a single-line authority prerequisite only; composition, multiline,
-clipboard, undo, and native accessibility remain separate capabilities. The
-target text contract nevertheless requires platform adapters to translate
-pre-edit, commit, and cancellation into backend-neutral composition state.
+This revision qualifies single-line retained state. Multiline document authority,
+composition, and deferred clipboard receipts use their corresponding text
+contracts. Platform adapters translate pre-edit, commit, and cancellation into
+backend-neutral composition state; durable undo remains application-owned.
 Use
 `text_line(label, height)` for
 fixed-height single-line labels that should fill their parent width and truncate
@@ -4759,19 +4759,17 @@ inspection on the same allocation-free path. The owned
 `focused_text_selection` helper remains available for callers that need to keep
 the selection after releasing the runtime borrow.
 
-Advanced text input capabilities are intentionally staged behind this
-single-line contract. Multiline editing should not be added by teaching
-`TextInputWidget` ad hoc newline behavior; it should be a generic text-area
-capability with layout-aware vertical navigation, line metrics, wrapping policy,
-and cursor-stop mapping shared with renderer text layout. Undo and redo should
-be widget-local edit history for text mutations and selection groups, separate
-from application undo stacks; hosts may mirror submitted values into their own
-history, but Radiant text editing should not assume a host undo model. Password
-or secret entry should be a first-class masked text-input mode, not only a paint
-hack: display and automation value text should be masked, copying selected text
-should be disabled by default unless the mode explicitly allows it, and tests
-should prove selection/caret behavior still operates on the underlying logical
-value. Native IME composition belongs at the platform adapter boundary, which
+Multiline editing uses the separate controlled `TextEditorWidget`, with
+layout-aware vertical navigation, line metrics, wrapping policy, and cursor-stop
+mapping shared with renderer text layout. Durable text values and undo/redo
+history belong to the application. Radiant emits transient edit-group metadata
+through `TextEditorEdit::grouping()` or opt-in `TextInputBuilder::edit_message`
+events; it does not retain a competing undo stack. Clipboard operations use
+revision-fenced deferred platform requests. Secret mode masks paint content,
+omits automation values, and denies copying by default, with independent
+explicit policy opt-ins. See [text editing privacy](TEXT_EDITING_PRIVACY.md)
+for bounds, cancellation, and the application-owned history fixture.
+Native IME composition belongs at the platform adapter boundary, which
 should translate platform preedit/commit/cancel events into backend-neutral
 composition state and final text commits; the widget model should own the
 logical composition range once that generic event exists. Unicode-scalar editing

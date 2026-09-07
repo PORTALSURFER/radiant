@@ -1,5 +1,7 @@
+use std::fmt;
+
 /// Backend-neutral single-line text editing commands.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TextEditCommand {
     /// Move the caret one logical character left.
     MoveLeft {
@@ -35,6 +37,8 @@ pub enum TextEditCommand {
     SelectAll,
     /// Insert or paste a text payload at the current selection.
     InsertText(String),
+    /// Apply an admitted clipboard paste as one atomic history boundary.
+    PasteText(String),
     /// Delete the selected range or previous character.
     Backspace,
     /// Delete the selected range or next character.
@@ -45,6 +49,51 @@ pub enum TextEditCommand {
     DeleteWordRight,
     /// Delete the selected range for a cut operation.
     CutSelection,
+}
+
+impl fmt::Debug for TextEditCommand {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MoveLeft { extend_selection } => formatter
+                .debug_struct("MoveLeft")
+                .field("extend_selection", extend_selection)
+                .finish(),
+            Self::MoveRight { extend_selection } => formatter
+                .debug_struct("MoveRight")
+                .field("extend_selection", extend_selection)
+                .finish(),
+            Self::MoveWordLeft { extend_selection } => formatter
+                .debug_struct("MoveWordLeft")
+                .field("extend_selection", extend_selection)
+                .finish(),
+            Self::MoveWordRight { extend_selection } => formatter
+                .debug_struct("MoveWordRight")
+                .field("extend_selection", extend_selection)
+                .finish(),
+            Self::MoveHome { extend_selection } => formatter
+                .debug_struct("MoveHome")
+                .field("extend_selection", extend_selection)
+                .finish(),
+            Self::MoveEnd { extend_selection } => formatter
+                .debug_struct("MoveEnd")
+                .field("extend_selection", extend_selection)
+                .finish(),
+            Self::SelectAll => formatter.write_str("SelectAll"),
+            Self::InsertText(text) => formatter
+                .debug_struct("InsertText")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::PasteText(text) => formatter
+                .debug_struct("PasteText")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::Backspace => formatter.write_str("Backspace"),
+            Self::Delete => formatter.write_str("Delete"),
+            Self::DeleteWordLeft => formatter.write_str("DeleteWordLeft"),
+            Self::DeleteWordRight => formatter.write_str("DeleteWordRight"),
+            Self::CutSelection => formatter.write_str("CutSelection"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -61,5 +110,15 @@ mod tests {
                 extend_selection: false
             }
         );
+    }
+
+    #[test]
+    fn debug_redacts_inserted_text_but_keeps_variant_identity() {
+        let secret = "TEXT_EDIT_DEBUG_SECRET_6a5fb75e";
+        let debug = format!("{:?}", TextEditCommand::InsertText(secret.into()));
+
+        assert!(debug.contains("InsertText"));
+        assert!(debug.contains("text_bytes"));
+        assert!(!debug.contains(secret));
     }
 }

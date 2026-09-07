@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::runtime::PaintText;
 use crate::widgets::interaction::TextInputRevision;
 
@@ -8,7 +10,7 @@ mod selection;
 mod word_boundary;
 
 /// Immutable public properties for a reusable single-line text input.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TextInputProps {
     /// Optional placeholder shown when the current value is empty.
     pub placeholder: Option<PaintText>,
@@ -24,6 +26,23 @@ pub struct TextInputProps {
     pub revision: Option<TextInputRevision>,
 }
 
+impl fmt::Debug for TextInputProps {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TextInputProps")
+            .field("placeholder_present", &self.placeholder.is_some())
+            .field(
+                "completion_suffix_present",
+                &self.completion_suffix.is_some(),
+            )
+            .field("submit_on_enter", &self.submit_on_enter)
+            .field("character_limit", &self.character_limit)
+            .field("chrome", &self.chrome)
+            .field("revision", &self.revision)
+            .finish()
+    }
+}
+
 /// Visual chrome treatment for a reusable single-line text input.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TextInputChrome {
@@ -35,7 +54,7 @@ pub enum TextInputChrome {
 }
 
 /// Mutable interaction state for a reusable single-line text input.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TextInputState {
     /// Current single-line text value.
     pub value: String,
@@ -43,6 +62,18 @@ pub struct TextInputState {
     pub caret: usize,
     /// Selection anchor measured in Unicode scalar values from the start.
     pub selection_anchor: usize,
+}
+
+impl fmt::Debug for TextInputState {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TextInputState")
+            .field("value_bytes", &self.value.len())
+            .field("value_scalars", &self.value.chars().count())
+            .field("caret", &self.caret)
+            .field("selection_anchor", &self.selection_anchor)
+            .finish()
+    }
 }
 
 /// Result of applying an editing command to [`TextInputState`].

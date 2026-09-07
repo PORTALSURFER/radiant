@@ -11,13 +11,12 @@ fn api_docs_define_advanced_text_input_capability_boundary() {
             .expect("text input state tests should be readable");
 
     for required in [
-        "Advanced text input capabilities are intentionally staged behind this single-line contract",
-        "generic text-area capability with layout-aware vertical navigation",
-        "Undo and redo should be widget-local edit history",
-        "separate from application undo stacks",
-        "first-class masked text-input mode",
-        "automation value text should be masked",
-        "copying selected text should be disabled by default",
+        "Multiline editing uses the separate controlled `TextEditorWidget`",
+        "layout-aware vertical navigation",
+        "Durable text values and undo/redo history belong to the application",
+        "it does not retain a competing undo stack",
+        "Secret mode masks paint content, omits automation values, and denies copying by default",
+        "independent explicit policy opt-ins",
         "Native IME composition belongs at the platform adapter boundary",
         "preedit/commit/cancel events",
         "Bidirectional text and complex shaping belong to renderer text layout",
@@ -30,12 +29,15 @@ fn api_docs_define_advanced_text_input_capability_boundary() {
     }
 
     assert!(
-        state_tests
-            .contains("Explicitly not covered because Radiant does not yet expose the feature")
+        state_tests.contains("Covered by dedicated editor, widget, geometry, and adapter tests:")
             && state_tests.contains("multiline Up/Down layout-aware navigation")
-            && state_tests.contains("undo/redo grouping")
-            && state_tests.contains("password masking mode")
+            && state_tests.contains("transient grouping and application-owned undo/redo")
+            && state_tests.contains("secret masking and automation policy")
             && state_tests.contains("platform IME composition and bidirectional shaping behavior"),
-        "single-line text input tests should keep advanced capability exclusions visible"
+        "single-line state tests should identify the owners of broader text coverage"
+    );
+    assert!(
+        !normalized_docs.contains("Undo and redo should be widget-local edit history"),
+        "durable history must remain application-owned"
     );
 }

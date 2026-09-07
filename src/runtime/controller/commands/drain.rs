@@ -44,18 +44,8 @@ where
         // happens before commands newly admitted below, so even a synchronous
         // host completion cannot re-enter execution.
         for delivery in platform_results {
-            if let Some(mapped) = self.platform_registry.map_delivery(delivery) {
-                if !mapped.is_current(&self.effect_owner)
-                    || !self.lifecycle_accepts_work()
-                    || !self.effect_origin_is_active(&mapped.origin)
-                {
-                    continue;
-                }
-                self.dispatch_message_inner_with_origin(
-                    mapped.message,
-                    &mut outcome,
-                    mapped.origin,
-                );
+            if let Some(mapped) = self.platform_registry.map_delivery_target(delivery) {
+                self.dispatch_mapped_platform_completion(mapped, &mut outcome);
             }
         }
 
@@ -161,19 +151,10 @@ where
                     RuntimeQueueItem::Delivery(delivery) => {
                         match delivery.downcast::<crate::runtime::PlatformResultDelivery>() {
                             Ok(delivery) => {
-                                if let Some(mapped) = self.platform_registry.map_delivery(delivery)
+                                if let Some(mapped) =
+                                    self.platform_registry.map_delivery_target(delivery)
                                 {
-                                    if !mapped.is_current(&self.effect_owner)
-                                        || !self.lifecycle_accepts_work()
-                                        || !self.effect_origin_is_active(&mapped.origin)
-                                    {
-                                        continue;
-                                    }
-                                    self.dispatch_message_inner_with_origin(
-                                        mapped.message,
-                                        &mut outcome,
-                                        mapped.origin,
-                                    );
+                                    self.dispatch_mapped_platform_completion(mapped, &mut outcome);
                                 }
                             }
                             Err(delivery) => {

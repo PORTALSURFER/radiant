@@ -1387,7 +1387,6 @@ pub(super) struct NativeRunnerInputState {
     pub(super) native_cursor_visible: bool,
     #[cfg(test)]
     pub(super) native_cursor_apply_count: usize,
-    pub(super) clipboard: Option<arboard::Clipboard>,
     pub(super) modifiers: ModifiersState,
     pub(super) tab_sequence_latch: Option<NativeTabSequenceLatch>,
     pub(super) effective_pointer_gesture: Option<NativePointerGestureLatch>,
@@ -1409,7 +1408,6 @@ impl Default for NativeRunnerInputState {
             native_cursor_visible: true,
             #[cfg(test)]
             native_cursor_apply_count: 0,
-            clipboard: arboard::Clipboard::new().ok(),
             modifiers: ModifiersState::default(),
             tab_sequence_latch: None,
             effective_pointer_gesture: None,

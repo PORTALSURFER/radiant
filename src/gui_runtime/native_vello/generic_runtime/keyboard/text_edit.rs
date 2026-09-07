@@ -3,6 +3,7 @@ use super::{GenericNativeVelloRunner, GenericRouteOutcome};
 use crate::gui::input::InputTimestamp;
 use crate::gui::input::KeyCode;
 use crate::runtime::RuntimeBridge;
+use crate::runtime::TextClipboardOperation;
 use crate::widgets::TextEditCommand;
 use crate::widgets::WidgetKey;
 
@@ -61,40 +62,40 @@ where
                 outcome.routed
             }
             KeyCode::C => {
-                if let Some(selection) = self.core.focused_text_selection() {
-                    if let Some(clipboard) = &mut self.input.clipboard {
-                        let _ = clipboard.set_text(selection);
-                    }
+                let owns_shortcut = self.core.focused_text_input_owns_clipboard_shortcut();
+                let routed = self
+                    .core
+                    .runtime
+                    .begin_focused_text_clipboard(TextClipboardOperation::Copy, timestamp);
+                route_outcome.merge(self.core.route_outcome(routed));
+                if owns_shortcut {
                     route_outcome.routed = true;
-                    return true;
                 }
-                false
+                owns_shortcut
             }
             KeyCode::X => {
-                if let Some(selection) = self.core.focused_text_selection() {
-                    if let Some(clipboard) = &mut self.input.clipboard {
-                        let _ = clipboard.set_text(selection);
-                    }
-                    let outcome = self
-                        .core
-                        .route_text_edit_with_timestamp(TextEditCommand::CutSelection, timestamp);
-                    route_outcome.merge(outcome);
-                    return outcome.routed;
+                let owns_shortcut = self.core.focused_text_input_owns_clipboard_shortcut();
+                let routed = self
+                    .core
+                    .runtime
+                    .begin_focused_text_clipboard(TextClipboardOperation::Cut, timestamp);
+                route_outcome.merge(self.core.route_outcome(routed));
+                if owns_shortcut {
+                    route_outcome.routed = true;
                 }
-                false
+                owns_shortcut
             }
             KeyCode::V => {
-                let Some(clipboard) = &mut self.input.clipboard else {
-                    return false;
-                };
-                let Ok(text) = clipboard.get_text() else {
-                    return false;
-                };
-                let outcome = self
+                let owns_shortcut = self.core.focused_text_input_owns_clipboard_shortcut();
+                let routed = self
                     .core
-                    .route_text_edit_with_timestamp(TextEditCommand::InsertText(text), timestamp);
-                route_outcome.merge(outcome);
-                outcome.routed
+                    .runtime
+                    .begin_focused_text_clipboard(TextClipboardOperation::Paste, timestamp);
+                route_outcome.merge(self.core.route_outcome(routed));
+                if owns_shortcut {
+                    route_outcome.routed = true;
+                }
+                owns_shortcut
             }
             KeyCode::Backspace => {
                 let outcome = self

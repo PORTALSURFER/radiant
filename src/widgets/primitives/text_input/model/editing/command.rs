@@ -62,7 +62,7 @@ impl TextInputState {
                     ..TextInputEditResult::default()
                 }
             }
-            TextEditCommand::InsertText(text) => {
+            TextEditCommand::InsertText(text) | TextEditCommand::PasteText(text) => {
                 self.insert_text(&sanitize_single_line_text(&text), character_limit)
             }
             TextEditCommand::Backspace => self.backspace(),

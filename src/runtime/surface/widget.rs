@@ -724,9 +724,17 @@ impl<Message> SurfaceWidget<Message> {
         bounds: Rect,
         position: Point,
         sample: WheelSample,
+        environment: &crate::runtime::ResolvedEnvironment,
     ) -> (super::WidgetDispatchResult<Message>, bool) {
         let Some(output) = (self.id() == widget_id)
-            .then(|| self.widget.handle_wheel_sample(bounds, position, sample))
+            .then(|| {
+                self.widget.handle_wheel_sample_with_environment(
+                    bounds,
+                    position,
+                    sample,
+                    environment,
+                )
+            })
             .flatten()
         else {
             return (

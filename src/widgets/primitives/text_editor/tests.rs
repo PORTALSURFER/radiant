@@ -289,16 +289,20 @@ fn composition_trace_commits_cancels_on_focus_loss_and_uncontrolled_state_surviv
         WidgetInput::FocusChanged(true),
     );
     let committed_range = CompositionRange::new(0, 1, 2).unwrap();
-    assert!(Widget::handle_composition_sample(
-        &mut widget,
-        CompositionSample::start(committed_range, committed_range).unwrap(),
-    )
-    .is_some());
-    assert!(Widget::handle_composition_sample(
-        &mut widget,
-        CompositionSample::update("漢", CompositionRange::new(0, 1, 1).unwrap()).unwrap(),
-    )
-    .is_some());
+    assert!(
+        Widget::handle_composition_sample(
+            &mut widget,
+            CompositionSample::start(committed_range, committed_range).unwrap(),
+        )
+        .is_some()
+    );
+    assert!(
+        Widget::handle_composition_sample(
+            &mut widget,
+            CompositionSample::update("漢", CompositionRange::new(0, 1, 1).unwrap()).unwrap(),
+        )
+        .is_some()
+    );
     assert!(Widget::retains_managed_composition(&widget));
     assert_eq!(widget.text(), "ab", "preedit stays outside committed text");
     assert!(

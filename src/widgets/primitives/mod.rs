@@ -80,5 +80,5 @@ pub use toggle::{ToggleProps, ToggleState, ToggleWidget, ToggleWidgetParts};
 pub use text_editor::{
     MAX_TEXT_EDITOR_BYTES, MAX_TEXT_EDITOR_GRAPHEMES, TextEditorCompositionDelta, TextEditorDelta,
     TextEditorDocument, TextEditorEdit, TextEditorError, TextEditorRevision, TextEditorSelection,
-    TextEditorSnapshot,
+    TextEditorSnapshot, TextEditorWidget, TextEditorWidgetParts,
 };

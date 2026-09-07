@@ -230,6 +230,8 @@ pub struct PaintTextInput {
 /// Multi-line editor primitive carrying an exact shared-geometry declaration.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaintTextEditor {
+    /// Reveal the current caret after shaping or reflow.
+    pub reveal_caret: bool,
     /// Exact declaration that the host must satisfy with one geometry receipt.
     pub request: TextEditorLayoutRequest,
     /// Application-owned ordered selection and active caret.

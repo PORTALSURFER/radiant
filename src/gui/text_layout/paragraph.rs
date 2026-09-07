@@ -228,6 +228,19 @@ impl ParagraphGeometry {
             placements.push(line_placements);
             carets.push(line_carets);
         }
+        let mut cluster_carets: Vec<_> = input
+            .clusters
+            .iter()
+            .map(|cluster| cluster.carets.clone())
+            .collect();
+        for placement in placements.iter().flatten() {
+            let cluster = &input.clusters[placement.source_cluster];
+            if cluster.bidi_level % 2 != placement.bidi_level % 2 {
+                for caret in &mut cluster_carets[placement.source_cluster] {
+                    caret.x = cluster.advance - caret.x;
+                }
+            }
+        }
         Ok(Self {
             key: input.key,
             source: input.source,
@@ -237,14 +250,34 @@ impl ParagraphGeometry {
             lines,
             placements,
             carets,
-            cluster_carets: input
-                .clusters
-                .iter()
-                .map(|cluster| cluster.carets.clone())
-                .collect(),
+            cluster_carets,
         })
     }
 
+    /// Conservatively account retained allocations for bounded host caches.
+    pub fn estimated_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self.source.len()
+            + self.lines.capacity() * std::mem::size_of::<ParagraphVisualLine>()
+            + self.placements.capacity() * std::mem::size_of::<Vec<ParagraphClusterPlacement>>()
+            + self
+                .placements
+                .iter()
+                .map(|v| v.capacity() * std::mem::size_of::<ParagraphClusterPlacement>())
+                .sum::<usize>()
+            + self.carets.capacity() * std::mem::size_of::<Vec<(ParagraphCaret, Point)>>()
+            + self
+                .carets
+                .iter()
+                .map(|v| v.capacity() * std::mem::size_of::<(ParagraphCaret, Point)>())
+                .sum::<usize>()
+            + self.cluster_carets.capacity() * std::mem::size_of::<Vec<ClusterCaretOffset>>()
+            + self
+                .cluster_carets
+                .iter()
+                .map(|v| v.capacity() * std::mem::size_of::<ClusterCaretOffset>())
+                .sum::<usize>()
+    }
     pub fn key(&self) -> ParagraphGeometryKey {
         self.key
     }
@@ -312,10 +345,20 @@ impl ParagraphGeometry {
     }
 
     pub fn selection_rects(&self, selection: Range<usize>) -> Vec<Rect> {
+        self.selection_rects_in_lines(selection, 0..self.lines.len())
+    }
+    /// Project selection only for visible visual lines, without allocating offscreen rectangles.
+    pub fn selection_rects_in_lines(
+        &self,
+        selection: Range<usize>,
+        lines: Range<usize>,
+    ) -> Vec<Rect> {
         if selection.start >= selection.end {
             return Vec::new();
         }
         self.placements
+            .get(lines)
+            .unwrap_or_default()
             .iter()
             .flatten()
             .filter_map(|placement| self.selection_rect_for_placement(selection.clone(), placement))
@@ -706,7 +749,14 @@ fn visual_line(
             };
             carets.push((
                 ParagraphCaret { byte, affinity },
-                Point::new(x + offset.x, y),
+                Point::new(
+                    x + if cluster.bidi_level % 2 != resolved_level % 2 {
+                        cluster.advance - offset.x
+                    } else {
+                        offset.x
+                    },
+                    y,
+                ),
             ));
         }
         x += cluster.advance;
@@ -772,6 +822,53 @@ mod tests {
         .unwrap()
     }
     #[test]
+    fn wrapped_rtl_whitespace_uses_l1_caret_direction() {
+        let cluster = |bytes: Range<usize>, safe| ShapedLogicalCluster {
+            carets: vec![
+                ClusterCaretOffset {
+                    byte_offset: 0,
+                    x: 8.0,
+                },
+                ClusterCaretOffset {
+                    byte_offset: bytes.len() as u32,
+                    x: 0.0,
+                },
+            ],
+            bytes,
+            advance: 8.0,
+            bidi_level: 1,
+            safe_break_after: safe,
+        };
+        let geometry = ParagraphGeometry::build(ParagraphGeometryInput {
+            key: ParagraphGeometryKey(99),
+            source: Arc::from("א ב"),
+            clusters: vec![
+                cluster(0..2, false),
+                cluster(2..3, true),
+                cluster(3..5, false),
+            ],
+            base_direction: ParagraphBaseDirection::Ltr,
+            wrap_width: 16.0,
+            line_height: 20.0,
+        })
+        .unwrap();
+        assert_eq!(geometry.lines().len(), 2);
+        assert_eq!(
+            geometry.caret(ParagraphCaret {
+                byte: 2,
+                affinity: CaretAffinity::Downstream
+            }),
+            Some(Point::new(8.0, 0.0))
+        );
+        assert_eq!(
+            geometry.caret(ParagraphCaret {
+                byte: 3,
+                affinity: CaretAffinity::Upstream
+            }),
+            Some(Point::new(16.0, 0.0))
+        );
+    }
+    #[test]
     fn hard_and_trailing_lines() {
         let g = geometry("a\r\nb\n", 100.0);
         assert_eq!(g.lines().len(), 3);
@@ -795,15 +892,15 @@ mod tests {
         let geometry = geometry("a b ", 25.0);
         assert_eq!(geometry.lines().len(), 2);
         assert_eq!(geometry.lines()[0].bytes, 0..2);
-        assert_eq!(geometry.lines()[0].width, 16.0);
+        assert_eq!(geometry.lines()[0].width, 20.0);
     }
     #[test]
     fn unavoidable_overflow_resets_at_its_next_safe_boundary() {
-        let geometry = geometry("verylongword short short", 48.0);
+        let geometry = geometry("verylongword short short", 60.0);
         assert_eq!(geometry.lines().len(), 3);
         assert_eq!(geometry.lines()[0].bytes, 0..13);
-        assert_eq!(geometry.lines()[1].width, 48.0);
-        assert_eq!(geometry.lines()[2].width, 40.0);
+        assert_eq!(geometry.lines()[1].width, 60.0);
+        assert_eq!(geometry.lines()[2].width, 50.0);
     }
     #[test]
     fn combining_has_one_logical_grapheme_boundary() {

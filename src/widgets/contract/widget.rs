@@ -300,6 +300,18 @@ pub trait Widget: WidgetClone + Any {
             .and_then(|input| self.handle_input(bounds, input))
     }
 
+    /// Route an exact wheel sample with the current resolved environment.
+    /// Existing widgets retain their original wheel hook through this default.
+    fn handle_wheel_sample_with_environment(
+        &mut self,
+        bounds: Rect,
+        position: Point,
+        sample: WheelSample,
+        _environment: &ResolvedEnvironment,
+    ) -> Option<WidgetOutput> {
+        self.handle_wheel_sample(bounds, position, sample)
+    }
+
     /// Report whether this widget still owns an admitted explicit wheel
     /// sequence after its most recent exact sample.
     ///

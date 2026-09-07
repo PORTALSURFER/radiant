@@ -201,6 +201,9 @@ impl TextEditorSnapshot {
             .map_or_else(|| self.text.clone(), |state| state.display.clone())
     }
 
+    pub(crate) fn composition_range(&self) -> Option<Range<usize>> {
+        self.composition.as_ref().map(|value| value.range.clone())
+    }
     pub(crate) fn composition_original_selection(&self) -> Option<TextEditorSelection> {
         self.composition
             .as_ref()
@@ -463,6 +466,8 @@ mod tests {
             )
             .unwrap();
         let mut other = TextEditorDocument::new("a\nb").unwrap();
+        assert!(doc.snapshot().same_owner(&doc.snapshot()));
+        assert!(!doc.snapshot().same_owner(&other.snapshot()));
         assert_eq!(other.apply(&edit), Err(TextEditorError::WrongOwner));
         doc.apply(&edit).unwrap();
         assert_eq!(doc.text(), "a!\nb");

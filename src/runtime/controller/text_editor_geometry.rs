@@ -34,7 +34,9 @@ where
         }
         let environment = self.surface.resolved_environment().clone();
         self.surface_widget_mut(widget_id).is_some_and(|widget| {
-            widget.install_text_editor_geometry(receipt, bounds, &environment)
+            widget
+                .widget_object_mut_runtime()
+                .install_text_editor_geometry(receipt, bounds, &environment)
         })
     }
 }

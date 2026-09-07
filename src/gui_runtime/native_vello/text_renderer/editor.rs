@@ -25,19 +25,10 @@ use std::{
 #[derive(Clone, Debug)]
 pub(in crate::gui_runtime::native_vello) struct NativeEditorClusterPayload {
     source_cluster: usize,
-    bytes: Range<usize>,
     glyphs: Vec<GlyphPlacement>,
 }
 
 impl NativeEditorClusterPayload {
-    pub(in crate::gui_runtime::native_vello) fn source_cluster(&self) -> usize {
-        self.source_cluster
-    }
-
-    pub(in crate::gui_runtime::native_vello) fn bytes(&self) -> &Range<usize> {
-        &self.bytes
-    }
-
     pub(in crate::gui_runtime::native_vello) fn glyphs(&self) -> &[GlyphPlacement] {
         &self.glyphs
     }
@@ -56,6 +47,15 @@ pub(in crate::gui_runtime::native_vello) struct NativeEditorParagraph {
 }
 
 impl NativeEditorParagraph {
+    pub(super) fn estimated_bytes(&self) -> usize {
+        self.geometry.estimated_bytes()
+            + self.payloads.capacity() * std::mem::size_of::<NativeEditorClusterPayload>()
+            + self
+                .payloads
+                .iter()
+                .map(|payload| payload.glyphs.capacity() * std::mem::size_of::<GlyphPlacement>())
+                .sum::<usize>()
+    }
     pub(in crate::gui_runtime::native_vello) fn geometry(&self) -> &Arc<ParagraphGeometry> {
         &self.geometry
     }
@@ -194,7 +194,6 @@ fn append_shaped_clusters(
         });
         payloads.push(NativeEditorClusterPayload {
             source_cluster,
-            bytes,
             glyphs: source_cluster_glyphs
                 .iter()
                 .map(|glyph| shifted_glyph(*glyph, byte_offset, glyph_origin))

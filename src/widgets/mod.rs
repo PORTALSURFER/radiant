@@ -139,5 +139,5 @@ pub use theme::{WidgetVisualCue, WidgetVisualTokens, resolve_widget_visual_token
 pub use primitives::{
     MAX_TEXT_EDITOR_BYTES, MAX_TEXT_EDITOR_GRAPHEMES, TextEditorCompositionDelta, TextEditorDelta,
     TextEditorDocument, TextEditorEdit, TextEditorError, TextEditorRevision, TextEditorSelection,
-    TextEditorSnapshot,
+    TextEditorSnapshot, TextEditorWidget, TextEditorWidgetParts,
 };

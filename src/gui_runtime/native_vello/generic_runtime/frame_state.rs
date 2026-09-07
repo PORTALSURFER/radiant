@@ -666,6 +666,14 @@ impl NativeVelloFrameState {
         );
     }
 
+    pub(super) fn editor_geometry_receipts(
+        &self,
+    ) -> Vec<crate::gui::text_layout::editor::TextEditorGeometryReceipt> {
+        self.current_text_input_snapshot_fence
+            .map_or_else(Vec::new, |fence| {
+                self.text_renderer.editor_plan_receipts(fence)
+            })
+    }
     pub(super) fn native_ime_cursor_area(&mut self) -> Option<UiRect> {
         let fence = self.current_text_input_snapshot_fence?;
         focused_text_input_caret_area_from_snapshot(

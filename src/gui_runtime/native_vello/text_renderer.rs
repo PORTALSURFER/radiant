@@ -14,6 +14,8 @@ use vello::{Glyph, Scene, peniko::Fill};
 
 mod cache;
 mod editor;
+mod editor_cache;
+mod editor_paint;
 mod encoding;
 mod font;
 mod layout;
@@ -411,6 +413,7 @@ impl RetainedTextInputSnapshotSidecar {
 
 pub(crate) struct NativeTextRenderer {
     font_stack: NativeFontStack,
+    editor_retention: editor_cache::EditorRetention,
     layout_cache: TextLayoutCache,
     native_caret_affinities: HashMap<crate::widgets::WidgetId, CaretAffinity>,
     pub(crate) retained_text_input_snapshot: RetainedTextInputSnapshotSidecar,
@@ -431,6 +434,7 @@ impl NativeTextRenderer {
         }
         Self {
             font_stack,
+            editor_retention: editor_cache::EditorRetention::default(),
             layout_cache: TextLayoutCache::new(),
             native_caret_affinities: HashMap::new(),
             retained_text_input_snapshot: RetainedTextInputSnapshotSidecar::default(),
@@ -534,6 +538,7 @@ impl NativeTextRenderer {
 
     pub(crate) fn invalidate_text_input_snapshots(&mut self) {
         self.retained_text_input_snapshot.invalidate();
+        self.editor_retention.invalidate();
     }
 
     /// Retain one private text-input snapshot for the current frame/plan seam.
@@ -687,27 +692,6 @@ impl NativeTextRenderer {
             available_width,
             align,
             wrap,
-        )
-    }
-
-    /// Shape one editor paragraph through the same font stack and presentation
-    /// used by scene text. The returned geometry is renderer-neutral; its
-    /// payload retains the native glyph and face selections for a later paint
-    /// adapter.
-    pub(in crate::gui_runtime::native_vello) fn layout_editor_paragraph(
-        &mut self,
-        source: Arc<str>,
-        font_size: f32,
-        wrap_width: f32,
-        line_height: f32,
-    ) -> Option<Arc<NativeEditorParagraph>> {
-        editor::layout_editor_paragraph(
-            &mut self.font_stack,
-            &self.layout_cache.presentation,
-            source,
-            font_size,
-            wrap_width,
-            line_height,
         )
     }
 

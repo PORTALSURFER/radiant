@@ -235,5 +235,5 @@ impl windows::Win32::System::Com::IDataObject_Impl for ExternalDragDataObject_Im
 }
 
 #[cfg(test)]
-#[path = "data_object/tests.rs"]
+#[path = "data_object/tests/native.rs"]
 mod tests;

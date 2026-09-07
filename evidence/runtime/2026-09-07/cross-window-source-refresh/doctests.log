@@ -1,0 +1,34 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+   Doc-tests radiant
+
+running 5 tests
+test src/application/control_builders/interactive_row/builder/policy.rs - application::control_builders::interactive_row::builder::policy::DenseRowPolicy (line 13) ... ignored
+test src/lib.rs - (line 16) - compile ... ok
+test src/application/resource_view.rs - application::resource_view::resource (line 53) ... ok
+test src/gui/mod.rs - gui::layout_core (line 93) ... ok
+test src/lib.rs - widgets (line 148) ... ok
+
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 16 tests
+test src/gui/layout_core/scroll.rs - gui::layout_core::scroll::ScrollPolicy (line 66) - compile fail ... ok
+test src/application/widget_view.rs - application::widget_view::WidgetViewContext (line 20) - compile fail ... ok
+test src/runtime/surface/widget.rs - runtime::surface::widget::SurfaceWidget (line 31) - compile fail ... ok
+test src/runtime/surface.rs - runtime::surface::UiSurface (line 191) - compile fail ... ok
+test src/application/view_node.rs - application::view_node::ViewNode (line 123) - compile fail ... ok
+test src/lib.rs - prelude (line 103) - compile fail ... ok
+test src/lib.rs - prelude (line 131) - compile fail ... ok
+test src/lib.rs - prelude (line 124) - compile fail ... ok
+test src/lib.rs - prelude (line 119) - compile fail ... ok
+test src/lib.rs - prelude (line 91) - compile fail ... ok
+test src/lib.rs - prelude (line 86) - compile fail ... ok
+test src/lib.rs - prelude (line 96) - compile fail ... ok
+test src/lib.rs - prelude (line 111) - compile fail ... ok
+test src/runtime/controller.rs - runtime::controller::SurfaceRuntime (line 164) - compile fail ... ok
+test src/runtime/surface/widget/mapper.rs - runtime::surface::widget::mapper::WidgetMessageMapper (line 287) - compile fail ... ok
+test src/runtime/surface/node/model.rs - runtime::surface::node::model::SurfaceNode (line 338) - compile fail ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+all doctests ran in 3.38s; merged doctests compilation took 2.88s

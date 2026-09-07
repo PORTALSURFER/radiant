@@ -8706,6 +8706,12 @@ resolve uniquely to that exact live keyed node. The format factories `files()`,
 `urls()`, `text()`, and `approved_mime(name)` make a data-free acceptance decision;
 MIME approval names one concrete type, without parameters or wildcards.
 
+`SurfaceRuntime::probe_external_offer(position, metadata)` lets an incoming
+native hover adapter inspect current geometry, clipping, modal scope, format,
+and keyed-owner evidence using already available metadata. `Eligible` reserves no
+worker capacity and grants no authority for a later drop; adapters must dispatch
+the owned offer, which reselects and revalidates its target at that time.
+
 The backend-neutral `SurfaceRuntime::dispatch_external_offer(position, offer)`
 admits one owned drop. An `Accepted` outcome means the worker was admitted,
 not that decoding succeeded. The decoder performs semantic validation and any

@@ -11,7 +11,8 @@ use crate::{
     application::runtime::{BusinessTaskAdmission, BusinessTaskAdmissionReceipt},
     gui::types::Point,
     runtime::{
-        Command, ExternalOfferAdmission, OwnedExternalOffer, RuntimeBridge, surface::WidgetPath,
+        Command, ExternalOfferAdmission, ExternalOfferMetadata, ExternalOfferProbe,
+        OwnedExternalOffer, RuntimeBridge, surface::WidgetPath,
     },
 };
 
@@ -20,24 +21,69 @@ where
     Bridge: RuntimeBridge<Message>,
     Message: 'static,
 {
+    /// Qualify bounded external-offer metadata at the current surface position.
+    ///
+    /// This observes only current target evidence. It does not allocate or
+    /// submit worker work, invoke a decoder or mapper, or reserve a later drop.
+    pub fn probe_external_offer(
+        &self,
+        position: Point,
+        metadata: &ExternalOfferMetadata,
+    ) -> ExternalOfferProbe {
+        self.select_external_offer_target(position, metadata)
+            .map_or_else(|probe| probe, |_| ExternalOfferProbe::Eligible)
+    }
+
     /// Admit one bounded, owned external offer at the current surface position.
     ///
-    /// This does not invoke a decoder or mapper itself. Those closures remain
-    /// inside the accepted owned worker command. Empty container background is
-    /// deliberately unsupported in this slice: a normal hit-testable child
-    /// must anchor the target at the supplied point.
+    /// This reselects and revalidates the target at drop time. An earlier probe
+    /// never reserves worker capacity or carries authority into this admission.
     pub fn dispatch_external_offer(
         &mut self,
         position: Point,
         offer: OwnedExternalOffer,
     ) -> ExternalOfferAdmission {
+        let (command, receipt) = {
+            let record = match self.select_external_offer_target(position, offer.metadata()) {
+                Ok(record) => record,
+                Err(ExternalOfferProbe::Rejected) => return ExternalOfferAdmission::Rejected,
+                Err(ExternalOfferProbe::NoTarget) | Err(ExternalOfferProbe::Eligible) => {
+                    return ExternalOfferAdmission::NoTarget;
+                }
+            };
+            let receipt = BusinessTaskAdmissionReceipt::new();
+            let mut command = record.target.command(offer);
+            let Command::PerformWorker(effect) = &mut command else {
+                return ExternalOfferAdmission::Rejected;
+            };
+            effect.admission_receipt = Some(AdmissionReceiptGuard(receipt.weak()));
+            (command, receipt)
+        };
+        let outcome = self.execute_command(command);
+        self.pending_input_command_outcome.merge(outcome);
+        match receipt.poll() {
+            BusinessTaskAdmission::Accepted => ExternalOfferAdmission::Accepted,
+            BusinessTaskAdmission::Pending
+            | BusinessTaskAdmission::Rejected
+            | BusinessTaskAdmission::Closed => ExternalOfferAdmission::Rejected,
+        }
+    }
+
+    /// Select one exact current target without allocating worker authority.
+    fn select_external_offer_target(
+        &self,
+        position: Point,
+        metadata: &ExternalOfferMetadata,
+    ) -> Result<
+        &crate::runtime::surface::SurfaceExternalDropTargetRecord<Message>,
+        ExternalOfferProbe,
+    > {
         if !self.lifecycle_accepts_work()
             || !position.is_finite()
             || !self.viewport.contains(position)
         {
-            return ExternalOfferAdmission::NoTarget;
+            return Err(ExternalOfferProbe::NoTarget);
         }
-
         let Some(anchor) = self
             .widget_at_for_input(
                 position,
@@ -50,9 +96,8 @@ where
                     .map(|path| (id, path))
             })
         else {
-            return ExternalOfferAdmission::NoTarget;
+            return Err(ExternalOfferProbe::NoTarget);
         };
-
         let mut visited = 0usize;
         let mut selected = None;
         for record in &self.traversal.containers.external_drop_targets {
@@ -61,7 +106,7 @@ where
             }
             visited += 1;
             if visited > 64 {
-                return ExternalOfferAdmission::Rejected;
+                return Err(ExternalOfferProbe::Rejected);
             }
             if selected.is_none_or(
                 |current: &crate::runtime::surface::SurfaceExternalDropTargetRecord<Message>| {
@@ -72,29 +117,12 @@ where
             }
         }
         let Some(record) = selected else {
-            return ExternalOfferAdmission::NoTarget;
+            return Err(ExternalOfferProbe::NoTarget);
         };
-
-        if !record.target.accepts(offer.metadata())
-            || !self.external_target_owner_is_current(record)
-        {
-            return ExternalOfferAdmission::Rejected;
+        if !record.target.accepts(metadata) || !self.external_target_owner_is_current(record) {
+            return Err(ExternalOfferProbe::Rejected);
         }
-
-        let receipt = BusinessTaskAdmissionReceipt::new();
-        let mut command = record.target.command(offer);
-        let Command::PerformWorker(effect) = &mut command else {
-            return ExternalOfferAdmission::Rejected;
-        };
-        effect.admission_receipt = Some(AdmissionReceiptGuard(receipt.weak()));
-        let outcome = self.execute_command(command);
-        self.pending_input_command_outcome.merge(outcome);
-        match receipt.poll() {
-            BusinessTaskAdmission::Accepted => ExternalOfferAdmission::Accepted,
-            BusinessTaskAdmission::Pending
-            | BusinessTaskAdmission::Rejected
-            | BusinessTaskAdmission::Closed => ExternalOfferAdmission::Rejected,
-        }
+        Ok(record)
     }
 
     fn external_target_contains(

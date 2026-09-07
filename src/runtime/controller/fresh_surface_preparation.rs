@@ -702,7 +702,7 @@ where
         self.enforce_identity_audit(identity);
         // Finalize publication before focus callbacks can synchronously publish
         // another surface. No stale projection bookkeeping may follow them.
-        let overlay_focus_routed = self.publish_overlay_focus_transition(overlay_focus_transition);
+        let overlay_focus_routed = self.finish_surface_overlay_transition(overlay_focus_transition);
         if !overlay_focus_routed && let Some(widget_id) = self.interaction.focus.focused_widget() {
             self.restore_focused_widget_state(widget_id);
         }

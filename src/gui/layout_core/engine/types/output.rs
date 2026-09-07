@@ -1,4 +1,4 @@
-use super::super::super::tree::NodeId;
+use super::super::super::tree::{LayoutNode, NodeId};
 use super::{LayoutDebugPrimitive, LayoutDiagnostic, LayoutStats, OverflowInfo, VirtualWindowInfo};
 use crate::gui::types::Rect;
 use std::collections::{BTreeMap, BTreeSet};
@@ -58,5 +58,35 @@ impl LayoutOutput {
 
     pub(crate) fn is_omitted(&self, node_id: NodeId) -> bool {
         self.omitted_nodes.contains(&node_id)
+    }
+
+    /// Remove a subtree from a completed layout projection. This is reserved
+    /// for runtime admission after a full pass has established current base
+    /// geometry but a newly visible transient overlay must be rejected.
+    pub(crate) fn omit_resolved_subtree(&mut self, node: &LayoutNode) {
+        let mut ids = BTreeSet::new();
+        collect_subtree_ids(node, &mut ids);
+        for id in &ids {
+            self.rects.remove(id);
+            self.viewport_bounds.remove(id);
+            self.scrollbar_placements.remove(id);
+            self.virtual_windows.remove(id);
+            self.overflowed.remove(id);
+            self.overflow_flags.remove(id);
+            self.omitted_nodes.insert(*id);
+        }
+        self.diagnostics
+            .retain(|diagnostic| !ids.contains(&diagnostic.node_id));
+        self.debug_primitives
+            .retain(|primitive| !ids.contains(&primitive.node_id));
+    }
+}
+
+fn collect_subtree_ids(node: &LayoutNode, ids: &mut BTreeSet<NodeId>) {
+    ids.insert(node.id());
+    if let LayoutNode::Container(container) = node {
+        for child in &container.children {
+            collect_subtree_ids(&child.child, ids);
+        }
     }
 }

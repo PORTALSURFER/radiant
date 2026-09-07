@@ -5,6 +5,11 @@ use std::rc::Rc;
 
 type EscapeDismissals<Message> = Rc<Vec<Option<Rc<dyn Fn() -> Message>>>>;
 
+struct NestedOverlayTopology {
+    ordered: Vec<usize>,
+    parents: Vec<Option<usize>>,
+}
+
 /// A root scene with base content plus typed transient layers.
 pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) _ui_affinity: UiAffinity,
@@ -125,6 +130,30 @@ impl<Message> SurfaceScene<Message> {
     pub(in crate::runtime) fn ordered_layer_child_count(&self) -> usize {
         self.layers.iter().map(SurfaceLayer::child_count).sum()
     }
+
+    /// Return current-layout child-to-parent requirements for qualified nested
+    /// layers.  The layout stack owns enforcement, so a parent omitted by its
+    /// own anchor also omits every direct nested layer root and its shield.
+    pub(in crate::runtime) fn overlay_layout_dependencies(&self) -> Vec<(NodeId, NodeId)> {
+        let Some(topology) = nested_overlay_topology(&self.layers) else {
+            return Vec::new();
+        };
+        let mut dependencies = Vec::with_capacity(self.layers.len());
+        for (child_index, parent_index) in topology.parents.into_iter().enumerate() {
+            let Some(parent_index) = parent_index else {
+                continue;
+            };
+            let parent_root = self.layers[parent_index].node.layout_root_id();
+            let child = &self.layers[child_index];
+            if let Some(input) = &child.input {
+                dependencies.push((input.layout_root_id(), parent_root));
+            }
+            dependencies.push((child.node.layout_root_id(), parent_root));
+            // Qualified scenes contain at most 64 layers, each with at most
+            // one shield and one foreground: at most 128 dependency pairs.
+        }
+        dependencies
+    }
 }
 
 pub(in crate::runtime) enum OrderedLayerIndices<'a, Message> {
@@ -171,6 +200,12 @@ impl<Message> Iterator for OrderedLayerIndices<'_, Message> {
 }
 
 fn ordered_nested_overlay_indices<Message>(layers: &[SurfaceLayer<Message>]) -> Option<Vec<usize>> {
+    nested_overlay_topology(layers).map(|topology| topology.ordered)
+}
+
+fn nested_overlay_topology<Message>(
+    layers: &[SurfaceLayer<Message>],
+) -> Option<NestedOverlayTopology> {
     if layers.is_empty() || layers.len() > 64 {
         return None;
     }
@@ -241,7 +276,10 @@ fn ordered_nested_overlay_indices<Message>(layers: &[SurfaceLayer<Message>]) -> 
             .min_by_key(|index| (layers[*index].kind.z_order(), *index));
         ordered.push(candidate?);
     }
-    Some(ordered)
+    Some(NestedOverlayTopology {
+        ordered,
+        parents: parent_indices,
+    })
 }
 
 #[cfg(test)]

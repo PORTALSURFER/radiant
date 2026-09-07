@@ -33,7 +33,11 @@ impl<Message> SurfaceContainer<Message> {
         context: &SurfacePaintContext<'_>,
         plan: &mut SurfacePaintPlan,
     ) {
-        let Some(content_id) = self.children.first().map(|child| child.child.id()) else {
+        let Some(content_id) = self
+            .children
+            .first()
+            .map(|child| child.child.layout_root_id())
+        else {
             return;
         };
         if !crate::runtime::paint::scrollbar_visibility_allows(

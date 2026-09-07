@@ -95,6 +95,7 @@ pub(crate) struct OverlayEvidence {
     pub(crate) identity: OverlayIdentity,
     pub(crate) layer_kind: LayerKind,
     pub(crate) focus_policy: crate::runtime::OverlayFocusPolicy,
+    pub(crate) anchored: bool,
     pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
@@ -106,6 +107,7 @@ impl From<DeclarativeOverlaySource> for OverlayEvidence {
             },
             layer_kind: source.layer_kind,
             focus_policy: source.focus_policy,
+            anchored: source.anchored,
             effect_owner: source.effect_owner,
         }
     }

@@ -9,6 +9,7 @@ mod custom_policy;
 mod debug;
 mod diagnostics;
 mod layout;
+mod overlay_anchor;
 mod scroll;
 
 #[path = "tests/scratch.rs"]

@@ -5,6 +5,16 @@ use crate::{
 };
 
 impl<Message> Layer<Message> {
+    /// Anchor this layer to the trigger resolved by the current layout pass.
+    ///
+    /// The layer, including an optional synthesized input shield, is omitted
+    /// when its trigger is absent, ambiguous, or outside the eligible layout
+    /// viewport.
+    pub fn anchored_to(mut self, anchor: crate::layout::OverlayAnchor) -> Self {
+        self.anchor = Some(anchor);
+        self
+    }
+
     /// Set focus behavior for this qualified declarative overlay.
     pub fn focus_policy(mut self, policy: crate::runtime::OverlayFocusPolicy) -> Self {
         self.focus_policy = policy;

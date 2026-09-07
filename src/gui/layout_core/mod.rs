@@ -90,6 +90,7 @@ mod constraints;
 mod controlled;
 mod engine;
 mod model;
+mod overlay_anchor;
 mod policy;
 mod row_helpers;
 mod scroll;
@@ -132,6 +133,8 @@ pub use model::{
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams, SplitPanePolicy, SwitchBreakpoint,
     VirtualizationAxis, VirtualizationPolicy, WrapPolicy, WritingDirection,
 };
+pub(crate) use overlay_anchor::AnchoredOverlayLayout;
+pub use overlay_anchor::{OverlayAnchor, OverlayAnchorSide};
 pub use policy::{
     LayoutOmissionReason, LayoutPolicy, LayoutPolicyOmissionReason, LayoutPolicyPlacementError,
     MeasureChildError, MeasureChildren, MeasureChildrenError, PlaceChildren, PlaceChildrenError,

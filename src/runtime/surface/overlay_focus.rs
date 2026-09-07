@@ -30,10 +30,16 @@ pub(crate) struct OverlayFocusRecord {
     layer_kind: LayerKind,
     root: WidgetId,
     parent: Option<usize>,
+    /// This record, or one of its declaration ancestors, depends on anchored
+    /// geometry and is therefore admitted after the accepted layout pass.
+    deferred: bool,
     active: bool,
 }
 
 impl OverlayFocusRecord {
+    pub(crate) const fn root(&self) -> WidgetId {
+        self.root
+    }
     pub(crate) fn key(&self) -> &OverlayFocusKey {
         &self.key
     }
@@ -47,6 +53,9 @@ impl OverlayFocusRecord {
     pub(crate) const fn active(&self) -> bool {
         self.active
     }
+    pub(crate) const fn deferred(&self) -> bool {
+        self.deferred
+    }
 }
 
 /// Bounded source-derived overlay membership evidence.
@@ -56,6 +65,8 @@ pub(crate) struct OverlayFocusProjection {
     members: HashMap<WidgetId, usize>,
     faulted: bool,
     invalid: bool,
+    deferred_suppressed: bool,
+    has_virtual_content: bool,
 }
 
 impl OverlayFocusProjection {
@@ -81,8 +92,10 @@ impl OverlayFocusProjection {
             let parent_active = self.records[index]
                 .parent
                 .is_none_or(|parent| self.records[parent].active);
-            self.records[index].active =
-                parent_active && layout.rects.contains_key(&self.records[index].root);
+            self.records[index].active = !self.deferred_suppressed || !self.records[index].deferred;
+            self.records[index].active = self.records[index].active
+                && parent_active
+                && layout.rects.contains_key(&self.records[index].root);
         }
     }
 
@@ -102,6 +115,23 @@ impl OverlayFocusProjection {
     }
     pub(crate) fn records(&self) -> &[OverlayFocusRecord] {
         &self.records
+    }
+    pub(crate) fn has_deferred_records(&self) -> bool {
+        self.records.iter().any(OverlayFocusRecord::deferred)
+    }
+    pub(crate) const fn has_virtual_content(&self) -> bool {
+        self.has_virtual_content
+    }
+
+    /// Keep anchor-driven groups out of the ordinary pre-publication focus
+    /// transaction. Their activation is decided from the accepted layout.
+    pub(crate) fn suppress_deferred(&mut self) {
+        self.deferred_suppressed = true;
+        for record in &mut self.records {
+            if record.deferred {
+                record.active = false;
+            }
+        }
     }
     pub(crate) fn top_active(&self) -> Option<&OverlayFocusRecord> {
         (!self.faulted)
@@ -196,6 +226,7 @@ impl OverlayFocusProjection {
                 }
             }
             SurfaceNode::Container(container) => {
+                self.has_virtual_content |= container.virtual_layout.is_some();
                 for child in container.children.iter() {
                     self.collect_node(&child.child, current, layer_kind, seen);
                 }
@@ -245,13 +276,19 @@ impl OverlayFocusProjection {
         parent: Option<usize>,
         strict_root: bool,
     ) -> Option<usize> {
+        let deferred =
+            evidence.anchored || parent.is_some_and(|index| self.records[index].deferred);
         if let Some((index, existing)) = self.records.iter().enumerate().find(|(_, record)| {
             matches!(&record.key, OverlayFocusKey::Declarative { identity, layer_kind, .. } if *identity == evidence.identity && *layer_kind == evidence.layer_kind)
         }) {
             let root_changed = strict_root && matches!(&existing.key,
                 OverlayFocusKey::Declarative { root: old_root, compatibility: old_compatibility, .. }
                 if *old_root != root || *old_compatibility != compatibility);
-            if root_changed || existing.policy != evidence.focus_policy || existing.layer_kind != evidence.layer_kind {
+            if root_changed
+                || existing.policy != evidence.focus_policy
+                || existing.layer_kind != evidence.layer_kind
+                || existing.deferred != deferred
+            {
                 self.faulted = true;
                 return None;
             }
@@ -268,6 +305,7 @@ impl OverlayFocusProjection {
             evidence.layer_kind,
             node,
             parent,
+            evidence.anchored,
         )
     }
 
@@ -291,6 +329,7 @@ impl OverlayFocusProjection {
             layer_kind,
             node,
             parent,
+            false,
         )
     }
 
@@ -301,18 +340,21 @@ impl OverlayFocusProjection {
         layer_kind: LayerKind,
         root: WidgetId,
         parent: Option<usize>,
+        anchored: bool,
     ) -> Option<usize> {
         if self.records.len() == MAX_OVERLAYS {
             self.faulted = true;
             return None;
         }
         let index = self.records.len();
+        let deferred = anchored || parent.is_some_and(|parent| self.records[parent].deferred);
         self.records.push(OverlayFocusRecord {
             key,
             policy,
             layer_kind,
             root,
             parent,
+            deferred,
             active: true,
         });
         Some(index)

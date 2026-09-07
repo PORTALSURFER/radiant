@@ -109,16 +109,16 @@ impl<Message> SurfaceNode<Message> {
     ) {
         match self {
             Self::Scene(scene) => {
-                if context.should_paint_node(scene.base.id()) {
+                if context.should_paint_node(scene.base.layout_root_id()) {
                     scene.base.append_paint_with_context(context, plan);
                 }
                 for layer in scene.ordered_layers() {
                     if let Some(input) = &layer.input
-                        && context.should_paint_node(input.id())
+                        && context.should_paint_node(input.layout_root_id())
                     {
                         input.append_paint_with_context(context, plan);
                     }
-                    if context.should_paint_node(layer.node.id()) {
+                    if context.should_paint_node(layer.node.layout_root_id()) {
                         layer.node.append_paint_with_context(context, plan);
                     }
                 }
@@ -150,7 +150,9 @@ impl<Message> SurfaceNode<Message> {
                                     &clipped_context,
                                     plan,
                                 );
-                            } else if clipped_context.should_paint_node(child.child.id()) {
+                            } else if clipped_context
+                                .should_paint_node(child.child.layout_root_id())
+                            {
                                 child
                                     .child
                                     .append_paint_with_context(&clipped_context, plan);
@@ -168,10 +170,12 @@ impl<Message> SurfaceNode<Message> {
                         }));
                     let clipped_context = context.clipped_to(clip_rect);
                     for child in &container.children {
-                        if clipped_context.child_is_past_ordered_clip(container, child.child.id()) {
+                        if clipped_context
+                            .child_is_past_ordered_clip(container, child.child.layout_root_id())
+                        {
                             break;
                         }
-                        if clipped_context.should_paint_node(child.child.id()) {
+                        if clipped_context.should_paint_node(child.child.layout_root_id()) {
                             child
                                 .child
                                 .append_paint_with_context(&clipped_context, plan);
@@ -183,10 +187,12 @@ impl<Message> SurfaceNode<Message> {
                     }));
                 } else {
                     for child in &container.children {
-                        if context.child_is_past_ordered_clip(container, child.child.id()) {
+                        if context
+                            .child_is_past_ordered_clip(container, child.child.layout_root_id())
+                        {
                             break;
                         }
-                        if context.should_paint_node(child.child.id()) {
+                        if context.should_paint_node(child.child.layout_root_id()) {
                             child.child.append_paint_with_context(context, plan);
                         }
                     }
@@ -232,7 +238,7 @@ impl<Message> SurfaceNode<Message> {
             Self::FloatingLayer(layer) => {
                 layer.container.append_chrome_paint(context, plan);
                 for child in &layer.container.children {
-                    if context.should_paint_node(child.child.id()) {
+                    if context.should_paint_node(child.child.layout_root_id()) {
                         child.child.append_paint_with_context(context, plan);
                     }
                 }
@@ -263,10 +269,10 @@ impl<Message> SurfaceNode<Message> {
             .min(container.children.len())
             .max(first);
         for child in &container.children[first..last] {
-            if context.child_is_past_ordered_clip(container, child.child.id()) {
+            if context.child_is_past_ordered_clip(container, child.child.layout_root_id()) {
                 break;
             }
-            if context.should_paint_node(child.child.id()) {
+            if context.should_paint_node(child.child.layout_root_id()) {
                 child.child.append_paint_with_context(context, plan);
             }
         }

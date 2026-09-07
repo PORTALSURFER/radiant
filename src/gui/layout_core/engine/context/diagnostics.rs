@@ -120,6 +120,14 @@ impl<'a> LayoutContext<'a> {
         }
     }
 
+    pub(crate) fn omit_resolved_overlay_root(&mut self, node_id: NodeId) {
+        self.output.rects.remove(&node_id);
+        self.output.record_omitted_node(node_id);
+        self.output
+            .debug_primitives
+            .retain(|primitive| primitive.node_id != node_id);
+    }
+
     pub(crate) fn record_measure_miss(&mut self) {
         self.output.stats.measured_nodes += 1;
     }

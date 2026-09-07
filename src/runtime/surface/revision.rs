@@ -34,6 +34,7 @@ pub(crate) struct SurfaceChildRevision<'a, Message> {
 pub(crate) struct SurfaceContainerRevision<'a, Message> {
     pub(crate) policy: &'a ContainerPolicy,
     pub(crate) layout_policy: Option<&'a dyn LayoutPolicy>,
+    overlay_anchor: Option<&'a crate::gui::layout_core::AnchoredOverlayLayout>,
     pub(crate) split_pane_runtime: Option<SplitPaneRuntimeMode>,
     pub(crate) style: Option<&'a WidgetStyle>,
     pub(crate) hoverable: bool,
@@ -62,7 +63,7 @@ pub(crate) struct SurfaceSceneRevision<'a, Message> {
 
 impl<'a, Message> SurfaceContainerRevision<'a, Message> {
     fn policy_changed(&self, other: &Self) -> bool {
-        self.policy != other.policy
+        self.policy != other.policy || self.overlay_anchor != other.overlay_anchor
     }
 
     fn custom_layout_policy_present(&self) -> bool {
@@ -184,6 +185,7 @@ impl<Message> super::SurfaceContainer<Message> {
         SurfaceContainerRevision {
             policy: &self.policy,
             layout_policy: self.layout_policy.as_deref(),
+            overlay_anchor: self.overlay_anchor.as_deref(),
             split_pane_runtime: self.split_pane_runtime,
             style: self.style.as_ref(),
             hoverable: self.hoverable,
@@ -3738,6 +3740,22 @@ mod view_delta_tests {
         assert_eq!(
             delta.reconciliation_plan().outcome,
             ReconciliationPlanOutcome::Conservative
+        );
+    }
+
+    #[test]
+    fn overlay_anchor_policy_changes_require_geometry_refresh() {
+        let node = |gap| {
+            SurfaceNode::<()>::container(1, ContainerPolicy::default(), vec![]).with_overlay_anchor(
+                crate::layout::OverlayAnchor::below(2, Vector2::new(80.0, 40.0)).gap(gap),
+                false,
+            )
+        };
+        let previous = surface(node(0.0));
+        let current = surface(node(8.0));
+        assert_eq!(
+            classify_view_delta(&previous, &current).effect,
+            ViewDeltaEffect::Geometry
         );
     }
 

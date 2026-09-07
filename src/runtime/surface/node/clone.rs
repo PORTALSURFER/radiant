@@ -42,6 +42,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             id: self.id,
             policy: self.policy.clone(),
             layout_policy: self.layout_policy.clone(),
+            overlay_anchor: self.overlay_anchor.clone(),
             style: self.style,
             hoverable: self.hoverable,
             layout_capabilities: self.layout_capabilities.clone(),

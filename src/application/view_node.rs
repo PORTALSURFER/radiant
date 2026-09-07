@@ -54,6 +54,7 @@ pub struct Layer<Message> {
     pub(in crate::application) view: ViewNode<Message>,
     pub(in crate::application) focus_policy: crate::runtime::OverlayFocusPolicy,
     pub(in crate::application) escape_dismissal: Option<Rc<dyn Fn() -> Message>>,
+    pub(in crate::application) anchor: Option<crate::layout::OverlayAnchor>,
     pub(in crate::application) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
@@ -71,6 +72,7 @@ impl<Message> Layer<Message> {
             },
             effect_owner: None,
             escape_dismissal: None,
+            anchor: None,
         }
     }
 }
@@ -85,6 +87,7 @@ pub(super) struct ExtractedLayer<Message> {
     kind: LayerKind,
     input: Option<ExtractedLayerRoot<Message>>,
     foreground: ExtractedLayerRoot<Message>,
+    anchor: Option<(crate::layout::OverlayAnchor, bool)>,
     escape_dismissal: Option<Rc<dyn Fn() -> Message>>,
 }
 
@@ -468,30 +471,77 @@ impl<Message> ViewNode<Message> {
                 ),
                 layer_kind: layer.kind,
                 focus_policy: layer.focus_policy,
+                anchored: layer.anchor.is_some(),
                 effect_owner: layer.effect_owner,
             });
-            let input = layer.input.map(|input| {
-                Self::extract_layer_root(
-                    input,
+            if let Some(anchor) = layer.anchor {
+                // An anchored layer has one layout-owned group.  Keeping the
+                // shield below its foreground lets omission remove both
+                // surfaces atomically instead of leaving an invisible input
+                // target behind.  Build that group before recursively draining
+                // nested layers so their source ancestry matches the eventual
+                // container-child paths.
+                let has_input = layer.input.is_some();
+                let mut children = Vec::with_capacity(usize::from(has_input) + 1);
+                if let Some(input) = layer.input {
+                    children.push(input);
+                }
+                let mut foreground = layer.view;
+                // The new group becomes the declared layer root. Transfer a
+                // continuity key to it so sibling reordering does not change
+                // the qualified overlay root. Numeric ids stay on the actual
+                // foreground child, which avoids duplicate explicit ids.
+                let transfers_continuity =
+                    foreground.key.is_some() || foreground.keyed_identity.is_some();
+                let (key, keyed_identity) = if transfers_continuity {
+                    (foreground.key.take(), foreground.keyed_identity.take())
+                } else {
+                    (None, None)
+                };
+                children.push(foreground);
+                let mut group = crate::application::stack(children);
+                group.key = key;
+                group.keyed_identity = keyed_identity;
+                group.has_reserved_identity = transfers_continuity;
+                let foreground = Self::extract_layer_root(
+                    group,
                     owner_scope,
-                    crate::application::ids::StructuralRole::SceneInput(index),
-                    layer_context.clone(),
+                    crate::application::ids::StructuralRole::SceneLayer(index),
+                    layer_context,
                     output,
-                )
-            });
-            let foreground = Self::extract_layer_root(
-                layer.view,
-                owner_scope,
-                crate::application::ids::StructuralRole::SceneLayer(index),
-                layer_context,
-                output,
-            );
-            output.push(ExtractedLayer {
-                kind: layer.kind,
-                input,
-                foreground,
-                escape_dismissal: layer.escape_dismissal,
-            });
+                );
+                output.push(ExtractedLayer {
+                    kind: layer.kind,
+                    input: None,
+                    foreground,
+                    anchor: Some((anchor, has_input)),
+                    escape_dismissal: layer.escape_dismissal,
+                });
+            } else {
+                let input = layer.input.map(|input| {
+                    Self::extract_layer_root(
+                        input,
+                        owner_scope,
+                        crate::application::ids::StructuralRole::SceneInput(index),
+                        layer_context.clone(),
+                        output,
+                    )
+                });
+                let foreground = Self::extract_layer_root(
+                    layer.view,
+                    owner_scope,
+                    crate::application::ids::StructuralRole::SceneLayer(index),
+                    layer_context,
+                    output,
+                );
+                output.push(ExtractedLayer {
+                    kind: layer.kind,
+                    input,
+                    foreground,
+                    anchor: None,
+                    escape_dismissal: layer.escape_dismissal,
+                });
+            }
         }
     }
 

@@ -38,6 +38,17 @@ pub(super) struct OverlayFocusTransition {
     approved: bool,
     request: u64,
     focused_before: Option<WidgetId>,
+    input_owners: Vec<OverlayInputOwner>,
+    deferred_candidate: bool,
+}
+
+struct OverlayInputOwner {
+    id: WidgetId,
+    bounds: crate::layout::Rect,
+    focused: bool,
+    captured: bool,
+    wheel: bool,
+    hovered: bool,
 }
 
 fn owner_node(owner: RuntimeFocusOwner) -> WidgetId {
@@ -58,12 +69,21 @@ where
         &mut self,
         surface: &UiSurface<Message>,
     ) -> Result<OverlayFocusTransition, ()> {
-        let projection = OverlayFocusProjection::collect(surface);
+        let mut projection = OverlayFocusProjection::collect(surface);
         if projection.is_invalid() {
             return Err(());
         }
+        let deferred_candidate = projection.has_deferred_records()
+            || projection.has_virtual_content()
+            || !self.virtual_layout.is_empty();
+        // Anchored declarations depend on final geometry (and, for virtual
+        // content, final materialization), so their admission is deferred to
+        // `finish_overlay_relayout`. Ordinary modal veto remains a strict
+        // pre-publication boundary.
+        projection.suppress_deferred();
         let new_owner = projection.records().iter().any(|record| {
-            record.policy() != OverlayFocusPolicy::None
+            record.active()
+                && record.policy() != OverlayFocusPolicy::None
                 && !self
                     .interaction
                     .overlay_focus
@@ -78,7 +98,7 @@ where
                         .widget_id()
                         .is_none_or(|id| surface.find_widget(id).is_some())
             });
-        let prior = if new_owner || moves_live_owner {
+        let prior = if new_owner || moves_live_owner || deferred_candidate {
             match self.capture_focus() {
                 Ok(bookmark) => Some(bookmark),
                 Err(_) if moves_live_owner => return Err(()),
@@ -100,7 +120,274 @@ where
             approved: moves_live_owner,
             request: self.fresh_surface_request_revision,
             focused_before: self.interaction.focus.owner.map(owner_node),
+            input_owners: self.capture_overlay_input_owners(),
+            deferred_candidate,
         })
+    }
+
+    /// Publish one final overlay projection. The ordinary transition retains
+    /// strict pre-publication approval for unanchored modals; when a deferred
+    /// candidate exists, its accepted-layout projection replaces the
+    /// suppressed ordinary projection without an intermediate focus/state
+    /// publication.
+    pub(super) fn finish_surface_overlay_transition(
+        &mut self,
+        transition: OverlayFocusTransition,
+    ) -> bool {
+        if transition.deferred_candidate {
+            self.finish_overlay_relayout(Some(transition))
+        } else {
+            self.publish_overlay_focus_transition(transition)
+        }
+    }
+
+    fn capture_overlay_input_owners(&self) -> Vec<OverlayInputOwner> {
+        let focused = self.interaction.focus.focused_widget();
+        let captured = self.interaction.pointer.capture;
+        let wheel = match self.interaction.wheel.managed_sequence {
+            super::interaction_state::RuntimeManagedWheelSequenceState::Active { widget_id } => {
+                Some(widget_id)
+            }
+            _ => None,
+        };
+        let hovered = self.interaction.hover.widget;
+        let mut owners: Vec<OverlayInputOwner> = Vec::new();
+        for id in [focused, captured, wheel, hovered].into_iter().flatten() {
+            if let Some(index) = owners.iter().position(|owner| owner.id == id) {
+                let owner = &mut owners[index];
+                owner.focused |= focused == Some(id);
+                owner.captured |= captured == Some(id);
+                owner.wheel |= wheel == Some(id);
+                owner.hovered |= hovered == Some(id);
+                continue;
+            }
+            let projection = &self.interaction.overlay_focus.projection;
+            if !projection
+                .records()
+                .iter()
+                .enumerate()
+                .any(|(scope, _)| projection.contains(scope, id))
+            {
+                continue;
+            }
+            let Some(bounds) = self.layout.rects.get(&id).copied() else {
+                continue;
+            };
+            owners.push(OverlayInputOwner {
+                id,
+                bounds,
+                focused: focused == Some(id),
+                captured: captured == Some(id),
+                wheel: wheel == Some(id),
+                hovered: hovered == Some(id),
+            });
+        }
+        owners
+    }
+
+    // Source remains mounted when an anchor disappears. Explicitly end its
+    // input ownership so a later layout cannot revive a key/composition/drag.
+    fn retire_omitted_overlay_input(&mut self, owners: Vec<OverlayInputOwner>) -> Vec<Message> {
+        let mut messages = Vec::new();
+        for owner in owners {
+            if self.layout.rects.contains_key(&owner.id) {
+                continue;
+            }
+            // Full refresh may already have retired this incarnation. A saved
+            // numeric id must never deliver a terminal to its replacement.
+            let focused =
+                owner.focused && self.interaction.focus.focused_widget() == Some(owner.id);
+            let captured = owner.captured && self.interaction.pointer.capture == Some(owner.id);
+            let wheel = owner.wheel
+                && matches!(
+                    self.interaction.wheel.managed_sequence,
+                    super::interaction_state::RuntimeManagedWheelSequenceState::Active { widget_id }
+                        if widget_id == owner.id
+                );
+            let hovered = owner.hovered && self.interaction.hover.widget == Some(owner.id);
+            if !focused && !captured && !wheel && !hovered {
+                continue;
+            }
+            if wheel {
+                // Do not let a reentrant terminal callback retain or replay a
+                // sequence whose owner this layout pass just omitted.
+                self.block_managed_wheel_sequence();
+                let cancellation = crate::widgets::WheelSample::from_parts(
+                    crate::widgets::WheelDelta::Pixels(crate::gui::types::Vector2::default()),
+                    Some(crate::widgets::WheelPhase::Cancelled),
+                    crate::widgets::PointerModifiers::default(),
+                    None,
+                    None,
+                );
+                if let Some((result, _)) = self.dispatch_surface_wheel_sample(
+                    owner.id,
+                    owner.bounds,
+                    owner.bounds.center(),
+                    cancellation,
+                ) && let crate::runtime::ResolvedWidgetDispatchResult::Message(message) =
+                    self.resolve_widget_dispatch(result)
+                {
+                    messages.push(message);
+                }
+            }
+            if hovered {
+                self.clear_pointer_hover();
+            }
+            self.discard_widget_ownership(owner.id);
+            if captured
+                && let Some(result) =
+                    self.dispatch_surface_pointer_capture_cancelled(owner.id, owner.bounds)
+                && let crate::runtime::ResolvedWidgetDispatchResult::Message(message) =
+                    self.resolve_widget_dispatch(result)
+            {
+                messages.push(message);
+            }
+            if focused
+                && let Some(result) = self.dispatch_surface_input(
+                    owner.id,
+                    owner.bounds,
+                    crate::widgets::WidgetInput::FocusChanged(false),
+                )
+                && let crate::runtime::ResolvedWidgetDispatchResult::Message(message) =
+                    self.resolve_widget_dispatch(result)
+            {
+                messages.push(message);
+            }
+        }
+        self.validate_managed_composition_authority();
+        self.validate_managed_pointer_capture_authority();
+        self.validate_managed_wheel_sequence_authority();
+        self.validate_gesture_capture();
+        messages
+    }
+
+    pub(super) fn capture_overlay_relayout(&mut self) -> Option<OverlayFocusTransition> {
+        if !self.lifecycle_accepts_work()
+            || (self
+                .interaction
+                .overlay_focus
+                .projection
+                .records()
+                .is_empty()
+                && self.virtual_layout.is_empty())
+        {
+            return None;
+        }
+        Some(OverlayFocusTransition {
+            projection: OverlayFocusProjection::default(),
+            prior: self.capture_focus().ok(),
+            approved: false,
+            request: self.fresh_surface_request_revision,
+            focused_before: self.interaction.focus.owner.map(owner_node),
+            input_owners: self.capture_overlay_input_owners(),
+            deferred_candidate: true,
+        })
+    }
+
+    pub(super) fn finish_overlay_relayout(
+        &mut self,
+        transition: Option<OverlayFocusTransition>,
+    ) -> bool {
+        let Some(mut transition) = transition else {
+            return false;
+        };
+        // A settled-scroll callback may already have published another source.
+        if transition.request != self.fresh_surface_request_revision {
+            return false;
+        }
+        // Virtual geometry relayout may have materialized a different item
+        // set without requesting a new application surface. Membership must
+        // describe that accepted set, while bookmarks/terminals describe the
+        // owners captured before layout.
+        transition.projection = OverlayFocusProjection::collect(&self.surface);
+        transition.projection.qualify(&self.layout);
+        let top_modal_is_new = transition.projection.top_modal().is_some_and(|index| {
+            let record = &transition.projection.records()[index];
+            !self
+                .interaction
+                .overlay_focus
+                .entries
+                .iter()
+                .any(|entry| &entry.key == record.key() && entry.policy == record.policy())
+        });
+        let moves_live_owner = top_modal_is_new
+            && self.interaction.focus.owner.is_some_and(|owner| {
+                !transition.projection.contains_top_modal(owner_node(owner))
+                    && self.layout.rects.contains_key(&owner_node(owner))
+            });
+        if moves_live_owner {
+            let projection_before = self.refresh_counters.application_projection;
+            let generation_before = self.fresh_surface_active_generation;
+            // A replacement may have installed another incarnation with the
+            // same numeric widget id. It owns its normal replacement outcome;
+            // never send a loss probe through this deferred anchor path unless
+            // the bookmark still identifies the retained incumbent.
+            if transition.approved {
+                return self.publish_overlay_focus_transition(transition);
+            }
+            if !transition
+                .prior
+                .as_ref()
+                .is_some_and(|prior| self.bookmark_matches_current_focus_owner(prior))
+            {
+                self.omit_new_deferred_modal_groups(&mut transition);
+                self.publish_overlay_focus_transition(transition);
+                return true;
+            }
+            let veto = self
+                .interaction
+                .focus
+                .focused_widget()
+                .is_some_and(|id| self.prepare_focus_loss(id) == FocusLossDecision::Veto);
+            if transition.request != self.fresh_surface_request_revision
+                || projection_before != self.refresh_counters.application_projection
+                || generation_before != self.fresh_surface_active_generation
+            {
+                return true;
+            }
+            if veto {
+                // Reject newly activated modal groups, retaining current base
+                // geometry rather than retaining a stale viewport after resize.
+                self.omit_new_deferred_modal_groups(&mut transition);
+                self.publish_overlay_focus_transition(transition);
+                return true;
+            } else {
+                transition.approved = true;
+            }
+        }
+        self.publish_overlay_focus_transition(transition)
+    }
+
+    fn omit_new_deferred_modal_groups(&mut self, transition: &mut OverlayFocusTransition) {
+        let roots: Vec<_> =
+            transition
+                .projection
+                .records()
+                .iter()
+                .enumerate()
+                .filter(|(_, record)| record.active())
+                .filter(|(index, _)| {
+                    transition.projection.records().iter().enumerate().any(
+                        |(ancestor, candidate)| {
+                            candidate.policy() == OverlayFocusPolicy::Modal
+                                && !self.interaction.overlay_focus.entries.iter().any(|entry| {
+                                    &entry.key == candidate.key()
+                                        && entry.policy == candidate.policy()
+                                })
+                                && transition.projection.contains_scope(ancestor, *index)
+                        },
+                    )
+                })
+                .map(|(_, record)| record.root())
+                .collect();
+        for root in roots {
+            if let Some(node) = find_layout_node(&self.layout_root, root) {
+                self.layout.omit_resolved_subtree(node);
+            }
+        }
+        self.completed_layout = None;
+        self.refresh_visible_traversal_orders();
+        transition.projection.qualify(&self.layout);
     }
 
     pub(super) fn overlay_focus_allows(&self, node: WidgetId) -> bool {
@@ -230,11 +517,26 @@ where
         }
         let projection_before = self.refresh_counters.application_projection;
         let generation_before = self.fresh_surface_active_generation;
+        let terminal_messages = self.retire_omitted_overlay_input(transition.input_owners);
+        if projection_before != self.refresh_counters.application_projection
+            || generation_before != self.fresh_surface_active_generation
+        {
+            self.interaction.overlay_focus.permit = None;
+            for message in terminal_messages {
+                let outcome = self.dispatch_message(message);
+                self.pending_input_command_outcome.merge(outcome);
+            }
+            return true;
+        }
         let changed = self.apply_overlay_focus_destination(
             restore.as_ref().and_then(Option::as_ref),
             restore.is_some(),
         );
         self.interaction.overlay_focus.permit = None;
+        for message in terminal_messages {
+            let outcome = self.dispatch_message(message);
+            self.pending_input_command_outcome.merge(outcome);
+        }
         changed
             || projection_before != self.refresh_counters.application_projection
             || generation_before != self.fresh_surface_active_generation
@@ -354,10 +656,35 @@ where
         &self,
         node: &mut crate::gui::automation::AutomationNodeSnapshot,
     ) {
-        if !self.has_modal_focus_scope() {
+        if self
+            .interaction
+            .overlay_focus
+            .projection
+            .records()
+            .is_empty()
+        {
             return;
         }
-        self.qualify_overlay_semantic_node(node);
+        self.remove_omitted_overlay_semantics(node);
+        if self.has_modal_focus_scope() {
+            self.qualify_overlay_semantic_node(node);
+        }
+    }
+
+    fn remove_omitted_overlay_semantics(
+        &self,
+        node: &mut crate::gui::automation::AutomationNodeSnapshot,
+    ) {
+        node.children.retain(|child| {
+            !child
+                .id
+                .0
+                .parse::<WidgetId>()
+                .is_ok_and(|id| self.layout.is_omitted(id))
+        });
+        for child in &mut node.children {
+            self.remove_omitted_overlay_semantics(child);
+        }
     }
 
     fn qualify_overlay_semantic_node(
@@ -394,7 +721,25 @@ where
             approved: false,
             request: self.fresh_surface_request_revision,
             focused_before: self.interaction.focus.owner.map(owner_node),
+            input_owners: self.capture_overlay_input_owners(),
+            deferred_candidate: false,
         };
         self.publish_overlay_focus_transition(transition);
     }
+}
+
+fn find_layout_node(
+    node: &crate::layout::LayoutNode,
+    id: WidgetId,
+) -> Option<&crate::layout::LayoutNode> {
+    if node.id() == id {
+        return Some(node);
+    }
+    if let crate::layout::LayoutNode::Container(container) = node {
+        return container
+            .children
+            .iter()
+            .find_map(|child| find_layout_node(&child.child, id));
+    }
+    None
 }

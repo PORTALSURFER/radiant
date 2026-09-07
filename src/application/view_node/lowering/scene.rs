@@ -63,6 +63,11 @@ impl<Message: 'static> ViewLowering<'_, '_, Message> {
                     child_scope,
                     StructuralRole::SceneLayer(index),
                 );
+                let foreground = if let Some((anchor, has_input)) = layer.anchor {
+                    foreground.with_overlay_anchor(anchor, has_input)
+                } else {
+                    foreground
+                };
                 SurfaceLayer::with_input(layer.kind, input, foreground)
             })
             .collect();

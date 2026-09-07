@@ -112,10 +112,12 @@ fn feedback_color(paint: &[PaintPrimitive]) -> Option<radiant::gui::types::Rgba8
     })
 }
 
+type InsertionEvents = Rc<RefCell<Vec<(DropPhase, Option<DropInsertion>)>>>;
+
 fn insertion_bridge(
     axis: DropInsertionAxis,
     feedback: Option<DropTargetFeedback>,
-    insertions: Rc<RefCell<Vec<(DropPhase, Option<DropInsertion>)>>>,
+    insertions: InsertionEvents,
     callbacks: Rc<Cell<u32>>,
 ) -> impl radiant::runtime::RuntimeBridge<()> {
     radiant::app(())

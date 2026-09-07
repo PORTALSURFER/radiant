@@ -1,5 +1,5 @@
 use super::SharedRuntimeIngress;
-use super::queue::shared::DeliveryReservation;
+use super::queue::DeliveryReservation;
 use crate::runtime::{
     PlatformFailure, PlatformRequest, PlatformResponse, PlatformResult, RuntimePlatformResultSink,
 };

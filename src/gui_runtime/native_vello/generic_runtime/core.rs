@@ -424,10 +424,6 @@ where
         route_outcome
     }
 
-    pub(in crate::gui_runtime::native_vello) fn focused_text_selection(&self) -> Option<String> {
-        self.runtime.focused_text_selection()
-    }
-
     pub(in crate::gui_runtime::native_vello) fn has_focused_text_input(&self) -> bool {
         self.runtime.focused_text_input_id().is_some()
     }

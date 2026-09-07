@@ -621,11 +621,12 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                     && bounds.max.is_finite()
                     && bounds.width() > 0.0
                     && bounds.height() > 0.0
-            }) && !self
-                .traversal
-                .widgets
-                .duplicate_widget_ids
-                .contains(&target.id)
+            }) && self.overlay_focus_allows(target.id)
+                && !self
+                    .traversal
+                    .widgets
+                    .duplicate_widget_ids
+                    .contains(&target.id)
                 && (!matches!(target.owner, GestureOwner::Container { .. })
                     || self
                         .traversal

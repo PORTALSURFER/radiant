@@ -1,11 +1,11 @@
 use super::*;
 use radiant::{
-    application::{DragSource, DropTarget, button, row},
+    application::{DragSource, DropTarget, Layer, button, row, scene, text},
     gui::pointer_ingress::{
         DeviceKind, PointerButtons, PointerContactId, PointerIngress, PointerIngressDisposition,
         PointerPhase, PointerSequenceToken,
     },
-    runtime::{DragSourcePhase, DropPhase},
+    runtime::{DragCancelReason, DragSourcePhase, DropPhase},
     widgets::PointerButton,
 };
 #[derive(Clone, Debug, PartialEq)]
@@ -292,6 +292,85 @@ fn pointer_drag_cancels_original_typed_child_once_and_rechecks_source_after_its_
         assert!(!runtime.drag_session_active());
         assert_eq!(events.borrow().iter().filter(|event| matches!(event,Message::Pointer(event) if event.phase() == PointerPhase::Cancelled)).count(),1);
     }
+}
+
+#[test]
+fn modal_retires_typed_drag_before_late_input_or_preview() {
+    let modal_open = Rc::new(Cell::new(false));
+    let view_modal_open = modal_open.clone();
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let observed = events.clone();
+    let bridge = radiant::app(())
+        .view(move |_| {
+            let source = button("Source")
+                .filter_mapped(|_| None::<Message>)
+                .width(100.0)
+                .height(40.0)
+                .id(1)
+                .drag_source(
+                    DragSource::new(String::from("payload"))
+                        .on_event_with_revision((), |event| Some(Message::Source(event.phase()))),
+                )
+                .id(10);
+            let mut root = scene(source);
+            if view_modal_open.get() {
+                root = root.layer(Layer::modal(text("modal").id(2).width(100.0).height(40.0)));
+            }
+            root.into_view()
+        })
+        .update(move |_, event| observed.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 80.0));
+
+    let token = runtime
+        .dispatch_pointer_ingress_with_admission(mouse(
+            PointerPhase::Started {
+                button: PointerButton::Primary,
+            },
+            20.0,
+            None,
+        ))
+        .sequence_token()
+        .unwrap();
+    assert_eq!(
+        runtime.dispatch_pointer_ingress(mouse(PointerPhase::Moved, 30.0, Some(token))),
+        PointerIngressDisposition::RoutedGesture(10)
+    );
+    assert!(runtime.drag_session_active());
+    assert!(
+        events
+            .borrow()
+            .contains(&Message::Source(DragSourcePhase::Started))
+    );
+
+    modal_open.set(true);
+    runtime.refresh();
+    assert!(!runtime.drag_session_active());
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event,
+                    Message::Source(DragSourcePhase::Cancelled(DragCancelReason::SourceRetired))
+                )
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        runtime.dispatch_pointer_ingress(mouse(PointerPhase::Moved, 40.0, Some(token))),
+        PointerIngressDisposition::Stale
+    );
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .filter(|event| matches!(event, Message::Source(DragSourcePhase::Moved)))
+            .count(),
+        0
+    );
 }
 
 #[test]

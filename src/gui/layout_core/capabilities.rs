@@ -870,6 +870,11 @@ pub trait LayoutDragSource<Message> {
     }
     /// Observe the data-only offer without beginning a drag.
     fn offer(&self) -> crate::gui::drag_drop::DragOffer;
+    /// Optional runtime-owned edge autoscroll policy for this typed drag.
+    /// Custom exact interaction revisions must include this value.
+    fn autoscroll_policy(&self) -> Option<crate::gui::drag_drop::DragAutoscrollPolicy> {
+        None
+    }
     /// Map a qualified lifecycle event using the original retained payload.
     fn dispatch(
         &self,
@@ -880,6 +885,17 @@ pub trait LayoutDragSource<Message> {
 }
 /// Read-only acceptance and ordinary-message mapping for a typed drop target.
 pub trait LayoutDropTarget<Message> {
+    /// Optional runtime-owned target outline. Include this value in exact revision evidence.
+    fn feedback(&self) -> Option<crate::gui::drag_drop::DropTargetFeedback> {
+        None
+    }
+    /// Optional axis for runtime-owned before/after insertion feedback.
+    ///
+    /// Custom targets must include this declaration and every stable target key
+    /// or revision used by their mapper in exact revision evidence.
+    fn insertion_axis(&self) -> Option<crate::gui::drag_drop::DropInsertionAxis> {
+        None
+    }
     /// Exact acceptance and callback revision evidence.
     fn revision(&self) -> LayoutInteractionRevision {
         LayoutInteractionRevision::conservative()

@@ -19,6 +19,7 @@ pub struct DragSource<T, Message> {
     operations: DragOperations,
     preview: DragPreviewInfo,
     threshold: f32,
+    autoscroll: Option<DragAutoscrollPolicy>,
     map: Option<SourceMapper<T, Message>>,
     map_revision: LayoutInteractionRevision,
 }
@@ -28,6 +29,7 @@ struct SourceRevision<T: Eq> {
     operations: DragOperations,
     preview: DragPreviewInfo,
     threshold: u32,
+    autoscroll: Option<(u32, u32)>,
     map: LayoutInteractionRevision,
 }
 impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
@@ -38,6 +40,7 @@ impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
             operations: DragOperations::default(),
             preview: DragPreviewInfo::default(),
             threshold: 6.0,
+            autoscroll: None,
             map: None,
             map_revision: LayoutInteractionRevision::exact(()),
         }
@@ -59,6 +62,11 @@ impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
         }
         self.threshold = threshold;
         Ok(self)
+    }
+    /// Opt into runtime-owned edge autoscroll while this source is dragged.
+    pub fn autoscroll(mut self, policy: DragAutoscrollPolicy) -> Self {
+        self.autoscroll = Some(policy);
+        self
     }
     /// Map lifecycle events conservatively. Reprojection retires the source.
     pub fn on_event(
@@ -88,6 +96,9 @@ impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
             operations: self.operations,
             preview: self.preview.clone(),
             threshold: self.threshold.to_bits(),
+            autoscroll: self
+                .autoscroll
+                .map(|policy| (policy.edge_zone().to_bits(), policy.max_speed().to_bits())),
             map: self.map_revision.clone(),
         })
     }
@@ -126,6 +137,9 @@ impl<T: Eq + 'static, Message: 'static> LayoutDragSource<Message> for DragSource
     fn offer(&self) -> DragOffer {
         DragOffer::new(self.payload.clone(), self.operations, self.preview.clone())
     }
+    fn autoscroll_policy(&self) -> Option<DragAutoscrollPolicy> {
+        self.autoscroll
+    }
     fn dispatch(
         &self,
         offer: &DragOffer,
@@ -144,6 +158,8 @@ impl<T: Eq + 'static, Message: 'static> LayoutDragSource<Message> for DragSource
 /// Typed drop negotiation and lifecycle mapping attached to an ordinary view.
 pub struct DropTarget<T, Message> {
     operations: DragOperations,
+    feedback: Option<DropTargetFeedback>,
+    insertion_axis: Option<DropInsertionAxis>,
     negotiate: Option<TargetNegotiator<T>>,
     policy_revision: LayoutInteractionRevision,
     map: Option<TargetMapper<T, Message>>,
@@ -153,6 +169,8 @@ pub struct DropTarget<T, Message> {
 struct TargetRevision {
     payload: TypeId,
     operations: DragOperations,
+    feedback: Option<DropTargetFeedback>,
+    insertion_axis: Option<DropInsertionAxis>,
     policy: LayoutInteractionRevision,
     map: LayoutInteractionRevision,
 }
@@ -161,11 +179,24 @@ impl<T: 'static, Message: 'static> DropTarget<T, Message> {
     pub fn new() -> Self {
         Self {
             operations: DragOperations::all(),
+            feedback: None,
+            insertion_axis: None,
             negotiate: None,
             map: None,
             policy_revision: LayoutInteractionRevision::exact(()),
             map_revision: LayoutInteractionRevision::exact(()),
         }
+    }
+    /// Paint a runtime-owned, clipped outline for the current negotiation result.
+    /// No application update is required for pointer-only feedback changes.
+    pub fn feedback(mut self, feedback: DropTargetFeedback) -> Self {
+        self.feedback = Some(feedback);
+        self
+    }
+    /// Derive before/after context and a retained edge marker from this target's bounds.
+    pub fn insertion_axis(mut self, axis: DropInsertionAxis) -> Self {
+        self.insertion_axis = Some(axis);
+        self
     }
     /// Restrict the target's allowed operations.
     pub fn operations(mut self, operations: DragOperations) -> Self {
@@ -213,6 +244,12 @@ impl<T: 'static, Message: 'static> LayoutInteraction<Message> for DropTarget<T, 
     }
 }
 impl<T: 'static, Message: 'static> LayoutDropTarget<Message> for DropTarget<T, Message> {
+    fn feedback(&self) -> Option<DropTargetFeedback> {
+        self.feedback
+    }
+    fn insertion_axis(&self) -> Option<DropInsertionAxis> {
+        self.insertion_axis
+    }
     fn revision(&self) -> LayoutInteractionRevision {
         if !self.map_revision.is_exact() || !self.policy_revision.is_exact() {
             return LayoutInteractionRevision::conservative();
@@ -220,6 +257,8 @@ impl<T: 'static, Message: 'static> LayoutDropTarget<Message> for DropTarget<T, M
         LayoutInteractionRevision::exact(TargetRevision {
             payload: TypeId::of::<T>(),
             operations: self.operations,
+            feedback: self.feedback,
+            insertion_axis: self.insertion_axis,
             policy: self.policy_revision.clone(),
             map: self.map_revision.clone(),
         })

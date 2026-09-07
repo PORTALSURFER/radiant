@@ -13,11 +13,13 @@ baselines, and evidence artifacts is the
 
 The bounded pointer ingress phase is shipped: normalized device/contact
 identity, hover/start/move/end/cancel evidence, checked pressure and tilt,
-runtime-fenced sequence tokens, and explicit pan/pinch/rotate unsupported
-outcomes are available to opt-in canvas and GPU consumers. The controller uses
-sixteen fixed records and preserves legacy event contracts. Gesture arena
-recognition, typed drag payloads, cross-window payloads, and external offers
-remain future target work.
+runtime-fenced sequence tokens, and explicit pan/pinch/rotate outcomes are
+available to opt-in canvas and GPU consumers. The controller uses sixteen fixed
+records and preserves legacy event contracts. The shared gesture arena supports
+native normalized gestures and bounded two-contact, same-device touch-derived
+pan, pinch and rotation for explicit gesture consumers. Local typed payload
+drag/drop is delivered; cross-window payloads, external offers, and touch-started
+typed drag remain future target work.
 
 ## Vision
 

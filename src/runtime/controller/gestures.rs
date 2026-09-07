@@ -1,6 +1,7 @@
 //! Bounded widget/ancestor recognition sharing controller capture admission and teardown.
 pub(super) mod drag_drop;
 mod pointer;
+mod touch;
 use super::{SurfaceRuntime, interaction_state::RuntimeManagedCompositionState};
 use crate::{
     gui::pointer_ingress::{
@@ -123,6 +124,7 @@ pub(super) struct GestureCapture {
     anchor: Point,
     accumulated: Vector2,
     active: bool,
+    touch: Option<touch::TouchGestureCapture>,
 }
 impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
     /// Recognize one checked gesture through widget and ancestor consumers.
@@ -230,6 +232,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                     0.0,
                 ),
                 active: false,
+                touch: None,
             }
         } else {
             let Some(current) = self.interaction.gesture.as_ref() else {
@@ -375,6 +378,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             return outcome;
         }
         if terminal && was_active {
+            self.retire_gesture_touch(&capture);
             self.clear_gesture_pointer_capture(&target);
             return if self.deliver_gesture(&target, event) {
                 outcome
@@ -396,7 +400,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 .as_ref()
                 .is_some_and(|capture| capture.token == token)
         {
-            self.interaction.gesture = None;
+            if let Some(completed) = self.interaction.gesture.take() {
+                self.retire_gesture_touch(&completed);
+            }
             self.clear_gesture_pointer_capture(&target);
             if !self.deliver_gesture(
                 &target,
@@ -637,6 +643,17 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
                 )
         };
         self.lifecycle_accepts_work()
+            && capture.touch.as_ref().is_none_or(|touch| {
+                touch.tokens.iter().all(|token| {
+                    self.interaction
+                        .pointer
+                        .ingress
+                        .records
+                        .iter()
+                        .flatten()
+                        .any(|record| record.token == *token)
+                })
+            })
             && current(&capture.target)
             && (capture.active || capture.candidates.iter().all(current))
             && (!capture.active
@@ -740,6 +757,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         capture: GestureCapture,
         reason: GestureCancellation,
     ) -> Option<GestureDispatch<Message>> {
+        self.retire_gesture_touch(&capture);
         self.clear_gesture_pointer_capture(&capture.target);
         if self.interaction.drag.typed.is_some() {
             let reason = match reason {
@@ -815,6 +833,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         let Some(capture) = self.interaction.gesture.take() else {
             return;
         };
+        self.retire_gesture_touch(&capture);
         self.clear_gesture_pointer_capture(&capture.target);
         if !capture.active {
             return;
@@ -875,6 +894,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         self.interaction
             .gesture
             .as_ref()
+            .filter(|capture| capture.touch.is_none() && capture.pointer_sequence.is_none())
             .map(|capture| capture.sample.device())
     }
     pub(crate) fn reject_native_gesture_continuation(
@@ -885,7 +905,10 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
     ) {
         if phase != GesturePhase::Started
             && self.interaction.gesture.as_ref().is_some_and(|capture| {
-                capture.sample.device() == device && capture.sample.kind() == kind
+                capture.touch.is_none()
+                    && capture.pointer_sequence.is_none()
+                    && capture.sample.device() == device
+                    && capture.sample.kind() == kind
             })
         {
             self.cancel_gesture_capture(GestureCancellation::InvalidSample);
@@ -901,7 +924,10 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             .gesture
             .as_ref()
             .filter(|capture| {
-                capture.sample.kind() == sample.kind() && capture.sample.device() == sample.device()
+                capture.touch.is_none()
+                    && capture.pointer_sequence.is_none()
+                    && capture.sample.kind() == sample.kind()
+                    && capture.sample.device() == sample.device()
             })
             .map(|capture| capture.token);
         let request = GestureRequest {

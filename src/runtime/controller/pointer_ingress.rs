@@ -1,5 +1,7 @@
 //! Runtime admission for typed pointer and gesture ingress.
 
+pub(in crate::runtime::controller) mod touch_gesture;
+
 use super::SurfaceRuntime;
 use crate::runtime::WidgetDispatchResult;
 use crate::{
@@ -98,6 +100,7 @@ pub(super) enum PointerOwnerWitness {
 pub(super) struct PointerIngressState {
     pub(super) allocator: PointerSequenceAllocator,
     pub(super) records: [Option<PointerSequenceRecord>; MAX_POINTER_SEQUENCES],
+    pub(in crate::runtime::controller) touch_pair: touch_gesture::TouchPairState,
 }
 
 impl PointerIngressState {
@@ -107,6 +110,7 @@ impl PointerIngressState {
         Self {
             allocator,
             records: [None; MAX_POINTER_SEQUENCES],
+            touch_pair: touch_gesture::TouchPairState::default(),
         }
     }
 
@@ -200,9 +204,12 @@ where
             return PointerIngressDisposition::Blocked;
         }
         // Only mouse samples are allowed to enter the existing capture and
-        // hit-test router. Nonmouse samples remain explicit unsupported
-        // sequences so their token can be carried by a host without creating
-        // synthetic mouse ownership or disturbing an active mouse sequence.
+        // hit-test router. Touch contacts can enter the shared gesture arena;
+        // other nonmouse samples retain unsupported transport sequences without
+        // creating synthetic mouse ownership or disturbing an active mouse sequence.
+        if ingress.kind() == DeviceKind::Touch {
+            return self.dispatch_touch_pointer_ingress(ingress);
+        }
         if ingress.kind() != DeviceKind::Mouse {
             return self.dispatch_unsupported_pointer_ingress(ingress);
         }
@@ -485,6 +492,76 @@ where
                 }
                 disposition
             }
+        }
+    }
+
+    fn dispatch_touch_pointer_ingress(
+        &mut self,
+        ingress: PointerIngress,
+    ) -> PointerIngressDisposition {
+        match ingress.phase() {
+            PointerPhase::Started { .. } => {
+                if let Err(disposition) = self.interaction.pointer.ingress.can_issue(ingress) {
+                    return disposition;
+                }
+                let (index, _) = match self.interaction.pointer.ingress.issue(ingress) {
+                    Ok(value) => value,
+                    Err(disposition) => return disposition,
+                };
+                let Some(record) = self.interaction.pointer.ingress.records[index].as_mut() else {
+                    return PointerIngressDisposition::Stale;
+                };
+                record.owner = Some(PointerOwnerWitness::Unsupported);
+                let token = record.token;
+                self.route_admitted_touch_gesture(ingress, token)
+            }
+            PointerPhase::Moved | PointerPhase::Ended { .. } | PointerPhase::Cancelled => {
+                let Some((index, record)) = self.interaction.pointer.ingress.find(ingress) else {
+                    return PointerIngressDisposition::Stale;
+                };
+                if !matches!(record.owner, Some(PointerOwnerWitness::Unsupported)) {
+                    return PointerIngressDisposition::Stale;
+                }
+                let disposition = self.route_admitted_touch_gesture(ingress, record.token);
+                if ingress.phase().is_terminal() {
+                    if self.interaction.pointer.ingress.records[index].is_some_and(|current| {
+                        current.token == record.token && current.kind == DeviceKind::Touch
+                    }) {
+                        self.interaction.pointer.ingress.records[index] = None;
+                    }
+                } else if let Some(current) =
+                    self.interaction.pointer.ingress.records[index].as_mut()
+                    && current.token == record.token
+                {
+                    current.last_position = ingress.logical_position();
+                    current.last_buttons = ingress.buttons();
+                }
+                disposition
+            }
+            PointerPhase::Hover => PointerIngressDisposition::AdmittedUnsupportedConsumer,
+        }
+    }
+
+    pub(in crate::runtime::controller) fn retire_touch_pointer_sequences(
+        &mut self,
+        tokens: [PointerSequenceToken; 2],
+    ) {
+        for record in &mut self.interaction.pointer.ingress.records {
+            if record.is_some_and(|record| {
+                record.kind == DeviceKind::Touch && tokens.contains(&record.token)
+            }) {
+                *record = None;
+            }
+        }
+        if self
+            .interaction
+            .pointer
+            .ingress
+            .touch_pair
+            .tokens()
+            .is_some_and(|current| current.iter().any(|token| tokens.contains(token)))
+        {
+            self.interaction.pointer.ingress.touch_pair.clear();
         }
     }
 

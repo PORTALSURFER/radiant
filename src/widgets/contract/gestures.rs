@@ -61,6 +61,8 @@ pub enum GestureCancellation {
 }
 
 /// One admitted lifecycle event. Native sample evidence is never synthesized.
+/// Two-contact touch events derive their geometry while retaining the admitted
+/// sample's device, modifiers, timestamp, and sequence metadata.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GestureEvent {
     pub(crate) sample: GestureIngress,

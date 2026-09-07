@@ -59,6 +59,7 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
             anchor,
             accumulated: Vector2::default(),
             active: false,
+            touch: None,
             pointer_sequence: None,
         })
     }

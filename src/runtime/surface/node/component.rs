@@ -44,6 +44,8 @@ fn visit<Message>(
         || previous.animation_declaration_present()
         || current.animation_declaration_present()
         || !same_resource_demand(previous, current)
+        || previous.notice_demand().is_some()
+        || current.notice_demand().is_some()
     {
         return None;
     }

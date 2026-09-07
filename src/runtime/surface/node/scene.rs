@@ -11,6 +11,7 @@ pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
     pub(in crate::runtime::surface) has_resource_view_demand: bool,
+    pub(in crate::runtime::surface) has_notice_demand: bool,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
     pub(in crate::runtime::surface) command_scope:
         Option<crate::application::CommandScopeAttachment>,
@@ -24,6 +25,7 @@ impl<Message> SurfaceScene<Message> {
                 l.node.has_animation() || l.input.as_ref().is_some_and(SurfaceNode::has_animation)
             });
         let has_resource_view_demand = Self::has_resource_view_demand_in(&base, &layers);
+        let has_notice_demand = Self::has_notice_demand_in(&base, &layers);
         Self {
             has_animation,
             _ui_affinity: UiAffinity::new(),
@@ -31,6 +33,7 @@ impl<Message> SurfaceScene<Message> {
             base: Box::new(base),
             layers,
             has_resource_view_demand,
+            has_notice_demand,
             source: None,
             command_scope: None,
         }
@@ -52,6 +55,21 @@ impl<Message> SurfaceScene<Message> {
 
     pub(in crate::runtime::surface) fn refresh_resource_view_demand(&mut self) {
         self.has_resource_view_demand = Self::has_resource_view_demand_in(&self.base, &self.layers);
+    }
+
+    fn has_notice_demand_in(base: &SurfaceNode<Message>, layers: &[SurfaceLayer<Message>]) -> bool {
+        base.has_notice_demand()
+            || layers.iter().any(|layer| {
+                layer
+                    .input
+                    .as_ref()
+                    .is_some_and(SurfaceNode::has_notice_demand)
+                    || layer.node.has_notice_demand()
+            })
+    }
+
+    pub(in crate::runtime::surface) fn refresh_notice_demand(&mut self) {
+        self.has_notice_demand = Self::has_notice_demand_in(&self.base, &self.layers);
     }
 
     pub(in crate::runtime) fn ordered_layers(

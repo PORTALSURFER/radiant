@@ -30,6 +30,7 @@ mod interaction_patch;
 mod interaction_state;
 mod layout;
 mod layout_state;
+mod notifications;
 mod owner;
 mod platform;
 mod pointer;
@@ -232,6 +233,7 @@ where
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     timed_repaint_clock: Option<Instant>,
     declarative_animation: declarative_animation::DeclarativeAnimator,
+    notifications: notifications::Notifications<Message>,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
     pub(in crate::runtime) virtual_layout: virtual_layout::RuntimeVirtualLayoutState<Message>,
     pending_auxiliary_focus_requests: Vec<auxiliary_focus::AuxiliaryFocusRequest>,
@@ -297,7 +299,10 @@ where
         earlier_deadline(
             earlier_deadline(
                 self.surface.timed_repaint_deadline(),
-                self.declarative_animation_deadline(),
+                earlier_deadline(
+                    self.declarative_animation_deadline(),
+                    self.notice_deadline(),
+                ),
             ),
             earlier_deadline(
                 self.interaction.tooltip.deadline,
@@ -359,7 +364,8 @@ where
         if !self.lifecycle.accepts_work() {
             return false;
         }
-        let mut changed = self.advance_declarative_animation(now);
+        let mut changed = self.advance_notifications(now);
+        changed |= self.advance_declarative_animation(now);
         changed |= self.surface.advance_timed_repaints(now);
         if self
             .interaction

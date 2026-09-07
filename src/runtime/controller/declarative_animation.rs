@@ -72,6 +72,7 @@ where
             return false;
         }
         self.declarative_animation.status.hidden = hidden;
+        self.update_notice_pause(self.timed_repaint_now());
         if self.lifecycle_accepts_work() {
             self.advance_declarative_animation(self.timed_repaint_now());
         }

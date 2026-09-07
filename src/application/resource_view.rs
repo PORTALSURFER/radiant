@@ -187,7 +187,12 @@ impl<T, E, Message> ResourceView<T, E, Message> {
     /// stable across phase changes and does not synthesize labels or actions.
     pub fn into_view(self) -> ViewNode<Message> {
         let mut wrapper = column(self.selected);
-        wrapper.resource_demand = self.demand;
+        wrapper.demands = self.demand.map(|resource| {
+            Rc::new(crate::application::view_node::DeclarativeDemands {
+                resource: Some(resource),
+                notice: None,
+            })
+        });
         wrapper
     }
 }

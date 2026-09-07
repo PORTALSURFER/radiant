@@ -209,6 +209,7 @@ where
         match ingress.phase() {
             PointerPhase::Hover => {
                 let event = PointerEvent::from_ingress(ingress, None);
+                self.set_current_pointer_position(Some(event.logical_position()));
                 let dispatch = self.dispatch_pointer_move_target_with_delivery(
                     event.logical_position(),
                     true,
@@ -244,6 +245,7 @@ where
                 {
                     return PointerIngressDisposition::Blocked;
                 }
+                self.set_current_pointer_position(Some(ingress.logical_position()));
                 let gesture = self.prepare_pointer_gesture(ingress);
                 let mut delivery = TypedPointerDeliveryContext::new(ingress);
                 let routed = self.dispatch_pointer_press_event_with_delivery(
@@ -296,7 +298,18 @@ where
                 let Some((index, record)) = self.interaction.pointer.ingress.find(ingress) else {
                     return PointerIngressDisposition::Stale;
                 };
+                if !self.pointer_ingress_owner_is_current(record) {
+                    return PointerIngressDisposition::Stale;
+                }
+                let previous_position = self.current_pointer_position();
+                self.set_current_pointer_position(Some(ingress.logical_position()));
                 if let Some(disposition) = self.route_pointer_gesture(ingress, index, record) {
+                    if matches!(
+                        disposition,
+                        PointerIngressDisposition::Stale | PointerIngressDisposition::Invalid
+                    ) {
+                        self.set_current_pointer_position(previous_position);
+                    }
                     return disposition;
                 }
                 let token = record.token;
@@ -625,26 +638,12 @@ where
         let records = self.interaction.pointer.ingress.records;
         for record in records.into_iter().flatten() {
             let compatible = match record.owner {
-                Some(PointerOwnerWitness::Gesture) => self.pointer_gesture_is_current(record),
-                Some(PointerOwnerWitness::Widget { .. }) => {
-                    self.pointer_widget_witness_is_current(record.owner)
-                }
-                Some(PointerOwnerWitness::Layout {
-                    identity,
-                    contract_version,
-                    ..
-                }) => self
-                    .interaction
-                    .layout_capture
-                    .as_ref()
-                    .is_some_and(|capture| {
-                        capture.identity == identity && capture.contract_version == contract_version
-                    }),
-                Some(PointerOwnerWitness::Scrollbar { node_id, axis, .. }) => self
-                    .interaction
-                    .pointer
-                    .scroll_drag_capture
-                    .is_some_and(|capture| capture.node_id == node_id && capture.axis == axis),
+                Some(
+                    PointerOwnerWitness::Gesture
+                    | PointerOwnerWitness::Widget { .. }
+                    | PointerOwnerWitness::Layout { .. }
+                    | PointerOwnerWitness::Scrollbar { .. },
+                ) => self.pointer_ingress_owner_is_current(record),
                 Some(PointerOwnerWitness::GestureTransfer | PointerOwnerWitness::Unsupported)
                 | None => true,
             };
@@ -994,6 +993,36 @@ where
             self.interaction.pointer.capture == Some(id)
                 && self.interaction.pointer.capture_button == Some(button)
                 && self.pointer_press_target_compatibility_kind(id) == compatibility_kind
+        }
+    }
+
+    /// Check the exact existing continuation owner before it can influence
+    /// current-pointer state or route a mouse sample.
+    fn pointer_ingress_owner_is_current(&self, record: PointerSequenceRecord) -> bool {
+        match record.owner {
+            Some(PointerOwnerWitness::Gesture | PointerOwnerWitness::GestureTransfer) => {
+                self.pointer_gesture_is_current(record)
+            }
+            Some(PointerOwnerWitness::Widget { .. }) => {
+                self.pointer_widget_witness_is_current(record.owner)
+            }
+            Some(PointerOwnerWitness::Layout {
+                identity,
+                contract_version,
+                ..
+            }) => self
+                .interaction
+                .layout_capture
+                .as_ref()
+                .is_some_and(|capture| {
+                    capture.identity == identity && capture.contract_version == contract_version
+                }),
+            Some(PointerOwnerWitness::Scrollbar { node_id, axis, .. }) => self
+                .interaction
+                .pointer
+                .scroll_drag_capture
+                .is_some_and(|capture| capture.node_id == node_id && capture.axis == axis),
+            Some(PointerOwnerWitness::Unsupported) | None => false,
         }
     }
 
@@ -2365,18 +2394,26 @@ mod production_route_tests {
             ),
             PointerIngressDisposition::RoutedWidget(1)
         ));
+        assert_eq!(
+            runtime.current_pointer_position(),
+            Some(Point::new(20.0, 20.0))
+        );
         assert!(matches!(
             runtime.dispatch_pointer_end(
                 DeviceKind::Mouse,
                 device,
                 contact,
-                Point::new(20.0, 20.0),
+                Point::new(22.0, 20.0),
                 PointerButton::Primary,
                 crate::gui::pointer_ingress::PointerButtons::empty(),
                 PointerModifiers::default()
             ),
             PointerIngressDisposition::RoutedWidget(1)
         ));
+        assert_eq!(
+            runtime.current_pointer_position(),
+            Some(Point::new(22.0, 20.0))
+        );
         assert_eq!(
             runtime.dispatch_pointer_move(
                 DeviceKind::Mouse,
@@ -2387,6 +2424,10 @@ mod production_route_tests {
                 PointerModifiers::default()
             ),
             PointerIngressDisposition::Stale
+        );
+        assert_eq!(
+            runtime.current_pointer_position(),
+            Some(Point::new(22.0, 20.0))
         );
         assert_eq!(events.borrow().len(), 2);
     }

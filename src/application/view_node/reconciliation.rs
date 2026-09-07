@@ -68,7 +68,8 @@ impl<'r> ApplicationProjectionRecorder<'r> {
         let source = node.source_metadata_handle();
         let resource_demand = node.resource_view_demand();
         let kind = crate::runtime::application_node_kind(node);
-        self.unsupported |= node.has_animation()
+        self.unsupported |= node.has_notice_demand()
+            || node.has_animation()
             || source.is_none()
             || matches!(kind, ApplicationNodeKind::Unsupported)
             || matches!(node, crate::runtime::SurfaceNode::Scene(_));

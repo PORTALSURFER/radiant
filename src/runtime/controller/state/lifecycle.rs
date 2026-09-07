@@ -142,6 +142,7 @@ where
             update_handler_diagnostics_policy: Default::default(),
             timed_repaint_clock: initial_clock,
             declarative_animation: Default::default(),
+            notifications: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),
             virtual_layout: Default::default(),
             pending_auxiliary_focus_requests: Vec::new(),
@@ -174,6 +175,7 @@ where
         runtime.install_declarative_owner_projection();
         let _ = runtime.transition_lifecycle(RuntimeLifecyclePhase::Running);
         runtime.install_declarative_animations();
+        runtime.install_notifications();
         runtime.install_resource_view_interests();
         runtime
     }
@@ -214,6 +216,7 @@ where
                 next,
                 RuntimeLifecyclePhase::Closing | RuntimeLifecyclePhase::Stopped
             ) {
+                self.clear_notifications();
                 self.clear_declarative_animations();
             }
             self.traversal

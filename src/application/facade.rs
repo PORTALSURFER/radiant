@@ -6,6 +6,7 @@
 
 mod controls;
 mod details;
+mod feedback;
 mod layout;
 mod menus;
 mod overlays;
@@ -151,3 +152,13 @@ pub use view::{
     ViewProjection, WidgetView, WidgetViewContext, WindowBuilder, app, preserve_state, window,
 };
 pub use virtual_layout::{VirtualLayoutParts, virtual_layout_from_parts};
+
+pub use feedback::{
+    InlineErrorBuilder, MAX_FEEDBACK_TEXT_CHARS, SkeletonBuilder, SpinnerBuilder,
+    StatusBadgeBuilder, StatusSemantic, inline_error, skeleton, spinner, status_badge,
+};
+pub use feedback::{
+    Notice, NoticeAction, NoticeDismissal, NoticeDismissalReason, NoticeError, NoticeId,
+    NoticePlacement, NoticeQueue, NoticeSeverity, NoticeSnapshot, NotificationCenter,
+    notifications,
+};

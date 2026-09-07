@@ -2,6 +2,18 @@ use crate::widgets::interaction::TextEditCommand;
 
 use super::super::TextInputState;
 
+#[test]
+fn text_input_state_debug_redacts_value_but_keeps_structural_state() {
+    let secret = "TEXT_INPUT_DEBUG_SECRET_4dc4f3f7";
+    let state = TextInputState::from_value(secret.into());
+    let debug = format!("{state:?}");
+
+    assert!(debug.contains("TextInputState"));
+    assert!(debug.contains("value_bytes"));
+    assert!(debug.contains("caret"));
+    assert!(!debug.contains(secret));
+}
+
 // OPT-857 text-input conformance checklist.
 //
 // Covered today:

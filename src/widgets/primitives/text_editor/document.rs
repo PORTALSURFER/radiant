@@ -94,7 +94,7 @@ impl std::fmt::Display for TextEditorError {
 }
 impl std::error::Error for TextEditorError {}
 /// Logical text mutation; offsets are UTF-8 byte boundaries in the preceding revision.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum TextEditorDelta {
     /// Change logical selection without mutating committed text.
     Selection,
@@ -120,8 +120,31 @@ pub enum TextEditorDelta {
         text: Arc<str>,
     },
 }
+
+impl std::fmt::Debug for TextEditorDelta {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Selection => formatter.write_str("Selection"),
+            Self::Composition(delta) => formatter.debug_tuple("Composition").field(delta).finish(),
+            Self::Insert { at, text } => formatter
+                .debug_struct("Insert")
+                .field("at", at)
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::Delete { range } => formatter
+                .debug_struct("Delete")
+                .field("range", range)
+                .finish(),
+            Self::Replace { range, text } => formatter
+                .debug_struct("Replace")
+                .field("range", range)
+                .field("text_bytes", &text.len())
+                .finish(),
+        }
+    }
+}
 /// Backend-neutral composition operations. Offsets are UTF-8 grapheme boundaries.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum TextEditorCompositionDelta {
     /// Begin replacing a range in the committed text.
     Start {
@@ -141,14 +164,46 @@ pub enum TextEditorCompositionDelta {
     /// Discard preedit and restore committed text.
     Cancel,
 }
-#[derive(Clone, Debug)]
+
+impl std::fmt::Debug for TextEditorCompositionDelta {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Start { range } => formatter
+                .debug_struct("Start")
+                .field("range", range)
+                .finish(),
+            Self::Update { text } => formatter
+                .debug_struct("Update")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::Commit { text } => formatter
+                .debug_struct("Commit")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::Cancel => formatter.write_str("Cancel"),
+        }
+    }
+}
+
+#[derive(Clone)]
 struct CompositionState {
     range: Range<usize>,
     display: Arc<str>,
     original_selection: TextEditorSelection,
 }
+
+impl std::fmt::Debug for CompositionState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CompositionState")
+            .field("range", &self.range)
+            .field("display_bytes", &self.display.len())
+            .field("original_selection", &self.original_selection)
+            .finish()
+    }
+}
 /// Exact-owner edit delivered through the application's ordinary message path.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TextEditorEdit {
     owner: Weak<()>,
     source_id: u64,
@@ -175,8 +230,22 @@ impl TextEditorEdit {
         self.selection
     }
 }
+
+impl std::fmt::Debug for TextEditorEdit {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TextEditorEdit")
+            .field("owner_alive", &(self.owner.strong_count() != 0))
+            .field("source_id", &self.source_id)
+            .field("expected", &self.expected)
+            .field("next", &self.next)
+            .field("delta", &self.delta)
+            .field("selection", &self.selection)
+            .finish()
+    }
+}
 /// Immutable content snapshot. Retaining it does not retain its document owner.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TextEditorSnapshot {
     owner: Weak<()>,
     pub(crate) source_id: u64,
@@ -184,6 +253,20 @@ pub struct TextEditorSnapshot {
     text: Arc<str>,
     selection: TextEditorSelection,
     composition: Option<CompositionState>,
+}
+
+impl std::fmt::Debug for TextEditorSnapshot {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TextEditorSnapshot")
+            .field("owner_alive", &(self.owner.strong_count() != 0))
+            .field("source_id", &self.source_id)
+            .field("revision", &self.revision)
+            .field("text_bytes", &self.text.len())
+            .field("selection", &self.selection)
+            .field("composition", &self.composition)
+            .finish()
+    }
 }
 impl TextEditorSnapshot {
     /// Current selection in displayed text.
@@ -338,6 +421,19 @@ pub struct TextEditorDocument {
     text: Arc<str>,
     selection: TextEditorSelection,
     composition: Option<CompositionState>,
+}
+
+impl std::fmt::Debug for TextEditorDocument {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TextEditorDocument")
+            .field("source_id", &self.source_id)
+            .field("revision", &self.revision)
+            .field("text_bytes", &self.text.len())
+            .field("selection", &self.selection)
+            .field("composition", &self.composition)
+            .finish()
+    }
 }
 impl TextEditorDocument {
     /// Create a document with a fresh authority revision, preserving hard line breaks.
@@ -712,5 +808,35 @@ mod tests {
         );
         assert_eq!(doc.text(), "a");
         assert_eq!(doc.revision(), before);
+    }
+
+    #[test]
+    fn debug_redacts_document_snapshot_edit_and_delta_text() {
+        let secret = "TEXT_EDITOR_DEBUG_SECRET_b2757319";
+        let doc = TextEditorDocument::new(secret).expect("bounded secret");
+        let snapshot = doc.snapshot();
+        let delta = TextEditorDelta::Replace {
+            range: 0..secret.len(),
+            text: Arc::from(secret),
+        };
+        let edit = snapshot
+            .edit(delta.clone(), TextEditorSelection::caret(secret.len()))
+            .expect("valid replacement");
+        let composition = TextEditorCompositionDelta::Update {
+            text: Arc::from(secret),
+        };
+
+        for debug in [
+            format!("{doc:?}"),
+            format!("{snapshot:?}"),
+            format!("{edit:?}"),
+            format!("{delta:?}"),
+            format!("{composition:?}"),
+        ] {
+            assert!(!debug.contains(secret));
+        }
+        assert!(format!("{edit:?}").contains("TextEditorEdit"));
+        assert!(format!("{delta:?}").contains("Replace"));
+        assert!(format!("{composition:?}").contains("Update"));
     }
 }

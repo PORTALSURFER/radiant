@@ -186,6 +186,9 @@ where
         repeat: bool,
         timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> (Option<WidgetId>, bool) {
+        if let Some(consumed) = self.route_overlay_escape(key, modifiers, repeat, timestamp) {
+            return (None, consumed);
+        }
         let host_press = KeyPress {
             key: key.to_key_code(),
             command: if std::env::consts::OS == "macos" {

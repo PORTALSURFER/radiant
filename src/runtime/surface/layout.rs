@@ -116,13 +116,17 @@ impl<Message> SurfaceNode<Message> {
                 let children = container_layout_children(container, |_, child| {
                     child.layout_node_with_environment(environment)
                 });
-                LayoutNode::container_with_layout_policy_mode(
+                let layout = LayoutNode::container_with_layout_policy_mode(
                     container.id,
                     container.policy.clone(),
                     children,
                     container.animated_layout_policy(),
                     container.split_pane_runtime,
-                )
+                );
+                match container.overlay_anchor.as_deref() {
+                    Some(anchor) => layout.with_overlay_anchor(anchor.anchor, anchor.has_input),
+                    None => layout,
+                }
             }
             Self::Widget(widget) => widget.layout_node_with_environment(environment),
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
@@ -213,13 +217,17 @@ impl<Message> SurfaceNode<Message> {
                     layout
                 });
                 end_container_runtime(is_scroll, scroll_stack);
-                LayoutNode::container_with_layout_policy_mode(
+                let layout = LayoutNode::container_with_layout_policy_mode(
                     container.id,
                     container.policy.clone(),
                     children,
                     container.animated_layout_policy(),
                     container.split_pane_runtime,
-                )
+                );
+                match container.overlay_anchor.as_deref() {
+                    Some(anchor) => layout.with_overlay_anchor(anchor.anchor, anchor.has_input),
+                    None => layout,
+                }
             }
             Self::Widget(widget) => {
                 record_widget_runtime(widget, scroll_stack, child_path, traversal);
@@ -368,6 +376,7 @@ fn scene_layout_node<Message>(
         },
         children,
     )
+    .with_overlay_dependencies(scene.overlay_layout_dependencies())
 }
 
 fn push_scene_layout_children<Message>(

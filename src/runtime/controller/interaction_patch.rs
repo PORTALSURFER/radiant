@@ -1604,6 +1604,8 @@ mod tests {
                             structural_scope: 12,
                         },
                         layer_kind: crate::runtime::LayerKind::Modal,
+                        focus_policy: crate::runtime::OverlayFocusPolicy::Modal,
+                        anchored: false,
                         effect_owner: Some(overlay_owner),
                     },
                     OverlayEvidence {
@@ -1611,6 +1613,8 @@ mod tests {
                             structural_scope: 13,
                         },
                         layer_kind: crate::runtime::LayerKind::Tooltip,
+                        focus_policy: crate::runtime::OverlayFocusPolicy::None,
+                        anchored: false,
                         effect_owner: Some(self.added_owner),
                     },
                 ],
@@ -1620,6 +1624,8 @@ mod tests {
                         structural_scope: 12,
                     },
                     layer_kind: crate::runtime::LayerKind::Modal,
+                    focus_policy: crate::runtime::OverlayFocusPolicy::Modal,
+                    anchored: false,
                     effect_owner: Some(overlay_owner),
                 }],
             };

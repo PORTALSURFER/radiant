@@ -63,7 +63,8 @@ where
             return None;
         }
         let widget: WidgetId = id.0.parse().ok()?;
-        if !self.traversal.widgets.paths.current.contains_key(&widget)
+        if !self.overlay_focus_allows(widget)
+            || !self.traversal.widgets.paths.current.contains_key(&widget)
             || self
                 .traversal
                 .widgets

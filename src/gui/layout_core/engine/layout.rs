@@ -14,7 +14,7 @@ mod wrap;
 use super::helpers::content_rect;
 use super::{LayoutContext, LayoutDiagnosticCode};
 use crate::gui::layout_core::model::ContainerKind;
-use crate::gui::layout_core::tree::LayoutNode;
+use crate::gui::layout_core::tree::{ContainerNode, LayoutNode};
 use crate::gui::types::Rect;
 
 pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutContext) {
@@ -30,6 +30,12 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
     };
     context.record_layout_visit();
     let rounded = validated.rect();
+    if let LayoutNode::Container(container) = node
+        && let Some(anchor) = &container.overlay_anchor
+    {
+        layout_anchored_overlay(container, **anchor, rounded, context);
+        return;
+    }
     context.output.rects.insert(node.id(), rounded);
     context.record_node_bounds(node.id(), rounded);
     let LayoutNode::Container(container) = node else {
@@ -66,4 +72,34 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         ContainerKind::FloatingLayer => boxes::layout_floating_layer(container, content, context),
         ContainerKind::SplitPane => split_pane::layout_split_pane(container, content, context),
     }
+}
+
+fn layout_anchored_overlay(
+    container: &ContainerNode,
+    anchor: crate::gui::layout_core::AnchoredOverlayLayout,
+    viewport: Rect,
+    context: &mut LayoutContext,
+) {
+    let expected_children = 1 + usize::from(anchor.has_input);
+    if container.children.len() != expected_children {
+        context.omit_resolved_overlay_root(container.id);
+        for child in &container.children {
+            context.omit_subtree(&child.child);
+        }
+        return;
+    }
+    let Some(overlay_rect) = context.resolve_overlay_anchor(anchor.anchor, viewport) else {
+        context.omit_resolved_overlay_root(container.id);
+        for child in &container.children {
+            context.omit_subtree(&child.child);
+        }
+        return;
+    };
+    context.output.rects.insert(container.id, viewport);
+    context.record_node_bounds(container.id, viewport);
+    if anchor.has_input {
+        layout_node(&container.children[0].child, viewport, context);
+    }
+    let foreground = &container.children[usize::from(anchor.has_input)].child;
+    layout_node(foreground, overlay_rect, context);
 }

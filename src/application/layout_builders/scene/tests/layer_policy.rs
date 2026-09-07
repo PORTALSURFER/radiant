@@ -1,6 +1,6 @@
 use crate::{
-    application::{IntoView, Layer, LayerInputPolicy, scene, text},
-    layout::Vector2,
+    application::{IntoView, Layer, LayerInputPolicy, column, scene, text},
+    layout::{OverlayAnchor, Vector2},
     runtime::LayerKind,
 };
 
@@ -53,5 +53,40 @@ fn layer_policy_methods_report_policy() {
             .dismiss_on_outside_click(())
             .input_policy(),
         LayerInputPolicy::DismissOnOutsideClick
+    );
+}
+
+#[test]
+fn nested_anchored_layers_keep_their_grouped_foreground_and_input_order() {
+    let target = 71_u64;
+    let outer_anchor = OverlayAnchor::below(target, Vector2::new(120.0, 80.0));
+    let inner_anchor = OverlayAnchor::below(72, Vector2::new(80.0, 30.0));
+    let nested = scene(column([
+        text::<()>("Outer foreground"),
+        text("Inner target").id(72),
+    ]))
+    .layer(Layer::tooltip(text("Nested foreground").key("nested-anchor")).anchored_to(inner_anchor))
+    .into_view()
+    .key("outer-anchor");
+
+    let labels = scene(text("Anchor target").id(target))
+        .layer(
+            Layer::popover(nested)
+                .block_input()
+                .anchored_to(outer_anchor),
+        )
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+    assert_eq!(
+        labels,
+        [
+            "Anchor target",
+            "Outer foreground",
+            "Inner target",
+            "Nested foreground",
+        ]
     );
 }

@@ -58,6 +58,7 @@ where
     /// Observe one current eligible focus destination without invoking input or providers.
     pub fn focus_target(&self, widget: WidgetId) -> Option<FocusTarget> {
         if !self.lifecycle_accepts_work()
+            || !self.overlay_focus_allows(widget)
             || !self.is_live_focus_target(widget)
             || self
                 .traversal

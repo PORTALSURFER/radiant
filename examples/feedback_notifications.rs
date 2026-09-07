@@ -146,6 +146,12 @@ mod tests {
         h.advance_time(Duration::from_secs(10)).unwrap();
         assert_eq!(h.bridge().dismissals, 0);
         h.dispatch_message(Message::Modal(false)).unwrap();
+        // With no prior focus, modal closure selects the first eligible base
+        // control: this notice's action. Focus must keep its timeout paused.
+        assert!(h.runtime().focused_widget().is_some());
+        h.advance_time(Duration::from_millis(600)).unwrap();
+        assert_eq!(h.bridge().dismissals, 0);
+        h.dispatch_event(Event::clear_focus()).unwrap();
         h.advance_time(Duration::from_millis(600)).unwrap();
         assert_eq!(h.bridge().dismissals, 1);
     }

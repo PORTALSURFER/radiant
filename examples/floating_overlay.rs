@@ -1,11 +1,13 @@
 //! Floating overlay application-builder example.
 
+use radiant::application::Layer;
 use radiant::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum OverlayMessage {
     CountClick,
     ToggleMenu,
+    CloseMenu,
 }
 
 #[derive(Default)]
@@ -36,6 +38,7 @@ fn main() -> radiant::Result {
                 })
                 .primary()
                 .message(OverlayMessage::ToggleMenu)
+                .id(100)
                 .height(32.0)
                 .fill_width(),
             ])
@@ -45,18 +48,21 @@ fn main() -> radiant::Result {
             .fill_height();
 
             if state.menu_open {
-                stack([
-                    page,
-                    floating_layer(
-                        Point::new(18.0, 70.0),
-                        Vector2::new(260.0, 92.0),
-                        overlay_menu(),
+                scene(page)
+                    .layer(
+                        Layer::popover(overlay_menu().key("floating-overlay-layer"))
+                            .focus_policy(radiant::runtime::OverlayFocusPolicy::Restore)
+                            .anchored_to(
+                                radiant::layout::OverlayAnchor::below(
+                                    100,
+                                    Vector2::new(260.0, 92.0),
+                                )
+                                .gap(4.0),
+                            )
+                            .dismiss_on_escape(OverlayMessage::CloseMenu)
+                            .dismiss_on_outside_click(OverlayMessage::CloseMenu),
                     )
-                    .key("floating-overlay-layer")
-                    .fill(),
-                ])
-                .fill_width()
-                .fill_height()
+                    .into_view()
             } else {
                 page
             }
@@ -69,6 +75,7 @@ fn update(state: &mut OverlayExampleState, message: OverlayMessage) {
     match message {
         OverlayMessage::CountClick => state.clicks += 1,
         OverlayMessage::ToggleMenu => state.menu_open = !state.menu_open,
+        OverlayMessage::CloseMenu => state.menu_open = false,
     }
 }
 

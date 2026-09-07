@@ -2773,6 +2773,7 @@ where
         if self.virtual_layout.is_empty() {
             return false;
         }
+        let overlay_transition = self.capture_overlay_relayout();
         let registrations = self
             .traversal
             .containers
@@ -2798,6 +2799,7 @@ where
         self.replace_layout_root(layout_root);
         self.relayout_with_traversal(traversal);
         self.install_declarative_owner_projection();
+        self.finish_overlay_relayout(overlay_transition);
         true
     }
 

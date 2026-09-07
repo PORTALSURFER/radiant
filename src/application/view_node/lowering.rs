@@ -12,7 +12,7 @@ use crate::{
     },
     runtime::{
         KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata, SourceTopology,
-        SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface,
+        SurfaceChild, SurfaceNode, UiSurface,
     },
 };
 use std::{collections::HashMap, panic::panic_any, rc::Rc};
@@ -21,6 +21,8 @@ use std::{collections::HashMap, panic::panic_any, rc::Rc};
 mod children;
 #[path = "lowering/containers.rs"]
 mod containers;
+#[path = "lowering/scene.rs"]
+mod scene;
 
 impl<Message> IntoView<Message> for ViewNode<Message>
 where
@@ -343,52 +345,10 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
         let lowered = match node.kind {
             ViewNodeKind::Scene {
                 base,
-                mut layers,
+                layers,
                 presentation,
                 shortcuts,
-            } => {
-                if (presentation.is_some() || shortcuts.is_some() || !layers.is_empty())
-                    && let Some(context) = self.application_context.as_deref_mut()
-                {
-                    context.mark_unsupported();
-                }
-                self.scene.capture(presentation, shortcuts);
-                let mut base = *base;
-                let mut collected_layers = Vec::new();
-                base.drain_overlay_layers_in_declaration_order(
-                    child_scope,
-                    StructuralRole::SceneBase,
-                    &self.source_context,
-                    &mut collected_layers,
-                );
-                ViewNode::drain_layer_list_in_declaration_order(
-                    &mut layers,
-                    child_scope,
-                    &self.source_context,
-                    &mut collected_layers,
-                );
-                let base = self.lower_node(base, child_scope, StructuralRole::SceneBase);
-                let layers = collected_layers
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, layer)| {
-                        let input = layer.input.map(|input| {
-                            self.lower_extracted_layer_root(
-                                input,
-                                child_scope,
-                                StructuralRole::SceneInput(index),
-                            )
-                        });
-                        let foreground = self.lower_extracted_layer_root(
-                            layer.foreground,
-                            child_scope,
-                            StructuralRole::SceneLayer(index),
-                        );
-                        SurfaceLayer::with_input(layer.kind, input, foreground)
-                    })
-                    .collect();
-                SurfaceNode::scene(id, base, layers)
-            }
+            } => self.lower_scene(id, child_scope, base, layers, presentation, shortcuts),
             ViewNodeKind::Runtime(node) if reidentify_runtime_root => node.with_id(id),
             ViewNodeKind::Runtime(node) => node,
             ViewNodeKind::VirtualLayout(parts) => {

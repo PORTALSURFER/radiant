@@ -771,6 +771,7 @@ impl LayoutEngine {
                 cache_key_ambiguity: None,
                 direction,
             });
+            context.prepare_overlay_anchors(root);
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
             layout::layout_node(root, root_rect, &mut context);
@@ -883,6 +884,7 @@ impl LayoutEngine {
                 cache_key_ambiguity: Some(&mut storage.cache_key_ambiguity),
                 direction,
             });
+            context.prepare_overlay_anchors(root);
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
             layout::layout_node(root, root_rect, &mut context);

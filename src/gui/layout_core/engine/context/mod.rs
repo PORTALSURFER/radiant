@@ -9,6 +9,7 @@
 mod accessors;
 mod clamp;
 mod diagnostics;
+mod overlay_anchors;
 
 use super::LayoutContainerStateReadSource;
 use super::cache::{
@@ -16,7 +17,8 @@ use super::cache::{
 };
 use super::{LayoutDebugOptions, LayoutOutput, LayoutState};
 use crate::gui::layout_core::WritingDirection;
-use crate::gui::layout_core::tree::NodeId;
+use crate::gui::layout_core::tree::{LayoutNode, NodeId};
+use crate::gui::layout_core::{OverlayAnchor, Rect};
 use crate::gui::types::Vector2;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -58,6 +60,7 @@ pub(super) struct LayoutContext<'a> {
     cache_key_ambiguity: Option<&'a mut bool>,
     pub(super) output: &'a mut LayoutOutput,
     direction: WritingDirection,
+    overlay_anchors: Option<Box<overlay_anchors::OverlayAnchorEvidence>>,
 }
 
 pub(super) struct LayoutContextParts<'a> {
@@ -113,7 +116,28 @@ impl<'a> LayoutContext<'a> {
             cache_key_ambiguity: parts.cache_key_ambiguity,
             output: parts.output,
             direction: parts.direction,
+            overlay_anchors: None,
         }
+    }
+
+    pub(super) fn prepare_overlay_anchors(&mut self, root: &LayoutNode) {
+        self.overlay_anchors = overlay_anchors::OverlayAnchorEvidence::collect(root).map(Box::new);
+    }
+
+    pub(super) fn resolve_overlay_anchor(
+        &self,
+        anchor: OverlayAnchor,
+        viewport: Rect,
+    ) -> Option<Rect> {
+        let evidence = self.overlay_anchors.as_deref()?;
+        let trigger = overlay_anchors::current_trigger(
+            anchor,
+            evidence,
+            &self.output.rects,
+            &self.output.viewport_bounds,
+            viewport,
+        )?;
+        anchor.resolve(trigger, viewport)
     }
 }
 

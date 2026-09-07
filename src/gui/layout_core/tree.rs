@@ -3,7 +3,7 @@
 mod derived;
 
 use super::{
-    SplitPaneRuntimeMode,
+    AnchoredOverlayLayout, OverlayAnchor, SplitPaneRuntimeMode,
     model::{ContainerPolicy, SlotParams},
     policy::LayoutPolicy,
 };
@@ -61,6 +61,9 @@ pub struct ContainerNode {
     pub children: Vec<SlotChild>,
     pub(crate) layout_policy: Option<Rc<dyn LayoutPolicy>>,
     pub(crate) contains_layout_policy: bool,
+    pub(crate) overlay_anchor: Option<Rc<AnchoredOverlayLayout>>,
+    pub(crate) contains_overlay_anchor: bool,
+    pub(crate) overlay_dependencies: Option<Rc<Vec<(NodeId, NodeId)>>>,
     pub(crate) split_pane_runtime: Option<SplitPaneRuntimeMode>,
     /// Version used by persistent layout caches.
     pub(crate) state_version: u64,
@@ -93,12 +96,19 @@ impl ContainerNode {
             .children
             .iter()
             .any(|child| child.child.contains_layout_policy());
+        let contains_overlay_anchor = parts
+            .children
+            .iter()
+            .any(|child| child.child.contains_overlay_anchor());
         Self {
             id: parts.id,
             policy: parts.policy,
             children: parts.children,
             layout_policy: None,
             contains_layout_policy,
+            overlay_anchor: None,
+            contains_overlay_anchor,
+            overlay_dependencies: None,
             split_pane_runtime: None,
             state_version: derived.state_version,
             known_main_extent_horizontal: derived.horizontal_metrics.extent,
@@ -146,6 +156,9 @@ impl Clone for ContainerNode {
             children: self.children.clone(),
             layout_policy: self.layout_policy.clone(),
             contains_layout_policy: self.contains_layout_policy,
+            overlay_anchor: self.overlay_anchor.clone(),
+            contains_overlay_anchor: self.contains_overlay_anchor,
+            overlay_dependencies: self.overlay_dependencies.clone(),
             split_pane_runtime: self.split_pane_runtime,
             state_version: self.state_version,
             known_main_extent_horizontal: self.known_main_extent_horizontal,
@@ -168,6 +181,9 @@ impl fmt::Debug for ContainerNode {
                 &self.layout_policy.as_ref().map(|_| "custom"),
             )
             .field("contains_layout_policy", &self.contains_layout_policy)
+            .field("overlay_anchor", &self.overlay_anchor)
+            .field("contains_overlay_anchor", &self.contains_overlay_anchor)
+            .field("overlay_dependencies", &self.overlay_dependencies)
             .field("split_pane_runtime", &self.split_pane_runtime)
             .field("state_version", &self.state_version)
             .field(
@@ -201,6 +217,17 @@ impl PartialEq for ContainerNode {
                 _ => false,
             }
             && self.contains_layout_policy == other.contains_layout_policy
+            && match (&self.overlay_anchor, &other.overlay_anchor) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Rc::ptr_eq(left, right),
+                _ => false,
+            }
+            && self.contains_overlay_anchor == other.contains_overlay_anchor
+            && match (&self.overlay_dependencies, &other.overlay_dependencies) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Rc::ptr_eq(left, right),
+                _ => false,
+            }
             && self.split_pane_runtime == other.split_pane_runtime
             && self.state_version == other.state_version
             && self.known_main_extent_horizontal == other.known_main_extent_horizontal
@@ -356,5 +383,45 @@ impl LayoutNode {
             Self::Container(container) => container.contains_layout_policy,
             Self::Widget(_) => false,
         }
+    }
+
+    /// Attach the internal current-pass placement policy used by transient
+    /// overlay groups. The group owns an optional input child followed by the
+    /// visible overlay child; malformed groups are omitted by layout.
+    pub(crate) fn with_overlay_anchor(mut self, anchor: OverlayAnchor, has_input: bool) -> Self {
+        if let Self::Container(container) = &mut self {
+            let policy = AnchoredOverlayLayout { anchor, has_input };
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            container.state_version.hash(&mut hasher);
+            policy.anchor.hash_into(&mut hasher);
+            policy.has_input.hash(&mut hasher);
+            container.state_version = hasher.finish();
+            container.overlay_anchor = Some(Rc::new(policy));
+            container.contains_overlay_anchor = true;
+        }
+        self
+    }
+
+    pub(crate) fn contains_overlay_anchor(&self) -> bool {
+        match self {
+            Self::Container(container) => container.contains_overlay_anchor,
+            Self::Widget(_) => false,
+        }
+    }
+
+    /// Attach direct scene-child dependencies. A child is omitted when its
+    /// required parent root did not resolve in this pass.
+    pub(crate) fn with_overlay_dependencies(mut self, dependencies: Vec<(NodeId, NodeId)>) -> Self {
+        if dependencies.is_empty() || dependencies.len() > 128 {
+            return self;
+        }
+        if let Self::Container(container) = &mut self {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            container.state_version.hash(&mut hasher);
+            dependencies.hash(&mut hasher);
+            container.state_version = hasher.finish();
+            container.overlay_dependencies = Some(Rc::new(dependencies));
+        }
+        self
     }
 }

@@ -13,6 +13,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(in crate::runtime::controller) fn relayout(&mut self) {
+        let overlay_transition = self.capture_overlay_relayout();
         let mut traversal = self.take_reusable_traversal_index(true);
         let layout_root = self.surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
@@ -23,13 +24,16 @@ where
         self.replace_layout_root(layout_root);
         self.relayout_with_traversal(traversal);
         self.install_declarative_owner_projection();
+        self.finish_overlay_relayout(overlay_transition);
     }
 
     pub(in crate::runtime::controller) fn relayout_current_surface(&mut self) {
+        let overlay_transition = self.capture_overlay_relayout();
         let traversal = self.take_reusable_traversal_index(true);
         self.relayout_with_traversal(traversal);
         self.install_declarative_animations();
         self.update_notice_pause(self.timed_repaint_now());
+        self.finish_overlay_relayout(overlay_transition);
     }
 
     pub(in crate::runtime::controller) fn queue_current_surface_relayout(&mut self) {

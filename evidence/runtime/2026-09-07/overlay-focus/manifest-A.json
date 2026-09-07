@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "source_commit": "b6c651481031aa901e92105ad3015105fa3fa5b9",
+  "generated_at_utc": "2026-09-07T09:22:44.521611+00:00",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-04"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation, physical input, or OS clipboard access"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "25d7b0dd92fff1da987661ad3eb53a2bd3c38f018a760c199ddc4e74d0272abb"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "c00b8bbb6c702bc9b2febcecee24b136e887206f1ddf75353b2bfb16e34125b7"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "1c501163f773de8be8916610a1d41597a10454ff936490bc29c696b273472545"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "ecf0406e6a9c98ead19607aa101e6f784accad214615c58719d7d2e9ca2292a1"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "80428c8abade770890d455566a42031ce57a968f227420ef326bb50037ed2e32"
+    },
+    {
+      "path": "focused-overlay.log",
+      "media_type": "text/plain",
+      "sha256": "ab9b850f69b53a3ed5e132d19daa5ce3f2dc7f29688ad1c79224124f82184833"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "e0571ee4b91c828dcf73bf37c84f7cb37b51d93d28878f8b3a7af9b4ef405123"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "8ee03e3ee567716c80501fc87bed8683aa4ddd82a38a3ce42316e88ee83ea6af"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "1883d493bec2554ef7020167e22e4f14bfc43d78431fe65a32477ccb75de125b"
+    }
+  ],
+  "owner": "Radiant maintainers",
+  "supersedes": null,
+  "retention": "https://github.com/PORTALSURFER/radiant/pull/1896",
+  "notes": [
+    "Run source was subsequently committed without content changes. Cleanup integration changes only .gitignore.",
+    "Results apply only to these commands and this host; no three-platform, native host, logged-in desktop, manual, GPU, or performance acceptance is claimed.",
+    "Existing ignored tests remain excluded from passing assertions."
+  ],
+  "lane": "A",
+  "outcome": "PASS",
+  "lane_outcome": "A/PASS",
+  "evidence_id": "A-macos-overlay-b6c651481031aa901e92105ad3015105fa3fa5b9-20260907-final",
+  "capability": "Core/lifecycle",
+  "command_or_harness": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "overlay"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ]
+  ],
+  "assertions": [
+    {
+      "name": "focused overlay lifecycle and current-layout anchor regressions",
+      "outcome": "PASS",
+      "passed": 218
+    },
+    {
+      "name": "library and integration regression suite",
+      "outcome": "PASS",
+      "passed": 5554,
+      "ignored": 8
+    }
+  ]
+}

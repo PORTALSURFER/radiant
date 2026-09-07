@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "source_commit": "3add78494353e198637e3da4ffba9257df6d435e",
+  "generated_at_utc": "2026-09-07T09:52:05.965420+00:00",
+  "issue": "OPT-1363",
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical touch input"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "4deee7ed8287d03eb3ef43c245243a0e68634939817d4d27df9dc363255f0411"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "72859d41b93255917f3447c731c663aa853777c2835f620e099b1242b105102f"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "1fd5dec5767be410e0145fc88de9b2c30db6ea8c053ff23a781113b64a03a248"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "725d46623002f8dee9886457c03a57c4435fa012cacce656daa459ba087b4dcb"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "9efc54e07a2c380a932af5583b8c0de533da7b3f6dc730a8aafacab4e9c2f1e9"
+    },
+    {
+      "path": "focused-feedback.log",
+      "media_type": "text/plain",
+      "sha256": "a38f25267fed346a6768b4af27469e4b1f93bfda99a06ed9438a745a4317b751"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "b4a3e5c0a37abe872f3c8274a1513dfacad7bb66c3fdb3564a4d3483ae591b5e"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "aa43bcb5ccccf25a2dcef489c3ed186b61c8fd3f8f0255304245872a174f8b02"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "b277ca60ef8b318718000b846766d000c754659fac71d49c1fdcfe94c1cebd71"
+    }
+  ],
+  "lane": "H",
+  "outcome": "NOT_RUN",
+  "commands": [],
+  "assertions": [],
+  "reason": "No qualifying native visual or manual acceptance run attempted.",
+  "evidence_id": "H-macos-3add78494353e198637e3da4ffba9257df6d435e-drop-feedback-20260907",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "command_or_harness": "Not run: native visual/manual acceptance",
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Scoped typed drop-target outline validation only; no native visual or three-platform acceptance.",
+    "Environment account identifier redacted."
+  ]
+}

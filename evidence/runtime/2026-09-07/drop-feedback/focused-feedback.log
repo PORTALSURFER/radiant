@@ -1,0 +1,13 @@
+   Compiling radiant v0.1.0 (/Users/portalsurfer/.codex/worktrees/opt-1363-drop-feedback-radiant)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.94s
+     Running tests/runtime_bridge_public_api.rs (/Users/portalsurfer/.codex/radiant-validation/target/debug/deps/runtime_bridge_public_api-81d88e687821555d)
+
+running 5 tests
+test gestures::drop_feedback::drop_feedback_resize_requires_fresh_input_and_focus_loss_clears_it ... ok
+test gestures::drop_feedback::drop_feedback_is_opt_in_and_pointer_motion_needs_no_projection ... ok
+test gestures::drop_feedback::drop_feedback_clips_to_viewport_and_hides_retired_target ... ok
+test gestures::drop_feedback::drop_feedback_target_removal_during_enter_never_paints_retired_outline ... ok
+test gestures::drop_feedback::drop_feedback_resolves_each_decision_and_survives_compatible_event_projection ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 81 filtered out; finished in 0.01s
+

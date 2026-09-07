@@ -1,5 +1,5 @@
 use radiant::{
-    application::custom_widget_mapped,
+    application::{Layer, button, custom_widget_mapped, scene},
     gui::pointer_ingress::{GestureIngress, GestureKind, GesturePhase, GestureUnit, InputDeviceId},
     layout::{Rect, Vector2},
     runtime::{Command, GestureOutcome, GestureRequest, SurfaceRuntime},
@@ -107,6 +107,19 @@ impl Widget for Probe {
     }
 }
 fn sample(kind: GestureKind, phase: GesturePhase, value: Vector2) -> GestureIngress {
+    sample_at(
+        kind,
+        phase,
+        value,
+        radiant::gui::types::Point::new(20.0, 15.0),
+    )
+}
+fn sample_at(
+    kind: GestureKind,
+    phase: GesturePhase,
+    value: Vector2,
+    anchor: radiant::gui::types::Point,
+) -> GestureIngress {
     GestureIngress::new(
         kind,
         phase,
@@ -117,7 +130,7 @@ fn sample(kind: GestureKind, phase: GesturePhase, value: Vector2) -> GestureIngr
         },
         value,
         InputDeviceId::from_host(1).unwrap(),
-        Some(radiant::gui::types::Point::new(20.0, 15.0)),
+        Some(anchor),
         Default::default(),
         None,
         None,
@@ -1282,6 +1295,90 @@ fn container_removal_and_layout_policy_changes_retire_the_original_sequence() {
         );
     }
 }
+
+#[test]
+fn modal_retires_base_container_capture_but_keeps_modal_gesture_current() {
+    let modal_open = Rc::new(Cell::new(false));
+    let view_modal_open = modal_open.clone();
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let observed = events.clone();
+    let base_raw = Rc::new(Cell::new(0));
+    let bridge = radiant::app(())
+        .view(move |_| {
+            let base = arena_leaf(100.0, base_raw.clone())
+                .on_gesture_with_revision(pan_policy(2.0), (), |event| Some((10, event)))
+                .id(10);
+            let mut root = scene(base);
+            if view_modal_open.get() {
+                root =
+                    root.layer(Layer::modal(
+                        button("modal")
+                            .filter_mapped(|_| None::<(u8, GestureEvent)>)
+                            .id(2)
+                            .width(120.0)
+                            .height(40.0)
+                            .on_gesture_with_revision(pan_policy(2.0), (), |_| {
+                                None::<(u8, GestureEvent)>
+                            })
+                            .id(20),
+                    ));
+            }
+            root.into_view()
+        })
+        .update(move |_, event| observed.borrow_mut().push(event))
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 80.0));
+
+    let base = runtime.dispatch_gesture_request(GestureRequest::new(sample(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(3.0, 0.0),
+    )));
+    assert_eq!(base.outcome(), &GestureOutcome::AcceptedContainer(10));
+    let base_token = base.token().unwrap();
+
+    modal_open.set(true);
+    runtime.refresh();
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .map(|(id, event)| (*id, event.phase()))
+            .collect::<Vec<_>>(),
+        [(10, GesturePhase::Started), (10, GesturePhase::Cancelled)]
+    );
+    assert_eq!(
+        runtime
+            .dispatch_gesture_request(
+                GestureRequest::new(sample(
+                    GestureKind::Pan,
+                    GesturePhase::Changed,
+                    Vector2::new(1.0, 0.0),
+                ))
+                .with_token(base_token),
+            )
+            .outcome(),
+        &GestureOutcome::Stale
+    );
+
+    let modal_anchor = runtime.layout().rects[&2].center();
+    let modal = runtime.dispatch_gesture_request(GestureRequest::new(sample_at(
+        GestureKind::Pan,
+        GesturePhase::Started,
+        Vector2::new(3.0, 0.0),
+        modal_anchor,
+    )));
+    assert_eq!(modal.outcome(), &GestureOutcome::AcceptedContainer(20));
+    assert_eq!(
+        events
+            .borrow()
+            .iter()
+            .filter(|(_, event)| event.phase() == GesturePhase::Cancelled)
+            .count(),
+        1
+    );
+}
+
 #[test]
 fn container_pinch_and_rotation_use_the_shared_accumulation_and_cancellation_lifecycle() {
     for (kind, value) in [(GestureKind::Pinch, 1.15), (GestureKind::Rotate, 0.15)] {

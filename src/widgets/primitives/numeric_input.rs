@@ -2032,6 +2032,7 @@ where
             return;
         };
         if self.text_input.common.id != previous.text_input.common.id {
+            previous.text_input.invalidate_text_edit_authority();
             self.active = None;
             self.composition = None;
             self.keyboard = None;
@@ -2051,6 +2052,7 @@ where
             || self.text_input.common.state.read_only
             || previous.text_input.common.state.read_only;
         if reset {
+            previous.text_input.invalidate_text_edit_authority();
             self.active = None;
             self.composition = None;
             self.keyboard = None;
@@ -2061,6 +2063,8 @@ where
         }
 
         self.text_input.common.state = previous.text_input.common.state;
+        self.text_input
+            .preserve_text_edit_authority_from(&previous.text_input);
         if previous.pointer.is_some() {
             self.text_input.state = previous.text_input.state.clone();
             self.active = None;
@@ -2121,6 +2125,8 @@ where
         if compatible {
             return None;
         }
+
+        self.text_input.invalidate_text_edit_authority();
 
         if self.composition.is_some() {
             self.cancel_composition(None)

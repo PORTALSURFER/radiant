@@ -13,6 +13,49 @@ use super::super::NativeCaretAffinity;
 use super::super::{TextInputChrome, TextInputWidget, WidgetSizing};
 
 #[test]
+fn text_edit_authority_advances_for_edits_and_focus_loss_but_not_hover() {
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(100.0, 28.0));
+    let mut input =
+        TextInputWidget::new(7, "draft", WidgetSizing::fixed(Vector2::new(100.0, 28.0)));
+    input.common.state.focused = true;
+    let before_edit = input
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let _ = input.handle_input(bounds, WidgetInput::character('!'));
+    assert!(!input.is_current_text_edit_authority(&before_edit));
+    let before_hover = input
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let _ = input.handle_input(bounds, WidgetInput::pointer_move(Point::new(200.0, 0.0)));
+    assert!(input.is_current_text_edit_authority(&before_hover));
+
+    let _ = input.handle_input(bounds, WidgetInput::FocusChanged(false));
+    assert!(!input.is_current_text_edit_authority(&before_hover));
+}
+
+#[test]
+fn compatible_reprojection_shares_text_edit_authority_and_newer_revision_cancels_it() {
+    let sizing = WidgetSizing::fixed(Vector2::new(100.0, 28.0));
+    let mut previous = TextInputWidget::new(7, "draft", sizing);
+    previous.props.revision = Some(TextInputRevision::new(3));
+    let authority = previous
+        .capture_text_edit_authority()
+        .expect("live text input issues authority");
+
+    let mut compatible = TextInputWidget::new(7, "draft", sizing);
+    compatible.props.revision = Some(TextInputRevision::new(3));
+    compatible.synchronize_from_previous(&previous);
+    assert!(compatible.is_current_text_edit_authority(&authority));
+
+    let mut newer = TextInputWidget::new(7, "saved", sizing);
+    newer.props.revision = Some(TextInputRevision::new(4));
+    newer.synchronize_from_previous(&previous);
+    assert!(!previous.is_current_text_edit_authority(&authority));
+}
+
+#[test]
 fn generic_pointer_caret_uses_resolved_alignment_and_environment_scale() {
     #[derive(Clone, Copy)]
     enum Placement {

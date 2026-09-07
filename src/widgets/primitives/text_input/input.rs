@@ -5,14 +5,6 @@ use crate::{gui::types::Rect, runtime::ResolvedEnvironment};
 
 use super::TextInputWidget;
 
-pub(super) fn handle_text_input(
-    text_input: &mut TextInputWidget,
-    bounds: Rect,
-    input: WidgetInput,
-) -> Option<TextInputMessage> {
-    handle_text_input_with_environment(text_input, bounds, input, &ResolvedEnvironment::default())
-}
-
 pub(super) fn handle_text_input_with_environment(
     text_input: &mut TextInputWidget,
     bounds: Rect,

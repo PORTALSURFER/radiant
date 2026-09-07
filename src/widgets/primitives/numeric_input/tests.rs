@@ -2499,6 +2499,10 @@ fn inactive_and_repeated_replacement_teardown_are_no_ops() {
 #[test]
 fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed_value_resets() {
     let mut previous = u32_input();
+    let authority = previous
+        .text_input
+        .capture_text_edit_authority()
+        .expect("live embedded text input issues authority");
     replace_u32(&mut previous, "8");
     previous.text_input.state.caret = 0;
     previous.text_input.state.selection_anchor = 1;
@@ -2512,6 +2516,11 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     assert_eq!(
         retained.interaction_gate.incumbent(),
         Some(NumericInteractionOwner::TextEdit)
+    );
+    assert!(
+        retained
+            .text_input
+            .is_current_text_edit_authority(&authority)
     );
 
     let mut changed = NumericInputWidget::try_new(
@@ -2535,6 +2544,11 @@ fn same_value_reprojection_retains_draft_caret_selection_and_session_but_changed
     assert_eq!(changed.text_input.state.value, "9");
     assert!(changed.active.is_none());
     assert_eq!(changed.interaction_gate.incumbent(), None);
+    assert!(
+        !previous
+            .text_input
+            .is_current_text_edit_authority(&authority)
+    );
 
     let mut disabled = u32_input();
     disabled.text_input.common.state.disabled = true;

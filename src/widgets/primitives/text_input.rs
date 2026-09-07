@@ -39,7 +39,7 @@ pub(crate) enum NativeCaretAffinity {
 }
 
 /// Public single-line text-input primitive.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct TextInputWidget {
     /// Shared widget contract.
     pub common: WidgetCommon,
@@ -54,6 +54,20 @@ pub struct TextInputWidget {
     native_pointer_caret: Option<(usize, NativeCaretAffinity)>,
     native_pointer_caret_acceptance: Option<NativeCaretAffinity>,
     native_caret_affinity: NativeCaretAffinity,
+    text_edit_authority: std::rc::Rc<crate::widgets::TextEditAuthorityOwner>,
+}
+
+impl PartialEq for TextInputWidget {
+    fn eq(&self, other: &Self) -> bool {
+        self.common == other.common
+            && self.props == other.props
+            && self.state == other.state
+            && self.align == other.align
+            && self.composition == other.composition
+            && self.native_pointer_caret == other.native_pointer_caret
+            && self.native_pointer_caret_acceptance == other.native_pointer_caret_acceptance
+            && self.native_caret_affinity == other.native_caret_affinity
+    }
 }
 
 /// Named construction fields for [`TextInputWidget`].
@@ -88,6 +102,7 @@ impl TextInputWidget {
             native_pointer_caret: None,
             native_pointer_caret_acceptance: None,
             native_caret_affinity: NativeCaretAffinity::Downstream,
+            text_edit_authority: std::rc::Rc::new(crate::widgets::TextEditAuthorityOwner::new()),
         }
     }
 
@@ -120,7 +135,7 @@ impl TextInputWidget {
 
     /// Route one backend-neutral interaction into the single-line text input.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<TextInputMessage> {
-        input::handle_text_input(self, bounds, input)
+        self.handle_input_with_authority(bounds, input, &ResolvedEnvironment::default())
     }
 
     pub(super) fn accepts_editing_input(&self) -> bool {
@@ -191,6 +206,59 @@ impl TextInputWidget {
     pub(crate) fn reset_native_pointer_affinity(&mut self) {
         self.native_caret_affinity = NativeCaretAffinity::Downstream;
     }
+
+    pub(crate) fn capture_text_edit_authority(&self) -> Option<crate::widgets::TextEditAuthority> {
+        self.text_edit_authority.authority()
+    }
+
+    pub(crate) fn is_current_text_edit_authority(
+        &self,
+        authority: &crate::widgets::TextEditAuthority,
+    ) -> bool {
+        self.text_edit_authority.is_current(authority)
+    }
+
+    pub(crate) fn invalidate_text_edit_authority(&self) {
+        let _ = self.text_edit_authority.advance();
+    }
+
+    pub(crate) fn preserve_text_edit_authority_from(&mut self, previous: &Self) {
+        self.text_edit_authority = std::rc::Rc::clone(&previous.text_edit_authority);
+    }
+
+    fn handle_input_with_authority(
+        &mut self,
+        bounds: Rect,
+        input: WidgetInput,
+        environment: &ResolvedEnvironment,
+    ) -> Option<TextInputMessage> {
+        let focus_lost = matches!(&input, WidgetInput::FocusChanged(false));
+        let state = self.state.clone();
+        let composition = self.composition.clone();
+        let output = input::handle_text_input_with_environment(self, bounds, input, environment);
+        if focus_lost || self.state != state || self.composition != composition {
+            self.invalidate_text_edit_authority();
+        }
+        output
+    }
+
+    fn can_preserve_text_edit_authority_with(&self, successor: Option<&dyn Widget>) -> bool {
+        let Some(successor) = successor.and_then(|widget| widget.as_any().downcast_ref::<Self>())
+        else {
+            return false;
+        };
+        if self.common.id != successor.common.id
+            || self.common.state.disabled != successor.common.state.disabled
+            || self.common.state.read_only != successor.common.state.read_only
+        {
+            return false;
+        }
+        match (self.props.revision, successor.props.revision) {
+            (Some(previous), Some(current)) => current <= previous,
+            (None, None) => successor.state.value == self.committed_value_for_sync(),
+            (Some(_), None) | (None, Some(_)) => false,
+        }
+    }
 }
 
 impl WidgetSemantics for TextInputWidget {
@@ -254,6 +322,7 @@ impl crate::widgets::WidgetSemanticActions for TextInputWidget {
         self.native_pointer_caret = None;
         self.native_pointer_caret_acceptance = None;
         self.native_caret_affinity = NativeCaretAffinity::Downstream;
+        self.invalidate_text_edit_authority();
         WidgetSemanticActionResult::Accepted(Some(WidgetOutput::typed(TextInputMessage::Changed {
             value,
         })))
@@ -309,7 +378,7 @@ impl Widget for TextInputWidget {
         input: WidgetInput,
         environment: &ResolvedEnvironment,
     ) -> Option<WidgetOutput> {
-        input::handle_text_input_with_environment(self, bounds, input, environment)
+        self.handle_input_with_authority(bounds, input, environment)
             .map(WidgetOutput::typed)
     }
 
@@ -325,7 +394,13 @@ impl Widget for TextInputWidget {
     }
 
     fn handle_composition_sample(&mut self, sample: CompositionSample) -> Option<WidgetOutput> {
-        composition::handle_sample(self, sample).map(WidgetOutput::typed)
+        let state = self.state.clone();
+        let composition = self.composition.clone();
+        let output = composition::handle_sample(self, sample);
+        if self.state != state || self.composition != composition {
+            self.invalidate_text_edit_authority();
+        }
+        output.map(WidgetOutput::typed)
     }
 
     fn handle_hidden_composition_update(
@@ -333,7 +408,13 @@ impl Widget for TextInputWidget {
         preedit: String,
         _timestamp: Option<crate::gui::input::InputTimestamp>,
     ) -> Option<WidgetOutput> {
-        composition::handle_hidden_update(self, preedit).map(WidgetOutput::typed)
+        let state = self.state.clone();
+        let composition = self.composition.clone();
+        let output = composition::handle_hidden_update(self, preedit);
+        if self.state != state || self.composition != composition {
+            self.invalidate_text_edit_authority();
+        }
+        output.map(WidgetOutput::typed)
     }
 
     fn retains_managed_composition(&self) -> bool {
@@ -345,26 +426,39 @@ impl Widget for TextInputWidget {
             return;
         };
         if self.common.id != previous_widget.common.id {
+            previous_widget.invalidate_text_edit_authority();
             return;
         }
 
-        match (previous_widget.props.revision, self.props.revision) {
+        let policy_changed = self.common.state.disabled != previous_widget.common.state.disabled
+            || self.common.state.read_only != previous_widget.common.state.read_only;
+        let preserved = match (previous_widget.props.revision, self.props.revision) {
             (Some(previous_revision), Some(current_revision))
                 if current_revision <= previous_revision =>
             {
                 self.state = previous_widget.state.clone();
                 self.composition = previous_widget.composition.clone();
+                true
             }
-            (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => {}
+            (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => false,
             (None, None) if self.state.value == previous_widget.committed_value_for_sync() => {
                 self.state = previous_widget.state.clone();
                 self.composition = previous_widget.composition.clone();
+                true
             }
-            (None, None) => {}
+            (None, None) => false,
+        };
+        if preserved && !policy_changed {
+            self.preserve_text_edit_authority_from(previous_widget);
+        } else {
+            previous_widget.invalidate_text_edit_authority();
         }
     }
 
     fn prepare_replacement(&mut self, successor: Option<&dyn Widget>) -> Option<WidgetOutput> {
+        if !self.can_preserve_text_edit_authority_with(successor) {
+            self.invalidate_text_edit_authority();
+        }
         if self.composition.is_some() && !self.can_preserve_composition_with(successor) {
             self.cancel_composition();
         }

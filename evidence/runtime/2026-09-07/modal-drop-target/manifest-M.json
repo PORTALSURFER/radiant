@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "policy": "Radiant Platform Acceptance and Evidence Policy",
+  "evidence_id": "M-macos-9decff62bea02ca8fa027c0da2f4a44b1c8e7166-modal-drop-target-20260907",
+  "source_commit": "9decff62bea02ca8fa027c0da2f4a44b1c8e7166",
+  "generated_at_utc": "2026-09-07T12:16:59.530910+00:00",
+  "lane": "M",
+  "outcome": "NOT_RUN",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-24"
+  ],
+  "platform": {
+    "baseline": "macOS; local C/A scope only",
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "architecture": "arm64",
+    "hardware": "Apple M5 Pro"
+  },
+  "session": {
+    "type": "noninteractive local CLI subprocess",
+    "runner": "local Codex workspace",
+    "compositor": "not exercised",
+    "account": "local account; identifier redacted",
+    "permissions": "no foreground native automation or physical input"
+  },
+  "command_or_harness": "Not run: native/manual acceptance",
+  "assertions": [
+    {
+      "name": "native/manual acceptance",
+      "outcome": "NOT_RUN",
+      "reason": "No qualifying attempt."
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: aarch64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cargo_lock_sha256": "3036bcf4c82788eae4e86ec7f252ac6a3347206db5615ca9c0b6270493feae9a"
+  },
+  "payloads": [
+    {
+      "path": "README.md",
+      "media_type": "text/plain",
+      "sha256": "b5a3048d4bf57f25b20dd5e0ee4ff2b9b4f88277251c966af25b801c72c145cb"
+    },
+    {
+      "path": "clippy.log",
+      "media_type": "text/plain",
+      "sha256": "6a5849ab1e78eec89abee7b70d2cac1567eeba7d3d2a3dc79c017c618105717b"
+    },
+    {
+      "path": "diff.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs.log",
+      "media_type": "text/plain",
+      "sha256": "63c8ca0288817feb9ad53a598101b820ff67c01285194c477b85993889635e26"
+    },
+    {
+      "path": "doctests.log",
+      "media_type": "text/plain",
+      "sha256": "3c1dbb7952c3333e46a1a5a3cf630f65b189cdfb0d25af20f20a11ac6cee15a1"
+    },
+    {
+      "path": "environment.json",
+      "media_type": "application/json",
+      "sha256": "271c86ea92b61229b2b9d56b6eba6a5bee247183f78d3ed57f60cb5c464bc4ce"
+    },
+    {
+      "path": "examples.log",
+      "media_type": "text/plain",
+      "sha256": "f4176ec263c743c5613c8907adf47674c8d00097376783a09353364dbaf7e15b"
+    },
+    {
+      "path": "format.log",
+      "media_type": "text/plain",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "no-default.log",
+      "media_type": "text/plain",
+      "sha256": "8e9c6435b0f0474366c2d64355706e475807f59488a89993f66e82b7a1ccd8a8"
+    },
+    {
+      "path": "tests.log",
+      "media_type": "text/plain",
+      "sha256": "7ea99cc0e125d3ba8d12983e26592ff35d5b529c89cbedc5a12004359c9c6e0e"
+    },
+    {
+      "path": "validation.json",
+      "media_type": "application/json",
+      "sha256": "6744b566d66a3c3c885f1a1f04a457cb7d294af66da4c44ef27557406c6171f8"
+    }
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Typed drop target qualification respects the current modal focus scope.",
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "Environment account identifier redacted."
+  ]
+}

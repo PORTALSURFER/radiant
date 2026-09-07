@@ -1382,6 +1382,7 @@ pub(super) struct NativeTabSequenceLatch {
 
 pub(super) struct NativeRunnerInputState {
     pub(super) last_cursor: Option<Point>,
+    pub(super) last_native_mouse_device: Option<winit::event::DeviceId>,
     pub(super) native_cursor: Option<WidgetCursor>,
     pub(super) native_cursor_visible: bool,
     #[cfg(test)]
@@ -1392,6 +1393,8 @@ pub(super) struct NativeRunnerInputState {
     pub(super) effective_pointer_gesture: Option<NativePointerGestureLatch>,
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) input_sequence_allocator: NativeInputSequenceAllocator,
+    #[allow(dead_code)]
+    pub(super) native_pointer_ingress: super::native_pointer_ingress::NativePointerIngressState,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scroll_container_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scrollbar_drag: Option<PendingScrollbarDrag>,
@@ -1401,6 +1404,7 @@ impl Default for NativeRunnerInputState {
     fn default() -> Self {
         Self {
             last_cursor: None,
+            last_native_mouse_device: None,
             native_cursor: None,
             native_cursor_visible: true,
             #[cfg(test)]
@@ -1411,6 +1415,8 @@ impl Default for NativeRunnerInputState {
             effective_pointer_gesture: None,
             last_navigation_key_repeat: None,
             input_sequence_allocator: NativeInputSequenceAllocator::default(),
+            native_pointer_ingress:
+                super::native_pointer_ingress::NativePointerIngressState::default(),
             pending_gpu_surface_wheel: None,
             pending_scroll_container_wheel: None,
             pending_scrollbar_drag: None,

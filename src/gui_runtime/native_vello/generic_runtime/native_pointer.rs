@@ -9,7 +9,10 @@ use super::{
     scroll_delta_to_logical,
 };
 use crate::{
-    gui::input::InputTimestamp,
+    gui::input::{InputSequenceRange, InputTimestamp},
+    gui::pointer_ingress::{
+        PointerButtons, PointerIngress, PointerIngressDisposition, PointerPhase,
+    },
     gui::types::Point,
     runtime::RuntimeBridge,
     widgets::{PointerButton, PointerModifiers},
@@ -20,6 +23,17 @@ use winit::{
     event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
     keyboard::ModifiersState,
 };
+
+fn pointer_buttons_for_button(button: PointerButton, state: ElementState) -> PointerButtons {
+    if state == ElementState::Released {
+        return PointerButtons::empty();
+    }
+    match button {
+        PointerButton::Primary => PointerButtons::PRIMARY,
+        PointerButton::Secondary => PointerButtons::SECONDARY,
+        PointerButton::Auxiliary => PointerButtons::AUXILIARY,
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum NativePointerEventKind {
@@ -226,14 +240,8 @@ where
             |gesture| self.pointer_modifiers_for_gesture(gesture.consume_control),
         );
         let started = Instant::now();
-        let outcome = match state {
-            ElementState::Pressed => self
-                .core
-                .route_pointer_press_with_timestamp(position, button, modifiers, timestamp),
-            ElementState::Released => self
-                .core
-                .route_pointer_release_with_timestamp(position, button, modifiers, timestamp),
-        };
+        let outcome =
+            self.route_native_mouse_pointer_ingress(position, button, state, modifiers, timestamp);
         self.commit_accepted_native_text_pointer_caret();
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
@@ -250,6 +258,107 @@ where
             self.input.effective_pointer_gesture = None;
         }
         route
+    }
+
+    fn route_native_mouse_pointer_ingress(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        state: ElementState,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+    ) -> GenericRouteOutcome {
+        let Some(native_device) = self.input.last_native_mouse_device else {
+            return match state {
+                ElementState::Pressed => self
+                    .core
+                    .route_pointer_press_with_timestamp(position, button, modifiers, timestamp),
+                ElementState::Released => self
+                    .core
+                    .route_pointer_release_with_timestamp(position, button, modifiers, timestamp),
+            };
+        };
+        let Ok((device, contact)) = self
+            .input
+            .native_pointer_ingress
+            .retain_mouse_contact(native_device)
+        else {
+            return self.core.route_outcome(false);
+        };
+        let buttons = pointer_buttons_for_button(button, state);
+        let sequence_range: Option<InputSequenceRange> =
+            self.input.input_sequence_allocator.allocate();
+        let disposition = match state {
+            ElementState::Pressed => PointerIngress::new(
+                crate::gui::pointer_ingress::DeviceKind::Mouse,
+                device,
+                contact,
+                PointerPhase::Started { button },
+                position,
+                buttons,
+                modifiers,
+                None,
+                None,
+                timestamp,
+                sequence_range,
+            )
+            .map(|ingress| {
+                let admission = self
+                    .core
+                    .runtime
+                    .dispatch_pointer_ingress_with_admission(ingress);
+                if let Some(token) = admission.sequence_token() {
+                    let _ = self
+                        .input
+                        .native_pointer_ingress
+                        .set_token_for_identity(device, contact, token);
+                }
+                admission.disposition()
+            })
+            .unwrap_or(PointerIngressDisposition::Invalid),
+            ElementState::Released => {
+                let token = self
+                    .input
+                    .native_pointer_ingress
+                    .contact_token(native_device, u64::MAX);
+                let disposition = token
+                    .map(|token| {
+                        self.core.runtime.dispatch_native_pointer_continuation(
+                            crate::gui::pointer_ingress::DeviceKind::Mouse,
+                            device,
+                            contact,
+                            token,
+                            PointerPhase::Ended { button },
+                            position,
+                            buttons,
+                            modifiers,
+                            None,
+                            None,
+                            timestamp,
+                            sequence_range,
+                        )
+                    })
+                    .unwrap_or(PointerIngressDisposition::Stale);
+                if !matches!(
+                    disposition,
+                    PointerIngressDisposition::Stale
+                        | PointerIngressDisposition::Blocked
+                        | PointerIngressDisposition::Invalid
+                ) {
+                    self.input
+                        .native_pointer_ingress
+                        .clear_token_for_identity(device, contact);
+                }
+                disposition
+            }
+        };
+        self.core.route_outcome(matches!(
+            disposition,
+            PointerIngressDisposition::RoutedWidget(_)
+                | PointerIngressDisposition::HandledLayout
+                | PointerIngressDisposition::HandledScrollbar
+                | PointerIngressDisposition::AdmittedUnsupportedConsumer
+        ))
     }
 
     #[cfg(test)]

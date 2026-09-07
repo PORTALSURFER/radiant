@@ -12,10 +12,10 @@ pub use leaf::{
     GpuSurfaceConfiguredParts, GpuSurfaceInputParts, RenderCanvasConfiguredParts,
     RenderCanvasInputParts, canvas, card, custom_widget, custom_widget_direct,
     custom_widget_mapped, empty, gpu_surface, gpu_surface_configured_from_parts,
-    gpu_surface_from_parts, gpu_surface_input, gpu_surface_input_from_parts,
+    gpu_surface_from_parts, gpu_surface_input, gpu_surface_input_from_parts, gpu_surface_pointer,
     gpu_surface_with_capabilities, image, passive_badge, passive_button, passive_text_input,
     passive_toggle, render_canvas, render_canvas_configured_from_parts, render_canvas_from_parts,
-    render_canvas_input, render_canvas_input_from_parts, render_canvas_with_capabilities, spacer,
-    text, text_line, widget,
+    render_canvas_input, render_canvas_input_from_parts, render_canvas_pointer,
+    render_canvas_with_capabilities, spacer, text, text_line, widget,
 };
 pub(in crate::application) use styles::{danger_style, primary_style};

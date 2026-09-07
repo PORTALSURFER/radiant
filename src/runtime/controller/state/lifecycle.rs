@@ -91,7 +91,7 @@ where
             external_layout_dirty: false,
             traversal: RuntimeTraversalState::default(),
             scratch,
-            interaction: RuntimeInteractionState::default(),
+            interaction: RuntimeInteractionState::with_runtime_identity(effect_owner.id()),
             lifecycle: RuntimeLifecycleController::starting(),
             fresh_surface_active_generation: 1,
             fresh_surface_request_revision: 0,
@@ -275,6 +275,7 @@ where
     }
 
     pub(crate) fn begin_closing(&mut self) -> bool {
+        self.cancel_pointer_ingress_sequences();
         if !self.transition_lifecycle(RuntimeLifecyclePhase::Closing) {
             return false;
         }

@@ -168,6 +168,7 @@ where
         self.route_pointer_press_with_timestamp(position, button, modifiers, None)
     }
 
+    #[allow(dead_code)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_press_with_timestamp(
         &mut self,
         position: Point,
@@ -212,6 +213,7 @@ where
         self.route_pointer_release_with_timestamp(position, button, modifiers, None)
     }
 
+    #[allow(dead_code)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_release_with_timestamp(
         &mut self,
         position: Point,
@@ -465,6 +467,7 @@ where
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_focus_lost(&mut self) -> GenericRouteOutcome {
+        self.runtime.cancel_pointer_ingress_sequences();
         self.runtime.clear_focus();
         self.runtime.cancel_pointer_capture();
         self.route_outcome(true)

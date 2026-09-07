@@ -27,6 +27,7 @@ mod layout_state;
 mod owner;
 mod platform;
 mod pointer;
+mod pointer_ingress;
 mod prepared_layout;
 mod refresh;
 mod scratch;

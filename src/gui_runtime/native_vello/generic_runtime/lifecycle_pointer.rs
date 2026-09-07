@@ -8,6 +8,9 @@ use super::{
     logical_point_from_winit, maybe_log_route_profile,
 };
 use crate::gui::input::InputTimestamp;
+use crate::gui::pointer_ingress::{
+    DeviceKind, PointerButtons, PointerIngress, PointerIngressDisposition, PointerPhase,
+};
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
 use tracing::debug;
@@ -92,12 +95,8 @@ where
             self.core.runtime.clear_native_text_pointer_caret();
             self.frame.text_renderer.reset_native_caret_affinities();
             if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
-                let outcome = self.core.route_pointer_move_with_metadata(
-                    position,
-                    modifiers,
-                    timestamp,
-                    sequence_range,
-                );
+                let outcome =
+                    self.route_native_pointer_move(position, modifiers, timestamp, sequence_range);
                 return NativeCursorMovedRoute {
                     outcome,
                     previous,
@@ -121,12 +120,14 @@ where
             };
         }
         if self.can_fast_path_native_hover_move(position) {
+            let ingress_outcome =
+                self.route_native_pointer_move(position, modifiers, timestamp, sequence_range);
             self.core.runtime.clear_native_text_pointer_caret();
             self.frame.text_renderer.reset_native_caret_affinities();
             self.update_gpu_surface_cursor_overlay(position);
             self.update_native_cursor_at_last_position();
             return NativeCursorMovedRoute {
-                outcome: GenericRouteOutcome::default(),
+                outcome: ingress_outcome,
                 previous,
                 position: Some(position),
                 apply_pointer_move_outcome: false,
@@ -143,12 +144,8 @@ where
         }
         self.stage_native_text_pointer_caret(position);
         let started = Instant::now();
-        let outcome = self.core.route_pointer_move_with_metadata(
-            position,
-            modifiers,
-            timestamp,
-            sequence_range,
-        );
+        let outcome =
+            self.route_native_pointer_move(position, modifiers, timestamp, sequence_range);
         self.commit_accepted_native_text_pointer_caret();
         if self.core.runtime.pointer_capture().is_none() {
             self.update_native_cursor_at_last_position();
@@ -163,6 +160,73 @@ where
                 reason: FrameWorkReason::NativePointerClear,
             }),
         }
+    }
+
+    fn route_native_pointer_move(
+        &mut self,
+        position: crate::gui::types::Point,
+        modifiers: crate::widgets::PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        sequence_range: Option<crate::gui::input::InputSequenceRange>,
+    ) -> GenericRouteOutcome {
+        let Some(native_device) = self.input.last_native_mouse_device else {
+            return self.core.route_pointer_move_with_metadata(
+                position,
+                modifiers,
+                timestamp,
+                sequence_range,
+            );
+        };
+        let Ok((device, contact)) = self
+            .input
+            .native_pointer_ingress
+            .retain_mouse_contact(native_device)
+        else {
+            return self.core.route_outcome(false);
+        };
+        let disposition = if let Some(token) = self
+            .input
+            .native_pointer_ingress
+            .contact_token(native_device, u64::MAX)
+        {
+            self.core.runtime.dispatch_native_pointer_continuation(
+                DeviceKind::Mouse,
+                device,
+                contact,
+                token,
+                PointerPhase::Moved,
+                position,
+                PointerButtons::empty(),
+                modifiers,
+                None,
+                None,
+                timestamp,
+                sequence_range,
+            )
+        } else {
+            PointerIngress::new(
+                DeviceKind::Mouse,
+                device,
+                contact,
+                PointerPhase::Hover,
+                position,
+                PointerButtons::empty(),
+                modifiers,
+                None,
+                None,
+                timestamp,
+                sequence_range,
+            )
+            .map(|ingress| self.core.runtime.dispatch_pointer_ingress(ingress))
+            .unwrap_or(PointerIngressDisposition::Invalid)
+        };
+        self.core.route_outcome(matches!(
+            disposition,
+            PointerIngressDisposition::RoutedWidget(_)
+                | PointerIngressDisposition::HandledLayout
+                | PointerIngressDisposition::HandledScrollbar
+                | PointerIngressDisposition::AdmittedUnsupportedConsumer
+        ))
     }
 
     pub(super) fn apply_cursor_moved_route(&mut self, route: NativeCursorMovedRoute) {

@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::widgets::PointerModifiers;
+use winit::event::{DeviceId, ElementState, MouseButton};
 
 #[test]
 fn scrollbar_drag_state_survives_view_refresh_after_offset_message() {
@@ -225,6 +226,54 @@ fn native_scrollbar_drag_coalesces_to_latest_position_until_redraw() {
             .paint_plan(&Default::default())
             .contains_text("Row 99")
     );
+}
+
+#[test]
+fn native_scrollbar_queue_retains_actual_bar_owner_identity() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let scroll_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("virtual list scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 6.0);
+    runner.input.last_cursor = Some(press);
+    runner.retain_native_mouse_device(DeviceId::dummy(), None);
+    let route = runner.route_native_mouse_input(MouseButton::Left, ElementState::Pressed);
+    assert!(route.outcome.routed);
+    runner.queue_scrollbar_drag(Point::new(press.x, press.y + 20.0));
+    let pending = runner
+        .input
+        .pending_scrollbar_drag
+        .expect("bar move should be queued");
+    let identity = pending
+        .native_identity
+        .expect("queued bar move should carry native identity");
+    let _ = identity.token;
+    runner
+        .input
+        .native_pointer_ingress
+        .clear_token_for_identity(identity.device, identity.contact);
+    runner.queue_scrollbar_drag(Point::new(press.x, press.y + 28.0));
+    assert_eq!(
+        runner
+            .input
+            .pending_scrollbar_drag
+            .expect("valid A bar move remains queued")
+            .position,
+        Point::new(press.x, press.y + 20.0)
+    );
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 0);
+    runner.flush_pending_scrollbar_drag_now();
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
 }
 
 #[test]

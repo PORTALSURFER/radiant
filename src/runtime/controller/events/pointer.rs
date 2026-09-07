@@ -1,6 +1,7 @@
 use super::super::SurfaceRuntime;
 use super::super::focus::{FocusTransition, SplitPaneSeparatorFocusAdmission};
 use super::super::pointer::PointInputDispatch;
+use super::super::pointer_ingress::{TypedPointerDeliveryContext, TypedPointerRoute};
 use crate::{
     gui::input::InputTimestamp,
     gui::types::Point,
@@ -21,6 +22,19 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        self.dispatch_pointer_press_event_with_delivery(
+            position, button, modifiers, timestamp, None,
+        )
+    }
+
+    pub(in crate::runtime::controller) fn dispatch_pointer_press_event_with_delivery(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        mut delivery: Option<&mut TypedPointerDeliveryContext>,
+    ) -> Option<WidgetId> {
         if self.interaction.pointer.managed_capture.is_some()
             && self.validate_managed_pointer_capture_authority()
         {
@@ -39,6 +53,15 @@ where
         if self.interaction.pointer.managed_capture.is_none()
             && self.start_scrollbar_drag_at(position, button)
         {
+            if let Some(delivery) = delivery.as_deref_mut()
+                && let Some(capture) = self.interaction.pointer.scroll_drag_capture
+            {
+                delivery.route = Some(TypedPointerRoute::Scrollbar {
+                    node_id: capture.node_id,
+                    axis: capture.axis,
+                    button: capture.button,
+                });
+            }
             self.cancel_layout_pointer_capture();
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_button = None;
@@ -53,10 +76,28 @@ where
         if self.layout_input_target_at(position)
             && let Some(widget_id) = self.interaction.pointer.capture
         {
-            let routed = self.dispatch_input(widget_id, input);
+            let routed = if let Some(delivery) = delivery.as_deref_mut() {
+                if self.surface.widget_has_pointer_mapper(widget_id) {
+                    self.issue_pointer_delivery(delivery)
+                        .ok()
+                        .is_some_and(|event| self.dispatch_pointer_output(widget_id, event))
+                } else {
+                    self.dispatch_input(widget_id, input)
+                }
+            } else {
+                self.dispatch_input(widget_id, input)
+            };
+            if routed && let Some(delivery) = delivery.as_deref_mut() {
+                delivery.route = Some(TypedPointerRoute::Widget(widget_id));
+            }
             return routed.then_some(widget_id);
         }
         if self.layout_pointer_capture_active() {
+            let capture = self
+                .interaction
+                .layout_capture
+                .as_ref()
+                .map(|capture| (capture.identity, capture.contract_version, capture.button));
             let _ = self.dispatch_captured_layout_input(
                 LayoutInput::PointerPress {
                     position,
@@ -66,6 +107,15 @@ where
                 },
                 true,
             );
+            if let Some(delivery) = delivery.as_deref_mut()
+                && let Some((identity, contract_version, _)) = capture
+            {
+                delivery.route = Some(TypedPointerRoute::Layout {
+                    identity,
+                    contract_version,
+                    button,
+                });
+            }
             return None;
         }
         if button == PointerButton::Primary {
@@ -81,6 +131,15 @@ where
                         },
                         true,
                     );
+                    if let Some(delivery) = delivery.as_deref_mut()
+                        && let Some(capture) = self.interaction.layout_capture.as_ref()
+                    {
+                        delivery.route = Some(TypedPointerRoute::Layout {
+                            identity: capture.identity,
+                            contract_version: capture.contract_version,
+                            button,
+                        });
+                    }
                     return None;
                 }
                 SplitPaneSeparatorFocusAdmission::Vetoed
@@ -88,19 +147,26 @@ where
                 SplitPaneSeparatorFocusAdmission::NotAcquirable => {}
             }
         }
-        if self
-            .dispatch_layout_input_at(
+        let layout_dispatch = self.dispatch_layout_input_at(
+            position,
+            LayoutInput::PointerPress {
                 position,
-                LayoutInput::PointerPress {
-                    position,
+                button,
+                modifiers,
+                timestamp,
+            },
+            true,
+        );
+        if layout_dispatch.handled {
+            if let Some(delivery) = delivery.as_deref_mut()
+                && let Some(capture) = self.interaction.layout_capture.as_ref()
+            {
+                delivery.route = Some(TypedPointerRoute::Layout {
+                    identity: capture.identity,
+                    contract_version: capture.contract_version,
                     button,
-                    modifiers,
-                    timestamp,
-                },
-                true,
-            )
-            .handled
-        {
+                });
+            }
             return None;
         }
         let Some(widget_id) = self.widget_at_for_input(position, &input) else {
@@ -121,15 +187,21 @@ where
         if admission == PointerPressAdmission::Blocked {
             return None;
         }
-        match self.dispatch_input_at_target_output(
+        match self.dispatch_input_at_target_output_with_delivery(
             widget_id,
             input,
             admission,
             true,
             true,
             managed_press_compatibility_kind,
+            delivery.as_deref_mut(),
         ) {
-            PointInputDispatch::Routed(widget_id, _) => Some(widget_id),
+            PointInputDispatch::Routed(widget_id, _) => {
+                if let Some(delivery) = delivery.as_mut() {
+                    delivery.route = Some(TypedPointerRoute::Widget(widget_id));
+                }
+                Some(widget_id)
+            }
             PointInputDispatch::FocusVetoed => {
                 self.unwind_provisional_pointer_capture();
                 None
@@ -339,12 +411,26 @@ where
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
     ) -> Option<WidgetId> {
+        self.dispatch_pointer_release_event_with_delivery(
+            position, button, modifiers, timestamp, None,
+        )
+    }
+
+    pub(in crate::runtime::controller) fn dispatch_pointer_release_event_with_delivery(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+        timestamp: Option<InputTimestamp>,
+        delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
+    ) -> Option<WidgetId> {
         self.validate_managed_pointer_capture_authority();
         if let Some(widget_id) = self.managed_pointer_capture_for_button(button) {
             let _ = self.finish_managed_pointer_release(widget_id, button);
-            let routed = self.dispatch_input(
+            let routed = self.dispatch_pointer_or_legacy(
                 widget_id,
                 WidgetInput::pointer_release_with_timestamp(position, button, modifiers, timestamp),
+                delivery,
             );
             self.rearm_tooltip_hover_intent();
             return routed.then_some(widget_id);
@@ -436,12 +522,27 @@ where
         if capture_matches_button {
             self.interaction.pointer.capture_state = None;
         }
-        let routed = self.dispatch_input(widget_id, release_input);
+        let routed = self.dispatch_pointer_or_legacy(widget_id, release_input, delivery);
         if captured.is_some() {
             self.reconcile_pointer_hover_after_capture_release(position);
         }
         self.rearm_tooltip_hover_intent();
         routed.then_some(widget_id)
+    }
+
+    fn dispatch_pointer_or_legacy(
+        &mut self,
+        widget_id: WidgetId,
+        input: WidgetInput,
+        delivery: Option<crate::gui::pointer_ingress::PointerEvent>,
+    ) -> bool {
+        if let Some(event) = delivery
+            && self.surface.widget_has_pointer_mapper(widget_id)
+        {
+            self.dispatch_pointer_output(widget_id, event)
+        } else {
+            self.dispatch_input(widget_id, input)
+        }
     }
 
     pub(in crate::runtime::controller::events) fn dispatch_pointer_modifiers_changed(

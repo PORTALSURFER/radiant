@@ -39,6 +39,21 @@ impl<Message> UiSurface<Message> {
         })
     }
 
+    pub(in crate::runtime) fn dispatch_widget_pointer_event_message(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: crate::gui::types::Rect,
+        event: crate::gui::pointer_ingress::PointerEvent,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut(widget_id)
+            .map(|widget| widget.dispatch_pointer_event(widget_id, bounds, event))
+    }
+
+    pub(in crate::runtime) fn widget_has_pointer_mapper(&self, widget_id: WidgetId) -> bool {
+        self.find_widget(widget_id)
+            .is_some_and(|widget| widget.has_pointer_output())
+    }
+
     pub(in crate::runtime) fn dispatch_widget_focus_changed_message_at(
         &mut self,
         widget_id: WidgetId,
@@ -64,6 +79,17 @@ impl<Message> UiSurface<Message> {
             input,
             &self.resolved_environment(),
         )
+    }
+
+    pub(in crate::runtime) fn dispatch_widget_pointer_event_message_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &WidgetPath,
+        bounds: crate::gui::types::Rect,
+        event: crate::gui::pointer_ingress::PointerEvent,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.root
+            .dispatch_pointer_event_at_path(widget_id, child_path.as_slice(), bounds, event)
     }
 
     pub(in crate::runtime) fn dispatch_widget_focus_changed_message_at_path(

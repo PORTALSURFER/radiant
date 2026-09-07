@@ -126,6 +126,16 @@ pub mod theme;
 /// Stable public widget contracts.
 pub mod widgets;
 
+// Typed pointer/gesture ingress is available from the crate root as well as
+// `gui::pointer_ingress`; it intentionally remains outside the common prelude.
+pub use gui::pointer_ingress::{
+    DeviceKind, GestureIngress, GestureIngressDisposition, GestureIngressError, GestureKind,
+    GesturePhase, GestureUnit, InputDeviceId, InvalidPointerButtons, InvalidPointerIdentity,
+    InvalidPointerPressure, InvalidPointerTilt, PointerButtons, PointerContactId, PointerEvent,
+    PointerIngress, PointerIngressAdmission, PointerIngressDisposition, PointerIngressError,
+    PointerPhase, PointerPressure, PointerSequenceToken, PointerTilt,
+};
+
 pub use application::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
     DEFAULT_STYLED_CONTAINER_PADDING, Layer, LayerInputPolicy, Result, app, window,

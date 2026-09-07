@@ -13,8 +13,9 @@ pub use custom::{custom_widget, custom_widget_direct, custom_widget_mapped, widg
 pub use gpu::{
     GpuSurfaceConfiguredParts, GpuSurfaceInputParts, RenderCanvasConfiguredParts,
     RenderCanvasInputParts, gpu_surface, gpu_surface_configured_from_parts, gpu_surface_from_parts,
-    gpu_surface_input, gpu_surface_input_from_parts, gpu_surface_with_capabilities, render_canvas,
-    render_canvas_configured_from_parts, render_canvas_from_parts, render_canvas_input,
-    render_canvas_input_from_parts, render_canvas_with_capabilities,
+    gpu_surface_input, gpu_surface_input_from_parts, gpu_surface_pointer,
+    gpu_surface_with_capabilities, render_canvas, render_canvas_configured_from_parts,
+    render_canvas_from_parts, render_canvas_input, render_canvas_input_from_parts,
+    render_canvas_pointer, render_canvas_with_capabilities,
 };
 pub use media::{canvas, image};

@@ -287,6 +287,7 @@ pub type NativeFileDropMessageMapper<Message> = MessageMapper<NativeFileDrop, Me
 #[derive(Default)]
 pub struct WidgetMessageMapper<Message> {
     map: Option<OutputMapper<Message>>,
+    pointer: Option<OutputMapper<Message>>,
     accessibility_action: Option<OutputMapper<Message>>,
     native_file_drop: Option<EventMapper<NativeFileDrop, Message>>,
 }
@@ -295,6 +296,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
+            pointer: self.pointer.clone(),
             accessibility_action: self.accessibility_action.clone(),
             native_file_drop: self.native_file_drop.clone(),
         }
@@ -306,6 +308,7 @@ impl<Message> WidgetMessageMapper<Message> {
     pub fn none() -> Self {
         Self {
             map: None,
+            pointer: None,
             accessibility_action: None,
             native_file_drop: None,
         }
@@ -337,6 +340,7 @@ impl<Message> WidgetMessageMapper<Message> {
                 matches,
                 clone_message: Message::clone,
             })),
+            pointer: None,
             accessibility_action: None,
             native_file_drop: None,
         }
@@ -351,6 +355,17 @@ impl<Message> WidgetMessageMapper<Message> {
     pub fn dynamic_mapped(map: EventMapper<WidgetOutput, Option<Message>>) -> Self {
         Self {
             map: Some(OutputMapper::Dynamic(map)),
+            pointer: None,
+            accessibility_action: None,
+            native_file_drop: None,
+        }
+    }
+
+    /// Build a mapper used only by the additive typed pointer consumer lane.
+    pub(crate) fn dynamic_pointer(map: impl Fn(WidgetOutput) -> Option<Message> + 'static) -> Self {
+        Self {
+            map: None,
+            pointer: Some(OutputMapper::Dynamic(EventMapper::new(map))),
             accessibility_action: None,
             native_file_drop: None,
         }
@@ -424,7 +439,10 @@ impl<Message> WidgetMessageMapper<Message> {
     /// Reconciliation cannot compare callback identity or captured state, so
     /// any message binding is conservatively treated as structural.
     pub(in crate::runtime::surface) fn output_mapper_descriptor(&self) -> MapperDescriptor {
-        match (self.map.as_ref(), self.accessibility_action.as_ref()) {
+        match (
+            self.map.as_ref().or(self.pointer.as_ref()),
+            self.accessibility_action.as_ref(),
+        ) {
             (None, None) => MapperDescriptor::Absent,
             (Some(OutputMapper::Dynamic(map)), None) | (None, Some(OutputMapper::Dynamic(map))) => {
                 map.descriptor()
@@ -450,6 +468,17 @@ impl<Message> WidgetMessageMapper<Message> {
             OutputMapper::Dynamic(map) => map.invoke(output),
             OutputMapper::Constant(map) => map.map_output(&output),
         }
+    }
+
+    pub(super) fn map_pointer_output(&self, output: WidgetOutput) -> Option<Message> {
+        match self.pointer.as_ref()? {
+            OutputMapper::Dynamic(map) => map.invoke(output),
+            OutputMapper::Constant(map) => map.map_output(&output),
+        }
+    }
+
+    pub(super) fn has_pointer_output(&self) -> bool {
+        self.pointer.is_some()
     }
 
     pub(super) fn map_accessibility_output(&self, output: WidgetOutput) -> Option<Message> {

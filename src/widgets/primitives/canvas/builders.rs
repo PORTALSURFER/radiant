@@ -1,5 +1,6 @@
 //! Runtime builder helpers for custom canvas primitives.
 
+use crate::gui::pointer_ingress::PointerEvent;
 use crate::runtime::{SurfaceNode, WidgetMessageMapper};
 use crate::widgets::contract::{WidgetId, WidgetSizing};
 use crate::widgets::interaction::CanvasMessage;
@@ -10,6 +11,12 @@ impl<Message> WidgetMessageMapper<Message> {
     /// Build a canvas-message mapper.
     pub fn canvas(map: impl Fn(CanvasMessage) -> Message + 'static) -> Self {
         Self::typed(map)
+    }
+
+    /// Build a mapper for the typed pointer opt-in while preserving legacy
+    /// [`CanvasMessage`] input mapping.
+    pub fn canvas_pointer(map: impl Fn(PointerEvent) -> Message + 'static) -> Self {
+        Self::dynamic_pointer(move |output| output.typed_cloned::<PointerEvent>().map(&map))
     }
 }
 

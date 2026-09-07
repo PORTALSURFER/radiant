@@ -29,6 +29,7 @@ use super::{
     },
 };
 use crate::gui::automation::AutomationNodeSemantics;
+use crate::gui::pointer_ingress::PointerEvent;
 
 /// Pointer routing behavior while a widget owns pointer capture.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -227,6 +228,16 @@ pub trait Widget: WidgetClone + Any {
 
     /// Route one backend-neutral input event into this widget.
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
+
+    /// Route one admitted typed pointer event through the opt-in pointer
+    /// consumer boundary. Existing widgets remain inert by default.
+    fn handle_pointer_event(
+        &mut self,
+        _bounds: Rect,
+        _event: PointerEvent,
+    ) -> Option<WidgetOutput> {
+        None
+    }
 
     /// Route input with the immutable environment used by the current frame.
     /// The default delegates to the required legacy hook for custom widgets.

@@ -1,5 +1,6 @@
 use crate::{
     application::{MappedWidget, ViewNode, default_canvas_sizing, view_node_from_widget},
+    gui::pointer_ingress::PointerEvent,
     runtime::WidgetMessageMapper,
     widgets::{CanvasWidget, RetainedSurfaceDescriptor},
 };
@@ -68,6 +69,18 @@ impl RetainedCanvasBuilder {
         view_node_from_widget(MappedWidget::new(
             CanvasWidget::new(0, default_canvas_sizing()).with_retained_surface(self.descriptor),
             WidgetMessageMapper::canvas(map),
+        ))
+    }
+
+    /// Build a retained canvas that receives admitted typed pointer events.
+    /// Legacy [`Self::on_input`] remains available for `WidgetInput` events.
+    pub fn on_pointer<Message: 'static>(
+        self,
+        map: impl Fn(PointerEvent) -> Message + 'static,
+    ) -> ViewNode<Message> {
+        view_node_from_widget(MappedWidget::new(
+            CanvasWidget::new(0, default_canvas_sizing()).with_retained_surface(self.descriptor),
+            WidgetMessageMapper::canvas_pointer(map),
         ))
     }
 }

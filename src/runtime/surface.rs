@@ -19,6 +19,8 @@ mod layout;
 mod lookup;
 mod node;
 mod notifications;
+mod overlay_focus;
+pub(crate) use overlay_focus::{OverlayFocusProjection, OverlayFocusRecord};
 mod paint;
 mod path;
 mod projection;
@@ -45,12 +47,12 @@ pub use node::{
 };
 pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
-pub(crate) use source::{
-    FrozenSourceMetadata, KeyedNodeEvidence, SourceCompatibility, SourceIdentity, SourceMetadata,
-    SourceTopology, SourceTraversalIndex, source_metadata_matches,
-};
 #[cfg(test)]
-pub(crate) use source::{OverlayEvidence, OverlayIdentity, SurfaceSourceKind};
+pub(crate) use source::SurfaceSourceKind;
+pub(crate) use source::{
+    FrozenSourceMetadata, KeyedNodeEvidence, OverlayEvidence, OverlayIdentity, SourceCompatibility,
+    SourceIdentity, SourceMetadata, SourceTopology, SourceTraversalIndex, source_metadata_matches,
+};
 pub(in crate::runtime) use state_sync::{
     PreparedWidgetStateSyncEvidence, PreparedWidgetStateSyncVeto, PreparedWidgetStateSyncWitness,
     ValidatedWidgetReplacementPlan, WidgetReplacementCommitResult, WidgetReplacementPlan,

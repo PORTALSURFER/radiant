@@ -26,6 +26,8 @@ struct DropBinding<Message> {
     contract_version: u16,
     generation: u64,
     decision: DropDecision,
+    feedback: Option<DropTargetFeedback>,
+    feedback_layout: Option<crate::gui::layout_core::LayoutInputEvidence>,
 }
 impl<Message> TypedDragSession<Message> {
     fn context(&self, target: Option<WidgetId>) -> DragEventContext {
@@ -295,9 +297,12 @@ where
             contract_version: record.contract_version,
             generation: self.refresh_counters().runtime_projection,
             decision,
+            feedback: facets.drop_target()?.feedback(),
+            feedback_layout: self.runtime_layout_input_evidence(self.mounted_layout_source_present),
         })
     }
     fn refresh_drop_target(&mut self, token: GestureSequenceToken) {
+        self.repaint_requested = true;
         let candidate = self
             .interaction
             .drag
@@ -329,6 +334,7 @@ where
                     .and_then(|target| session.target_message(target, DropPhase::Over))
             });
             self.typed_drag_message(message);
+            self.requalify_drop_feedback_after_message(token);
             return;
         }
         let message = self.interaction.drag.typed.as_mut().and_then(|session| {
@@ -354,6 +360,114 @@ where
                 .and_then(|target| session.target_message(target, DropPhase::Entered))
         });
         self.typed_drag_message(message);
+        self.requalify_drop_feedback_after_message(token);
+    }
+    fn requalify_drop_feedback_after_message(&mut self, token: GestureSequenceToken) {
+        if !self.typed_drag_live(token) {
+            return;
+        }
+        let candidate = self.interaction.drag.typed.as_ref().and_then(|session| {
+            let target = session.target.as_ref()?;
+            if target.feedback.is_none()
+                || target.generation == self.refresh_counters().runtime_projection
+                || !self.drop_binding_matches(target, &self.surface, false)
+            {
+                return None;
+            }
+            let candidate = self.current_drop_target(session)?;
+            (candidate.id == target.id
+                && candidate.path == target.path
+                && candidate.decision == target.decision)
+                .then_some(candidate)
+        });
+        if let Some(candidate) = candidate
+            && let Some(session) = self.interaction.drag.typed.as_mut()
+            && session.token == token
+        {
+            session.target = Some(candidate);
+        }
+    }
+    pub(in crate::runtime::controller) fn append_drop_target_feedback(
+        &self,
+        theme: &crate::theme::ThemeTokens,
+        primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+    ) {
+        let Some(session) = self.interaction.drag.typed.as_ref() else {
+            return;
+        };
+        let Some(target) = session.target.as_ref() else {
+            return;
+        };
+        let Some(feedback) = target.feedback else {
+            return;
+        };
+        // Painting never negotiates or emits messages. Geometry/source changes
+        // hide the old feedback until input qualifies the target again.
+        if !self.typed_drag_live(session.token)
+            || !self
+                .interaction
+                .drag
+                .session
+                .as_ref()
+                .is_some_and(|preview| preview.visible)
+            || target.generation != self.refresh_counters().runtime_projection
+            || target.feedback_layout.is_none()
+            || target.feedback_layout
+                != self.runtime_layout_input_evidence(self.mounted_layout_source_present)
+        {
+            return;
+        }
+        let Some(bounds) = self
+            .layout
+            .rects
+            .get(&target.id)
+            .copied()
+            .filter(|r| r.has_finite_positive_area())
+        else {
+            return;
+        };
+        let Some(mut clip) = bounds.intersection(self.viewport) else {
+            return;
+        };
+        for ancestor in self
+            .traversal
+            .containers
+            .layout_clip_for_container(target.id, &self.layout)
+        {
+            let Some(intersection) = clip.intersection(ancestor) else {
+                return;
+            };
+            clip = intersection;
+        }
+        if !clip.has_finite_positive_area() {
+            return;
+        }
+        let tokens = crate::widgets::resolve_widget_visual_tokens(
+            theme,
+            feedback.style(target.decision),
+            crate::widgets::WidgetState {
+                active: true,
+                selected: true,
+                ..Default::default()
+            },
+        );
+        primitives.push(crate::runtime::PaintPrimitive::ClipStart(
+            crate::runtime::PaintClipStart {
+                node_id: target.id,
+                rect: clip,
+            },
+        ));
+        primitives.push(crate::runtime::PaintPrimitive::StrokeRect(
+            crate::runtime::PaintStrokeRect {
+                widget_id: target.id,
+                rect: bounds,
+                color: tokens.emphasis,
+                width: 2.0,
+            },
+        ));
+        primitives.push(crate::runtime::PaintPrimitive::ClipEnd(
+            crate::runtime::PaintClipEnd { node_id: target.id },
+        ));
     }
     pub(super) fn take_typed_drag_terminal(
         &mut self,

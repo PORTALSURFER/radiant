@@ -1341,3 +1341,6 @@ mod pointer_drag;
 
 #[path = "gestures/touch.rs"]
 mod touch;
+
+#[path = "gestures/drop_feedback.rs"]
+mod drop_feedback;

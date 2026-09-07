@@ -4578,10 +4578,11 @@ Current delivery includes ordinary-view typed source/target declarations,
 checked operation negotiation, target lifecycle messages and transient preview
 routing through the existing pan capture. Qualified primary mouse initiation
 cancels and rechecks the original child before transferring that capture.
-Multi-contact arbitration, target styling/autoscroll, cross-window transfer and
-owned external offers remain delivery work. The complete target below includes
-those remaining capabilities; its illustrative API is not a claim that every
-method is currently available.
+Two-contact gesture arbitration is delivered; touch-started typed drag remains
+unsupported. Opt-in target outlines show accepted, pending, and rejected
+negotiation states. Insertion-position feedback, autoscroll, cross-window
+transfer, and owned external offers remain delivery work. The complete target below includes those remaining capabilities;
+its illustrative API is not a claim that every method is currently available.
 
 Drag and drop is a first-class interaction subsystem, not a collection of
 pointer callbacks. A drag has a typed in-application payload, source identity,

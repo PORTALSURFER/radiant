@@ -227,6 +227,35 @@ pub enum DropDecision {
     /// This target accepts one operation allowed by the source.
     Accepted(DragOperation),
 }
+/// Opt-in theme styles for transient drop-target outlines.
+/// Colors resolve from the current theme; this descriptor owns no hover state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DropTargetFeedback {
+    /// Style while an operation is accepted.
+    pub accepted: crate::widgets::WidgetStyle,
+    /// Style while application validation is pending.
+    pub pending: crate::widgets::WidgetStyle,
+    /// Style while the offered operation is rejected.
+    pub rejected: crate::widgets::WidgetStyle,
+}
+impl DropTargetFeedback {
+    /// Use success, warning, and danger tones from the active theme.
+    pub const fn themed() -> Self {
+        use crate::widgets::{WidgetStyle, WidgetTone};
+        Self {
+            accepted: WidgetStyle::strong(WidgetTone::Success),
+            pending: WidgetStyle::normal(WidgetTone::Warning),
+            rejected: WidgetStyle::strong(WidgetTone::Danger),
+        }
+    }
+    pub(crate) const fn style(self, decision: DropDecision) -> crate::widgets::WidgetStyle {
+        match decision {
+            DropDecision::Accepted(_) => self.accepted,
+            DropDecision::Pending => self.pending,
+            DropDecision::Rejected => self.rejected,
+        }
+    }
+}
 /// Terminal reason for an in-application drag cancellation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DragCancelReason {

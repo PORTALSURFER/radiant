@@ -220,6 +220,7 @@ where
             );
         }
         self.append_widget_tooltip_overlay(theme, &environment, primitives);
+        self.append_drop_target_feedback(theme, primitives);
         self.append_drag_preview_overlay(theme, &environment, primitives);
         self.append_devtools_overlay_paint(theme, primitives);
     }

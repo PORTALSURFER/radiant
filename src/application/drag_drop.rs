@@ -144,6 +144,7 @@ impl<T: Eq + 'static, Message: 'static> LayoutDragSource<Message> for DragSource
 /// Typed drop negotiation and lifecycle mapping attached to an ordinary view.
 pub struct DropTarget<T, Message> {
     operations: DragOperations,
+    feedback: Option<DropTargetFeedback>,
     negotiate: Option<TargetNegotiator<T>>,
     policy_revision: LayoutInteractionRevision,
     map: Option<TargetMapper<T, Message>>,
@@ -153,6 +154,7 @@ pub struct DropTarget<T, Message> {
 struct TargetRevision {
     payload: TypeId,
     operations: DragOperations,
+    feedback: Option<DropTargetFeedback>,
     policy: LayoutInteractionRevision,
     map: LayoutInteractionRevision,
 }
@@ -161,11 +163,18 @@ impl<T: 'static, Message: 'static> DropTarget<T, Message> {
     pub fn new() -> Self {
         Self {
             operations: DragOperations::all(),
+            feedback: None,
             negotiate: None,
             map: None,
             policy_revision: LayoutInteractionRevision::exact(()),
             map_revision: LayoutInteractionRevision::exact(()),
         }
+    }
+    /// Paint a runtime-owned, clipped outline for the current negotiation result.
+    /// No application update is required for pointer-only feedback changes.
+    pub fn feedback(mut self, feedback: DropTargetFeedback) -> Self {
+        self.feedback = Some(feedback);
+        self
     }
     /// Restrict the target's allowed operations.
     pub fn operations(mut self, operations: DragOperations) -> Self {
@@ -213,6 +222,9 @@ impl<T: 'static, Message: 'static> LayoutInteraction<Message> for DropTarget<T, 
     }
 }
 impl<T: 'static, Message: 'static> LayoutDropTarget<Message> for DropTarget<T, Message> {
+    fn feedback(&self) -> Option<DropTargetFeedback> {
+        self.feedback
+    }
     fn revision(&self) -> LayoutInteractionRevision {
         if !self.map_revision.is_exact() || !self.policy_revision.is_exact() {
             return LayoutInteractionRevision::conservative();
@@ -220,6 +232,7 @@ impl<T: 'static, Message: 'static> LayoutDropTarget<Message> for DropTarget<T, M
         LayoutInteractionRevision::exact(TargetRevision {
             payload: TypeId::of::<T>(),
             operations: self.operations,
+            feedback: self.feedback,
             policy: self.policy_revision.clone(),
             map: self.map_revision.clone(),
         })

@@ -153,13 +153,12 @@ fn exercise_drag() {
                         .height(40.0)
                         .id(2)
                         .drop_target(
-                            DropTarget::<String, DragMessage>::new().on_event_with_revision(
-                                (),
-                                |event| {
+                            DropTarget::<String, DragMessage>::new()
+                                .feedback(radiant::runtime::DropTargetFeedback::themed())
+                                .on_event_with_revision((), |event| {
                                     assert_eq!(event.payload(), "sample.wav");
                                     Some(DragMessage::Target(event.phase()))
-                                },
-                            ),
+                                }),
                         )
                         .id(20),
                 ])

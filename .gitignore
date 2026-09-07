@@ -1,3 +1,6 @@
 /target
 /tmp
 *.orig
+
+# macOS Finder metadata
+.DS_Store

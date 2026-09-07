@@ -870,6 +870,11 @@ pub trait LayoutDragSource<Message> {
     }
     /// Observe the data-only offer without beginning a drag.
     fn offer(&self) -> crate::gui::drag_drop::DragOffer;
+    /// Optional runtime-owned edge autoscroll policy for this typed drag.
+    /// Custom exact interaction revisions must include this value.
+    fn autoscroll_policy(&self) -> Option<crate::gui::drag_drop::DragAutoscrollPolicy> {
+        None
+    }
     /// Map a qualified lifecycle event using the original retained payload.
     fn dispatch(
         &self,

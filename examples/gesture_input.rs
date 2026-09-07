@@ -6,7 +6,9 @@ use radiant::{
         pointer_ingress::*,
         types::{Point, Rect},
     },
-    runtime::{GestureOutcome, GestureRequest, PaintPrimitive, SurfaceRuntime},
+    runtime::{
+        DragAutoscrollPolicy, GestureOutcome, GestureRequest, PaintPrimitive, SurfaceRuntime,
+    },
     widgets::{
         GestureEvent, GesturePolicy, Widget, WidgetActionCapabilities, WidgetCapabilitiesV2,
         WidgetCommon, WidgetGestures, WidgetInput, WidgetOutput, WidgetSemanticsRevision,
@@ -142,6 +144,7 @@ fn exercise_drag() {
                         .id(1)
                         .drag_source(
                             DragSource::new(String::from("sample.wav"))
+                                .autoscroll(DragAutoscrollPolicy::default())
                                 .on_event_with_revision((), |event| {
                                     Some(DragMessage::Source(event.phase()))
                                 }),

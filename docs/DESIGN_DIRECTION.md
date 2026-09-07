@@ -4580,8 +4580,10 @@ routing through the existing pan capture. Qualified primary mouse initiation
 cancels and rechecks the original child before transferring that capture.
 Two-contact gesture arbitration is delivered; touch-started typed drag remains
 unsupported. Opt-in target outlines show accepted, pending, and rejected
-negotiation states. Insertion-position feedback, autoscroll, cross-window
-transfer, and owned external offers remain delivery work. The complete target below includes those remaining capabilities;
+negotiation states. Typed sources can opt into bounded logical edge autoscroll;
+it uses the existing scroll-container chaining contract and stops when the
+pointer leaves the edge or every eligible viewport reaches its boundary.
+Insertion-position feedback, cross-window transfer, and owned external offers remain delivery work. The complete target below includes those remaining capabilities;
 its illustrative API is not a claim that every method is currently available.
 
 Drag and drop is a first-class interaction subsystem, not a collection of
@@ -4597,6 +4599,7 @@ sample_row(sample)
         DragSource::new(SampleDrag::from(sample))
             .preview(drag_preview(sample))
             .operations([DragOperation::Copy, DragOperation::Move])
+            .autoscroll(DragAutoscrollPolicy::default())
             .export(ExternalDrag::files([sample.path.clone()])),
     );
 

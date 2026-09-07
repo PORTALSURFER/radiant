@@ -19,6 +19,7 @@ pub struct DragSource<T, Message> {
     operations: DragOperations,
     preview: DragPreviewInfo,
     threshold: f32,
+    autoscroll: Option<DragAutoscrollPolicy>,
     map: Option<SourceMapper<T, Message>>,
     map_revision: LayoutInteractionRevision,
 }
@@ -28,6 +29,7 @@ struct SourceRevision<T: Eq> {
     operations: DragOperations,
     preview: DragPreviewInfo,
     threshold: u32,
+    autoscroll: Option<(u32, u32)>,
     map: LayoutInteractionRevision,
 }
 impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
@@ -38,6 +40,7 @@ impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
             operations: DragOperations::default(),
             preview: DragPreviewInfo::default(),
             threshold: 6.0,
+            autoscroll: None,
             map: None,
             map_revision: LayoutInteractionRevision::exact(()),
         }
@@ -59,6 +62,11 @@ impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
         }
         self.threshold = threshold;
         Ok(self)
+    }
+    /// Opt into runtime-owned edge autoscroll while this source is dragged.
+    pub fn autoscroll(mut self, policy: DragAutoscrollPolicy) -> Self {
+        self.autoscroll = Some(policy);
+        self
     }
     /// Map lifecycle events conservatively. Reprojection retires the source.
     pub fn on_event(
@@ -88,6 +96,9 @@ impl<T: Eq + 'static, Message: 'static> DragSource<T, Message> {
             operations: self.operations,
             preview: self.preview.clone(),
             threshold: self.threshold.to_bits(),
+            autoscroll: self
+                .autoscroll
+                .map(|policy| (policy.edge_zone().to_bits(), policy.max_speed().to_bits())),
             map: self.map_revision.clone(),
         })
     }
@@ -125,6 +136,9 @@ impl<T: Eq + 'static, Message: 'static> LayoutDragSource<Message> for DragSource
     }
     fn offer(&self) -> DragOffer {
         DragOffer::new(self.payload.clone(), self.operations, self.preview.clone())
+    }
+    fn autoscroll_policy(&self) -> Option<DragAutoscrollPolicy> {
+        self.autoscroll
     }
     fn dispatch(
         &self,

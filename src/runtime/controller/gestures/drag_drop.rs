@@ -3,9 +3,15 @@ use super::*;
 use crate::{
     gui::drag_drop::*,
     layout::{LayoutInteraction, LayoutInteractionRevision},
-    runtime::{DragPreview, DragRequest, drag::DragSession},
+    runtime::{DragPreview, DragRequest, ScrollUpdateMetadata, drag::DragSession},
 };
-use std::rc::Rc;
+use std::{
+    rc::Rc,
+    time::{Duration, Instant},
+};
+
+const DRAG_AUTOSCROLL_TICK: Duration = Duration::from_millis(16);
+const DRAG_AUTOSCROLL_MAX_ELAPSED: Duration = Duration::from_millis(50);
 
 pub(in crate::runtime::controller) struct TypedDragSession<Message> {
     token: GestureSequenceToken,
@@ -14,7 +20,11 @@ pub(in crate::runtime::controller) struct TypedDragSession<Message> {
     offer: DragOffer,
     position: Point,
     modifiers: crate::widgets::PointerModifiers,
+    metadata: ScrollUpdateMetadata,
     target: Option<DropBinding<Message>>,
+    autoscroll: Option<DragAutoscrollPolicy>,
+    autoscroll_deadline: Option<Instant>,
+    autoscroll_last_tick: Option<Instant>,
 }
 struct DropBinding<Message> {
     id: WidgetId,
@@ -68,7 +78,10 @@ where
                 .and_then(|capabilities| capabilities.interaction.as_ref())
                 .is_some_and(|interaction| interaction.capabilities_v2().drag_source().is_some())
     }
-    fn typed_drag_live(&self, token: GestureSequenceToken) -> bool {
+    pub(in crate::runtime::controller) fn typed_drag_live(
+        &self,
+        token: GestureSequenceToken,
+    ) -> bool {
         self.interaction
             .drag
             .typed
@@ -120,6 +133,7 @@ where
                 return false;
             };
             let offer = source.offer();
+            let autoscroll = source.autoscroll_policy();
             let preview = DragPreview::sized(offer.preview().label(), offer.preview().size());
             self.interaction.drag.session =
                 Some(DragSession::new(DragRequest::new(preview, position)));
@@ -130,7 +144,15 @@ where
                 offer,
                 position,
                 modifiers: event.sample.modifiers(),
+                metadata: ScrollUpdateMetadata {
+                    modifiers: event.sample.modifiers(),
+                    timestamp: event.sample.timestamp(),
+                    sequence_range: event.sample.sequence_range(),
+                },
                 target: None,
+                autoscroll,
+                autoscroll_deadline: None,
+                autoscroll_last_tick: None,
             });
             self.repaint_requested = true;
             let message = self
@@ -149,6 +171,11 @@ where
         {
             session.position = position;
             session.modifiers = event.sample.modifiers();
+            session.metadata = ScrollUpdateMetadata {
+                modifiers: event.sample.modifiers(),
+                timestamp: event.sample.timestamp(),
+                sequence_range: event.sample.sequence_range(),
+            };
             if let Some(preview) = self.interaction.drag.session.as_mut() {
                 preview.pointer = position;
                 preview.visible = true;
@@ -164,6 +191,7 @@ where
         if !self.typed_drag_live(token) {
             return true;
         }
+        self.update_typed_drag_autoscroll(token, self.timed_repaint_now());
         if event.phase == GesturePhase::Ended {
             // Detach both capture and payload before either terminal mapper runs.
             self.interaction.gesture = None;
@@ -181,6 +209,168 @@ where
             self.typed_drag_message(message);
         }
         true
+    }
+
+    fn autoscroll_delta(
+        &self,
+        session: &TypedDragSession<Message>,
+        elapsed: Duration,
+    ) -> Option<Vector2> {
+        let policy = session.autoscroll?;
+        let node_id = self.scroll_container_at(session.position)?;
+        let viewport = self
+            .layout
+            .viewport_bounds
+            .get(&node_id)
+            .or_else(|| self.layout.rects.get(&node_id))
+            .copied()?;
+        if !viewport.has_finite_positive_area() || !viewport.contains(session.position) {
+            return None;
+        }
+        let horizontal_zone = policy.edge_zone().min(viewport.width() * 0.5);
+        let vertical_zone = policy.edge_zone().min(viewport.height() * 0.5);
+        let strength = |zone: f32, near: f32, far: f32, value: f32| {
+            if value - near < zone {
+                -((zone - (value - near)) / zone).clamp(0.0, 1.0)
+            } else if far - value < zone {
+                ((zone - (far - value)) / zone).clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        };
+        let seconds = elapsed.as_secs_f32();
+        let delta = Vector2::new(
+            strength(
+                horizontal_zone,
+                viewport.min.x,
+                viewport.max.x,
+                session.position.x,
+            ) * policy.max_speed()
+                * seconds,
+            strength(
+                vertical_zone,
+                viewport.min.y,
+                viewport.max.y,
+                session.position.y,
+            ) * policy.max_speed()
+                * seconds,
+        );
+        (delta.x.abs() > f32::EPSILON || delta.y.abs() > f32::EPSILON).then_some(delta)
+    }
+
+    fn update_typed_drag_autoscroll(&mut self, token: GestureSequenceToken, now: Instant) {
+        let armed = self
+            .interaction
+            .drag
+            .typed
+            .as_ref()
+            .filter(|session| session.token == token)
+            .and_then(|session| self.autoscroll_delta(session, DRAG_AUTOSCROLL_TICK));
+        let Some(session) = self
+            .interaction
+            .drag
+            .typed
+            .as_mut()
+            .filter(|session| session.token == token)
+        else {
+            return;
+        };
+        if armed.is_some() {
+            if session.autoscroll_deadline.is_none() {
+                session.autoscroll_last_tick = Some(now);
+                session.autoscroll_deadline = now.checked_add(DRAG_AUTOSCROLL_TICK);
+            }
+        } else {
+            session.autoscroll_deadline = None;
+            session.autoscroll_last_tick = None;
+        }
+    }
+
+    pub(in crate::runtime::controller) fn typed_drag_autoscroll_deadline(&self) -> Option<Instant> {
+        self.interaction
+            .drag
+            .typed
+            .as_ref()
+            .and_then(|session| session.autoscroll_deadline)
+    }
+
+    pub(in crate::runtime::controller) fn advance_typed_drag_autoscroll(
+        &mut self,
+        now: Instant,
+    ) -> bool {
+        let Some((token, deadline, last_tick)) =
+            self.interaction.drag.typed.as_ref().and_then(|session| {
+                session.autoscroll_deadline.map(|deadline| {
+                    (
+                        session.token,
+                        deadline,
+                        session.autoscroll_last_tick.unwrap_or(deadline),
+                    )
+                })
+            })
+        else {
+            return false;
+        };
+        if now < deadline || !self.typed_drag_live(token) {
+            return false;
+        }
+        let elapsed = now
+            .saturating_duration_since(last_tick)
+            .min(DRAG_AUTOSCROLL_MAX_ELAPSED);
+        let delta = self
+            .interaction
+            .drag
+            .typed
+            .as_ref()
+            .and_then(|session| self.autoscroll_delta(session, elapsed));
+        let Some(delta) = delta else {
+            self.update_typed_drag_autoscroll(token, now);
+            return false;
+        };
+        if let Some(session) = self
+            .interaction
+            .drag
+            .typed
+            .as_mut()
+            .filter(|session| session.token == token)
+        {
+            session.autoscroll_last_tick = Some(now);
+            session.autoscroll_deadline = None;
+        }
+        let point = self
+            .interaction
+            .drag
+            .typed
+            .as_ref()
+            .map(|session| session.position)
+            .unwrap_or_default();
+        let metadata = self
+            .interaction
+            .drag
+            .typed
+            .as_ref()
+            .map(|session| session.metadata)
+            .unwrap_or_default();
+        let attempt = self.scroll_at_with_refresh_and_metadata_guarded(
+            point,
+            delta,
+            metadata,
+            true,
+            crate::widgets::InteractionProvenance::Pointer {
+                modifiers: metadata.modifiers,
+                timestamp: metadata.timestamp,
+                sequence_range: metadata.sequence_range,
+            },
+            Some(token),
+        );
+        let moved = attempt.moved;
+        if moved && self.typed_drag_live(token) {
+            self.refresh_drop_target(token);
+            if self.typed_drag_live(token) {
+                self.update_typed_drag_autoscroll(token, now);
+            }
+        }
+        moved || attempt.accepted && !self.typed_drag_live(token)
     }
     fn drop_binding_matches(
         &self,
@@ -542,6 +732,330 @@ where
             && let Some(message) = session.target_message(&target, DropPhase::Left)
         {
             messages.push(message);
+        }
+    }
+}
+
+#[cfg(test)]
+mod autoscroll_tests {
+    use super::*;
+    use crate::{
+        application::{DragSource, button, scroll},
+        gui::pointer_ingress::{
+            GestureIngress, GestureKind, GesturePhase, GestureUnit, InputDeviceId,
+        },
+        layout::Vector2,
+        runtime::{GestureRequest, SurfaceRuntime},
+    };
+
+    fn pan(phase: GesturePhase, y: f32) -> GestureIngress {
+        GestureIngress::new(
+            GestureKind::Pan,
+            phase,
+            GestureUnit::LogicalPixels,
+            Vector2::new(0.0, y),
+            InputDeviceId::from_host(1).unwrap(),
+            Some(Point::new(20.0, 88.0)),
+            Default::default(),
+            None,
+            None,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn timed_typed_drag_autoscroll_arms_once_clamps_catch_up_and_stops_at_boundary() {
+        let bridge = crate::app(())
+            .view(|_| {
+                scroll(
+                    button("source")
+                        .filter_mapped(|_| None::<()>)
+                        .width(100.0)
+                        .height(240.0)
+                        .id(1)
+                        .drag_source(
+                            DragSource::new(1_u8)
+                                .autoscroll(DragAutoscrollPolicy::new(24.0, 1_000.0).unwrap()),
+                        )
+                        .id(10),
+                )
+                .width(100.0)
+                .height(100.0)
+                .id(20)
+            })
+            .update(|_, _: ()| {})
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+        assert_eq!(runtime.layout.rects[&20].height(), 100.0);
+        let origin = Instant::now();
+        runtime.set_timed_repaint_clock(Some(origin));
+        let token = runtime
+            .dispatch_gesture_request(GestureRequest::new(pan(GesturePhase::Started, 0.0)))
+            .token()
+            .unwrap();
+        runtime.dispatch_gesture_request(
+            GestureRequest::new(pan(GesturePhase::Changed, 10.0)).with_token(token),
+        );
+        let first_deadline = runtime.typed_drag_autoscroll_deadline().unwrap();
+        // Pointer traffic in the same edge zone must not postpone a stationary tick.
+        runtime.dispatch_gesture_request(
+            GestureRequest::new(pan(GesturePhase::Changed, 0.0)).with_token(token),
+        );
+        assert_eq!(
+            runtime.interaction.drag.typed.as_ref().unwrap().position,
+            Point::new(20.0, 98.0)
+        );
+        assert_eq!(
+            runtime.typed_drag_autoscroll_deadline(),
+            Some(first_deadline)
+        );
+        assert!(runtime.advance_typed_drag_autoscroll(first_deadline));
+        let first = runtime
+            .layout_state
+            .scroll_offsets
+            .values()
+            .next()
+            .unwrap()
+            .y;
+        let delayed = first_deadline + Duration::from_secs(1);
+        assert!(runtime.advance_typed_drag_autoscroll(delayed));
+        let second = runtime
+            .layout_state
+            .scroll_offsets
+            .values()
+            .next()
+            .unwrap()
+            .y;
+        assert!(second - first <= 50.1);
+        for _ in 0..32 {
+            let Some(deadline) = runtime.typed_drag_autoscroll_deadline() else {
+                break;
+            };
+            runtime.advance_typed_drag_autoscroll(deadline);
+        }
+        assert_eq!(runtime.layout_state.scroll_offset(20).y, 140.0);
+        assert_eq!(runtime.typed_drag_autoscroll_deadline(), None);
+    }
+
+    #[test]
+    fn focus_loss_makes_an_armed_typed_drag_timer_stale() {
+        let bridge = crate::app(())
+            .view(|_| {
+                scroll(
+                    button("source")
+                        .filter_mapped(|_| None::<()>)
+                        .width(100.0)
+                        .height(240.0)
+                        .id(1)
+                        .drag_source(
+                            DragSource::new(1_u8).autoscroll(DragAutoscrollPolicy::default()),
+                        )
+                        .id(10),
+                )
+                .width(100.0)
+                .height(100.0)
+                .id(20)
+            })
+            .update(|_, _: ()| {})
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 120.0));
+        let origin = Instant::now();
+        runtime.set_timed_repaint_clock(Some(origin));
+        let token = runtime
+            .dispatch_gesture_request(GestureRequest::new(pan(GesturePhase::Started, 0.0)))
+            .token()
+            .unwrap();
+        runtime.dispatch_gesture_request(
+            GestureRequest::new(pan(GesturePhase::Changed, 10.0)).with_token(token),
+        );
+        let deadline = runtime.typed_drag_autoscroll_deadline().unwrap();
+        runtime.clear_focus();
+        assert_eq!(runtime.typed_drag_autoscroll_deadline(), None);
+        assert!(!runtime.advance_typed_drag_autoscroll(deadline));
+    }
+
+    #[test]
+    fn autoscroll_edges_exclude_padding_and_reserved_scrollbars() {
+        use crate::layout::{ScrollAxis, ScrollPolicy, ScrollbarPlacement};
+        for reserved in [false, true] {
+            let bridge = crate::app(())
+                .view(move |_| {
+                    scroll(
+                        button("source")
+                            .filter_mapped(|_| None::<()>)
+                            .width(240.0)
+                            .height(240.0)
+                            .id(1)
+                            .drag_source(
+                                DragSource::new(1_u8).autoscroll(DragAutoscrollPolicy::default()),
+                            )
+                            .id(10),
+                    )
+                    .padding(if reserved { 0.0 } else { 10.0 })
+                    .scroll_policy(
+                        ScrollPolicy::default()
+                            .axes(ScrollAxis::Both)
+                            .scrollbar_placement(if reserved {
+                                ScrollbarPlacement::Reserved
+                            } else {
+                                ScrollbarPlacement::Overlay
+                            }),
+                    )
+                    .id(20)
+                })
+                .update(|_, _: ()| {})
+                .into_bridge();
+            let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+            runtime.set_timed_repaint_clock(Some(Instant::now()));
+            let anchor = if reserved {
+                Point::new(78.0, 20.0)
+            } else {
+                Point::new(20.0, 78.0)
+            };
+            let sample = |phase, amount| {
+                GestureIngress::new(
+                    GestureKind::Pan,
+                    phase,
+                    GestureUnit::LogicalPixels,
+                    if reserved {
+                        Vector2::new(amount, 0.0)
+                    } else {
+                        Vector2::new(0.0, amount)
+                    },
+                    InputDeviceId::from_host(1).unwrap(),
+                    Some(anchor),
+                    Default::default(),
+                    None,
+                    None,
+                )
+                .unwrap()
+            };
+            let token = runtime
+                .dispatch_gesture_request(GestureRequest::new(sample(GesturePhase::Started, 0.0)))
+                .token()
+                .unwrap();
+            runtime.dispatch_gesture_request(
+                GestureRequest::new(sample(GesturePhase::Changed, 20.0)).with_token(token),
+            );
+            let outside = runtime.interaction.drag.typed.as_ref().unwrap().position;
+            assert!(runtime.layout.rects[&20].contains(outside));
+            assert!(!runtime.layout.viewport_bounds[&20].contains(outside));
+            assert_eq!(runtime.typed_drag_autoscroll_deadline(), None);
+            runtime.dispatch_gesture_request(
+                GestureRequest::new(sample(
+                    GesturePhase::Changed,
+                    if reserved { -3.0 } else { -10.0 },
+                ))
+                .with_token(token),
+            );
+            let inside = runtime.interaction.drag.typed.as_ref().unwrap().position;
+            assert!(runtime.layout.viewport_bounds[&20].contains(inside));
+            let deadline = runtime.typed_drag_autoscroll_deadline().unwrap();
+            assert!(runtime.advance_typed_drag_autoscroll(deadline));
+            let offset = runtime.layout_state.scroll_offset(20);
+            assert!(if reserved {
+                offset.x > 0.0
+            } else {
+                offset.y > 0.0
+            });
+        }
+    }
+
+    #[test]
+    fn nested_autoscroll_refresh_reselects_ancestors_and_source_removal_retires_timer() {
+        use crate::application::{column, spacer};
+        use crate::gui::input::{InputSequence, InputSequenceRange, InputTimestamp};
+        use std::cell::RefCell;
+        // Exercise both a compatible callback projection and source retirement.
+        for remove_source in [false, true] {
+            let updates = Rc::new(RefCell::new(Vec::new()));
+            let observed = Rc::clone(&updates);
+            let bridge = crate::app(false)
+                .view(move |updated: &bool| {
+                    let source = button("source")
+                        .filter_mapped(|_| None::<crate::runtime::ScrollUpdate>)
+                        .width(100.0)
+                        .height(102.0)
+                        .id(1);
+                    let source = if remove_source && *updated {
+                        source
+                    } else {
+                        source.drag_source(
+                            DragSource::new(1_u8)
+                                .autoscroll(DragAutoscrollPolicy::new(24.0, 1_000.0).unwrap()),
+                        )
+                    };
+                    scroll(column([
+                        scroll(source.id(10))
+                            .width(100.0)
+                            .height(100.0)
+                            .id(20)
+                            .on_scroll_update(|update| update),
+                        spacer().height(140.0),
+                    ]))
+                    .width(100.0)
+                    .height(100.0)
+                    .id(30)
+                    .on_scroll_update(|update| update)
+                })
+                .update(move |updated, update: crate::runtime::ScrollUpdate| {
+                    *updated = true;
+                    observed.borrow_mut().push(update);
+                })
+                .into_bridge();
+            let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 120.0));
+            runtime.set_timed_repaint_clock(Some(Instant::now()));
+            let token = runtime
+                .dispatch_gesture_request(GestureRequest::new(pan(GesturePhase::Started, 0.0)))
+                .token()
+                .unwrap();
+            let metadata = ScrollUpdateMetadata {
+                modifiers: crate::widgets::PointerModifiers {
+                    shift: true,
+                    ..Default::default()
+                },
+                timestamp: Some(InputTimestamp::capture()),
+                sequence_range: Some(InputSequenceRange::singleton(
+                    InputSequence::from_runtime_value(7),
+                )),
+            };
+            let changed = GestureIngress::new(
+                GestureKind::Pan,
+                GesturePhase::Changed,
+                GestureUnit::LogicalPixels,
+                Vector2::new(0.0, 10.0),
+                InputDeviceId::from_host(1).unwrap(),
+                Some(Point::new(20.0, 88.0)),
+                metadata.modifiers,
+                metadata.timestamp,
+                metadata.sequence_range,
+            )
+            .unwrap();
+            runtime.dispatch_gesture_request(GestureRequest::new(changed).with_token(token));
+            let deadline = runtime.typed_drag_autoscroll_deadline().unwrap();
+            assert!(runtime.advance_typed_drag_autoscroll(deadline));
+            assert_eq!(updates.borrow().len(), 1);
+            assert_eq!(updates.borrow()[0].node_id, 20);
+            assert_eq!(updates.borrow()[0].metadata, metadata);
+            assert_eq!(
+                runtime.layout_state.scroll_offset(30).y,
+                0.0,
+                "a callback projection must stop the saved ancestor chain"
+            );
+            if remove_source {
+                assert_eq!(runtime.typed_drag_autoscroll_deadline(), None);
+                assert!(!runtime.advance_typed_drag_autoscroll(deadline + Duration::from_secs(1)));
+                assert_eq!(updates.borrow().len(), 1);
+            } else {
+                assert!(runtime.typed_drag_live(token));
+                let next = runtime.typed_drag_autoscroll_deadline().unwrap();
+                assert!(runtime.advance_typed_drag_autoscroll(next));
+                assert!(
+                    runtime.layout_state.scroll_offset(30).y > 0.0,
+                    "a fresh tick must chain beyond the clamped inner viewport"
+                );
+                assert_eq!(updates.borrow().last().unwrap().node_id, 30);
+            }
         }
     }
 }

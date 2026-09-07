@@ -8539,17 +8539,20 @@ source and layout evidence fence the snapshot; unrelated projection or geometry
 changes hide it until input requalifies the target. Compatible projection from a
 target event is requalified during that input transaction. Leaving, cancellation,
 and completion clear feedback through the existing drag lifecycle. Insertion
-markers and autoscroll remain separate delivery work.
+markers remain separate delivery work. Typed sources opt into bounded logical
+edge autoscroll with `DragSource::autoscroll(DragAutoscrollPolicy::default())`.
+The runtime ticks through its existing timed repaint clock, uses ordinary
+scroll-container axis/chaining behavior, and stops at an edge boundary.
 
 
 Preview movement without application messages requests overlay repaint without
 application projection or layout. `Command::end_drag()` cancels a typed session
 through shared gesture teardown. This delivery supports checked normalized pan
-and admitted primary mouse sequences within one surface. Insertion-position feedback and autoscroll,
-same-application cross-window transfer and owned external-offer import/export remain
-OPT-1363 work.
+and admitted primary mouse sequences within one surface.
 Run `cargo run --example gesture_input` for a headless typed payload drop through
-ordinary source and target declarations.
+ordinary source and target declarations. Insertion-position feedback and
+same-application cross-window transfer and owned external-offer import/export
+remain OPT-1363 work.
 
 
 ### Pointer-to-gesture capture handoff

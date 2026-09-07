@@ -71,6 +71,8 @@ pub enum DragDescriptorError {
     InvalidPreview,
     /// Preview labels are bounded to 4096 UTF-8 bytes.
     PreviewLabelTooLong,
+    /// Drag autoscroll geometry and velocity must be finite and positive.
+    InvalidAutoscrollPolicy,
 }
 impl fmt::Display for DragDescriptorError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -79,7 +81,52 @@ impl fmt::Display for DragDescriptorError {
             Self::InvalidThreshold => "drag thresholds must be finite and nonnegative",
             Self::InvalidPreview => "drag preview dimensions must be finite and in (0, 1024]",
             Self::PreviewLabelTooLong => "drag preview labels are limited to 4096 bytes",
+            Self::InvalidAutoscrollPolicy => {
+                "drag autoscroll edge zone and maximum speed must be finite and positive"
+            }
         })
+    }
+}
+
+/// Opt-in logical edge autoscroll for a typed in-process drag source.
+///
+/// The edge zone is measured inside the current scroll viewport. Maximum speed
+/// is measured in logical pixels per second; the runtime clamps both elapsed
+/// time and the resulting per-tick movement.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DragAutoscrollPolicy {
+    edge_zone: f32,
+    max_speed: f32,
+}
+impl Eq for DragAutoscrollPolicy {}
+impl DragAutoscrollPolicy {
+    /// Construct a checked policy with explicit logical geometry and speed.
+    pub fn new(edge_zone: f32, max_speed: f32) -> Result<Self, DragDescriptorError> {
+        if !edge_zone.is_finite() || !max_speed.is_finite() || edge_zone <= 0.0 || max_speed <= 0.0
+        {
+            return Err(DragDescriptorError::InvalidAutoscrollPolicy);
+        }
+        Ok(Self {
+            edge_zone,
+            max_speed,
+        })
+    }
+    /// Return the logical edge zone.
+    pub const fn edge_zone(self) -> f32 {
+        self.edge_zone
+    }
+    /// Return the bounded maximum logical speed in pixels per second.
+    pub const fn max_speed(self) -> f32 {
+        self.max_speed
+    }
+}
+impl Default for DragAutoscrollPolicy {
+    fn default() -> Self {
+        // Deliberately theme-free: this is input geometry, not visual chrome.
+        Self {
+            edge_zone: 32.0,
+            max_speed: 800.0,
+        }
     }
 }
 impl std::error::Error for DragDescriptorError {}
@@ -175,6 +222,28 @@ impl DragOffer {
     /// Read the bounded preview descriptor.
     pub fn preview(&self) -> &DragPreviewInfo {
         &self.preview
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drag_autoscroll_policy_is_checked_and_has_a_theme_free_default() {
+        assert_eq!(DragAutoscrollPolicy::default().edge_zone(), 32.0);
+        assert_eq!(DragAutoscrollPolicy::default().max_speed(), 800.0);
+        for (zone, speed) in [
+            (0.0, 1.0),
+            (1.0, 0.0),
+            (f32::NAN, 1.0),
+            (1.0, f32::INFINITY),
+        ] {
+            assert_eq!(
+                DragAutoscrollPolicy::new(zone, speed),
+                Err(DragDescriptorError::InvalidAutoscrollPolicy)
+            );
+        }
     }
 }
 

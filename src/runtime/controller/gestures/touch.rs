@@ -22,15 +22,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         &mut self,
         ingress: PointerIngress,
         token: PointerSequenceToken,
-        cross_window: Option<(
-            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
-            &mut Option<
-                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
-                    Message,
-                >,
-            >,
-            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
-        )>,
+        cross_window: Option<
+            crate::runtime::controller::gestures::drag_drop::CrossWindowPointerIngress<'_, Message>,
+        >,
     ) -> PointerIngressDisposition {
         // Unsupported contacts keep their bounded transport records until up.
         // Never form a new pair around an already-held, untracked finger.

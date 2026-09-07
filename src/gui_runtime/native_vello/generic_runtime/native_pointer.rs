@@ -168,7 +168,7 @@ where
         button: MouseButton,
         state: ElementState,
         timestamp: Option<InputTimestamp>,
-        mut cross_window: Option<&mut NativeCrossWindowInput<Message>>,
+        cross_window: Option<&mut NativeCrossWindowInput<Message>>,
     ) -> NativeMouseInputRoute {
         let kind = match state {
             ElementState::Pressed => NativePointerEventKind::MousePress,
@@ -260,7 +260,7 @@ where
             state,
             modifiers,
             timestamp,
-            cross_window.as_deref_mut(),
+            cross_window,
         );
         self.commit_accepted_native_text_pointer_caret();
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
@@ -287,7 +287,7 @@ where
         state: ElementState,
         modifiers: PointerModifiers,
         timestamp: Option<InputTimestamp>,
-        mut cross_window: Option<&mut NativeCrossWindowInput<Message>>,
+        cross_window: Option<&mut NativeCrossWindowInput<Message>>,
     ) -> GenericRouteOutcome {
         let Some(native_device) = self.input.last_native_mouse_device else {
             return match state {
@@ -357,7 +357,7 @@ where
                             None,
                             timestamp,
                             sequence_range,
-                            cross_window.as_deref_mut(),
+                            cross_window,
                         )
                     })
                     .unwrap_or(PointerIngressDisposition::Stale);

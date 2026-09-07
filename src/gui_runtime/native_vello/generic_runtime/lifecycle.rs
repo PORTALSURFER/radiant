@@ -99,27 +99,23 @@ where
         &mut self,
         event_loop: &ActiveEventLoop,
         touch: winit::event::Touch,
-        mut cross_window: Option<&mut NativeCrossWindowInput<Message>>,
+        cross_window: Option<&mut NativeCrossWindowInput<Message>>,
         adapter_generation: super::adapter::NativeAdapterGeneration,
         wrapper_eligible: bool,
     ) -> Option<NativeImmediateTransientStageTicket> {
         let timestamp = InputTimestamp::capture();
-        let Some(ticket) = self.begin_native_immediate_transient_event(
+        let ticket = self.begin_native_immediate_transient_event(
             event_loop,
             NativeImmediateTransientKind::Touch(touch.phase),
             timestamp,
             adapter_generation,
             wrapper_eligible,
-        ) else {
-            return None;
-        };
-        let Some(ticket) = self.revalidate_native_immediate_transient(
+        )?;
+        let ticket = self.revalidate_native_immediate_transient(
             ticket,
             adapter_generation,
             wrapper_eligible,
-        ) else {
-            return None;
-        };
+        )?;
         let modifiers = self.pointer_modifiers();
         if let Ok(sample) = normalize_touch(
             &mut self.input.native_pointer_ingress,
@@ -128,10 +124,7 @@ where
             modifiers,
             timestamp,
         ) {
-            let _ = self.dispatch_native_touch_sample_with_cross_window_input(
-                sample,
-                cross_window.as_deref_mut(),
-            );
+            let _ = self.dispatch_native_touch_sample_with_cross_window_input(sample, cross_window);
         }
         Some(ticket)
     }
@@ -1718,20 +1711,19 @@ where
                                 self.record_auxiliary_terminal_cause_and_exit(event_loop, error);
                                 return;
                             }
-                            if timed_frame_semantic_reduced || !messages.is_empty() {
-                                if let Some(drag) = self
+                            if (timed_frame_semantic_reduced || !messages.is_empty())
+                                && let Some(drag) = self
                                     .dispatch_auxiliary_messages_with_unticketed_cancellations(
                                         event_loop,
                                         message_origin,
                                         messages,
                                         false,
                                     )
-                                {
-                                    self.apply_drag_route_visuals(
-                                        &drag,
-                                        Some(NativeInputStageDisposition::ContinueNow),
-                                    );
-                                }
+                            {
+                                self.apply_drag_route_visuals(
+                                    &drag,
+                                    Some(NativeInputStageDisposition::ContinueNow),
+                                );
                             }
                         }
                     }

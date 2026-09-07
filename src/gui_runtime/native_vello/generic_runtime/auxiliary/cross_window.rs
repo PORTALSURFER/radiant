@@ -14,6 +14,13 @@ use crate::{
     },
 };
 
+struct ForeignDrive {
+    key: CrossWindowDragKey,
+    location: cross_window_hit::NativeDragLocation,
+    position: Point,
+    input: CrossWindowForeignInput,
+}
+
 // The primary and auxiliary controllers have distinct bridge types. Keep
 // their native ownership checks identical without erasing the UI-local Message.
 macro_rules! with_drag_runtime {
@@ -229,24 +236,20 @@ mod tests {
         }
     }
 
-    fn parent_with_receivers(
-        names: &[&'static str],
-    ) -> (
+    type ParentWithReceivers = (
         GenericNativeVelloRunner<Bridge, Message>,
         Rc<RefCell<Vec<Message>>>,
         Vec<WindowId>,
-    ) {
+    );
+
+    fn parent_with_receivers(names: &[&'static str]) -> ParentWithReceivers {
         parent_with_source(source_surface(), names)
     }
 
     fn parent_with_source(
         source: Arc<crate::runtime::UiSurface<Message>>,
         names: &[&'static str],
-    ) -> (
-        GenericNativeVelloRunner<Bridge, Message>,
-        Rc<RefCell<Vec<Message>>>,
-        Vec<WindowId>,
-    ) {
+    ) -> ParentWithReceivers {
         let events = Rc::new(RefCell::new(Vec::new()));
         let receivers = names
             .iter()
@@ -265,7 +268,7 @@ mod tests {
         parent.window.id = Some(source_id);
         let mut ids = Vec::new();
         for (index, name) in names.iter().enumerate() {
-            let owner = parent.core.runtime.acquire_auxiliary_effect_owner(*name);
+            let owner = parent.core.runtime.acquire_auxiliary_effect_owner(name);
             let child = crate::runtime::AuxiliaryWindow::new(
                 *name,
                 crate::gui_runtime::NativeRunOptions::default(),
@@ -1335,10 +1338,7 @@ where
     fn drag_drive_foreign<F>(
         &mut self,
         endpoint: &NativeDragEndpoint,
-        key: CrossWindowDragKey,
-        location: cross_window_hit::NativeDragLocation,
-        position: Point,
-        input: CrossWindowForeignInput,
+        drive: ForeignDrive,
         outcome: &mut NativeDragRoute,
         receiver_at: &mut F,
     ) -> bool
@@ -1348,7 +1348,7 @@ where
             cross_window_hit::NativeDragLocation,
         ) -> Option<(NativeDragEndpoint, Point)>,
     {
-        let Some(mut route) = self.drag_route_foreign(endpoint, input) else {
+        let Some(mut route) = self.drag_route_foreign(endpoint, drive.input) else {
             return false;
         };
         for step in 0..=2 {
@@ -1356,13 +1356,13 @@ where
             else {
                 return false;
             };
-            if !receiver_at(self, location).is_some_and(|(current, current_position)| {
-                current.same(endpoint) && current_position == position
+            if !receiver_at(self, drive.location).is_some_and(|(current, current_position)| {
+                current.same(endpoint) && current_position == drive.position
             }) {
                 return false;
             }
             if !needs_transition {
-                if self.drag_finish_foreign_feedback(endpoint, key) {
+                if self.drag_finish_foreign_feedback(endpoint, drive.key) {
                     outcome.mark_paint(endpoint);
                 }
                 return true;
@@ -1370,7 +1370,7 @@ where
             if step == 2 {
                 return false;
             }
-            let Some(next) = self.drag_requalify_foreign(endpoint, key) else {
+            let Some(next) = self.drag_requalify_foreign(endpoint, drive.key) else {
                 return false;
             };
             route = next;
@@ -1672,10 +1672,12 @@ where
                 if self.drag_refresh_receiver_if_needed(receiver, prior, &mut outcome)
                     && self.drag_drive_foreign(
                         receiver,
-                        key,
-                        sample.location,
-                        *position,
-                        Self::drag_terminal_input(&request, *position),
+                        ForeignDrive {
+                            key,
+                            location: sample.location,
+                            position: *position,
+                            input: Self::drag_terminal_input(&request, *position),
+                        },
                         &mut outcome,
                         receiver_at,
                     )
@@ -1778,10 +1780,12 @@ where
             if !self.drag_refresh_receiver_if_needed(receiver, prior, &mut outcome)
                 || !self.drag_drive_foreign(
                     receiver,
-                    key,
-                    sample.location,
-                    *position,
-                    Self::drag_export_input(&export, *position),
+                    ForeignDrive {
+                        key,
+                        location: sample.location,
+                        position: *position,
+                        input: Self::drag_export_input(&export, *position),
+                    },
                     &mut outcome,
                     receiver_at,
                 )
@@ -1800,11 +1804,10 @@ where
             let target = self.drag_foreign_target_id(receiver, key);
             if sample.input.source_moved == Some(key)
                 && let Some(message) = self.drag_map_source_moved(&sample.source, key, target)
+                && self.drag_reduce_messages(&sample.source, vec![message], &mut outcome)
             {
-                if self.drag_reduce_messages(&sample.source, vec![message], &mut outcome) {
-                    let _ = self.drag_refresh_endpoint_and_drain(&sample.source, &mut outcome);
-                    let _ = self.drag_refresh_endpoint_and_drain(receiver, &mut outcome);
-                }
+                let _ = self.drag_refresh_endpoint_and_drain(&sample.source, &mut outcome);
+                let _ = self.drag_refresh_endpoint_and_drain(receiver, &mut outcome);
             }
         } else {
             if !self.drag_drive_local_target(

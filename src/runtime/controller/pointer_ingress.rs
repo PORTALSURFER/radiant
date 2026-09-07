@@ -224,15 +224,9 @@ where
     fn dispatch_pointer_ingress_with_cross_window(
         &mut self,
         ingress: PointerIngress,
-        mut cross_window: Option<(
-            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
-            &mut Option<
-                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
-                    Message,
-                >,
-            >,
-            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
-        )>,
+        mut cross_window: Option<
+            crate::runtime::controller::gestures::drag_drop::CrossWindowPointerIngress<'_, Message>,
+        >,
     ) -> PointerIngressDisposition {
         if !self.lifecycle_accepts_work() {
             return PointerIngressDisposition::Blocked;
@@ -539,15 +533,9 @@ where
     fn dispatch_touch_pointer_ingress(
         &mut self,
         ingress: PointerIngress,
-        mut cross_window: Option<(
-            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
-            &mut Option<
-                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
-                    Message,
-                >,
-            >,
-            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
-        )>,
+        mut cross_window: Option<
+            crate::runtime::controller::gestures::drag_drop::CrossWindowPointerIngress<'_, Message>,
+        >,
     ) -> PointerIngressDisposition {
         match ingress.phase() {
             PointerPhase::Started { .. } => {

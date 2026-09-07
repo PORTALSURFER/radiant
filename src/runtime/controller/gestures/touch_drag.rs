@@ -9,15 +9,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         &mut self,
         ingress: PointerIngress,
         pointer_token: PointerSequenceToken,
-        cross_window: Option<(
-            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
-            &mut Option<
-                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
-                    Message,
-                >,
-            >,
-            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
-        )>,
+        cross_window: Option<
+            crate::runtime::controller::gestures::drag_drop::CrossWindowPointerIngress<'_, Message>,
+        >,
     ) -> PointerIngressDisposition {
         if matches!(ingress.phase(), PointerPhase::Started { .. }) {
             return match self.prepare_single_touch_drag(ingress, pointer_token) {

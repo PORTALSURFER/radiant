@@ -170,7 +170,7 @@ where
             modifiers,
             timestamp,
             sequence_range,
-            cross_window.as_deref_mut(),
+            cross_window,
         );
         self.commit_accepted_native_text_pointer_caret();
         if !self.core.runtime.interactive_pointer_route_active() {

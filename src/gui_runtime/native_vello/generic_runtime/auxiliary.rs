@@ -96,6 +96,10 @@ pub(super) enum AuxiliaryNativeImmediateTransientRouteKind {
     Touch,
 }
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "Native input stays stack-resident on the immediate event path; boxing would add a heap allocation to every sampled drag route."
+)]
 enum AuxiliaryCrossWindowCollector<Message> {
     UnticketedCancellation,
     Native(Option<NativeDragSample<Message>>),
@@ -1718,7 +1722,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                         .normalize_native_touch_transient_with_cross_window_input_and_adapter_generation(
                             event_loop,
                             touch,
-                            cross_window.as_deref_mut(),
+                            cross_window,
                             generation,
                             wrapper_eligible,
                         )

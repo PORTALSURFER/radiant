@@ -42,6 +42,13 @@ pub(crate) struct CrossWindowInputHint {
     suppress_local_target: bool,
 }
 
+/// Mutable terminal slots carried only through one pointer ingress route.
+pub(in crate::runtime::controller) type CrossWindowPointerIngress<'a, Message> = (
+    CrossWindowInputHint,
+    &'a mut Option<CrossWindowTerminalRequest<Message>>,
+    &'a mut Option<CrossWindowDragKey>,
+);
+
 impl CrossWindowInputHint {
     pub(crate) const fn local() -> Self {
         Self {
@@ -1550,28 +1557,6 @@ where
         CrossWindowTerminalMessages { target, source }
     }
 
-    /// Map only the source cleanup callback after the host has failed closed
-    /// before terminal admission (for example, because the auxiliary
-    /// projection could not be refreshed in the current input budget).
-    pub(crate) fn map_cross_window_cancelled(
-        &self,
-        request: &CrossWindowTerminalRequest<Message>,
-        reason: DragCancelReason,
-    ) -> CrossWindowTerminalMessages<Message> {
-        if !self.cross_window_source_proof_is_current(request.source_proof()) {
-            return CrossWindowTerminalMessages {
-                target: None,
-                source: None,
-            };
-        }
-        CrossWindowTerminalMessages {
-            target: None,
-            source: request
-                .session
-                .source_message_for(None, DragSourcePhase::Cancelled(reason)),
-        }
-    }
-
     pub(crate) fn take_cross_window_terminal_request(
         &mut self,
         token: GestureSequenceToken,
@@ -2025,20 +2010,10 @@ mod autoscroll_tests {
         assert!(!runtime.drag_session_active());
         assert!(runtime.cross_window_source_proof_is_current(request.source_proof()));
 
-        let cancelled = runtime.map_cross_window_cancelled(&request, DragCancelReason::NoTarget);
-        assert!(cancelled.target.is_none());
-        assert_eq!(
-            cancelled.source,
-            Some(DragSourcePhase::Cancelled(DragCancelReason::NoTarget))
-        );
-
         let next =
             runtime.dispatch_gesture_request(GestureRequest::new(pan(GesturePhase::Started, 0.0)));
         assert!(next.token().is_some());
         assert!(!runtime.cross_window_source_proof_is_current(request.source_proof()));
-        let stale = runtime.map_cross_window_cancelled(&request, DragCancelReason::SourceRetired);
-        assert!(stale.target.is_none());
-        assert!(stale.source.is_none());
         drop(request);
         assert!(!export.is_live());
         assert_eq!(phases.borrow().as_slice(), &[DragSourcePhase::Started]);

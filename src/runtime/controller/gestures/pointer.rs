@@ -115,15 +115,9 @@ impl<Bridge: RuntimeBridge<Message>, Message> SurfaceRuntime<Bridge, Message> {
         ingress: PointerIngress,
         index: usize,
         record: PointerSequenceRecord,
-        cross_window: Option<(
-            crate::runtime::controller::gestures::drag_drop::CrossWindowInputHint,
-            &mut Option<
-                crate::runtime::controller::gestures::drag_drop::CrossWindowTerminalRequest<
-                    Message,
-                >,
-            >,
-            &mut Option<crate::runtime::controller::gestures::drag_drop::CrossWindowDragKey>,
-        )>,
+        cross_window: Option<
+            crate::runtime::controller::gestures::drag_drop::CrossWindowPointerIngress<'_, Message>,
+        >,
     ) -> Option<PointerIngressDisposition> {
         let token = record.gesture_token?;
         if !self.pointer_gesture_is_current(record) {

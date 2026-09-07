@@ -15,6 +15,7 @@ mod declarative_animation;
 mod declarative_owner;
 mod effects;
 mod events;
+mod external_drop;
 mod focus;
 mod focus_authority;
 mod focus_navigation;

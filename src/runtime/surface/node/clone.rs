@@ -52,6 +52,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             scroll_message: self.scroll_message.clone(),
             scroll_edit: self.scroll_edit.clone(),
             offset_settled: self.offset_settled.clone(),
+            external_drop_target: self.external_drop_target.clone(),
             children: self.children.clone(),
             source: self.source.clone(),
             command_scope: self.command_scope.clone(),

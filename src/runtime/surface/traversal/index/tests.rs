@@ -24,6 +24,7 @@ fn traversal_records_route_to_expected_buckets() {
         split_pane_divider: None,
         split_pane_ratio_action: None,
         virtual_layout: None,
+        external_drop_target: None,
     });
     index.record_widget(SurfaceWidgetTraversalRecord {
         id: 20,

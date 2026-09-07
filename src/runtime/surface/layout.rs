@@ -636,6 +636,13 @@ fn begin_container_runtime<Message>(
         .flatten(),
         split_pane_ratio_action: split_pane_ratio_action_candidate(container),
         virtual_layout: container.virtual_layout.clone(),
+        external_drop_target: container.external_drop_target.clone().map(|target| {
+            super::SurfaceExternalDropTargetRecord {
+                id: container.id,
+                path: super::WidgetPath::from_slice(child_path),
+                target,
+            }
+        }),
     });
     if is_scroll {
         scroll_stack.push(container.id);

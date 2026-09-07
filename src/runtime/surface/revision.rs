@@ -44,6 +44,7 @@ pub(crate) struct SurfaceContainerRevision<'a, Message> {
     pub(crate) initial_offset: Option<crate::gui::types::Vector2>,
     pub(crate) controlled_offset: Option<crate::layout::Controlled<crate::gui::types::Vector2>>,
     pub(crate) scroll_request: Option<&'a crate::layout::ScrollRequest>,
+    external_drop_target: Option<&'a crate::runtime::ExternalDropTarget<Message>>,
     pub(crate) children: &'a [super::SurfaceChild<Message>],
 }
 
@@ -84,6 +85,14 @@ impl<'a, Message> SurfaceContainerRevision<'a, Message> {
 
     fn scroll_mapper_relation(&self, other: &Self) -> MapperRelation {
         self.scroll_mapper.relation(&other.scroll_mapper)
+    }
+
+    fn external_drop_target_changed(&self, other: &Self) -> bool {
+        match (self.external_drop_target, other.external_drop_target) {
+            (None, None) => false,
+            (Some(previous), Some(current)) => !previous.same_attachment(current),
+            (None, Some(_)) | (Some(_), None) => true,
+        }
     }
 
     fn layout_capabilities_present(&self) -> bool {
@@ -195,6 +204,7 @@ impl<Message> super::SurfaceContainer<Message> {
             initial_offset: self.policy.initial_offset,
             controlled_offset: self.policy.controlled_offset,
             scroll_request: self.policy.scroll_request.as_ref(),
+            external_drop_target: self.external_drop_target.as_ref(),
             children: &self.children,
         }
     }
@@ -1864,6 +1874,14 @@ fn compare_container<Message>(
         delta.record(
             ViewDeltaEffect::Interaction,
             ViewDeltaCause::ContainerHover,
+            path.path,
+        );
+    }
+    if previous_revision.external_drop_target_changed(&current_revision) {
+        delta.record_conservative();
+        delta.record(
+            ViewDeltaEffect::Structural,
+            ViewDeltaCause::InsufficientIdentityEvidence,
             path.path,
         );
     }

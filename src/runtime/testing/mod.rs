@@ -1023,6 +1023,25 @@ where
         self.finish_adapter_operation(target)
     }
 
+    /// Admit an owned external offer through production target and worker routing.
+    /// The decoder runs only when [`Self::complete_worker`] is called; its mapper
+    /// and application update wait for [`Self::turn`]. No native window is used.
+    pub fn dispatch_external_offer(
+        &mut self,
+        position: crate::gui::types::Point,
+        offer: crate::runtime::OwnedExternalOffer,
+    ) -> Result<crate::runtime::ExternalOfferAdmission, DeterministicHostError>
+    where
+        Message: 'static,
+    {
+        self.ensure_runtime_accepts_work()?;
+        self.prepare_runtime_operation()?;
+        let admission = self.runtime.dispatch_external_offer(position, offer);
+        self.pending_outcome
+            .merge(self.runtime.take_pending_input_command_outcome());
+        self.finish_adapter_operation(admission)
+    }
+
     /// Dispatch one host message through production reduction and refresh handling.
     pub fn dispatch_message(
         &mut self,

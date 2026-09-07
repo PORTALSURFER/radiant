@@ -4579,7 +4579,9 @@ checked operation negotiation, target lifecycle messages and transient preview
 routing through the existing pan capture. Qualified primary mouse initiation
 cancels and rechecks the original child before transferring that capture.
 Multi-contact arbitration, target styling/autoscroll, cross-window transfer and
-owned external offers remain delivery work. The complete target below includes
+native external-offer extraction/hover remain delivery work. Owned incoming
+offers now have bounded transport values and a backend-neutral, owner-qualified
+worker decoder ingress. The complete target below includes
 those remaining capabilities; its illustrative API is not a claim that every
 method is currently available.
 

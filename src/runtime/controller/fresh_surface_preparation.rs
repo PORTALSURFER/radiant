@@ -1554,10 +1554,26 @@ fn traversal_matches_runtime<Message>(
             &candidate.layout_interactions,
             &active.containers.layout_interactions,
         )
+        && external_drop_targets_match(
+            &candidate.external_drop_targets,
+            &active.containers.external_drop_targets,
+        )
         && candidate.split_pane_runtime == active.containers.split_pane_runtime
         && candidate.split_pane_dividers == active.containers.split_pane_dividers
         && candidate.virtual_layout_registrations.is_empty()
         && active.containers.virtual_layout_registrations.is_empty()
+}
+
+fn external_drop_targets_match<Message>(
+    candidate: &[crate::runtime::surface::SurfaceExternalDropTargetRecord<Message>],
+    active: &[crate::runtime::surface::SurfaceExternalDropTargetRecord<Message>],
+) -> bool {
+    candidate.len() == active.len()
+        && candidate.iter().zip(active).all(|(candidate, active)| {
+            candidate.id == active.id
+                && candidate.path == active.path
+                && candidate.target.same_attachment(&active.target)
+        })
 }
 
 fn layout_interactions_match<Message>(

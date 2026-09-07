@@ -363,3 +363,7 @@ path = "examples/focus_navigation.rs"
 [[example]]
 name = "gesture_input"
 path = "examples/gesture_input.rs"
+
+[[example]]
+name = "external_offer"
+path = "examples/external_offer.rs"

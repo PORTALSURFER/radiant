@@ -162,6 +162,7 @@ pub struct ViewNode<Message> {
     pub(in crate::application) offset_settled: Option<Rc<dyn Fn(Vector2) -> Message>>,
     accepts_native_file_drop: bool,
     native_file_drop: Option<NativeFileDropMessageMapper<Message>>,
+    external_drop_target: Option<crate::runtime::ExternalDropTarget<Message>>,
     overlay_layers: Vec<Layer<Message>>,
     effect_owner: Option<DeclarativeEffectOwner>,
     command_scope: Option<crate::application::CommandScopeAttachment>,
@@ -267,6 +268,7 @@ impl<Message> ViewNode<Message> {
             offset_settled: None,
             accepts_native_file_drop: false,
             native_file_drop: None,
+            external_drop_target: None,
             overlay_layers: Vec::new(),
             effect_owner: None,
             command_scope: None,
@@ -382,6 +384,24 @@ impl<Message> ViewNode<Message> {
     pub fn effect_owner(mut self, owner: DeclarativeEffectOwner) -> Self {
         self.effect_owner = Some(owner);
         self
+    }
+
+    /// Attach a bounded, owned external-offer target to this view.
+    ///
+    /// The target is installed on a wrapper container so its geometry follows
+    /// the wrapped view without introducing a layout-engine capability. Call
+    /// [`Self::key`] after this modifier: the wrapper itself must be the one
+    /// keyed owner of the target's effect handle.
+    pub fn external_drop_target(self, target: crate::runtime::ExternalDropTarget<Message>) -> Self
+    where
+        Message: 'static,
+    {
+        let slot = self.slot;
+        let mut wrapper = crate::application::column([self]).spacing(0.0);
+        wrapper.slot = slot;
+        wrapper.effect_owner = Some(target.owner());
+        wrapper.external_drop_target = Some(target);
+        wrapper
     }
 
     /// Attach a transparent pointer target to this view's bounds.

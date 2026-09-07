@@ -107,8 +107,9 @@ where
             .is_none_or(|clip_nodes| {
                 clip_nodes.as_slice().iter().all(|node_id| {
                     self.layout
-                        .rects
+                        .viewport_bounds
                         .get(node_id)
+                        .or_else(|| self.layout.rects.get(node_id))
                         .is_some_and(|rect| rect.contains(point))
                 })
             })
@@ -122,8 +123,9 @@ where
             .is_none_or(|clip_nodes| {
                 clip_nodes.as_slice().iter().all(|clip_node| {
                     self.layout
-                        .rects
+                        .viewport_bounds
                         .get(clip_node)
+                        .or_else(|| self.layout.rects.get(clip_node))
                         .is_some_and(|rect| rect.contains(point))
                 })
             })
@@ -226,7 +228,7 @@ where
         })
     }
 
-    fn container_contains_point(&self, node_id: NodeId, point: Point) -> bool {
+    pub(super) fn container_contains_point(&self, node_id: NodeId, point: Point) -> bool {
         self.layout
             .rects
             .get(&node_id)

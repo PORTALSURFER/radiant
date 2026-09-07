@@ -88,5 +88,21 @@
   "outcome": "NOT_RUN",
   "commands": [],
   "assertions": [],
-  "reason": "No qualifying native event-loop or physical touch run attempted."
+  "reason": "No qualifying native event-loop or physical touch run attempted.",
+  "evidence_id": "H-macos-d2ab83d695a784e7c72ababc56c85aed562399db-touch-20260907",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-04",
+    "TC-24"
+  ],
+  "command_or_harness": "Not run: native event-loop/physical touch acceptance",
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "C/A assertions cover the two-contact core slice only; remaining OPT-1363 scope and other platforms are not accepted.",
+    "Environment account identifier redacted."
+  ]
 }

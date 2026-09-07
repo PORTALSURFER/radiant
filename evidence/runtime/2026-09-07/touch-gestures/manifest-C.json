@@ -140,5 +140,69 @@
       "name": "static builds and documentation",
       "outcome": "PASS"
     }
+  ],
+  "evidence_id": "C-macos-d2ab83d695a784e7c72ababc56c85aed562399db-touch-20260907",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-04",
+    "TC-24"
+  ],
+  "command_or_harness": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ],
+    [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    [
+      "cargo",
+      "doc",
+      "--locked",
+      "--no-deps"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--doc"
+    ],
+    [
+      "cargo",
+      "check",
+      "--locked",
+      "--no-default-features",
+      "--lib"
+    ],
+    [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    [
+      "git",
+      "diff",
+      "--check"
+    ]
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "C/A assertions cover the two-contact core slice only; remaining OPT-1363 scope and other platforms are not accepted.",
+    "Environment account identifier redacted."
   ]
 }

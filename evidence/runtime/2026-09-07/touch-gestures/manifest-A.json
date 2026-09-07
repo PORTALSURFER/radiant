@@ -125,5 +125,34 @@
       "passed": 12,
       "ignored": 0
     }
+  ],
+  "evidence_id": "A-macos-d2ab83d695a784e7c72ababc56c85aed562399db-touch-20260907",
+  "capability": "Core/lifecycle",
+  "criteria": [
+    "TC-01",
+    "TC-03",
+    "TC-04",
+    "TC-24"
+  ],
+  "command_or_harness": [
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--tests"
+    ],
+    [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ]
+  ],
+  "owner": "Radiant UI/runtime maintainers",
+  "supersedes": null,
+  "notes": [
+    "Local candidate evidence; canonical merge required before shipped claims.",
+    "C/A assertions cover the two-contact core slice only; remaining OPT-1363 scope and other platforms are not accepted.",
+    "Environment account identifier redacted."
   ]
 }

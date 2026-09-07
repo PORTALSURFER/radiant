@@ -56,3 +56,62 @@ fn inset_preserves_explicit_unbounded_max_for_overflowing_negative_insets() {
     assert_eq!(inset.max_w, f32::INFINITY);
     assert_eq!(inset.max_h, f32::INFINITY);
 }
+
+fn layout_with_slot_constraints(constraints: Constraints) -> super::super::engine::LayoutOutput {
+    use super::super::{
+        engine::LayoutEngine,
+        model::{ContainerPolicy, SizeModeCross, SizeModeMain, SlotParams},
+        tree::{LayoutNode, SlotChild},
+    };
+    use crate::gui::types::{Point, Rect, Vector2};
+    let mut root = LayoutNode::container(
+        1,
+        ContainerPolicy::default(),
+        vec![SlotChild::new(
+            SlotParams {
+                size_main: SizeModeMain::Fixed(20.0),
+                size_cross: SizeModeCross::Fixed(40.0),
+                ..SlotParams::fill()
+            },
+            LayoutNode::widget(2, Vector2::new(40.0, 20.0)),
+        )],
+    );
+    let LayoutNode::Container(container) = &mut root else {
+        unreachable!()
+    };
+    container.children[0].slot.constraints = constraints;
+    LayoutEngine::default().layout(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 100.0)),
+    )
+}
+
+#[test]
+fn unbounded_slot_maxima_do_not_report_clamping() {
+    let output = layout_with_slot_constraints(Constraints::unconstrained());
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    assert_eq!(output.rects[&2].width(), 40.0);
+    assert_eq!(output.rects[&2].height(), 20.0);
+}
+
+#[test]
+fn invalid_slot_maxima_still_report_clamping() {
+    for maximum in [f32::NAN, f32::NEG_INFINITY] {
+        let output = layout_with_slot_constraints(Constraints {
+            min_w: 0.0,
+            max_w: maximum,
+            min_h: 0.0,
+            max_h: maximum,
+        });
+        assert!(
+            output.diagnostics.iter().any(|item| item.node_id == 2
+                && item.message == "max width was non-finite and was clamped")
+        );
+        assert!(
+            output.diagnostics.iter().any(|item| item.node_id == 2
+                && item.message == "max height was non-finite and was clamped")
+        );
+        assert_eq!(output.rects[&2].width(), 0.0);
+        assert_eq!(output.rects[&2].height(), 0.0);
+    }
+}

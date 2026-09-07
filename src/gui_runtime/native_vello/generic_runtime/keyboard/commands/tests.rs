@@ -37,6 +37,14 @@ fn runner_with_registry(
     registry: CommandRegistry,
     observed: Rc<RefCell<Vec<u32>>>,
 ) -> GenericNativeVelloRunner<impl RuntimeBridge<Message>, Message> {
+    runner_with_registry_privacy(registry, observed, TextPrivacy::Public)
+}
+
+fn runner_with_registry_privacy(
+    registry: CommandRegistry,
+    observed: Rc<RefCell<Vec<u32>>>,
+    privacy: TextPrivacy,
+) -> GenericNativeVelloRunner<impl RuntimeBridge<Message>, Message> {
     let bindings: Vec<_> = registry
         .commands()
         .map(|command| CommandBinding::new(command.id().clone(), 7))
@@ -48,7 +56,12 @@ fn runner_with_registry(
     GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         crate::app(state)
-            .view(|state: &State| text_input(state.text.clone()).message(Message::Text).id(11))
+            .view(move |state: &State| {
+                text_input(state.text.clone())
+                    .privacy(privacy)
+                    .message(Message::Text)
+                    .id(11)
+            })
             .commands(
                 registry,
                 |state, _| CommandSnapshot {
@@ -346,4 +359,36 @@ fn layout_remapped_editing_shortcuts_stay_with_the_text_owner() {
     // but Cmd/Ctrl-X remains owned by the focused text control and never invokes
     // the layout-remapped application command.
     assert_eq!(*observed.borrow(), [1001]);
+}
+
+#[test]
+fn secret_denied_copy_stays_with_the_focused_text_owner() {
+    let observed = Rc::new(RefCell::new(Vec::new()));
+    let registry = CommandRegistry::new([CommandDescriptor::new(
+        id("global-copy"),
+        TextKey::new("copy", "Copy"),
+    )
+    .default_binding(CommandShortcut::new(CommandKey::Character("c".into())).primary())])
+    .unwrap();
+    let mut runner = runner_with_registry_privacy(
+        registry,
+        Rc::clone(&observed),
+        TextPrivacy::Secret(TextSecretPolicy::new()),
+    );
+    assert!(runner.core.runtime.focus_widget(11));
+    runner.input.modifiers =
+        if crate::gui_runtime::native_vello::generic_runtime::input::native_shortcut_platform()
+            == ShortcutPlatform::Mac
+        {
+            ModifiersState::SUPER
+        } else {
+            ModifiersState::CONTROL
+        };
+    press(
+        &mut runner,
+        Key::Character("c".into()),
+        KeyCode::KeyC,
+        false,
+    );
+    assert!(observed.borrow().is_empty());
 }

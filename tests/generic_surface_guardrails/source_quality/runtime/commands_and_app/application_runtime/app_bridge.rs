@@ -77,6 +77,9 @@ fn app_view_projection_carries_scene_lifecycle_without_concrete_type_probes() {
         .expect("IntoView contract should be readable");
     let lowering = fs::read_to_string(manifest_dir.join("src/application/view_node/lowering.rs"))
         .expect("application view lowering should be readable");
+    let scene_lowering =
+        fs::read_to_string(manifest_dir.join("src/application/view_node/lowering/scene.rs"))
+            .expect("scene lowering should be readable");
 
     assert!(
         adapter.contains(".into_application_projection(&mut context)")
@@ -95,7 +98,10 @@ fn app_view_projection_carries_scene_lifecycle_without_concrete_type_probes() {
         "IntoView implementors should explicitly produce a lifecycle-preserving or metadata-free projection"
     );
     assert!(
-        lowering.contains("self.scene.capture(presentation, shortcuts)")
+        scene_lowering.contains("self.scene.capture(presentation, shortcuts)")
+            && lowering.contains(
+                "self.lower_scene(id, child_scope, base, layers, presentation, shortcuts)"
+            )
             && lowering.contains("ViewProjection::with_scene(UiSurface::new(root), scene)"),
         "ViewNode lowering should collect Scene metadata while producing the runtime surface"
     );

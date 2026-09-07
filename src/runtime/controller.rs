@@ -31,6 +31,7 @@ mod interaction_state;
 mod layout;
 mod layout_state;
 mod notifications;
+mod overlay_focus;
 mod owner;
 mod platform;
 mod pointer;

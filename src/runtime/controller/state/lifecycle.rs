@@ -174,6 +174,7 @@ where
         runtime.relayout_with_traversal(traversal);
         runtime.install_declarative_owner_projection();
         let _ = runtime.transition_lifecycle(RuntimeLifecyclePhase::Running);
+        runtime.initialize_overlay_focus();
         runtime.install_declarative_animations();
         runtime.install_notifications();
         runtime.install_resource_view_interests();

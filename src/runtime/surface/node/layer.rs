@@ -71,6 +71,22 @@ impl<Message> SurfaceLayer<Message> {
         Self { kind, input, node }
     }
 
+    /// Attach explicit UI-local focus continuity and policy to this raw layer.
+    ///
+    /// Raw `LayerKind` is z-order only. Reuse `owner` across compatible
+    /// projections to qualify focus behavior; no node id is inferred as an
+    /// overlay focus identity.
+    pub fn focus_owner(
+        mut self,
+        owner: crate::runtime::OverlayFocusOwner,
+        policy: crate::runtime::OverlayFocusPolicy,
+    ) -> Self {
+        self.node = self.node.with_overlay_focus_marker(
+            crate::runtime::overlay_focus::OverlayFocusMarker { owner, policy },
+        );
+        self
+    }
+
     pub(in crate::runtime) fn child_count(&self) -> usize {
         usize::from(self.input.is_some()) + 1
     }
@@ -111,7 +127,7 @@ mod tests {
     use super::*;
     use crate::{
         layout::{ContainerPolicy, SlotParams},
-        runtime::SurfaceChild,
+        runtime::{OverlayFocusOwner, OverlayFocusPolicy, SurfaceChild},
     };
 
     #[test]
@@ -127,6 +143,25 @@ mod tests {
             SurfaceLayer::with_input(LayerKind::Popover, Some(input), node).child_count(),
             2
         );
+    }
+
+    #[test]
+    fn raw_layer_focus_owner_is_explicit_source_metadata() {
+        let owner = OverlayFocusOwner::new();
+        let layer = SurfaceLayer::new(
+            LayerKind::Modal,
+            SurfaceNode::<()>::container(2, ContainerPolicy::default(), Vec::new()),
+        )
+        .focus_owner(owner.clone(), OverlayFocusPolicy::Modal);
+
+        let marker = layer
+            .node
+            .source_metadata_handle()
+            .and_then(|metadata| metadata.overlay_focus.clone())
+            .expect("explicit raw focus owner must retain source metadata");
+        assert_eq!(marker.owner, owner);
+        assert_eq!(marker.policy, OverlayFocusPolicy::Modal);
+        assert_eq!(format!("{owner:?}"), "OverlayFocusOwner");
     }
 
     #[test]

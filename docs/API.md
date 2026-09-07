@@ -8322,7 +8322,8 @@ and runtime-owned separator stops. `traverse_focus_spatial(FocusDirection)` uses
 nearest center distance in the requested half-plane, ties in committed order,
 and positive visible intersection with the viewport and clipping ancestors.
 Without a current widget it returns `NoDestination`. Navigation observes only
-materialized targets and never creates virtual demand. Overlay-specific trapping/restoration is tracked by OPT-1394.
+materialized targets and never creates virtual demand. Modal layers additionally confine
+all focus transfer paths to their current qualified subtree; see [overlay focus](OVERLAY_FOCUS.md).
 
 
 `capture_focus()` creates a UI-local `FocusBookmark` for the current focus owner.
@@ -8343,7 +8344,7 @@ behavior evidence; a remount or incompatible policy retires them. A bookmark rec
 The closest declared scope owns an attempt, retaining both widget and runtime-owned
 separator stops in the existing order. Without a scope, sequential traversal keeps
 its compatibility wrap behavior. Explicit focus transfers and bookmark restoration
-may cross scope boundaries; overlay-specific trapping remains OPT-1394 work.
+may cross ordinary scope boundaries but cannot escape the active modal overlay.
 
 Scope metadata participates in frozen source equality, so policy changes refresh the
 committed membership index while compatible widget state remains retained. Prepared
@@ -8643,3 +8644,15 @@ local pointer hit testing, anchored zoom, and content construction. Legacy
 `waveform_view` remains an example of the original signal content API.
 
 Feedback builders and application-owned notice queues are described in [Feedback and notifications](FEEDBACK_NOTIFICATIONS.md).
+
+
+### Anchored overlay layers
+
+`Layer::anchored_to(layout::OverlayAnchor::below(trigger_id, size))` resolves
+placement from the trigger in the current layout pass. `above`, `gap`,
+`flip_when_clipped`, and `clamp_to_viewport` configure logical-pixel placement.
+The input shield and foreground form one group: missing or fully clipped triggers
+omit both, including their semantics. Resize and scrolling revalidate focus
+and cancel hidden input ownership. `Layer::dismiss_on_escape(message)` and
+outside dismissal use the same qualified nested ordering. See
+[the complete overlay contract](OVERLAY_FOCUS.md) and `examples/floating_overlay.rs`.

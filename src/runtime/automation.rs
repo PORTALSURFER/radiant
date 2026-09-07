@@ -379,7 +379,9 @@ where
     /// Return a serializable backend-neutral automation snapshot for the current surface.
     pub fn automation_snapshot(&self) -> GuiAutomationSnapshot {
         let ordinary = self.ordinary_automation_snapshot();
-        self.compose_split_pane_automation_snapshot(&ordinary)
+        let mut snapshot = self.compose_split_pane_automation_snapshot(&ordinary);
+        self.qualify_overlay_semantics(&mut snapshot.root);
+        snapshot
     }
 
     /// Return a flattened, coordinate-bearing automation target snapshot for the

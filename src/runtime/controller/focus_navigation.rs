@@ -73,6 +73,7 @@ where
         let mut best: Option<(f64, u64)> = None;
         for &id in self.traversal.widgets.keyboard_focus.order() {
             if id == current
+                || !self.overlay_focus_allows(id)
                 || !self.is_live_focus_target(id)
                 || scope.is_some_and(|(scope, _)| !self.traversal.focus_scopes.contains(scope, id))
             {

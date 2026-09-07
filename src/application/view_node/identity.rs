@@ -90,6 +90,10 @@ pub(crate) struct SourceIdentitySeed {
 pub(crate) struct DeclarativeOverlaySource {
     pub(crate) identity_scope: NodeId,
     pub(crate) layer_kind: LayerKind,
+    pub(crate) focus_policy: crate::runtime::OverlayFocusPolicy,
+    /// Anchored declarations are admitted only after their final layout
+    /// geometry has established that the group is visible.
+    pub(crate) anchored: bool,
     pub(crate) effect_owner: Option<DeclarativeEffectOwner>,
 }
 

@@ -60,6 +60,8 @@ pub struct SurfaceContainer<Message> {
     pub(in crate::runtime::surface) id: NodeId,
     pub(in crate::runtime::surface) policy: ContainerPolicy,
     pub(in crate::runtime::surface) layout_policy: Option<Rc<dyn LayoutPolicy>>,
+    pub(in crate::runtime::surface) overlay_anchor:
+        Option<Rc<crate::gui::layout_core::AnchoredOverlayLayout>>,
     pub(in crate::runtime::surface) style: Option<WidgetStyle>,
     pub(in crate::runtime::surface) hoverable: bool,
     pub(in crate::runtime::surface) layout_capabilities: Option<LayoutCapabilities<Message>>,
@@ -156,6 +158,7 @@ impl<Message> SurfaceContainer<Message> {
             id: parts.id,
             policy: parts.policy,
             layout_policy: None,
+            overlay_anchor: None,
             style: None,
             hoverable: false,
             layout_capabilities: parts.layout_capabilities,
@@ -203,6 +206,18 @@ impl<Message> SurfaceContainer<Message> {
 
     pub(crate) fn with_layout_policy_erased(mut self, policy: Rc<dyn LayoutPolicy>) -> Self {
         self.layout_policy = Some(policy);
+        self
+    }
+
+    pub(crate) fn with_overlay_anchor(
+        mut self,
+        anchor: crate::layout::OverlayAnchor,
+        has_input: bool,
+    ) -> Self {
+        self.overlay_anchor = Some(Rc::new(crate::gui::layout_core::AnchoredOverlayLayout {
+            anchor,
+            has_input,
+        }));
         self
     }
 
@@ -441,6 +456,19 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    pub(crate) fn with_overlay_anchor(
+        self,
+        anchor: crate::layout::OverlayAnchor,
+        has_input: bool,
+    ) -> Self {
+        match self {
+            Self::Container(container) => {
+                Self::Container(container.with_overlay_anchor(anchor, has_input))
+            }
+            node => node,
+        }
+    }
+
     pub(crate) fn with_animation(self, animation: Rc<dyn crate::animation::Animatable>) -> Self {
         match self {
             Self::Container(mut container) => {
@@ -607,6 +635,26 @@ impl<Message> SurfaceNode<Message> {
         self
     }
 
+    pub(crate) fn with_overlay_focus_marker(
+        mut self,
+        marker: crate::runtime::overlay_focus::OverlayFocusMarker,
+    ) -> Self {
+        let fallback = SourceMetadata::raw_overlay_focus(&self, marker.clone());
+        let source = match &mut self {
+            Self::Scene(node) => &mut node.source,
+            Self::Container(node) => &mut node.source,
+            Self::Widget(node) => &mut node.source,
+            Self::Overlay(node) => &mut node.source,
+            Self::FloatingLayer(node) => &mut node.source,
+        };
+        if let Some(metadata) = source {
+            Rc::make_mut(metadata).overlay_focus = Some(marker);
+        } else {
+            *source = Some(Rc::new(fallback));
+        }
+        self
+    }
+
     pub(crate) fn with_command_scope(
         mut self,
         scope: crate::application::CommandScopeAttachment,
@@ -737,6 +785,21 @@ impl<Message> SurfaceNode<Message> {
             Self::Overlay(overlay) => overlay.id,
             Self::FloatingLayer(layer) => layer.container.id,
         }
+    }
+
+    /// Return the concrete layout root for this surface subtree.
+    ///
+    /// A scene whose declarative layers were drained into an enclosing scene
+    /// projects only its base, so its own synthetic scene id has no layout
+    /// rectangle. Paint and clip gates must use this identity.
+    pub(in crate::runtime) fn layout_root_id(&self) -> NodeId {
+        let mut node = self;
+        while let Self::Scene(scene) = node
+            && !scene.has_layers()
+        {
+            node = &scene.base;
+        }
+        node.id()
     }
 
     pub(in crate::runtime) fn devtools_snapshot_node(

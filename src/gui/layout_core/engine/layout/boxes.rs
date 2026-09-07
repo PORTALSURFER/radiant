@@ -10,6 +10,19 @@ use crate::gui::types::{Point, Rect, Vector2};
 
 pub(super) fn layout_stack(container: &ContainerNode, content: Rect, context: &mut LayoutContext) {
     for child in &container.children {
+        if container
+            .overlay_dependencies
+            .as_ref()
+            .is_some_and(|dependencies| {
+                dependencies
+                    .iter()
+                    .filter(|(child_root, _)| *child_root == child.child.id())
+                    .any(|(_, parent_root)| !context.output.rects.contains_key(parent_root))
+            })
+        {
+            context.omit_subtree(&child.child);
+            continue;
+        }
         let measured =
             super::super::measure::measure_node(&child.child, child.slot.constraints, context);
         let width = resolve_cross_layout(

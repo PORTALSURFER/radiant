@@ -25,6 +25,7 @@ pub(super) struct RuntimeInteractionState<Message> {
     pub(super) focus: RuntimeFocusState,
     pub(super) gesture: Option<super::gestures::GestureCapture>,
     pub(super) focus_restoration: super::focus_restoration::FocusRestorationState,
+    pub(super) overlay_focus: super::overlay_focus::OverlayFocusState,
     pub(super) hover: RuntimeHoverState,
     pub(super) tooltip: RuntimeTooltipState,
     pub(super) pointer: RuntimePointerState,
@@ -43,6 +44,7 @@ impl<Message> Default for RuntimeInteractionState<Message> {
         Self {
             focus: RuntimeFocusState::default(),
             focus_restoration: Default::default(),
+            overlay_focus: Default::default(),
             gesture: None,
             hover: RuntimeHoverState::default(),
             tooltip: RuntimeTooltipState::default(),

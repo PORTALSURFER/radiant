@@ -735,7 +735,7 @@ where
         Some(dispatch)
     }
 
-    fn dispatch_surface_wheel_sample(
+    pub(in crate::runtime::controller) fn dispatch_surface_wheel_sample(
         &mut self,
         widget_id: WidgetId,
         bounds: crate::gui::types::Rect,

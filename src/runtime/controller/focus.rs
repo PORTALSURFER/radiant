@@ -240,6 +240,13 @@ where
     }
 
     fn request_focus_owner(&mut self, next: RuntimeFocusOwner) -> FocusTransition {
+        let node = match next {
+            RuntimeFocusOwner::Widget(id) => id,
+            RuntimeFocusOwner::SplitPaneSeparator(owner) => owner.target.container_id,
+        };
+        if !self.overlay_focus_allows(node) {
+            return FocusTransition::InvalidTarget;
+        }
         if self.interaction.focus.owner == Some(next) {
             return FocusTransition::Unchanged;
         }
@@ -536,7 +543,10 @@ where
         self.is_live_focus_target(widget_id)
     }
 
-    fn prepare_focus_loss(&mut self, widget_id: WidgetId) -> FocusLossDecision {
+    pub(super) fn prepare_focus_loss(&mut self, widget_id: WidgetId) -> FocusLossDecision {
+        if self.consume_overlay_focus_loss_permit(widget_id) {
+            return FocusLossDecision::Allow;
+        }
         let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
             return FocusLossDecision::Allow;
         };
@@ -596,6 +606,40 @@ where
             )
         } else {
             (self.traversal.widgets.mixed_focus_order.as_slice(), true)
+        };
+        let modal_order;
+        let order = if self.has_modal_focus_scope() {
+            modal_order = if order.is_empty() {
+                self.traversal
+                    .widgets
+                    .keyboard_focus
+                    .order()
+                    .iter()
+                    .copied()
+                    .filter(|id| self.overlay_focus_allows(*id))
+                    .map(RuntimeFocusOrderEntry::Widget)
+                    .collect::<Vec<_>>()
+            } else {
+                order
+                    .iter()
+                    .copied()
+                    .filter(|entry| {
+                        let node = match entry {
+                            RuntimeFocusOrderEntry::Widget(id) => *id,
+                            RuntimeFocusOrderEntry::SplitPaneSeparator(projection) => {
+                                projection.target.container_id
+                            }
+                        };
+                        self.overlay_focus_allows(node)
+                    })
+                    .collect::<Vec<_>>()
+            };
+            if modal_order.is_empty() {
+                return SequentialFocusTraversalDisposition::NoDestination;
+            }
+            modal_order.as_slice()
+        } else {
+            order
         };
         let Some(next) = next_focus_entry(
             self.interaction.focus.owner,
@@ -748,6 +792,16 @@ where
         command: &crate::application::CommandInput,
         focus: FocusSurface,
     ) -> Option<FocusedKeyDispatch> {
+        if let Some(key) = widget_key
+            && let Some(consumed) =
+                self.route_overlay_escape(key, modifiers, command.repeat, timestamp)
+        {
+            return Some(FocusedKeyDispatch {
+                routed: true,
+                consumed,
+                ..FocusedKeyDispatch::default()
+            });
+        }
         self.dispatch_metadata_focused_key_sample(
             host_press,
             widget_key,
@@ -1027,7 +1081,7 @@ where
                 })
     }
 
-    fn establish_focused_key_capture(&mut self, widget_id: WidgetId, key: WidgetKey) {
+    pub(super) fn establish_focused_key_capture(&mut self, widget_id: WidgetId, key: WidgetKey) {
         if self.interaction.focus.focused_key_capture.is_some() {
             return;
         }
@@ -1187,6 +1241,12 @@ where
         timestamp: Option<InputTimestamp>,
         repeat: bool,
     ) -> bool {
+        if let Some(key) = widget_key
+            && let Some(consumed) =
+                self.route_overlay_escape(key, widget_modifiers, repeat, timestamp)
+        {
+            return consumed;
+        }
         if let Some(route) = self.dispatch_metadata_focused_key_press(
             Some(press),
             widget_key,

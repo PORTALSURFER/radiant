@@ -851,6 +851,62 @@ mod tests {
         assert_eq!(editor_text(&runtime), "old");
     }
 
+    #[test]
+    fn stale_focused_clipboard_paste_is_rejected_after_focus_or_revision_changes() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None)
+        );
+        let sink = runtime.bridge_mut().sinks.pop().expect("focus fenced sink");
+        runtime.clear_focus();
+        sink.send(Ok(PlatformResponse::Text("late".into())));
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "old");
+
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None)
+        );
+        let sink = runtime
+            .bridge_mut()
+            .sinks
+            .pop()
+            .expect("revision fenced sink");
+        assert!(
+            runtime
+                .dispatch_focused_input(crate::widgets::WidgetInput::text_edit(
+                    crate::widgets::TextEditCommand::InsertText("local".into()),
+                ))
+                .is_some()
+        );
+        sink.send(Ok(PlatformResponse::Text("late".into())));
+        let _ = runtime.drain_runtime_messages();
+        assert_eq!(editor_text(&runtime), "localold");
+    }
+
+    #[test]
+    fn closed_runtime_discards_a_late_clipboard_completion() {
+        let mut runtime =
+            SurfaceRuntime::new(TextClipboardBridge::default(), Vector2::new(160.0, 80.0));
+        assert!(runtime.focus_widget(41));
+        assert!(
+            runtime
+                .begin_focused_text_clipboard(crate::runtime::TextClipboardOperation::Paste, None)
+        );
+        let sink = runtime.bridge_mut().sinks.pop().expect("close fenced sink");
+        assert!(
+            runtime
+                .execute_command(crate::runtime::Command::Exit)
+                .exit_requested
+        );
+        sink.send(Ok(PlatformResponse::Text("late".into())));
+        assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 0);
+    }
+
     fn declarative_origins() -> (EffectOrigin, EffectOrigin, EffectOrigin) {
         let phase = Rc::new(Cell::new(0_u8));
         let project_phase = Rc::clone(&phase);

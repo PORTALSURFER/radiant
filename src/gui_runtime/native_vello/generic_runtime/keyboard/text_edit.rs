@@ -62,7 +62,7 @@ where
                 outcome.routed
             }
             KeyCode::C => {
-                let owns_shortcut = self.core.has_focused_text_input();
+                let owns_shortcut = self.core.focused_text_input_owns_clipboard_shortcut();
                 let routed = self
                     .core
                     .runtime
@@ -74,7 +74,7 @@ where
                 owns_shortcut
             }
             KeyCode::X => {
-                let owns_shortcut = self.core.has_focused_text_input();
+                let owns_shortcut = self.core.focused_text_input_owns_clipboard_shortcut();
                 let routed = self
                     .core
                     .runtime
@@ -86,7 +86,7 @@ where
                 owns_shortcut
             }
             KeyCode::V => {
-                let owns_shortcut = self.core.has_focused_text_input();
+                let owns_shortcut = self.core.focused_text_input_owns_clipboard_shortcut();
                 let routed = self
                     .core
                     .runtime

@@ -425,6 +425,12 @@ where
     }
 
     pub(in crate::gui_runtime::native_vello) fn has_focused_text_input(&self) -> bool {
+        self.runtime.focused_text_input_id().is_some()
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn focused_text_input_owns_clipboard_shortcut(
+        &self,
+    ) -> bool {
         self.runtime.focused_widget_owns_text_clipboard_shortcut()
     }
 

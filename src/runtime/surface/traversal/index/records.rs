@@ -71,6 +71,18 @@ pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a, Message> {
         Option<SurfaceSplitPaneRatioActionCandidate<Message>>,
     pub(in crate::runtime) virtual_layout:
         Option<super::super::super::VirtualLayoutRegistration<Message>>,
+    pub(in crate::runtime) external_drop_target: Option<SurfaceExternalDropTargetRecord<Message>>,
+}
+
+/// One container-owned external-offer declaration captured during traversal.
+///
+/// The descriptor remains UI-local. The controller later combines this record
+/// with committed geometry and keyed declarative-owner evidence before it can
+/// admit worker work.
+pub(in crate::runtime) struct SurfaceExternalDropTargetRecord<Message> {
+    pub(in crate::runtime) id: NodeId,
+    pub(in crate::runtime) path: super::WidgetPath,
+    pub(in crate::runtime) target: crate::runtime::ExternalDropTarget<Message>,
 }
 
 pub(in crate::runtime) struct SurfaceLayoutInteractionRecord<Message> {

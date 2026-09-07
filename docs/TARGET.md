@@ -18,8 +18,10 @@ available to opt-in canvas and GPU consumers. The controller uses sixteen fixed
 records and preserves legacy event contracts. The shared gesture arena supports
 native normalized gestures and bounded two-contact, same-device touch-derived
 pan, pinch and rotation for explicit gesture consumers. Local typed payload
-drag/drop is delivered; cross-window payloads, external offers, and touch-started
-typed drag remain future target work.
+drag/drop is delivered. Owned incoming offers have bounded transport values and
+owner-qualified worker decoding through a backend-neutral drop ingress. Native
+extraction/hover integration, cross-window payloads, outgoing portable offer
+expansion, and touch-started typed drag remain future target work.
 
 ## Vision
 

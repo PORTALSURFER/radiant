@@ -8598,8 +8598,14 @@ never retained for a later frame; exceeding the input budget defers visual work,
 not semantic drop completion. Source cancellation clears current receiver state
 once. Foreign feedback uses transient paint; pointer-only movement without
 application callbacks does not force application projection.
-Edge autoscroll is currently surface-local. Other native backends retain local
-typed dragging; this does not add native external offer extraction or export.
+The same source opt-in also enables edge scrolling in a foreign receiver. Its
+existing timed clock marks one due tick; the native coordinator rechecks the
+source, receiver incarnation, and last admitted screen location before scrolling.
+It reduces scroll messages and refreshes the receiver before mapping target
+transitions, then rearms only a surviving receipt that moved. A different window's
+timer cannot consume the tick. Leaving, cancellation, release, and a boundary
+stop it. Other native backends retain local typed dragging; this does not add
+native external offer extraction or export.
 
 Run `cargo run --example gesture_input -- --native-cross-window` to explicitly
 open the two-window demonstration. Move the windows apart, drag in either

@@ -25,6 +25,15 @@ pub(in crate::runtime::controller) struct ScrollAttempt {
     pub(in crate::runtime::controller) moved: bool,
 }
 
+/// Runtime-private liveness fence for a scroll initiated by a retained drag
+/// route. A scroll callback can synchronously rebuild either endpoint, so an
+/// ancestor chain may continue only while the exact receipt is still current.
+#[derive(Clone, Copy)]
+pub(in crate::runtime::controller) enum ScrollRouteGuard {
+    Typed(crate::runtime::controller::GestureSequenceToken),
+    Foreign(crate::runtime::controller::CrossWindowDragKey),
+}
+
 /// Observational input provenance carried by a runtime-owned scroll update.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollUpdateMetadata {
@@ -116,9 +125,10 @@ where
         .accepted
     }
 
-    /// Shared scroll path with an optional typed-drag lifetime fence. Public
+    /// Shared scroll path with an optional drag-route lifetime fence. Public
     /// callers retain the unguarded wrapper; a drag callback may rebuild,
-    /// cancel, or replace capture while ancestor chaining is in progress.
+    /// cancel, or replace the current receipt while ancestor chaining is in
+    /// progress.
     pub(in crate::runtime::controller) fn scroll_at_with_refresh_and_metadata_guarded(
         &mut self,
         point: Point,
@@ -126,7 +136,7 @@ where
         metadata: ScrollUpdateMetadata,
         refresh_after_message: bool,
         provenance: crate::widgets::InteractionProvenance,
-        typed_drag_guard: Option<crate::runtime::controller::GestureSequenceToken>,
+        drag_guard: Option<ScrollRouteGuard>,
     ) -> ScrollAttempt {
         if !point.x.is_finite()
             || !point.y.is_finite()
@@ -145,7 +155,7 @@ where
         let mut remaining = delta;
         let mut attempt = ScrollAttempt::default();
         for node_id in candidates {
-            if typed_drag_guard.is_some_and(|token| !self.typed_drag_live(token)) {
+            if drag_guard.is_some_and(|guard| !self.scroll_route_guard_is_current(guard)) {
                 return attempt;
             }
             if node_id != deepest && !self.scroll_container_accepts_point(node_id, point) {
@@ -194,13 +204,13 @@ where
             if offset != current {
                 attempt.moved = true;
             }
-            if typed_drag_guard.is_some_and(|token| !self.typed_drag_live(token)) {
+            if drag_guard.is_some_and(|guard| !self.scroll_route_guard_is_current(guard)) {
                 return attempt;
             }
             // A relayout can materialize virtual content or replace traversal
             // records while preserving the drag token. The saved ancestor list
             // is no longer authoritative in that case.
-            if typed_drag_guard.is_some()
+            if drag_guard.is_some()
                 && (self.layout_authority_exhausted
                     || self.refresh_counters().runtime_projection != source_authority.0
                     || self.layout_root_authority != source_authority.1
@@ -248,10 +258,10 @@ where
                 );
                 // Scroll callbacks may synchronously replace or cancel the drag.
                 // Do not offer residual movement to an ancestor from the old token.
-                if typed_drag_guard.is_some_and(|token| !self.typed_drag_live(token)) {
+                if drag_guard.is_some_and(|guard| !self.scroll_route_guard_is_current(guard)) {
                     return attempt;
                 }
-                if typed_drag_guard.is_some()
+                if drag_guard.is_some()
                     && (self.layout_authority_exhausted
                         || self.refresh_counters().runtime_projection != source_authority.0
                         || self.layout_root_authority != source_authority.1

@@ -105,6 +105,13 @@ enum AuxiliaryCrossWindowCollector<Message> {
     Native(Option<NativeDragSample<Message>>),
 }
 
+/// Source of an auxiliary outbox, including whether this event completed a
+/// semantic timed drain. A due tick from another window is not authorized.
+pub(super) struct AuxiliaryMessageOrigin {
+    pub(super) owner: Option<AuxiliaryWindowOwner>,
+    pub(super) completed_timed_frame: bool,
+}
+
 struct AuxiliaryMessageDispatch<Message> {
     native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
     native_immediate_transient_route: Option<(usize, AuxiliaryNativeImmediateTransientRoute)>,
@@ -422,6 +429,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             timed_frame_semantic_reduced: self
                 .runner
                 .take_timed_frame_semantic_reduced_since_event(),
+            foreign_autoscroll_completed: self
+                .runner
+                .take_foreign_autoscroll_completed_since_event(),
         }
     }
 
@@ -1312,6 +1322,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 );
             }
         }
+        self.runner
+            .finish_timed_drag_visuals(admission.visual_deadline_completed);
         let terminal_cause = self.runner.take_terminal_cause();
         Some(self.event_result(terminal_cause, admission.visual_deadline_completed))
     }
@@ -1471,6 +1483,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             native_discrete_input_route: None,
             native_immediate_transient_route: None,
             timed_frame_semantic_reduced: false,
+            foreign_autoscroll_completed: false,
         }
     }
 
@@ -1495,6 +1508,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             native_discrete_input_route: None,
             native_immediate_transient_route: None,
             timed_frame_semantic_reduced: false,
+            foreign_autoscroll_completed: false,
         }
     }
 
@@ -1977,6 +1991,7 @@ pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) native_immediate_transient_route: Option<AuxiliaryNativeImmediateTransientRoute>,
     /// True only when an auxiliary Deadline reduced runtime messages.
     pub(super) timed_frame_semantic_reduced: bool,
+    pub(super) foreign_autoscroll_completed: bool,
 }
 
 pub(super) struct AuxiliaryWindowCloseAdmission {
@@ -1996,6 +2011,7 @@ impl<Message> AuxiliaryWindowEventResult<Message> {
             native_discrete_input_route: None,
             native_immediate_transient_route: None,
             timed_frame_semantic_reduced: false,
+            foreign_autoscroll_completed: false,
         }
     }
 }
@@ -2111,7 +2127,7 @@ where
     pub(super) fn dispatch_auxiliary_messages_with_cross_window_collector(
         &mut self,
         event_loop: &ActiveEventLoop,
-        message_origin: Option<AuxiliaryWindowOwner>,
+        message_origin: AuxiliaryMessageOrigin,
         messages: Vec<Message>,
         native_discrete_input_route: Option<(usize, AuxiliaryNativeDiscreteInputRoute)>,
         native_immediate_transient_route: Option<(usize, AuxiliaryNativeImmediateTransientRoute)>,
@@ -2137,7 +2153,7 @@ where
     pub(super) fn dispatch_auxiliary_messages_with_unticketed_cancellations(
         &mut self,
         event_loop: &ActiveEventLoop,
-        message_origin: Option<AuxiliaryWindowOwner>,
+        message_origin: AuxiliaryMessageOrigin,
         messages: Vec<Message>,
         merge_due_timed_frame: bool,
     ) -> Option<NativeDragRoute> {
@@ -2158,7 +2174,7 @@ where
     fn dispatch_auxiliary_messages_with_timed_frame(
         &mut self,
         event_loop: &ActiveEventLoop,
-        message_origin: Option<AuxiliaryWindowOwner>,
+        message_origin: AuxiliaryMessageOrigin,
         messages: Vec<Message>,
         dispatch: AuxiliaryMessageDispatch<Message>,
     ) -> (Option<NativeInputStageDisposition>, Option<NativeDragRoute>) {
@@ -2177,9 +2193,13 @@ where
             }
             return (None, None);
         }
-        let mut outcome = self.reduce_auxiliary_messages(message_origin, messages);
+        let timed_owner = message_origin
+            .completed_timed_frame
+            .then(|| message_origin.owner.clone())
+            .flatten();
+        let mut outcome = self.reduce_auxiliary_messages(message_origin.owner, messages);
         let native_collector = matches!(&collector, AuxiliaryCrossWindowCollector::Native(_));
-        let drag_route = if native_collector {
+        let mut drag_route = if native_collector {
             if !self.auxiliary_native_input_route_is_current(
                 native_discrete_input_route.as_ref(),
                 native_immediate_transient_route.as_ref(),
@@ -2209,6 +2229,16 @@ where
         } else {
             None
         };
+        // A resumed child Deadline may finish before this native event. Its
+        // outbox is reduced above; service only that child's due receipt after
+        // the current sample has consumed any detached terminal authority.
+        if let Some(owner) = timed_owner.as_ref()
+            && let Some(drag) = drag_route.as_mut()
+        {
+            let timed = self.route_drag_autoscroll_for_owner(Some(owner), Instant::now());
+            drag.outcome.merge(timed.outcome);
+            drag.merge_visuals_from(&timed);
+        }
         if let Some(drag) = drag_route.as_ref() {
             outcome.merge(drag.outcome);
         }

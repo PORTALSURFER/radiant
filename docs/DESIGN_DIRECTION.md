@@ -4594,7 +4594,11 @@ hosts now coordinate same-application typed transfers across primary and auxilia
 windows, with a frozen native screen sample and exact window-incarnation fences.
 The existing source capture remains the only capture. Native external offer
 extraction/hover and outgoing portable representation expansion remain delivery
-work; foreign edge autoscroll and native/manual acceptance remain separate. The
+work; native/manual acceptance remains separate. Foreign receiver edge scrolling
+uses the same source opt-in and existing timer. A due marker owns no capture;
+the coordinator rechecks native hit and source lifetime, reduces scroll messages,
+and refreshes before target transitions. Only the completed timed drain's receiver
+may consume the marker, and an unmoved boundary stops rearming. The
 complete target below includes those remaining capabilities; its illustrative API
 is not a claim that every method is currently available.
 

@@ -50,8 +50,11 @@ macro_rules! with_drag_runtime {
     }};
 }
 
+mod autoscroll;
+
 #[cfg(test)]
 mod tests {
+    mod autoscroll;
     mod terminal;
 
     use super::*;
@@ -77,6 +80,7 @@ mod tests {
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum Message {
+        Scrolled,
         Target(&'static str, DropPhase),
         Source(DragSourcePhase),
     }
@@ -970,6 +974,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativeDragTrans
     key: CrossWindowDragKey,
     receiver: NativeDragEndpoint,
     parent_projection: u64,
+    location: cross_window_hit::NativeDragLocation,
+    position: Point,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime) struct NativeDragSample<Message> {
@@ -1563,6 +1569,8 @@ where
         source: NativeDragEndpoint,
         key: CrossWindowDragKey,
         receiver: NativeDragEndpoint,
+        location: cross_window_hit::NativeDragLocation,
+        position: Point,
     ) -> bool {
         let parent_projection = self.drag_parent_projection();
         if let Some(transfer) = self
@@ -1572,6 +1580,8 @@ where
         {
             transfer.receiver = receiver;
             transfer.parent_projection = parent_projection;
+            transfer.location = location;
+            transfer.position = position;
             return true;
         }
         if self.cross_window_transfers.len() == 64 {
@@ -1582,6 +1592,8 @@ where
             key,
             receiver,
             parent_projection,
+            location,
+            position,
         });
         true
     }
@@ -1853,6 +1865,8 @@ where
             request.lease(),
             position,
             request.modifiers(),
+            request.autoscroll_policy(),
+            request.metadata(),
         )
     }
 
@@ -1867,6 +1881,8 @@ where
             export.lease(),
             position,
             export.modifiers(),
+            export.autoscroll_policy(),
+            export.metadata(),
         )
     }
 
@@ -2248,7 +2264,13 @@ where
                 );
                 return outcome;
             }
-            if !self.drag_store_transfer(sample.source.clone(), key, receiver.clone()) {
+            if !self.drag_store_transfer(
+                sample.source.clone(),
+                key,
+                receiver.clone(),
+                sample.location,
+                *position,
+            ) {
                 self.drag_discard_foreign(receiver, key);
                 return outcome;
             }

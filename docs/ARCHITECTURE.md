@@ -1758,6 +1758,14 @@ Current target-specific seams are intentionally narrow:
   reduce one phase at a time under their receiver owner; terminal target/source
   snapshots map before either reduction. Auxiliary touch shares the pending
   ImmediateTransient ticket path so parent reduction precedes exact completion.
+  `src/gui_runtime/native_vello/generic_runtime/auxiliary/cross_window/autoscroll.rs`
+  consumes a receiver's due-only timer marker after its timed semantic drain.
+  It rechecks the stored native sample and source proof before the existing
+  guarded scroll path, reduces auxiliary scroll outboxes before projection and
+  target phases, and retains visual dirtiness until stage completion. The
+  controller stores policy/deadline state in the existing foreign receipt;
+  typed and foreign scroll guards share callback-lifetime checks. No second
+  capture, native input replay, or timer queue is introduced.
 - `src/gui_runtime/native_vello/generic_runtime/activation/platform.rs` and
   `src/gui_runtime/native_vello/generic_runtime/activation/reopen.rs` own
   macOS activation and application-reopen integration. The activation policy

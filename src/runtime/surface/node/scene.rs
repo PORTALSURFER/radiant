@@ -1,6 +1,6 @@
 use super::super::source::{OverlayEvidence, SourceMetadata};
 use super::{LayerKind, SurfaceLayer, SurfaceLayerChildKind, SurfaceNode};
-use crate::{layout::NodeId, UiAffinity};
+use crate::{UiAffinity, layout::NodeId};
 use std::rc::Rc;
 
 /// A root scene with base content plus typed transient layers.
@@ -11,6 +11,7 @@ pub struct SurfaceScene<Message> {
     pub(in crate::runtime::surface) base: Box<SurfaceNode<Message>>,
     pub(in crate::runtime::surface) layers: Vec<SurfaceLayer<Message>>,
     pub(super) overlay_order: Option<Vec<usize>>,
+    pub(in crate::runtime::surface) escape_dismissals: Vec<Option<Rc<dyn Fn() -> Message>>>,
     pub(in crate::runtime::surface) has_resource_view_demand: bool,
     pub(in crate::runtime::surface) has_notice_demand: bool,
     pub(in crate::runtime::surface) source: Option<Rc<SourceMetadata>>,
@@ -35,6 +36,7 @@ impl<Message> SurfaceScene<Message> {
             base: Box::new(base),
             layers,
             overlay_order,
+            escape_dismissals: Vec::new(),
             has_resource_view_demand,
             has_notice_demand,
             source: None,
@@ -241,7 +243,7 @@ fn ordered_nested_overlay_indices<Message>(layers: &[SurfaceLayer<Message>]) -> 
 mod tests {
     use super::*;
     use crate::{
-        application::{overlays, scene, text, IntoView, ResourceInterestKind, SharedResourceTasks},
+        application::{IntoView, ResourceInterestKind, SharedResourceTasks, overlays, scene, text},
         layout::ContainerPolicy,
     };
     use std::rc::Rc;

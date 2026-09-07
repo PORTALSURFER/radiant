@@ -20,7 +20,7 @@ mod lookup;
 mod node;
 mod notifications;
 mod overlay_focus;
-pub(crate) use overlay_focus::{OverlayFocusProjection, OverlayFocusRecord};
+pub(crate) use overlay_focus::{OverlayFocusKey, OverlayFocusProjection};
 mod paint;
 mod path;
 mod projection;

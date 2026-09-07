@@ -40,12 +40,6 @@ impl OverlayFocusRecord {
     pub(crate) const fn policy(&self) -> OverlayFocusPolicy {
         self.policy
     }
-    pub(crate) const fn layer_kind(&self) -> LayerKind {
-        self.layer_kind
-    }
-    pub(crate) const fn root(&self) -> WidgetId {
-        self.root
-    }
     pub(crate) const fn parent(&self) -> Option<usize> {
         self.parent
     }
@@ -107,6 +101,12 @@ impl OverlayFocusProjection {
     pub(crate) fn records(&self) -> &[OverlayFocusRecord] {
         &self.records
     }
+    pub(crate) fn top_active(&self) -> Option<&OverlayFocusRecord> {
+        (!self.faulted)
+            .then(|| self.records.iter().rev().find(|record| record.active))
+            .flatten()
+    }
+
     pub(crate) fn top_modal(&self) -> Option<usize> {
         (!self.invalid)
             .then(|| {
@@ -146,40 +146,31 @@ impl OverlayFocusProjection {
         layer_kind: Option<LayerKind>,
         seen: &mut HashSet<WidgetId>,
     ) {
+        // Bound retained evidence, but still inspect descendants after the
+        // budget is exhausted or an identity collides: a later modal must not
+        // accidentally turn incomplete evidence into an unrestricted surface.
         if seen.len() == MAX_SOURCE_NODES || !seen.insert(node.id()) {
             self.faulted = true;
-            return;
         }
-        let mut current = inherited;
-        if let Some(metadata) = node.source_metadata_handle() {
-            for evidence in &metadata.topology.overlays {
-                current = self.declarative_record(
-                    evidence,
-                    metadata.identity,
-                    metadata.compatibility,
-                    node.id(),
-                    current,
-                );
-            }
-            if let Some(marker) = &metadata.overlay_focus {
-                let kind = layer_kind.unwrap_or(LayerKind::Floating);
-                current = self.raw_record(marker, kind, node.id(), current);
-            }
-        }
+        let current = self.enter_node(node, inherited, layer_kind, false);
         if let Some(record) = current {
-            if self.members.insert(node.id(), record).is_some() {
+            if self.members.len() == MAX_SOURCE_NODES
+                || self.members.insert(node.id(), record).is_some()
+            {
                 self.faulted = true;
-                return;
             }
         }
         match node {
             SurfaceNode::Scene(scene) => {
                 self.collect_node(&scene.base, current, None, seen);
                 for layer in scene.ordered_layers() {
+                    // The visible body establishes identity and materialization;
+                    // its synthesized input shield never substitutes for it.
+                    let owner = self.enter_node(&layer.node, current, Some(layer.kind), true);
                     if let Some(input) = &layer.input {
-                        self.collect_node(input, current, Some(layer.kind), seen);
+                        self.collect_node(input, owner, Some(layer.kind), seen);
                     }
-                    self.collect_node(&layer.node, current, Some(layer.kind), seen);
+                    self.collect_node(&layer.node, owner, Some(layer.kind), seen);
                 }
             }
             SurfaceNode::Container(container) => {
@@ -196,6 +187,33 @@ impl OverlayFocusProjection {
         }
     }
 
+    fn enter_node<Message>(
+        &mut self,
+        node: &SurfaceNode<Message>,
+        inherited: Option<usize>,
+        layer_kind: Option<LayerKind>,
+        layer_root: bool,
+    ) -> Option<usize> {
+        let mut current = inherited;
+        if let Some(metadata) = node.source_metadata_handle() {
+            for (position, evidence) in metadata.topology.overlays.iter().enumerate() {
+                current = self.declarative_record(
+                    evidence,
+                    metadata.identity,
+                    metadata.compatibility,
+                    layout_identity(node),
+                    current,
+                    layer_root && position + 1 == metadata.topology.overlays.len(),
+                );
+            }
+            if let Some(marker) = &metadata.overlay_focus {
+                let kind = layer_kind.unwrap_or(LayerKind::Floating);
+                current = self.raw_record(marker, kind, layout_identity(node), current);
+            }
+        }
+        current
+    }
+
     fn declarative_record(
         &mut self,
         evidence: &OverlayEvidence,
@@ -203,11 +221,15 @@ impl OverlayFocusProjection {
         compatibility: SourceCompatibility,
         node: WidgetId,
         parent: Option<usize>,
+        strict_root: bool,
     ) -> Option<usize> {
         if let Some((index, existing)) = self.records.iter().enumerate().find(|(_, record)| {
             matches!(&record.key, OverlayFocusKey::Declarative { identity, layer_kind, .. } if *identity == evidence.identity && *layer_kind == evidence.layer_kind)
         }) {
-            if existing.policy != evidence.focus_policy || existing.layer_kind != evidence.layer_kind {
+            let root_changed = strict_root && matches!(&existing.key,
+                OverlayFocusKey::Declarative { root: old_root, compatibility: old_compatibility, .. }
+                if *old_root != root || *old_compatibility != compatibility);
+            if root_changed || existing.policy != evidence.focus_policy || existing.layer_kind != evidence.layer_kind {
                 self.faulted = true;
                 return None;
             }
@@ -275,6 +297,69 @@ impl OverlayFocusProjection {
     }
 }
 
+fn layout_identity<Message>(node: &SurfaceNode<Message>) -> WidgetId {
+    match node {
+        SurfaceNode::Scene(scene) if !scene.has_layers() => layout_identity(&scene.base),
+        _ => node.id(),
+    }
+}
+
 #[cfg(test)]
 #[path = "overlay_focus/tests.rs"]
 mod tests;
+
+impl<Message> SurfaceNode<Message> {
+    pub(crate) fn with_overlay_escape_dismissals(
+        mut self,
+        callbacks: Vec<Option<std::rc::Rc<dyn Fn() -> Message>>>,
+    ) -> Self {
+        if let Self::Scene(scene) = &mut self
+            && callbacks.len() == scene.layers.len()
+        {
+            scene.escape_dismissals = callbacks;
+        }
+        self
+    }
+
+    pub(crate) fn overlay_escape_callback(
+        &self,
+        key: &OverlayFocusKey,
+    ) -> Option<std::rc::Rc<dyn Fn() -> Message>> {
+        match self {
+            Self::Scene(scene) => {
+                for index in scene.ordered_layer_indices() {
+                    let layer = &scene.layers[index];
+                    if let OverlayFocusKey::Declarative {
+                        identity,
+                        layer_kind,
+                        root,
+                        compatibility,
+                    } = key
+                        && let Some(source) = layer.node.source_metadata_handle()
+                        && source.identity == *root
+                        && source.compatibility == *compatibility
+                        && source.topology.overlays.last().is_some_and(|evidence| {
+                            evidence.identity == *identity && evidence.layer_kind == *layer_kind
+                        })
+                    {
+                        return scene.escape_dismissals.get(index).cloned().flatten();
+                    }
+                    if let Some(callback) = layer.node.overlay_escape_callback(key) {
+                        return Some(callback);
+                    }
+                }
+                scene.base.overlay_escape_callback(key)
+            }
+            Self::Container(container) => container
+                .children
+                .iter()
+                .find_map(|child| child.child.overlay_escape_callback(key)),
+            Self::FloatingLayer(layer) => layer
+                .container
+                .children
+                .iter()
+                .find_map(|child| child.child.overlay_escape_callback(key)),
+            Self::Widget(_) | Self::Overlay(_) => None,
+        }
+    }
+}

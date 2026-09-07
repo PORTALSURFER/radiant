@@ -368,10 +368,12 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
                     &mut collected_layers,
                 );
                 let base = self.lower_node(base, child_scope, StructuralRole::SceneBase);
+                let mut escape_dismissals = Vec::with_capacity(collected_layers.len());
                 let layers = collected_layers
                     .into_iter()
                     .enumerate()
                     .map(|(index, layer)| {
+                        escape_dismissals.push(layer.escape_dismissal);
                         let input = layer.input.map(|input| {
                             self.lower_extracted_layer_root(
                                 input,
@@ -388,6 +390,7 @@ impl<'lower, 'record, Message: 'static> ViewLowering<'lower, 'record, Message> {
                     })
                     .collect();
                 SurfaceNode::scene(id, base, layers)
+                    .with_overlay_escape_dismissals(escape_dismissals)
             }
             ViewNodeKind::Runtime(node) if reidentify_runtime_root => node.with_id(id),
             ViewNodeKind::Runtime(node) => node,

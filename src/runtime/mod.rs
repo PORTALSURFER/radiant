@@ -21,6 +21,8 @@ mod automation;
 mod bridge;
 mod command;
 mod controller;
+pub(crate) mod overlay_focus;
+pub use overlay_focus::{OverlayFocusOwner, OverlayFocusPolicy};
 mod devtools;
 mod diagnostics;
 mod drag;

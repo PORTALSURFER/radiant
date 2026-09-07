@@ -83,6 +83,17 @@ impl<Message> Layer<Message> {
         self
     }
 
+    /// Dismiss the topmost active overlay on an unconsumed Escape press.
+    /// Focused composition and key capture retain first refusal; key repeats
+    /// never cascade through multiple overlays. The message stays UI-local.
+    pub fn dismiss_on_escape(mut self, message: Message) -> Self
+    where
+        Message: Clone + 'static,
+    {
+        self.escape_dismissal = Some(std::rc::Rc::new(move || message.clone()));
+        self
+    }
+
     /// Return this layer's declared input behavior.
     pub const fn input_policy(&self) -> LayerInputPolicy {
         self.input_policy

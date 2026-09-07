@@ -53,6 +53,7 @@ pub struct Layer<Message> {
     pub(in crate::application) input: Option<ViewNode<Message>>,
     pub(in crate::application) view: ViewNode<Message>,
     pub(in crate::application) focus_policy: crate::runtime::OverlayFocusPolicy,
+    pub(in crate::application) escape_dismissal: Option<Rc<dyn Fn() -> Message>>,
     pub(in crate::application) effect_owner: Option<DeclarativeEffectOwner>,
 }
 
@@ -69,6 +70,7 @@ impl<Message> Layer<Message> {
                 crate::runtime::OverlayFocusPolicy::None
             },
             effect_owner: None,
+            escape_dismissal: None,
         }
     }
 }
@@ -83,6 +85,7 @@ pub(super) struct ExtractedLayer<Message> {
     kind: LayerKind,
     input: Option<ExtractedLayerRoot<Message>>,
     foreground: ExtractedLayerRoot<Message>,
+    escape_dismissal: Option<Rc<dyn Fn() -> Message>>,
 }
 
 /// Declarative input behavior for one transient scene layer.
@@ -487,6 +490,7 @@ impl<Message> ViewNode<Message> {
                 kind: layer.kind,
                 input,
                 foreground,
+                escape_dismissal: layer.escape_dismissal,
             });
         }
     }

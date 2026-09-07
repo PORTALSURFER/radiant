@@ -3638,6 +3638,10 @@ where
             next_surface = next_surface.with_application_environment(environment);
         }
         next_surface.set_window_environment(self.window_environment);
+        let Ok(overlay_focus_transition) = self.prepare_overlay_focus_transition(&next_surface)
+        else {
+            return Vec::new();
+        };
         let scope = if application_environment.is_none() {
             next_surface
                 .application_environment()
@@ -4003,10 +4007,6 @@ where
         self.clear_stale_interaction_state();
         self.reconcile_pointer_ingress_sequences();
         self.validate_gesture_capture();
-        if let Some(widget_id) = self.interaction.focus.focused_widget() {
-            self.restore_focused_widget_state(widget_id);
-        }
-        self.validate_focused_key_capture_authority();
 
         // Only the source buffer produced by the final accepted projection is
         // allowed to replace the controller-owned declarative owner evidence.
@@ -4032,6 +4032,13 @@ where
             effective_scope,
         );
         self.enforce_identity_audit(identity);
+        // Finalize publication before focus callbacks can synchronously publish
+        // another surface. No stale projection bookkeeping may follow them.
+        let overlay_focus_routed = self.publish_overlay_focus_transition(overlay_focus_transition);
+        if !overlay_focus_routed && let Some(widget_id) = self.interaction.focus.focused_widget() {
+            self.restore_focused_widget_state(widget_id);
+        }
+        self.validate_focused_key_capture_authority();
         terminal_messages
     }
 

@@ -62,6 +62,28 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn bookmark_matches_current_focus_owner(&self, bookmark: &FocusBookmark) -> bool {
+        if bookmark.runtime != self.runtime_identity() {
+            return false;
+        }
+        match &bookmark.owner {
+            BookmarkOwner::Widget { widget, stamp, .. } => {
+                self.interaction.focus.focused_widget() == Some(*widget)
+                    && self
+                        .interaction
+                        .focus_restoration
+                        .stamps
+                        .get(widget)
+                        .and_then(Weak::upgrade)
+                        .is_some_and(|current| Rc::ptr_eq(&current, stamp))
+            }
+            BookmarkOwner::Separator(owner) => {
+                self.interaction.focus.owner == Some(RuntimeFocusOwner::SplitPaneSeparator(*owner))
+                    && self.separator_focus_owner_is_current(*owner)
+            }
+        }
+    }
+
     /// Record the current focus owner without moving focus or creating virtual demand.
     /// At most 64 distinct live widget bookmarks are retained; dropping the last clone
     /// releases its slot at the next capture. Separator bookmarks use existing mount identities.

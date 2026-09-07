@@ -550,6 +550,7 @@ where
             .ok()?;
         let authority_preflight =
             self.preflight_fresh_surface_refresh_authority(authority.preparation.request)?;
+        let overlay_focus_transition = self.prepare_overlay_focus_transition(&surface).ok()?;
         let _authority_commit = self.commit_fresh_surface_refresh_authority(authority_preflight)?;
 
         // The authority marker and validated plan establish the irreversible
@@ -655,10 +656,6 @@ where
         self.clear_stale_interaction_state();
         self.validate_gesture_capture();
         self.reconcile_pointer_ingress_sequences();
-        if let Some(widget_id) = self.interaction.focus.focused_widget() {
-            self.restore_focused_widget_state(widget_id);
-        }
-        self.validate_focused_key_capture_authority();
         self.install_declarative_owner_projection();
         self.interaction
             .wheel
@@ -703,9 +700,16 @@ where
             execution.effective_scope(),
         );
         self.enforce_identity_audit(identity);
+        // Finalize publication before focus callbacks can synchronously publish
+        // another surface. No stale projection bookkeeping may follow them.
+        let overlay_focus_routed = self.publish_overlay_focus_transition(overlay_focus_transition);
+        if !overlay_focus_routed && let Some(widget_id) = self.interaction.focus.focused_widget() {
+            self.restore_focused_widget_state(widget_id);
+        }
+        self.validate_focused_key_capture_authority();
 
         Some(PreparedSurfaceRefreshPublication {
-            paint_plan: Some(paint_plan),
+            paint_plan: (!overlay_focus_routed).then_some(paint_plan),
             appearance,
             terminal_messages,
             retired_candidate: None,

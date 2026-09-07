@@ -110,3 +110,52 @@ fn overlay_record_capacity_fails_closed_at_sixty_five() {
     assert!(projection.is_invalid());
     assert_eq!(projection.records().len(), 64);
 }
+
+#[test]
+fn authority_after_source_evidence_budget_still_fails_closed() {
+    let children = (0..MAX_SOURCE_NODES)
+        .map(|index| {
+            crate::runtime::SurfaceChild::new(
+                crate::layout::SlotParams::fill(),
+                node(10 + index as u64),
+            )
+        })
+        .chain(std::iter::once(crate::runtime::SurfaceChild::new(
+            crate::layout::SlotParams::fill(),
+            SurfaceNode::scene(
+                100_000,
+                node(100_001),
+                vec![
+                    SurfaceLayer::new(LayerKind::Modal, node(100_002))
+                        .focus_owner(OverlayFocusOwner::new(), OverlayFocusPolicy::Modal),
+                ],
+            ),
+        )))
+        .collect();
+    let surface = UiSurface::new(SurfaceNode::container(
+        1,
+        ContainerPolicy::default(),
+        children,
+    ));
+    assert!(OverlayFocusProjection::collect(&surface).is_invalid());
+}
+
+#[test]
+fn authority_below_duplicate_ordinary_container_still_fails_closed() {
+    let surface = UiSurface::new(SurfaceNode::scene(
+        1,
+        node(2),
+        vec![SurfaceLayer::new(
+            LayerKind::Floating,
+            SurfaceNode::scene(
+                2,
+                node(3),
+                vec![
+                    SurfaceLayer::new(LayerKind::Modal, node(4))
+                        .focus_owner(OverlayFocusOwner::new(), OverlayFocusPolicy::Modal),
+                ],
+            ),
+        )],
+    ));
+    assert!(OverlayFocusProjection::collect(&surface).is_invalid());
+}

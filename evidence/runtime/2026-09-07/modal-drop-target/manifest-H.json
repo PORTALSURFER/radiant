@@ -72,7 +72,7 @@
     {
       "path": "examples.log",
       "media_type": "text/plain",
-      "sha256": "f4176ec263c743c5613c8907adf47674c8d00097376783a09353364dbaf7e15b"
+      "sha256": "a1de3966dec40d70004c628dfa2fd3e28d343237997db47de3dac1522c1b8bb9"
     },
     {
       "path": "format.log",
@@ -87,7 +87,7 @@
     {
       "path": "tests.log",
       "media_type": "text/plain",
-      "sha256": "7ea99cc0e125d3ba8d12983e26592ff35d5b529c89cbedc5a12004359c9c6e0e"
+      "sha256": "dec449a75ff3a2ba7f994fccd256aa83bd63667240605e2ab259a4d5f5bbefc7"
     },
     {
       "path": "validation.json",

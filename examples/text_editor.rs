@@ -18,10 +18,7 @@ use radiant::{
         },
         types::{Point, Rect, Vector2},
     },
-    runtime::{
-        Event, RuntimeBridge, SurfaceRuntime, UiSurface,
-        testing::{DeterministicHost, DeterministicHostConfig},
-    },
+    runtime::{Event, RuntimeBridge, SurfaceRuntime, UiSurface},
     widgets::{
         CompositionRange, CompositionSample, TextEditorWidget, TextEditorWidgetParts, WidgetKey,
         WidgetSizing,
@@ -76,16 +73,14 @@ impl RuntimeBridge<Message> for EditorApp {
 struct FixtureResult {
     text: String,
     applied_edits: usize,
-    deterministic_turns: u64,
 }
 
 fn main() {
     let result = run_fixture();
     println!(
-        "{{\"text\":\"{}\",\"applied_edits\":{},\"deterministic_turns\":{}}}",
+        "{{\"text\":\"{}\",\"applied_edits\":{}}}",
         result.text.replace('\n', "\\n"),
         result.applied_edits,
-        result.deterministic_turns,
     );
 }
 
@@ -146,15 +141,9 @@ fn run_fixture() -> FixtureResult {
     dispatch(&mut runtime, Event::resize(Vector2::new(64.0, 28.0)));
     install_fixture_geometry(&mut runtime);
 
-    // DeterministicHost supplies the public, normalized headless observation boundary.
-    let mut host = DeterministicHost::new(EditorApp::new(), DeterministicHostConfig::new(VIEWPORT))
-        .expect("valid deterministic host");
-    host.turn().expect("deterministic initial turn");
-
     FixtureResult {
         text: runtime.bridge().document.text().to_owned(),
         applied_edits: runtime.bridge().applied_edits,
-        deterministic_turns: host.turn_count(),
     }
 }
 
@@ -227,7 +216,6 @@ mod tests {
             FixtureResult {
                 text: "loopkick!\ndrum".into(),
                 applied_edits: 12,
-                deterministic_turns: 1,
             }
         );
     }

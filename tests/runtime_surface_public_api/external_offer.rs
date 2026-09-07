@@ -1,6 +1,6 @@
 use radiant::runtime::{
     ExternalDropTarget, ExternalOfferAdmission, ExternalOfferData, ExternalOfferFormat,
-    ExternalOfferKind, MAX_EXTERNAL_OFFER_TEXT_BYTES, OwnedExternalOffer,
+    ExternalOfferKind, ExternalOfferProbe, MAX_EXTERNAL_OFFER_TEXT_BYTES, OwnedExternalOffer,
     declarative_owned_runtime_bridge,
 };
 use radiant::{
@@ -34,15 +34,21 @@ enum OfferMessage {
     Disable,
     Enable,
     ReplaceDecoder,
+    Narrow,
+    Cover,
 }
 
 type DeliveredOffers = Rc<RefCell<Vec<Rc<str>>>>;
+
+const OFFER_TARGET_WIDGET_ID: u64 = 901;
 
 struct OfferState {
     enabled: bool,
     wrong_owner: bool,
     target: ExternalDropTarget<OfferMessage>,
     delivered: DeliveredOffers,
+    target_width: f32,
+    covered: bool,
 }
 
 fn offer_host(
@@ -72,20 +78,36 @@ fn offer_host(
             wrong_owner,
             target,
             delivered: Rc::clone(&delivered),
+            target_width: 100.0,
+            covered: false,
         },
         |state| {
             let view = ui::button_message("offer target", OfferMessage::Disable)
-                .width(100.0)
+                .id(OFFER_TARGET_WIDGET_ID)
+                .width(state.target_width)
                 .height(100.0);
-            if state.enabled {
+            let view = if state.enabled {
                 let view = view.external_drop_target(state.target.clone());
                 if state.wrong_owner {
                     view.effect_owner(radiant::application::DeclarativeEffectOwner::new())
                         .key("offer-target")
-                        .into_surface()
                 } else {
-                    view.key("offer-target").into_surface()
+                    view.key("offer-target")
                 }
+            } else {
+                view
+            };
+            let view = ui::column([view]).align_cross(radiant::layout::CrossAlign::Start);
+            if state.covered {
+                radiant::application::scene(view)
+                    .layer(
+                        radiant::Layer::modal(
+                            ui::button_message("cover", OfferMessage::Cover).fill(),
+                        )
+                        .block_input(),
+                    )
+                    .into_view()
+                    .into_surface()
             } else {
                 view.into_surface()
             }
@@ -105,6 +127,8 @@ fn offer_host(
                     |value| OfferMessage::Decoded(Rc::from(value)),
                 );
             }
+            OfferMessage::Narrow => state.target_width = 5.0,
+            OfferMessage::Cover => state.covered = true,
         },
     );
     (
@@ -112,6 +136,108 @@ fn offer_host(
             .expect("deterministic host"),
         delivered,
     )
+}
+
+#[test]
+fn external_offer_probes_are_side_effect_free_and_ignore_worker_capacity() {
+    let decoded = Arc::new(AtomicUsize::new(0));
+    let (mut host, delivered) = offer_host(Arc::clone(&decoded), false);
+    let offer = text_offer("probe");
+    for _ in 0..3 {
+        assert_eq!(
+            host.runtime()
+                .probe_external_offer(Point::new(10.0, 10.0), offer.metadata()),
+            ExternalOfferProbe::Eligible
+        );
+    }
+    assert!(host.pending_worker_tasks().is_empty());
+    assert_eq!(decoded.load(Ordering::SeqCst), 0);
+    assert!(delivered.borrow().is_empty());
+
+    for _ in 0..64 {
+        assert_eq!(
+            host.dispatch_external_offer(Point::new(10.0, 10.0), text_offer("queued"))
+                .unwrap(),
+            ExternalOfferAdmission::Accepted
+        );
+    }
+    assert_eq!(host.pending_worker_tasks().len(), 64);
+    assert_eq!(
+        host.dispatch_external_offer(Point::new(10.0, 10.0), text_offer("full"))
+            .unwrap(),
+        ExternalOfferAdmission::Rejected,
+        "the worker lane is full"
+    );
+    let pending_before_probe = host.pending_worker_tasks().len();
+    assert_eq!(
+        host.runtime()
+            .probe_external_offer(Point::new(10.0, 10.0), offer.metadata()),
+        ExternalOfferProbe::Eligible,
+        "probing does not consult or reserve worker capacity"
+    );
+    assert_eq!(host.pending_worker_tasks().len(), pending_before_probe);
+    assert_eq!(decoded.load(Ordering::SeqCst), 0);
+    assert!(delivered.borrow().is_empty());
+}
+
+#[test]
+fn external_offer_drop_requalifies_owner_modal_and_geometry_after_probe() {
+    let cases = [
+        (
+            "owner removal",
+            OfferMessage::Disable,
+            ExternalOfferAdmission::NoTarget,
+        ),
+        (
+            "modal coverage",
+            OfferMessage::Cover,
+            ExternalOfferAdmission::NoTarget,
+        ),
+        (
+            "geometry change",
+            OfferMessage::Narrow,
+            ExternalOfferAdmission::NoTarget,
+        ),
+    ];
+    for (case, change, expected) in cases {
+        let (mut host, _) = offer_host(Arc::new(AtomicUsize::new(0)), false);
+        let initial_bounds = host.runtime().layout().rects[&OFFER_TARGET_WIDGET_ID];
+        let position = Point::new(initial_bounds.max.x - 1.0, 10.0);
+        assert!(
+            initial_bounds.contains(position),
+            "initial fixture must place the probe in the target: {initial_bounds:?} vs {position:?}"
+        );
+        let probe = text_offer("probe");
+        assert_eq!(
+            host.runtime()
+                .probe_external_offer(position, probe.metadata()),
+            ExternalOfferProbe::Eligible,
+            "initial probe should qualify before {case}"
+        );
+        let geometry_changed = matches!(&change, OfferMessage::Narrow);
+        host.dispatch_message(change)
+            .expect("refresh current target evidence");
+        if geometry_changed {
+            let narrowed_bounds = host.runtime().layout().rects[&OFFER_TARGET_WIDGET_ID];
+            assert!(
+                !narrowed_bounds.contains(position),
+                "narrow fixture must move the probed point outside: {narrowed_bounds:?} vs {position:?}"
+            );
+            assert_eq!(
+                host.runtime()
+                    .probe_external_offer(position, probe.metadata()),
+                ExternalOfferProbe::NoTarget,
+                "narrow fixture must requalify the current target geometry"
+            );
+        }
+        assert_eq!(
+            host.dispatch_external_offer(position, text_offer("drop"))
+                .unwrap(),
+            expected,
+            "{case}: drop reselects after the probe rather than reusing its authority"
+        );
+        assert!(host.pending_worker_tasks().is_empty());
+    }
 }
 
 #[test]

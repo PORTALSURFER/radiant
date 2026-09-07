@@ -7,7 +7,7 @@
 
 use radiant::{
     application::{IntoView, TextEditorDocument, TextEditorEdit, text_editor},
-    runtime::{Event, RuntimeBridge, SurfaceRuntime, UiSurface},
+    runtime::{RuntimeBridge, SurfaceRuntime, UiSurface},
     widgets::interaction::{EditPhase, TextEditGroupEvent, TextEditKind},
     widgets::{CompositionRange, CompositionSample, TextEditCommand, WidgetInput},
 };
@@ -152,7 +152,9 @@ fn run_fixture() -> (String, usize, usize) {
         ),
         Some(EDITOR_ID)
     );
-    let preedit = CompositionRange::new(4, 5, 5).expect("composition selection");
+    // Update ranges are relative to the transient preedit text, not the
+    // committed document offset where composition began.
+    let preedit = CompositionRange::new(0, 1, 1).expect("composition selection");
     assert_eq!(
         runtime.dispatch_composition_sample(
             CompositionSample::update("x", preedit).expect("composition update"),
@@ -177,7 +179,7 @@ fn run_fixture() -> (String, usize, usize) {
             .dispatch_composition_sample(
                 CompositionSample::update(
                     "ignored",
-                    CompositionRange::new(5, 12, 12).expect("cancel update")
+                    CompositionRange::new(0, 7, 7).expect("cancel update")
                 )
                 .expect("cancel preedit"),
             )
@@ -217,6 +219,6 @@ mod tests {
 
     #[test]
     fn typing_groups_and_clipboard_is_atomic_with_application_owned_redo() {
-        assert_eq!(run_fixture(), ("abc!".into(), 2, 0));
+        assert_eq!(run_fixture(), ("abc!x".into(), 3, 0));
     }
 }

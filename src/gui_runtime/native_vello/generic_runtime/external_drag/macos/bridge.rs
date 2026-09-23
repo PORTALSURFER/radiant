@@ -134,15 +134,17 @@ unsafe fn synthetic_left_drag_event(window: Id) -> Result<Id, String> {
             selector(
                 c"mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:",
             ),
-            NS_LEFT_MOUSE_DRAGGED,
-            point,
-            0,
-            0.0,
-            window_number,
-            std::ptr::null_mut(),
-            0,
-            1,
-            1.0,
+            MouseEventArguments {
+                event_type: NS_LEFT_MOUSE_DRAGGED,
+                location: point,
+                modifier_flags: 0,
+                timestamp: 0.0,
+                window_number,
+                context: std::ptr::null_mut(),
+                event_number: 0,
+                click_count: 1,
+                pressure: 1.0,
+            },
         )
     };
     if event.is_null() {
@@ -269,13 +271,7 @@ pub(super) unsafe fn msg_id_usize(receiver: Id, selector: Sel, arg: usize) -> Id
     unsafe { msg(receiver, selector, arg) }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "The fixed-shape Objective-C message-send shim preserves the NSEvent ABI signature."
-)]
-unsafe fn msg_id_usize_point_usize_f64_isize_id_isize_isize_f64(
-    receiver: Id,
-    selector: Sel,
+struct MouseEventArguments {
     event_type: usize,
     location: NSPoint,
     modifier_flags: usize,
@@ -285,6 +281,12 @@ unsafe fn msg_id_usize_point_usize_f64_isize_id_isize_isize_f64(
     event_number: isize,
     click_count: isize,
     pressure: f64,
+}
+
+unsafe fn msg_id_usize_point_usize_f64_isize_id_isize_isize_f64(
+    receiver: Id,
+    selector: Sel,
+    args: MouseEventArguments,
 ) -> Id {
     let msg: unsafe extern "C" fn(
         Id,
@@ -303,15 +305,15 @@ unsafe fn msg_id_usize_point_usize_f64_isize_id_isize_isize_f64(
         msg(
             receiver,
             selector,
-            event_type,
-            location,
-            modifier_flags,
-            timestamp,
-            window_number,
-            context,
-            event_number,
-            click_count,
-            pressure,
+            args.event_type,
+            args.location,
+            args.modifier_flags,
+            args.timestamp,
+            args.window_number,
+            args.context,
+            args.event_number,
+            args.click_count,
+            args.pressure,
         )
     }
 }

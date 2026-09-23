@@ -1,0 +1,137 @@
+[
+  {
+    "name": "clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "seconds": 24.22,
+    "log": "clippy.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "format",
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 2.92,
+    "log": "format.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.01,
+    "log": "diff.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "tests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--lib",
+      "--tests"
+    ],
+    "exit_code": 0,
+    "seconds": 337.44,
+    "log": "tests.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "examples",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--examples"
+    ],
+    "exit_code": 0,
+    "seconds": 58.25,
+    "log": "examples.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "docs",
+    "command": [
+      "cargo",
+      "doc",
+      "--locked",
+      "--no-deps"
+    ],
+    "exit_code": 0,
+    "seconds": 12.81,
+    "log": "docs.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "doctests",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--doc"
+    ],
+    "exit_code": 0,
+    "seconds": 5.69,
+    "log": "doctests.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "no-default",
+    "command": [
+      "cargo",
+      "check",
+      "--locked",
+      "--no-default-features",
+      "--lib"
+    ],
+    "exit_code": 0,
+    "seconds": 8.95,
+    "log": "no-default.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  },
+  {
+    "name": "windows-cross-check",
+    "command": [
+      "cargo",
+      "check",
+      "--locked",
+      "--target",
+      "x86_64-pc-windows-msvc",
+      "--all-targets",
+      "--all-features"
+    ],
+    "exit_code": 0,
+    "seconds": 18.08,
+    "log": "windows-cross-check.log",
+    "source_commit": "3dbe1004821c4bba3fad7443fdf776c9372f6ad7",
+    "worktree": "/Users/portalsurfer/.codex/worktrees/opt-1363-external-mime-drag-radiant"
+  }
+]

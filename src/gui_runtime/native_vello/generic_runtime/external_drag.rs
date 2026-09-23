@@ -67,7 +67,9 @@ where
         let preview_cleared = self.core.runtime.take_drag_preview_for_external_drag();
         let item_count = match &launch.request.payload {
             ExternalDragPayload::Files(paths) => paths.len(),
-            ExternalDragPayload::Text(_) | ExternalDragPayload::Url(_) => 1,
+            ExternalDragPayload::Text(_)
+            | ExternalDragPayload::Url(_)
+            | ExternalDragPayload::Mime { .. } => 1,
         };
         info!(
             item_count,

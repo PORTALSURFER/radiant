@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 
 use super::bridge::{
     Id, NSPoint, NSRect, NSSize, YES, class, msg_bool_id_id, msg_id, msg_id_id, msg_id_usize,
-    msg_void_id, msg_void_rect_id, ns_string, selector,
+    msg_void_id, msg_void_rect_id, ns_data, ns_string, preferred_identifier_for_mime_type,
+    selector,
 };
 
 const DRAG_ICON_SIZE: f64 = 48.0;
@@ -76,6 +77,40 @@ pub(super) unsafe fn url_dragging_items(url: &str) -> Result<Id, String> {
     }
     let item = unsafe { dragging_item(url)? };
     let contents = unsafe { file_type_icon_for_type("public.url")? };
+    unsafe {
+        msg_void_rect_id(
+            item,
+            selector(c"setDraggingFrame:contents:"),
+            dragging_frame(),
+            contents,
+        );
+        msg_void_id(items, selector(c"addObject:"), item);
+    }
+    Ok(items)
+}
+
+/// Builds one MIME-qualified pasteboard item with an exact `NSData` byte copy.
+pub(super) unsafe fn mime_dragging_items(name: &str, bytes: &[u8]) -> Result<Id, String> {
+    let items = unsafe { mutable_array(1)? };
+    let tag = unsafe { ns_string(name)? };
+    let type_identifier = unsafe { preferred_identifier_for_mime_type(tag)? };
+    let data = unsafe { ns_data(bytes)? };
+    let pasteboard_item = unsafe { new_pasteboard_item()? };
+    if unsafe {
+        msg_bool_id_id(
+            pasteboard_item,
+            selector(c"setData:forType:"),
+            data,
+            type_identifier.as_id(),
+        )
+    } != YES
+    {
+        return Err(String::from(
+            "NSPasteboardItem failed to set external drag MIME data",
+        ));
+    }
+    let item = unsafe { dragging_item(pasteboard_item)? };
+    let contents = unsafe { file_type_icon_for_type("public.data")? };
     unsafe {
         msg_void_rect_id(
             item,

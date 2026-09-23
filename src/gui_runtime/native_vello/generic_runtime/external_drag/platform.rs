@@ -8,6 +8,10 @@ mod text_encoding;
 #[path = "url_encoding.rs"]
 mod url_encoding;
 
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+#[path = "mime_format.rs"]
+mod mime_format;
+
 use super::ExternalDragLaunchDisposition;
 use crate::gui_runtime::native_vello::RuntimeUserEvent;
 use crate::runtime::{ExternalDragIdentity, ExternalDragRequest};
@@ -159,5 +163,15 @@ mod validation_tests {
         )
         .expect_err("invalid URL must fail before native context access");
         assert!(error.contains("External drag URL"));
+    }
+
+    #[test]
+    fn invalid_mime_is_rejected_before_any_native_launch() {
+        let error = start_external_drag(
+            &ExternalDragRequest::mime("not a MIME type", [], "invalid"),
+            ExternalDragLaunchContext::new(None, None, ExternalDragIdentity { id: 1, epoch: 1 }),
+        )
+        .expect_err("invalid MIME must fail before native context access");
+        assert!(error.contains("External drag MIME"));
     }
 }

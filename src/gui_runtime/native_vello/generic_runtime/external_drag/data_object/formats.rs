@@ -3,7 +3,7 @@ use windows::Win32::System::Ole::CF_HDROP;
 
 pub(super) fn data_object_format_matches(
     fmt: &FORMATETC,
-    payload_format: u16,
+    payload_format: &FORMATETC,
     preferred_drop_effect: u16,
     performed_drop_effect: u16,
 ) -> bool {
@@ -12,11 +12,11 @@ pub(super) fn data_object_format_matches(
             || is_drop_effect_format(fmt, performed_drop_effect))
 }
 
-fn is_payload_format(fmt: &FORMATETC, payload_format: u16) -> bool {
-    fmt.cfFormat == payload_format
+fn is_payload_format(fmt: &FORMATETC, payload_format: &FORMATETC) -> bool {
+    fmt.cfFormat == payload_format.cfFormat
         && fmt.dwAspect == DVASPECT_CONTENT.0
-        && uses_hglobal_storage(fmt)
-        && (fmt.lindex == -1 || (payload_format == CF_HDROP.0 && fmt.lindex == 0))
+        && (fmt.tymed & payload_format.tymed) != 0
+        && (fmt.lindex == -1 || (payload_format.cfFormat == CF_HDROP.0 && fmt.lindex == 0))
 }
 
 fn is_drop_effect_format(fmt: &FORMATETC, drop_effect_format: u16) -> bool {

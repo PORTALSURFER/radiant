@@ -3760,10 +3760,12 @@ known to exist and should be started together. Explicit runtime bridges can use
 the corresponding `Command` constructors, but normal application handlers should
 stay on the typed `UiUpdateContext` surface.
 External drags use `ExternalDragRequest::files(...)` for filesystem paths,
-`ExternalDragRequest::text(...)` for plain text, or
-`ExternalDragRequest::url(...)` for one deliberately exported URL from
-`radiant::runtime`. The generic native Vello backend offers files, text, and
-single URLs through Windows OLE and macOS AppKit; unsupported targets deliver
+`ExternalDragRequest::text(...)` for plain text,
+`ExternalDragRequest::url(...)` for one deliberately exported URL, or
+`ExternalDragRequest::mime(...)` for bytes deliberately exported under one MIME
+name from `radiant::runtime`. The generic native Vello backend offers files,
+text, single URLs, and MIME bytes through Windows OLE and macOS AppKit;
+unsupported targets deliver
 an explicit unsupported error through the same completion callback. A URL is
 bounded to `MAX_EXTERNAL_OFFER_ITEM_BYTES`, must have an absolute URI scheme
 and nonempty remainder, and cannot contain whitespace, control characters, or
@@ -3774,7 +3776,17 @@ native drag launches, including for a request constructed directly with
 `ExternalDragPayload::Url`. Text is bounded to
 `MAX_EXTERNAL_OFFER_TEXT_BYTES`, may be empty, and cannot contain an embedded
 NUL byte; validation happens when the native drag launches, including for a
-request constructed directly with `ExternalDragPayload::Text`. The completion
+request constructed directly with `ExternalDragPayload::Text`. MIME bytes are
+bounded to `MAX_EXTERNAL_OFFER_MIME_BYTES`; their MIME `type/subtype` name is
+syntactically validated and normalized to lowercase only for native format
+registration, while the caller-owned bytes remain exact, including an empty
+payload. On Windows, MIME consumers must accept `TYMED_ISTREAM`; each
+request receives a fresh stream with the exact logical byte length. HGLOBAL
+allocation rounding is not exposed as trailing payload bytes. On macOS, the
+MIME tag is mapped to a UTI and its exact bytes are copied into NSData.
+MIME export is explicit authorization to offer opaque bytes. It does
+not parse or semantically validate the content, nor guarantee a receiver
+supports the representation. The completion
 mapper is UI-owned and one-shot. On Windows the native drag call supplies its
 terminal effect before Radiant defers the mapper to the next controller drain.
 On macOS the native launch only admits an `NSDraggingSession`; AppKit later

@@ -5,8 +5,10 @@ use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use windows::Win32::Foundation::{GlobalFree, HGLOBAL};
+use windows::Win32::System::Com::StructuredStorage::CreateStreamOnHGlobal;
 use windows::Win32::System::Com::{
-    DVASPECT_CONTENT, FORMATETC, STGMEDIUM, STGMEDIUM_0, TYMED_HGLOBAL,
+    DVASPECT_CONTENT, FORMATETC, STGMEDIUM, STGMEDIUM_0, STREAM_SEEK_SET, TYMED_HGLOBAL,
+    TYMED_ISTREAM,
 };
 use windows::Win32::System::DataExchange::RegisterClipboardFormatW;
 use windows::Win32::System::Memory::{
@@ -16,6 +18,7 @@ use windows::Win32::System::Ole::{
     CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_MOVE,
 };
 use windows::Win32::UI::Shell::CFSTR_INETURLW;
+use windows::core::PCWSTR;
 use windows::core::w;
 
 #[path = "payload/dropfiles.rs"]
@@ -56,6 +59,26 @@ pub(super) fn build_url_format() -> Result<FORMATETC, String> {
         dwAspect: DVASPECT_CONTENT.0,
         lindex: -1,
         tymed: TYMED_HGLOBAL.0 as u32,
+    })
+}
+
+pub(super) fn build_mime_format(name: &str) -> Result<FORMATETC, String> {
+    let name = name
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let format = unsafe { RegisterClipboardFormatW(PCWSTR(name.as_ptr())) };
+    if format == 0 {
+        return Err(String::from(
+            "RegisterClipboardFormatW failed for external drag MIME type",
+        ));
+    }
+    Ok(FORMATETC {
+        cfFormat: format as u16,
+        ptd: std::ptr::null_mut(),
+        dwAspect: DVASPECT_CONTENT.0,
+        lindex: -1,
+        tymed: TYMED_ISTREAM.0 as u32,
     })
 }
 
@@ -151,6 +174,44 @@ pub(super) fn create_hglobal_for_url(url: &str) -> Result<HGLOBAL, std::io::Erro
     Ok(handle)
 }
 
+/// Return a fresh MIME stream with an exact logical length and an initial cursor at zero.
+/// The stream owns its backing allocation; ReleaseStgMedium releases both.
+pub(super) fn mime_stream_medium(bytes: &[u8]) -> windows::core::Result<STGMEDIUM> {
+    let stream = unsafe { CreateStreamOnHGlobal(HGLOBAL::default(), true)? };
+    let length = u32::try_from(bytes.len()).map_err(|_| {
+        windows::core::Error::new(
+            windows::Win32::Foundation::E_INVALIDARG,
+            "MIME payload is too large",
+        )
+    })?;
+    if length != 0 {
+        let mut written = 0;
+        unsafe {
+            stream
+                .Write(bytes.as_ptr().cast(), length, Some(&raw mut written))
+                .ok()?
+        };
+        if written != length {
+            return Err(windows::core::Error::new(
+                windows::Win32::Foundation::E_FAIL,
+                "Incomplete MIME stream write",
+            ));
+        }
+    }
+    // GlobalAlloc can round its backing allocation up; logical stream size is explicit.
+    unsafe {
+        stream.SetSize(u64::from(length))?;
+        stream.Seek(0, STREAM_SEEK_SET, None)?;
+    }
+    Ok(STGMEDIUM {
+        tymed: TYMED_ISTREAM.0 as u32,
+        u: STGMEDIUM_0 {
+            pstm: ManuallyDrop::new(Some(stream)),
+        },
+        pUnkForRelease: ManuallyDrop::new(None),
+    })
+}
+
 pub(super) fn external_drag_effect(effect: DROPEFFECT) -> ExternalDragEffect {
     if effect.0 & DROPEFFECT_MOVE.0 != 0 {
         ExternalDragEffect::Move
@@ -201,5 +262,14 @@ mod tests {
         assert_eq!(format.lindex, -1);
         assert_eq!(format.dwAspect, DVASPECT_CONTENT.0);
         assert_eq!(format.tymed, TYMED_HGLOBAL.0 as u32);
+    }
+
+    #[test]
+    fn mime_format_uses_one_custom_stream_slot() {
+        let format = build_mime_format("application/x-radiant").expect("MIME format");
+
+        assert_eq!(format.lindex, -1);
+        assert_eq!(format.dwAspect, DVASPECT_CONTENT.0);
+        assert_eq!(format.tymed, TYMED_ISTREAM.0 as u32);
     }
 }

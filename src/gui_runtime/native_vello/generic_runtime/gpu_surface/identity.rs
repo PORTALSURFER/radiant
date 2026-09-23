@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub(super) enum RenderCanvasContentOwner {
     RgbaAtlas(Arc<ImageRgba>),
     SignalBands(Arc<[f32]>),
+    PreparedSignal(super::super::signal_summary_prepare::PreparedSummary),
     SignalSummaryBands(Arc<GpuSignalSummary>),
     CustomShader(Arc<GpuShaderSurfaceDescriptor>),
 }
@@ -19,6 +20,9 @@ impl Drop for RenderCanvasContentOwner {
     fn drop(&mut self) {
         match self {
             Self::RgbaAtlas(source) => {
+                let _ = source;
+            }
+            Self::PreparedSignal(source) => {
                 let _ = source;
             }
             Self::SignalBands(source) => {

@@ -35,32 +35,33 @@ pub struct GpuSignalSummaryBucket {
 impl GpuSignalSummary {
     /// Build a retained min/max pyramid from interleaved frame-major band samples.
     pub fn from_interleaved_samples(samples: &[f32], frames: usize, band_count: usize) -> Self {
-        let frames = frames.min(samples.len() / band_count.max(1));
-        let band_count = band_count.max(1);
-        let mut levels = Vec::with_capacity(signal_summary_level_count(frames));
-        let mut bucket_frames = 1usize;
-        let mut previous_buckets: Option<Arc<[GpuSignalSummaryBucket]>> = None;
-        while bucket_frames <= frames.max(1) {
-            let buckets = match previous_buckets.as_deref() {
-                Some(previous) => {
-                    merge_signal_summary_level(previous, frames, band_count, bucket_frames)
-                }
-                None => build_signal_summary_base_level(samples, frames, band_count),
-            };
-            levels.push(GpuSignalSummaryLevel {
-                bucket_frames,
-                buckets: Arc::clone(&buckets),
-            });
-            previous_buckets = Some(buckets);
-            if bucket_frames >= frames.max(1) {
-                break;
-            }
-            bucket_frames = bucket_frames.saturating_mul(2).max(bucket_frames + 1);
-        }
+        let construction = build_signal_summary(samples, frames, band_count, || false);
         Self {
-            frames,
-            band_count,
-            levels,
+            frames: construction.frames,
+            band_count: construction.band_count,
+            levels: construction.levels,
+        }
+    }
+
+    /// Build a retained min/max pyramid unless the native worker has been cancelled.
+    pub(crate) fn from_interleaved_samples_cancellable<F>(
+        samples: &[f32],
+        frames: usize,
+        band_count: usize,
+        is_cancelled: F,
+    ) -> Option<Self>
+    where
+        F: FnMut() -> bool,
+    {
+        let construction = build_signal_summary(samples, frames, band_count, is_cancelled);
+        if construction.cancelled {
+            None
+        } else {
+            Some(Self {
+                frames: construction.frames,
+                band_count: construction.band_count,
+                levels: construction.levels,
+            })
         }
     }
 
@@ -88,6 +89,73 @@ impl GpuSignalSummary {
     }
 }
 
+struct SignalSummaryConstruction {
+    frames: usize,
+    band_count: usize,
+    levels: Vec<GpuSignalSummaryLevel>,
+    cancelled: bool,
+}
+
+const SIGNAL_SUMMARY_CANCELLATION_CHUNK_BUCKETS: usize = 1024;
+
+fn build_signal_summary<F>(
+    samples: &[f32],
+    frames: usize,
+    band_count: usize,
+    mut is_cancelled: F,
+) -> SignalSummaryConstruction
+where
+    F: FnMut() -> bool,
+{
+    let frames = frames.min(samples.len() / band_count.max(1));
+    let band_count = band_count.max(1);
+    if is_cancelled() {
+        return SignalSummaryConstruction {
+            frames,
+            band_count,
+            levels: Vec::new(),
+            cancelled: true,
+        };
+    }
+    let mut levels = Vec::with_capacity(signal_summary_level_count(frames));
+    let mut bucket_frames = 1usize;
+    let mut previous_buckets: Option<Arc<[GpuSignalSummaryBucket]>> = None;
+    while bucket_frames <= frames.max(1) {
+        let Some(buckets) = (match previous_buckets.as_deref() {
+            Some(previous) => merge_signal_summary_level(
+                previous,
+                frames,
+                band_count,
+                bucket_frames,
+                &mut is_cancelled,
+            ),
+            None => build_signal_summary_base_level(samples, frames, band_count, &mut is_cancelled),
+        }) else {
+            return SignalSummaryConstruction {
+                frames,
+                band_count,
+                levels,
+                cancelled: true,
+            };
+        };
+        levels.push(GpuSignalSummaryLevel {
+            bucket_frames,
+            buckets: Arc::clone(&buckets),
+        });
+        previous_buckets = Some(buckets);
+        if bucket_frames >= frames.max(1) {
+            break;
+        }
+        bucket_frames = bucket_frames.saturating_mul(2).max(bucket_frames + 1);
+    }
+    SignalSummaryConstruction {
+        frames,
+        band_count,
+        levels,
+        cancelled: is_cancelled(),
+    }
+}
+
 fn signal_summary_level_count(frames: usize) -> usize {
     let frames = frames.max(1);
     usize::BITS as usize - frames.leading_zeros() as usize
@@ -97,13 +165,24 @@ fn build_signal_summary_base_level(
     samples: &[f32],
     frames: usize,
     band_count: usize,
-) -> Arc<[GpuSignalSummaryBucket]> {
+    is_cancelled: &mut impl FnMut() -> bool,
+) -> Option<Arc<[GpuSignalSummaryBucket]>> {
+    if is_cancelled() {
+        return None;
+    }
     if frames == 0 {
-        return vec![GpuSignalSummaryBucket::default(); band_count].into();
+        let buckets = vec![GpuSignalSummaryBucket::default(); band_count];
+        if is_cancelled() {
+            return None;
+        }
+        return Some(buckets.into());
     }
     let sample_count = frames.saturating_mul(band_count);
     let mut buckets = Vec::with_capacity(sample_count);
-    for value in samples.iter().copied().take(sample_count) {
+    for (index, value) in samples.iter().copied().take(sample_count).enumerate() {
+        if index % SIGNAL_SUMMARY_CANCELLATION_CHUNK_BUCKETS == 0 && is_cancelled() {
+            return None;
+        }
         if value.is_finite() {
             buckets.push(GpuSignalSummaryBucket {
                 min: value,
@@ -113,7 +192,10 @@ fn build_signal_summary_base_level(
             buckets.push(GpuSignalSummaryBucket::default());
         }
     }
-    buckets.into()
+    if is_cancelled() {
+        return None;
+    }
+    Some(buckets.into())
 }
 
 fn merge_signal_summary_level(
@@ -121,7 +203,11 @@ fn merge_signal_summary_level(
     frames: usize,
     band_count: usize,
     bucket_frames: usize,
-) -> Arc<[GpuSignalSummaryBucket]> {
+    is_cancelled: &mut impl FnMut() -> bool,
+) -> Option<Arc<[GpuSignalSummaryBucket]>> {
+    if is_cancelled() {
+        return None;
+    }
     let bucket_count = frames.div_ceil(bucket_frames.max(1)).max(1);
     let previous_bucket_count = previous.len() / band_count.max(1);
     let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
@@ -131,6 +217,9 @@ fn merge_signal_summary_level(
         let first_offset = first.saturating_mul(band_count);
         let second_offset = first_offset.saturating_add(band_count);
         for band in 0..band_count {
+            if buckets.len() % SIGNAL_SUMMARY_CANCELLATION_CHUNK_BUCKETS == 0 && is_cancelled() {
+                return None;
+            }
             let mut summary = previous
                 .get(first_offset + band)
                 .copied()
@@ -144,7 +233,10 @@ fn merge_signal_summary_level(
             buckets.push(summary);
         }
     }
-    buckets.into()
+    if is_cancelled() {
+        return None;
+    }
+    Some(buckets.into())
 }
 
 #[cfg(test)]

@@ -32,10 +32,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Ca
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frames: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) band_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) summary:
-        Arc<GpuSignalSummary>,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) _source_samples:
-        Arc<[f32]>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) prepared:
+        crate::gui_runtime::native_vello::generic_runtime::signal_summary_prepare::PreparedSummary,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CachedSignalSummaryValidation

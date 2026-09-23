@@ -94,6 +94,8 @@ pub(in crate::gui_runtime::native_vello) enum NativeNumericAccessibilityAction {
 #[derive(Clone, Debug)]
 pub(in crate::gui_runtime::native_vello) enum RuntimeUserEvent {
     RepaintRequested,
+    /// Coalesced parent-owned pump for CPU signal-summary preparation.
+    SignalSummaryWorkReady,
     OpenFiles(Vec<PathBuf>),
     ApplicationReopenRequested,
     DeviceLost {
@@ -161,6 +163,7 @@ impl PartialEq for RuntimeUserEvent {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::RepaintRequested, Self::RepaintRequested)
+            | (Self::SignalSummaryWorkReady, Self::SignalSummaryWorkReady)
             | (Self::ApplicationReopenRequested, Self::ApplicationReopenRequested) => true,
             (Self::OpenFiles(left), Self::OpenFiles(right)) => left == right,
             (
